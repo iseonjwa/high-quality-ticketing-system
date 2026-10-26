@@ -1,6 +1,6 @@
 # high-quality-ticketing-system
 
-콘서트 티켓팅 MSA 부트캠프 최종 프로젝트(5조 이선좌). 티켓 오픈 순간의 폭주 트래픽을 견디는 예매 서버를 만든다. 대기열, 좌석 선점, 예매↔결제 SAGA, 추첨 자동결제 예매가 범위다. 설계 정본은 Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53)다.
+콘서트 티켓팅 MSA 부트캠프 최종 프로젝트(5조 이선좌). 티켓 오픈 순간의 폭주 트래픽을 견디는 예매 서버를 만든다. 대기열, 좌석 선점, 예매↔결제 SAGA, 추첨 자동결제 예매가 범위다. 설계 정본은 Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)다.
 
 ## 처음 시작하기
 
