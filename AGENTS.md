@@ -11,7 +11,7 @@
 ## 대전제
 1. **완성과 학습을 함께 추구한다.** 사용자는 백엔드 취업을 준비 중이다. "무엇을"과 함께 "왜"를 남긴다.
 2. **질문은 기록한다.** 사용자가 지식이나 방법을 물으면 답한 뒤 `docs/learning/<이름>/qna/`에 날짜와 함께 저장한다(`<이름>`은 팀원 영문 이름, 예: junhyun).
-3. **AI 판단은 모두 기록한다.** 사용자가 AI(Claude Code, codex, ChatGPT 등)의 응답·제안·리뷰·코드를 받고 수용, 부분 수용, 거부, 보류, 선택지 고르기 같은 판단을 내리면 그 순간을 `docs/ai-judgments/`에 남긴다. 발제 필수 "AI 설계 검증 로그"(3건 이상, 거부 1건 이상)와 발표 대표 사례(2건 이상)의 원천이다. 절차는 `ai-judgment` 스킬이다.
+3. **AI 판단은 모두 기록한다.** 사용자가 AI(Claude Code, codex, ChatGPT 등)의 응답·제안·리뷰·코드를 받고 수용, 부분 수용, 거부, 보류, 선택지 고르기 같은 판단을 내리면 그 순간을 `docs/ai-judgments/<이름>/`에 남긴다. 팀이 함께 알아야 할 판단은 `shared: 예`로 표시해 `docs/ai-judgments/README.md`에 모은다. 발제 필수 "AI 설계 검증 로그"(3건 이상, 거부 1건 이상)와 발표 대표 사례(2건 이상)의 원천이다. 절차는 `ai-judgment` 스킬이다.
 4. **결정은 이유와 함께 남긴다.** 버전, 구조, 라이브러리, 서비스 경계처럼 되돌리기 어려운 선택은 `docs/decisions/`에 기록한다.
 5. **품질은 작업량과 무관하게 유지한다.** 검증 근거 없이 완료라고 말하지 않는다.
 6. **구현 주체는 작업마다 다르다.** 기본은 에이전트가 구현하고, 사용자가 "내가 할게"라고 하면 단계 안내와 리뷰만 한다.
@@ -24,13 +24,14 @@
 | 문서를 어디에 둘지 모를 때 | `docs/README.md` (문서 지도) |
 | 사용자 질문에 답할 때, 개념을 설명할 때 | `docs/agents/learning-guide.md` |
 | 사용자가 AI 응답·제안에 판단을 내렸을 때 | `.agents/skills/ai-judgment/SKILL.md`, `docs/ai-judgments/README.md` |
+| PR을 만들 때 | `.github/pull_request_template.md` (STAR, AI 기록 링크 칸) |
 | 결정을 기록할 때 | `docs/decisions/README.md` |
 | 설계 검토 결과를 볼 때 | `docs/sa-review/` |
 
 ## 공용 스킬 (`.agents/skills/`)
 | 스킬 | 언제 | 기록 위치 |
 |---|---|---|
-| `ai-judgment` | 사용자가 AI의 응답·제안·리뷰를 수용·거부·보류·선택했을 때 | `docs/ai-judgments/` |
+| `ai-judgment` | 사용자가 AI의 응답·제안·리뷰를 수용·거부·보류·선택했을 때 | `docs/ai-judgments/<이름>/` |
 | `learning-note` | 개념·방법 질문에 답했을 때. 하루 정리는 사용자가 원할 때만 | `docs/learning/<이름>/` |
 | `adr` | 되돌리기 어려운 결정을 했을 때 | `docs/decisions/` |
 | `troubleshooting` | 막혔던 문제를 해결했을 때 | `docs/troubleshooting.md` |

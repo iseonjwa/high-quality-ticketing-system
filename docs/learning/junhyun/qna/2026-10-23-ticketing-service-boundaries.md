@@ -44,7 +44,7 @@ tags: [msa, service-boundary, transaction, waiting-queue]
 - 발제문이 "서비스는 2~3개로 시작하세요"라고 경고한 비용이 바로 이 부분이다.
 
 ## 이 프로젝트에서는
-- 팀은 5개로 결정하고 SA MASTER를 갱신했다. 판단 과정은 [AI 판단 기록](../../../ai-judgments/2026-10-23-service-boundary-five-services.md)에 있다.
+- 팀은 5개로 결정하고 SA MASTER를 갱신했다. 판단 과정은 [AI 판단 기록](../../../ai-judgments/junhyun/2026-10-23-service-boundary-five-services.md)에 있다.
 - 같은 날 교차 검토([sa-review/01](../../../sa-review/01-sa-1st-review.md))에서 두 가지가 다시 지적됐다.
   - Queue 격리 주장은 절반만 맞다. Redis를 Reservation·Gateway와 공유하고, Queue가 죽으면 입장 토큰이 나오지 않아 예매도 멈춘다. 성립하는 근거는 "독립 확장 + 입장 관문"이다.
   - Lottery 분리 근거는 SA의 진행 순서("응모 마감 → 추첨·자동결제 → 일반 예매 오픈")와 맞지 않는다. 추첨 처리와 실시간 선점이 시간적으로 겹치지 않아 격리할 대상이 없다.

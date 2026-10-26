@@ -7,6 +7,7 @@ ai: Claude Code
 verdict: 부분 수용
 area: 협업
 presentation: 아님
+shared: 예
 ---
 
 # 학습 기록 시스템을 원격에 올리는 방식: AI의 PR 경유 제안 대신 main 직접 push

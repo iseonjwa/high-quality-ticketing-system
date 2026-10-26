@@ -6,7 +6,7 @@
 
 | 무엇을 | 어디에 | 작성 방법 |
 |---|---|---|
-| AI 응답·제안에 대한 판단(수용·거부·보류·선택) | [`ai-judgments/`](ai-judgments/README.md) | `ai-judgment` 스킬 |
+| AI 응답·제안에 대한 판단(수용·거부·보류·선택). 사람별 폴더, 공통 판단은 중앙 표 | [`ai-judgments/`](ai-judgments/README.md) | `ai-judgment` 스킬 |
 | 개인 질문 노트, 하루 정리 | [`learning/<이름>/`](learning/README.md) | `learning-note` 스킬 |
 | 되돌리기 어려운 결정 | [`decisions/`](decisions/README.md) | `adr` 스킬 |
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |

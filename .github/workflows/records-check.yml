@@ -1,0 +1,18 @@
+# PR과 main push마다 학습·AI 판단 기록의 구조(색인, 필수 머리말, 공통 판단 표)와 비밀값 흔적을 검사한다.
+name: records-check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  records-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 기록 구조 검사
+        run: script/records-check.sh

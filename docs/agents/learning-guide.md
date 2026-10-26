@@ -16,7 +16,7 @@
 **절차**: `learning-note` 스킬(`.agents/skills/learning-note/SKILL.md`)을 따른다. 노트는 `docs/learning/<이름>/qna/YYYY-MM-DD-<slug>.md`에 쓰고, 채팅 마지막에 `기록: <경로>`를 남긴다.
 
 ## 3. AI 판단 기록
-- 사용자가 AI 응답·제안을 받고 수용, 부분 수용, 거부, 보류, 선택을 하면 `ai-judgment` 스킬로 `docs/ai-judgments/`에 남긴다.
+- 사용자가 AI 응답·제안을 받고 수용, 부분 수용, 거부, 보류, 선택을 하면 `ai-judgment` 스킬로 `docs/ai-judgments/<이름>/`에 남긴다.
 - 질문에 답한 직후 사용자가 그 답을 받아들이거나 반박하면, 질문 노트와 판단 기록을 둘 다 남긴다.
 - 판단 근거를 사용자가 말하지 않았으면 지어내지 않고 한 줄로 묻는다. 판단 근거를 스스로 말해 보는 것이 면접 준비다.
 
