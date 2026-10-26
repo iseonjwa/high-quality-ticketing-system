@@ -11,14 +11,14 @@
 | 되돌리기 어려운 결정 | [`decisions/`](decisions/README.md) | `adr` 스킬 |
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
-| 설계 검토 결과 | [`sa-review/`](#sa-검토-2026-10-23) | 아래 목록 |
+| 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
 | 완료 기준, 작업 흐름, 디버깅 | [`agents/quality-gates.md`](agents/quality-gates.md) | |
 
 스킬 정본은 [`.agents/skills/`](../.agents/skills/README.md)에 있다.
 
-## SA 검토 (2026-10-23)
+## SA 검토
 
 | 문서 | 내용 |
 | --- | --- |
@@ -32,7 +32,7 @@
 
 ## 외부 원본
 
-- Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb) — 설계 정본 (10/26 SA v2·SA MASTER·[5조] SA 문서·피드백 모음·개선안을 통합, 충돌은 최신 우선, 합의 전 내용은 `🆕 제안` 표시)
+- Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb) — 설계 정본 (10/26 SA v2·SA MASTER·[5조] SA 문서·피드백 모음·개선안을 통합, 충돌은 최신 우선). 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)는 v3.1로, 10/26 결정 기록 수정을 반영해 `🆕 제안` 표시를 없애고 결정 기록 번호를 붙였다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
 - Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53) — 10/26 이전 정본, 근거 보관용
 - Notion [1차 SA 피드백](https://app.notion.com/p/4027bd823b758034966df87b7622c9b1) — sa-review/01과 같은 내용
 - Notion [발제문 원본](https://app.notion.com/p/4027bd823b758019a04dda70d6ae39ab), [첫날 회의](https://app.notion.com/p/4027bd823b7580b19317f4c4c8df4a08)
