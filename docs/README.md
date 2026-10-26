@@ -12,6 +12,8 @@
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토-2026-10-23) | 아래 목록 |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
+| 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
+| 완료 기준, 작업 흐름, 디버깅 | [`agents/quality-gates.md`](agents/quality-gates.md) | |
 
 스킬 정본은 [`.agents/skills/`](../.agents/skills/README.md)에 있다.
 

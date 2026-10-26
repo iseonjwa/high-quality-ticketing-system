@@ -17,7 +17,7 @@
 6. **구현 주체는 작업마다 다르다.** 기본은 에이전트가 구현하고, 사용자가 "내가 할게"라고 하면 단계 안내와 리뷰만 한다.
 7. **톤**: 코드 주석, 문서, 커밋은 한국어 평서체로 쓴다. AI 말투(과한 공감, 감탄, 장황한 서두)와 이모지를 쓰지 않는다.
 8. **비밀값 금지**: 토큰, 실제 비밀번호, `.env`는 커밋하지 않는다.
-9. **AI 공동 작성자 표기 금지**: 커밋 메시지에 `Co-Authored-By`로 에이전트를 넣지 않고, 커밋·PR 본문에 "Generated with ..." 같은 생성 도구 문구도 넣지 않는다. AI 활용은 `docs/ai-judgments/`에 남긴다.
+9. **AI 공동 작성자 표기 금지**: 커밋과 PR에 `Co-Authored-By`로 에이전트를 넣지 않고 생성 도구 문구도 넣지 않는다. 커밋 제목은 `type(scope): 요약`이다. 자세한 규칙은 `docs/guides/git-workflow.md`에 있다.
 
 ## 작업별 필수 문서
 | 언제 | 읽을 문서 |
@@ -25,7 +25,9 @@
 | 문서를 어디에 둘지 모를 때 | `docs/README.md` (문서 지도) |
 | 사용자 질문에 답할 때, 개념을 설명할 때 | `docs/agents/learning-guide.md` |
 | 사용자가 AI 응답·제안에 판단을 내렸을 때 | `.agents/skills/ai-judgment/SKILL.md`, `docs/ai-judgments/README.md` |
-| PR을 만들 때 | `.github/pull_request_template.md` (STAR, AI 기록 링크 칸) |
+| 문서·노트·커밋·PR 본문을 쓸 때 | `docs/guides/writing.md` |
+| 커밋·PR 작업 시 | `docs/guides/git-workflow.md`, `.github/pull_request_template.md` |
+| 작업 완료 보고·테스트 전 | `docs/agents/quality-gates.md` |
 | 결정을 기록할 때 | `docs/decisions/README.md` |
 | 설계 검토 결과를 볼 때 | `docs/sa-review/` |
 
@@ -37,7 +39,7 @@
 | `adr` | 되돌리기 어려운 결정을 했을 때 | `docs/decisions/` |
 | `troubleshooting` | 막혔던 문제를 해결했을 때 | `docs/troubleshooting.md` |
 
-- **에이전트는 기록을 알아서 남긴다.** 위 표의 상황이 되면 동의를 기다리지 않고 해당 위치에 쓰고, 답 끝에 `기록: <경로>`를 남긴다. 한 메시지가 질문이면서 판단이면 둘 다 기록한다. 사람은 PR에서 기록을 검토하고 고친다.
+- 에이전트는 기록을 알아서 남긴다. 위 표의 상황이 되면 동의를 기다리지 않고 해당 위치에 쓰고, 답 끝에 `기록: <경로>`를 남긴다. 한 메시지가 질문이면서 판단이면 둘 다 기록한다. 사람은 PR에서 기록을 검토하고 고친다.
 - 스킬 목록은 `.agents/skills/README.md`에 있다. Codex는 `.agents/skills`를 직접 읽는다. Claude Code는 `script/setup-agents.sh`를 실행하면 `.claude/skills`에서 찾는다. 스킬을 자동으로 불러오지 못하는 에이전트는 해당 `SKILL.md`를 직접 읽고 따른다.
 
 ## 개인 지침
