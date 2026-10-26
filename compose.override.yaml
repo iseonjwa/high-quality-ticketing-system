@@ -1,0 +1,14 @@
+# 로컬 개발 전용. `docker compose up`이 compose.yaml과 함께 자동으로 읽는다
+# IntelliJ로 띄운 서비스가 DB·Redis·Kafka에 붙을 수 있게 포트를 연다.
+# 모두 127.0.0.1에만 바인딩하므로 이 파일을 실수로 서버에서 읽어도 외부로 열리지 않는다
+services:
+  postgres-user:
+    ports: ["127.0.0.1:5433:5432"]
+  postgres-reservation:
+    ports: ["127.0.0.1:5434:5432"]
+  postgres-payment:
+    ports: ["127.0.0.1:5435:5432"]
+  redis:
+    ports: ["127.0.0.1:6379:6379"]
+  kafka:
+    ports: ["127.0.0.1:9092:9092"]

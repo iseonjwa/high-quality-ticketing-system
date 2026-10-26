@@ -1,0 +1,179 @@
+# 실행 환경 정의 (SA MASTER 9-1 ~ 9-3)
+# - 배포(EC2): docker compose -f compose.yaml up -d   ← override를 읽지 않게 -f로 지정
+# - 로컬 개발: docker compose up -d                   ← compose.override.yaml이 자동으로 합쳐져 DB·Redis·Kafka 포트가 127.0.0.1에 열린다
+# 비밀값은 .env에서 읽는다(.env.example 참고). 값이 없으면 기동을 멈춘다(${VAR:?})
+# 메모리 상한은 9-3 시작값 [가정]. docker stats로 측정해 바꾼다
+name: iseonjwa
+
+services:
+
+  # ---------- 데이터베이스: 서비스마다 DB·계정을 따로 둔다 (database per service) ----------
+  postgres-user:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: user_app
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:?.env에 USER_DB_PASSWORD가 필요합니다}
+    volumes:
+      # PostgreSQL 18부터 데이터 경로가 /var/lib/postgresql/18/docker로 바뀌어 상위 폴더를 마운트한다
+      - postgres-user-data:/var/lib/postgresql
+    expose: ["5432"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_app -d user_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-reservation:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: reservation_db
+      POSTGRES_USER: reservation_app
+      POSTGRES_PASSWORD: ${RESERVATION_DB_PASSWORD:?.env에 RESERVATION_DB_PASSWORD가 필요합니다}
+    volumes:
+      - postgres-reservation-data:/var/lib/postgresql
+    expose: ["5432"]
+    mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reservation_app -d reservation_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-payment:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_app
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?.env에 PAYMENT_DB_PASSWORD가 필요합니다}
+    volumes:
+      - postgres-payment-data:/var/lib/postgresql
+    expose: ["5432"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_app -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------- Redis: 대기열·블랙리스트·요청 제한. 기준 저장소가 아니라 영속화를 끈다 ----------
+  redis:
+    image: redis:8.10.2-alpine
+    # noeviction: 메모리가 차면 오래된 키를 몰래 지우지 않고 쓰기를 실패시킨다(대기열 순번 유실 방지)
+    command: >
+      redis-server
+      --maxmemory 400mb
+      --maxmemory-policy noeviction
+      --save ""
+      --appendonly no
+    expose: ["6379"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------- Kafka: KRaft 모드 브로커 1대 (ZooKeeper 없음) ----------
+  kafka:
+    image: apache/kafka:4.3.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # 리스너 2개: 컨테이너끼리는 kafka:29092, PC(IntelliJ 앱)에서는 localhost:9092
+      KAFKA_LISTENERS: INTERNAL://:29092,HOST://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # 브로커가 1대라 복제 수는 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 토픽은 명세(SA 10-1)대로 서비스가 직접 만든다. 오타 토픽이 자동 생성되지 않게 끈다
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms1g -Xmx1g
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    expose: ["29092", "9092"]
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---------- 관리 UI: 127.0.0.1에만 바인딩해 호스트 밖으로 열리지 않게 한다 (9-2) ----------
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    environment:
+      KAFKA_CLUSTERS_0_NAME: iseonjwa
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8085:8080"
+    mem_limit: 512m
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    # IntelliJ로 띄운 서비스를 수집하려고 호스트 주소를 연결한다(Linux에서도 동작)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9090:9090"
+    mem_limit: 768m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?.env에 GRAFANA_ADMIN_PASSWORD가 필요합니다}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 384m
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:3.6.1
+    environment:
+      # 저장소는 메모리(기본값). 재시작하면 추적이 사라진다
+      JAVA_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "127.0.0.1:9411:9411"
+    mem_limit: 768m
+    restart: unless-stopped
+
+volumes:
+  postgres-user-data:
+  postgres-reservation-data:
+  postgres-payment-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
