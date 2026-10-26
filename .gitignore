@@ -14,3 +14,9 @@ CLAUDE.local.md
 
 # Claude Code가 만드는 임시 worktree
 .claude/worktrees/
+
+# Gradle 빌드 결과
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+out/

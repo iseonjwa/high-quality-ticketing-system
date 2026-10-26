@@ -1,0 +1,15 @@
+[versions]
+spring-boot = "4.1.2"
+spring-cloud = "2025.1.4"
+
+[libraries]
+# BOM: 아래 버전에 맞는 라이브러리 버전을 Spring이 정해 준다
+spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
+
+# 컨벤션 플러그인(build-logic)이 Spring Boot 플러그인을 적용하는 데 쓴다
+spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
+
+# 버전은 BOM이 정한다
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
