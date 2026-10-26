@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>좌석 선점 Kafka 설계</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 단일 컬럼 해설서. 섹션마다 설명 → 도식 → 결론. 도식 문법은 세 가지만 쓴다: 레인(파티션), 스텝(시퀀스), 타임라인(시간) */
+:root{
+  --bg:#f3f4f8; --surface:#ffffff; --sunken:#eaecf3; --ink:#181c2a; --muted:#596075; --line:#d9dce6;
+  --accent:#3347c9;
+  --ok:#17804f; --bad:#c23a2e; --warn:#9a5a00;
+  --c-a:#3347c9; --c-b:#b03a8f; --c-u:#0e7f86; --c-x:#6b7186;
+  --act-user:#596075; --act-api:#3347c9; --act-redis:#c2501a; --act-kafka:#0e7f86; --act-db:#7342c9;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11131b; --surface:#191c27; --sunken:#141722; --ink:#e6e8f0; --muted:#9ca2b6; --line:#2c3144;
+    --accent:#8d9bff;
+    --ok:#4fc58d; --bad:#ff7d72; --warn:#f1b55c;
+    --c-a:#8d9bff; --c-b:#e98ad0; --c-u:#4fc9cf; --c-x:#9ca2b6;
+    --act-user:#9ca2b6; --act-api:#8d9bff; --act-redis:#ff9a62; --act-kafka:#4fc9cf; --act-db:#b99bff;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11131b; --surface:#191c27; --sunken:#141722; --ink:#e6e8f0; --muted:#9ca2b6; --line:#2c3144;
+  --accent:#8d9bff;
+  --ok:#4fc58d; --bad:#ff7d72; --warn:#f1b55c;
+  --c-a:#8d9bff; --c-b:#e98ad0; --c-u:#4fc9cf; --c-x:#9ca2b6;
+  --act-user:#9ca2b6; --act-api:#8d9bff; --act-redis:#ff9a62; --act-kafka:#4fc9cf; --act-db:#b99bff;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-body);
+  font-size:16px; line-height:1.7;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:40px 88px;
+}
+.wrap{max-width:880px; margin:0 auto}
+h1,h2,h3{text-wrap:balance; line-height:1.3; margin:0}
+h1{font-size:clamp(28px, 5vw, 40px); font-weight:700; letter-spacing:-0.015em}
+h2{font-size:clamp(21px, 3.2vw, 26px); font-weight:700; letter-spacing:-0.01em}
+h3{font-size:17px; font-weight:700}
+p{margin:0; max-width:68ch}
+code,.mono{font-family:var(--f-mono); font-size:0.88em}
+:not(pre)>code{background:var(--sunken); padding:1px 6px; border-radius:5px; white-space:nowrap}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+.eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent); font-weight:500}
+.stack{display:flex; flex-direction:column; gap:16px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+
+header.hero{display:flex; flex-direction:column; gap:14px; padding-bottom:28px}
+.lede{font-size:17px; color:var(--muted)}
+.toc{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+.toc a{display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px 12px; font-size:14px}
+.toc a span{font-family:var(--f-mono); color:var(--accent); font-size:12px}
+.toc a:hover{border-color:var(--accent)}
+
+section{border-top:1px solid var(--line); padding-block:40px; display:flex; flex-direction:column; gap:20px}
+.sec-head{display:flex; flex-direction:column; gap:6px}
+
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px; min-width:0}
+.grid2{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px}
+@media (max-width:640px){ .grid2{grid-template-columns:1fr} }
+
+.label{font-size:13px; font-weight:700; color:var(--muted); letter-spacing:0.02em}
+blockquote{margin:0; padding:12px 14px; background:var(--sunken); border-radius:8px; font-size:15px}
+.bubble{align-self:flex-start; font-size:15px; padding:8px 14px; border-radius:14px 14px 14px 4px; border:1px solid var(--line); background:var(--bg)}
+.bubble.need{border-color:color-mix(in srgb, var(--accent) 50%, transparent); background:color-mix(in srgb, var(--accent) 10%, var(--surface))}
+.callout{background:color-mix(in srgb, var(--accent) 8%, var(--surface)); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius:12px; padding:18px 20px; display:flex; flex-direction:column; gap:10px}
+
+/* 파티션 레인 */
+.facts{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:4px}
+.opt-head{display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+.tag{font-size:13px; font-weight:500; padding:2px 10px; border-radius:999px; white-space:nowrap}
+.tag.ok{color:var(--ok); background:color-mix(in srgb, var(--ok) 13%, var(--surface))}
+.tag.bad{color:var(--bad); background:color-mix(in srgb, var(--bad) 12%, var(--surface))}
+.tag.warn{color:var(--warn); background:color-mix(in srgb, var(--warn) 13%, var(--surface))}
+.lanes{display:grid; gap:8px}
+.lane{display:grid; grid-template-columns:34px minmax(0,1fr) auto; align-items:center; gap:10px}
+.pname{font-family:var(--f-mono); font-size:13px; color:var(--muted)}
+.track{min-height:42px; background:var(--sunken); border-radius:8px; padding:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0}
+.track:empty::after{content:"비어 있음"; color:var(--muted); font-size:12px; padding-left:4px}
+.chip{--c:var(--c-x); font-family:var(--f-mono); font-size:12.5px; line-height:1.4; padding:3px 8px; border-radius:6px; border:1px solid color-mix(in srgb, var(--c) 45%, transparent); background:color-mix(in srgb, var(--c) 13%, var(--surface)); color:var(--ink); white-space:nowrap}
+.chip.a{--c:var(--c-a)} .chip.b{--c:var(--c-b)} .chip.u{--c:var(--c-u)}
+.chip .hit{color:var(--bad); font-weight:500; text-decoration:underline; text-underline-offset:3px}
+.res{font-size:12.5px; font-weight:500; white-space:nowrap}
+.res.ok{color:var(--ok)} .res.bad{color:var(--bad)}
+.cons{font-size:13px; padding:3px 10px; border-radius:999px; white-space:nowrap}
+.cons.idle{color:var(--muted); background:var(--sunken)}
+.cons.hot{color:var(--bad); background:color-mix(in srgb, var(--bad) 12%, var(--surface))}
+.cons.busy{color:var(--ok); background:color-mix(in srgb, var(--ok) 13%, var(--surface))}
+@media (max-width:560px){
+  .lane{grid-template-columns:28px minmax(0,1fr)}
+  .lane .cons{grid-column:2; justify-self:start}
+}
+.verdict{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:15px}
+.verdict li{display:grid; grid-template-columns:20px 1fr; gap:6px}
+.verdict .y{color:var(--ok); font-weight:700}
+.verdict .n{color:var(--bad); font-weight:700}
+.verdict .i{color:var(--muted); font-weight:700}
+.sub{border-top:1px dashed var(--line); padding-top:14px; display:flex; flex-direction:column; gap:10px}
+.who{display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:14px}
+
+table{border-collapse:collapse; width:100%; font-size:15px}
+th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+th{font-size:13px; color:var(--muted); font-weight:700}
+.tablewrap{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:12px}
+.tablewrap table{min-width:560px}
+.tablewrap tr:last-child td{border-bottom:0}
+
+.copyrow{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start}
+.copytext{flex:1 1 320px; min-width:0; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px 12px}
+button{font:inherit; cursor:pointer}
+.btn{font-size:14px; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+
+/* 요청 행 */
+.reqs{display:flex; flex-direction:column; gap:8px}
+.req{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14px}
+.req .call{font-family:var(--f-mono); font-size:13px; overflow-wrap:anywhere}
+.req .call b{color:var(--accent); font-weight:500}
+.req .resp{font-family:var(--f-mono); font-size:13px; overflow-wrap:anywhere}
+@media (max-width:640px){ .req{grid-template-columns:1fr; gap:4px} }
+
+/* 타임라인 */
+.tlwrap{display:flex; flex-direction:column; gap:14px}
+.tlrow{display:flex; flex-direction:column; gap:6px}
+.tllabel{font-size:14px; font-weight:700}
+.tllabel.ok{color:var(--ok)} .tllabel.bad{color:var(--bad)} .tllabel.n{color:var(--ink)}
+.tl{position:relative; height:36px; background:var(--sunken); border-radius:6px; overflow:hidden}
+.seg{position:absolute; top:0; bottom:0; display:flex; align-items:center; padding-inline:10px; font-size:13px; white-space:nowrap; overflow:hidden}
+.seg.use{background:color-mix(in srgb, var(--ok) 22%, var(--surface)); color:var(--ink)}
+.seg.hold{background:color-mix(in srgb, var(--act-db) 22%, var(--surface)); color:var(--ink)}
+.seg.key{background:color-mix(in srgb, var(--act-redis) 22%, var(--surface)); color:var(--ink)}
+.seg.lost{background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--bad) 45%, transparent) 0 5px, transparent 5px 10px)}
+.seg.spare{background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--act-redis) 40%, transparent) 0 5px, transparent 5px 10px)}
+.axis{position:relative; height:20px; font-family:var(--f-mono); font-size:12px; color:var(--muted)}
+.axis span{position:absolute; top:0; white-space:nowrap}
+.axis span::before{content:""; position:absolute; top:-6px; left:0; width:1px; height:5px; background:var(--muted)}
+.axis span.end{transform:translateX(-100%)}
+.axis span.end::before{left:auto; right:0}
+
+/* 흐름 비교 (발신 유실) */
+.mini{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:15px}
+.mini li{display:grid; grid-template-columns:22px 1fr; gap:8px; align-items:start}
+.mini .mk{font-weight:700; text-align:center}
+.mini .mk.y{color:var(--ok)} .mini .mk.n{color:var(--bad)} .mini .mk.d{color:var(--muted)}
+.mini .stuck{font-family:var(--f-mono); font-size:13px; background:var(--sunken); padding:2px 8px; border-radius:6px}
+
+/* 혼합형 스텝 */
+.seg-ctl{display:flex; flex-wrap:wrap; gap:6px; background:var(--sunken); padding:5px; border-radius:10px; align-self:flex-start; max-width:100%}
+.seg-ctl button{border:0; background:transparent; color:var(--muted); padding:7px 12px; border-radius:7px; font-size:14px}
+.seg-ctl button[aria-pressed="true"]{background:var(--surface); color:var(--ink); font-weight:500; box-shadow:0 1px 2px color-mix(in srgb, var(--ink) 15%, transparent)}
+.caption{font-size:15px; min-height:3.4em}
+.legend{display:flex; flex-wrap:wrap; gap:8px}
+.actor{--act:var(--act-user); display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; padding:2px 10px 2px 8px; border-radius:999px; background:color-mix(in srgb, var(--act) 12%, var(--surface)); color:var(--ink); white-space:nowrap; justify-self:start}
+.actor::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--act)}
+.actor.user{--act:var(--act-user)} .actor.api{--act:var(--act-api)} .actor.redis{--act:var(--act-redis)} .actor.kafka{--act:var(--act-kafka)} .actor.db{--act:var(--act-db)}
+.flow{list-style:none; margin:0; padding:0; position:relative}
+.flow::before{content:""; position:absolute; left:13px; top:16px; bottom:16px; width:2px; background:var(--line)}
+.step{display:grid; grid-template-columns:28px 112px minmax(0,1fr); gap:12px; align-items:start; padding-block:10px; transition:opacity .2s}
+.step .num{position:relative; z-index:1; width:28px; height:28px; border-radius:50%; background:var(--surface); border:2px solid var(--line); display:grid; place-items:center; font-family:var(--f-mono); font-size:13px; font-weight:500}
+.step .actor{margin-top:3px}
+.sbody{display:flex; flex-direction:column; gap:8px; min-width:0; font-size:15px}
+.step.off{opacity:.3}
+.step.cur .num{border-color:var(--accent); color:var(--accent)}
+.branch{display:flex; flex-wrap:wrap; gap:8px; align-items:center; align-self:flex-start; font-size:14px; padding:6px 10px; border-radius:8px; border:1px dashed color-mix(in srgb, var(--bad) 55%, transparent); background:color-mix(in srgb, var(--bad) 7%, var(--surface)); opacity:.55; transition:opacity .2s, background .2s}
+.branch.on{opacity:1; border-style:solid; background:color-mix(in srgb, var(--bad) 14%, var(--surface))}
+.btag{font-size:12px; font-weight:700; color:var(--bad)}
+.divider{position:relative; z-index:1; margin:6px 0 6px 40px; font-family:var(--f-mono); font-size:12px; color:var(--muted); display:flex; align-items:center; gap:10px}
+.divider::after{content:""; flex:1; height:1px; background:repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px)}
+@media (max-width:560px){
+  .step{grid-template-columns:28px minmax(0,1fr); row-gap:6px}
+  .step .actor,.step .sbody{grid-column:2}
+  .divider{margin-left:40px}
+}
+
+pre{margin:0; background:var(--sunken); border:1px solid var(--line); border-radius:10px; padding:14px 16px; overflow-x:auto; font-family:var(--f-mono); font-size:13px; line-height:1.6; color:var(--ink)}
+pre .c{color:var(--muted)}
+pre .k{color:var(--accent)}
+
+.rule{display:flex; flex-direction:column; gap:12px}
+.chain{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:14px}
+.chain .n{background:var(--sunken); border:1px solid var(--line); border-radius:8px; padding:4px 10px}
+.chain .n.hl{border-color:color-mix(in srgb, var(--act-redis) 60%, transparent); background:color-mix(in srgb, var(--act-redis) 12%, var(--surface))}
+.chain .ar{color:var(--muted)}
+
+/* v1 / v2 파이프 */
+.pipes{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px}
+.pipes-in{display:flex; flex-direction:column; gap:22px; min-width:640px}
+.prow{display:grid; grid-template-columns:92px 1fr; gap:14px; align-items:center}
+.ptag{font-size:13px; font-weight:700; color:var(--muted)}
+.pflow{display:flex; align-items:center}
+.node{--act:var(--muted); position:relative; font-size:13.5px; font-weight:500; padding:6px 12px; border-radius:8px; border:1px solid color-mix(in srgb, var(--act) 50%, transparent); background:color-mix(in srgb, var(--act) 11%, var(--surface)); white-space:nowrap}
+.node small{position:absolute; left:50%; top:calc(100% + 6px); transform:translateX(-50%); font-size:12px; font-weight:400; color:var(--bad); white-space:nowrap}
+.node.api{--act:var(--act-api)} .node.redis{--act:var(--act-redis)} .node.kafka{--act:var(--act-kafka)} .node.db{--act:var(--act-db)}
+.pipe{width:44px; flex:0 0 auto; background:color-mix(in srgb, var(--muted) 55%, transparent); border-radius:4px}
+.pipe.thick{height:10px} .pipe.thin{height:3px}
+.prow.v2{padding-bottom:18px}
+
+footer{border-top:1px solid var(--line); padding-top:24px; font-size:14px; color:var(--muted); display:flex; flex-direction:column; gap:6px}
+
+@media (prefers-reduced-motion: reduce){ .step,.branch{transition:none} }
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">1차 SA 피드백 · M1</div>
+  <h1>좌석 선점 Kafka 설계</h1>
+  <p class="lede">발제가 요구하는 Kafka 비동기 접수를, 결과를 바로 알아야 하는 좌석 선점에 어떻게 맞출지 정리했다. 충돌 지점부터 파티션 키, 결과 전달, 발신 유실, 혼합형 흐름 순서로 본다.</p>
+  <nav class="toc" aria-label="목차">
+    <a href="#conflict"><span>1</span>충돌</a>
+    <a href="#partition"><span>2</span>파티션 키</a>
+    <a href="#result"><span>3</span>결과 전달</a>
+    <a href="#loss"><span>4</span>발신 유실</a>
+    <a href="#hybrid"><span>5</span>혼합형</a>
+    <a href="#compare"><span>6</span>비교</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="conflict">
+  <div class="sec-head">
+    <div class="eyebrow">1 · 출발점</div>
+    <h2>발제 요구와 우리 UX가 부딪친다</h2>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="label">발제 [필수]</div>
+      <blockquote>API가 요청을 받으면 Kafka를 이용해 요청 데이터를 지정된 Topic에 적재하고 바로 응답을 반환한 뒤, 해당 Topic을 구독하는 Consumer가 요청을 처리하도록 구성해주세요.</blockquote>
+      <div class="small muted">API가 줄 수 있는 답</div>
+      <div class="bubble">접수했어요 <span class="mono muted">202</span></div>
+    </div>
+    <div class="panel">
+      <div class="label">팀 결정 (10/23)</div>
+      <blockquote>좌석 점유 시점 → 선택 완료 버튼 눌렀을 때</blockquote>
+      <div class="small muted">사용자에게 필요한 답</div>
+      <div class="bubble need">A1·A2 잡았어요 → 결제하기</div>
+    </div>
+  </div>
+  <p>"접수했어요"만으로는 사용자가 결제로 넘어갈 수 없다. 이 간극을 어떻게 메울지가 M1의 핵심이다.</p>
+</section>
+
+<!-- 2 -->
+<section id="partition">
+  <div class="sec-head">
+    <div class="eyebrow">2 · 파티션 키</div>
+    <h2>회차 ID도, 좌석 ID도 안 되는 이유</h2>
+  </div>
+  <div class="panel">
+    <div class="label">Kafka 동작 세 가지</div>
+    <ul class="facts">
+      <li>Topic은 여러 <b>파티션</b>으로 나뉜다. 아래 그림은 P0·P1·P2 세 개.</li>
+      <li>메시지의 <b>키</b>가 같으면 항상 같은 파티션으로 간다.</li>
+      <li>파티션 하나는 Consumer <b>하나</b>만 읽는다. 그래서 파티션 안은 순서대로, 파티션끼리는 동시에 처리된다.</li>
+    </ul>
+  </div>
+
+  <!-- 회차 ID -->
+  <div class="panel">
+    <div class="opt-head"><h3>키 = 회차 ID</h3><span class="tag warn">정확하지만 느림</span></div>
+    <div class="lanes" aria-label="회차 ID를 키로 쓸 때의 파티션 분배">
+      <div class="lane"><span class="pname">P0</span><div class="track"></div><span class="cons idle">Consumer 1 · 대기</span></div>
+      <div class="lane"><span class="pname">P1</span><div class="track"><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span><span class="chip a">회차7</span></div><span class="cons hot">Consumer 2 · 혼자 처리</span></div>
+      <div class="lane"><span class="pname">P2</span><div class="track"></div><span class="cons idle">Consumer 3 · 대기</span></div>
+    </div>
+    <ul class="verdict">
+      <li><span class="y">✓</span><span>같은 회차 요청이 한 줄로 처리돼서, 같은 좌석이 두 명에게 팔리지 않는다.</span></li>
+      <li><span class="n">✗</span><span>티켓 오픈 순간 요청이 인기 회차 하나에 몰린다. Consumer 3개 중 1개만 일하고, 파티션을 10개로 늘려도 결과는 같다.</span></li>
+    </ul>
+  </div>
+
+  <!-- 좌석 ID -->
+  <div class="panel">
+    <div class="opt-head"><h3>키 = 좌석 ID</h3><span class="tag bad">빠르지만 원자성이 깨짐</span></div>
+    <div class="who">
+      <span class="chip a">A가 고른 좌석 {A1, A2}</span>
+      <span class="chip b">B가 고른 좌석 {A2, A3}</span>
+      <span class="muted">둘 다 <b>A2</b>를 노린다</span>
+    </div>
+
+    <div class="sub">
+      <div class="label">① 좌석마다 메시지를 하나씩 보낸다</div>
+      <div class="lanes">
+        <div class="lane"><span class="pname">P0</span><div class="track"><span class="chip a">A · A1</span><span class="res ok">A 성공</span></div><span class="cons busy">Consumer 1</span></div>
+        <div class="lane"><span class="pname">P1</span><div class="track"><span class="chip b">B · <span class="hit">A2</span></span><span class="chip a">A · <span class="hit">A2</span></span><span class="res ok">B 성공</span><span class="res bad">A 실패</span></div><span class="cons busy">Consumer 2</span></div>
+        <div class="lane"><span class="pname">P2</span><div class="track"><span class="chip b">B · A3</span><span class="res ok">B 성공</span></div><span class="cons busy">Consumer 3</span></div>
+      </div>
+      <ul class="verdict">
+        <li><span class="n">✗</span><span>A는 A1만 잡은 어정쩡한 상태가 된다. "둘 다 잡거나 둘 다 놓치기"가 깨지고, 이미 잡은 A1을 되돌리는 보상 로직이 따로 필요하다.</span></li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <div class="label">② 요청 하나로 보내고, 첫 좌석을 키로 쓴다</div>
+      <div class="lanes">
+        <div class="lane"><span class="pname">P0</span><div class="track"><span class="chip a">A · {A1, <span class="hit">A2</span>} · 키 A1</span></div><span class="cons busy">Consumer 1 · 처리 중</span></div>
+        <div class="lane"><span class="pname">P1</span><div class="track"><span class="chip b">B · {<span class="hit">A2</span>, A3} · 키 A2</span></div><span class="cons busy">Consumer 2 · 처리 중</span></div>
+        <div class="lane"><span class="pname">P2</span><div class="track"></div><span class="cons idle">Consumer 3 · 대기</span></div>
+      </div>
+      <ul class="verdict">
+        <li><span class="n">✗</span><span>A2를 노리는 두 요청이 서로 다른 파티션에서 <b>동시에</b> 처리된다. 순서 보장이 없으니 결국 DB 락 같은 다른 장치로 막아야 한다.</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- userId -->
+  <div class="panel">
+    <div class="opt-head"><h3>키 = userId</h3><span class="tag ok">권장</span></div>
+    <div class="lanes" aria-label="userId를 키로 쓸 때의 파티션 분배">
+      <div class="lane"><span class="pname">P0</span><div class="track"><span class="chip a">u12 ① 선점</span><span class="chip">u45</span><span class="chip a">u12 ② 결제 요청</span><span class="chip">u78</span><span class="chip a">u12 ③ 취소</span></div><span class="cons busy">Consumer 1</span></div>
+      <div class="lane"><span class="pname">P1</span><div class="track"><span class="chip">u3</span><span class="chip">u31</span><span class="chip">u66</span><span class="chip">u9</span></div><span class="cons busy">Consumer 2</span></div>
+      <div class="lane"><span class="pname">P2</span><div class="track"><span class="chip">u20</span><span class="chip">u57</span><span class="chip">u84</span><span class="chip">u41</span></div><span class="cons busy">Consumer 3</span></div>
+    </div>
+    <ul class="verdict">
+      <li><span class="y">✓</span><span>사용자가 세 파티션에 고르게 퍼져 Consumer 3개가 모두 일한다.</span></li>
+      <li><span class="y">✓</span><span>같은 사용자(u12)의 선점 → 결제 요청 → 취소는 한 파티션에서 순서대로 처리된다. 취소가 선점보다 먼저 처리되는 사고가 없다.</span></li>
+      <li><span class="i">·</span><span>같은 좌석이 두 명에게 가지 않게 막는 일은 키가 아니라 Redis와 DB가 맡는다.</span></li>
+    </ul>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>역할</th><th>담당</th></tr></thead>
+      <tbody>
+        <tr><td>같은 좌석을 두 명에게 주지 않기 (정합성)</td><td>Redis 원자 연산 + DB 조건부 UPDATE</td></tr>
+        <tr><td>일을 고르게 나누기, 한 사용자의 이벤트 순서 지키기</td><td>Kafka 파티션 키 = <code>userId</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <h3>결론: 정합성은 Kafka 순서에 맡기지 않는다</h3>
+    <p class="small muted">발제가 요구하는 "왜 그 파티션 수·키를 선택했는지" 한 줄 기록은 이렇게 쓰면 된다.</p>
+    <div class="copyrow">
+      <div class="copytext" id="rationale">파티션 3개: 로컬 단일 브로커, Reservation 1대 × Consumer concurrency 3. 키 userId: 정합성은 Redis·DB가 보장하므로 키는 균등 분산과 사용자 단위 순서 보장에만 쓴다.</div>
+      <button class="btn" id="copyBtn" type="button">문장 복사</button>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="result">
+  <div class="sec-head">
+    <div class="eyebrow">3 · 결과 전달</div>
+    <h2>순수 비동기라면 결과 조회 API가 필요하다</h2>
+  </div>
+  <p>발제 예제를 그대로 따르면 접수와 결과 확인이 분리된다. 프론트는 결과가 나올 때까지 조회를 반복한다.</p>
+  <div class="reqs">
+    <div class="req"><span class="call"><b>POST</b> /seats/hold</span><span class="resp">202 { requestId: "r-123" }</span><span class="muted">접수만 됨</span></div>
+    <div class="req"><span class="call"><b>GET</b> /seat-holds/r-123</span><span class="resp">PROCESSING</span><span class="muted">0.5~1초마다 다시 조회</span></div>
+    <div class="req"><span class="call"><b>GET</b> /seat-holds/r-123</span><span class="resp">HELD { expiresAt }<br>또는 FAILED { reason }</span><span class="muted">결과 확정</span></div>
+  </div>
+
+  <div class="panel">
+    <h3>5분 타이머는 언제부터 세나</h3>
+    <p class="small muted">Consumer가 밀려서 버튼을 누른 뒤 30초 만에 HELD가 확정됐다고 가정한다. 막대 길이는 실제 시간 비율 그대로다.</p>
+    <div class="tlwrap">
+      <div class="tlrow">
+        <div class="tllabel bad">✗ 버튼 클릭부터 센다</div>
+        <div class="tl" role="img" aria-label="클릭부터 세면 처음 30초를 잃고 결제에 4분 30초만 남는다">
+          <div class="seg lost" style="left:0;width:9.09%"></div>
+          <div class="seg use" style="left:9.09%;width:81.82%">결제에 쓸 수 있는 시간 4분 30초</div>
+        </div>
+      </div>
+      <div class="tlrow">
+        <div class="tllabel ok">✓ HELD 확정부터 센다</div>
+        <div class="tl" role="img" aria-label="HELD 확정부터 세면 온전한 5분이 남는다">
+          <div class="seg use" style="left:9.09%;width:90.91%">온전한 5분</div>
+        </div>
+      </div>
+      <div class="axis" aria-hidden="true">
+        <span style="left:0">클릭</span>
+        <span style="left:9.09%">HELD</span>
+        <span class="end" style="left:90.91%">5:00</span>
+        <span class="end" style="left:100%">5:30</span>
+      </div>
+    </div>
+    <p class="small">빗금은 Consumer가 처리하는 동안 사용자가 모르는 사이 흘러간 30초다. 그래서 타이머는 <b>HELD가 확정된 시점부터</b> 센다.</p>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="loss">
+  <div class="sec-head">
+    <div class="eyebrow">4 · 발신 유실</div>
+    <h2>202를 줬는데 메시지가 사라진다</h2>
+  </div>
+  <blockquote><code>kafkaTemplate.send()</code>는 결과를 기다리지 않고 바로 돌아오는 비동기 메서드입니다. … Kafka 적재가 실패해도 사용자는 이미 202(접수됨)를 받습니다. <span class="muted">— 발제문</span></blockquote>
+  <div class="grid2">
+    <div class="panel">
+      <div class="opt-head"><h3>send 결과를 기다리지 않을 때</h3><span class="tag bad">유실</span></div>
+      <ul class="mini">
+        <li><span class="mk d">→</span><span>API가 <code>send()</code>를 호출한다</span></li>
+        <li><span class="mk y">✓</span><span>결과를 기다리지 않고 202를 돌려준다</span></li>
+        <li><span class="mk n">✗</span><span>Kafka가 잠깐 죽어 있어서 메시지가 저장되지 않는다</span></li>
+        <li><span class="mk n">✗</span><span>Consumer가 처리할 메시지가 없다</span></li>
+        <li><span class="mk n">✗</span><span>사용자 화면은 영원히 <span class="stuck">처리 중…</span></span></li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="opt-head"><h3>저장 확인을 기다릴 때</h3><span class="tag ok">권장</span></div>
+      <ul class="mini">
+        <li><span class="mk d">→</span><span>API가 <code>send()</code>를 호출한다</span></li>
+        <li><span class="mk d">→</span><span>브로커의 저장 확인(ack)을 기다린다 (수 ms)</span></li>
+        <li><span class="mk y">✓</span><span>확인을 받으면 그때 성공을 돌려준다</span></li>
+        <li><span class="mk n">✗</span><span>실패하면 Redis에 잡아 둔 좌석을 풀고 <b>503</b> "잠시 후 다시 시도"</span></li>
+        <li><span class="mk y">✓</span><span>성공 응답 = Kafka에 확실히 들어감</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>프로듀서 설정</th><th>의미</th></tr></thead>
+      <tbody>
+        <tr><td><code>acks=all</code></td><td>브로커가 "확실히 저장했다"고 답해야 성공으로 친다</td></tr>
+        <tr><td><code>enable.idempotence=true</code></td><td>프로듀서가 재시도해도 같은 메시지가 두 번 저장되지 않는다</td></tr>
+        <tr><td>send 결과를 기다린 뒤 응답</td><td>저장 확인을 받은 다음에만 사용자에게 성공을 돌려준다</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h3>왜 Outbox로는 안 되나</h3>
+    <div class="chain" aria-label="Outbox가 맞지 않는 이유">
+      <span class="n">Outbox = DB 저장과 이벤트 발행을 한 트랜잭션으로 묶기</span>
+      <span class="ar">→</span>
+      <span class="n">접수 API는 빠르게 응답하려고 DB에 쓰지 않음</span>
+      <span class="ar">→</span>
+      <span class="n hl">묶을 트랜잭션이 없음</span>
+    </div>
+    <p class="small">접수할 때 outbox 테이블에 쓰기 시작하면 다시 DB가 병목이 되어, 비동기로 바꾼 의미가 사라진다. Outbox는 Consumer 이후 단계(예매 → 결제 요청)에서 쓴다. 우리는 브로커가 1대라 디스크 자체가 날아가는 경우는 범위 밖이라고 명시한다.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="hybrid">
+  <div class="sec-head">
+    <div class="eyebrow">5 · 혼합형 (Claude 에이전트 제안)</div>
+    <h2>Redis에서 즉시 판정하고, DB 기록만 Kafka로 넘긴다</h2>
+  </div>
+  <p>사용자는 버튼을 누르자마자 결과를 보고, 느린 DB 쓰기만 Kafka 뒤로 빠진다. 아래에서 상황을 고르면 그 경우에 실제로 지나가는 단계만 밝게 표시된다.</p>
+
+  <div class="panel">
+    <div class="seg-ctl" role="group" aria-label="상황 선택">
+      <button type="button" data-scn="ok" aria-pressed="true">정상 선점</button>
+      <button type="button" data-scn="race" aria-pressed="false">좌석 경합에서 짐</button>
+      <button type="button" data-scn="send" aria-pressed="false">Kafka 전송 실패</button>
+      <button type="button" data-scn="db" aria-pressed="false">DB 2차 방어</button>
+    </div>
+    <p class="caption" id="caption" aria-live="polite">Redis에서 두 좌석을 모두 잡고, Kafka 저장 확인을 받은 뒤 바로 성공을 돌려준다. DB 기록은 Consumer가 뒤에서 처리한다.</p>
+    <div class="legend" aria-hidden="true">
+      <span class="actor user">사용자</span><span class="actor api">Reservation API</span><span class="actor redis">Redis</span><span class="actor kafka">Kafka</span><span class="actor db">Consumer · DB</span>
+    </div>
+
+    <ol class="flow" id="flow">
+      <li class="step" data-step="1">
+        <span class="num">1</span><span class="actor user">사용자</span>
+        <div class="sbody"><span><b>선택 완료</b> 버튼을 누른다 <code>{ 회차 7, A1·A2 }</code></span></div>
+      </li>
+      <li class="step" data-step="2">
+        <span class="num">2</span><span class="actor api">API</span>
+        <div class="sbody"><span>입장 토큰을 검증하고, 1인 최대 매수를 넘지 않는지 확인한다</span></div>
+      </li>
+      <li class="step" data-step="3">
+        <span class="num">3</span><span class="actor redis">Redis</span>
+        <div class="sbody">
+          <span>Lua 스크립트: A1·A2가 <b>모두 비어 있으면 둘 다 잡고</b>, 하나라도 차 있으면 아무것도 잡지 않는다</span>
+          <div class="branch" data-branch="race"><span class="btag">실패</span><span>409 "이미 선점된 좌석" · DB를 건드리지 않고 끝</span></div>
+        </div>
+      </li>
+      <li class="step" data-step="4">
+        <span class="num">4</span><span class="actor kafka">Kafka</span>
+        <div class="sbody">
+          <span>선점 이벤트를 보내고(키 = <code>userId</code>) 브로커의 저장 확인을 기다린다</span>
+          <div class="branch" data-branch="send"><span class="btag">실패</span><span>Redis 키 삭제 → 503 "잠시 후 다시 시도"</span></div>
+        </div>
+      </li>
+      <li class="step" data-step="5">
+        <span class="num">5</span><span class="actor api">API</span>
+        <div class="sbody"><span><b>200</b> <code>{ holdId, 좌석, expiresAt }</code> · 사용자는 여기서 바로 "선점 성공"을 본다</span></div>
+      </li>
+      <li class="divider" aria-hidden="true">여기부터 비동기</li>
+      <li class="step" data-step="6">
+        <span class="num">6</span><span class="actor db">Consumer · DB</span>
+        <div class="sbody">
+          <span>예매를 PENDING으로 만들고, 좌석을 조건부 UPDATE로 HELD로 바꾼다</span>
+          <div class="branch" data-branch="db"><span class="btag">실패</span><span>DB 제약 위반 → 예매 FAILED 기록, Redis 키 해제</span></div>
+        </div>
+      </li>
+      <li class="step" data-step="7">
+        <span class="num">7</span><span class="actor api">API</span>
+        <div class="sbody"><span>결제 진입 전에 DB에 예매가 기록됐는지 확인한다. 아직이면 잠깐 "처리 중"을 보여준다</span></div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="opt-head"><h3>③ Redis 1차 판정</h3><span class="actor redis">Redis</span></div>
+      <p class="small muted">Redis는 Lua 스크립트를 실행하는 동안 다른 명령을 끼워 넣지 않는다. 그래서 "전부 확인하고 전부 잡기"가 중간에 끊기지 않는다.</p>
+<pre><code><span class="c">-- KEYS: hold:{회차}:{좌석} 목록
+-- ARGV[1]: holdId, ARGV[2]: TTL(초)</span>
+<span class="k">for</span> _, key <span class="k">in</span> ipairs(KEYS) <span class="k">do</span>
+  <span class="k">if</span> redis.call('EXISTS', key) == 1 <span class="k">then</span>
+    <span class="k">return</span> 0  <span class="c">-- 하나라도 차 있으면 실패</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+<span class="k">for</span> _, key <span class="k">in</span> ipairs(KEYS) <span class="k">do</span>
+  redis.call('SET', key, ARGV[1], 'EX', ARGV[2])
+<span class="k">end</span>
+<span class="k">return</span> 1</code></pre>
+    </div>
+    <div class="panel">
+      <div class="opt-head"><h3>⑥ DB 2차 방어</h3><span class="actor db">Consumer · DB</span></div>
+      <p class="small muted">Redis가 재시작되어 키를 잃는 등 Redis 판정이 틀릴 수 있다. DB가 한 번 더 확인하고, 최종 기준(정본)은 DB다.</p>
+<pre><code><span class="k">UPDATE</span> seat
+   <span class="k">SET</span> status = 'HELD', hold_id = ?
+ <span class="k">WHERE</span> schedule_id = 7
+   <span class="k">AND</span> seat_id <span class="k">IN</span> ('A1', 'A2')
+   <span class="k">AND</span> status = 'AVAILABLE';
+
+<span class="c">-- 바뀐 행 수가 2가 아니면 롤백 → FAILED</span></code></pre>
+    </div>
+  </div>
+
+  <div class="panel rule">
+    <h3>규칙 1 · 만료의 기준은 DB다</h3>
+    <p class="small muted">Redis TTL을 DB 만료보다 조금 길게 잡는다. DB 만료 스케줄러가 예매를 만료시킬 때 Redis 키도 함께 지운다.</p>
+    <div class="tlwrap">
+      <div class="tlrow">
+        <div class="tllabel n">DB 예매 상태 (HELD)</div>
+        <div class="tl" role="img" aria-label="DB 예매는 5분에 만료된다">
+          <div class="seg hold" style="left:0;width:90.91%">HELD · 만료 스케줄러가 기준</div>
+        </div>
+      </div>
+      <div class="tlrow">
+        <div class="tllabel n">Redis 선점 키 (TTL)</div>
+        <div class="tl" role="img" aria-label="Redis 키 TTL은 5분 30초이며 마지막 30초는 여유분이다">
+          <div class="seg key" style="left:0;width:90.91%">선점 키</div>
+          <div class="seg spare" style="left:90.91%;width:9.09%"></div>
+        </div>
+      </div>
+      <div class="axis" aria-hidden="true">
+        <span style="left:0">선점 확정</span>
+        <span class="end" style="left:90.91%">5:00</span>
+        <span class="end" style="left:100%">5:30</span>
+      </div>
+    </div>
+    <p class="small">빗금은 30초 여유분이다. 실제로는 5:00에 스케줄러가 키를 지운다. 반대로 Redis가 먼저 풀리면, 다른 사람이 Redis에서는 성공하고 DB에서는 실패하는 혼란이 생긴다.</p>
+  </div>
+
+  <div class="panel rule">
+    <h3>규칙 2 · 결제가 시작되면 Redis TTL을 없앤다</h3>
+    <div class="chain">
+      <span class="n">선점 확정 (HELD)</span><span class="ar">→</span>
+      <span class="n">결제 시작 (PAYING)</span><span class="ar">→</span>
+      <span class="n hl">Redis 키 TTL 제거 <code>PERSIST</code></span><span class="ar">→</span>
+      <span class="n">결제 완료·실패 또는 결제 마감 시한</span><span class="ar">→</span>
+      <span class="n">키 정리</span>
+    </div>
+    <p class="small">결제 중에 좌석이 풀리면 안 되기 때문이다. C1의 "결제 진행 중(PAYING) 예매는 만료 대상에서 제외"와 같은 원칙이다.</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="compare">
+  <div class="sec-head">
+    <div class="eyebrow">6 · 비교</div>
+    <h2>두 방식 비교와 개선 전/후 스토리</h2>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th></th><th>순수 비동기 (202 + 조회)</th><th>혼합형 (Redis 즉시 판정 + Kafka)</th></tr></thead>
+      <tbody>
+        <tr><td>사용자가 결과를 아는 시점</td><td>폴링으로 몇백 ms~수 초 뒤</td><td>버튼 누르자마자</td></tr>
+        <tr><td>프론트 작업</td><td>폴링 화면 필요</td><td>일반 요청과 같음</td></tr>
+        <tr><td>정합성</td><td>DB 하나가 보장</td><td>Redis(1차) + DB(2차), 둘을 맞추는 규칙 필요</td></tr>
+        <tr><td>구현 난이도</td><td>낮음</td><td>중간 (Lua, Redis-DB 동기화)</td></tr>
+        <tr><td>발제 요구 충족</td><td>충족</td><td>충족</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pipes" role="img" aria-label="v1은 모든 요청이 DB까지 가고, v2는 경합에서 진 요청이 Redis에서 끝나고 이긴 요청만 Kafka를 거쳐 DB에 기록된다">
+    <div class="pipes-in">
+      <div class="prow">
+        <span class="ptag">v1 개선 전</span>
+        <div class="pflow">
+          <span class="node">요청 1,000건</span><span class="pipe thick"></span>
+          <span class="node api">API</span><span class="pipe thick"></span>
+          <span class="node db">DB 조건부 UPDATE</span>
+        </div>
+      </div>
+      <div class="prow v2">
+        <span class="ptag">v2 개선 후</span>
+        <div class="pflow">
+          <span class="node">요청 1,000건</span><span class="pipe thick"></span>
+          <span class="node api">API</span><span class="pipe thick"></span>
+          <span class="node redis">Redis Lua<small>진 요청은 409로 끝</small></span><span class="pipe thin"></span>
+          <span class="node kafka">Kafka</span><span class="pipe thin"></span>
+          <span class="node db">Consumer → DB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="small muted">선 굵기는 요청량을 개념적으로 나타낸 것이며 측정값이 아니다. 1,000건은 발제의 부하 설정(100명 × 10회)이다.</p>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>개선 전 (v1)</h3>
+      <p class="small">API에서 DB 조건부 UPDATE를 동기로 처리한다. 경합에서 질 요청까지 모두 DB 커넥션을 쓴다. 이 상태로 기준선을 측정한다.</p>
+    </div>
+    <div class="panel">
+      <h3>개선 후 (v2)</h3>
+      <p class="small">경합에서 진 요청은 Redis에서 끝나고, 이긴 요청의 DB 쓰기는 Consumer가 나눠 처리한다. "병목을 어떻게 찾고 무엇을 바꿨나"에 그대로 답할 수 있다.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>2차 SA에서 할 일</h3>
+    <p class="small">API 명세는 처음부터 v2 형태(<code>holdId</code>, <code>expiresAt</code> 반환)로 쓴다. 그러면 v1에서 v2로 바꿀 때 프론트를 고칠 필요가 없다.</p>
+  </div>
+</section>
+
+<footer>
+  <span>출처: <a href="https://app.notion.com/p/4027bd823b758034966df87b7622c9b1" target="_blank" rel="noopener">1차 SA 피드백</a>의 M1 항목, 발제문 원본의 대용량 트래픽·Kafka 비동기 패턴 예제</span>
+  <span>u12·회차7·A1 같은 값은 설명을 위한 예시다.</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var scenarios = {
+    ok:   {steps:[1,2,3,4,5,6,7], branch:null,   text:"Redis에서 두 좌석을 모두 잡고, Kafka 저장 확인을 받은 뒤 바로 성공을 돌려준다. DB 기록은 Consumer가 뒤에서 처리한다."},
+    race: {steps:[1,2,3],         branch:"race", text:"A2를 다른 사람이 먼저 잡았다. Lua 스크립트가 아무것도 잡지 않고 끝나므로 DB까지 가지 않고 409로 응답한다. 경합에서 지는 대부분의 요청이 여기서 끝난다."},
+    send: {steps:[1,2,3,4],       branch:"send", text:"Redis에서는 잡았지만 Kafka 저장 확인을 받지 못했다. 잡아 둔 Redis 키를 지우고 503을 돌려준다. 사용자는 다시 시도하면 된다."},
+    db:   {steps:[1,2,3,4,5,6,7], branch:"db",   text:"Redis가 재시작되어 키를 잃은 경우처럼 Redis 판정이 틀렸다. Consumer의 조건부 UPDATE가 막고 예매를 FAILED로 기록한다. 사용자는 결제 진입 단계(7)에서 실패를 확인한다."}
+  };
+  var buttons = document.querySelectorAll("[data-scn]");
+  var steps = document.querySelectorAll("#flow .step");
+  var branches = document.querySelectorAll("#flow .branch");
+  var caption = document.getElementById("caption");
+
+  function apply(key){
+    var s = scenarios[key];
+    var last = s.steps[s.steps.length - 1];
+    steps.forEach(function(el){
+      var n = Number(el.getAttribute("data-step"));
+      var on = s.steps.indexOf(n) !== -1;
+      el.classList.toggle("off", !on);
+      el.classList.toggle("cur", key !== "ok" && on && el.querySelector('[data-branch="' + s.branch + '"]') !== null);
+    });
+    branches.forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-branch") === s.branch);
+    });
+    buttons.forEach(function(btn){
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-scn") === key ? "true" : "false");
+    });
+    caption.textContent = s.text;
+  }
+  buttons.forEach(function(btn){
+    btn.addEventListener("click", function(){ apply(btn.getAttribute("data-scn")); });
+  });
+
+  var copyBtn = document.getElementById("copyBtn");
+  var rationale = document.getElementById("rationale");
+  function selectText(){
+    var r = document.createRange();
+    r.selectNodeContents(rationale);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+  copyBtn.addEventListener("click", function(){
+    var text = rationale.textContent;
+    try {
+      navigator.clipboard.writeText(text).then(function(){
+        copyBtn.textContent = "복사됨";
+        setTimeout(function(){ copyBtn.textContent = "문장 복사"; }, 1600);
+      }, function(){
+        selectText();
+        copyBtn.textContent = "선택됨 · 직접 복사";
+      });
+    } catch (e) {
+      selectText();
+      copyBtn.textContent = "선택됨 · 직접 복사";
+    }
+  });
+})();
+</script>
+
+</html>

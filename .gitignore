@@ -1,0 +1,16 @@
+# 비밀값
+.env
+
+# 개인 지침·설정
+CLAUDE.local.md
+.claude/settings.local.json
+
+# script/setup-agents.sh가 .agents/skills에서 만드는 결과물과 그 목록
+.claude/skills/
+.claude/.setup-agents-files
+
+# IDE 개인 설정
+.idea/
+
+# Claude Code가 만드는 임시 worktree
+.claude/worktrees/
