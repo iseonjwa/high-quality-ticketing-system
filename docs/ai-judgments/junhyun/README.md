@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-26 | 개발 일정 마일스톤: M1은 직접 정하고 M2–M4는 AI 분할안 수용 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-26-milestone-split.md) |
 | 2026-10-26 | 원격 반영 방식: AI의 PR 경유 제안 대신 main 직접 push | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-10-26-push-learning-system-to-main.md) |
 | 2026-10-23 | 서비스 경계: AI의 3개 구성·4개 절충 추천 대신 5개 분리 | Claude Code | **거부** | 예 | 후보 | [기록](2026-10-23-service-boundary-five-services.md) |
 

@@ -30,7 +30,7 @@
 
 | 폴더 | 내용 |
 |---|---|
-| [junhyun](junhyun/README.md) | 개별 기록 2건, 일지 2일 |
+| [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
 
 ## 팀 공통 판단
 
@@ -38,6 +38,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-26 | 개발 일정 마일스톤: M1은 직접 정하고 M2–M4는 AI 분할안 수용 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-10-26-milestone-split.md) |
 | 2026-10-26 | 원격 반영 방식: AI의 PR 경유 제안 대신 main 직접 push | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-10-26-push-learning-system-to-main.md) |
 | 2026-10-23 | 서비스 경계: AI의 3개 구성·4개 절충 추천 대신 5개 분리 | junhyun (SA에는 팀 결정) | Claude Code | **거부** | 후보 | [기록](junhyun/2026-10-23-service-boundary-five-services.md) |
 
