@@ -10,6 +10,7 @@
 | 개인 질문 노트, 하루 정리 | [`learning/<이름>/`](learning/README.md) | `learning-note` 스킬 |
 | 되돌리기 어려운 결정 | [`decisions/`](decisions/README.md) | `adr` 스킬 |
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
+| 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토-2026-10-23) | 아래 목록 |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
