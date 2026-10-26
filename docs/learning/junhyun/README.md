@@ -18,6 +18,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-26 | fail open과 fail closed는 무엇이고 어떻게 고르는가 | [qna/2026-10-26-fail-open-fail-closed.md](qna/2026-10-26-fail-open-fail-closed.md) |
+| 2026-10-26 | DLQ(Dead Letter Queue)는 무엇이고 언제 쓰는가 | [qna/2026-10-26-dlq-dead-letter-queue.md](qna/2026-10-26-dlq-dead-letter-queue.md) |
+| 2026-10-26 | Redis Lua 스크립트는 무엇이고 왜 쓰는가 | [qna/2026-10-26-redis-lua-script.md](qna/2026-10-26-redis-lua-script.md) |
 | 2026-10-23 | M1(Kafka 비동기 접수 설계)을 자세히 설명해 줘 | [sa-review/03-seat-hold-kafka-design.md](../../sa-review/03-seat-hold-kafka-design.md) |
 | 2026-10-23 | 원래 PG사의 타임아웃은 어떻게 처리돼? | [sa-review/02-pg-timeout-handling.md](../../sa-review/02-pg-timeout-handling.md) |
 | 2026-10-23 | 알림을 넣으면 새 서비스가 생기나, 범위는 어떻게 넓히나 | [qna/2026-10-23-notification-service-scope.md](qna/2026-10-23-notification-service-scope.md) |
