@@ -1,3 +1,38 @@
 spring:
   application:
     name: gateway-edge
+  config:
+    import: optional:file:../.env[.properties]
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # lb://<서비스 이름>은 Eureka에 등록된 인스턴스 중 하나로 보낸다.
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/auth/**
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**
+            # 공연·대기열·예매·추첨·알림은 모두 Reservation 안 모듈이다(SA 7-1).
+            - id: reservation-service
+              uri: lb://reservation-service
+              predicates:
+                - Path=/api/v1/concerts/**,/api/v1/schedules/**,/api/v1/reservations/**,/api/v1/lotteries/**,/api/v1/notifications/**,/api/v1/admin/**
+
+server:
+  port: 8080
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus

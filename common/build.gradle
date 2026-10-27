@@ -1,18 +1,14 @@
 plugins {
-    id 'java'
+    id 'java-library'
     id 'java-test-fixtures'
 }
 
 description = 'common'
 
+// 공통 응답·예외·엔티티 기반 코드가 컴파일될 만큼만 둔다. 실행 시점 의존성은 각 서비스가 가진다.
 dependencies {
-    compileOnly 'org.springframework.boot:spring-boot-starter'
-    compileOnly 'org.springframework.boot:spring-boot-starter-validation'
-    compileOnly 'org.springframework.cloud:spring-cloud-starter-openfeign'
-    compileOnly 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    api 'org.springframework.boot:spring-boot-starter-validation'
 
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
+    compileOnly 'org.springframework.boot:spring-boot-starter-webmvc'
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
 }

@@ -32,7 +32,7 @@
 |---|---|
 | [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 0건, 일지 0일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 1건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -40,6 +40,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 멀티모듈 빌드: AI 진단·수정안(common 라이브러리화, 공통 의존성 루트 집약) 수용 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-10-27-multimodule-build-fix.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |
 | 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | 팀 (전달: kangmin) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-26-layered-architecture-four-layers.md) |

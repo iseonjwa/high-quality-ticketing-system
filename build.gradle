@@ -1,12 +1,10 @@
 plugins {
-	id 'java'
 	id 'org.springframework.boot' version '4.1.2' apply false
 	id 'io.spring.dependency-management' version '1.1.7' apply false
 }
 
-ext {
-	set('springCloudVersion', "2025.1.4")
-}
+// 서브프로젝트가 루트 ext를 암묵적으로 찾는 방식은 Gradle 10에서 오류가 되므로 스크립트 변수로 둔다.
+def springCloudVersion = "2025.1.4"
 
 allprojects {
 	group = 'com.highquality'
@@ -17,8 +15,8 @@ allprojects {
 	}
 }
 
+// 모든 모듈: Java 버전, BOM, Lombok, 테스트 기반
 subprojects {
-
 	apply plugin: 'java'
 	apply plugin: 'io.spring.dependency-management'
 
@@ -42,7 +40,7 @@ subprojects {
 		testCompileOnly 'org.projectlombok:lombok'
 		testAnnotationProcessor 'org.projectlombok:lombok'
 
-		testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+		testImplementation 'org.springframework.boot:spring-boot-starter-test'
 		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	}
 
@@ -51,28 +49,39 @@ subprojects {
 	}
 }
 
-configure(subprojects.findAll {it.name.endsWith('-service')}) {
-	apply plugin: 'org.springframework.cloud'
+// 실행 모듈(common 제외): Boot 실행 jar, 관측(Actuator + Prometheus)
+configure(subprojects.findAll { it.name != 'common' }) {
+	apply plugin: 'org.springframework.boot'
 
+	dependencies {
+		implementation 'org.springframework.boot:spring-boot-starter-actuator'
+		runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	}
+}
+
+// Eureka 클라이언트(Gateway, 도메인 서비스): 테스트는 Eureka 서버 없이 돌므로 등록·조회를 끈다.
+// eureka-registry는 서버 자동 구성이 클라이언트 빈을 쓰므로 제외한다.
+configure(subprojects.findAll { it.name == 'gateway-edge' || it.name.endsWith('-service') }) {
+	tasks.named('test') {
+		systemProperty 'eureka.client.enabled', 'false'
+	}
+}
+
+// 도메인 서비스: 공통 모듈, Eureka 등록, 웹·JPA·검증
+configure(subprojects.findAll { it.name.endsWith('-service') }) {
 	dependencies {
 		implementation project(':common')
 		testImplementation testFixtures(project(':common'))
 
-		testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 		implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 		implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 		implementation 'org.springframework.boot:spring-boot-starter-validation'
-		implementation 'org.springframework.boot:spring-cloud-starter-netflix-eureka-client'
+		implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 
 		runtimeOnly 'org.postgresql:postgresql'
+
+		testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+		testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 		testRuntimeOnly 'com.h2database:h2'
 	}
 }
-
-
-dependencies {
-//	implementation 'org.springframework.boot:spring-boot-starter-security'
-
-//	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-}
-

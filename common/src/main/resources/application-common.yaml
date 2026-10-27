@@ -1,3 +1,5 @@
+# 서비스 공통 설정. 각 서비스가 spring.config.import: classpath:application-common.yaml 로 불러온다.
+# 서비스마다 다른 값(DB 계정, 스키마)은 서비스의 application.yaml에서 db.* 로 넘긴다.
 spring:
   config:
     import:
@@ -14,10 +16,3 @@ spring:
     properties:
       hibernate:
         default_schema: ${db.schema}
-  data:
-    web:
-      pageable:
-        default-page-size: 10
-
-  application:
-    name: common
