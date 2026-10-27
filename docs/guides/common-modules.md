@@ -1,6 +1,6 @@
 # 공통 모듈 사용 가이드
 
-[ISE-5](https://linear.app/iseonjwa/issue/ISE-5)에서 준현이 만든 공통 모듈의 사용 계약이다. 응답 6키, 모듈 분리, 패키지명 iseonjwa는 팀 합의 전이다. 처음에는 개인 초안이었고 이후 실제 Boot 앱과 인증으로 확장했다([ADR 0002](../decisions/0002-common-foundation-draft.md), [ADR 0004](../decisions/0004-workspace-auth-bootstrap.md)). 빌드·실행·검증은 [워크스페이스 가이드](workspace.md)를 따른다.
+[ISE-5](https://linear.app/iseonjwa/issue/ISE-5)에서 준현이 만든 공통 모듈의 사용 계약이다. 모듈 분리와 패키지명 iseonjwa는 팀 합의 전이다. **응답 형식은 SA MASTER v3.1(#19)이 성공 `{status, message, data, traceId}`와 실패 `{status, code, message, errors, traceId}`로 정했지만, 이 모듈의 `ApiResponse`는 아직 6키 단일 형태다. 정렬이 필요하며 미반영이다.** 처음에는 개인 초안이었고 이후 실제 Boot 앱과 인증으로 확장했다([ADR 0002](../decisions/0002-common-foundation-draft.md), [ADR 0004](../decisions/0004-workspace-auth-bootstrap.md)). 빌드·실행·검증은 [워크스페이스 가이드](workspace.md)를 따른다.
 
 ## 모듈과 사용 계약
 

@@ -11,3 +11,4 @@
 | 0005 | [인증 Redis 장애 시 우선 요청 차단](0005-auth-redis-fail-closed.md) | 제안 (잠정) | 2026-10-26 |
 | 0006 | [경로별 인증 판정은 Gateway 한 곳에서만 한다](0006-gateway-single-access-policy.md) | 채택 | 2026-10-27 |
 | 0007 | [로그인 5회 실패 잠금과 관리자 비밀번호 초기화](0007-login-lockout-admin-reset.md) | 제안 | 2026-10-27 |
+| 0008 | [내부 신뢰 모델과 인증 설계](0008-internal-trust-and-auth-design.md) | 설계 중 | 2026-10-27 |
