@@ -28,4 +28,5 @@ include(
 // 실행 서비스
 include(
     "config-server",
+    "eureka",
 )

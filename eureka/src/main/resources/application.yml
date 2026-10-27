@@ -1,0 +1,21 @@
+# 이름과 Config 서버 주소만 둔다. 나머지 설정은 config-repo/eureka.yml에 있다 (SA 9-6)
+spring:
+  application:
+    name: eureka
+  config:
+    # 컨테이너에서는 CONFIG_SERVER_URL=http://config-server:8888, IntelliJ에서는 기본값 localhost
+    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  cloud:
+    config:
+      # 설정을 못 받으면 기본값으로 뜨지 않고 기동을 멈춘다
+      fail-fast: true
+
+---
+# 테스트는 Config 서버 없이 돈다
+spring:
+  config:
+    activate:
+      on-profile: test
+  cloud:
+    config:
+      enabled: false

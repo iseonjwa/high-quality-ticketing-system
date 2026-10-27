@@ -136,6 +136,30 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  eureka:
+    build:
+      context: .
+      args:
+        MODULE: eureka
+    image: iseonjwa/eureka:local
+    environment:
+      JAVA_OPTS: -Xmx256m
+      CONFIG_SERVER_URL: http://config-server:8888
+    # 대시보드는 관리 UI라 127.0.0.1에만 연다 (9-2)
+    ports:
+      - "127.0.0.1:8761:8761"
+    mem_limit: 512m
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   # ---------- 관리 UI: 127.0.0.1에만 바인딩해 호스트 밖으로 열리지 않게 한다 (9-2) ----------
   kafka-ui:
     image: kafbat/kafka-ui:v1.5.0

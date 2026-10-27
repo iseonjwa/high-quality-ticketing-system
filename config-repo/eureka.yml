@@ -1,0 +1,11 @@
+server:
+  port: 8761
+
+eureka:
+  client:
+    # 서버 1대라 자기 자신을 등록하거나 다른 서버에서 목록을 받아오지 않는다
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    # 응답 없는 인스턴스를 빨리 지운다(기본 60초 → 10초). 서비스 재시작이 잦은 개발 환경용
+    eviction-interval-timer-in-ms: 10000
