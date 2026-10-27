@@ -61,17 +61,20 @@ D2는 HS256 유지(단순, 검증자가 서명도 가능)와 RS256(발급자만 
 | 장애 시 | 재확인 실패는 팀 확인 항목(권장 503) | Redis 장애는 503 (ADR 0005) | 우리 쪽이 이미 정함 |
 | 화이트리스트 | `permitAll`이 아니라 보안 대상에서 제외(만료 토큰이 붙은 로그인 방지) | PUBLIC은 필터에서 토큰을 보지 않음 | 동등 |
 
-### 가져올 후보 (선택 대기)
+### 가져올 후보
 
-- A1. `/internal/**`를 Gateway의 `AccessPolicy`에서 외부 차단(404)한다. 이후 서비스 간 HTTP가 생겨도 외부에서 닿지 않는다. 비용이 작고 SA와 충돌이 없다.
-- A2. common-web에 `@RequireRole` 어노테이션과 인터셉터를 둔다. 컨트롤러 안의 역할 확인 if를 없애고 "서비스(권한)" 계층(SA 9-2)을 한 곳에 모은다.
-- A3. 비밀번호 초기화·잠금 시 Redis에 `auth:revoked-after:{userId}`를 남기고 Gateway가 기존 블랙리스트 조회와 함께 `iat`와 비교한다. T6을 user-service 호출 없이 줄인다. SA 12-8의 Redis 키 표에 키가 하나 늘어 팀 확인이 필요하다.
-- A4. 서비스 포트 비공개 전제를 배포 체크리스트(SA 9-2)와 가이드에 명시한다. 문서만의 변경이다.
+2026-10-27 사용자가 AI 의견대로 A1·A2·A4를 지금 적용하고 A3는 SA 합의 뒤로 두기로 했다. A1·A2·A4는 구현했다.
+
+- A1(적용). `/internal/**`와 `/api/v1/internal/**`를 Gateway의 `AccessPolicy`에서 외부 차단(404)한다. 이후 서비스 간 HTTP가 생겨도 외부에서 닿지 않는다. 비용이 작고 SA와 충돌이 없다.
+- A2(적용). common-web에 `@RequireRole` 어노테이션과 인터셉터를 둔다. 컨트롤러 안의 역할 확인 if를 없애고 "서비스(권한)" 계층(SA 9-2)을 한 곳에 모은다.
+- A3(보류, SA 합의 뒤). 비밀번호 초기화·잠금 시 Redis에 `auth:revoked-after:{userId}`를 남기고 Gateway가 기존 블랙리스트 조회와 함께 `iat`와 비교한다. T6을 user-service 호출 없이 줄인다. SA 12-8의 Redis 키 표에 키가 하나 늘어 팀 확인이 필요하다.
+- A4(적용). 서비스 포트 비공개 전제를 [워크스페이스 가이드](../guides/workspace.md)에 명시하고, 어기면 실패하는 `script/check-port-exposure.py`를 `check.sh`와 CI에 넣었다. SA 9-2 문서 자체는 바꾸지 않았다.
 
 가져오지 않는 것: user-service 재확인 호출(SA 충돌), Spring Security WebFlux 전환(현재 필터로 충분하고 테스트가 있다).
 
 ## 열린 질문
 
-- A1~A4 중 어떤 것을 이번 M1에 넣을지. AI 의견은 A1·A2·A4를 지금, A3는 SA 합의 뒤다.
+- A3(`revoked-after`)를 SA 12-8 변경으로 팀에 제안할지.
+- Gateway 기동 직후 첫 요청이 Redis 연결 수립 때문에 503이 나는 문제([ADR 0005](0005-auth-redis-fail-closed.md) 관찰)를 먼저 고칠지.
 - Redis 비밀번호·ACL(T4)을 함께 할지.
 - 로그인 남용 방어(T7: IP 기준 제한, 운영자 계정 예외)를 언제 다룰지.

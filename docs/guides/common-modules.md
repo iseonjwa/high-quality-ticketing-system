@@ -8,7 +8,7 @@
 |---|---|---|
 | common-response | SuccessResponse, FailureResponse, FieldError, ErrorCode, CommonErrorCode, BusinessException, IdentityHeaders, Roles | Spring 의존 없음. 성공의 data는 null이어도 내보내고 실패의 errors는 검증 실패일 때만 내보내는 Jackson 애너테이션 사용 |
 | common-auth | TokenType, TokenDecoders | common-response, spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증 |
-| common-web | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter | common-response, Spring MVC. 설정을 명시적으로 import |
+| common-web | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter, RequireRole | common-response, Spring MVC. 설정을 명시적으로 import |
 | common-messaging | CommonMessagingConfiguration | Boot Kafka 연결 기반(spring-boot-starter-kafka) |
 | common | EventEnvelope, BaseEntity, CurrentActorProvider, CommonJpaConfiguration | 이벤트는 일반 DTO. 감사는 JPA 콜백과 Spring 빈 주입 사용 |
 
@@ -31,6 +31,10 @@
 ### 사용자 컨텍스트
 
 GatewayIdentityFilter는 Gateway가 전달한 X-User-Id·X-User-Role 헤더를 요청 속성(`currentUserId`, `currentUserRole`)으로 옮긴다. 경로로 인증 여부를 판단하지 않는다. 헤더가 있으면 형식만 검증해 잘못되면 401이고, 없으면 속성 없이 통과한다. 사용자 정보가 필요한 컨트롤러가 `@RequestAttribute`로 받으면 속성이 없을 때 공통 예외 처리기가 401을 반환한다. 인증 필요 여부는 Gateway의 `AccessPolicy`가 정한다.
+
+### 역할 확인
+
+컨트롤러 메서드나 클래스에 `@RequireRole(Roles.ADMIN)`처럼 허용할 역할을 선언하면 인터셉터가 호출 전에 `currentUserRole` 속성을 확인한다. 속성이 없으면 401 UNAUTHORIZED, 허용한 역할이 아니면 403 FORBIDDEN이며 둘 다 공통 실패 응답이다. 메서드의 선언이 클래스보다 우선한다. 어노테이션이 없는 API는 역할을 확인하지 않는다(로그인 필요 여부는 Gateway가 정한다). 소유자 검증 같은 도메인 인가는 각 서비스의 Application 계층에서 한다.
 
 ### 토큰 계약
 
