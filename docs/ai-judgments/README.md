@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 16건, 일지 2일 |
-| [kangmin](kangmin/README.md) | 개별 기록 10건, 일지 2일 |
+| [kangmin](kangmin/README.md) | 개별 기록 11건, 일지 2일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -41,6 +41,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 회의 결정 후속: AI가 나눈 후속 이슈 대신 이번 통합에서 끝내기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-27-meeting-followups-finish-now.md) |
 | 2026-10-27 | 통합 회의: 결정 시트 추천 중 D6 공통 모듈(하나+패키지), 리뷰 없음, 패키지 com.iseonjwa로 정함 | 팀 (전달: kangmin) | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-27-integration-meeting-decisions.md) |
 | 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-27-branch-integration-recommendation.md) |
 | 2026-10-27 | M1 진행 방식: AI의 "각자 만드는 건 공통 모듈만" 설명 대신 전원이 같은 범위를 각자 만들고 병합 | 팀 (전달: hyoseung) | Claude Code | **거부** | 아님 | [기록](hyoseung/2026-10-27-m1-everyone-builds-full-skeleton.md) |
