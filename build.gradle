@@ -42,9 +42,18 @@ tasks.register('prepareTestInfra', Exec) {
     commandLine 'docker', 'compose', '-f', 'compose.test.yml', 'up', '-d', '--wait', '--wait-timeout', '120'
 }
 
+// Note: Windows에서 프로세스 이름 'bash'는 PATH보다 System32의 WSL bash가 먼저 잡힌다.
+// WSL 안에서는 Windows 경로의 저장소를 git이 인식하지 못하므로 Git Bash를 직접 지정한다
+def bashExecutable = {
+    if (!System.getProperty('os.name').toLowerCase().contains('windows')) return 'bash'
+    def candidates = [providers.gradleProperty('bashPath').getOrNull(),
+                      'C:/Program Files/Git/bin/bash.exe', 'C:/Program Files/Git/usr/bin/bash.exe']
+    return candidates.find { it != null && new File(it).exists() } ?: 'bash'
+}
+
 tasks.register('checkRecords', Exec) {
     group = 'verification'
-    commandLine 'bash', 'script/records-check.sh'
+    commandLine bashExecutable(), 'script/records-check.sh'
 }
 
 tasks.register('checkDiff', Exec) {
