@@ -1,0 +1,5 @@
+# 부하 측정 프로필 (SA 9-1): 추적 샘플링을 낮춰 측정값에 추적 비용이 섞이지 않게 한다
+management:
+  tracing:
+    sampling:
+      probability: 0.1

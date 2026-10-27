@@ -1,0 +1,52 @@
+# API Gateway (SA 7-2, 9-2, 9-4, 9-5, 11-1)
+server:
+  port: 8080
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # 블랙리스트 확인용. 정상 응답은 1ms 안팎이라 100ms를 넘으면 이상 징후다 (SA 9-5)
+      timeout: 100ms
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 1000
+            # 요청 전체 타임아웃: 사용자가 기다릴 상한 (SA 9-4)
+            response-timeout: 3s
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/auth/**
+            # 대기열·추첨·알림은 Reservation 안 모듈이다 (SA 7-1). 운영자 API도 모두 Reservation에 있다 (SA 11-4)
+            - id: reservation-service
+              uri: lb://reservation-service
+              predicates:
+                - Path=/api/v1/concerts/**,/api/v1/schedules/**,/api/v1/reservations/**,/api/v1/lotteries/**,/api/v1/notifications/**,/api/v1/admin/**
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**
+
+gateway:
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    # 인증 없이 통과하는 요청 (SA 11-4에서 헤더가 "—"인 API)
+    public-paths:
+      - POST /api/v1/users
+      - POST /api/v1/auth/login
+      - POST /api/v1/auth/refresh
+      - GET /api/v1/concerts/**
+  # SA 9-4 초기값. 측정 후 여기서 바꾼다
+  redis-guard:
+    timeout: 100ms
+    sliding-window-size: 20
+    failure-rate-threshold: 50
+    slow-call-duration: 50ms
+    slow-call-rate-threshold: 50
+    wait-in-open-state: 10s
+    half-open-calls: 5

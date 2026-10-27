@@ -1,0 +1,31 @@
+# 모든 Config 클라이언트(gateway, 서비스)가 함께 읽는 공통 설정 (SA 9-6)
+# 비밀값은 넣지 않는다. ${...} 자리표시자는 각 앱이 자기 환경 변수(.env)로 채운다
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    # 컨테이너 이름 대신 IP로 등록해 Prometheus·Gateway가 같은 네트워크에서 바로 찾게 한다
+    prefer-ip-address: true
+
+spring:
+  threads:
+    virtual:
+      # Java 21은 synchronized 안에서 가상 스레드가 캐리어 스레드에 고정된다. 기본으로 끈다 (SA 9-1)
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}

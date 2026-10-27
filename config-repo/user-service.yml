@@ -1,0 +1,3 @@
+# user-service (SA 9-1). DB·Redis·JWT 설정은 회원·인증 기능을 만들 때 추가한다
+server:
+  port: 8081

@@ -1,0 +1,14 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+dependencies {
+    implementation 'org.springframework.cloud:spring-cloud-config-server'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+// config-repo 파일을 실제로 읽어 보는 테스트라 저장소 루트 경로를 넘긴다
+tasks.named('test') {
+    systemProperty 'config.repo.location', "file:${rootProject.projectDir}/config-repo/"
+}

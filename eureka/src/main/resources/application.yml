@@ -1,0 +1,32 @@
+# Eureka는 Config 서버 클라이언트가 아니다. 기동 순서가 config-server → eureka → 서비스라
+# 설정이 거의 없는 Eureka까지 Config 서버에 묶을 이유가 없다 (SA 9-6 기동 순서)
+server:
+  port: 8761
+
+spring:
+  application:
+    name: eureka
+
+eureka:
+  instance:
+    # 자기 주소를 기본 서버 주소(localhost)와 맞춰야 자기 자신을 다른 서버로 보고 복제하지 않는다
+    hostname: localhost
+  client:
+    # 서버 한 대라 자기 자신을 등록하거나 다른 서버에서 목록을 받지 않는다
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    # 로컬·단일 EC2에서는 내려간 인스턴스를 바로 지우는 편이 낫다. 운영 다중 인스턴스라면 켠다
+    enable-self-preservation: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}

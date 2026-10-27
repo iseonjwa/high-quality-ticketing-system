@@ -1,0 +1,27 @@
+# Config 서버 (SA 9-6): 모노레포 config-repo/ 파일을 그대로 읽는다(native 백엔드)
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # 로컬 실행(작업 폴더 = config-server/)은 ../config-repo, 컨테이너는 compose가 /config-repo로 바꾼다
+          search-locations: ${CONFIG_REPO_LOCATION:file:../config-repo/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
