@@ -1,4 +1,4 @@
 rootProject.name = 'high-quality-ticketing-system'
 
 include 'common', 'common-response', 'common-web', 'common-messaging'
-include 'config-server', 'eureka', 'user-service'
+include 'config-server', 'eureka', 'user-service', 'gateway'
