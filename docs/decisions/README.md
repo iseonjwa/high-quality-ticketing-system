@@ -16,3 +16,4 @@
 | 0010 | [인증 상태 확인과 세션 변경을 사용자 행 잠금으로 직렬화](0010-auth-session-serialization.md) | 채택 (브랜치 구현) | 2026-10-27 |
 | 0011 | [앱 검증은 Java·JUnit으로 관리한다](0011-junit-verification-boundary.md) | 대체됨 (0012) | 2026-10-27 |
 | 0012 | [개발 도구와 검증을 Java·Gradle로 통일한다](0012-java-gradle-workspace-tools.md) | 채택 (브랜치 구현) | 2026-10-27 |
+| 0013 | [공통 모듈은 common 하나로 두고, 메시징만 만들 때 common-messaging으로 분리한다](0013-single-common-module.md) | 제안 (권우 브랜치 기준. 통합 코드는 공통 모듈 5개 구성, 팀 결정 대기) | 2026-10-27 |
