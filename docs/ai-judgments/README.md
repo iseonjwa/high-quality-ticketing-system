@@ -30,7 +30,7 @@
 
 | 폴더 | 내용 |
 |---|---|
-| [junhyun](junhyun/README.md) | 개별 기록 10건, 일지 2일 |
+| [junhyun](junhyun/README.md) | 개별 기록 11건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
 
 ## 팀 공통 판단
@@ -39,6 +39,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | D1에서 서비스가 사용자 JWT를 직접 검증하는 C 선택, D2는 비교 중 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-service-jwt-verification-choice.md) |
 | 2026-10-27 | 브랜치 리뷰 후속 수정: 경로 판정 Gateway 일원화·로그인 보안 확장, 신뢰 모델은 후속 설계 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-review-followup.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |
