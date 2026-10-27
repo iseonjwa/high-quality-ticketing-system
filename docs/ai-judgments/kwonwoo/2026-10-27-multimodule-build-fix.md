@@ -47,7 +47,7 @@ shared: 예
 - Eureka에 `@EnableEurekaServer`를 넣었다.
 - Gateway: webmvc gateway와 Eureka client를 쓰고, SA 7-1·API 목록 기준 라우트를 넣었다. 포트는 SA 값(8080·8761·8081~8083)을 따랐다.
 - 모듈 안 `settings.gradle`, `gradlew`, `gradle/wrapper`, `.gitattributes`를 삭제했다.
-- 문제 해결 기록: [TS-1](../../troubleshooting.md)
+- 문제 해결 기록: [TS-25](../../troubleshooting.md)
 
 ## 검증
 - `./gradlew clean build --warning-mode all`: 성공했고 deprecation 경고는 0건, 테스트 5개(Eureka·Gateway·서비스 3개 contextLoads)는 모두 통과했다.

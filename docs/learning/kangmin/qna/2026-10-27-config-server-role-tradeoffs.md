@@ -44,6 +44,9 @@ user-service 기동 → spring.config.import: configserver:... (test 프로필�
 | Config 서버 (git 백엔드) | 별도 git 저장소 | 커밋 이력이 곧 설정 변경 이력. 재배포 없이 브랜치·라벨 전환 | 저장소 접근 토큰 관리, 저장소가 하나 더 생김 |
 | 플랫폼 기능 (K8s ConfigMap, Consul, AWS Parameter Store, Vault) | 인프라 | 운영 환경 표준, 비밀값 전용 관리(Vault) | 이 프로젝트의 compose·EC2 1대 환경에는 과함 |
 
+### Config 서버 없이 같은 구조를 얻는 방법 (2026-10-27 실험)
+Spring Boot 기본 기능만으로도 같은 3단 구조를 얻을 수 있다. `config-repo/`를 각 컨테이너에 마운트하고 `SPRING_CONFIG_NAME=application,<서비스>`, `SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/`를 주면 된다. Eureka jar로 파일 4개를 하나씩 지우며 확인한 우선순위는 Config 서버와 같았다(`{서비스}-{프로필}` > `application-{프로필}` > `{서비스}` > `application`). 대가는 이 두 값을 `application.yml`에 쓸 수 없어 IntelliJ 실행 설정마다 환경 변수로 넣어야 한다는 점이다. 선택지 전체 비교(설정 관리 방식 7가지)는 강민 초안으로 정리했고, 통합 뒤 `docs/decisions/0003-config-server-native.md`에 보탤 예정이다.
+
 ### 고른 이유 (SA 9-6, #30)
 - 측정하면서 자주 바꾸는 숫자 기준(타임아웃, 샘플링, 풀 크기)과 loadtest 프로필 전환을 한 곳에서 처리한다. 실제로 `application-loadtest.yml` 한 파일이 모든 서비스의 샘플링 비율을 0.1로 바꾼다.
 - 개발(IntelliJ에서 `localhost:8888`), 측정, 배포가 같은 설정 파일을 읽는다.
@@ -55,8 +58,8 @@ user-service 기동 → spring.config.import: configserver:... (test 프로필�
 |---|---|
 | 컨테이너·메모리 증가 | `-Xmx256m`, `mem_limit: 512m`. 아래 "자원 측정" 참고 |
 | 기동 의존 | compose `depends_on: condition: service_healthy`로 config-server → eureka → 서비스 순서. `fail-fast: true`로 설정을 못 받으면 서비스가 뜨지 않게 함 |
-| 테스트 복잡도 | 처음에는 test 프로필 문서에서 Config를 끄면 된다고 봤는데, import가 그보다 먼저 처리돼 Config 서버가 꺼져 있으면 테스트 7개가 실패했다. import를 `on-profile: "!test"` 문서로 옮겨 해결(TS-2 정정, TS-5) |
-| 빌드 캐시 착시 | config-repo가 Gradle 테스트 입력이 아니라서 설정을 틀리게 바꿔도 테스트가 "최신"으로 건너뛰어짐 → 입력으로 등록(TS-1) |
+| 테스트 복잡도 | 처음에는 test 프로필 문서에서 Config를 끄면 된다고 봤는데, import가 그보다 먼저 처리돼 Config 서버가 꺼져 있으면 테스트 7개가 실패했다. import를 `on-profile: "!test"` 문서로 옮겨 해결(TS-21 정정, TS-24) |
+| 빌드 캐시 착시 | config-repo가 Gradle 테스트 입력이 아니라서 설정을 틀리게 바꿔도 테스트가 "최신"으로 건너뛰어짐 → 입력으로 등록(TS-20) |
 | 값 출처 추적 | 4단 우선순위를 알아야 함. 처음에 README의 순서를 잘못 적었다가 테스트로 바로잡음 |
 | 실행 중 변경 안 됨 | 기본은 재시작. SA는 측정용 값만 `@RefreshScope` + `/actuator/refresh`로 정함(아직 미구현). Spring Cloud Bus는 서비스 3개 규모에 과하다고 판단 |
 
@@ -97,5 +100,5 @@ user-service 기동 → spring.config.import: configserver:... (test 프로필�
 
 ## 참고
 - Spring Cloud Config 문서 (Environment Repository, Config Client의 `spring.config.import`)
-- 이 저장소 `docs/troubleshooting.md` TS-1, TS-2
+- 이 저장소 `docs/troubleshooting.md` TS-20, TS-21
 - SA MASTER 9-6, 결정 기록 #30

@@ -30,8 +30,10 @@
 
 | 폴더 | 내용 |
 |---|---|
+| [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 16건, 일지 2일 |
-| [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
+| [kangmin](kangmin/README.md) | 개별 기록 9건, 일지 2일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -39,6 +41,11 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-27-branch-integration-recommendation.md) |
+| 2026-10-27 | M1 진행 방식: AI의 "각자 만드는 건 공통 모듈만" 설명 대신 전원이 같은 범위를 각자 만들고 병합 | 팀 (전달: hyoseung) | Claude Code | **거부** | 아님 | [기록](hyoseung/2026-10-27-m1-everyone-builds-full-skeleton.md) |
+| 2026-10-27 | 공통 모듈: SA 4개 분리 대신 common 하나로 두고 메시징만 나중에 분리하는 AI 추천을 수용 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-common-module-minimal-split.md) |
+| 2026-10-27 | Gateway 스택: 현재 WebMVC 대신 SA 전제와 AI 추천대로 WebFlux로 전환 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-gateway-webflux.md) |
+| 2026-10-27 | 멀티모듈 빌드: AI 진단·수정안(common 라이브러리화, 공통 의존성 루트 집약) 수용 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-10-27-multimodule-build-fix.md) |
 | 2026-10-27 | 앱 검증 이관을 수용하고 Python 도구 유지안 대신 전체 Java·Gradle 통일 선택 | junhyun | Codex | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-java-gradle-tools.md) |
 | 2026-10-27 | Python 앱 검증 대신 내부 JUnit 테스트로 정리 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-27-junit-test-boundary.md) |
 | 2026-10-27 | 인증 구현 보강 4개 수용과 항목별 커밋 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-auth-hardening.md) |

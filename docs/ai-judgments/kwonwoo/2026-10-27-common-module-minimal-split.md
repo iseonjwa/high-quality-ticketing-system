@@ -31,7 +31,7 @@ shared: 예
 - 검토한 대안: SA 13장 4개 분리, 메시징도 `common`에 넣기, 메시징을 서비스마다 구현
 
 ## 반영
-- 결정 기록: [ADR 0001](../../decisions/0001-single-common-module.md) (제안, 팀 리뷰 필요)
+- 결정 기록: [ADR 0013](../../decisions/0013-single-common-module.md) (제안, 팀 리뷰 필요)
 - 코드
   - `common`: 응답 형식, 에러 코드, `BusinessException`, `GlobalExceptionHandler`, 격리 규칙 주석
   - 서비스 3개: `scanBasePackages`

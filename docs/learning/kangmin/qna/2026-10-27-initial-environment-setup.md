@@ -64,7 +64,7 @@ PostgreSQL 18부터 데이터 경로가 `/var/lib/postgresql/18/docker`로 바�
 | 선택 | 비교한 것 | 고른 이유 |
 |---|---|---|
 | native(파일) 백엔드 | Git 백엔드 | 모노레포의 `config-repo/`를 마운트만 한다. 설정 변경도 PR로 리뷰된다 (SA 9-6) |
-| 클라이언트는 `on-profile: "!test"` 문서에서만 `configserver:` import + `fail-fast: true` | 기본 문서에 `optional:configserver:` (처음 구현, TS-2) | 테스트는 Config 서버 없이 돌고, 실제 기동에서는 Config 서버가 없으면 멈춘다. 처음 구현은 Config 서버가 꺼져 있으면 테스트가 실패했다(TS-5) |
+| 클라이언트는 `on-profile: "!test"` 문서에서만 `configserver:` import + `fail-fast: true` | 기본 문서에 `optional:configserver:` (처음 구현, TS-21) | 테스트는 Config 서버 없이 돌고, 실제 기동에서는 Config 서버가 없으면 멈춘다. 처음 구현은 Config 서버가 꺼져 있으면 테스트가 실패했다(TS-24) |
 | 서비스 모듈의 `application.yml`에는 이름과 import만 | 모듈마다 설정 | 설정이 한 곳에만 있다 |
 
 **우선순위(테스트로 확인)**: `{서비스}-{프로필}` > `application-{프로필}` > `{서비스}` > `application`. 프로필 파일이 서비스 이름 파일보다 앞선다. 처음에 반대로 알고 README를 썼다가 `ConfigRepoTest`가 잡아냈다. 서비스마다 다른 값을 `application-local.yml`에 두면 모든 서비스의 같은 키를 덮어쓴다.
@@ -91,7 +91,7 @@ PostgreSQL 18부터 데이터 경로가 `/var/lib/postgresql/18/docker`로 바�
 
 ### 7. 공용 Dockerfile
 - 멀티 스테이지: JDK 이미지에서 `./gradlew bootJar`로 모든 jar를 만들고, JRE 이미지에 해당 서비스 jar 하나만 복사한다. root가 아닌 사용자로 실행한다.
-- 서비스마다 따로 빌드하면 Gradle 캐시 잠금이 충돌해서(TS-3), 빌드 단계를 공유하게 바꿨다.
+- 서비스마다 따로 빌드하면 Gradle 캐시 잠금이 충돌해서(TS-22), 빌드 단계를 공유하게 바꿨다.
 - 비교: Jib, `bootBuildImage`(Buildpacks)도 있다. Dockerfile은 플러그인 없이 무엇이 들어가는지 그대로 보인다는 점 때문에 골랐다.
 
 ## 이 프로젝트에서는
@@ -138,10 +138,10 @@ IntelliJ로 서비스 하나만 띄울 때는 실행 설정에 프로필 `local`
 
 ## 면접 포인트
 - "설정은 왜 Config 서버로?": 숫자 기준과 loadtest 프로필 전환을 한 곳에서 바꾸려고. 대가는 기동 순서 의존이며, healthcheck + `depends_on: service_healthy`로 순서를 보장했다.
-- "테스트는 어떻게 믿나?": 변이 테스트를 했다. 설정 파일을 틀리게 바꾸고, 의존성을 빼고, 비밀번호를 평문으로 넣어 테스트가 실패하는지 봤다. 그 과정에서 Gradle이 테스트를 건너뛰던 문제(TS-1)와 우선순위 착각을 찾았다.
+- "테스트는 어떻게 믿나?": 변이 테스트를 했다. 설정 파일을 틀리게 바꾸고, 의존성을 빼고, 비밀번호를 평문으로 넣어 테스트가 실패하는지 봤다. 그 과정에서 Gradle이 테스트를 건너뛰던 문제(TS-20)와 우선순위 착각을 찾았다.
 - "로컬과 배포의 포트 노출 차이는?": override 파일로 로컬 포트를 열되 모두 `127.0.0.1`에만 바인딩해, 서버에서 실수로 읽어도 외부로 열리지 않게 했다.
 
 ## 참고
 - SA MASTER 9-1 ~ 9-6, 13장
-- `docs/troubleshooting.md` TS-1 ~ TS-4
+- `docs/troubleshooting.md` TS-20 ~ TS-23
 - Spring Boot 4.1.2 BOM, Spring Cloud 2025.1.4 BOM(Maven Central), 각 jar의 `spring-configuration-metadata.json`
