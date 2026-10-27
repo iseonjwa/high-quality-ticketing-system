@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | 추첨 배분 설계로 이 프로젝트에서 무엇을 얻어 갈 수 있나 | [qna/2026-10-27-lottery-design-learning-points.md](qna/2026-10-27-lottery-design-learning-points.md) |
+| 2026-10-27 | 마일스톤을 더 잘게 나눠야 하나, 공통 모듈은 필요할 때 늘려도 되나 | [qna/2026-10-27-milestone-granularity-and-common-module-timing.md](qna/2026-10-27-milestone-granularity-and-common-module-timing.md) |
 | 2026-10-27 | .env 파일과 initLocalEnv는 무엇이고, 통합 뒤 왜 다시 만들어야 하나 | [qna/2026-10-27-env-file-and-init-local-env.md](qna/2026-10-27-env-file-and-init-local-env.md) |
 | 2026-10-27 | 공통 모듈 4개와 config-repo 파일 14개는 너무 잘게 나눈 것인가 | [qna/2026-10-27-common-module-config-repo-granularity.md](qna/2026-10-27-common-module-config-repo-granularity.md) |
 | 2026-10-27 | Config 서버는 무슨 역할을 하고, 설정을 따로 분리하면 무엇을 얻고 잃나 | [qna/2026-10-27-config-server-role-tradeoffs.md](qna/2026-10-27-config-server-role-tradeoffs.md) |
