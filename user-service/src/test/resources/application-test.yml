@@ -1,0 +1,37 @@
+server:
+  address: 127.0.0.1
+spring:
+  cloud:
+    config:
+      enabled: false
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:25433/user_test}
+    username: test
+    password: test-only-password
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      host: localhost
+      port: ${TEST_REDIS_PORT:26379}
+      timeout: 1s
+management:
+  # 테스트의 관리 엔드포인트는 업무 서버와 같은 임의 포트와 loopback 주소를 쓴다.
+  tracing:
+    export:
+      zipkin:
+        enabled: false
+eureka:
+  client:
+    enabled: false
+auth:
+  access-secret: test-access-secret-that-is-at-least-32-bytes-long
+  refresh-secret: test-refresh-secret-that-is-at-least-32-bytes-long
+  issuer: iseonjwa-auth
+  access-seconds: 1800
+  refresh-seconds: 1209600
+seed:
+  admin-email: admin@test.local
+  admin-password: test-only-admin-password
