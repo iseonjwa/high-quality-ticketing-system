@@ -1,0 +1,55 @@
+plugins {
+    id 'org.springframework.boot' version '4.1.2' apply false
+}
+
+def applicationModules = ['gateway', 'eureka', 'config-server', 'user-service',
+                          'reservation-service', 'payment-service', 'mock-pg']
+
+subprojects {
+    apply plugin: 'java-library'
+
+    group = 'iseonjwa'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    dependencies {
+        api platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
+        api platform('org.springframework.cloud:spring-cloud-dependencies:2025.1.4')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+        options.release = 21
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        testLogging {
+            events 'failed', 'skipped'
+        }
+    }
+
+    if (name in applicationModules) {
+        apply plugin: 'org.springframework.boot'
+        dependencies {
+            implementation 'org.springframework.boot:spring-boot-starter-actuator'
+            implementation 'org.springframework.boot:spring-boot-starter-zipkin'
+            runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+            testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        }
+        tasks.named('jar') { enabled = false }
+        tasks.named('bootJar') { archiveFileName = 'app.jar' }
+    }
+}
