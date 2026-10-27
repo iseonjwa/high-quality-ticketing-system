@@ -54,7 +54,7 @@ services:
         APP_MODULE: gateway
     environment:
       <<: *app-env
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?script/init-local-env.py를 먼저 실행한다}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
     ports: ["127.0.0.1:8080:8080"]
     depends_on:
       config-server:
@@ -71,7 +71,7 @@ services:
         APP_MODULE: user-service
     environment:
       <<: *app-env
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?script/init-local-env.py를 먼저 실행한다}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?필수}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?필수}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?필수}
