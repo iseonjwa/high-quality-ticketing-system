@@ -18,7 +18,6 @@
 7. **톤**: 코드 주석, 문서, 커밋은 한국어 평서체로 쓴다. AI 말투(과한 공감, 감탄, 장황한 서두)와 이모지를 쓰지 않는다.
 8. **비밀값 금지**: 토큰, 실제 비밀번호, `.env`는 커밋하지 않는다.
 9. **AI 공동 작성자 표기 금지**: 커밋과 PR에 `Co-Authored-By`로 에이전트를 넣지 않고 생성 도구 문구도 넣지 않는다. 커밋 제목은 `type(scope): 요약`이다. 자세한 규칙은 `docs/guides/git-workflow.md`에 있다.
-10. **코드는 읽는 흐름을 우선한다.** 의미 있는 이름·책임 분리·기존 공통 계약·실패 의미를 유지한다. `Note:`는 코드만으로 알기 어려운 이유·주의점·학습 포인트에만 선택적으로 쓰고, 자명한 설명과 같은 내용의 반복으로 남발하지 않는다. 세부 기준은 `docs/guides/code-style.md`에 있다.
 
 ## 작업별 필수 문서
 | 언제 | 읽을 문서 |
@@ -27,8 +26,6 @@
 | 사용자 질문에 답할 때, 개념을 설명할 때 | `docs/agents/learning-guide.md` |
 | 사용자가 AI 응답·제안에 판단을 내렸을 때 | `.agents/skills/ai-judgment/SKILL.md`, `docs/ai-judgments/README.md` |
 | 문서·노트·커밋·PR 본문을 쓸 때 | `docs/guides/writing.md` |
-| 코드를 작성·수정·리뷰할 때 | `docs/guides/code-style.md` |
-| 테스트·개발 도구를 작성·실행할 때 | `docs/guides/testing.md` (Java·JUnit·Gradle 기준) |
 | 커밋·PR 작업 시 | `docs/guides/git-workflow.md`, `.github/pull_request_template.md` |
 | 작업 완료 보고·테스트 전 | `docs/agents/quality-gates.md` |
 | 결정을 기록할 때 | `docs/decisions/README.md` |

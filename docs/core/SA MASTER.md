@@ -632,7 +632,7 @@ flowchart TB
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택 (#30 잠정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.1.0이다.
+- 기술 스택 (#30 잠정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈)이고 설정은 Config 서버(9-6)로 관리한다.
 - 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다.
 - Java 21에서는 가상 스레드가 `synchronized` 안에서 캐리어 스레드에 고정되므로(JDK 24에서 해결) 가상 스레드는 기본으로 끈다. 고도화에서 켜 볼 때는 고정 지점을 먼저 확인한다. Java 22 이후 기능은 쓰지 않는다.
 - 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod. 프로필별 값은 `config-repo/{서비스}-{프로필}.yml`에 둔다(9-6).
@@ -718,7 +718,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- |
 | 대기열 진입·입장 판정 | closed | 503 + `Retry-After` | 속도 통제 없이 입장시키면 선점 API가 폭주를 받는다 |
 | 좌석 조회·선점의 입장 토큰 검증 | 서명 검증은 Redis 없이 통과 | 정상 | 입장 토큰은 서명과 `exp`로 자체 검증된다 |
-| 로그아웃 블랙리스트 확인 | closed (잠정 구현) | 503 + `Retry-After` | 2026-10-26 Junhyun An이 우선 차단으로 구현했고 팀과 논의할 항목이다([ADR 0005](../decisions/0005-auth-redis-fail-closed.md)). 이전 제안은 open이었다: 로그아웃된 Access 토큰이 최대 30분 통하지만 결제는 별도 결제 토큰이 있어 피해 범위가 제한된다 (#48 잠정) |
+| 로그아웃 블랙리스트 확인 | open | 정상 | 로그아웃된 Access 토큰이 최대 30분 통한다. 결제는 별도 결제 토큰이 있어 피해 범위가 제한된다. 보안 요구가 더 높으면 closed로 바꾼다 (#48 잠정) |
 | 사용자 요청 제한 | 인스턴스 로컬 카운터로 낮춰 open | 정상 | 정확도는 떨어지지만 뒷단 보호는 유지 |
 | 공연 정보·좌석 캐시 | open, DB 조회로 대체 | 정상 | DB 보호를 위해 대체 조회는 초당 상한을 둔다 |
 - 검증: E11. 지연 주입 도구는 정하지 않았다. Toxiproxy 같은 프록시나 Redis `DEBUG SLEEP`이 후보다 (U17).
