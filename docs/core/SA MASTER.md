@@ -333,6 +333,7 @@ flowchart TD
 | --- | --- | --- |
 | docker-compose (PostgreSQL×3·Redis·Kafka·Kafka-UI·Prometheus·Grafana·Zipkin), `.env.example` | 🆕 관리자 UI는 `127.0.0.1` 바인딩, 내부 서비스는 `expose`만 (9-2) | Must |
 | Gateway 라우팅 + JWT 검증 → `X-User-Id`·`X-User-Role` 전달, Eureka | 🆕 Redis 호출 타임아웃·서킷 브레이커 (9-5) | Must |
+| Config Server + 설정 공급 | 같은 저장소 config-repo의 native backend, Config Server → Eureka → 서비스 순서, 필수 설정 조회 실패 시 기동 실패 | Must (2026-10-26 Junhyun An 지시) |
 | 회원가입·로그인·토큰 재발급·로그아웃(블랙리스트) | POST `/api/v1/users` · POST `/api/v1/auth/login` · `/auth/refresh` · `/auth/logout` · GET `/api/v1/users/me` | Must |
 | 운영자 계정 초기 데이터 | 시드 스크립트 | Must |
 | 공통 규칙: 4계층 패키지 구조, 응답·에러 형식, 이벤트 공통 필드 | 10/27 합의 문서, 🆕 `common-response`·`common-web` 모듈 (11-2) | Must |
@@ -451,7 +452,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 - **5개 → 3개로 줄인 근거**: 응모 → 추첨 → 일반 오픈 순서라 추첨과 실시간 선점이 겹치지 않는다. Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
 - **Queue 분리 조건 (측정)**: 순번 조회 부하가 선점 API p95를 늘리면 분리한다.
 - **Reservation 안 모듈 규칙** (결정 기록 #14, 모듈러 모놀리스 방식): reservation·lottery는 직접 호출 허용 / queue는 인터페이스로만 / notification은 Kafka 이벤트로만 / concert 조회는 읽기 직접 허용
-- **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. Config 서버는 두지 않는다. 모두 docker-compose로 한 번에 기동한다.
+- **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Config Server, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. Config Server는 같은 저장소의 config-repo 폴더를 native backend로 읽는다. 모두 docker-compose로 한 번에 기동한다.
 
 ### 7-2. 시스템 구조도
 
@@ -470,6 +471,7 @@ flowchart LR
   PS <-->|이벤트| K
   PS -->|동기 · 타임아웃·CB·Bulkhead| PG[Mock PG / 토스 테스트]
   EU[Eureka] -.-> GW
+  CF[Config Server<br/>native 설정 폴더] -.설정.-> EU & GW & US & RS & PS & PG
 ```
 
 | 구간 | 방식 | 이유 |
@@ -593,6 +595,7 @@ flowchart TB
   subgraph EC2[EC2 1대 · docker compose 네트워크]
     GW[gateway :8080]
     EU[eureka :8761]
+    CF[config-server :8888]
     US[user-service :8081]
     RS[reservation-service :8082]
     PS[payment-service :8083]
@@ -607,6 +610,7 @@ flowchart TB
     GR[grafana :3000]
     ZP[zipkin :9411]
   end
+  CF -.설정.-> EU & GW & US & RS & PS & MPG
   GW --> US & RS & PS
   US --> UDB
   RS --> RDB
@@ -624,12 +628,13 @@ flowchart TB
 
 | 구성 요소 | 로컬 (개발) | 로컬 (측정) | 배포 (EC2 1대) |
 | --- | --- | --- | --- |
-| gateway · eureka · user · reservation · payment · mock-pg | IntelliJ 실행 | compose | compose |
+| gateway · eureka · config-server · user · reservation · payment · mock-pg | IntelliJ 실행 | compose | compose |
 | PostgreSQL × 3 (user · reservation · payment) | compose | compose | compose |
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택: Java 25 · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9, 라이브러리 버전은 BOM을 따른다. 저장소는 모노레포(Gradle 멀티모듈)이고 Config 서버는 없다.
+- 기술 스택: Java 21 · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9, 라이브러리 버전은 BOM을 따른다. 저장소는 모노레포(Gradle 멀티모듈)이고 Config Server는 같은 저장소의 설정 폴더를 읽는다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.1.0이다.
+- 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다. [ADR](../decisions/0001-java-21.md)에 근거를 남긴다.
 - 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod
 - 비밀값(DB 비밀번호, JWT 서명 키, 🆕 `ENTRY_TOKEN_SECRET`·`PAYMENT_TOKEN_SECRET`)은 `.env`, 저장소에는 `.env.example`만 둔다.
 - 포트 번호는 `(팀 확인)` (U12).
@@ -641,7 +646,7 @@ flowchart TB
 | 22 | SSH | 팀원 IP만 | 키 인증만 허용 |
 | 8080 | gateway | 전체(0.0.0.0/0). 부하 측정 중에는 측정 기기 IP로 제한 | 유일한 서비스 진입점 |
 | 3000 | grafana | 허용 없음 | SSH 터널로만 접근 |
-| 8085, 9090, 9411, 8761 | kafka-ui, prometheus, zipkin, eureka | 허용 없음 | 같음 |
+| 8085, 9090, 9411, 8761, 8888 | kafka-ui, prometheus, zipkin, eureka | 허용 없음 | 같음 |
 | 8081~8083, 8090, 5433~5435, 6379, 9092 | 서비스, mock-pg, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 - 이중 방어: compose에서 관리자 UI는 `127.0.0.1:3000:3000`처럼 로컬에만 바인딩하고, 내부 전용 서비스는 `ports`를 열지 않고 `expose`만 쓴다. 보안그룹 설정이 틀려도 호스트 밖으로 열리지 않는다.
 - 접근 매뉴얼(초안): `ssh -L 3000:localhost:3000 -L 8085:localhost:8085 -L 9411:localhost:9411 <user>@<ec2>` 후 브라우저에서 `localhost:3000`을 연다. 시연도 발표자 노트북에서 터널을 열고 보여 주면 포트를 공개할 필요가 없다.
@@ -656,6 +661,7 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | --- | --- | --- |
 | gateway | 512m | 768m |
 | eureka | 256m | 512m |
+| config-server (추가) | 256m | 512m |
 | user-service | 384m | 640m |
 | reservation-service | 768m | 1,152m |
 | payment-service | 512m | 768m |
@@ -712,7 +718,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- |
 | 대기열 진입·입장 판정 | closed | 503 + `Retry-After` | 속도 통제 없이 입장시키면 선점 API가 폭주를 받는다 |
 | 좌석 조회·선점의 입장 토큰 검증 | 서명 검증은 Redis 없이 통과 | 정상 | 입장 토큰은 서명과 `exp`로 자체 검증된다 |
-| 로그아웃 블랙리스트 확인 | open | 정상 | 로그아웃된 Access 토큰이 최대 30분 통한다. 결제는 별도 결제 토큰이 있어 피해 범위가 제한된다. 보안 요구가 더 높으면 closed로 바꾼다 `(팀 확인)` |
+| 로그아웃 블랙리스트 확인 | closed (잠정) | 503 + `Retry-After` | 2026-10-26 Junhyun An이 우선 차단을 선택했다. 팀과 논의할 항목이다. 이전 제안은 open이었다 |
 | 사용자 요청 제한 | 인스턴스 로컬 카운터로 낮춰 open | 정상 | 정확도는 떨어지지만 뒷단 보호는 유지 |
 | 공연 정보·좌석 캐시 | open, DB 조회로 대체 | 정상 | DB 보호를 위해 대체 조회는 초당 상한을 둔다 |
 - 검증: E11. 지연 주입 도구는 정하지 않았다. Toxiproxy 같은 프록시나 Redis `DEBUG SLEEP`이 후보다 (U17).
@@ -1432,7 +1438,7 @@ iseonjwa/
 ├─ common-response/     🆕 응답 6키 DTO·ErrorCode (Gateway 포함 전 서비스)
 ├─ common-web/          🆕 MVC 예외 처리기 (Gateway 제외)
 ├─ common-messaging/    Outbox 릴레이, processed_event, 재시도·DLQ 설정 (결제 담당)
-├─ gateway/  eureka/  mock-pg/
+├─ gateway/  eureka/  config-server/  mock-pg/
 ├─ user-service/
 ├─ payment-service/
 └─ reservation-service/
@@ -1536,6 +1542,8 @@ iseonjwa/
     
 
 ## 15. 설계 결정 기록
+
+2026-10-26 Junhyun An의 구현 지시: Config Server를 추가하고 동일 저장소의 native 설정 폴더를 사용한다. 기존의 Config Server 제외 결정을 변경하며, Spring Boot 전체 워크스페이스·공통 인프라·M1 인증까지 구현 범위를 확장한다. Redis 블랙리스트 조회 실패는 우선 503으로 차단하되 팀 논의가 필요한 잠정 정책이다. 팀 전체 합의로 표기하지 않으며 아래 기존 50건 집계와 별도로 로컬 ADR·AI 판단 기록에 남긴다.
 
 총 50건 · 결정 14 · 잠정 결정 34 · 보류 2 (10/26 기준). 원본은 팀 워크스페이스 「SA 기획·설계 결정 기록」 DB다. 🆕 제안이 합의되면, 추천과 같으면 해당 항목의 상태를 바꾸고 내용이 다르면 기존 항목을 대체됨으로 두고 새 항목을 만든다.
 
@@ -1692,7 +1700,7 @@ iseonjwa/
 | 누락 | SAGA 방식 한 줄, 실패→보상 로그 캡처 | ✅ / 캡처는 구현 후 | 8-1 · 8-3 |
 | 누락 | 자원 지표(CPU·메모리) | ➕ | 3장 |
 | 누락 | README, 발표 준비 일정, AI 발표 사례 수집 방법 | SA 밖 (README·일정 DB·PR 템플릿) | — |
-| 과잉 | Config 서버·JVM 수·2차 분량 | ✅ Config 없음, 서비스 3개 | 7-1 |
+| 과잉 | Config 서버·JVM 수·2차 분량 | 이전: Config 제외. 2026-10-26 Junhyun An 요청으로 native Config Server 추가, 업무 서비스 3개 유지 | 7-1 · 15장 |
 | 불일치 | "확정 5개", 담당자 칸, 모노레포 | ✅ 이 문서로 통합 (SA MASTER 본문 정정 U11 해소) | — |
 | 기타 | Redis 하나를 Gateway(블랙리스트·요청 제한)와 대기열·캐시가 함께 씀 | 🆕 9-5 제안으로 기능별 정책 정리, 합의 필요 (U7) | 9-5 |
 
