@@ -15,3 +15,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.security:spring-security-crypto'
 }
+
+// Note: 인증 통합 테스트는 compose.test.yml의 PostgreSQL·Redis를 쓴다.
+// ./gradlew build나 IDE의 Gradle 테스트 실행만으로도 테스트 인프라가 먼저 뜨게 한다(Docker 필요)
+tasks.named('test') {
+    dependsOn ':prepareTestInfra'
+}
