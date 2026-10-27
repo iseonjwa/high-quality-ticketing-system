@@ -1,12 +1,25 @@
-# SA MASTER v3.1 (결정 기록 반영)
+# SA MASTER v3.2 (통합 회의 반영)
 
-> **SA MASTER v3.1 (결정 기록 반영)** · 2026년 10월 26일 · 5조 이선좌
+> **SA MASTER v3.2 (통합 회의 반영)** · 2026년 10월 27일 · 5조 이선좌
 >
 > - 이 문서 하나가 설계 기준이다. 아래 문서들은 근거 보관용으로 남긴다.
-> - 근거: SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - 근거: SA MASTER v3.1 (결정 기록 반영, 10/26) · 10/27 초기 환경 통합 회의 결정 시트(저장소 `docs/integration/decision-sheet.md`) · SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - v3.2는 v3.1에 10/27 초기 환경 통합 회의 결정(아래 "10/27 바뀐 점")을 반영했다. 이전 안은 부록 C에 있다.
 > - v3에서 "제안"으로 적었던 10/26 피드백 변경은 결정 기록에 모두 반영됐다. 이 문서는 그 결과에 맞춰 제안 표시를 없애고 확정된 내용으로 고쳤다. 바뀐 결정은 결정 기록 각 항목의 "수정 내역"에 이전 안과 함께 남아 있다.
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
-> - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
+> - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
+
+### 10/27 바뀐 점 (초기 환경 통합 회의)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 패키지 이름을 `com.iseonjwa`로 확정(U12 패키지 항목 해소) | 13장 | 결정 시트 D4, ADR 0014 |
+| 2 | 공통 모듈을 `common` 하나로 두고 안에서 패키지로 나눔. 웹·JPA·Kafka·JWT 라이브러리는 `compileOnly`, 쓰는 서비스가 직접 선언 | 11-2, 13장 | D6, ADR 0013 |
+| 3 | 로그아웃 블랙리스트 Redis 장애 시 closed(503 + `Retry-After`). 이 때문에 생기는 문제는 따로 고친다 | 9-5 | D14, ADR 0005 |
+| 4 | Config 서버(native) 사용 확정. #30 잠정 → 결정 | 9-1, 9-6 | D15, ADR 0003 |
+| 5 | 구현 버전: Gradle 9.8.2(Groovy DSL), PostgreSQL 17, Lombok 사용 | 9-1 | D2·D3·D12·D13 |
+| 6 | SA 범위 밖 기능 채택: 로그인 5회 실패 잠금, 관리자 비밀번호 초기화, `@RequireRole`, `/internal/**` 외부 차단, workspace-tools, system-tests | 저장소 ADR | D11, ADR 0007·0012 |
+| 7 | 브랜치 전략: `{type}/ISE-{번호}-{주제}`, dev에서 출발, squash 기본, 필수 리뷰 없음(AI 검증 후 머지·공유), main·dev는 PR과 CI 통과 필수, 마일스톤마다 dev → main | 17-1 #5 | D16, `docs/guides/git-workflow.md` 5절 |
 
 ### 10/26 바뀐 점
 
@@ -632,7 +645,7 @@ flowchart TB
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택 (#30 잠정, Config 서버 유지는 10/27 통합 회의에서 확정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈, Groovy DSL)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.8.2 · PostgreSQL 17이다. Lombok은 쓸 수 있다.
+- 기술 스택 (#30, 10/27 통합 회의에서 결정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈, Groovy DSL)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.8.2 · PostgreSQL 17이다. Lombok은 쓸 수 있다.
 - 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다.
 - Java 21에서는 가상 스레드가 `synchronized` 안에서 캐리어 스레드에 고정되므로(JDK 24에서 해결) 가상 스레드는 기본으로 끈다. 고도화에서 켜 볼 때는 고정 지점을 먼저 확인한다. Java 22 이후 기능은 쓰지 않는다.
 - 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod. 프로필별 값은 `config-repo/{서비스}-{프로필}.yml`에 둔다(9-6).
@@ -1647,10 +1660,10 @@ high-quality-ticketing-system/
 | 순서 | 안건 | 위치 | 제안 담당 |
 | --- | --- | --- | --- |
 | 1 | 계약 4종 형식 통보: 입장 토큰 claim(대기열), 선점 결과(좌석 선점), 결제 토큰 claim(예매 흐름), 결제 결과 이벤트(결제). 형식 소유 담당이 정해 공유하고 소비하는 쪽이 리뷰 | 6-9, 7-3, 10-3, 11-5 | 각 담당 |
-| 2 | 공통 모듈 범위와 합치는 방식(M1): `common`·`common-response`·`common-web`·`common-messaging` 경계, 각자 구현 후 비교·병합 기준. Config 서버·`config-repo` 구성(9-6)도 M1에 포함 | 13장, 11-2, 9-6 | 다 같이 |
+| 2 | 공통 모듈 범위와 합치는 방식(M1): `common`·`common-response`·`common-web`·`common-messaging` 경계, 각자 구현 후 비교·병합 기준. Config 서버·`config-repo` 구성(9-6)도 M1에 포함. **10/27 결정: `common` 하나 + 패키지 분리, Config 서버 유지** | 13장, 11-2, 9-6 | 다 같이 |
 | 3 | 잠정 결정 중 팀이 확인할 것 고르기: 특히 #33·#46 접수형 outbox. #30 기술 스택(Java 21, 팀 합의 전)은 합의 여부와 M1 첫 빌드로 의존성 호환 확인 | 15장 | 다 같이 |
 | 4 | 보안그룹 규칙표·배포 이슈 담당 | 9-2 | 배포 이슈 담당 |
-| 5 | 브랜치 전략·Git 컨벤션(브랜치 이름, 보호 규칙, 병합 방식), Linear 범위 | 저장소 `docs/guides/git-workflow.md` | 다 같이 |
+| 5 | 브랜치 전략·Git 컨벤션(브랜치 이름, 보호 규칙, 병합 방식), Linear 범위 | 저장소 `docs/guides/git-workflow.md` | 다 같이. **10/27 결정: git-workflow 5절** |
 
 ### 17-2. 미해결 목록
 
@@ -1798,6 +1811,10 @@ high-quality-ticketing-system/
 | 테이블 크기 | reservation 15,000–30,000행(판매 좌석 ÷ 평균 2매 + 만료·거절) (SA v2 14-9) | 전 테이블 추정, 평균 2.5매 (개선안 2-12) | 반영 (추정치) |
 | 페르소나 | 상황·바라는 것·대응 (SA v2 2장), 유저스토리 열은 비어 있음 ([5조]) | 유저스토리 초안 채움 (개선안 2-12) | 반영 |
 | 로그아웃·대기 취소 응답 | 204 (SA v2 12-3) | 200 + `data: null` ([5조] 3장) | 반영 (#19) |
+| 공통 모듈 경계 | `common`·`common-response`·`common-web`·`common-messaging` 4모듈 (v3.1 13장), 통합 기준 브랜치는 5모듈(`common-auth` 포함) | `common` 하나 + 패키지 분리, 웹·JPA·Kafka·JWT는 `compileOnly` (10/27 회의 D6, ADR 0013) | 반영 (v3.2) |
+| 패키지 이름 | `iseonjwa` `(팀 확인)` (v3.1 13장, U12) | `com.iseonjwa` (10/27 회의 D4, ADR 0014) | 반영 (v3.2) |
+| 블랙리스트 Redis 장애 | open: 로그아웃된 토큰이 최대 30분 통함 (#48 잠정), 이후 closed 잠정 구현 (ADR 0005 제안) | closed 확정 (10/27 회의 D14, ADR 0005 채택) | 반영 (v3.2) |
+| 구현 버전 | Gradle 9.1.0 (통합 기준 브랜치) | Gradle 9.8.2, Groovy DSL, PostgreSQL 17, Lombok 사용 (10/27 회의 D2·D3·D12·D13) | 반영 (v3.2) |
 
 **본문에서 뺀 내용**
 

@@ -5,7 +5,7 @@
 ## 프로젝트
 - 주제: 티켓 오픈 순간의 폭주 트래픽을 견디는 콘서트 예매 서버. 대기열, 좌석 선점, 예매↔결제 SAGA, 추첨 자동결제 예매.
 - 기술: 발제 기준 Spring Boot·Spring Cloud MSA, Kafka, Redis, PostgreSQL, Prometheus·Grafana, docker-compose. 버전과 모듈 구성은 2차 SA에서 확정한다.
-- 설계 정본: Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb), 저장소 사본은 `docs/core/SA MASTER.md`(v3.1, 10/26 결정 기록 반영). 각 결정이 확정인지는 Notion 「SA 기획·설계 결정 기록」 DB의 상태(결정·잠정 결정)를 따른다. 설계와 다르게 구현해야 하면 먼저 사용자에게 확인하고 `docs/decisions/`에 기록한다.
+- 설계 정본: Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb), 저장소 사본은 `docs/core/SA MASTER.md`(v3.2, 10/27 통합 회의 반영). 각 결정이 확정인지는 Notion 「SA 기획·설계 결정 기록」 DB의 상태(결정·잠정 결정)를 따른다. 설계와 다르게 구현해야 하면 먼저 사용자에게 확인하고 `docs/decisions/`에 기록한다.
 - 팀 공유 저장소다. 팀 합의(SA 문서, 결정 기록)를 개인 판단으로 덮어쓰지 않는다.
 
 ## 대전제
