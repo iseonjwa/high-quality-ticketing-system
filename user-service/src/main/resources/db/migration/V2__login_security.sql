@@ -1,0 +1,4 @@
+ALTER TABLE users
+    ADD COLUMN failed_login_count INT NOT NULL DEFAULT 0,
+    ADD COLUMN locked_at TIMESTAMPTZ,
+    ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT FALSE;

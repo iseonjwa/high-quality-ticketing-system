@@ -32,6 +32,7 @@ auth:
   issuer: iseonjwa-auth
   access-seconds: 1800
   refresh-seconds: 1209600
+  max-login-failures: 5
 seed:
   admin-email: admin@test.local
   admin-password: test-only-admin-password

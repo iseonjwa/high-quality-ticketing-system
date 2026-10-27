@@ -124,6 +124,20 @@ def main():
                   {'email': ENV['ADMIN_EMAIL'], 'password': ENV['ADMIN_PASSWORD']})['data']
     admin_identity = check('ADMIN 역할 전달', 'GET', '/api/v1/reservations/_system/identity', 200, token=admin['accessToken'])['data']
     assert admin_identity['role'] == 'ADMIN'
+    locked_email = f'locked-{uuid.uuid4()}@test.local'
+    locked = check('잠금 대상 가입', 'POST', '/api/v1/users', 201,
+                   {'email': locked_email, 'password': password, 'nickname': '잠금검증'})['data']
+    for attempt in range(4):
+        check(f'로그인 실패 {attempt + 1}회', 'POST', '/api/v1/auth/login', 401, {'email': locked_email, 'password': 'wrong'})
+    check('로그인 5회 실패 시 잠금', 'POST', '/api/v1/auth/login', 423, {'email': locked_email, 'password': 'wrong'})
+    check('잠긴 계정은 올바른 비밀번호도 거절', 'POST', '/api/v1/auth/login', 423, {'email': locked_email, 'password': password})
+    reset_path = f"/api/v1/admin/users/{locked['userId']}/password-reset"
+    check('USER 비밀번호 초기화 차단', 'POST', reset_path, 403, {}, access)
+    temporary = check('관리자 비밀번호 초기화', 'POST', reset_path, 200, {}, admin['accessToken'])['data']['temporaryPassword']
+    check('임시 비밀번호는 변경 전 로그인 불가', 'POST', '/api/v1/auth/login', 403, {'email': locked_email, 'password': temporary})
+    check('비밀번호 변경', 'POST', '/api/v1/auth/password-change', 200,
+          {'email': locked_email, 'currentPassword': temporary, 'newPassword': password + '-new'})
+    check('변경한 비밀번호로 로그인', 'POST', '/api/v1/auth/login', 200, {'email': locked_email, 'password': password + '-new'})
     event = check('Reservation → Kafka 발행', 'POST', '/api/v1/reservations/_system/events', 202, {}, access)['data']['eventId']
     wait_until('Kafka → Payment 소비', lambda: http('GET', BASE + '/api/v1/payments/_system/events/' + event, token=access)[0] == 200)
     check('Payment 이벤트 결과 조회', 'GET', '/api/v1/payments/_system/events/' + event, 200, token=access)

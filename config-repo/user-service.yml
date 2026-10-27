@@ -16,6 +16,7 @@ auth:
   issuer: iseonjwa-auth
   access-seconds: 1800
   refresh-seconds: 1209600
+  max-login-failures: 5
 seed:
   admin-email: ${ADMIN_EMAIL}
   admin-password: ${ADMIN_PASSWORD}
