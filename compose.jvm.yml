@@ -1,0 +1,5 @@
+# 앱을 IntelliJ/호스트 JVM에서 실행할 때 사용하는 Prometheus 주소다.
+services:
+  prometheus:
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["./infra/prometheus-local.yml:/etc/prometheus/prometheus.yml:ro"]

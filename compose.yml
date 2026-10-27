@@ -1,0 +1,262 @@
+name: iseonjwa
+
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: local
+  SERVER_ADDRESS: 0.0.0.0
+  MANAGEMENT_SERVER_ADDRESS: 0.0.0.0
+  EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+  CONFIG_SERVER_URL: http://config-server:8888
+  EUREKA_URL: http://eureka:8761/eureka/
+  REDIS_HOST: redis
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  ZIPKIN_URL: http://zipkin:9411/api/v2/spans
+  MANAGEMENT_PORT: 9080
+  JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
+
+x-app: &app
+  init: true
+  mem_limit: 512m
+  healthcheck:
+    test: [CMD, curl, -fsS, http://localhost:9080/actuator/health/readiness]
+    interval: 10s
+    timeout: 3s
+    retries: 30
+    start_period: 30s
+
+services:
+  config-server:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: config-server
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: native
+      CONFIG_REPO_PATH: file:/config-repo
+    volumes: ["./config-repo:/config-repo:ro"]
+  eureka:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: eureka
+    environment:
+      <<: *app-env
+    depends_on:
+      config-server:
+        condition: service_healthy
+  gateway:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: gateway
+    environment:
+      <<: *app-env
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?script/init-local-env.py를 먼저 실행한다}
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  user-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: user-service
+    environment:
+      <<: *app-env
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?script/init-local-env.py를 먼저 실행한다}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?필수}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?필수}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?필수}
+      DB_URL: jdbc:postgresql://postgres-user:5432/user
+      DB_USER: ${DB_USER:-iseonjwa}
+      DB_PASSWORD: ${DB_PASSWORD:?필수}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres-user:
+        condition: service_healthy
+  reservation-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: reservation-service
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres-reservation:5432/reservation
+      DB_USER: ${DB_USER:-iseonjwa}
+      DB_PASSWORD: ${DB_PASSWORD:?필수}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      postgres-reservation:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+  payment-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: payment-service
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:postgresql://postgres-payment:5432/payment
+      DB_USER: ${DB_USER:-iseonjwa}
+      DB_PASSWORD: ${DB_PASSWORD:?필수}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+      postgres-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+  mock-pg:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: mock-pg
+    environment:
+      <<: *app-env
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+  postgres-user:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    mem_limit: 256m
+    environment:
+      POSTGRES_DB: user
+      POSTGRES_USER: ${DB_USER:-iseonjwa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?필수}
+    volumes: ["postgres-user:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 20
+  postgres-reservation:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    mem_limit: 256m
+    environment:
+      POSTGRES_DB: reservation
+      POSTGRES_USER: ${DB_USER:-iseonjwa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?필수}
+    volumes: ["postgres-reservation:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 20
+  postgres-payment:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    mem_limit: 256m
+    environment:
+      POSTGRES_DB: payment
+      POSTGRES_USER: ${DB_USER:-iseonjwa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?필수}
+    volumes: ["postgres-payment:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:8-alpine@sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0
+    mem_limit: 192m
+    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    volumes: ["redis:/data"]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 20
+  kafka-init:
+    image: apache/kafka:4.1.1@sha256:0bc1bb2478f45b6cea78864df86acdc11e8df2c5172477819a4d12942cbe5d40
+    user: "0:0"
+    entrypoint: [/bin/sh, -c]
+    command: ["chown 1000:1000 /data"]
+    volumes: ["kafka:/data"]
+  kafka:
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    image: apache/kafka:4.1.1@sha256:0bc1bb2478f45b6cea78864df86acdc11e8df2c5172477819a4d12942cbe5d40
+    mem_limit: 1024m
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes: ["kafka:/var/lib/kafka/data"]
+    healthcheck:
+      test: [CMD-SHELL, "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
+    mem_limit: 384m
+    environment:
+      JAVA_OPTS: -Xmx192m
+      KAFKA_CLUSTERS_0_NAME: iseonjwa
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports: ["127.0.0.1:8085:8080"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+  prometheus:
+    image: prom/prometheus:latest@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    mem_limit: 256m
+    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus:/prometheus"]
+    ports: ["127.0.0.1:9090:9090"]
+  grafana:
+    image: grafana/grafana:latest@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    mem_limit: 256m
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?필수}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]
+  zipkin:
+    image: openzipkin/zipkin:latest@sha256:d17e856dcbba7ffeefbbfc252f89ab78a4ab6faed47e646d46daad78f91b5ee2
+    mem_limit: 384m
+    environment:
+      JAVA_OPTS: -Xmx192m
+    ports: ["127.0.0.1:9411:9411"]
+
+volumes:
+  postgres-user:
+  postgres-reservation:
+  postgres-payment:
+  redis:
+  kafka:
+  prometheus:
+  grafana:

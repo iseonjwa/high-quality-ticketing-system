@@ -1,0 +1,22 @@
+name: iseonjwa-test
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    environment:
+      POSTGRES_DB: user_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test-only-password
+    tmpfs: [/var/lib/postgresql/data]
+    ports: ["127.0.0.1:25433:5432"]
+    healthcheck:
+      test: [CMD, pg_isready, -U, test, -d, user_test]
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:8-alpine@sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0
+    command: [redis-server, --save, "", --appendonly, "no"]
+    ports: ["127.0.0.1:26379:6379"]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      retries: 30
