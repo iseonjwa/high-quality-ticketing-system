@@ -11,7 +11,7 @@ public final class WorkspaceTool {
         var root = WorkspacePaths.root();
         switch (args[0]) {
             case "init-env" -> System.out.println(LocalEnvironment.initialize(root.resolve(".env"))
-                    ? "개인 개발용 .env 생성 (0600, 값은 출력하지 않음)" : ".env가 있어 기존 값을 유지한다");
+                    ? "개인 개발용 .env 생성 (POSIX면 0600, 값은 출력하지 않음)" : ".env가 있어 기존 값을 유지한다");
             case "check-ports" -> {
                 PortExposure.check(root);
                 System.out.println("포트 공개 검사 통과: 기본 Compose와 local override의 공개 규칙을 확인했다");
