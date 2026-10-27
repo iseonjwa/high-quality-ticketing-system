@@ -2,8 +2,32 @@
 
 - 회의: 2026-10-27 초기 환경 브랜치 통합 (전원)
 - 근거 문서: [`branch-merge-analysis.md`](branch-merge-analysis.md) (브랜치별 빌드·테스트, 충돌 계산, 통합 시안 검증)
-- 통합 시안: 로컬 브랜치 `ggangmy/chore/integration` (준현 브랜치 + 13커밋). Windows에서 `verifyWorkspace` 통과(테스트 127개), compose 시스템 테스트로 M1 흐름 확인
+- 통합 시안: 로컬 브랜치 `ggangmy/chore/integration`(회의 뒤 `chore/ISE-1-integration`으로 이름 변경) (준현 브랜치 + 13커밋). Windows에서 `verifyWorkspace` 통과(테스트 127개), compose 시스템 테스트로 M1 흐름 확인
 - 쓰는 법: 항목마다 각자 의견을 한 줄 적고, 회의에서 "결정" 칸을 채운다. "추천"은 분석 의견이며 결정이 아니다. 결정이 시안과 다르면 통합 담당이 해당 커밋을 고친다.
+
+## 회의 결과 (2026-10-27)
+
+회의에서 채운 결정과 통합 브랜치 반영 상태다. 재확인이 필요한 네 가지는 회의 뒤 통합 담당(이강민)이 확인했다(표의 "확인" 표시). 아래 "요약" 이하 절은 회의 전 시트 그대로 둔다.
+
+| 번호 | 결정 | 통합 브랜치 반영 |
+|---|---|---|
+| D1 | 준현 브랜치 기준 | 시안 그대로 |
+| D2 | Groovy | 시안 그대로 |
+| D3 | Gradle 9.8.2 | 시안 그대로 |
+| D4 | `com.iseonjwa.*` | 전 모듈 패키지 변경, [ADR 0014](../decisions/0014-package-name-com-iseonjwa.md) |
+| D5 | WebFlux | 시안 그대로 |
+| D6 | `common` 하나로 묶고 안에서 패키지로 나눔. 확인: 메시징도 `common`에 둔다 | 5개 모듈을 `common` 하나로 합침. 웹·JPA·Kafka·JWT는 `compileOnly`, `GatewayClasspathTest` 추가. [ADR 0013](../decisions/0013-single-common-module.md) 채택 |
+| D7 | `build`만으로 통과 | 시안 그대로 |
+| D8 | Windows 수정 유지 | 시안 그대로 |
+| D9 | 개인 브랜치의 팀 규칙·SA 변경은 별도 PR로 분리해 리뷰 | 시안 그대로(되돌린 상태). 확인: 회의에서 정한 문서 변경(D13·D14·D16)은 통합 PR에 포함 |
+| D10 | 전부 통합 | 시안 그대로 |
+| D11 | 6개 기능 모두 채택 | ADR 0007 채택으로 변경 |
+| D12 | PostgreSQL 17 | 시안 그대로 |
+| D13 | Lombok 사용. 확인: 제한 없이 허용, 기존 코드는 바꾸지 않음 | 루트 `build.gradle`에 추가, `docs/guides/code-style.md` 8절 |
+| D14 | closed, SA도 수정. closed 때문에 생기는 문제는 추가 수정 | ADR 0005 채택, SA 사본 9-5 수정 |
+| D15 | Config 서버 사용 | SA 사본 기술 스택 줄 수정. 회의 질문("Config 서버 죽으면 다 죽나")은 측정해 [학습 노트](../learning/kangmin/qna/2026-10-27-config-server-role-tradeoffs.md)에 정리. 결정자 기록 불일치는 미해결 |
+| D16 | 이름 `{type}/ISE-{번호}-{주제}`, dev에서 출발, squash 기본·필요하면 merge, 필수 리뷰 없음(AI 검증 후 머지·통보, 도움받은 작업만 리뷰 요청), main·dev 직접 push 금지, 마일스톤마다 main 반영. 확인: 통합 브랜치는 `chore/ISE-1-integration` | `docs/guides/git-workflow.md` 5절. GitHub 브랜치 보호 설정은 미반영 |
+| D17 | 통합 담당 이강민, 리뷰 없음, 마감 M1(10/29) | — |
 
 ## 요약
 

@@ -20,7 +20,7 @@ Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사�
 
 컨테이너 안의 관리 포트는 공통으로 9080이며 서로 다른 컨테이너다. 기본 Compose는 서비스·관리 포트를 호스트에 열지 않는다. Gateway와 관리자 UI만 loopback에 바인딩한다. local override에서 개발용 서비스·관리·DB·Redis·Kafka 포트를 loopback에 연다.
 
-common은 감사 엔티티·이벤트 봉투, common-response는 Spring에 독립적인 응답·에러 계약과 사용자 헤더·역할 상수, common-auth는 Gateway와 User가 함께 쓰는 JWT 서명·검증 계약, common-web은 MVC 예외·내부 사용자 컨텍스트, common-messaging은 Boot Kafka 연결 기반이다. Gateway는 common-auth(와 이를 통한 common-response)만 사용하며 MVC·JPA를 가져오지 않는다.
+공통 코드는 `common` 모듈 하나에 패키지로 나뉜다([ADR 0013](../decisions/0013-single-common-module.md)). `persistence`·`event`는 감사 엔티티·이벤트 봉투, `response`·`identity`는 Spring에 독립적인 응답·에러 계약과 사용자 헤더·역할 상수, `auth`는 Gateway와 User가 함께 쓰는 JWT 서명·검증 계약, `web`은 MVC 예외·내부 사용자 컨텍스트, `messaging`은 Boot Kafka 연결 기반이다. 웹·JPA·Kafka·JWT 라이브러리는 `compileOnly`라서 쓰는 서비스가 직접 선언한다. Gateway는 `auth`·`response`·`identity`만 쓰며 MVC·JPA·Kafka를 받지 않는다(`GatewayClasspathTest`).
 
 ## 서비스 포트 비공개 전제
 
@@ -102,7 +102,7 @@ Redis의 auth:refresh:{userId}에는 사용자당 하나의 Refresh SHA-256 해�
 
 Gateway는 클라이언트의 X-User-Id·X-User-Role을 항상 지우고 검증한 토큰의 값만 다시 넣는다. 인증이 필요한지와 관리자 경로인지는 Gateway의 `AccessPolicy.of` 한 곳에서만 판정한다. 공개 경로가 아니면 로그인이 필요하고, `/api/v1/admin/**`는 ADMIN만 허용한다. 판정은 라우터와 같은 PathPattern과 이미 파싱된 경로를 쓰므로 관리자 루트·matrix parameter·인코딩 변형도 라우터가 보는 경로로 판정하고, 요청마다 정규식이나 목록을 만들지 않는다.
 
-MVC 서비스는 경로로 판단하지 않는다. `GatewayIdentityFilter`는 사용자 헤더가 있으면 형식만 검증해 요청 속성으로 옮기고, 사용자 정보가 필요한 컨트롤러는 속성이 없으면 401을 받는다. 역할 확인은 서비스에서 `@RequireRole`(common-web)로 선언한다. 사용자 역할 속성이 없으면 401, 허용한 역할이 아니면 403이다. 비밀번호 초기화 같은 관리자 API는 Gateway가 막은 뒤에도 서비스에서 한 번 더 확인한다. SA 7-2대로 서비스는 Gateway가 검증해 전달한 헤더를 신뢰한다. 서명이 없는 헤더라서 서비스 포트를 외부에 공개하지 않는 것이 전제다. 서비스 직접 검증·비대칭 서명은 MVP 이후로 미뤘고, 보강 후보는 [ADR 0008](../decisions/0008-internal-trust-and-auth-design.md)에서 설계 중이다. 직접 공개하는 구조가 아니며 로컬 포트는 개발용이다. 보안 필터 오류도 6키 응답이다.
+MVC 서비스는 경로로 판단하지 않는다. `GatewayIdentityFilter`는 사용자 헤더가 있으면 형식만 검증해 요청 속성으로 옮기고, 사용자 정보가 필요한 컨트롤러는 속성이 없으면 401을 받는다. 역할 확인은 서비스에서 `@RequireRole`(`common`의 `web` 패키지)로 선언한다. 사용자 역할 속성이 없으면 401, 허용한 역할이 아니면 403이다. 비밀번호 초기화 같은 관리자 API는 Gateway가 막은 뒤에도 서비스에서 한 번 더 확인한다. SA 7-2대로 서비스는 Gateway가 검증해 전달한 헤더를 신뢰한다. 서명이 없는 헤더라서 서비스 포트를 외부에 공개하지 않는 것이 전제다. 서비스 직접 검증·비대칭 서명은 MVP 이후로 미뤘고, 보강 후보는 [ADR 0008](../decisions/0008-internal-trust-and-auth-design.md)에서 설계 중이다. 직접 공개하는 구조가 아니며 로컬 포트는 개발용이다. 보안 필터 오류도 6키 응답이다.
 
 가입·로그인은 UTF-8 72바이트를 초과하면 400 VALIDATION_FAILED로 거절하며, 한글 등 다중 바이트 문자도 같은 기준을 쓴다.
 

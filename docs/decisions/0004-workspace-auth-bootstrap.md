@@ -1,6 +1,6 @@
 # 0004. 실행 가능한 전체 워크스페이스와 M1 인증까지 구축
 
-- 상태: 채택
+- 상태: 채택 (공통 모듈 구조는 [0013](0013-single-common-module.md)으로 대체, 패키지 이름은 [0014](0014-package-name-com-iseonjwa.md)로 대체)
 - 날짜: 2026-10-26
 - 결정자: Junhyun An
 - 관련 AI 판단: [공통 라이브러리만 구현한 범위 거부](../ai-judgments/junhyun/2026-10-26-workspace-scope-correction.md)

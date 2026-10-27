@@ -1,9 +1,24 @@
 # 0013. 공통 모듈은 common 하나로 두고, 메시징만 만들 때 common-messaging으로 분리한다
 
-- 상태: 제안
+- 상태: 채택 (2026-10-27 통합 회의. 메시징도 common에 두고 @Import 방식으로 적용. 아래 "통합 회의 반영" 참고)
 - 날짜: 2026-10-27
 - 결정자: kwonwoo (팀 리뷰 필요: SA 13장, 10/27 안건 2번)
 - 관련 AI 판단: [ai-judgments/kwonwoo/2026-10-27-common-module-minimal-split.md](../ai-judgments/kwonwoo/2026-10-27-common-module-minimal-split.md)
+
+## 통합 회의 반영 (2026-10-27 통합 회의)
+
+팀은 기준 브랜치의 5개 모듈 대신 "common 하나로 묶고 내부에 각각의 폴더로 관리"하기로 했다. 통합 브랜치에는 이 ADR의 원안과 다르게 다음처럼 적용했다.
+
+| 항목 | 이 ADR 원안 | 통합 브랜치 적용 |
+|---|---|---|
+| 메시징 | 만들 때 `common-messaging`으로 분리 | `common`의 `messaging` 패키지. 사용자 확인으로 함께 묶었다 |
+| 공통 설정을 가져오는 방법 | MVC 서비스가 `scanBasePackages`에 공통 패키지를 넣음 | 기준 브랜치 방식 유지. 서비스가 `@Import(CommonWebConfiguration.class)`처럼 필요한 설정만 가져온다 |
+| 격리 규칙 | 웹·JPA·Kafka는 `compileOnly` | 같음. JWT(oauth2-jose)도 `compileOnly`로 두고 Gateway·User가 직접 선언한다 |
+| 격리 확인 | Gateway 기동 테스트 | `GatewayClasspathTest`가 Gateway 클래스패스에 `DispatcherServlet`·Hibernate·`KafkaTemplate` 클래스 파일이 없는지 확인한다 |
+| 패키지 | `com.highquality.common` | `com.iseonjwa.common.{identity,response,auth,web,persistence,event,messaging}` |
+
+- 검증: `common/build.gradle`의 `spring-webmvc`나 `spring-boot-starter-kafka`를 `api`로 바꾸면 `GatewayClasspathTest`가 실패하는 것을 확인했다. 처음에는 `ClassUtils.isPresent`로 확인했는데, 서블릿 API가 없으면 `spring-webmvc` jar가 있어도 `DispatcherServlet`을 로드하지 못해 false가 나와 변이를 잡지 못했다. 그래서 클래스 파일 존재로 바꿨다.
+- Kafka가 없는 User 서비스가 메시징 빈을 만드는 문제는 `CommonMessagingConfiguration`을 Reservation·Payment만 `@Import`하는 것으로 막는다. 원안이 걱정한 "스캔하면 릴레이 빈이 생긴다"는 스캔을 쓰지 않아 해당하지 않는다.
 
 ## 맥락
 - SA 13장은 공통 코드를 `common`(이벤트 봉투, BaseEntity), `common-response`(응답 DTO·ErrorCode, Gateway 포함), `common-web`(MVC 예외 처리기), `common-messaging`(Outbox·processed_event·DLQ) 네 모듈로 나눈다.
