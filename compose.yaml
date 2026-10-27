@@ -170,8 +170,9 @@ services:
       JAVA_OPTS: -Xmx512m
       CONFIG_SERVER_URL: http://config-server:8888
     # 유일한 외부 진입점이라 모든 주소에 연다 (9-2)
+    # PC에서 8080을 다른 프로그램이 쓰고 있으면 .env의 GATEWAY_PORT로 바꾼다
     ports:
-      - "8080:8080"
+      - "${GATEWAY_PORT:-8080}:8080"
     mem_limit: 768m
     depends_on:
       eureka:
