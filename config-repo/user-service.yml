@@ -1,0 +1,21 @@
+server:
+  port: 8081
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/user}
+    username: ${DB_USER:iseonjwa}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+  kafka:
+    consumer:
+      group-id: user-service.bootstrap
+auth:
+  access-secret: ${JWT_ACCESS_SECRET}
+  refresh-secret: ${JWT_REFRESH_SECRET}
+  issuer: iseonjwa-auth
+  access-seconds: 1800
+  refresh-seconds: 1209600
+seed:
+  admin-email: ${ADMIN_EMAIL}
+  admin-password: ${ADMIN_PASSWORD}

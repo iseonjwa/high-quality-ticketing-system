@@ -1,0 +1,41 @@
+server:
+  port: 8080
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 1000
+            response-timeout: 3s
+          routes:
+            - id: user
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/auth/**
+            - id: reservation
+              uri: lb://reservation-service
+              predicates:
+                - Path=/api/v1/concerts/**,/api/v1/schedules/**,/api/v1/reservations/**,/api/v1/lotteries/**,/api/v1/admin/**
+            - id: payment
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**
+          observability:
+            enabled: true
+          metrics:
+            enabled: true
+auth:
+  access-secret: ${JWT_ACCESS_SECRET}
+  issuer: iseonjwa-auth
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-redis:
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 50ms
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
