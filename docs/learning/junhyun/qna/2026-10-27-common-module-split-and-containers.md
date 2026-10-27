@@ -49,5 +49,11 @@ Gradle 모듈의 의존 관계는 각 `build.gradle`의 `project(':...')` 선언
 - DB 비밀번호와 JWT 키 같은 비밀값은 config-server에 두지 않고 각 앱의 환경변수로 넣는다.
 - 근거: [ADR 0003](../../../decisions/0003-config-server-native.md), SA 9-6.
 
+### 후속 질문: 서비스마다 필요한 모듈을 import하고 컨테이너에 포함되는가
+코드는 맞고 설정값은 아니다.
+- 코드: 각 앱의 `build.gradle`에 `implementation project(':common-web')`처럼 선언한 모듈이 `app.jar` 안의 `BOOT-INF/lib/`에 들어가고, 그 JAR이 컨테이너 이미지에 담긴다. 실제로 user-service의 JAR에는 common, common-auth, common-web, common-response가 있고 Gateway에는 common-auth, common-response만 있다. Mock PG·Eureka·Config Server에는 없다.
+- 설정값: `config-repo`의 값은 이미지에 굽지 않는다. 앱이 시작할 때 config-server에서 받아 온다(앱 JAR에는 앱 이름·프로필·Config 주소 같은 시작용 설정만 있다). 비밀값은 컨테이너 환경변수로 들어온다.
+- 그래서 공통 모듈 코드를 고치면 그 모듈을 쓰는 앱을 모두 다시 빌드해 이미지를 새로 만들어야 하고, 설정값을 고치면 이미지는 그대로 두고 앱만 재시작하면 된다.
+
 ## 더 보기
 - [공통 모듈 가이드](../../../guides/common-modules.md), [워크스페이스 가이드](../../../guides/workspace.md)
