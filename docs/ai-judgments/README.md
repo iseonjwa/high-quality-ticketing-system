@@ -30,8 +30,10 @@
 
 | 폴더 | 내용 |
 |---|---|
-| [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
-| [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
+| [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
+| [junhyun](junhyun/README.md) | 개별 기록 16건, 일지 2일 |
+| [kangmin](kangmin/README.md) | 개별 기록 10건, 일지 2일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -39,6 +41,19 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 통합 회의: 결정 시트 추천 중 D6 공통 모듈(하나+패키지), 리뷰 없음, 패키지 com.iseonjwa로 정함 | 팀 (전달: kangmin) | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-27-integration-meeting-decisions.md) |
+| 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-27-branch-integration-recommendation.md) |
+| 2026-10-27 | M1 진행 방식: AI의 "각자 만드는 건 공통 모듈만" 설명 대신 전원이 같은 범위를 각자 만들고 병합 | 팀 (전달: hyoseung) | Claude Code | **거부** | 아님 | [기록](hyoseung/2026-10-27-m1-everyone-builds-full-skeleton.md) |
+| 2026-10-27 | 공통 모듈: SA 4개 분리 대신 common 하나로 두고 메시징만 나중에 분리하는 AI 추천을 수용 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-common-module-minimal-split.md) |
+| 2026-10-27 | Gateway 스택: 현재 WebMVC 대신 SA 전제와 AI 추천대로 WebFlux로 전환 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-gateway-webflux.md) |
+| 2026-10-27 | 멀티모듈 빌드: AI 진단·수정안(common 라이브러리화, 공통 의존성 루트 집약) 수용 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-10-27-multimodule-build-fix.md) |
+| 2026-10-27 | 앱 검증 이관을 수용하고 Python 도구 유지안 대신 전체 Java·Gradle 통일 선택 | junhyun | Codex | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-java-gradle-tools.md) |
+| 2026-10-27 | Python 앱 검증 대신 내부 JUnit 테스트로 정리 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-27-junit-test-boundary.md) |
+| 2026-10-27 | 인증 구현 보강 4개 수용과 항목별 커밋 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-auth-hardening.md) |
+| 2026-10-27 | 공통 코드 작성 규칙 7개 수용, `Note:`는 필요한 지점에만 사용 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-common-code-style-rules.md) |
+| 2026-10-27 | 신뢰 모델: AI 추천(서비스 JWT 직접 검증·RS256) 대신 SA 유지, 응답 형식은 SA #19로 정렬 | junhyun | Claude Code, Codex | **거부** | 아님 | [기록](junhyun/2026-10-27-auth-trust-follow-sa.md) |
+| 2026-10-27 | D1에서 서비스가 사용자 JWT를 직접 검증하는 C 선택, D2는 비교 중 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-service-jwt-verification-choice.md) |
+| 2026-10-27 | 브랜치 리뷰 후속 수정: 경로 판정 Gateway 일원화·로그인 보안 확장, 신뢰 모델은 후속 설계 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-review-followup.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |
 | 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | 팀 (전달: kangmin) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-26-layered-architecture-four-layers.md) |
@@ -47,6 +62,12 @@
 | 2026-10-26 | 역할 분담: AI의 재검토 제안 대신 결정된 것으로 봄 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-26-role-assignment-not-reopen.md) |
 | 2026-10-26 | API 응답 형식: AI의 기존 유지·6키 통일 대신 성공·실패 다른 형태 + traceId | 팀 (전달: kangmin) | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-26-api-response-single-envelope.md) |
 | 2026-10-26 | 대기열 정렬 기준: 팀원 지적(진입 시각 동점)을 검증하고 순번 카운터(seq) 선택 | kangmin (문제 제기: 대기열 담당) | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-26-queue-order-seq-counter.md) |
+| 2026-10-26 | 두 에이전트 리뷰의 수정 사항 4건 수용 | junhyun | Codex 에이전트 2개·재검증 | 수용 | 아님 | [기록](junhyun/2026-10-26-two-agent-review-fixes.md) |
+| 2026-10-26 | 공통 라이브러리만 구현한 범위를 거부하고 전체 워크스페이스로 확장 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-26-workspace-scope-correction.md) |
+| 2026-10-26 | Config Server와 같은 저장소의 native 설정 폴더 선택 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-26-config-server-native.md) |
+| 2026-10-26 | 인증 Redis는 우선 차단하고 팀과 논의하기로 함 | junhyun | Codex | 부분 수용 | 아님 | [기록](junhyun/2026-10-26-auth-redis-fail-closed.md) |
+| 2026-10-26 | AI의 Java 25 제안 대신 Java 21 선택 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-26-java-21.md) |
+| 2026-10-26 | SA 기준으로 공통 모듈 개인 초안 구현 | junhyun | Codex | 부분 수용 | 아님 | [기록](junhyun/2026-10-26-common-foundation-draft.md) |
 | 2026-10-26 | 개발 일정 마일스톤: M1은 직접 정하고 M2–M4는 AI 분할안 수용 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-10-26-milestone-split.md) |
 | 2026-10-26 | 원격 반영 방식: AI의 PR 경유 제안 대신 main 직접 push | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-10-26-push-learning-system-to-main.md) |
 | 2026-10-23 | 서비스 경계: AI의 3개 구성·4개 절충 추천 대신 5개 분리 | junhyun (SA에는 팀 결정) | Claude Code | **거부** | 후보 | [기록](junhyun/2026-10-23-service-boundary-five-services.md) |

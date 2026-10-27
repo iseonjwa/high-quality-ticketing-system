@@ -1,0 +1,5 @@
+# Windows에서 core.autocrlf=true여도 셸 스크립트는 LF로 체크아웃한다. CRLF면 bash가 $'\r'로 실패한다
+*.sh text eol=lf
+/gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary

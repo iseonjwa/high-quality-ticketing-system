@@ -8,6 +8,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 통합 회의: 결정 시트 추천 중 D6 공통 모듈(하나+패키지), 리뷰 없음, 패키지 com.iseonjwa로 정함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-10-27-integration-meeting-decisions.md) |
+| 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-27-branch-integration-recommendation.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | Claude Code, codex | **거부** | 예 | 아님 | [기록](2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-10-26-tech-stack-java21.md) |
 | 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-26-layered-architecture-four-layers.md) |
@@ -23,4 +25,5 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-10-27 | [daily/2026-10-27.md](daily/2026-10-27.md) |
 | 2026-10-26 | [daily/2026-10-26.md](daily/2026-10-26.md) |
