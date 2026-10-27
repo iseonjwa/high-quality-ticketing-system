@@ -2,8 +2,7 @@ package iseonjwa.user.presentation;
 
 import iseonjwa.common.identity.Roles;
 import iseonjwa.common.response.SuccessResponse;
-import iseonjwa.common.response.BusinessException;
-import iseonjwa.common.response.CommonErrorCode;
+import iseonjwa.common.web.RequireRole;
 import iseonjwa.user.application.AuthService;
 import org.slf4j.MDC;
 import org.springframework.http.CacheControl;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/admin/users")
+@RequireRole(Roles.ADMIN)
 public class AdminUserController {
     private final AuthService auth;
 
@@ -23,14 +23,10 @@ public class AdminUserController {
         this.auth = auth;
     }
 
+    // Gateway가 먼저 막지만 비밀번호를 바꾸는 API라서 서비스에서도 @RequireRole로 한 번 더 확인한다.
     // 임시 비밀번호를 응답으로 한 번만 돌려준다. 사용자는 로그인 전에 비밀번호를 바꿔야 한다.
     @PostMapping("/{userId}/password-reset")
-    public ResponseEntity<?> resetPassword(@PathVariable Long userId,
-            @RequestAttribute Long currentUserId, @RequestAttribute String currentUserRole) {
-        // Gateway가 먼저 막지만 비밀번호를 바꾸는 API라서 서비스에서도 한 번 더 확인한다.
-        if (!Roles.ADMIN.equals(currentUserRole)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN);
-        }
+    public ResponseEntity<?> resetPassword(@PathVariable Long userId, @RequestAttribute Long currentUserId) {
         var result = auth.resetPassword(currentUserId, userId);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())

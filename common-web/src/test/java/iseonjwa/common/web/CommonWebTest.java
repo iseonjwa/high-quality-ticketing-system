@@ -103,6 +103,23 @@ class CommonWebTest {
     }
 
     @Test
+    void RequireRole은_역할이_없으면_401_다른_역할이면_403_맞으면_통과시킨다() throws Exception {
+        var anonymous = mvc.perform(get("/api/v1/test/admin")).andReturn();
+        assertEquals("UNAUTHORIZED", body(anonymous, 401).get("code").asString());
+
+        var user = mvc.perform(get("/api/v1/test/admin").requestAttr("currentUserRole", "USER")).andReturn();
+        assertEquals("FORBIDDEN", body(user, 403).get("code").asString());
+
+        assertEquals(200, mvc.perform(get("/api/v1/test/admin").requestAttr("currentUserRole", "ADMIN"))
+                .andReturn().getResponse().getStatus());
+    }
+
+    @Test
+    void RequireRole이_없는_API는_역할을_확인하지_않는다() throws Exception {
+        assertEquals(200, mvc.perform(get("/api/v1/test/raw")).andReturn().getResponse().getStatus());
+    }
+
+    @Test
     void 외부_컨트롤러의_본문과_예외에는_개입하지_않는다() throws Exception {
         var result = mvc.perform(get("/actuator/sample")).andReturn();
         assertEquals("metric 1", result.getResponse().getContentAsString());
@@ -149,6 +166,10 @@ class CommonWebTest {
         void unexpected() {
             throw new IllegalStateException("private-database-detail");
         }
+
+        @GetMapping("/api/v1/test/admin")
+        @RequireRole("ADMIN")
+        void admin() {}
 
         @GetMapping("/api/v1/test/me")
         void me(@RequestAttribute Long currentUserId) {}
