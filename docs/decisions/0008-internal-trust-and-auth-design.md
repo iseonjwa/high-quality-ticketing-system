@@ -46,22 +46,7 @@ SA 7-2·7-3을 유지한다. Gateway가 Access JWT(HS256)를 1차 검증하고 `
 
 D2는 HS256 유지(단순, 검증자가 서명도 가능)와 RS256(발급자만 개인키, 서명은 로그인 때만이라 특성이 맞음) 중 후자를 AI가 추천했고, SA 7-3의 "MVP 이후"와 충돌해 철회했다.
 
-## logistics-management 인증 방식 비교
-
-같은 개발자의 이전 프로젝트(`../logistics-management`)는 이 프로젝트와 같은 모델이다. Gateway가 JWT를 검증하고 서비스는 헤더를 믿는다. 그 프로젝트의 ADR 0005는 서비스마다 리소스 서버(제로 트러스트)를 두는 안을 "서비스 5개 모두에 설정과 키 배포가 필요하고 SA와 다르다"며 기각했고, 헤더 위조 위험은 "서비스 포트 비공개, 운영에서는 네트워크 정책이나 mTLS"로 남겼다.
-
-| 항목 | logistics-management | 이 프로젝트 | 판단 |
-|---|---|---|---|
-| 1차 검증 위치 | Gateway(Spring Security WebFlux resource server) | Gateway(직접 만든 GlobalFilter) | 동작이 같다. 전환할 이점이 작다 |
-| 서명 | HS256 공유 secret, 만료 60분, Refresh 없음 | HS256, Access 30분·Refresh 14일 | SA대로 유지 |
-| 헤더 제거 | 라우트 매칭보다 먼저 모든 요청에서 제거(`UserHeaderSanitizingFilter`) | 모든 요청에서 제거(`withIdentity`) | 동등 |
-| 내부 API | `/internal/**`는 Gateway에서 404로 외부 차단 | 없음(아직 내부 HTTP API 없음) | 가져올 만하다 (A1) |
-| 서비스 인가 | 커스텀 `@RequireRole` 인터셉터 + 소유자 검증은 Application 계층 | 컨트롤러 안의 if 한 곳 | 가져올 만하다 (A2) |
-| 권한·탈퇴 재확인 | Gateway가 user-service 내부 API(I-01)를 호출, 60초 캐시, role 불일치면 401 | 로그아웃 블랙리스트(Redis)만 | SA 7-2("서비스 호출 없이 인증")와 충돌해 그대로는 못 가져온다. 개념만 Redis로 (A3) |
-| 장애 시 | 재확인 실패는 팀 확인 항목(권장 503) | Redis 장애는 503 (ADR 0005) | 우리 쪽이 이미 정함 |
-| 화이트리스트 | `permitAll`이 아니라 보안 대상에서 제외(만료 토큰이 붙은 로그인 방지) | PUBLIC은 필터에서 토큰을 보지 않음 | 동등 |
-
-### 가져올 후보
+## 인증 보강 항목
 
 2026-10-27 사용자가 AI 의견대로 A1·A2·A4를 지금 적용하고 A3는 SA 합의 뒤로 두기로 했다. A1·A2·A4는 구현했다.
 
@@ -70,7 +55,7 @@ D2는 HS256 유지(단순, 검증자가 서명도 가능)와 RS256(발급자만 
 - A3(보류, SA 합의 뒤). 비밀번호 초기화·잠금 시 Redis에 `auth:revoked-after:{userId}`를 남기고 Gateway가 기존 블랙리스트 조회와 함께 `iat`와 비교한다. T6을 user-service 호출 없이 줄인다. SA 12-8의 Redis 키 표에 키가 하나 늘어 팀 확인이 필요하다.
 - A4(적용). 서비스 포트 비공개 전제를 [워크스페이스 가이드](../guides/workspace.md)에 명시하고, 어기면 실패하는 `script/check-port-exposure.py`를 `check.sh`와 CI에 넣었다. SA 9-2 문서 자체는 바꾸지 않았다.
 
-가져오지 않는 것: user-service 재확인 호출(SA 충돌), Spring Security WebFlux 전환(현재 필터로 충분하고 테스트가 있다).
+이번 범위에서 제외한 것: user-service 재확인 호출(SA 충돌), Spring Security WebFlux 전환(현재 필터로 충분하고 테스트가 있다).
 
 ## 열린 질문
 

@@ -1,7 +1,7 @@
 ---
 title: API 응답 형식: AI의 기존 형식 유지·6키 통일 제안 대신 성공·실패를 다른 형태로 감싸고 둘 다 traceId를 넣기로 했다
 date: 2026-10-26
-updated: 2026-10-26
+updated: 2026-10-27
 judge: 팀 (전달: GGangMY)
 ai: Claude Code
 verdict: 부분 수용
@@ -14,12 +14,12 @@ shared: 예
 
 ## 맥락
 - 해결하려던 작업: SA v2 12장(API 명세)을 정리하던 중, 요청·응답 형태가 API마다 달라 보여 하나로 통일할 수 있는지 검토했다.
-- AI 활용 방식: 응답 형태 총정리를 받은 뒤 "응답 형태를 통합되게 하면?", "최대한 균일한 형식으로 고정하고 싶다"고 물었다. 이어서 이전 프로젝트에서 쓰던 형식(성공 `ApiResponse`, 실패 `ErrorResponse`)을 보여 주고 의견을 물었다.
+- AI 활용 방식: 응답 형태 총정리를 받은 뒤 "응답 형태를 통합되게 하면?", "최대한 균일한 형식으로 고정하고 싶다"고 물었다. 이어서 성공 `ApiResponse`·실패 `ErrorResponse` 형식을 보여 주고 의견을 물었다.
 
 ## AI 제안
 1. 처음에는 기존 결정(결정 기록 #19, SA v2 12-1: 성공은 본문 그대로, 실패는 ProblemDetail)을 유지하고, 형식 대신 규칙(202 폴링 간격, 실패 사유 필드 이름 `reasonCode`, 202 본문 모양)만 통일하자고 추천했다.
 2. "최대한 균일"을 목표로 하자, 모든 응답을 한 모양으로 고정하는 공통 래퍼 안을 냈다.
-3. 이전 프로젝트의 두 형태 래퍼(`ApiResponse` / `ErrorResponse`)는 기반으로 쓸 만하다고 보고, 202 생성 수단, 실패 응답의 `traceId`, timestamp 시간대, 에러 코드 이름 맞추기, Gateway 에러 처리기를 고칠 점으로 들었다. 바깥 `status`와 업무 `data.status`가 헷갈린다는 점도 짚었다.
+3. 두 형태 래퍼(`ApiResponse` / `ErrorResponse`)는 기반으로 쓸 만하다고 보고, 202 생성 수단, 실패 응답의 `traceId`, timestamp 시간대, 에러 코드 이름 맞추기, Gateway 에러 처리기를 고칠 점으로 들었다. 바깥 `status`와 업무 `data.status`가 헷갈린다는 점도 짚었다.
 4. 하나의 래퍼로 통일해도 된다고 답하면서 조건을 붙였다: HTTP 상태 코드는 정확히 유지(오류 집계), Spring 기본 `/error`·필터 단계·Gateway 에러까지 처리기가 잡고 형식 검사 테스트로 확인, Actuator·Mock PG·Kafka 이벤트는 감싸지 않는다.
 5. 최종안으로 성공·실패 공통 6키(`status, code, message, data, errors, traceId`)를 제안했다.
 
