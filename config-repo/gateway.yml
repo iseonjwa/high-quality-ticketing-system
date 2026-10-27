@@ -8,11 +8,12 @@ spring:
           httpclient:
             connect-timeout: 1000
             response-timeout: 3s
+          # 한 요청에 두 라우트가 맞으면 먼저 선언한 것이 선택된다. /admin/users/**는 user를 reservation의 /admin/**보다 앞에 둔다.
           routes:
             - id: user
               uri: lb://user-service
               predicates:
-                - Path=/api/v1/users/**,/api/v1/auth/**
+                - Path=/api/v1/users/**,/api/v1/auth/**,/api/v1/admin/users/**
             - id: reservation
               uri: lb://reservation-service
               predicates:

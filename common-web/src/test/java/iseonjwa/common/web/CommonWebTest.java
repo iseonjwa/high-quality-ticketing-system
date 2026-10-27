@@ -95,6 +95,14 @@ class CommonWebTest {
     }
 
     @Test
+    void 사용자_정보가_필요한_API에_사용자_속성이_없으면_401이다() throws Exception {
+        var result = mvc.perform(get("/api/v1/test/me")).andReturn();
+        assertEquals("UNAUTHORIZED", body(result, 401).get("code").asString());
+        assertEquals(200, mvc.perform(get("/api/v1/test/me").requestAttr("currentUserId", 7L))
+                .andReturn().getResponse().getStatus());
+    }
+
+    @Test
     void 외부_컨트롤러의_본문과_예외에는_개입하지_않는다() throws Exception {
         var result = mvc.perform(get("/actuator/sample")).andReturn();
         assertEquals("metric 1", result.getResponse().getContentAsString());
@@ -141,6 +149,9 @@ class CommonWebTest {
         void unexpected() {
             throw new IllegalStateException("private-database-detail");
         }
+
+        @GetMapping("/api/v1/test/me")
+        void me(@RequestAttribute Long currentUserId) {}
 
         @GetMapping("/api/v1/test/raw")
         String raw() {

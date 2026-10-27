@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -31,6 +32,18 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
                 .toList();
         return new ResponseEntity<>(ApiResponse.failure(CommonErrorCode.VALIDATION_FAILED,
                 errors, MDC.get("traceId")), headers, status);
+    }
+
+    // 사용자 정보가 필요한 컨트롤러에 Gateway의 사용자 헤더가 없으면 인증 실패다.
+    // 누락된 @RequestAttribute는 하위 클래스 없이 ServletRequestBindingException 자체로 던져진다.
+    @Override
+    protected ResponseEntity<Object> handleServletRequestBindingException(ServletRequestBindingException exception,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        if (exception.getClass() == ServletRequestBindingException.class) {
+            return new ResponseEntity<>(ApiResponse.failure(CommonErrorCode.UNAUTHORIZED, null, MDC.get("traceId")),
+                    headers, HttpStatus.UNAUTHORIZED);
+        }
+        return super.handleServletRequestBindingException(exception, headers, status, request);
     }
 
     @Override

@@ -1,64 +1,61 @@
 package iseonjwa.common.web;
 
+import iseonjwa.common.identity.IdentityHeaders;
+import iseonjwa.common.identity.Roles;
 import iseonjwa.common.response.ApiResponse;
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.MDC;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.http.server.PathContainer;
-import org.springframework.web.util.pattern.PathPattern;
-import org.springframework.web.util.pattern.PathPatternParser;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
-import java.util.List;
 
-// 내부 네트워크에서 Gateway가 검증해 전달한 헤더만 신뢰한다.
+// Gateway가 검증해 전달한 사용자 헤더를 요청 속성으로 옮긴다.
+// 인증이 필요한지는 Gateway의 AccessPolicy가 정한다. 여기서는 경로로 판단하지 않고,
+// 헤더가 있으면 형식만 검증한다. 사용자 정보가 필요한 컨트롤러는 속성이 없으면 401이 된다.
 public class GatewayIdentityFilter extends OncePerRequestFilter {
-    private static final PathPattern API_PATH = PathPatternParser.defaultInstance.parse("/api/v1/**");
-    private static final PathPattern ADMIN_PATH = PathPatternParser.defaultInstance.parse("/api/v1/admin/**");
+    public static final String USER_ID_ATTRIBUTE = "currentUserId";
+    public static final String USER_ROLE_ATTRIBUTE = "currentUserRole";
+
     private final JsonMapper mapper = JsonMapper.builder().build();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
-        var path = request.getRequestURI().substring(request.getContextPath().length());
-        var requestPath = PathContainer.parsePath(path);
-        if (!API_PATH.matches(requestPath) || isPublic(request.getMethod(), path)) {
+        var userId = request.getHeader(IdentityHeaders.USER_ID);
+        var role = request.getHeader(IdentityHeaders.USER_ROLE);
+        if (userId == null && role == null) {
             chain.doFilter(request, response);
             return;
         }
-        try {
-            var userId = Long.parseLong(request.getHeader("X-User-Id"));
-            var role = request.getHeader("X-User-Role");
-            if (userId <= 0 || !List.of("USER", "ADMIN").contains(role)) {
-                throw new IllegalArgumentException();
-            }
-            if (ADMIN_PATH.matches(requestPath) && !"ADMIN".equals(role)) {
-                writeError(response, 403, "FORBIDDEN", "접근 권한이 없습니다");
-                return;
-            }
-            request.setAttribute("currentUserId", userId);
-            request.setAttribute("currentUserRole", role);
-        } catch (IllegalArgumentException | NullPointerException exception) {
-            writeError(response, 401, "UNAUTHORIZED", "인증이 필요합니다");
+
+        var parsedUserId = parseUserId(userId);
+        if (parsedUserId == null || !Roles.isValid(role)) {
+            writeUnauthorized(response);
             return;
         }
+        request.setAttribute(USER_ID_ATTRIBUTE, parsedUserId);
+        request.setAttribute(USER_ROLE_ATTRIBUTE, role);
         chain.doFilter(request, response);
     }
 
-    private boolean isPublic(String method, String path) {
-        return ("POST".equals(method) && List.of("/api/v1/users", "/api/v1/auth/login",
-                "/api/v1/auth/refresh").contains(path))
-                || ("GET".equals(method) && path.matches("/api/v1/concerts(?:/[^/]+)?"));
+    private Long parseUserId(String value) {
+        try {
+            var userId = Long.parseLong(value);
+            return userId > 0 ? userId : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
-    private void writeError(HttpServletResponse response, int status, String code, String message)
-            throws IOException {
-        response.setStatus(status);
+    private void writeUnauthorized(HttpServletResponse response) throws IOException {
+        var body = new ApiResponse<>(401, "UNAUTHORIZED", "인증이 필요합니다", null, null, MDC.get("traceId"));
+        response.setStatus(401);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(mapper.writeValueAsString(
-                new ApiResponse<>(status, code, message, null, null, MDC.get("traceId"))));
+        response.getWriter().write(mapper.writeValueAsString(body));
     }
 }
