@@ -31,6 +31,7 @@
 | [sa-review/03-seat-hold-kafka-design.md](sa-review/03-seat-hold-kafka-design.md) | M1 상세: Kafka 파티션 키, 결과 전달, 발신 유실, Redis + Kafka 혼합형 좌석 선점 |
 | [sa-review/04-mentor-feedback-1026.md](sa-review/04-mentor-feedback-1026.md) | SA 1차 피드백(10/26) 28건 정리(피드백 메모 + SA 문서 코멘트 19개)와 팀 논의 사항 12건. v2 상태 저장, 환불 상태 모델, 토큰 키 분리, Redis 장애 정책, 보안그룹, 숫자 근거 |
 | [sa-review/05-feedback-improvement-proposal.md](sa-review/05-feedback-improvement-proposal.md) | 04의 논의 사항을 SA 문서에 반영하는 구체 개선안. 토큰 규칙, v2 접수 요청 테이블, 환불 모델과 재확인 스케줄러, Redis 정책, 보안그룹, 메모리 예산, 새 테스트 케이스(E11~E16) |
+| [sa-review/06-layered-architecture-check.md](sa-review/06-layered-architecture-check.md) | AI 설계 검증 #7 계층형 아키텍처를 M1 코드(user-service)로 실행한 결과. 질문 4개 판정과 팀이 판단할 제안 7건 |
 | [sa-review/assets/seat-hold-kafka.html](sa-review/assets/seat-hold-kafka.html) | 03 문서의 시각화 페이지 로컬 사본 (브라우저로 열기) |
 | [sa-review/raw/codex-review.md](sa-review/raw/codex-review.md) | codex 리뷰 원문 |
 
