@@ -12,6 +12,12 @@ eureka:
 spring:
   kafka:
     bootstrap-servers: kafka:29092
+  jpa:
+    # 트랜잭션 밖(뷰 렌더링 중)에서 지연 로딩으로 DB에 다시 가지 않게 끈다
+    open-in-view: false
+    hibernate:
+      # 스키마는 Flyway만 바꾼다. 엔티티와 테이블이 다르면 기동을 멈춘다
+      ddl-auto: validate
   threads:
     virtual:
       # Java 21은 synchronized 안에서 가상 스레드가 고정된다(JDK 24에서 해결). 기본은 끈다 (SA 9-1)

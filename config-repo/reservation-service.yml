@@ -1,0 +1,18 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-reservation:5432/reservation_db
+    username: reservation_app
+    # 실제 값은 .env → 컨테이너 환경 변수. IntelliJ 실행 설정에도 같은 이름으로 넣는다
+    password: ${RESERVATION_DB_PASSWORD}
+    hikari:
+      # 서비스당 20 (SA 9-4 [가정]). 측정 후 조정
+      maximum-pool-size: 20
+  data:
+    redis:
+      host: redis
+      port: 6379
+      # 정상 응답은 1ms 안팎. 100ms를 넘으면 이상 징후로 본다 (SA 9-5)
+      timeout: 100ms

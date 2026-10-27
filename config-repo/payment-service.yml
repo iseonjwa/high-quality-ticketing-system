@@ -1,0 +1,17 @@
+server:
+  port: 8083
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-payment:5432/payment_db
+    username: payment_app
+    # 실제 값은 .env → 컨테이너 환경 변수. IntelliJ 실행 설정에도 같은 이름으로 넣는다
+    password: ${PAYMENT_DB_PASSWORD}
+    hikari:
+      # 서비스당 20 (SA 9-4 [가정]). 측정 후 조정
+      maximum-pool-size: 20
+
+iseonjwa:
+  pg:
+    # Mock PG 주소. 실제 PG로 바꿀 때 이 값만 바꾼다
+    base-url: http://mock-pg:8090

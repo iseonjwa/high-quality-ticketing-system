@@ -34,9 +34,13 @@ class ConfigRepoTest {
     void local_프로필은_localhost로_덮어쓴다() {
         Environment env = repository.findOne("user-service", "local", null);
 
-        // 앞에 있는 소스가 우선한다. application-local.yml이 application.yml보다 앞이어야 한다
-        assertThat(env.getPropertySources().getFirst().getName()).endsWith("application-local.yml");
+        // 앞에 있는 소스가 우선한다. 프로필 파일이 서비스 이름 파일보다 앞선다:
+        // {서비스}-{프로필} > application-{프로필} > {서비스} > application
+        assertThat(env.getPropertySources()).extracting(PropertySource::getName)
+                .map(name -> name.substring(name.lastIndexOf('/') + 1))
+                .containsExactly("user-service-local.yml", "application-local.yml", "user-service.yml", "application.yml");
         assertThat(firstValue(env, "spring.kafka.bootstrap-servers")).isEqualTo("localhost:9092");
+        assertThat(firstValue(env, "spring.datasource.url")).isEqualTo("jdbc:postgresql://localhost:5433/user_db");
     }
 
     @Test

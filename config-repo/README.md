@@ -9,7 +9,8 @@ Config 서버(native)가 읽는 설정 파일이다 (SA MASTER 9-6). 서비스�
 | `{서비스}.yml` | 서비스 전용 설정 |
 | `{서비스}-{프로필}.yml` | 서비스·프로필 조합의 차이 |
 
-우선순위는 뒤가 이긴다: `application.yml` < `application-{프로필}.yml` < `{서비스}.yml` < `{서비스}-{프로필}.yml`.
+우선순위는 뒤가 이긴다: `application.yml` < `{서비스}.yml` < `application-{프로필}.yml` < `{서비스}-{프로필}.yml`.
+프로필 파일이 서비스 이름 파일보다 앞선다. 그래서 `application-local.yml`에 쓴 값은 `{서비스}.yml`의 같은 키를 덮어쓴다. 서비스마다 다른 값은 공통 프로필 파일에 두지 않는다(`ConfigRepoTest`가 이 순서를 검사한다).
 
 ## 규칙
 - 비밀값은 넣지 않는다. `${USER_DB_PASSWORD}`처럼 자리표시자만 쓰고 실제 값은 `.env`로 컨테이너 환경 변수에 넣는다.

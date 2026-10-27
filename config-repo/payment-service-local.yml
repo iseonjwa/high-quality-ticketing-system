@@ -1,0 +1,8 @@
+# IntelliJ로 띄울 때 compose의 DB에 붙는다 (compose.override.yaml이 127.0.0.1:5435을 연다)
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5435/payment_db
+
+iseonjwa:
+  pg:
+    base-url: http://localhost:8090

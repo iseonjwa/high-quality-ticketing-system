@@ -1,0 +1,33 @@
+# 이름과 Config 서버 주소만 둔다. 포트·DB·연결 정보는 config-repo/user-service.yml에 있다 (SA 9-6)
+spring:
+  application:
+    name: user-service
+  config:
+    # optional: test 프로필에서 Config 클라이언트를 끌 때 기동이 막히지 않게 한다.
+    # 실제 기동에서는 fail-fast가 켜져 있어 Config 서버를 못 찾으면 멈춘다
+    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  cloud:
+    config:
+      fail-fast: true
+
+---
+# 테스트는 Config 서버·Eureka·Zipkin 없이 돈다. DB는 Testcontainers가 띄운다
+spring:
+  config:
+    activate:
+      on-profile: test
+  cloud:
+    config:
+      enabled: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+eureka:
+  client:
+    enabled: false
+management:
+  tracing:
+    export:
+      zipkin:
+        enabled: false

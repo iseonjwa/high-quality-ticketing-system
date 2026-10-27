@@ -1,0 +1,7 @@
+# IntelliJ로 띄울 때 compose의 DB에 붙는다 (compose.override.yaml이 127.0.0.1:5434을 연다)
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5434/reservation_db
+  data:
+    redis:
+      host: localhost

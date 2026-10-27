@@ -184,6 +184,112 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # 내부 서비스는 ports 없이 expose만 쓴다. 바깥에서는 gateway(8080)로만 들어온다 (9-2)
+  user-service:
+    build:
+      context: .
+      args:
+        MODULE: user-service
+    image: iseonjwa/user-service:local
+    environment:
+      JAVA_OPTS: -Xmx384m
+      CONFIG_SERVER_URL: http://config-server:8888
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+    expose: ["8081"]
+    mem_limit: 640m
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres-user:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8081/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  reservation-service:
+    build:
+      context: .
+      args:
+        MODULE: reservation-service
+    image: iseonjwa/reservation-service:local
+    environment:
+      JAVA_OPTS: -Xmx768m
+      CONFIG_SERVER_URL: http://config-server:8888
+      RESERVATION_DB_PASSWORD: ${RESERVATION_DB_PASSWORD}
+    expose: ["8082"]
+    mem_limit: 1152m
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres-reservation:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8082/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      args:
+        MODULE: payment-service
+    image: iseonjwa/payment-service:local
+    environment:
+      JAVA_OPTS: -Xmx512m
+      CONFIG_SERVER_URL: http://config-server:8888
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+    expose: ["8083"]
+    mem_limit: 768m
+    depends_on:
+      eureka:
+        condition: service_healthy
+      postgres-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mock-pg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8083/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  mock-pg:
+    build:
+      context: .
+      args:
+        MODULE: mock-pg
+    image: iseonjwa/mock-pg:local
+    environment:
+      JAVA_OPTS: -Xmx256m
+      CONFIG_SERVER_URL: http://config-server:8888
+    expose: ["8090"]
+    mem_limit: 512m
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8090/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   # ---------- 관리 UI: 127.0.0.1에만 바인딩해 호스트 밖으로 열리지 않게 한다 (9-2) ----------
   kafka-ui:
     image: kafbat/kafka-ui:v1.5.0

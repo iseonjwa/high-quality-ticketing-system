@@ -30,4 +30,8 @@ include(
     "config-server",
     "eureka",
     "gateway",
+    "user-service",
+    "reservation-service",
+    "payment-service",
+    "mock-pg",
 )
