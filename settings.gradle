@@ -1,0 +1,6 @@
+rootProject.name = 'high-quality-ticketing-system'
+
+include 'common', 'gateway', 'eureka', 'config-server'
+include 'user-service', 'reservation-service', 'payment-service', 'mock-pg'
+include 'system-tests'
+include 'workspace-tools'

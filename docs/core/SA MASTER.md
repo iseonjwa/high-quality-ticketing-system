@@ -333,7 +333,7 @@ flowchart TD
 | Gateway 라우팅 + JWT 검증 → `X-User-Id`·`X-User-Role` 전달, Eureka | Redis 호출 타임아웃·서킷 브레이커 (9-5) | Must |
 | 회원가입·로그인·토큰 재발급·로그아웃(블랙리스트) | POST `/api/v1/users` · POST `/api/v1/auth/login` · `/auth/refresh` · `/auth/logout` · GET `/api/v1/users/me` | Must |
 | 운영자 계정 초기 데이터 | 시드 스크립트 | Must |
-| 공통 규칙: 4계층 패키지 구조, 응답·에러 형식, 이벤트 공통 필드 | 10/27 합의 문서, `common-response`·`common-web` 모듈 (11-2) | Must |
+| 공통 규칙: 4계층 패키지 구조, 응답·에러 형식, 이벤트 공통 필드 | 10/27 합의 문서, `common` 모듈의 `response`·`web` 패키지 (11-2) | Must |
 | 사용자 단위 요청 제한 | Gateway 필터 | Should |
 | 배포 1회 (EC2 + compose) | 보안그룹 규칙표·SSH 터널 매뉴얼 (9-2) | Must (~11/6) |
 
@@ -632,7 +632,7 @@ flowchart TB
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택 (#30 잠정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈)이고 설정은 Config 서버(9-6)로 관리한다.
+- 기술 스택 (#30 잠정, Config 서버 유지는 10/27 통합 회의에서 확정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈, Groovy DSL)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.8.2 · PostgreSQL 17이다. Lombok은 쓸 수 있다.
 - 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다.
 - Java 21에서는 가상 스레드가 `synchronized` 안에서 캐리어 스레드에 고정되므로(JDK 24에서 해결) 가상 스레드는 기본으로 끈다. 고도화에서 켜 볼 때는 고정 지점을 먼저 확인한다. Java 22 이후 기능은 쓰지 않는다.
 - 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod. 프로필별 값은 `config-repo/{서비스}-{프로필}.yml`에 둔다(9-6).
@@ -718,7 +718,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- |
 | 대기열 진입·입장 판정 | closed | 503 + `Retry-After` | 속도 통제 없이 입장시키면 선점 API가 폭주를 받는다 |
 | 좌석 조회·선점의 입장 토큰 검증 | 서명 검증은 Redis 없이 통과 | 정상 | 입장 토큰은 서명과 `exp`로 자체 검증된다 |
-| 로그아웃 블랙리스트 확인 | open | 정상 | 로그아웃된 Access 토큰이 최대 30분 통한다. 결제는 별도 결제 토큰이 있어 피해 범위가 제한된다. 보안 요구가 더 높으면 closed로 바꾼다 (#48 잠정) |
+| 로그아웃 블랙리스트 확인 | closed | 503 + `Retry-After` | 2026-10-27 통합 회의에서 closed로 정했다([ADR 0005](../decisions/0005-auth-redis-fail-closed.md)). 로그아웃된 토큰이 통하는 것보다 Redis 장애 동안 로그인 사용자 요청을 막는 쪽을 택했다. 이 때문에 생기는 문제는 따로 고친다. 이전 안은 open이었다(결제는 별도 결제 토큰이 있어 피해가 제한된다) (#48) |
 | 사용자 요청 제한 | 인스턴스 로컬 카운터로 낮춰 open | 정상 | 정확도는 떨어지지만 뒷단 보호는 유지 |
 | 공연 정보·좌석 캐시 | open, DB 조회로 대체 | 정상 | DB 보호를 위해 대체 조회는 초당 상한을 둔다 |
 - 검증: E11. 지연 주입 도구는 정하지 않았다. Toxiproxy 같은 프록시나 Redis `DEBUG SLEEP`이 후보다 (U17).
@@ -853,7 +853,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 실패 사유 필드는 `reasonCode`로 통일한다(이전 `rejectCode`·`declineCode`).
 - 한 응답으로 다음 화면을 정할 수 있게 한다. 선점 HELD 응답에 결제 토큰을 넣고, 접수 결과 조회는 HELD면 예매 블록을 함께 준다(11-5).
 - Gateway가 응답하는 401·403·429도 실패 형태로 만든다(WebFlux 전용 처리기). Spring 기본 `/error`(404·405), 깨진 JSON, 처리 안 된 예외까지 실패 형태로 나오는지 형식 검사 테스트로 확인한다.
-- 공통 모듈: `common-response`(응답 DTO·ErrorCode 인터페이스, Gateway도 사용) / `common-web`(MVC 예외 처리기). 업무 에러 코드는 각 서비스 enum.
+- 공통 모듈: `common` 하나의 `response` 패키지(응답 DTO·ErrorCode 인터페이스, Gateway도 사용)와 `web` 패키지(MVC 예외 처리기, Gateway 제외). 업무 에러 코드는 각 서비스 enum.
 - 감싸지 않는 것: Actuator·Prometheus, Mock PG 내부 API, Kafka 이벤트(공통 봉투의 `traceId`를 씀).
 - 아래 11-5 예시는 성공 응답의 `data` 안의 내용만 적는다.
 
@@ -1466,11 +1466,13 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈).
 
 ```
-iseonjwa/
-├─ common/              이벤트 봉투·이벤트 클래스, BaseEntity·AuditorAware (서비스 코드에 의존 금지)
-├─ common-response/     성공·실패 응답 DTO·ErrorCode (Gateway 포함 전 서비스)
-├─ common-web/          MVC 예외 처리기 (Gateway 제외)
-├─ common-messaging/    Outbox 릴레이, processed_event, 재시도·DLQ 설정 (결제 담당)
+high-quality-ticketing-system/
+├─ common/              공통 모듈 하나. 패키지 com.iseonjwa.common.* (서비스 코드에 의존 금지)
+│  ├─ identity/ response/   사용자 헤더 이름·역할, 성공·실패 응답 DTO·ErrorCode (Gateway 포함 전 서비스)
+│  ├─ auth/                 JWT 검증 (Gateway·User)
+│  ├─ web/                  MVC 예외 처리기, 사용자 헤더 필터, @RequireRole (Gateway 제외)
+│  ├─ persistence/ event/   BaseEntity·감사, 이벤트 봉투
+│  └─ messaging/            Kafka 설정. Outbox 릴레이, processed_event, 재시도·DLQ는 결제 담당이 추가
 ├─ gateway/  eureka/  config-server/  mock-pg/
 ├─ config-repo/         Config 서버가 읽는 설정 파일 (application.yml, {서비스}-{프로필}.yml)
 ├─ user-service/
@@ -1496,8 +1498,9 @@ iseonjwa/
 | infrastructure | JPA 구현, Redis, Kafka Producer·Consumer, PG 클라이언트 | → domain 인터페이스 구현 |
 - 엔티티를 응답으로 바로 내보내지 않는다(DTO 분리).
 - 발행: 도메인 이벤트 → 인프라의 Outbox 저장. 구독: 인프라 Consumer → application 서비스 호출. Kafka 코드는 domain·application에 들어가지 않는다.
-- 서비스 모듈끼리 직접 의존 금지, `common*`에는 형식·유틸만 둔다.
-- 패키지 이름 `iseonjwa`는 `(팀 확인)` (U12).
+- 서비스 모듈끼리 직접 의존 금지, `common`에는 형식·유틸만 둔다.
+- 공통 모듈은 2026-10-27 통합 회의에서 하나로 정했다([ADR 0013](../decisions/0013-single-common-module.md)). 웹·JPA·Kafka 라이브러리는 `compileOnly`로 두고 쓰는 서비스가 직접 선언하며, 설정은 서비스가 `@Import`로 가져온다. Gateway가 이 라이브러리를 받지 않는지는 `GatewayClasspathTest`가 확인한다.
+- 패키지 이름은 `com.iseonjwa`다(2026-10-27 통합 회의, U12 해소).
 - AI 설계 검증 #7(계층형 아키텍처)은 이 구조로 실행한다.
 
 ---
@@ -1657,7 +1660,7 @@ iseonjwa/
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
 | U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) | 추첨 시작 때 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
-| U12 | 포트(config-server 8888 포함)·패키지 이름(`iseonjwa`) 확인 | 10/27 | 다 같이 |
+| U12 | 포트(config-server 8888 포함) 확인. 패키지 이름은 `com.iseonjwa`로 확정(10/27) | 10/27 | 다 같이 |
 | U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 이강민 |
 | U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |

@@ -1,0 +1,30 @@
+// Note: 공통 코드는 모듈 하나에 두고 패키지로 나눈다(ADR 0013).
+// identity·response는 모든 서비스가 쓰고, auth·web·persistence·messaging은 필요한 서비스만 @Import로 가져온다.
+// Gateway(WebFlux)가 MVC·JPA·Kafka를 받으면 기동하지 못하므로 그 라이브러리는 compileOnly로만 둔다.
+// 쓰는 서비스가 자기 build.gradle에 직접 선언한다. implementation이나 api로 바꾸면 GatewayClasspathTest가 실패한다
+dependencies {
+    api 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'org.springframework:spring-context'
+    implementation 'org.slf4j:slf4j-api'
+    implementation 'tools.jackson.core:jackson-databind'
+
+    compileOnly 'jakarta.persistence:jakarta.persistence-api'
+    compileOnly 'org.springframework:spring-webmvc'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+    compileOnly 'org.springframework.security:spring-security-oauth2-jose'
+    compileOnly 'org.springframework.boot:spring-boot-starter-kafka'
+
+    testImplementation 'jakarta.persistence:jakarta.persistence-api'
+    testImplementation 'org.springframework:spring-webmvc'
+    testImplementation 'jakarta.servlet:jakarta.servlet-api'
+    testImplementation 'org.springframework.security:spring-security-oauth2-jose'
+    testImplementation 'tools.jackson.core:jackson-databind'
+    testImplementation 'org.springframework:spring-test'
+    testImplementation 'org.springframework:spring-orm'
+    testImplementation 'org.springframework:spring-jdbc'
+    testImplementation 'org.hibernate.orm:hibernate-core'
+    testImplementation 'org.hibernate.validator:hibernate-validator'
+    testRuntimeOnly 'org.apache.tomcat.embed:tomcat-embed-el'
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'ch.qos.logback:logback-classic'
+}

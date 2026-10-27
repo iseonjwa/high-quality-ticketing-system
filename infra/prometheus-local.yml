@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: spring
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [host.docker.internal:18080, host.docker.internal:18081, host.docker.internal:18082, host.docker.internal:18083, host.docker.internal:18761, host.docker.internal:19888, host.docker.internal:18090]

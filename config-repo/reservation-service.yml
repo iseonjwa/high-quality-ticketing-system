@@ -1,0 +1,12 @@
+server:
+  port: 8082
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/reservation}
+    username: ${DB_USER:iseonjwa}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+  kafka:
+    consumer:
+      group-id: reservation-service.bootstrap

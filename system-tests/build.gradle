@@ -1,0 +1,45 @@
+dependencies {
+    testImplementation project(':workspace-tools')
+    testImplementation 'tools.jackson.core:jackson-databind'
+}
+
+tasks.named('jar') { enabled = false }
+
+tasks.named('test') {
+    dependsOn ':eureka:bootJar'
+    inputs.file(project(':eureka').tasks.named('bootJar').flatMap { it.archiveFile })
+    systemProperty 'workspace.root', rootProject.projectDir.absolutePath
+    useJUnitPlatform { excludeTags 'system' }
+}
+
+tasks.register('systemTest', Test) {
+    group = 'verification'
+    description = '실행 중인 local 스택의 API·연동·장애 계약을 검증한다'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'workspace.root', rootProject.projectDir.absolutePath
+    systemProperty 'verification.coldStart', providers.gradleProperty('coldStart').getOrElse('false')
+    systemProperty 'verification.redisFailure', providers.gradleProperty('redisFailure').getOrElse('false')
+    systemProperty 'verification.jvmMode', providers.gradleProperty('jvmMode').getOrElse('false')
+    useJUnitPlatform { includeTags 'system' }
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    testLogging { events 'passed', 'failed', 'skipped' }
+}
+
+tasks.register('jvmSystemTest', Test) {
+    group = 'verification'
+    description = '앱 JVM을 소유하고 loopback·시스템 검증 후 종료한다'
+    dependsOn rootProject.workspaceApplicationModules.collect { ":${it}:bootJar" }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'workspace.root', rootProject.projectDir.absolutePath
+    systemProperty 'verification.jvmMode', 'true'
+    systemProperty 'verification.manageJvm', 'true'
+    systemProperty 'verification.coldStart', 'false'
+    systemProperty 'verification.redisFailure', 'false'
+    useJUnitPlatform { includeTags 'system' }
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    testLogging { events 'passed', 'failed', 'skipped' }
+}

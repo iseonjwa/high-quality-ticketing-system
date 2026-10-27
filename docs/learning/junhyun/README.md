@@ -18,6 +18,12 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | common 모듈은 왜 여러 개로 나뉘었고 Docker에서도 컨테이너가 여러 개인가 | [qna/2026-10-27-common-module-split-and-containers.md](qna/2026-10-27-common-module-split-and-containers.md) |
+| 2026-10-27 | Spring Boot 프로젝트의 개발·검증 스크립트는 왜 Python으로 작성했는가 | [qna/2026-10-27-spring-boot-python-scripts.md](qna/2026-10-27-spring-boot-python-scripts.md) |
+| 2026-10-27 | 현재 구현에서 어떤 부분을 먼저 보강하면 좋은가 | [qna/2026-10-27-implementation-hardening-review.md](qna/2026-10-27-implementation-hardening-review.md) |
+| 2026-10-27 | 가독성과 학습을 위해 공통 코드 작성 규칙을 어떻게 보완하면 좋은가 | [qna/2026-10-27-common-coding-rules.md](qna/2026-10-27-common-coding-rules.md) |
+| 2026-10-27 | 서비스가 Access JWT를 직접 검증할 때 HS256과 RS256은 무엇이 다른가 | [qna/2026-10-27-jwt-hs256-vs-rs256.md](qna/2026-10-27-jwt-hs256-vs-rs256.md) |
+| 2026-10-27 | MSA 사용자 JWT·Gateway 내부 토큰 비교와 이중 검증의 비용·보안 절충 | [qna/2026-10-27-msa-service-identity-verification.md](qna/2026-10-27-msa-service-identity-verification.md) |
 | 2026-10-26 | fail open과 fail closed는 무엇이고 어떻게 고르는가 | [qna/2026-10-26-fail-open-fail-closed.md](qna/2026-10-26-fail-open-fail-closed.md) |
 | 2026-10-26 | DLQ(Dead Letter Queue)는 무엇이고 언제 쓰는가 | [qna/2026-10-26-dlq-dead-letter-queue.md](qna/2026-10-26-dlq-dead-letter-queue.md) |
 | 2026-10-26 | Redis Lua 스크립트는 무엇이고 왜 쓰는가 | [qna/2026-10-26-redis-lua-script.md](qna/2026-10-26-redis-lua-script.md) |
