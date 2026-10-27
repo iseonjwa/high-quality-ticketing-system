@@ -1,4 +1,0 @@
-dependencies {
-    api project(':common-response')
-    api 'org.springframework.security:spring-security-oauth2-jose'
-}
