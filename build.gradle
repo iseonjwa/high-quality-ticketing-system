@@ -1,0 +1,61 @@
+plugins {
+    id 'org.springframework.boot' version '4.1.2' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+ext {
+    set('springCloudVersion', '2025.1.4')
+    set('jjwtVersion', '0.13.0')
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'com.iseonjwa'
+    version = '0.0.1-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${rootProject.springCloudVersion}"
+        }
+    }
+
+    dependencies {
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs << '-parameters'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+
+    // 실행 모듈(Boot 플러그인을 붙인 모듈)은 지표·추적을 모두 내보낸다 (SA 6-2 걷는 뼈대, 9-1)
+    plugins.withId('org.springframework.boot') {
+        dependencies {
+            implementation 'org.springframework.boot:spring-boot-starter-actuator'
+            implementation 'org.springframework.boot:spring-boot-starter-zipkin'
+            runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+        }
+
+        // 컨테이너 이미지에 실행 jar 하나만 들어가도록 plain jar는 만들지 않는다
+        tasks.named('jar') {
+            enabled = false
+        }
+    }
+}
