@@ -2,3 +2,9 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-config-server'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 }
+
+// Note: ConfigRepoTest가 저장소의 config-repo/를 읽는다. 입력으로 등록하지 않으면
+// 설정 파일만 바꿨을 때 Gradle이 테스트를 최신 상태로 보고 건너뛴다
+tasks.named('test') {
+    inputs.dir(rootProject.file('config-repo')).withPropertyName('configRepo')
+}
