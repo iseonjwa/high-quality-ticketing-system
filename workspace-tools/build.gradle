@@ -1,0 +1,10 @@
+dependencies {
+    implementation 'tools.jackson.core:jackson-databind'
+}
+
+tasks.named('test') {
+    systemProperty 'workspace.root', rootProject.projectDir.absolutePath
+    inputs.files(rootProject.file('compose.yml'), rootProject.file('compose.local.yml'))
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}

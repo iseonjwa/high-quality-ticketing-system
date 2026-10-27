@@ -30,7 +30,7 @@
 
 | 폴더 | 내용 |
 |---|---|
-| [junhyun](junhyun/README.md) | 개별 기록 14건, 일지 2일 |
+| [junhyun](junhyun/README.md) | 개별 기록 16건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
 
 ## 팀 공통 판단
@@ -39,6 +39,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 앱 검증 이관을 수용하고 Python 도구 유지안 대신 전체 Java·Gradle 통일 선택 | junhyun | Codex | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-java-gradle-tools.md) |
+| 2026-10-27 | Python 앱 검증 대신 내부 JUnit 테스트로 정리 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-27-junit-test-boundary.md) |
 | 2026-10-27 | 인증 구현 보강 4개 수용과 항목별 커밋 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-auth-hardening.md) |
 | 2026-10-27 | 공통 코드 작성 규칙 7개 수용, `Note:`는 필요한 지점에만 사용 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-27-common-code-style-rules.md) |
 | 2026-10-27 | 신뢰 모델: AI 추천(서비스 JWT 직접 검증·RS256) 대신 SA 유지, 응답 형식은 SA #19로 정렬 | junhyun | Claude Code, Codex | **거부** | 아님 | [기록](junhyun/2026-10-27-auth-trust-follow-sa.md) |

@@ -4,6 +4,75 @@ plugins {
 
 def applicationModules = ['gateway', 'eureka', 'config-server', 'user-service',
                           'reservation-service', 'payment-service', 'mock-pg']
+ext.workspaceApplicationModules = applicationModules
+
+def workspaceTool = { String taskName, String operation ->
+    tasks.register(taskName, JavaExec) {
+        group = 'workspace'
+        classpath = project(':workspace-tools').sourceSets.main.runtimeClasspath
+        javaLauncher = project(':workspace-tools').javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+        mainClass = 'iseonjwa.workspace.WorkspaceTool'
+        systemProperty 'workspace.root', rootProject.projectDir.absolutePath
+        workingDir rootProject.projectDir
+        args operation
+        maxHeapSize = '128m'
+    }
+}
+
+workspaceTool('initLocalEnv', 'init-env')
+workspaceTool('checkPortExposure', 'check-ports')
+workspaceTool('runLocal', 'run-local').configure {
+    def selected = providers.gradleProperty('app')
+    dependsOn(providers.provider {
+        selected.isPresent() && applicationModules.contains(selected.get()) ? [":${selected.get()}:bootJar"] : []
+    })
+    standardInput = System.in
+    doFirst {
+        if (!selected.isPresent() || !applicationModules.contains(selected.get())) {
+            throw new GradleException('사용: ./gradlew runLocal -Papp=<앱 이름>')
+        }
+        args selected.get()
+    }
+}
+
+tasks.register('prepareTestInfra', Exec) {
+    group = 'verification'
+    commandLine 'docker', 'compose', '-f', 'compose.test.yml', 'up', '-d', '--wait', '--wait-timeout', '120'
+}
+
+tasks.register('checkRecords', Exec) {
+    group = 'verification'
+    commandLine 'bash', 'script/records-check.sh'
+}
+
+tasks.register('checkDiff', Exec) {
+    group = 'verification'
+    commandLine 'git', 'diff', '--check'
+}
+
+tasks.register('verifyWorkspace') {
+    group = 'verification'
+    description = '격리된 테스트 인프라와 전체 Java 검증을 실행한다'
+    dependsOn 'prepareTestInfra', 'checkPortExposure', 'checkRecords', 'checkDiff'
+    dependsOn subprojects.collect { "${it.path}:build" }
+}
+
+tasks.register('verifyJvm') {
+    group = 'verification'
+    dependsOn ':system-tests:jvmSystemTest'
+}
+
+subprojects {
+    tasks.withType(Test).configureEach {
+        mustRunAfter ':prepareTestInfra', ':checkPortExposure'
+    }
+}
+
+['checkRecords', 'checkDiff'].each { taskName ->
+    tasks.named(taskName) { mustRunAfter subprojects.collect { "${it.path}:build" } }
+}
 
 subprojects {
     apply plugin: 'java-library'

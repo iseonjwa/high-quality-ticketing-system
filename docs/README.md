@@ -15,6 +15,7 @@
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
 | 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 코드 작성·수정·리뷰 때 적용 |
+| Java·JUnit 테스트 위치와 기본·시스템 검증 실행 | [`guides/testing.md`](guides/testing.md) | 테스트 작성·실행 때 적용 |
 | 공통 모듈의 사용 계약(응답·예외·사용자 컨텍스트·토큰·감사·이벤트) | [`guides/common-modules.md`](guides/common-modules.md) | 팀 합의 전 |
 | 전체 Boot 앱·Config·인프라·인증 실행과 검증 | [`guides/workspace.md`](guides/workspace.md) | 현재 개발 워크스페이스 |
 | 완료 기준, 작업 흐름, 디버깅 | [`agents/quality-gates.md`](agents/quality-gates.md) | |

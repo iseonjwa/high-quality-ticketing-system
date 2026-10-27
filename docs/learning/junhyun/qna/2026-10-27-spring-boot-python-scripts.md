@@ -17,12 +17,16 @@ tags: [spring-boot, python, gradle, testing, automation]
 
 > 내부 테스트코드로 처리해야할 것 같은뎅 아닌가!
 
+이후 범위 선택:
+
+> Python 도구까지 모두 Java·Gradle로 통일
+
 ## 짧은 답
 
 처음에는 개발 편의상 Python에 실행 준비와 앱 검증이 함께 들어 있었다. Spring Boot의 요구사항은 아니다.
 사용자의 지적대로 API·인증·앱 기동 정책은 저장소의 Java·JUnit 테스트로 관리하도록 정리했다.
 전체 스택을 사용하는 검증도 내부 JUnit 코드로 작성할 수 있으며, 일반 모듈 테스트와 실행 태스크를 구분하면 된다.
-환경·프로세스 준비 도구는 우선 유지한다. 현재 경계와 명령의 정본은 [테스트 가이드](../../../guides/testing.md)에 있다.
+이후 사용자가 전체 통일을 선택해 환경·프로세스·포트 도구까지 Java·Gradle로 옮겼다. 현재 경계와 명령의 정본은 [테스트 가이드](../../../guides/testing.md)에 있다.
 
 ## 자세히
 
@@ -33,26 +37,27 @@ tags: [spring-boot, python, gradle, testing, automation]
 | 애플리케이션 | Java·Spring Boot | 요청 처리, 인증, DB·Redis·Kafka 연동 |
 | 애플리케이션 단위·통합 테스트 | Java·JUnit·Gradle | 서비스 분기와 실제 PostgreSQL·Redis·HTTP 동작 검사 |
 | 전체 스택 시스템 검증 | Java·JUnit·Gradle | API·연동·관측성·장애 시나리오 검사 |
-| 개발 환경 준비 | Python·Bash | 환경 생성, 프로세스 실행, 포트 설정 검사와 검사 순서 조율 |
+| 개발 환경 준비 | Java·Gradle | 환경 생성, 프로세스 실행, 포트 설정 검사와 검사 순서 조율 |
 
 앱을 Java로 만든다고 주변 자동화까지 Java로 작성해야 하는 제약은 없다. 다만 언어를 추가할 때 얻는 편의와 팀의 유지 비용을 비교해야 한다.
 
-### 이 저장소의 실제 스크립트
+### 이 저장소의 현행 구현
 
-- [init-local-env.py](../../../../script/init-local-env.py): 개인 개발용 값을 생성해 환경 파일을 만든다. 기존 파일을 덮어쓰지 않는다.
-- [workspace_env.py](../../../../script/workspace_env.py): Compose의 환경변수 해석 결과를 읽어 JVM 실행과 검증에서 같은 값을 사용한다.
-- [run-app.py](../../../../script/run-app.py): 실행 환경을 준비해 `gradlew :서비스:bootRun`을 호출한다. 앱의 실제 실행은 JVM이 맡는다.
+- [LocalEnvironment](../../../../workspace-tools/src/main/java/iseonjwa/workspace/LocalEnvironment.java): 기존 환경 파일을 보존하며 0600으로 생성하고, Compose 해석을 Java 실행과 검증에서 공유한다.
+- [LocalApps](../../../../workspace-tools/src/main/java/iseonjwa/workspace/LocalApps.java): 앱별 loopback 주소·관리 포트·필수 환경변수를 구성한다.
+- [WorkspaceTool](../../../../workspace-tools/src/main/java/iseonjwa/workspace/WorkspaceTool.java): Gradle에서 환경 생성·포트 검사·선택 앱 실행을 수행한다.
 - [WorkspaceSystemTest](../../../../system-tests/src/test/java/iseonjwa/verification/WorkspaceSystemTest.java): 기존 Python 스모크의 API·연동·관측·장애 검증을 옮긴 JUnit 테스트다.
-- [check-port-exposure.py](../../../../script/check-port-exposure.py): Compose가 출력한 JSON에서 포트 공개 규칙을 검사한다.
+- [PortExposure](../../../../workspace-tools/src/main/java/iseonjwa/workspace/PortExposure.java): Compose JSON에서 포트 공개 규칙을 검사한다.
 - [ConfigServerUnavailableTest](../../../../system-tests/src/test/java/iseonjwa/verification/ConfigServerUnavailableTest.java): 별도 JVM을 실행해 설정 서버가 없을 때 실패하는지 JUnit으로 검사한다.
-- [check.sh](../../../../script/check.sh): Python 검사, Compose 준비, Gradle 빌드·테스트 등의 순서를 실행한다.
+- [JvmWorkspace](../../../../workspace-tools/src/main/java/iseonjwa/workspace/JvmWorkspace.java): 검사에 소유한 앱 JVM을 기동하고 소켓을 확인한 뒤 종료한다.
+- [check.sh](../../../../script/check.sh): `verifyWorkspace`를 호출하는 호환 진입점이다.
 
 [Dockerfile](../../../../Dockerfile)의 최종 단계는 JAR를 복사하고 `java -jar`로 앱을 시작한다. 이 스크립트들이 업무 서버 안에서 별도의 Python API를 실행하는 구성은 아니다.
-개발 스크립트를 사용하거나 현재 CI 검사를 실행할 때는 Python이 필요하다. [CI](../../../../.github/workflows/build.yml)도 Python 검사 명령을 호출한다.
+개발 도구와 [CI](../../../../.github/workflows/build.yml)도 Gradle 진입점을 사용하므로 Python 설치가 필요 없다.
 
 ### 처음 Python을 선택한 이유와 비용
 
-현재 스크립트는 Python 표준 라이브러리와 저장소의 로컬 모듈을 사용한다. 별도 pip 패키지를 설치하지 않고 JSON 처리, HTTP 요청, 파일 작업, 자식 프로세스 실행을 작성할 수 있다.
+이관 전 도구는 Python 표준 라이브러리와 저장소의 로컬 모듈을 사용했다. 별도 pip 패키지 없이 JSON·HTTP·파일·자식 프로세스를 작성할 수 있다는 편의를 택했다.
 Bash로도 가능하지만 여러 JSON 필드 검사, 오류·시간 제한 처리, 테스트 데이터 생성이 늘어나면 Python이 작성·검토하기 편하다는 선택이다.
 이는 구현 편의에 대한 판단이며 모든 Spring Boot 프로젝트에서 Python이 더 낫다는 근거는 아니다.
 
@@ -68,9 +73,9 @@ Gradle이 Python 검증을 감싸는 형태가 아니라, 판정 로직을 Java 
 ## 이 프로젝트에서는
 
 기존 애플리케이션 검사와 별도로 있던 Python 스모크를 시스템 JUnit 13개로, 설정 서버 장애 검사를 기본 JUnit 1개로 이관해 실행했다.
-Python 14개는 환경 해석·JVM 실행 환경·포트 설정 도구 자체의 테스트다. 환경 도구 전체 제거까지 확정한 발언으로 확대하지 않는다.
+당시 Python 14개는 환경 해석·JVM 실행 환경·포트 도구의 테스트였다. 전체 통일 선택 뒤 14개를 이관하고 파일 생성·보존 및 프로세스 종료 4개를 추가해 Java 도구 JUnit 18개로 관리한다.
 [ADR 0011](../../../decisions/0011-junit-verification-boundary.md)과 [판단 기록](../../../ai-judgments/junhyun/2026-10-27-junit-test-boundary.md)에 지적과 구현 범위를 남겼다.
-기본 검사에서 JUnit 106개와 개발 도구 Python 14개가 통과했고, 실제 스택의 시스템 JUnit 13개도 통과했다. JVM 모드에서도 11개를 확인했으며 재기동·pause 옵션 2개는 생략했다. 검사 후 Compose 앱·관측 설정을 복구했다.
+첫 이관의 기본 JUnit 106개·Python 도구 14개는 당시 검증 기록이다. 전체 통일 후에는 기본 JUnit 124개와 시스템 13개가 통과했다. Java JVM 모드에서도 11개를 확인했으며 재기동·pause 옵션 2개는 생략했다. 검사 후 Compose 앱·관측 설정을 복구했다. 현행 결정은 [ADR 0012](../../../decisions/0012-java-gradle-workspace-tools.md)에 있다.
 
 ## 면접 포인트
 

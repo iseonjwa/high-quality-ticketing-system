@@ -8,6 +8,8 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 앱 검증 이관을 수용하고 Python 도구 유지안 대신 전체 Java·Gradle 통일 선택 | Codex | 부분 수용 | 예 | 아님 | [기록](2026-10-27-java-gradle-tools.md) |
+| 2026-10-27 | Python 앱 검증 대신 내부 JUnit 테스트로 정리 | Codex | **거부** | 예 | 아님 | [기록](2026-10-27-junit-test-boundary.md) |
 | 2026-10-27 | 인증 구현 보강 4개 수용과 항목별 커밋 | Codex | 수용 | 예 | 아님 | [기록](2026-10-27-auth-hardening.md) |
 | 2026-10-27 | 공통 코드 작성 규칙 7개 수용, `Note:`는 필요한 지점에만 사용 | Codex | 수용 | 예 | 아님 | [기록](2026-10-27-common-code-style-rules.md) |
 | 2026-10-27 | 신뢰 모델: AI 추천(서비스 JWT 직접 검증·RS256) 대신 SA 유지, 응답 형식은 SA #19로 정렬 | Claude Code, Codex | **거부** | 예 | 아님 | [기록](2026-10-27-auth-trust-follow-sa.md) |

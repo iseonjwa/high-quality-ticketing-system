@@ -28,6 +28,7 @@
 | 사용자가 AI 응답·제안에 판단을 내렸을 때 | `.agents/skills/ai-judgment/SKILL.md`, `docs/ai-judgments/README.md` |
 | 문서·노트·커밋·PR 본문을 쓸 때 | `docs/guides/writing.md` |
 | 코드를 작성·수정·리뷰할 때 | `docs/guides/code-style.md` |
+| 테스트·개발 도구를 작성·실행할 때 | `docs/guides/testing.md` (Java·JUnit·Gradle 기준) |
 | 커밋·PR 작업 시 | `docs/guides/git-workflow.md`, `.github/pull_request_template.md` |
 | 작업 완료 보고·테스트 전 | `docs/agents/quality-gates.md` |
 | 결정을 기록할 때 | `docs/decisions/README.md` |

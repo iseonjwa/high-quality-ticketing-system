@@ -14,3 +14,5 @@
 | 0008 | [내부 신뢰 모델과 인증 설계](0008-internal-trust-and-auth-design.md) | 설계 중 (SA 유지, 보강 후보 선택 대기) | 2026-10-27 |
 | 0009 | [서비스가 Access JWT를 직접 검증하는 방향 선택](0009-service-access-jwt-verification.md) | 철회 (SA 유지) | 2026-10-27 |
 | 0010 | [인증 상태 확인과 세션 변경을 사용자 행 잠금으로 직렬화](0010-auth-session-serialization.md) | 채택 (브랜치 구현) | 2026-10-27 |
+| 0011 | [앱 검증은 Java·JUnit으로 관리한다](0011-junit-verification-boundary.md) | 대체됨 (0012) | 2026-10-27 |
+| 0012 | [개발 도구와 검증을 Java·Gradle로 통일한다](0012-java-gradle-workspace-tools.md) | 채택 (브랜치 구현) | 2026-10-27 |

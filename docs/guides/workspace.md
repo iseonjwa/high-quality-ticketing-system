@@ -6,6 +6,8 @@ ISE-5에서 전체 실행 기반과 인증을 구성했다. 업무 서비스는 
 
 Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사용한다. 인프라 이미지는 compose.yml과 Dockerfile의 digest로 고정했다. 공통 라이브러리에는 실행 JAR를 만들지 않고 Boot 앱에는 app.jar를 만든다.
 
+`system-tests`는 Java·JUnit 검증, `workspace-tools`는 환경·프로세스·포트 도구와 그 회귀 테스트를 제공한다. 둘 다 실행 서비스가 아니다. Python 설치는 필요 없다. 검증의 위치·실행 범위는 [테스트 가이드](testing.md)를 따른다.
+
 | 앱 | 업무 포트 | local override 관리 포트 | 역할 |
 |---|---|---|---|
 | config-server | 8888 | 19888 | config-repo의 native 설정 공급 |
@@ -28,21 +30,21 @@ common은 감사 엔티티·이벤트 봉투, common-response는 Spring에 독�
 - local override와 JVM 실행의 개발용 포트도 모두 `127.0.0.1`이다.
 - 배포(EC2)에서는 보안그룹으로 8080만 외부에 열고(부하 측정 중에는 측정 기기 IP로 제한) 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다.
 - 서비스 사이의 내부 HTTP API는 `/internal/**`(또는 `/api/v1/internal/**`)에 둔다. Gateway의 `AccessPolicy`가 이 경로를 외부 요청에서 404로 막는다.
-- `script/check-port-exposure.py`가 위 규칙(기본 Compose의 공개 서비스 목록, 모든 호스트 주소가 loopback)을 검사한다. `script/check.sh`와 CI에서 실행하므로, 새 서비스나 포트를 추가할 때 이 검사가 실패하면 규칙을 먼저 확인한다.
+- `./gradlew checkPortExposure`가 위 규칙(기본 Compose의 공개 서비스 목록, 모든 호스트 주소가 loopback)을 검사한다. `verifyWorkspace`와 CI에 포함되며 규칙 위반이면 실패한다.
 
 ## 전체 Compose 실행
 
 Docker와 JDK 21을 준비하고 저장소 루트에서 실행한다. 다른 프로젝트 컨테이너를 이 명령으로 중지하지 않는다.
 
 ```bash
-python3 script/init-local-env.py
+./gradlew initLocalEnv
 docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 180
-python3 script/smoke-workspace.py --redis-failure
+./gradlew :system-tests:systemTest -PredisFailure=true --no-daemon
 ```
 
 환경변수 생성기는 .env가 있으면 덮어쓰지 않는다. 새 파일은 0600으로 만들고 값을 출력하지 않는다. 변수 목록은 .env.example에 있다. 실제 키·비밀번호는 .env에만 두고 커밋하지 않는다. Config Server에는 이 비밀값을 전달하지 않고 각 클라이언트 프로세스의 환경변수로 주입한다.
 
-JVM runner와 스모크도 컨테이너 생성 없이 Compose의 dotenv 해석 결과를 공통으로 사용한다. 따옴표·주석·이스케이프·보간을 지원하고, 쉘 환경변수가 .env보다 우선하는 규칙을 유지한다. 값은 출력하지 않는다.
+JVM runner와 Java 시스템 테스트는 컨테이너 생성 없이 Compose의 dotenv 해석 결과를 사용한다. 따옴표·주석·이스케이프·보간을 지원하고, 쉘 환경변수가 .env보다 우선하는 규칙을 유지한다. 값은 출력하지 않는다.
 
 Config Server → Eureka → 나머지 앱 순서로 기동한다. Kafka는 볼륨 최상위 소유권을 맞추는 init 컨테이너가 성공한 뒤 일반 사용자로 실행한다. init 컨테이너의 종료 코드 0은 정상이다.
 
@@ -64,21 +66,21 @@ docker compose -f compose.yml -f compose.local.yml stop
 
 ```bash
 docker compose -f compose.yml -f compose.local.yml -f compose.jvm.yml up -d postgres-user postgres-reservation postgres-payment redis kafka kafka-ui prometheus grafana zipkin
-python3 script/run-app.py config-server
+./gradlew runLocal -Papp=config-server
 ```
 
-Config Server가 준비되면 다른 터미널에서 Eureka, 이어서 나머지 앱을 각각 실행한다. run-app.py는 해당 앱에 필요한 개인 환경변수만 전달하고 호스트용 주소·관리 포트를 지정한다.
+Config Server가 준비되면 다른 터미널에서 Eureka, 이어서 나머지 앱을 각각 실행한다. `runLocal`은 선택한 앱의 JAR를 준비하고 필요한 개인 환경변수와 loopback 주소·관리 포트로 실행한다. 종료 시 자신이 시작한 JVM을 정리한다.
 
 ```bash
-python3 script/run-app.py eureka
-python3 script/run-app.py gateway
-python3 script/run-app.py user-service
-python3 script/run-app.py reservation-service
-python3 script/run-app.py payment-service
-python3 script/run-app.py mock-pg
+./gradlew runLocal -Papp=eureka
+./gradlew runLocal -Papp=gateway
+./gradlew runLocal -Papp=user-service
+./gradlew runLocal -Papp=reservation-service
+./gradlew runLocal -Papp=payment-service
+./gradlew runLocal -Papp=mock-pg
 ```
 
-IntelliJ에서는 settings.gradle을 Gradle 프로젝트로 열고 Gradle JVM과 프로젝트 SDK를 21로 맞춘다. 각 진입점을 실행하려면 run-app.py와 같은 환경변수를 Run Configuration에 설정한다. IntelliJ가 .env를 자동으로 읽는다고 가정하지 않는다. 공통 모듈에는 진입점을 추가하지 않는다.
+IntelliJ에서는 settings.gradle을 Gradle 프로젝트로 열고 Gradle JVM과 프로젝트 SDK를 21로 맞춘다. Gradle `runLocal` 태스크를 사용하거나 `LocalApps`와 같은 환경을 Run Configuration에 설정한다. IntelliJ가 .env를 자동으로 읽는다고 가정하지 않는다. 공통 라이브러리에는 실행 진입점을 추가하지 않는다.
 
 local 프로필과 Config Server의 기본 업무·관리 주소는 127.0.0.1이다. runner는 SERVER_ADDRESS·MANAGEMENT_SERVER_ADDRESS를 고정하고 Eureka에도 EUREKA_INSTANCE_IPADDRESS=127.0.0.1로 등록한다. Compose는 내부 통신을 위해 주소 0.0.0.0과 컨테이너 IP 등록을 명시하며, 호스트 포트 공개는 계속 loopback으로 제한한다.
 
@@ -131,19 +133,19 @@ local 추적은 100%, loadtest는 1%, prod는 10% 샘플링한다. 대시보드�
 ## 검증
 
 ```bash
-script/check.sh
-python3 script/smoke-workspace.py --redis-failure --cold-start
+./gradlew verifyWorkspace --no-daemon
+./gradlew :system-tests:systemTest -PredisFailure=true -PcoldStart=true --no-daemon
 ```
 
-check.sh는 격리된 iseonjwa-test PostgreSQL·Redis를 올린 뒤 전체 빌드·테스트·기록·diff를 검사한다. 테스트 DB는 tmpfs이며 업무 DB 볼륨을 사용하지 않는다. CI에서도 같은 테스트 인프라를 사용하고 종료한다. 로컬 테스트 인프라는 다음 명령으로 중지할 수 있다.
+`verifyWorkspace`는 격리된 iseonjwa-test PostgreSQL·Redis를 준비하고 포트 규칙·전체 빌드·JUnit·기록·diff를 검사한다. 테스트 DB는 tmpfs이며 업무 DB 볼륨을 사용하지 않는다. CI에서도 같은 태스크를 사용한다. 로컬 테스트 인프라는 다음 명령으로 중지할 수 있다.
 
 ```bash
 docker compose -f compose.test.yml stop
 ```
 
-`script/check.sh`는 dotenv·JVM 실행 환경 회귀(Python), 모듈 단위 테스트, PostgreSQL·Redis 통합 테스트(인증·로그인 잠금·비밀번호 초기화), Config 불가 시 기동 실패, 기록 검사를 한 번에 확인한다. `smoke-workspace.py`는 Gateway를 통한 HTTP 계약, Config 비밀값 비노출, Eureka 등록, Reservation → Kafka → Payment, Prometheus·Grafana·Zipkin, 로그인 잠금과 관리자 초기화, Redis pause 중 503과 복구를 확인한다. 실행 결과와 소요 시간은 이 문서가 아니라 PR 본문의 결과 칸에 적는다.
+기본 검사에는 Java 도구의 dotenv·파일 권한·실행 환경·포트·종료 회귀, 모듈·DB·Redis 통합, Config 불가 시 기동 실패를 포함한다. 별도 `systemTest`는 실제 스택의 API·진단 이벤트·관측·장애를 JUnit으로 검증한다. `script/check.sh`는 Gradle 태스크를 호출하는 호환 진입점이다.
 
-`--cold-start`는 Gateway를 재기동해 readiness와 공개 경로의 User 탐색을 기다린 뒤 첫 보호 요청을 한 번만 확인한다. 존재하지 않는 테스트 사용자에 대한 User의 404를 기대해 Redis 연결 지연의 503과 구분한다. 재기동을 원하지 않는 검사에서는 이 옵션을 생략한다.
+`-PcoldStart=true`는 Gateway를 재기동한 뒤 첫 보호 요청을 한 번만 확인한다. 존재하지 않는 테스트 사용자에 대한 User의 404를 기대해 Redis 연결 지연의 503과 구분한다. `-PredisFailure=true`는 Redis를 잠깐 pause하고 복구를 확인한다. 일반 시스템 검사에서는 두 옵션을 생략할 수 있다. 결과는 JUnit 리포트에 남으며 자세한 범위는 테스트 가이드를 따른다.
 
 EC2 배포, 부하·운영 용량, 실제 PG, GitHub 원격 CI, IntelliJ UI 실행은 이 가이드의 검증 범위 밖이다.
 
@@ -151,12 +153,11 @@ Gateway 런타임에 spring-webmvc 의존성이 없는지는 Gradle dependencyIn
 
 ### JVM 보안과 연동 재검증
 
-실행 중인 호스트 JVM은 먼저 종료한다. 아래 명령은 이 프로젝트의 앱만 정지하고 인프라를 유지한 상태에서 검사한다. 검사 스크립트는 자신이 시작한 JVM을 성공·실패와 관계없이 종료한다.
+실행 중인 호스트 JVM은 먼저 종료한다. 아래 명령은 이 프로젝트의 앱만 정지하고 인프라를 유지한 상태에서 검사한다. `verifyJvm`은 앱 JAR를 준비하고 자신이 시작한 JVM을 성공·실패와 관계없이 종료한다. 실제 소켓 확인에는 `lsof`가 필요하다.
 
 ```bash
 docker compose -f compose.yml -f compose.local.yml stop config-server eureka gateway user-service reservation-service payment-service mock-pg
 docker compose -f compose.yml -f compose.local.yml -f compose.jvm.yml up -d --no-deps prometheus
-./gradlew bootJar --no-daemon
-python3 script/check-jvm-security.py
+./gradlew verifyJvm --no-daemon
 docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 180
 ```

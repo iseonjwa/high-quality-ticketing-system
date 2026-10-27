@@ -27,15 +27,15 @@ clone한 뒤 아래 세 가지를 한다. 3분이면 끝난다.
 
 ## 개발 워크스페이스
 
-Java 21, Spring Boot 4.1.2, Spring Cloud 2025.1.4 기반의 앱 7개와 공통 모듈 4개를 사용한다. Config Server·Eureka·Gateway·User·Reservation·Payment·Mock PG와 전체 인프라를 준비한다.
+Java 21, Spring Boot 4.1.2, Spring Cloud 2025.1.4 기반의 앱 7개와 공통 라이브러리를 사용한다. Config Server·Eureka·Gateway·User·Reservation·Payment·Mock PG와 전체 인프라를 준비한다. 검증·개발 도구는 Java·Gradle로 통일하며 Python 설치는 필요 없다.
 
 ```bash
-python3 script/init-local-env.py
+./gradlew initLocalEnv
 docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 180
-python3 script/smoke-workspace.py --redis-failure
+./gradlew :system-tests:systemTest -PredisFailure=true --no-daemon
 ```
 
-전체 빌드와 PostgreSQL·Redis 인증 통합 테스트는 `script/check.sh`로 실행한다. 인프라만 Compose로 실행하고 앱을 IntelliJ·bootRun으로 실행하는 방법, 환경변수, 포트, 인증 계약과 검증 범위는 [워크스페이스 가이드](docs/guides/workspace.md)에 있다.
+전체 검사는 `./gradlew verifyWorkspace --no-daemon`으로 실행한다. 환경·앱 실행은 [워크스페이스 가이드](docs/guides/workspace.md), JUnit 위치와 실행 범위는 [테스트 가이드](docs/guides/testing.md)를 따른다.
 
 ## PR
 

@@ -18,16 +18,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: dotenv와 JVM 실행 환경 회귀 검사
-        run: python3 -m unittest discover -s script/tests -v
-      - name: 서비스 포트 비공개 전제 검사
-        run: python3 script/check-port-exposure.py
-      - name: 인증 통합 테스트 인프라
-        run: docker compose -f compose.test.yml up -d --wait --wait-timeout 120
-      - name: 전체 모듈 빌드와 PostgreSQL·Redis 통합 테스트
-        run: ./gradlew clean build --no-daemon
-      - name: 필수 설정 서버 장애 시 기동 실패 확인
-        run: python3 script/check-config-failure.py
+      - name: Java 도구·포트 정책·인증 통합·기동 실패 전체 검사
+        run: ./gradlew verifyWorkspace --no-daemon
       - name: 테스트 인프라 종료
         if: always()
         run: docker compose -f compose.test.yml down

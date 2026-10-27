@@ -45,6 +45,8 @@ shared: 예
 `python3 script/smoke-workspace.py --redis-failure --cold-start`도 통과했다. 실제 스택 HTTP 계약 55건과 Config·Eureka·Kafka·Prometheus·Grafana·Zipkin, 재기동 첫 인증 요청, Redis 장애·복구를 확인했다.
 운영 배포와 부하 용량은 검증 범위 밖이다.
 
+위 명령과 건수는 보강 당시의 기록이다. 이후 [검증 경계 변경](../../decisions/0011-junit-verification-boundary.md)으로 같은 앱·시스템 검증을 내부 JUnit으로 옮겼다. 현행 실행 명령은 [테스트 가이드](../../guides/testing.md)를 따른다.
+
 ## 판단 이력
 
 - 2026-10-27 수용: 보강 4개와 항목별 커밋을 요청했다.
