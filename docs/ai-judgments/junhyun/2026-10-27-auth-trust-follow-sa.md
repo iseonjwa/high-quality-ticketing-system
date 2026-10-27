@@ -25,14 +25,14 @@ shared: 예
 - 결과: 거부. D1~D3의 AI 추천을 철회하고 SA 7-2·7-3대로 한다. Gateway가 Access JWT(HS256)를 1차 검증하고 서비스는 `X-User-*`를 신뢰한다. 서비스 직접 검증과 비대칭 서명은 MVP 이후로 미룬다.
 - 판단자: Junhyun An
 - 근거: "비대칭 서명은 MVP이후로 미루는 게 맞는 것같다". SA 7-3이 비대칭 서명을 MVP 이후로 둔 것과 같은 방향이다.
-- 사용자 원문: "게이트웨이에서 1차 검증을 하는 줄 알았는데 아니었어? … 음 비대칭 서명은 MVP이후로 미루는 게 맞는 것같다. 일단 방금 논의한 부분은 SA대로 하자. 내가 고민했던 기록만 남기고. 옆에있는 logistics-management의 인증 방식을 가져오는것도 고려해봐줘. 설계 조금만 더 하자"
+- 사용자 원문(발췌): "게이트웨이에서 1차 검증을 하는 줄 알았는데 아니었어? … 음 비대칭 서명은 MVP이후로 미루는 게 맞는 것같다. 일단 방금 논의한 부분은 SA대로 하자. 내가 고민했던 기록만 남기고. … 설계 조금만 더 하자"
 - 함께 한 판단(수용): 보강 후보 중 "A4까지 너 의견대로 해줘"로 AI 의견(A1 `/internal/**` 차단, A2 `@RequireRole`, A4 포트 비공개 전제 명시·검사를 지금, A3는 SA 합의 뒤)을 받아들였다. 이유는 미기재다.
 - 함께 한 판단(수용): 응답 형식을 SA v3.1(#19)의 성공 `{status, message, data, traceId}`·실패 `{status, code, message, errors, traceId}`로 정렬하라고 지시했다.
-- 검토한 대안: A(채택, SA), B, C. logistics-management의 방식은 비교 대상으로 추가했다.
+- 검토한 대안: A(채택, SA), B, C.
 - 팀 합의 상태: SA 유지이므로 팀 설계와 같다. 보강안(ADR 0008의 A1~A4)은 선택 전이다.
 
 ## 반영
-- [ADR 0008](../../decisions/0008-internal-trust-and-auth-design.md)을 "SA 유지, 고민 기록 보존, logistics 비교와 보강 후보"로 고쳤다. [ADR 0009](../../decisions/0009-service-access-jwt-verification.md)는 철회 상태로 남겼다.
+- [ADR 0008](../../decisions/0008-internal-trust-and-auth-design.md)을 "SA 유지, 고민 기록 보존, 보강 후보"로 고쳤다. [ADR 0009](../../decisions/0009-service-access-jwt-verification.md)는 철회 상태로 남겼다.
 - 응답 형식은 `SuccessResponse`·`FailureResponse`로 코드를 정렬했다.
 
 ## 검증
@@ -44,4 +44,4 @@ A1·A2·A4 적용 뒤 Gateway·common-web 테스트와 Python 14건(포트 검�
 - 2026-10-27 수용: 보강 후보 A1·A2·A4를 AI 의견대로 적용, A3 보류
 
 ## 발표·면접 포인트
-- 보안 보강안을 검토했지만 팀이 합의한 SA의 단계(비대칭은 MVP 이후)를 지키기로 하고, 검토 과정과 위협 모델은 기록으로 남겼다. 이전 프로젝트(logistics)의 같은 모델과 비교해 가져올 후보만 추렸다.
+- 보안 보강안을 검토했지만 팀이 합의한 SA의 단계(비대칭은 MVP 이후)를 지키기로 하고, 검토 과정과 위협 모델은 기록으로 남겼다.

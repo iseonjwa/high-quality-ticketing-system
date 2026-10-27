@@ -1,6 +1,6 @@
 # 품질 기준
 
-작업량이 커져도 품질을 같은 수준으로 유지하기 위한 기준이다. 물류 관리 프로젝트(3조)의 같은 문서에서 빌드·프런트·계층 규칙 항목을 빼고 줄여서 옮겼다. Java 21에서 `./gradlew verifyWorkspace --no-daemon`으로 도구·포트·격리 DB·Redis·전체 빌드와 JUnit을 검증한다. 실제 스택은 `./gradlew :system-tests:systemTest -PredisFailure=true -PcoldStart=true --no-daemon`으로 검증한다. 위치는 [테스트 가이드](../guides/testing.md), 준비·실행·종료는 [워크스페이스 가이드](../guides/workspace.md)를 따른다.
+작업량이 커져도 품질을 같은 수준으로 유지하기 위한 기준이다. Java 21에서 `./gradlew verifyWorkspace --no-daemon`으로 도구·포트·격리 DB·Redis·전체 빌드와 JUnit을 검증한다. 실제 스택은 `./gradlew :system-tests:systemTest -PredisFailure=true -PcoldStart=true --no-daemon`으로 검증한다. 위치는 [테스트 가이드](../guides/testing.md), 준비·실행·종료는 [워크스페이스 가이드](../guides/workspace.md)를 따른다.
 
 ## 1. 완료 기준
 - 빌드와 테스트가 통과한다. 실패하면 실패 출력과 함께 보고한다.
