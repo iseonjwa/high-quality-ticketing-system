@@ -6,4 +6,5 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | 초기 개발 환경(M1 뼈대)은 어떻게 구성했고 각 선택의 이유는 무엇인가 | [qna/2026-10-27-initial-environment-setup.md](qna/2026-10-27-initial-environment-setup.md) |
 | 2026-10-26 | 좌석 선점 API의 v1·v2는 무엇이고, 응답을 가공 없이 바로 쓰게 하려면 어떻게 하나 | [qna/2026-10-26-seat-hold-v1-v2-response.md](qna/2026-10-26-seat-hold-v1-v2-response.md) |
