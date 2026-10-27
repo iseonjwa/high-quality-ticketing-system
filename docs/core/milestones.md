@@ -31,7 +31,7 @@ M4 다음 일정은 발표 자료 준비(11/16–11/18), 발표 자료 제출 �
 | Config 서버 | `config-server`(포트 8888, native 백엔드)와 `config-repo/`(공통·서비스·프로필별 설정), 서비스는 `spring.config.import`로 연결 (SA 9-6, 결정 기록 #30) |
 | 실행 환경 | docker-compose(PostgreSQL·Redis·Kafka·Prometheus·Grafana·Zipkin), `.env.example` |
 
-응답 형식은 결정 기록 #19로 정했다(성공·실패 다른 형태, 둘 다 `traceId`, SA 11-2). Config 서버는 #30 잠정 결정이다.
+응답 형식은 결정 기록 #19로 정했다(성공·실패 다른 형태, 둘 다 `traceId`, SA 11-2). Config 서버는 #30으로 10/27 통합 회의에서 결정했다.
 
 완료 기준:
 - 통합 브랜치가 main에 머지되어 있다
