@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -76,14 +77,23 @@ public final class LocalEnvironment {
         }
         var content = new StringBuilder();
         values.forEach((key, value) -> content.append(key).append('=').append(value).append('\n'));
-        var permission = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
-        try (var channel = Files.newByteChannel(path, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), permission)) {
+        try (var channel = Files.newByteChannel(path, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), ownerOnly(path))) {
             var buffer = ByteBuffer.wrap(content.toString().getBytes(StandardCharsets.UTF_8));
             while (buffer.hasRemaining()) channel.write(buffer);
             return true;
         } catch (FileAlreadyExistsException exception) {
             return false;
         }
+    }
+
+    // Note: Windows(NTFS)는 POSIX 권한을 지원하지 않아 지정하면 예외가 난다. 이때는 상위 폴더의 접근 권한을 그대로 따른다
+    static boolean supportsPosix(Path path) {
+        return path.toAbsolutePath().getFileSystem().supportedFileAttributeViews().contains("posix");
+    }
+
+    static FileAttribute<?>[] ownerOnly(Path path) {
+        if (!supportsPosix(path)) return new FileAttribute<?>[0];
+        return new FileAttribute<?>[] {PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"))};
     }
 
     private static String randomHex(SecureRandom random, int length) {

@@ -51,7 +51,9 @@ class LocalEnvironmentTest {
     void 비밀값_파일을_0600으로_만들고_서명_키를_분리한다() throws Exception {
         var path = directory.resolve(".env");
         assertTrue(LocalEnvironment.initialize(path));
-        assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(path)));
+        if (LocalEnvironment.supportsPosix(path)) {
+            assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(path)));
+        }
         var result = LocalEnvironment.load(path, cleanEnvironment());
         assertTrue(result.get("JWT_ACCESS_SECRET").length() >= 32);
         assertTrue(result.get("JWT_REFRESH_SECRET").length() >= 32);

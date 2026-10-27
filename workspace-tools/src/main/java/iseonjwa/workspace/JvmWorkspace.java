@@ -42,9 +42,10 @@ public final class JvmWorkspace implements AutoCloseable {
             for (var app : LocalApps.ALL) {
                 if (closed.get()) throw new IllegalStateException("JVM 검사가 종료되었습니다");
                 var log = logDirectory.resolve(app.name() + ".log");
-                if (!Files.exists(log)) Files.createFile(log,
-                        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-                Files.setPosixFilePermissions(log, PosixFilePermissions.fromString("rw-------"));
+                if (!Files.exists(log)) Files.createFile(log, LocalEnvironment.ownerOnly(log));
+                if (LocalEnvironment.supportsPosix(log)) {
+                    Files.setPosixFilePermissions(log, PosixFilePermissions.fromString("rw-------"));
+                }
                 var process = LocalApps.process(root, app, values).redirectErrorStream(true).redirectOutput(log.toFile()).start();
                 owned.add(process);
                 if (closed.get()) {
