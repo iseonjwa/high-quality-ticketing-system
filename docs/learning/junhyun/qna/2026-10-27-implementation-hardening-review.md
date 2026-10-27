@@ -38,6 +38,8 @@ Java 21에서 `bash script/check.sh`가 통과했다. JUnit 105개와 Python 14�
 갱신한 Gateway·User 컨테이너가 정상 기동했고, `python3 script/smoke-workspace.py --redis-failure --cold-start`에서 HTTP 계약 55건과 Config·Eureka·Kafka·관측성, 재기동 첫 요청, Redis 장애·복구를 확인했다.
 운영 배포나 부하 용량 검증은 수행하지 않았다.
 
+위 검증은 보강 당시의 기록이다. 이후 Python의 앱·시스템 검증을 [JUnit으로 이관](../../../decisions/0011-junit-verification-boundary.md)했으며 현행 명령은 [테스트 가이드](../../../guides/testing.md)에 있다.
+
 ## 보강 전 검토
 
 ### 1. 비밀번호 초기화와 로그인 경합

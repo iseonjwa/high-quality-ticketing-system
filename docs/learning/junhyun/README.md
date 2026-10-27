@@ -18,6 +18,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | common 모듈은 왜 여러 개로 나뉘었고 Docker에서도 컨테이너가 여러 개인가 | [qna/2026-10-27-common-module-split-and-containers.md](qna/2026-10-27-common-module-split-and-containers.md) |
+| 2026-10-27 | Spring Boot 프로젝트의 개발·검증 스크립트는 왜 Python으로 작성했는가 | [qna/2026-10-27-spring-boot-python-scripts.md](qna/2026-10-27-spring-boot-python-scripts.md) |
 | 2026-10-27 | 현재 구현에서 어떤 부분을 먼저 보강하면 좋은가 | [qna/2026-10-27-implementation-hardening-review.md](qna/2026-10-27-implementation-hardening-review.md) |
 | 2026-10-27 | 가독성과 학습을 위해 공통 코드 작성 규칙을 어떻게 보완하면 좋은가 | [qna/2026-10-27-common-coding-rules.md](qna/2026-10-27-common-coding-rules.md) |
 | 2026-10-27 | 서비스가 Access JWT를 직접 검증할 때 HS256과 RS256은 무엇이 다른가 | [qna/2026-10-27-jwt-hs256-vs-rs256.md](qna/2026-10-27-jwt-hs256-vs-rs256.md) |
