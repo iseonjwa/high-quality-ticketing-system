@@ -9,6 +9,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-10-27 | Notion SA: AI의 블록 7곳 수정 대신 v3.2 통째 재등록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-27-sa-v3-2-reregister.md) |
+| 2026-10-27 | 회의 결정 후속: AI가 나눈 후속 이슈 대신 이번 통합에서 끝내기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-27-meeting-followups-finish-now.md) |
 | 2026-10-27 | 통합 회의: 결정 시트 추천 중 D6 공통 모듈(하나+패키지), 리뷰 없음, 패키지 com.iseonjwa로 정함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-10-27-integration-meeting-decisions.md) |
 | 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-27-branch-integration-recommendation.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | Claude Code, codex | **거부** | 예 | 아님 | [기록](2026-10-26-config-server.md) |

@@ -1818,7 +1818,7 @@ high-quality-ticketing-system/
 
 **본문에서 뺀 내용**
 
-- SA v2 12장의 "응답 형식 추천(이전 프로젝트 내용)" 토글: 다른 프로젝트의 클래스 이름(`ApiResponse`, `ErrorResponse`, `FeignErrorDecoder` 등)을 그대로 옮긴 참고 자료라 11-2 제안으로 대체했다. 원문은 SA v2에 남아 있다.
+- SA v2 12장의 응답 형식 추천은 11-2 제안으로 대체했다. 원문은 SA v2에 남아 있다.
 - 이전 안의 ProblemDetail 실패 응답 예시 (참고용, 10/26 #19 결정으로 쓰지 않음):
 
 ```json
