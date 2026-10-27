@@ -1,6 +1,6 @@
 # 0009. 서비스가 Access JWT를 직접 검증하는 방향 선택
 
-- 상태: 제안 (D1은 Junhyun 선택. 팀 합의 상태 미확인)
+- 상태: 철회 (2026-10-27 Junhyun이 SA 7-2·7-3 유지로 되돌림. 고민 기록으로 보존)
 - 날짜: 2026-10-27
 - 결정자: Junhyun An
 - 관련 AI 판단: [D1의 C 선택](../ai-judgments/junhyun/2026-10-27-service-jwt-verification-choice.md)
@@ -22,6 +22,10 @@ D1의 사용자 선택은 C다. User가 발급한 Access JWT를 서비스까지 
 
 D2의 서명 방식·키 배포는 결정하지 않았다. 입장·결제·Refresh 토큰 변경이나 서비스별 폐기 조회 확대도 이 선택에 포함하지 않는다.
 SA 변경에 대한 팀 합의는 확인되지 않았으므로 제안 상태로 둔다.
+
+## 철회
+
+같은 날 사용자가 "비대칭 서명은 MVP이후로 미루는 게 맞는 것같다. 일단 방금 논의한 부분은 SA대로 하자. 내가 고민했던 기록만 남기고"라고 지시해 이 선택을 철회했다. 서비스는 계속 Gateway가 전달한 `X-User-*`를 신뢰한다. 이 문서는 이후 재검토할 때의 근거로 남긴다. 철회 판단은 [판단 기록](../ai-judgments/junhyun/2026-10-27-auth-trust-follow-sa.md), 현재 결정은 [ADR 0008](0008-internal-trust-and-auth-design.md)에 있다.
 
 ## 선택 근거의 범위
 

@@ -78,7 +78,7 @@ JVM 모드의 Docker Prometheus는 host.docker.internal을 통해 관리 포트�
 
 ## 인증 계약
 
-SA의 /api/v1 경로를 사용한다. 응답은 현재 6키 단일 형태이며 SA v3.1(#19)의 성공·실패 별도 형태와 다르다(미반영, [공통 모듈 가이드](common-modules.md) 참고). /users 가입은 201, /auth/login·/auth/refresh·/auth/logout·/users/me는 성공 시 200이다. 로그아웃 data는 NULL이다. 가입의 role은 USER로 고정하며 ADMIN은 개인 환경변수의 시드 계정으로만 만든다. 기존 운영자 계정의 비밀번호는 재기동 때 덮어쓰지 않는다.
+SA의 /api/v1 경로를 사용한다. 응답은 SA v3.1(#19)의 성공 `{status, message, data, traceId}`·실패 `{status, code, message, errors, traceId}` 형태다([공통 모듈 가이드](common-modules.md) 참고). /users 가입은 201, /auth/login·/auth/refresh·/auth/logout·/users/me는 성공 시 200이다. 로그아웃 data는 NULL이다. 가입의 role은 USER로 고정하며 ADMIN은 개인 환경변수의 시드 계정으로만 만든다. 기존 운영자 계정의 비밀번호는 재기동 때 덮어쓰지 않는다.
 
 Access는 30분, Refresh는 14일이다. 두 서명 키를 분리하고 HS256을 사용한다. issuer는 iseonjwa-auth, Access audience는 iseonjwa-api, Refresh audience는 user-service다. sub·role·jti·iat·exp·token_type을 검증한다. Refresh를 Access로 사용하거나 반대로 사용할 수 없다.
 
@@ -86,7 +86,7 @@ Redis의 auth:refresh:{userId}에는 사용자당 하나의 Refresh SHA-256 해�
 
 Gateway는 클라이언트의 X-User-Id·X-User-Role을 항상 지우고 검증한 토큰의 값만 다시 넣는다. 인증이 필요한지와 관리자 경로인지는 Gateway의 `AccessPolicy.of` 한 곳에서만 판정한다. 공개 경로가 아니면 로그인이 필요하고, `/api/v1/admin/**`는 ADMIN만 허용한다. 판정은 라우터와 같은 PathPattern과 이미 파싱된 경로를 쓰므로 관리자 루트·matrix parameter·인코딩 변형도 라우터가 보는 경로로 판정하고, 요청마다 정규식이나 목록을 만들지 않는다.
 
-MVC 서비스는 경로로 판단하지 않는다. `GatewayIdentityFilter`는 사용자 헤더가 있으면 형식만 검증해 요청 속성으로 옮기고, 사용자 정보가 필요한 컨트롤러는 속성이 없으면 401을 받는다. 비밀번호를 바꾸는 관리자 API처럼 민감한 곳은 서비스에서도 역할을 한 번 더 확인한다. 서비스가 Gateway 헤더를 어디까지 신뢰하는지와 서비스 단독 방어는 약해진 상태이며 [ADR 0008](../decisions/0008-internal-trust-and-auth-design.md)에서 내부 신뢰 모델과 인증 설계를 진행 중이다. 그 전까지 서비스 포트는 외부에 공개하지 않는다. 직접 공개하는 구조가 아니며 로컬 포트는 개발용이다. 보안 필터 오류도 6키 응답이다.
+MVC 서비스는 경로로 판단하지 않는다. `GatewayIdentityFilter`는 사용자 헤더가 있으면 형식만 검증해 요청 속성으로 옮기고, 사용자 정보가 필요한 컨트롤러는 속성이 없으면 401을 받는다. 비밀번호를 바꾸는 관리자 API처럼 민감한 곳은 서비스에서도 역할을 한 번 더 확인한다. SA 7-2대로 서비스는 Gateway가 검증해 전달한 헤더를 신뢰한다. 서명이 없는 헤더라서 서비스 포트를 외부에 공개하지 않는 것이 전제다. 서비스 직접 검증·비대칭 서명은 MVP 이후로 미뤘고, 보강 후보는 [ADR 0008](../decisions/0008-internal-trust-and-auth-design.md)에서 설계 중이다. 직접 공개하는 구조가 아니며 로컬 포트는 개발용이다. 보안 필터 오류도 6키 응답이다.
 
 가입·로그인은 UTF-8 72바이트를 초과하면 400 VALIDATION_FAILED로 거절하며, 한글 등 다중 바이트 문자도 같은 기준을 쓴다.
 

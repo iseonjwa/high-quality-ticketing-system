@@ -1,12 +1,12 @@
 # 공통 모듈 사용 가이드
 
-[ISE-5](https://linear.app/iseonjwa/issue/ISE-5)에서 준현이 만든 공통 모듈의 사용 계약이다. 모듈 분리와 패키지명 iseonjwa는 팀 합의 전이다. **응답 형식은 SA MASTER v3.1(#19)이 성공 `{status, message, data, traceId}`와 실패 `{status, code, message, errors, traceId}`로 정했지만, 이 모듈의 `ApiResponse`는 아직 6키 단일 형태다. 정렬이 필요하며 미반영이다.** 처음에는 개인 초안이었고 이후 실제 Boot 앱과 인증으로 확장했다([ADR 0002](../decisions/0002-common-foundation-draft.md), [ADR 0004](../decisions/0004-workspace-auth-bootstrap.md)). 빌드·실행·검증은 [워크스페이스 가이드](workspace.md)를 따른다.
+[ISE-5](https://linear.app/iseonjwa/issue/ISE-5)에서 준현이 만든 공통 모듈의 사용 계약이다. 모듈 분리와 패키지명 iseonjwa는 팀 합의 전이다. 응답 형식은 SA MASTER v3.1(#19)을 따른다: 성공 `{status, message, data, traceId}`, 실패 `{status, code, message, errors, traceId}`(2026-10-27 정렬). 처음에는 개인 초안이었고 이후 실제 Boot 앱과 인증으로 확장했다([ADR 0002](../decisions/0002-common-foundation-draft.md), [ADR 0004](../decisions/0004-workspace-auth-bootstrap.md)). 빌드·실행·검증은 [워크스페이스 가이드](workspace.md)를 따른다.
 
 ## 모듈과 사용 계약
 
 | 모듈 | 제공 내용 | 의존·적용 조건 |
 |---|---|---|
-| common-response | ApiResponse, FieldError, ErrorCode, CommonErrorCode, BusinessException, IdentityHeaders, Roles | Spring 의존 없음. NULL 필드 보존용 Jackson 애너테이션 사용 |
+| common-response | SuccessResponse, FailureResponse, FieldError, ErrorCode, CommonErrorCode, BusinessException, IdentityHeaders, Roles | Spring 의존 없음. 성공의 data는 null이어도 내보내고 실패의 errors는 검증 실패일 때만 내보내는 Jackson 애너테이션 사용 |
 | common-auth | TokenType, TokenDecoders | common-response, spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증 |
 | common-web | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter | common-response, Spring MVC. 설정을 명시적으로 import |
 | common-messaging | CommonMessagingConfiguration | Boot Kafka 연결 기반(spring-boot-starter-kafka) |
@@ -20,11 +20,11 @@
 @Import(CommonWebConfiguration.class)
 ```
 
-성공 응답은 컨트롤러가 ApiResponse.success(status, data, traceId)로 직접 생성한다. 실제 HTTP 상태는 ResponseEntity에서도 동일하게 지정한다. 자동 응답 감싸기는 제공하지 않는다. 202 응답의 Location과 nextPollAfterSeconds는 해당 서비스가 제공하며, 본문이 없는 성공은 200과 data NULL을 사용한다.
+성공 응답은 컨트롤러가 SuccessResponse.of(status, message, data, traceId)로 직접 생성한다. 실제 HTTP 상태는 ResponseEntity에서도 동일하게 지정한다. 자동 응답 감싸기는 제공하지 않는다. 202 응답의 Location과 nextPollAfterSeconds는 해당 서비스가 제공하며, 본문이 없는 성공은 200과 data NULL을 사용한다.
 
 실패는 BusinessException의 ErrorCode나 Spring MVC 예외의 HTTP 상태로 응답한다. 도메인별 에러 코드는 각 서비스에서 ErrorCode를 구현한다. 검증 오류에는 필드와 사유를 싣고, 예상하지 못한 예외는 500 공통 문구만 내보낸다. traceId는 기존 MDC 값을 사용하며 없으면 NULL이다. 추적 ID 생성과 전파는 서비스·관측성 설정의 후속 범위다.
 
-예외 처리 대상 컨트롤러 패키지는 iseonjwa다. Actuator 등 다른 패키지에는 적용하지 않는다. Mock PG는 common-web을 import하지 않아야 한다. Gateway는 WebFlux용 처리가 필요하므로 common-web을 사용하지 않는다. Kafka 이벤트에는 ApiResponse를 사용하지 않는다.
+예외 처리 대상 컨트롤러 패키지는 iseonjwa다. Actuator 등 다른 패키지에는 적용하지 않는다. Mock PG는 common-web을 import하지 않아야 한다. Gateway는 WebFlux용 처리가 필요하므로 common-web을 사용하지 않는다. Kafka 이벤트에는 응답 클래스를 사용하지 않는다.
 
 컨트롤러 매핑 전 404·405에는 패키지 정보가 없으므로 별도 라우팅 예외 처리기가 `/api/v1/` 경로만 처리한다. 405의 Allow 헤더 등 기존 HTTP 헤더는 유지한다.
 

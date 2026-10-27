@@ -22,4 +22,4 @@
 
 ## 결과
 
-판정 규칙이 바뀌면 AccessPolicy와 그 테스트만 고친다. 대신 Gateway를 우회해 서비스에 직접 도달하는 요청은 사용자 헤더만 갖추면 통과한다. 서비스가 Gateway 헤더를 어디까지 신뢰할지와 서비스 단독 방어는 [ADR 0008](0008-internal-trust-and-auth-design.md)에서 설계 중이다(2026-10-27 시작).
+판정 규칙이 바뀌면 AccessPolicy와 그 테스트만 고친다. 대신 Gateway를 우회해 서비스에 직접 도달하는 요청은 사용자 헤더만 갖추면 통과한다. 서비스가 Gateway 헤더를 어디까지 신뢰할지와 서비스 단독 방어는 [ADR 0008](0008-internal-trust-and-auth-design.md)에서 다룬다. SA 7-2대로 서비스는 헤더를 신뢰하고, 보강안만 설계 중이다.
