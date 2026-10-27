@@ -31,12 +31,13 @@
 | [sa-review/03-seat-hold-kafka-design.md](sa-review/03-seat-hold-kafka-design.md) | M1 상세: Kafka 파티션 키, 결과 전달, 발신 유실, Redis + Kafka 혼합형 좌석 선점 |
 | [sa-review/04-mentor-feedback-1026.md](sa-review/04-mentor-feedback-1026.md) | SA 1차 피드백(10/26) 28건 정리(피드백 메모 + SA 문서 코멘트 19개)와 팀 논의 사항 12건. v2 상태 저장, 환불 상태 모델, 토큰 키 분리, Redis 장애 정책, 보안그룹, 숫자 근거 |
 | [sa-review/05-feedback-improvement-proposal.md](sa-review/05-feedback-improvement-proposal.md) | 04의 논의 사항을 SA 문서에 반영하는 구체 개선안. 토큰 규칙, v2 접수 요청 테이블, 환불 모델과 재확인 스케줄러, Redis 정책, 보안그룹, 메모리 예산, 새 테스트 케이스(E11~E16) |
+| [sa-review/06-layered-architecture-check.md](sa-review/06-layered-architecture-check.md) | AI 설계 검증 #7 계층형 아키텍처를 M1 코드(user-service)로 실행한 결과. 질문 4개 판정과 팀이 판단할 제안 7건 |
 | [sa-review/assets/seat-hold-kafka.html](sa-review/assets/seat-hold-kafka.html) | 03 문서의 시각화 페이지 로컬 사본 (브라우저로 열기) |
 | [sa-review/raw/codex-review.md](sa-review/raw/codex-review.md) | codex 리뷰 원문 |
 
 ## 외부 원본
 
-- Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb) — 설계 정본 (10/26 SA v2·SA MASTER·[5조] SA 문서·피드백 모음·개선안을 통합, 충돌은 최신 우선). 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)는 v3.1로, 10/26 결정 기록 수정을 반영해 `🆕 제안` 표시를 없애고 결정 기록 번호를 붙였다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
+- Notion [SA MASTER v3.2 (통합 회의 반영)](https://app.notion.com/p/94a7bd823b7582f1a2a50125bc85ca2d) — 설계 정본. 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)를 가져온 판이다. 이전 판인 [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)(10/26 문서 통합)과 v3.1(10/26 결정 기록 반영)은 근거로 남긴다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
 - Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53) — 10/26 이전 정본, 근거 보관용
 - Notion [1차 SA 피드백](https://app.notion.com/p/4027bd823b758034966df87b7622c9b1) — sa-review/01과 같은 내용
 - Notion [발제문 원본](https://app.notion.com/p/4027bd823b758019a04dda70d6ae39ab), [첫날 회의](https://app.notion.com/p/4027bd823b7580b19317f4c4c8df4a08)
