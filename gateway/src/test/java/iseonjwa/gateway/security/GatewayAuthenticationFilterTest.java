@@ -68,6 +68,16 @@ class GatewayAuthenticationFilterTest {
     }
 
     @Test
+    void 내부_경로는_유효한_토큰이_있어도_404로_막는다() {
+        var exchange = exchange(HttpMethod.GET, "/api/v1/internal/payments", true);
+
+        filter("ADMIN").filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.NOT_FOUND, exchange.getResponse().getStatusCode());
+        assertNull(forwarded.get());
+    }
+
+    @Test
     void 보호_경로는_토큰이_없으면_401이다() {
         var exchange = exchange(HttpMethod.GET, "/api/v1/users/me", false);
 

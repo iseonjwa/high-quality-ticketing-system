@@ -49,6 +49,9 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var request = exchange.getRequest();
         var access = AccessPolicy.of(request.getMethod(), request.getPath().pathWithinApplication());
+        if (access == Access.INTERNAL) {
+            return errors.write(exchange, 404, "NOT_FOUND", "대상을 찾을 수 없습니다");
+        }
         if (access == Access.PUBLIC) {
             return chain.filter(withIdentity(exchange, null));
         }

@@ -50,6 +50,18 @@ class AccessPolicyTest {
         assertEquals(Access.ADMIN, of(method, path));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "GET, /internal/users/1",
+            "POST, /internal",
+            "GET, /api/v1/internal/payments",
+            "GET, /internal;x=1/users",
+            "GET, /%69nternal/users"
+    })
+    void 내부_경로는_외부에서_차단한다(String method, String path) {
+        assertEquals(Access.INTERNAL, of(method, path));
+    }
+
     @Test
     void 관리자_경로는_공개_메서드와_겹쳐도_관리자_전용이다() {
         assertEquals(Access.ADMIN, of("POST", "/api/v1/admin/users"));

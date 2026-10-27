@@ -11,7 +11,10 @@ import java.util.Arrays;
 // 패턴은 한 번만 만들고, 요청에서는 Gateway가 이미 파싱한 경로를 그대로 비교한다.
 // 라우터와 같은 PathPattern을 쓰므로 인코딩·matrix parameter 변형도 라우터가 보는 경로로 판정한다.
 final class AccessPolicy {
-    enum Access { PUBLIC, USER, ADMIN }
+    // INTERNAL은 서비스 사이 호출 전용 경로로, 외부 요청은 존재하지 않는 것처럼 404로 막는다.
+    enum Access { PUBLIC, USER, ADMIN, INTERNAL }
+
+    private static final PathPattern[] INTERNAL_API = patterns("/internal/**", "/api/v1/internal/**");
 
     private static final PathPattern ADMIN_API = pattern("/api/v1/admin/**");
 
@@ -28,6 +31,9 @@ final class AccessPolicy {
     private AccessPolicy() {}
 
     static Access of(HttpMethod method, PathContainer path) {
+        if (matchesAny(INTERNAL_API, path)) {
+            return Access.INTERNAL;
+        }
         if (ADMIN_API.matches(path)) {
             return Access.ADMIN;
         }
