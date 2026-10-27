@@ -1,0 +1,20 @@
+# 이름과 Config 서버 주소만 둔다. 라우트와 포트는 config-repo/gateway.yml에 있다 (SA 9-6)
+spring:
+  application:
+    name: gateway
+  config:
+    # optional: test 프로필에서 Config 클라이언트를 끌 때 기동이 막히지 않게 한다.
+    # 실제 기동에서는 fail-fast가 켜져 있어 Config 서버를 못 찾으면 멈춘다
+    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  cloud:
+    config:
+      fail-fast: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  cloud:
+    config:
+      enabled: false

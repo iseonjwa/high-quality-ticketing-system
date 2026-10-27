@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            # 요청 전체 상한 3초 (SA 9-4). 서비스가 3초 안에 답하지 않으면 504
+            connect-timeout: 1000
+            response-timeout: 3s
+          # lb://서비스이름 → Eureka에서 인스턴스를 찾아 보낸다. 경로는 SA 11-4 API 목록 기준
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/auth/**
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**
+            - id: reservation-service
+              uri: lb://reservation-service
+              predicates:
+                - Path=/api/v1/concerts/**,/api/v1/schedules/**,/api/v1/reservations/**,/api/v1/lotteries/**,/api/v1/notifications/**,/api/v1/admin/**
+            # mock-pg는 내부 전용이라 라우트를 두지 않는다 (SA 9-2)

@@ -29,4 +29,5 @@ include(
 include(
     "config-server",
     "eureka",
+    "gateway",
 )
