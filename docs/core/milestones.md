@@ -28,13 +28,14 @@ M4 다음 일정은 발표 자료 준비(11/16–11/18), 발표 자료 제출 �
 | 공통 모듈 | 4계층 패키지 구조, 공통 응답·에러 형식(`common-response`·`common-web`), 전역 예외 처리, 이벤트 공통 필드 |
 | 인증 | 회원가입·로그인·토큰 재발급·로그아웃(블랙리스트), 내 정보 조회, 운영자 계정 시드 |
 | Gateway | 라우팅, JWT 검증 후 `X-User-Id`·`X-User-Role` 전달, Eureka |
+| Config 서버 | `config-server`(포트 8888, native 백엔드)와 `config-repo/`(공통·서비스·프로필별 설정), 서비스는 `spring.config.import`로 연결 (SA 9-6, 결정 기록 #30) |
 | 실행 환경 | docker-compose(PostgreSQL·Redis·Kafka·Prometheus·Grafana·Zipkin), `.env.example` |
 
-`common-response`·`common-web` 모듈과 응답 형식 통일은 SA에서 아직 `🆕 제안`이다. 10/27 합의 결과에 따라 바뀔 수 있다.
+응답 형식은 결정 기록 #19로 정했다(성공·실패 다른 형태, 둘 다 `traceId`, SA 11-2). Config 서버는 #30 잠정 결정이다.
 
 완료 기준:
 - 통합 브랜치가 main에 머지되어 있다
-- `docker compose up` 한 번으로 인프라와 Gateway·Eureka·User 서비스가 뜬다
+- `docker compose up` 한 번으로 인프라와 Config 서버·Gateway·Eureka·User 서비스가 뜨고, 서비스가 Config 서버의 설정을 읽는다
 - 회원가입 → 로그인 → Gateway를 거친 인증 요청에서 `X-User-Id`·`X-User-Role`이 서비스까지 전달된다
 - 새 서비스가 공통 모듈을 의존성으로 가져다 쓰면 응답·에러 형식이 그대로 적용된다
 - Prometheus·Zipkin에서 Gateway·User 서비스 지표와 트레이스가 보인다(걷는 뼈대)

@@ -31,6 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [junhyun](junhyun/README.md) | 개별 기록 10건, 일지 2일 |
+| [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
 
 ## 팀 공통 판단
 
@@ -39,6 +40,14 @@
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-10-27 | 브랜치 리뷰 후속 수정: 경로 판정 Gateway 일원화·로그인 보안 확장, 신뢰 모델은 후속 설계 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-10-27-review-followup.md) |
+| 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
+| 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |
+| 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | 팀 (전달: kangmin) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-26-layered-architecture-four-layers.md) |
+| 2026-10-26 | 결정 기록 운영: 기존 항목 이력 덧붙이기 대신 대체됨 + 새 항목 | 팀 (전달: kangmin) | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-26-decision-record-supersede.md) |
+| 2026-10-26 | 서비스 구성: 팀이 3개로 확정, 대기열·추첨·알림은 모듈로 두고 근거가 쌓이면 분리 | 팀 (전달: kangmin) | Claude Code, codex | 수용 | 아님 | [기록](kangmin/2026-10-26-service-composition-three-modules.md) |
+| 2026-10-26 | 역할 분담: AI의 재검토 제안 대신 결정된 것으로 봄 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-26-role-assignment-not-reopen.md) |
+| 2026-10-26 | API 응답 형식: AI의 기존 유지·6키 통일 대신 성공·실패 다른 형태 + traceId | 팀 (전달: kangmin) | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-26-api-response-single-envelope.md) |
+| 2026-10-26 | 대기열 정렬 기준: 팀원 지적(진입 시각 동점)을 검증하고 순번 카운터(seq) 선택 | kangmin (문제 제기: 대기열 담당) | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-26-queue-order-seq-counter.md) |
 | 2026-10-26 | 두 에이전트 리뷰의 수정 사항 4건 수용 | junhyun | Codex 에이전트 2개·재검증 | 수용 | 아님 | [기록](junhyun/2026-10-26-two-agent-review-fixes.md) |
 | 2026-10-26 | 공통 라이브러리만 구현한 범위를 거부하고 전체 워크스페이스로 확장 | junhyun | Codex | **거부** | 아님 | [기록](junhyun/2026-10-26-workspace-scope-correction.md) |
 | 2026-10-26 | Config Server와 같은 저장소의 native 설정 폴더 선택 | junhyun | Codex | 수용 | 아님 | [기록](junhyun/2026-10-26-config-server-native.md) |

@@ -1,31 +1,28 @@
-# SA MASTER v3 (통합)
+# SA MASTER v3.1 (결정 기록 반영)
 
-Date: 2026년 10월 26일
-Select: 최신
-
-<aside>
-🧭
-
-**SA MASTER v3 (통합)** · 2026년 10월 26일 · 5조 이선좌
-
-- 이 문서 하나가 설계 기준이다. 아래 문서들은 근거 보관용으로 남긴다.
-- 근거: [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) (10/26 02:28) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21) (03:05) · [[5조] 이선좌 SA 문서](https://app.notion.com/p/5-SA-4187bd823b7582f58be981227c6af657?pvs=21) (07:16) · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) (07:34) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) (07:50)
-- 충돌 규칙: 내용이 다르면 최신 문서를 따른다. 순서는 피드백 반영 개선안 → 피드백 내용 모음 → [5조] SA 문서 → SA MASTER → SA v2다.
-- 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `🆕 제안` 10/26 피드백에서 나온 합의 전 변경
-- 🆕 제안은 본문에 반영해 두었다. 10/27 합의에서 철회하면 부록 C의 이전 안으로 되돌린다.
-- 결정 기록 50건: 결정 14 · 잠정 결정 34 · 보류 2 (10/26 기준). 잠정 결정은 10/24 Claude 추천을 기본안으로 채택한 것이다. 추천과 같은 내용으로 확정하면 상태만 바꾸고, 내용이 바뀌면 기존 항목은 대체됨으로 두고 새 항목을 만든다.
-</aside>
+> **SA MASTER v3.1 (결정 기록 반영)** · 2026년 10월 26일 · 5조 이선좌
+>
+> - 이 문서 하나가 설계 기준이다. 아래 문서들은 근거 보관용으로 남긴다.
+> - 근거: SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - v3에서 "제안"으로 적었던 10/26 피드백 변경은 결정 기록에 모두 반영됐다. 이 문서는 그 결과에 맞춰 제안 표시를 없애고 확정된 내용으로 고쳤다. 바뀐 결정은 결정 기록 각 항목의 "수정 내역"에 이전 안과 함께 남아 있다.
+> - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
+> - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
 ### 10/26 바뀐 점
 
-| # | 변경 | 위치 |
-| --- | --- | --- |
-| 1 | 대기열 순번을 진입 시각 대신 `seq` 카운터로 발급하고, 입장 판정을 `seq <= admitted`로 정함 | 12-8 |
-| 2 | 🆕 제안 응답 형식을 성공·실패 모두 6키로 통일, 실패 사유 필드는 `reasonCode` | 11-2 |
-| 3 | 🆕 제안 토큰 서명 키 분리, `typ`·`aud` 검증, 결제 토큰을 선점 만료 10초 전에 만료 | 7-3 |
-| 4 | 🆕 제안 접수형 선점에 접수 요청 테이블 + outbox, 환불 테이블과 재확인 스케줄러 | 12-3, 12-4 |
-| 5 | 🆕 제안 Redis 타임아웃·서킷 브레이커와 기능별 fail-open/closed, 보안그룹과 SSH 터널, 메모리 예산 | 9장 |
-| 6 | 🆕 제안 측정 목표를 고정 처리량 대신 포화점 비교로, 입장 속도는 측정값에서 역산 | 3장 |
+| # | 변경 | 위치 | 결정 기록 |
+| --- | --- | --- | --- |
+| 1 | 대기열 순번을 진입 시각 대신 `seq` 카운터로 발급하고, 입장 판정을 `seq <= admitted`로 정함 | 12-8 | #27 결정 |
+| 2 | 응답 형식을 성공·실패 다른 형태로 감싸고 둘 다 `traceId` 포함, 본문 없는 성공도 200 + `data: null`, 실패 사유 필드 `reasonCode` | 11-2 | #19 결정 |
+| 3 | 토큰 서명 키 분리, `typ`·`aud` 검증, 결제 토큰을 선점 만료 10초 전에 만료 | 7-3 | #56, #35 잠정 |
+| 4 | 접수형 선점에 접수 요청 테이블 + outbox(동기형도 요청 행), 환불 테이블과 재확인 스케줄러 | 12-3, 12-4, 10-5 | #33, #46, #16, #28, #13 잠정 |
+| 5 | Redis 타임아웃·서킷 브레이커와 기능별 fail-open/closed, 보안그룹과 SSH 터널, 메모리 예산 | 9장 | #48, #57 잠정 |
+| 6 | 측정 목표를 고정 처리량 대신 포화점 비교로, 입장 속도는 측정값에서 역산 | 3장 | #47, #45 잠정 |
+| 7 | 서비스 3개 확정(대기열·추첨·알림은 Reservation 안 모듈), 4계층 확정, 역할 분담 확정 | 7-1, 13장, 6장 | #10, #22, #9 결정 |
+| 8 | 부분 유니크 인덱스와 레이스 컨디션 해결 방식을 결정 기록으로 남김 | 15장 | #58, #59 잠정 |
+| 9 | Java 25 대신 Java 21(Boot 4.1.x·Spring Cloud 2025.1.x 유지, 가상 스레드 기본 끔). Junhyun An 결정, 이유 미기재, 팀 전체 합의로 표기하지 않음 | 9-1 | #30 잠정 |
+| 10 | Config 서버를 둠(native 백엔드, 모노레포 `config-repo/`, 포트 8888 내부 전용) | 7-1, 9-1, 9-6 | #30 잠정 |
+
 
 ---
 
@@ -53,8 +50,7 @@ Select: 최신
 | --- | --- |
 | 상황 | 인기 아이돌 콘서트의 일반 예매 오픈 정각 |
 | 원인 | 좌석은 한정돼 있는데 수많은 사람이 같은 순간에 같은 좌석을 노린다 |
-| 영향받는 사람 | 관람객: 결과를 알 수 없음, 고른 좌석이 이미 팔림(이선좌) 반복, 결제 중 좌석이 풀림
-대행사: 중복 판매·결제 불일치 시 환불·응대, 기획사 정산 분쟁 |
+| 영향받는 사람 | 관람객: 결과를 알 수 없음, 고른 좌석이 이미 팔림(이선좌) 반복, 결제 중 좌석이 풀림 / 대행사: 중복 판매·결제 불일치 시 환불·응대, 기획사 정산 분쟁 |
 | 현재 대안 | 여러 기기 접속, 새로고침 연타, 매크로 |
 | 그 방식의 한계 | 요청이 더 몰려 서버가 느려지고, 연타가 중복 요청을 만들고, 매크로·회선 속도가 순서를 정한다 |
 
@@ -81,7 +77,7 @@ Select: 최신
 
 ### 2-2. 페르소나
 
-| 페르소나 | 상황 | 바라는 것 | 우리의 대응 | 유저스토리 (🆕 제안 초안) |
+| 페르소나 | 상황 | 바라는 것 | 우리의 대응 | 유저스토리 |
 | --- | --- | --- | --- | --- |
 | P1 도예린 (29, 직장인 팬) | 평일 오후 8시 `[가정]` 오픈, 퇴근 후 PC로 대기, 친구와 2매 | 되든 안 되든 지금 상태를 정확히 알고 싶다. 결제 화면까지 갔으면 내 자리는 지켜졌으면 | 대기 순번·예상 시간, 선점 5분 `[가정]`, 결과를 확실히 알려 주는 화면 | 친구와 앉을 2석을 잡으려 오픈 시각에 대기한다. 내 순번과 예상 시간이 보이고, 입장하면 한 번에 2석을 잡는다. 이미 팔린 좌석이면 줄을 다시 서지 않고 좌석만 다시 고른다. 결제가 불확실하면 "확인 중"이라고 알려 주고 결과를 반드시 알려 준다 |
 | P2 오민재 (22, 대학생 팬) | 오픈 시각에 수업, 모바일 | 공정한 기회만 있으면. 당첨되면 알아서 결제까지 | 추첨 응모 + 자동결제 | 오픈 시각에 접속할 수 없다. 응모 기간에 응모하고 결제 수단을 등록해 두면 당첨 시 자동 결제와 발권을 기대한다. 결제가 실패하면 자리를 잃지 않았는지 알림으로 알 수 있어야 한다 |
@@ -125,14 +121,14 @@ MVP 시연은 화면 없이 API 호출(HTTP 요청 파일·Swagger)과 Grafana·
 | E8 | 선점 만료 뒤 결제 승인 도착 | 좌석은 이미 반환됨 → 자동 환불 |
 | E9 | PG 응답 없음 (타임아웃) | 결제 상태 UNKNOWN → PG 조회로 확정한 뒤에만 다음 단계 |
 | E10 | PG 장애 지속 | Circuit Breaker OPEN → 결제 요청 즉시 거절, 선점·예매 생성은 정상, 미결제 좌석은 만료로 반환, 복구 후 HALF_OPEN → CLOSED |
-| E11 🆕 | Redis 응답 지연 주입 | 서킷 OPEN, 대기열은 503, 조회·결제는 정상 |
-| E12 🆕 | Payment가 PG 호출 중 중단 | 10초 넘은 `REQUESTED`가 재조회로 확정 |
-| E13 🆕 | 같은 결제에 환불 요청 중복 | PG 환불 1회, 환불 행 1건 |
-| E14 🆕 | 입장 토큰으로 결제 API 호출, 결제 토큰으로 좌석 API 호출 | 모두 401/403 |
-| E15 🆕 | 접수형 소비 실패로 DLQ 도달 | 접수 결과 조회가 `REJECTED(PROCESSING_FAILED)` |
-| E16 🆕 | 처음 접속한 사용자의 첫 선점 | quota 행이 만들어지고 정상 선점 |
+| E11 | Redis 응답 지연 주입 | 서킷 OPEN, 대기열은 503, 조회·결제는 정상 |
+| E12 | Payment가 PG 호출 중 중단 | 10초 넘은 `REQUESTED`가 재조회로 확정 |
+| E13 | 같은 결제에 환불 요청 중복 | PG 환불 1회, 환불 행 1건 |
+| E14 | 입장 토큰으로 결제 API 호출, 결제 토큰으로 좌석 API 호출 | 모두 403 |
+| E15 | 접수형 소비 실패로 DLQ 도달 | 접수 결과 조회가 `REJECTED(PROCESSING_FAILED)` |
+| E16 | 처음 접속한 사용자의 첫 선점 | quota 행이 만들어지고 정상 선점 |
 
-### 2-6. 서비스 플로우 차트 (🆕 제안, 실패 분기 포함)
+### 2-6. 서비스 플로우 차트 (실패 분기 포함)
 
 ```mermaid
 flowchart TD
@@ -160,18 +156,18 @@ flowchart TD
 | 목표 | 검증 기준 | 발제 요구사항 |
 | --- | --- | --- |
 | 좌석 정합성 | 같은 좌석 동시 요청 중 1건만 성공, 중복 판매 0건 (E1) | 최소 구현 체크리스트 |
-| 대용량 트래픽 | 좌석 선점 API를 동시 100명 · 1초 안에 시작 · 각 10회로 측정. 지표: 평균 응답 시간·처리량·성공률(+p95). 🆕 제안 목표는 고정 처리량이 아니라 같은 환경에서 동기형 → 접수형 개선 전·후 비교와 포화점(3-1). 측정 환경 기록표 첨부 | 대용량 트래픽 |
+| 대용량 트래픽 | 좌석 선점 API를 동시 100명 · 1초 안에 시작 · 각 10회로 측정. 지표: 평균 응답 시간·처리량·성공률(+p95). 목표는 고정 처리량이 아니라 같은 환경에서 동기형 → 접수형 개선 전·후 비교와 포화점(3-1). 측정 환경 기록표 첨부 | 대용량 트래픽 |
 | 오류 정의 | 409(이미 선택된 좌석·매수 초과)는 정상 거절로 집계, 5xx·타임아웃만 오류. 접수형(202)은 접수 응답 시간과 접수 → 처리 완료 시간(컨슈머 랙)을 따로 기록 | 대용량 트래픽 |
 | 분산 트랜잭션 | 결제 거절·선점 만료 시 좌석·예매·결제 상태 자동 원복, 만료 뒤 승인은 자동 환불, PG 타임아웃은 조회로 확정. 실패를 일부러 주입해 재현 (E6–E9, E12–E13) | SAGA 1개 이상 |
 | 메시지 신뢰성 | 커밋 직후 프로듀서 중단 · 처리 중 컨슈머 강제 종료 · 같은 이벤트 재발행을 주입하고, outbox·처리 이력·예매 상태를 대사 쿼리로 맞춰 유실 0건·중복 처리 0건 확인. 브로커 1대라 브로커 자체 유실은 범위 밖 | Kafka 실패·중복·유실 대응 |
 | 장애 격리 | PG 장애 중에도 선점·예매 생성 정상, 결제는 CB OPEN으로 즉시 거절, 복구 후 CLOSED (E10). Redis 지연 시 대기열만 503 (E11) | 장애 처리 |
-| 관측성 | Grafana: 처리량·평균/p95 응답·오류율·대기열 길이·결제 성공률·컨슈머 랙·이선좌율·CPU·메모리, 🆕 Redis 지연 p95·서킷 상태·수동 확인 대기 건수. Zipkin: 느린 요청의 구간(Gateway → Reservation → DB → Kafka → Payment) | 모니터링 |
+| 관측성 | Grafana: 처리량·평균/p95 응답·오류율·대기열 길이·결제 성공률·컨슈머 랙·이선좌율·CPU·메모리, Redis 지연 p95·서킷 상태·수동 확인 대기 건수·DLQ 건수. Zipkin: 느린 요청의 구간(Gateway → Reservation → DB → Kafka → Payment) | 모니터링 |
 | 우리만의 기능 (Should) | 추첨 당첨자는 추가 행동 없이 결제·발권, 결제 실패 시 같은 조건 예비자에게 자동 승계 | — |
 | AI 활용 | 설계 검증 로그 3건 이상(거부 1건 이상, 4계층 검증 포함), 인기 회차·좌석 쏠림을 반영한 Synthetic Data로 부하 테스트 | AI 필수 2종 |
 
 **팀 목표**: 팀원 모두가 자기 담당 고도화를 1개 이상 "무엇이 문제였고, 무엇과 비교해, 왜 이 방식을 골랐는지"로 설명할 수 있게 한다.
 
-### 3-1. 측정 방식 (🆕 제안)
+### 3-1. 측정 방식 (#47)
 
 장비 사양에 따라 결과가 달라진다는 10/26 피드백을 반영했다.
 
@@ -203,7 +199,7 @@ flowchart TD
 
 `⚠ 미해결` 참고 수치를 계산 틀에 넣어 피크 요청과 로컬 측정 규모를 잇는 작업 (U2)
 
-### 3-3. 입장 속도 역산 (🆕 제안)
+### 3-3. 입장 속도 역산 (#45)
 
 - 숫자 기준의 "최대 동시 입장 = N × T"는 리틀의 법칙 `L = λ × W`(시스템 안의 평균 인원 = 도착률 × 체류 시간)에서 W를 토큰 유효 시간 T(상한)로 둔 식이라 L의 상한(50 × 600초 = 30,000명)이다. 이 상한은 KSPO DOME 좌석 약 15,000석의 2배다.
 - 입장 속도는 선점 API가 감당할 동시 사용자 수에서 역산한다. 입장자 한 명이 평균 r(요청/초)을 내고 선점 API의 포화 처리량이 μ(요청/초)이면 `L_max = μ / r`, 입장 속도 `λ = L_max / W`(W는 평균 체류 시간)다.
@@ -220,7 +216,7 @@ flowchart TD
 | **F2 공연·좌석** | F2-1 [운영자] 공연·회차·좌석 등록(등급·가격·오픈 시각) · F2-2 공연 목록·상세(serverTime 포함) · F2-3 회차별 좌석 상태 조회 | **H2** 공연 정보·좌석 상태 캐싱 |
 | **F3 대기열** | F3-1 진입 · F3-2 내 순번·예상 시간(다음 조회 시각 안내) · F3-3 서명 입장 토큰 발급 · F3-4 Gateway 토큰 검증 | **H3** 전역 카운터로 일정 속도 입장, 계정당 1자리, 회차 단위 격리, 이탈 판정 |
 | **F4 예매·발권** | F4-1 매수 선택 → 좌석 선택 → 선택 완료 시 일괄 선점(5분 `[가정]`) · F4-2 선점 만료 → 반환 · F4-3 결제 결과로 확정 + 티켓 발급 · F4-4 내 예매 · F4-5 취소(좌석 반환 + 티켓 무효화 + 환불 요청) | **H4** 동기형 조건부 UPDATE + 부분 유니크 인덱스 → 접수형 Kafka 접수 + 회차·구역 파티션 순차 처리 · **H5** 예매↔결제 SAGA(Choreography)와 보상 |
-| **F5 결제** | F5-1 결제 승인(동기, 서명 결제 토큰) · F5-2 결제 결과 조회 · F5-3 환불 · F5-4 빌링키 등록 · F5-5 빌링키 자동결제 | **H6** 결제 멱등키·서버 금액 검증 · **H7** 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → 조회, 🆕 결제·환불 재확인 스케줄러 · **H8** Outbox·처리 이력·재시도·DLQ (공통 모듈) |
+| **F5 결제** | F5-1 결제 승인(동기, 서명 결제 토큰) · F5-2 결제 결과 조회 · F5-3 환불 · F5-4 빌링키 등록 · F5-5 빌링키 자동결제 | **H6** 결제 멱등키·서버 금액 검증 · **H7** 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → 조회, 결제·환불 재확인 스케줄러 · **H8** Outbox·처리 이력·재시도·DLQ (공통 모듈) |
 | **F6 추첨 배분 (Should)** | F6-1 [운영자] 추첨 설정 · F6-2 응모(202 접수) · F6-3 추첨(시드 기록) · F6-4 자동 배정 → 자동결제 → 발권 · F6-5 예비 승계 · F6-6 미배정 좌석 반환 · F6-7 결과 조회 | **H9** 응모 Kafka 접수, 1인 1응모 유니크 제약, 자동결제 요청을 Kafka로 나눠 처리 |
 | **F7 알림 (Could)** | F7-1 알림함 조회 | 결제 결과·추첨 결과 이벤트 구독 → 알림함 저장 (알림 실패가 본 흐름을 막지 않음) |
 | **F8 내부 AI 상담 (Could)** | F8-1 공연·예매 문의 답변 (오픈 시각·매수 제한·취소·환불 규정·대기열 안내) | 문서 검색 기반 답변 + 출처 표시, 예매·결제와 분리된 읽기 전용 모듈 |
@@ -229,7 +225,7 @@ flowchart TD
 
 - **H10** 관측: Prometheus·Grafana + Micrometer Tracing·Zipkin (MVP부터), 로그 수집(Loki)은 고도화
 - **H11** 부하 테스트: 동기형 기준선 → 병목 구간 확인(Grafana·Zipkin) → 개선 → 재측정, Synthetic Data 시나리오
-- 선점 방식 명칭(🆕 제안): 이전 표기 v1/v2를 동기형(sync)/접수형(async)으로 바꿨다. 경로의 `/api/v1`과 혼동되기 때문이다. 설정 키는 `seat-hold.mode` 값 sync 또는 async다.
+- 선점 방식 명칭(#19): 이전 표기 v1/v2를 동기형(sync)/접수형(async)으로 바꿨다. 경로의 `/api/v1`과 혼동되기 때문이다. 설정 키는 `seat-hold.mode` 값 sync 또는 async다.
 
 > Mock PG: 응답 지연·거절·승인 후 응답 유실을 설정할 수 있는 모의 서버다. 실제 PG로는 타임아웃·결제 실패를 원하는 때에 재현할 수 없어서 쓴다.
 > 
@@ -286,27 +282,28 @@ flowchart TD
 | **Could** | F8 내부 AI 상담 · F7 알림함 · 사전 대기실 + 무작위 순번 · 좌석 자동 배정 · 취소표 지연 공개 · 보안문자 · 팬클럽 선예매 · Loki 로그 수집 |
 | **Won't** | 4-5 제외 범위 |
 
-🆕 제안이 채택되면 Must에 함께 들어가는 것: 환불 테이블과 재확인 스케줄러(E8·H7에 필요), Gateway의 Redis 타임아웃·서킷 브레이커(H1), 보안그룹과 관리자 UI 바인딩(배포 1회), 토큰 키 분리(F3·F5).
+10/26 결정으로 Must에 함께 들어간 것: 환불 테이블과 재확인 스케줄러(E8·H7에 필요), Gateway의 Redis 타임아웃·서킷 브레이커(H1), 보안그룹과 관리자 UI 바인딩(배포 1회), 토큰 키 분리(F3·F5).
 
 ### 5-2. 일정
 
-| 기간 | 목표 |
-| --- | --- |
-| 10/27 | 공통 계약 합의(인증 헤더·응답·에러·이벤트 형식·패키지 구조) + 공통부분 반나절 함께 구현 |
-| ~10/29 | 걷는 뼈대: compose 한 번으로 Gateway → 서비스 1개 → Kafka → Prometheus·Zipkin |
-| ~11/3 | 일반 예매 한 흐름 연결 (입장 → 선점 → 결제 → 확정) + 동기형 기준선 측정 |
-| ~11/6 | MVP 시연, 배포 1회, Synthetic Data 1차본 |
-| 11/9~11/16 | 접수형 Kafka 접수 → 재측정, 추첨, 장애 주입·대사 (트러블슈팅 11/9 시작) |
-| 11/16~11/19 | 트러블슈팅 정리·발표 준비·발표 |
+프로젝트 일정관리 DB의 마일스톤과 맞춘다. 각 마일스톤의 범위·완료 기준은 일정관리 페이지에 있다.
 
-### 5-3. 🆕 제안 적용 순서
+| 기간 | 마일스톤 | 목표 |
+| --- | --- | --- |
+| 10/26~10/29 | M1. 공통 모듈 + 인증 기반 | 10/27 계약 합의(인증 헤더·응답·에러·이벤트 형식·패키지 구조) → 공통 모듈을 각자 구현해 비교 후 하나로 합침 → 인증·Gateway·compose. 완료 기준은 걷는 뼈대: compose 한 번으로 Gateway → User → Prometheus·Zipkin |
+| 10/30~11/3 | M2. 일반 예매 한 흐름 연결 | 입장 → 선점 → 결제 → `payment.result` → 확정·발권을 API 호출로 연결 + 동기형 기준선 1회 측정 |
+| 11/4~11/6 | M3. MVP 완성·배포 | 실패 경로(거절·만료·PG 장애·재확인 스케줄러), Mock PG 장애 주입, Synthetic Data 1차본, EC2 배포 1회, 11/6 MVP 시연 |
+| 11/9~11/16 | M4. 고도화 + 트러블슈팅 | 접수형 → 재측정, 대기열 고도화·입장 속도 역산, 취소·캐싱, 추첨 + 빌링키, 장애 주입·대사 정리 |
+| 11/16~11/19 | 발표 준비 | 발표 자료 준비(11/16), 제출 마감(11/18), 발표(11/19) |
+
+### 5-3. 10/26 결정 적용 순서
 
 | 시기 | 항목 | 이유 |
 | --- | --- | --- |
-| 10/27 합의 전 | 입장 판정(12-8), 토큰 규칙(7-3), 응답 형식(11-2), 접수 요청 테이블(12-3), 환불 모델 방향(12-4), Redis 정책 초안(9-5) | 서비스 사이 계약(토큰, 선점 결과, 결제 결과 이벤트, 응답)과 테이블 구조를 바꾼다. 늦어지면 구현을 다시 한다 |
-| MVP (10/29~11/6) | 환불·재확인 스케줄러 구현, Redis 정책 구현, quota 대사, 보안그룹(9-2), 메모리 예산(9-3), ADR 2건(15장), 플로우 차트 | 각 담당 영역 안의 변경이거나 배포 전에 필요 |
-| 기준선 측정 후 | 입장 속도 역산(3-3) | 측정값이 있어야 역산 가능 |
-| 11/9 이후 | 페르소나 보강, 적재량 재추정, 법률 조사, 비대칭 토큰 서명 | 설계 변경으로 이어질 가능성이 낮거나 발표 소재 |
+| M1 (10/27 계약 합의) | 입장 판정(12-8), 토큰 규칙(7-3), 응답 형식(11-2), 접수 요청 테이블(12-3), 환불 모델(12-4) | 서비스 사이 계약(토큰, 선점 결과, 결제 결과 이벤트, 응답)과 테이블 구조에 들어간다. 늦어지면 구현을 다시 한다 |
+| M1~M3 | Redis 정책(9-5), 보안그룹(9-2), 메모리 예산(9-3), 환불·재확인 스케줄러, quota 대사, 플로우 차트 | 각 담당 영역 안의 구현이거나 배포 전에 필요 |
+| M2 기준선 측정 후 | 입장 속도 역산(3-3) | 측정값이 있어야 역산 가능 |
+| M4 이후 | 페르소나 보강, 적재량 재추정, 법률 조사, 비대칭 토큰 서명 | 설계 변경으로 이어질 가능성이 낮거나 발표 소재 |
 
 ## 6. 기능 분담
 
@@ -316,12 +313,12 @@ flowchart TD
 
 | 영역 | 담당 | MVP (~11/6) | MVP 이후 (11/9~) |
 | --- | --- | --- | --- |
-| 실행 환경·유저 | 다 같이 (이슈를 가져간 사람이 작업, 마감 10/29) | docker-compose, Gateway·Eureka, 로그인·인증, 시드, 공통 규칙, 배포 1회 | — |
+| 실행 환경·유저 | 다 같이 (Linear 이슈를 가져간 사람이 작업, 마감 10/29) | docker-compose, Gateway·Eureka, 로그인·인증, 시드, 공통 규칙, 배포 1회 | — |
 | 대기열 | 권영은 | 진입·순번·입장 토큰·일정 속도 입장, 입장 토큰 검증 필터, 부하 테스트 기준선 | 대기열 고도화, 부하 테스트·Synthetic Data 주관 |
 | 좌석 선점 | 최권우 | 동기형 일괄 선점·중복 판매 방지·만료·멱등 | 접수형 Kafka 접수 → 재측정 |
 | 공연·좌석 조회 → 예매 흐름 | 반효승 | 공연·좌석 등록·조회 → 예매 상태·확정·발권·결제 토큰·보상 | 예매 취소, 캐싱 (알림함 보류) |
-| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 🆕 환불 상태·재확인 스케줄러 | 취소 환불, 토스 테스트 모드 어댑터 |
-| Mock PG → 추첨 | 이강민 | Mock PG·장애 주입·결제 조회 연동, 🆕 환불 조회·멱등 | 추첨 전체 + 빌링키 자동결제 |
+| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 환불 상태·재확인 스케줄러 | 취소 환불, 토스 테스트 모드 어댑터 |
+| Mock PG → 추첨 | 이강민 | Mock PG·장애 주입·결제 조회 연동, 망취소, 환불 조회·멱등 | 추첨 전체 + 빌링키 자동결제 |
 | 프론트 | 안준현 | — | 최소 화면 (AI 도구로 생성) |
 | 내부 AI 상담 | 안준현 | — | Could, 필수 기능과 측정이 끝난 뒤 |
 
@@ -331,14 +328,14 @@ flowchart TD
 
 | 기능 | API · 산출물 | 우선순위 |
 | --- | --- | --- |
-| docker-compose (PostgreSQL×3·Redis·Kafka·Kafka-UI·Prometheus·Grafana·Zipkin), `.env.example` | 🆕 관리자 UI는 `127.0.0.1` 바인딩, 내부 서비스는 `expose`만 (9-2) | Must |
-| Gateway 라우팅 + JWT 검증 → `X-User-Id`·`X-User-Role` 전달, Eureka | 🆕 Redis 호출 타임아웃·서킷 브레이커 (9-5) | Must |
-| Config Server + 설정 공급 | 같은 저장소 config-repo의 native backend, Config Server → Eureka → 서비스 순서, 필수 설정 조회 실패 시 기동 실패 | Must (2026-10-26 Junhyun An 지시) |
+| docker-compose (PostgreSQL×3·Redis·Kafka·Kafka-UI·Prometheus·Grafana·Zipkin), `.env.example` | 관리자 UI는 `127.0.0.1` 바인딩, 내부 서비스는 `expose`만 (9-2) | Must |
+| Config 서버 + `config-repo/`(공통·서비스·프로필별 설정) | 9-6, 서비스는 `spring.config.import`로 연결 | Must |
+| Gateway 라우팅 + JWT 검증 → `X-User-Id`·`X-User-Role` 전달, Eureka | Redis 호출 타임아웃·서킷 브레이커 (9-5) | Must |
 | 회원가입·로그인·토큰 재발급·로그아웃(블랙리스트) | POST `/api/v1/users` · POST `/api/v1/auth/login` · `/auth/refresh` · `/auth/logout` · GET `/api/v1/users/me` | Must |
 | 운영자 계정 초기 데이터 | 시드 스크립트 | Must |
-| 공통 규칙: 4계층 패키지 구조, 응답·에러 형식, 이벤트 공통 필드 | 10/27 합의 문서, 🆕 `common-response`·`common-web` 모듈 (11-2) | Must |
+| 공통 규칙: 4계층 패키지 구조, 응답·에러 형식, 이벤트 공통 필드 | 10/27 합의 문서, `common-response`·`common-web` 모듈 (11-2) | Must |
 | 사용자 단위 요청 제한 | Gateway 필터 | Should |
-| 배포 1회 (EC2 + compose) | 🆕 보안그룹 규칙표·SSH 터널 매뉴얼 (9-2) | Must (~11/6) |
+| 배포 1회 (EC2 + compose) | 보안그룹 규칙표·SSH 터널 매뉴얼 (9-2) | Must (~11/6) |
 
 ### 6-3. 대기열: 권영은
 
@@ -358,7 +355,7 @@ flowchart TD
 | MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | POST `/api/v1/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` |
 | MVP | 부분 유니크 인덱스(판매 중 좌석만, D2), 선점 만료 스케줄러(SKIP LOCKED), 좌석 상태·보유 매수 대사 쿼리 | — |
 | MVP | 멱등키 처리 (멱등키 = requestId) | `Idempotency-Key` 헤더 |
-| 이후 | 접수형: 🆕 API가 `seat_hold_request(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
+| 이후 | 접수형: API가 `seat_hold_request(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
 | 이후 | 동기형 대비 접수형 재측정 (부하 테스트 담당과 함께), 병목 구간 분석(Zipkin) | — |
 
 ### 6-5. 공연·좌석 조회 → 예매 흐름: 반효승
@@ -370,7 +367,7 @@ flowchart TD
 | MVP (첫 주) | 공연장·공연장 좌석 배치 시드 데이터 (KSPO DOME 규모) | Flyway 시드 |
 | MVP (첫 주) | [운영자] 공연·회차 등록, 회차 좌석 생성(등급별 가격) | POST `/api/v1/admin/concerts` · `/admin/concerts/{id}/schedules` · `/admin/schedules/{id}/seats` |
 | MVP (첫 주) | 공연 목록·상세(serverTime, 판매 오픈 판정), 회차 좌석 상태(입장 토큰 필요) | GET `/api/v1/concerts` · `/concerts/{id}` · GET `/api/v1/schedules/{id}/seats` |
-| MVP | 예매 상태 머신·이력, 좌석별 티켓 발급, 결제 토큰 발급(🆕 7-3 규칙, 만료 = 선점 만료 − 10초) | GET `/api/v1/reservations/{id}` · GET `/api/v1/reservations/me` |
+| MVP | 예매 상태 머신·이력, 좌석별 티켓 발급, 결제 토큰 발급(7-3 규칙, 만료 = 선점 만료 − 10초) | GET `/api/v1/reservations/{id}` · GET `/api/v1/reservations/me` |
 | MVP | 결제 결과 이벤트 소비 → 확정·발권 / 거절 시 좌석 반환 / 만료 뒤 승인은 환불 요청 발행 | 구독 `payment.result` · 발행 `payment.command`(RefundRequested, Outbox) |
 | 이후 | 예매 취소: 좌석 반환 + 티켓 무효화 + 환불 요청 | POST `/api/v1/reservations/{id}/cancel` → 202 |
 | 이후 | 공연 정보·좌석 상태 캐싱 | — |
@@ -384,8 +381,8 @@ flowchart TD
 | MVP | PG 호출: 트랜잭션 밖, 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → PG 조회로 확정 | GET `/api/v1/payments/{id}` |
 | MVP | 결제 결과 이벤트 발행(Outbox) | 발행 `payment.result`(PaymentApproved·Declined·Refunded) |
 | MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_event), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
-| MVP | 만료 뒤 승인 환불 (E8), 🆕 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
-| MVP | 🆕 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
+| MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
+| MVP | 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
 | 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
@@ -396,7 +393,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 🆕 환불 조회와 환불 멱등 `(팀 확인)` | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · 🆕 GET `/mock-pg/refunds/{refundId}` |
+| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
 | MVP | 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | MVP | 결제 재확인 스케줄러 (결제 담당과 함께) | — |
 | 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
@@ -420,16 +417,16 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 
 ### 6-9. 연동 순서와 공통 규칙
 
-- **10/27 계약 합의** (다 같이): 입장 토큰 형식(대기열 → Gateway·좌석 선점), 선점 결과 형식(좌석 선점 → 예매 흐름), 결제 토큰·결제 결과 이벤트 형식(예매 흐름 ↔ 결제), 공통 응답·에러 형식. 진행 방식은 형식을 소유한 서비스 담당자가 정해서 통보하고, 소비하는 쪽이 리뷰한다(10/26 메모).
+- **10/27 계약 통보**: 형식을 소유한 담당이 정해 공유하고 소비하는 쪽이 리뷰한다. 입장 토큰(대기열 → Gateway·좌석 선점), 선점 결과(좌석 선점 → 예매 흐름), 결제 토큰(예매 흐름 → 결제), 결제 결과 이벤트(결제 → 예매 흐름). 공통 응답·에러 형식은 #19로 결정됨. 진행 방식은 형식을 소유한 서비스 담당자가 정해서 통보하고, 소비하는 쪽이 리뷰한다(10/26 메모).
 - **첫 주 순서**: 공연·좌석 데이터 → 좌석 선점 → 예매 흐름 ↔ 결제, 대기열은 병렬
 - 각자 담당 영역의 AI 검증 항목을 1개 이상 로그에 남긴다.
-- `⚠ 미해결` 안준현 님은 MVP 기간 결제 + 이벤트 공통 모듈(🆕 환불·재확인 스케줄러 포함)이라 부담이 크다. 결제가 밀리면 이강민 님이 추첨으로 넘어가는 시점을 늦춰 결제를 돕는다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
+- `⚠ 미해결` 안준현 님은 MVP 기간 결제 + 이벤트 공통 모듈(환불·재확인 스케줄러 포함)이라 부담이 크다. 결제가 밀리면 이강민 님이 추첨으로 넘어가는 시점을 늦춰 결제를 돕는다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
 
 ---
 
 # Part 2. 설계
 
-설계 초안이다. 10/25 자체 검수에서 찾은 설계 결함 4건(D1–D4)과 10/26 피드백(🆕 제안)을 반영했다. 10/27 SA 2차 피드백 전에 담당별로 확인해 확정한다. 숫자는 모두 `[가정]`이고 측정 후 바꾼다.
+설계 초안이다. 10/25 자체 검수에서 찾은 설계 결함 4건(D1–D4)과 10/26 피드백과 그에 따른 결정 기록 수정을 반영했다. 10/27 SA 2차 피드백 전에 담당별로 확인한다. 숫자는 모두 `[가정]`이고 측정 후 바꾼다.
 
 ### 10/25 설계 결함 반영 요약
 
@@ -438,7 +435,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 | D1 | 같은 사용자가 선점 요청을 동시에 보내면 둘 다 매수 검사를 통과해 회차당 매수 제한을 넘음 | 사용자·회차별 보유 수 행(`user_schedule_quota`)을 먼저 보장하고 조건부 UPDATE로 막음 | 12-3, 12-7 |
 | D2 | `schedule_seat.status`와 `reservation_seat` 부분 유니크가 둘 다 좌석 상태를 들고 있어 기준이 두 곳 | 판매 여부의 기준은 `reservation_seat` 부분 유니크. `schedule_seat.status`는 선점 1차 판정·조회용으로 같은 트랜잭션에서 함께 바꾸고, 어긋나면 `reservation_seat` 기준으로 대사 | 12-3, 12-7 |
 | D3 | 멱등키는 같은 요청 재전송만 막아, 다른 키로 같은 예매를 두 번 결제하는 경우를 못 막음 | `payment`에 부분 유니크 `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')` | 12-4 |
-| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | 🆕 제안 API가 접수 요청 행(`seat_hold_request`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
+| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | API가 접수 요청 행(`seat_hold_request`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
 
 ## 7. 서비스 구성과 시스템 구조도
 
@@ -450,9 +447,9 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 | **Reservation** | 공연·좌석 조회, 대기열, 선점·예매·발권, 추첨, 알림 | reservation DB, Redis | "한 좌석은 한 번만 팔린다"를 한 트랜잭션 경계 안에서 지킴 |
 | **Payment** | 결제·환불·빌링키, PG 연동 | payment DB | 외부 PG 지연·장애 격리 |
 - **5개 → 3개로 줄인 근거**: 응모 → 추첨 → 일반 오픈 순서라 추첨과 실시간 선점이 겹치지 않는다. Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
-- **Queue 분리 조건 (측정)**: 순번 조회 부하가 선점 API p95를 늘리면 분리한다.
+- **모듈별 분리 근거 (측정, #10·#14 결정·잠정)**: queue는 순번 조회 부하가 선점 API p95를 늘리면, notification은 알림 채널이 늘면, lottery는 응모·자동결제 처리 중 일반 예매 선점 p95가 늘면 서비스로 분리한다. 그 전까지는 Reservation 안 모듈로 경계를 지킨다.
 - **Reservation 안 모듈 규칙** (결정 기록 #14, 모듈러 모놀리스 방식): reservation·lottery는 직접 호출 허용 / queue는 인터페이스로만 / notification은 Kafka 이벤트로만 / concert 조회는 읽기 직접 허용
-- **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Config Server, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. Config Server는 같은 저장소의 config-repo 폴더를 native backend로 읽는다. 모두 docker-compose로 한 번에 기동한다.
+- **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Config 서버, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. 모두 docker-compose로 한 번에 기동한다.
 
 ### 7-2. 시스템 구조도
 
@@ -471,7 +468,7 @@ flowchart LR
   PS <-->|이벤트| K
   PS -->|동기 · 타임아웃·CB·Bulkhead| PG[Mock PG / 토스 테스트]
   EU[Eureka] -.-> GW
-  CF[Config Server<br/>native 설정 폴더] -.설정.-> EU & GW & US & RS & PS & PG
+  CFG[Config 서버<br/>config-repo] -.설정.-> GW & US & RS & PS
 ```
 
 | 구간 | 방식 | 이유 |
@@ -482,9 +479,9 @@ flowchart LR
 | Reservation ↔ Payment | Kafka 이벤트 (결제 결과·환불 요청·자동결제 요청) | 서비스 경계, 여러 소비자, 재처리 |
 | Payment → PG | 동기, 트랜잭션 밖 | 외부 의존 격리 |
 | 서비스 간 데이터 | ID 값만 참조, 서비스 사이 FK 없음 (서비스 DB 안에서는 FK 사용) | DB가 서비스마다 따로 |
-| 토큰 서명 | 입장 토큰: Reservation 발급 → Gateway 검증 / 결제 토큰: Reservation 발급 → Payment 검증. HMAC-SHA256, 🆕 키는 토큰마다 분리(7-3) | 서비스 사이 호출 없이 검증 |
+| 토큰 서명 | 입장 토큰: Reservation 발급 → Gateway 검증 / 결제 토큰: Reservation 발급 → Payment 검증. HMAC-SHA256, 키는 토큰마다 분리(7-3) | 서비스 사이 호출 없이 검증 |
 
-### 7-3. 토큰 규칙 (🆕 제안)
+### 7-3. 토큰 규칙 (#56)
 
 | 항목 | 입장 토큰 | 결제 토큰 |
 | --- | --- | --- |
@@ -498,7 +495,8 @@ flowchart LR
 - HMAC은 검증 키로 서명도 할 수 있다. "Gateway·Payment도 토큰을 만들 수 있다"는 피드백은 이 구조의 한계다. 비대칭 서명(발급자 개인키, 검증자 공개키)으로 풀 수 있으나 키 관리 비용이 늘어 MVP 이후로 둔다.
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
 - PG 타임아웃으로 UNKNOWN이 된 결제는 나중에 APPROVED가 될 수 있으므로 만료 뒤 승인(E8)은 사라지지 않는다. 자동 환불은 그대로 필요하다.
-- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 10/27 계약 합의에서 확정한다 `(팀 확인)`. 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
+- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
 
 ## 8. 흐름과 상태
 
@@ -540,16 +538,16 @@ sequenceDiagram
   RS->>RS: CONFIRMED + 좌석별 티켓 발급
 ```
 
-- 🆕 제안 선점 응답에 결제 토큰을 같이 준다. 이전에는 HELD 뒤에 `GET /reservations/{id}`를 한 번 더 불러야 했다. 조회 API는 그대로 남는다.
+- 선점 응답에 결제 토큰을 같이 준다. 이전에는 HELD 뒤에 `GET /reservations/{id}`를 한 번 더 불러야 했다. 조회 API는 그대로 남는다.
 - PG 타임아웃이면 `UNKNOWN`으로 저장하고 202를 돌려준다. 재확인 스케줄러가 PG에 물어 APPROVED·DECLINED로 확정한 뒤에만 이벤트를 발행한다(10-5).
-- 🆕 제안 Payment가 PG 호출 중에 죽어 `REQUESTED`로 남은 결제도 10초가 지나면 같은 재조회 대상이다. `pg_order_id`를 PG 호출 전에 저장하므로 PG에 물어볼 수 있다.
+- Payment가 PG 호출 중에 죽어 `REQUESTED`로 남은 결제도 10초가 지나면 같은 재조회 대상이다. `pg_order_id`를 PG 호출 전에 저장하므로 PG에 물어볼 수 있다.
 - 결제 결과 이벤트가 도착했을 때 예매가 이미 EXPIRED면 확정하지 않고 `RefundRequested`를 발행한다(E8).
 - 좌석 조회는 `available`만 내려 준다. 누가 선점 중인지(HELD·SOLD) 노출하지 않는다.
 
 ### 8-2. 상태 머신
 
 ```
-접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (🆕 seat_hold_request, 접수형만)
+접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (seat_hold_request, 동기형·접수형 모두)
 예매        HELD → CONFIRMED
             HELD → EXPIRED (미결제 만료) · HELD → RELEASED (결제 거절)
             CONFIRMED → CANCELED (취소)
@@ -557,9 +555,9 @@ sequenceDiagram
 회차 좌석    AVAILABLE → HELD → SOLD · HELD → AVAILABLE · SOLD → AVAILABLE
 티켓        ISSUED → VOID
 결제        REQUESTED → APPROVED | DECLINED | UNKNOWN
-            REQUESTED(10초 경과) · UNKNOWN → 재조회 → APPROVED | DECLINED | NEEDS_MANUAL_CHECK   (🆕)
+            REQUESTED(10초 경과) · UNKNOWN → 재조회 → APPROVED | DECLINED | NEEDS_MANUAL_CHECK
             APPROVED → REFUNDED (환불 완료 시)
-환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (🆕 refund)
+환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refund)
             UNKNOWN → 재조회 → REFUNDED | FAILED | NEEDS_MANUAL_CHECK
 추첨        OPEN → CLOSED → DRAWN → DONE
 응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
@@ -571,19 +569,19 @@ sequenceDiagram
 | 전이 | 함께 바뀌는 것 (한 트랜잭션) | 누가 |
 | --- | --- | --- |
 | 예매 → HELD | 매수 한도 +n → 회차 좌석 HELD → 예매·예매 좌석 HELD | 선점 API (동기형) · 선점 소비자 (접수형) |
-| 🆕 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_request` 갱신 + `processed_event` 기록 | 선점 소비자 (접수형) |
-| 🆕 접수 요청 → REJECTED(PROCESSING_FAILED) | `seat_hold_request`만 | DLQ 처리기 |
+| 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_request` 갱신 + `processed_event` 기록 | 선점 소비자 (접수형) |
+| 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_request`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
 | 예매 HELD → CONFIRMED | 예매 좌석 CONFIRMED, 회차 좌석 SOLD, 좌석별 티켓 ISSUED | PaymentApproved 소비자 |
 | 예매 HELD → EXPIRED / RELEASED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 매수 한도 −n | 만료 스케줄러 / PaymentDeclined 소비자 |
 | 예매 CONFIRMED → CANCELED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 티켓 VOID, 매수 한도 −n, RefundRequested(Outbox) | 취소 API |
 | EXPIRED에 PaymentApproved 도착 | 예매는 그대로, RefundRequested(Outbox) | PaymentApproved 소비자 (E8) |
-| 🆕 결제·환불 재조회 | 상태 확정 또는 `next_check_at` 갱신, 확정 시 outbox | 재확인 스케줄러 |
+| 결제·환불 재조회 | 상태 확정 또는 `next_check_at` 갱신, 확정 시 outbox | 재확인 스케줄러 |
 
 ### 8-4. 전이 규칙
 
 - 모든 전이는 `WHERE status = 이전상태` 조건부 UPDATE이고, 예매·결제는 상태 이력 테이블에 남긴다.
 - **잠금 순서**: 매수 한도 → 회차 좌석(좌석 ID 오름차순) → 예매. 모든 트랜잭션이 같은 순서로 잠가 교착을 막는다. 만료 스케줄러는 만료 대상 ID만 `SKIP LOCKED`로 뽑고, 처리는 건별 트랜잭션에서 같은 순서로 한다.
-- **만료와 결제의 경합** 🆕 제안: 결제 토큰이 선점보다 10초 먼저 만료되므로, 토큰 검증을 통과한 결제는 대부분 선점 만료 전에 끝난다. 그래도 결제 중에 만료되면 만료가 먼저이고, 늦게 온 승인은 자동 환불한다. AI 피드백의 "결제 진행 중(PAYING) 예매는 만료에서 제외" 안 대신 이 규칙을 쓴다. 상태가 하나 줄고 Choreography와 맞는다 (U3).
+- **만료와 결제의 경합** (#35, #13): 결제 토큰이 선점보다 10초 먼저 만료되므로, 토큰 검증을 통과한 결제는 대부분 선점 만료 전에 끝난다. 그래도 결제 중에 만료되면 만료가 먼저이고, 늦게 온 승인은 자동 환불한다. AI 피드백의 "결제 진행 중(PAYING) 예매는 만료에서 제외" 안 대신 이 규칙을 쓴다. 상태가 하나 줄고 Choreography와 맞는다 (U3).
 
 ## 9. 인프라
 
@@ -595,7 +593,7 @@ flowchart TB
   subgraph EC2[EC2 1대 · docker compose 네트워크]
     GW[gateway :8080]
     EU[eureka :8761]
-    CF[config-server :8888]
+    CFG[config-server :8888]
     US[user-service :8081]
     RS[reservation-service :8082]
     PS[payment-service :8083]
@@ -610,7 +608,6 @@ flowchart TB
     GR[grafana :3000]
     ZP[zipkin :9411]
   end
-  CF -.설정.-> EU & GW & US & RS & PS & MPG
   GW --> US & RS & PS
   US --> UDB
   RS --> RDB
@@ -624,36 +621,39 @@ flowchart TB
   PR -.수집.-> GW & US & RS & PS
   GR --> PR
   GW & US & RS & PS -.추적.-> ZP
+  CFG -.설정.-> GW & US & RS & PS
 ```
 
 | 구성 요소 | 로컬 (개발) | 로컬 (측정) | 배포 (EC2 1대) |
 | --- | --- | --- | --- |
-| gateway · eureka · config-server · user · reservation · payment · mock-pg | IntelliJ 실행 | compose | compose |
+| config-server | compose (IntelliJ 앱이 `localhost:8888`로 접속) | compose | compose |
+| gateway · eureka · user · reservation · payment · mock-pg | IntelliJ 실행 | compose | compose |
 | PostgreSQL × 3 (user · reservation · payment) | compose | compose | compose |
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택: Java 21 · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9, 라이브러리 버전은 BOM을 따른다. 저장소는 모노레포(Gradle 멀티모듈)이고 Config Server는 같은 저장소의 설정 폴더를 읽는다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.1.0이다.
-- 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다. [ADR](../decisions/0001-java-21.md)에 근거를 남긴다.
-- 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod
-- 비밀값(DB 비밀번호, JWT 서명 키, 🆕 `ENTRY_TOKEN_SECRET`·`PAYMENT_TOKEN_SECRET`)은 `.env`, 저장소에는 `.env.example`만 둔다.
+- 기술 스택 (#30 잠정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.1.0이다.
+- 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다.
+- Java 21에서는 가상 스레드가 `synchronized` 안에서 캐리어 스레드에 고정되므로(JDK 24에서 해결) 가상 스레드는 기본으로 끈다. 고도화에서 켜 볼 때는 고정 지점을 먼저 확인한다. Java 22 이후 기능은 쓰지 않는다.
+- 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod. 프로필별 값은 `config-repo/{서비스}-{프로필}.yml`에 둔다(9-6).
+- 비밀값(DB 비밀번호, JWT 서명 키, `ENTRY_TOKEN_SECRET`·`PAYMENT_TOKEN_SECRET`)은 `.env`, 저장소에는 `.env.example`만 둔다. `config-repo`에는 `${DB_PASSWORD}` 같은 자리표시자만 쓴다.
 - 포트 번호는 `(팀 확인)` (U12).
 
-### 9-2. 외부 노출과 접근 (🆕 제안)
+### 9-2. 외부 노출과 접근 (#57)
 
 | 포트 | 대상 | 인바운드 허용 | 비고 |
 | --- | --- | --- | --- |
 | 22 | SSH | 팀원 IP만 | 키 인증만 허용 |
 | 8080 | gateway | 전체(0.0.0.0/0). 부하 측정 중에는 측정 기기 IP로 제한 | 유일한 서비스 진입점 |
 | 3000 | grafana | 허용 없음 | SSH 터널로만 접근 |
-| 8085, 9090, 9411, 8761, 8888 | kafka-ui, prometheus, zipkin, eureka | 허용 없음 | 같음 |
-| 8081~8083, 8090, 5433~5435, 6379, 9092 | 서비스, mock-pg, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
+| 8085, 9090, 9411, 8761 | kafka-ui, prometheus, zipkin, eureka | 허용 없음 | 같음 |
+| 8081~8083, 8090, 8888, 5433~5435, 6379, 9092 | 서비스, mock-pg, config-server, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 - 이중 방어: compose에서 관리자 UI는 `127.0.0.1:3000:3000`처럼 로컬에만 바인딩하고, 내부 전용 서비스는 `ports`를 열지 않고 `expose`만 쓴다. 보안그룹 설정이 틀려도 호스트 밖으로 열리지 않는다.
 - 접근 매뉴얼(초안): `ssh -L 3000:localhost:3000 -L 8085:localhost:8085 -L 9411:localhost:9411 <user>@<ec2>` 후 브라우저에서 `localhost:3000`을 연다. 시연도 발표자 노트북에서 터널을 열고 보여 주면 포트를 공개할 필요가 없다.
 - 요청 차단 계층: 보안그룹(포트·IP) → Gateway(JWT, 입장 토큰, 요청 제한, 오픈 전 시각 검사) → 서비스(권한, 도메인 규칙) → DB(제약).
-- 이전 안은 "외부 공개는 gateway(8080)와 grafana(3000)"였다(부록 C). 보안그룹 표는 `(팀 확인)`.
+- 이전 안은 "외부 공개는 gateway(8080)와 grafana(3000)"였다(부록 C). 보안그룹 규칙표 작성은 배포 이슈 담당이 맡는다.
 
-### 9-3. 메모리 예산 (🆕 제안)
+### 9-3. 메모리 예산 (#57)
 
 Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하고 EC2 메모리 안에 들어가는지 계산한다. 아래는 시작값 `[가정]`이며 `docker stats`로 부하 중 사용량을 측정해 바꾼다.
 
@@ -661,7 +661,7 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | --- | --- | --- |
 | gateway | 512m | 768m |
 | eureka | 256m | 512m |
-| config-server (추가) | 256m | 512m |
+| config-server | 256m | 512m |
 | user-service | 384m | 640m |
 | reservation-service | 768m | 1,152m |
 | payment-service | 512m | 768m |
@@ -673,8 +673,8 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | prometheus | - | 768m |
 | grafana | - | 384m |
 | zipkin | - | 768m |
-| 합계 |  | 10,880m (약 10.6GB) |
-- 합계를 EC2 메모리의 75% 이하로 두면 필요 메모리는 약 14.5GB이고, 16GB급 인스턴스가 최소다. 8GB급을 써야 하면 zipkin·kafka-ui·prometheus를 빼거나 상한을 줄이는 대안을 따로 정한다 (U10).
+| 합계 |  | 11,392m (약 11.1GB) |
+- 합계를 EC2 메모리의 75% 이하로 두면 필요 메모리는 약 14.8GB이고, 16GB급 인스턴스가 최소다. 8GB급을 써야 하면 zipkin·kafka-ui·prometheus를 빼거나 상한을 줄이는 대안을 따로 정한다 (U10).
 - 컨테이너 상한이 힙보다 큰 이유는 메타스페이스, 스레드 스택, 네이티브 메모리 때문이다. 간격(약 256~384m)이 충분한지는 측정으로 확인한다.
 - 측정 PC에서 로컬로 돌릴 때도 같은 표를 쓰고 PC 메모리와 비교한다.
 - **단일 EC2 한계**: 배포는 EC2 1대의 docker compose다. 서비스 단위 장애 격리는 컨테이너 수준이며 인스턴스 장애 시 전체가 중단된다. 운영 환경이라면 서비스별 다중 인스턴스와 매니지드 DB·Redis·Kafka로 분리한다. 프로젝트 범위에서는 컨테이너 분리까지만 한다(10/26 피드백 답변).
@@ -689,41 +689,59 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | PG 호출 타임아웃 | 연결 0.5초 · 응답 2초 | 전체 3초 중 나머지 1초는 DB·이벤트 저장 |
 | 선점 DB `lock_timeout` | 500ms | 오래 기다리기보다 바로 "이미 선택된 좌석" 안내 |
 | 선점 유지 | 5분 | 결정 기록 #35 |
-| 🆕 결제 토큰 유효 | 선점 만료 − 10초 | 7-3 |
+| 결제 토큰 유효 | 선점 만료 − 10초 | 7-3 |
 | 회차당 매수 | 4매 | 결정 기록 #35 |
 | 입장 토큰 유효 시간 T | 10분 | 좌석 고르기 + 결제 5분 |
-| 초당 입장 수 N | 50명 (임시값) | 🆕 기준선 측정 후 3-3 식으로 역산 |
+| 초당 입장 수 N | 50명 (임시값) | 기준선 측정 후 3-3 식으로 역산 |
 | 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초) | 폴링 부하 상한 |
 | Access / Refresh 토큰 | 30분 / 14일 | 짧은 Access + Refresh |
 | 결제 → 예매 확정 반영 | 2초 이내 (Outbox 폴링 500ms) | 결과 화면 지연 상한 |
-| 접수형 접수 → 처리 완료 | 2초 이내 (🆕 outbox 폴링 500ms + 컨슈머 랙) | 202 처리량과 실제 처리량을 함께 봄 |
-| 🆕 접수 요청 REQUESTED 모니터링 | 30초 넘으면 대상 | 고아 접수 탐지 |
-| 🆕 결제 REQUESTED 경과 | 10초 넘으면 재조회 대상 | PG 응답 타임아웃 2초 + 여유 |
-| 🆕 재조회 간격 (결제 UNKNOWN·환불) | 10초 × 6회 → 1분 → 5분 → 15분 → `NEEDS_MANUAL_CHECK` (총 약 21분) | 이전: 10초 간격 6회 후 운영 확인 |
+| 접수형 접수 → 처리 완료 | 2초 이내 (outbox 폴링 500ms + 컨슈머 랙) | 202 처리량과 실제 처리량을 함께 봄 |
+| 접수 요청 최종 시한 | 30초 넘으면 `REJECTED(TIMEOUT)` | 고아 접수 방지 |
+| 결제 REQUESTED 경과 | 10초 넘으면 재조회 대상 | PG 응답 타임아웃 2초 + 여유 |
+| 재조회 간격 (결제 UNKNOWN·환불) | 10초 × 6회 → 1분 → 5분 → 15분 → `NEEDS_MANUAL_CHECK` (총 약 21분) | 이전: 10초 간격 6회 후 운영 확인 |
 | Kafka 소비 재시도 | 3회, 1·2·4초 지수 백오프 → DLQ | 결정 기록 #46 |
-| 🆕 Redis 호출 타임아웃 | 100ms | 9-5 |
-| 🆕 Redis 서킷 브레이커 | 최근 20회 중 50% 실패 또는 50ms 초과 시 OPEN, 10초 뒤 HALF_OPEN 5회 시험 | 9-5 |
+| Redis 호출 타임아웃 | 100ms | 9-5 |
+| Redis 서킷 브레이커 | 최근 20회 중 50% 실패 또는 50ms 초과 시 OPEN, 10초 뒤 HALF_OPEN 5회 시험 | 9-5 |
 | 멱등키 보관 | 24시간 | 재시도 창보다 충분히 길게 |
 | 커넥션 풀 | 서비스당 20 | 측정 후 조정 |
 | 캐시 TTL (H2 도입 시) | 공연 정보 5분 · 좌석 상태 1초 | 결정 기록 #45 |
 
-### 9-5. Redis 장애·느려짐 정책 (🆕 제안)
+### 9-5. Redis 장애·느려짐 정책 (#48)
 
 Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis에 Gateway가 물리면 전체가 느려진다(10/26 피드백). Redis는 기준 저장소가 아니다. 캐시는 DB로 복구하고, 대기열은 다시 줄을 서는 것으로 끝난다.
 
-- Gateway의 모든 Redis 호출에 타임아웃 100ms를 둔다. 정상 Redis 응답은 1ms 안팎이라 100ms는 이상 징후다.
+- Gateway(블랙리스트·요청 제한)와 Reservation(대기열·캐시)의 모든 Redis 호출에 타임아웃 100ms를 둔다. 정상 Redis 응답은 1ms 안팎이라 100ms는 이상 징후다.
 - Redis 호출을 Resilience4j 서킷 브레이커로 감싼다(9-4 기준). OPEN 동안은 Redis에 가지 않고 아래 정책을 즉시 적용한다.
 
 | 기능 | OPEN 시 정책 | 응답 | 이유와 감수하는 위험 |
 | --- | --- | --- | --- |
 | 대기열 진입·입장 판정 | closed | 503 + `Retry-After` | 속도 통제 없이 입장시키면 선점 API가 폭주를 받는다 |
 | 좌석 조회·선점의 입장 토큰 검증 | 서명 검증은 Redis 없이 통과 | 정상 | 입장 토큰은 서명과 `exp`로 자체 검증된다 |
-| 로그아웃 블랙리스트 확인 | closed (잠정) | 503 + `Retry-After` | 2026-10-26 Junhyun An이 우선 차단을 선택했다. 팀과 논의할 항목이다. 이전 제안은 open이었다 |
+| 로그아웃 블랙리스트 확인 | closed (잠정 구현) | 503 + `Retry-After` | 2026-10-26 Junhyun An이 우선 차단으로 구현했고 팀과 논의할 항목이다([ADR 0005](../decisions/0005-auth-redis-fail-closed.md)). 이전 제안은 open이었다: 로그아웃된 Access 토큰이 최대 30분 통하지만 결제는 별도 결제 토큰이 있어 피해 범위가 제한된다 (#48 잠정) |
 | 사용자 요청 제한 | 인스턴스 로컬 카운터로 낮춰 open | 정상 | 정확도는 떨어지지만 뒷단 보호는 유지 |
 | 공연 정보·좌석 캐시 | open, DB 조회로 대체 | 정상 | DB 보호를 위해 대체 조회는 초당 상한을 둔다 |
 - 검증: E11. 지연 주입 도구는 정하지 않았다. Toxiproxy 같은 프록시나 Redis `DEBUG SLEEP`이 후보다 (U17).
 - 지표: Redis 명령 지연 p95, 서킷 상태, OPEN 횟수를 Grafana에 둔다.
 - 이전 안은 "Redis 장애 시 입장 중단"만 있었고 U7로 미해결이었다(부록 C).
+
+### 9-6. Config 서버 (#30)
+
+설정을 서비스마다 흩어 두지 않고 Config 서버 한 곳에서 프로필별로 관리한다. 측정하며 자주 바꾸는 숫자 기준(9-4)과 loadtest 프로필 전환을 한 곳에서 처리하려는 목적이다.
+
+| 항목 | 정한 내용 | 이유 |
+| --- | --- | --- |
+| 백엔드 | native(파일). 모노레포 `config-repo/`를 config-server 컨테이너에 마운트, `search-locations=file:/config-repo` | 별도 Git 저장소·인증 없이 설정 변경도 PR 리뷰와 git 이력을 그대로 탐 |
+| 파일 구성 | `application.yml`(공통: Kafka·Zipkin·Actuator·숫자 기준) · `{서비스}.yml` · `{서비스}-{프로필}.yml` | 공통 값은 한 번만, 서비스·프로필 차이만 따로 |
+| 클라이언트 연결 | `spring.config.import=configserver:http://config-server:8888`, `fail-fast` + 재시도 | 고정 주소로 연결(Eureka 경유 discovery-first는 기동 순서를 더 복잡하게 함) |
+| 로컬 개발 | config-server는 compose로 띄우고 IntelliJ 앱은 `localhost:8888`로 접속. test 프로필은 `spring.cloud.config.enabled=false` | 개발·측정·배포가 같은 설정을 읽음. 단위 테스트는 Config 서버 없이 |
+| 비밀값 | `config-repo`에 넣지 않고 자리표시자만. 실제 값은 `.env`로 각 컨테이너에 주입 | 저장소에 비밀값이 남지 않음 |
+| 갱신 | 기본은 서비스 재시작. 측정 중 자주 바꾸는 값만 `@RefreshScope` + `/actuator/refresh` | Spring Cloud Bus는 서비스 3개 규모에 과함 |
+| 기동 순서 | config-server → eureka → 서비스 (compose healthcheck + `depends_on: condition: service_healthy`) | 설정을 못 읽은 채 서비스가 뜨는 것을 막음 |
+| 노출·자원 | 포트 8888 내부 전용(`expose`), 힙 256m · 컨테이너 512m `[가정]` | 9-2, 9-3 |
+
+- 대가: 컨테이너가 하나 늘고 서비스 기동이 Config 서버에 묶인다. 기동 실패나 설정 추적 문제가 반복되면 .env + 프로필로 되돌린다.
+- 이전 안: Config 서버 없이 `.env` + 프로필(10/24 #30 잠정, 1차 AI 피드백의 "Config 서버는 발제상 선택이라 과잉" 지적 반영). 10/26 GGangMY 판단으로 두기로 바꿨다. 근거는 흩어진 설정 파일을 한 곳으로 통합하자는 의견이다.
 
 ## 10. 이벤트 명세
 
@@ -733,11 +751,11 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- | --- | --- |
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
 | `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
-| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | 🆕 Outbox (`seat_hold_request`와 한 트랜잭션) | 접수형 |
+| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_request`와 한 트랜잭션) | 접수형 |
 | `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
-- Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 🆕 접수형 선점(②).
-- 🆕 접수형 선점을 Outbox로 바꾸면 접수 → 처리 완료 시간에 outbox 폴링(500ms)이 더해진다. 이전 안이 직접 발행을 고른 이유가 이 지연을 측정에 섞지 않기 위해서였다(AI 검증 #8). 재측정에서 동기형, 직접 발행, outbox 세 경우를 같은 환경에서 비교한다.
+- Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
+- 접수형 선점을 Outbox로 바꾸면 접수 → 처리 완료 시간에 outbox 폴링(500ms)이 더해진다. 이전 안이 직접 발행을 고른 이유가 이 지연을 측정에 섞지 않기 위해서였다(AI 검증 #8). 재측정에서 동기형, 직접 발행, outbox 세 경우를 같은 환경에서 비교한다.
 - 응모(`lottery.entry`)는 아직 직접 발행이다. 접수형 선점과 같은 "실패 상태를 저장할 곳이 없다" 문제가 있으므로 추첨 시작 때 같은 방식으로 바꿀지 정한다 (U19).
 - 자동결제도 추첨 모듈이 당첨자 예매(HELD)를 먼저 만들고 그 reservationId로 요청한다. 결제는 일반 예매와 같은 키·같은 중복 결제 방지(D3)를 쓴다.
 
@@ -774,16 +792,17 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 순서는 같은 키 안에서만 보장된다. 상태 전이는 조건부 UPDATE라, 순서가 뒤바뀐 이벤트는 0행 갱신 → 기록만 하고 건너뛴다.
 - 형식 변경은 필드 추가만 허용하고, 의미가 바뀌면 `version`을 올린다.
 
-### 10-5. 재확인 경로 (🆕 제안)
+### 10-5. 재확인 경로 (#46, #28)
 
 10/26 피드백 "몇 초 안에 재확인할 것은 Kafka로, 몇 분 이상 걸릴 것은 스케줄러로"를 이렇게 반영한다.
 
 - 몇 초 단위의 일시 실패는 Kafka 소비 재시도(1·2·4초)가 맡는다.
 - 그래도 확정되지 않으면 DB 행의 상태가 남아 있으므로 재확인 스케줄러가 이어받는다. 상태의 기준은 항상 DB 행이라 둘 중 하나가 빠져도 건이 사라지지 않는다.
 - 재확인 스케줄러 하나가 `next_check_at <= now()`인 결제 `REQUESTED`(10초 경과분)·`UNKNOWN`과 환불 `REQUESTED`·`UNKNOWN`을 `SKIP LOCKED`로 집어 처리한다. 간격은 9-4.
-- PG 재조회 결과: 승인이면 `APPROVED`, 거절이면 `DECLINED`, 주문 자체를 모르면(`NOT_FOUND`) PG 호출이 일어나지 않은 것이므로 `DECLINED`(reasonCode `NOT_SENT`)로 닫는다.
+- PG 재조회 결과: 승인이면 `APPROVED`, 거절이면 `DECLINED`, 주문 자체를 모르면(`NOT_FOUND`) 같은 주문번호로 망취소를 보내 PG가 늦게 승인하는 경우를 막은 뒤 `DECLINED`(reasonCode `NOT_SENT`)로 닫는다(docs/sa-review/02).
 - `NEEDS_MANUAL_CHECK`는 종결 상태다. Grafana에 건수 지표와 알림 기준을 두고, 운영자가 PG 콘솔에서 확인해 수동으로 닫는다.
-- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_request`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15).
+- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_request`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
+- 환불이 `FAILED`(PG가 명확히 거절)면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다(#16).
 
 ## 11. API 명세
 
@@ -798,35 +817,45 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | 인증 헤더 | `Authorization: Bearer {accessToken}`. Gateway가 검증 후 `X-User-Id`·`X-User-Role`을 붙이고, 클라이언트가 보낸 같은 이름의 헤더는 지운다 |
 | 입장 토큰 | `X-Entry-Token`: 좌석 조회·선점 API에 필수 |
 | 멱등키 | `Idempotency-Key` (UUID): 선점·결제·응모·취소에 필수. 같은 키 + 같은 본문 → 저장된 응답 그대로, 같은 키 + 다른 본문 → 409 |
-| 응답 형식 | 🆕 제안 성공·실패 모두 6키 (11-2). 이전 안은 성공은 본문 그대로, 실패는 ProblemDetail(부록 C) |
+| 응답 형식 | 성공·실패 다른 형태, 둘 다 `traceId` 포함 (11-2, #19 결정). 이전 안은 성공은 본문 그대로, 실패는 ProblemDetail(부록 C) |
 | 페이지 | `?page=0&size=20` → `data`에 `{content, page, size, totalElements}` |
 | 결제 거절 | 에러가 아니라 200 + `data.status: DECLINED`. 요청은 정상 처리됐고 결과가 거절이기 때문이다 |
 
-### 11-2. 응답 형식 (🆕 제안)
+### 11-2. 응답 형식 (#19 결정)
 
-10/26 논의에서 나온 안이다. 결정 기록 #19(U4 해소 내용)를 갱신해야 한다 `(팀 확인)`.
+성공 응답과 실패 응답을 다른 형태로 감싸고, 둘 다 추적 ID(`traceId`)를 포함한다.
+
+| 구분 | 형태 | 규칙 |
+| --- | --- | --- |
+| 성공 | `{ status, message, data, traceId }` | `status` = HTTP 상태 코드(200·201·202). 업무 상태는 `data.status`. 본문 없는 성공(로그아웃, 대기 취소)도 200 + `data: null` |
+| 실패 | `{ status, code, message, errors, traceId }` | `status` = HTTP 상태 코드(4xx·5xx). `code` = 도메인 에러 코드(11-3). `errors`는 검증 실패일 때만 `[{field, reason}]` |
 
 ```json
 // 성공
-{ "status": 200, "code": "SUCCESS", "message": "성공",
-  "data": { "reservationId": 501, "status": "HELD" }, "errors": null, "traceId": "4bf92f35..." }
+{ "status": 201, "message": "선점되었습니다",
+  "data": { "reservationId": 501, "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "paymentToken": "eyJ..." },
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736" }
 
 // 실패 (업무 에러)
 { "status": 409, "code": "SEAT_ALREADY_HELD", "message": "이미 선택된 좌석입니다",
-  "data": null, "errors": null, "traceId": "4bf92f35..." }
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736" }
 
 // 실패 (검증 에러)
 { "status": 400, "code": "VALIDATION_FAILED", "message": "요청 값이 올바르지 않습니다",
-  "data": null, "errors": [ { "field": "seatIds", "reason": "1~4개여야 합니다" } ], "traceId": "4bf92f35..." }
+  "errors": [ { "field": "seatIds", "reason": "1~4개여야 합니다" } ],
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736" }
 ```
 
-- `status`는 HTTP 상태 코드와 같은 값이다. 업무 상태는 `data.status`에 둔다. HTTP 코드는 정확히 유지한다(오류 집계에 쓰기 때문).
-- 202는 `Location` 헤더 + `data.nextPollAfterSeconds`를 준다. 204는 쓰지 않고 200 + `data: null`로 통일한다.
+- 고른 이유: 상태와 예외가 많아 개발 중 실수가 나올 수밖에 없는데, 성공과 실패의 형태가 다르면 잘못 감싼 응답을 받는 쪽에서 바로 알아챌 수 있다. 추적 ID는 성공·실패 모두에 있어야 문의나 장애를 어느 응답에서든 Zipkin·로그로 따라갈 수 있다.
+- HTTP 상태 코드는 정확히 유지한다. 409는 정상 거절, 5xx·타임아웃만 오류로 집계한다(3장 오류 정의).
+- 결제 거절은 실패 응답이 아니라 성공 응답 + `data.status: DECLINED`, `data.reasonCode`다.
+- 202는 `Location` 헤더 + `data.nextPollAfterSeconds`를 준다.
 - 실패 사유 필드는 `reasonCode`로 통일한다(이전 `rejectCode`·`declineCode`).
-- 한 응답으로 다음 화면을 정할 수 있게 한다. 2차 가공이 필요하지 않게 하라는 피드백을 반영해, 선점 HELD 응답에 결제 토큰을 넣고 접수 결과 조회는 HELD면 예매 블록을 함께 준다(11-5).
-- 공통 모듈: `common-response`(DTO·ErrorCode, Gateway 포함) / `common-web`(MVC 예외 처리기). Gateway는 WebFlux 전용 처리기를 쓴다.
-- 감싸지 않는 것: Actuator·Prometheus, Mock PG 내부 API, Kafka 이벤트.
-- 아래 11-5 예시는 `data` 안의 내용만 적는다.
+- 한 응답으로 다음 화면을 정할 수 있게 한다. 선점 HELD 응답에 결제 토큰을 넣고, 접수 결과 조회는 HELD면 예매 블록을 함께 준다(11-5).
+- Gateway가 응답하는 401·403·429도 실패 형태로 만든다(WebFlux 전용 처리기). Spring 기본 `/error`(404·405), 깨진 JSON, 처리 안 된 예외까지 실패 형태로 나오는지 형식 검사 테스트로 확인한다.
+- 공통 모듈: `common-response`(응답 DTO·ErrorCode 인터페이스, Gateway도 사용) / `common-web`(MVC 예외 처리기). 업무 에러 코드는 각 서비스 enum.
+- 감싸지 않는 것: Actuator·Prometheus, Mock PG 내부 API, Kafka 이벤트(공통 봉투의 `traceId`를 씀).
+- 아래 11-5 예시는 성공 응답의 `data` 안의 내용만 적는다.
 
 ### 11-3. 에러 코드
 
@@ -835,11 +864,11 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `VALIDATION_FAILED` | 400 | 요청 형식·값 오류 |
 | `UNAUTHORIZED` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` | 401 | 토큰 없음·만료·로그아웃된 토큰 |
 | `FORBIDDEN` | 403 | 권한 없음 (USER가 운영자 API 호출 등) |
-| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, 🆕 `typ`·`aud`가 맞지 않는 토큰 (E5, E14) |
+| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, `typ`·`aud`가 맞지 않는 토큰 (E5, E14) |
 | `NOT_FOUND` | 404 | 대상 없음 |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 같은 멱등키에 다른 본문 |
 | `RATE_LIMITED` | 429 | 사용자 단위 요청 제한 |
-| `SERVICE_UNAVAILABLE` | 503 | 의존 장애 (Kafka 발행 실패, 🆕 Redis 서킷 OPEN으로 입장 중단) |
+| `SERVICE_UNAVAILABLE` | 503 | 의존 장애 (Kafka 발행 실패, Redis 서킷 OPEN으로 입장 중단) |
 | `EMAIL_DUPLICATED` | 409 | 가입 이메일 중복 |
 | `INVALID_CREDENTIALS` | 401 | 로그인 실패 |
 | `SALE_NOT_OPEN` | 409 | 오픈 전 진입·선점 (E4) |
@@ -849,7 +878,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `PURCHASE_LIMIT_EXCEEDED` | 409 | 회차당 매수 초과 (E3, D1) |
 | `RESERVATION_NOT_PAYABLE` | 409 | HELD가 아닌 예매 |
 | `RESERVATION_NOT_CANCELABLE` | 409 | 취소할 수 없는 상태·기한 |
-| `PAYMENT_TOKEN_INVALID` | 403 | 결제 토큰 서명 오류·만료, 🆕 `typ`·`aud`가 맞지 않는 토큰 (E14) |
+| `PAYMENT_TOKEN_INVALID` | 403 | 결제 토큰 서명 오류·만료, `typ`·`aud`가 맞지 않는 토큰 (E14) |
 | `PAYMENT_AMOUNT_MISMATCH` | 400 | 요청 금액 ≠ 토큰 금액 |
 | `PAYMENT_ALREADY_EXISTS` | 409 | 같은 예매에 진행 중·완료된 결제 있음 (D3) |
 | `PG_UNAVAILABLE` | 503 | Circuit Breaker OPEN·Bulkhead 초과 (E10) |
@@ -862,7 +891,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | User | POST `/api/v1/users` | — | 회원가입 | 201 | 공통 |
 | MVP | User | POST `/api/v1/auth/login` | — | 로그인 | 200 | 공통 |
 | MVP | User | POST `/api/v1/auth/refresh` | — | 토큰 재발급 | 200 | 공통 |
-| MVP | User | POST `/api/v1/auth/logout` | 인증 | 로그아웃 (블랙리스트) | 🆕 200 (`data: null`) | 공통 |
+| MVP | User | POST `/api/v1/auth/logout` | 인증 | 로그아웃 (블랙리스트) | 200 (`data: null`) | 공통 |
 | MVP | User | GET `/api/v1/users/me` | 인증 | 내 정보 | 200 | 공통 |
 | MVP | Reservation | POST `/api/v1/admin/concerts` | ADMIN | 공연 등록 | 201 | 반효승 |
 | MVP | Reservation | POST `/api/v1/admin/concerts/{concertId}/schedules` | ADMIN | 회차 등록 | 201 | 반효승 |
@@ -877,10 +906,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Reservation | GET `/api/v1/reservations/me` | 인증 | 내 예매 목록 | 200 | 반효승 |
 | MVP | Payment | POST `/api/v1/payments` | 인증 · 멱등 | 결제 승인 | 200 / 202 (UNKNOWN) | 안준현 |
 | MVP | Payment | GET `/api/v1/payments/{paymentId}` | 인증 | 결제 상태 | 200 | 안준현 |
-| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · 🆕 GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 이강민 |
+| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 이강민 |
 | MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 이강민 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
-| 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 🆕 200 (`data: null`) | 권영은 |
+| 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
 | 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정 | 201 | 이강민 |
 | 이후 | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
 | 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
@@ -957,7 +986,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 // 처리 전: status REQUESTED / 거절: status REJECTED, reasonCode SEAT_ALREADY_HELD
 ```
 
-- 🆕 제안 동기형 201과 접수 결과 HELD에 결제 토큰을 함께 준다. 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
+- 동기형 201과 접수 결과 HELD에 결제 토큰을 함께 준다. 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
 - `requestId`는 멱등키와 같은 값을 쓴다. 같은 요청 재전송이 같은 결과로 이어진다.
 
 **예매 조회**
@@ -991,7 +1020,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 ```
 
 - 결제 토큰 claim과 검증은 7-3을 따른다.
-- `GET /payments/{id}`의 `data`는 `{paymentId, reservationId, status, amount, approvedAt, refundedAt}`다. 🆕 status에 `NEEDS_MANUAL_CHECK`가 올 수 있다.
+- `GET /payments/{id}`의 `data`는 `{paymentId, reservationId, status, amount, approvedAt, refundedAt}`다. status에 `NEEDS_MANUAL_CHECK`가 올 수 있다.
 
 **Mock PG (내부, 감싸지 않음)**
 
@@ -999,8 +1028,9 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- |
 | POST `/mock-pg/payments` | `{orderId, amount}` (orderId = 우리 결제의 `pg_order_id`, 멱등) | `{pgTxId, status: APPROVED·DECLINED, declineCode}` |
 | GET `/mock-pg/payments/{orderId}` | — | 승인 응답과 같음, 없으면 404 |
-| POST `/mock-pg/refunds` | `{pgTxId, amount}`, 🆕 `refundId`(= 우리 환불의 `pg_refund_id`, 멱등) `(팀 확인)` | `{pgTxId, status: REFUNDED}` |
-| 🆕 GET `/mock-pg/refunds/{refundId}` | — | 환불 응답과 같음, 없으면 404 `(팀 확인)` |
+| POST `/mock-pg/refunds` | `{pgTxId, amount, refundId}` (`refundId` = 우리 환불의 `pg_refund_id`, 멱등) | `{pgTxId, status: REFUNDED}` |
+| GET `/mock-pg/refunds/{refundId}` | — | 환불 응답과 같음, 없으면 404 |
+| POST `/mock-pg/payments/{orderId}/cancel` | — | 망취소: 이후 같은 주문의 승인을 거부 `(팀 확인: 경로)` |
 | POST `/mock-pg/faults` | `{mode: NONE·DELAY·DECLINE·DROP_RESPONSE, delayMs, rate}` | 현재 설정 |
 - `DROP_RESPONSE`는 승인은 저장하고 응답만 버린다. UNKNOWN → 조회로 APPROVED를 확인하는 E9를 재현한다.
 
@@ -1017,7 +1047,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 공통 클래스 | 컬럼 | 적용 테이블 |
 | --- | --- | --- |
-| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venue, venue_seat, concert, schedule, schedule_seat, user_schedule_quota, reservation, reservation_seat, 🆕 seat_hold_request, ticket, lottery, lottery_entry, payment, 🆕 refund, billing_key |
+| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venue, venue_seat, concert, schedule, schedule_seat, user_schedule_quota, reservation, reservation_seat, seat_hold_request, ticket, lottery, lottery_entry, payment, refund, billing_key |
 | 없음 | created_at만 | 기록용 테이블: `*_status_history`, outbox, processed_event, idempotency_record |
 - 사람 컬럼은 `BIGINT` 사용자 ID다. 요청이면 `X-User-Id`로 채우고(JPA Auditing), Kafka 소비자·스케줄러가 바꾸면 NULL = 시스템이다. 왜 바뀌었는지는 상태 이력의 `reason`에 남긴다.
 - soft delete는 운영자가 내리는 데이터(공연장·공연·회차)에만 쓴다. 조회는 기본 필터(`deleted_at IS NULL`)를 걸고, 유니크가 필요하면 `WHERE deleted_at IS NULL` 부분 유니크로 둔다.
@@ -1110,14 +1140,14 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | request_id | UUID | NOT NULL, UNIQUE | 멱등키 = 접수 ID |
 | user_id | BIGINT | NOT NULL | User 서비스 ID |
 | schedule_id | BIGINT | NOT NULL, FK |  |
-| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | 🆕 REJECTED는 `seat_hold_request`로 옮김 `(팀 확인)` |
+| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | REJECTED는 `seat_hold_request`로 옮김 (#13) |
 | quantity | SMALLINT | NOT NULL |  |
 | total_amount | NUMERIC(15,0) | NOT NULL | 서버가 좌석 가격으로 계산 |
 | hold_expires_at | TIMESTAMPTZ |  | HELD일 때 |
 | payment_id | BIGINT |  | 승인된 결제 (환불 요청에 사용) |
 | source | VARCHAR(10) | NOT NULL, DEFAULT 'GENERAL', CHECK (GENERAL·LOTTERY) | 일반·추첨 |
 |  |  | INDEX(status, hold_expires_at), INDEX(user_id, created_at) | 만료 스케줄러, 내 예매 |
-- 🆕 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블을 채택하면 필요 없다. 거절은 예매 행을 만들지 않고 `seat_hold_request`에 기록한다 (U15).
+- 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블로 옮겨 제거했다. 거절은 예매 행을 만들지 않고 `seat_hold_request`에 기록한다 (U15).
 
 **reservation_seat**
 
@@ -1130,7 +1160,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | status | VARCHAR(10) | NOT NULL, CHECK (HELD·CONFIRMED·RELEASED) |  |
 |  |  | UNIQUE(schedule_seat_id) WHERE status IN ('HELD','CONFIRMED') | 판매 여부의 기준 (D2) |
 
-**seat_hold_request** (🆕 제안, 접수형 선점의 접수 요청)
+**seat_hold_request** (선점 접수 요청, 동기형·접수형 공통, #33)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1140,11 +1170,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | seat_ids | BIGINT[] | NOT NULL |  |
 | status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·HELD·REJECTED) |  |
 | reservation_id | BIGINT | FK | HELD일 때 |
-| reason_code | VARCHAR(40) |  | REJECTED일 때 (예: SEAT_ALREADY_HELD, PROCESSING_FAILED) |
-|  |  | INDEX(status, created_at) | REQUESTED 장기 체류 모니터링 |
+| reason_code | VARCHAR(40) |  | REJECTED일 때 (예: SEAT_ALREADY_HELD, PROCESSING_FAILED, TIMEOUT) |
+|  |  | INDEX(status, created_at) | 30초 넘은 REQUESTED 정리 |
 - API 한 트랜잭션: `seat_hold_request(REQUESTED)` INSERT + `outbox(SeatHoldRequested)` INSERT. 이 경로에서는 좌석 행을 잠그지 않는다.
 - 소비자 한 트랜잭션: 선점 시도(quota → 좌석 → 예매) 후 `seat_hold_request`를 HELD 또는 REJECTED로 갱신하고 `processed_event`를 기록한다.
-- 대가: API 경로에 INSERT 2건이 생긴다. 처리량 영향은 측정 전이다(10-1).
+- 동기형도 같은 행을 남긴다. 조회·멱등 경로가 하나가 되고, 선점 API의 멱등은 이 행의 PK가 맡는다(#17).
+- REQUESTED가 30초 `[가정]` 넘으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫는다. 소비자는 `WHERE status='REQUESTED'` 조건부로 갱신하므로 닫힌 뒤 늦게 온 메시지는 좌석을 잡지 않는다.
+- 대가: API 경로에 INSERT 2건(접수형), 1건(동기형)이 생긴다. 처리량 영향은 측정 전이다(10-1).
 
 **reservation_status_history**
 
@@ -1207,20 +1239,20 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | user_id | BIGINT | NOT NULL |  |
 | amount | NUMERIC(15,0) | NOT NULL | 토큰 금액과 검증한 값 |
 | method | VARCHAR(10) | NOT NULL, CHECK (CARD·BILLING) |  |
-| status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·APPROVED·DECLINED·UNKNOWN·REFUNDED·🆕 NEEDS_MANUAL_CHECK) |  |
+| status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·APPROVED·DECLINED·UNKNOWN·REFUNDED·NEEDS_MANUAL_CHECK) |  |
 | pg_order_id | UUID | NOT NULL, UNIQUE | PG에 보내는 주문 ID (PG 멱등·조회 키). PG 호출 전에 저장 |
 | pg_tx_id | VARCHAR(64) |  | PG 거래 ID |
-| decline_code | VARCHAR(30) |  | 응답에서는 `reasonCode`로 내보냄. 🆕 미전송은 `NOT_SENT` |
-| unknown_retry_count | SMALLINT | NOT NULL, DEFAULT 0 | 재조회 횟수 (🆕 REQUESTED 경과분 포함) |
-| 🆕 next_check_at | TIMESTAMPTZ |  | 다음 재조회 시각 |
+| decline_code | VARCHAR(30) |  | 응답에서는 `reasonCode`로 내보냄. 미전송(망취소 후)은 `NOT_SENT` |
+| unknown_retry_count | SMALLINT | NOT NULL, DEFAULT 0 | 재조회 횟수 (REQUESTED 경과분 포함) |
+| next_check_at | TIMESTAMPTZ |  | 다음 재조회 시각 |
 | approved_at · refunded_at | TIMESTAMPTZ |  |  |
 |  |  | UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED') | 같은 예매 중복 결제 방지 (D3) |
-|  |  | 🆕 INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 (이전: INDEX(status, updated_at)) |
-- `NEEDS_MANUAL_CHECK`를 D3 부분 유니크에 넣을지는 `(팀 확인)`이다. 넣지 않으면 확인 대기 중에 같은 예매로 새 결제가 가능해진다.
+|  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 (이전: INDEX(status, updated_at)) |
+- `NEEDS_MANUAL_CHECK`도 D3 부분 유니크에 넣는다. 결과가 확정되지 않은 결제라, 확인 전에 같은 예매로 새 결제가 시작되면 이중 결제가 될 수 있다(#58).
 
 **payment_status_history**: id, payment_id(FK), from_status, to_status, reason
 
-**refund** (🆕 제안)
+**refund** (#16)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1236,6 +1268,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 멱등: `RefundRequested`를 소비할 때 `INSERT ... ON CONFLICT (payment_id) DO NOTHING`. 만료 뒤 승인(E8)과 사용자 취소가 같은 결제에 동시에 환불을 요청해도 한 건만 생긴다(E13).
 - 환불은 결제가 APPROVED로 확정된 뒤에만 시작한다. 결제가 UNKNOWN인 동안 만료되면 나중에 PaymentApproved가 오고 Reservation이 RefundRequested를 내므로 순서가 지켜진다.
 - 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_history`에 reason과 함께 남긴다 `(팀 확인)`.
+- 환불 `FAILED`(PG가 명확히 거절)는 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다.
 
 **billing_key** (이후)
 
@@ -1282,7 +1315,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | response_body | JSONB |  |  |
 | expires_at | TIMESTAMPTZ | NOT NULL | 24시간 |
 - 결제는 멱등 기록과 결제 저장을 같은 트랜잭션으로 처리한다(결정 기록 #17).
-- 🆕 접수형 선점의 멱등은 `seat_hold_request` PK가 맡는다.
+- 선점의 멱등은 동기형·접수형 모두 `seat_hold_request` PK가 맡는다. 결제·응모·취소는 `idempotency_record`.
 
 ### 12-6. ERD
 
@@ -1390,7 +1423,7 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 ```
 
 - 같은 사용자의 동시 요청이 INSERT에서 부딪혀도 한쪽은 대기 후 `DO NOTHING`이 되고, 이어지는 UPDATE의 행 락이 직렬화한다.
-- 대사 쿼리 (D2): `schedule_seat.status`와 활성 `reservation_seat`가 어긋난 좌석을 찾아 `reservation_seat` 기준으로 고친다. 🆕 `held_count`와 활성 `reservation_seat` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
+- 대사 쿼리 (D2): `schedule_seat.status`와 활성 `reservation_seat`가 어긋난 좌석을 찾아 `reservation_seat` 기준으로 고친다. `held_count`와 활성 `reservation_seat` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
 
 ### 12-8. Redis 키
 
@@ -1404,7 +1437,7 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 | `ratelimit:{userId}` | 문자열 (카운터) | 1초 | 사용자 단위 요청 제한 | 공통 |
 | `cache:concert:{id}` | 문자열 (JSON) | 5분 | 공연 정보 캐시 (H2) | 반효승 |
 - 대기열 진입은 Lua 스크립트 하나로 처리한다. 이미 줄에 있으면 기존 순번을 반환하고, 없으면 seq를 INCR해 그 값을 점수로 ZADD한다. 연타로 순번을 두 번 받지 않고, 정렬 기준이 Redis 도착 순서 하나라 서버 시계와 무관하다(결정 기록 #27, 10/26 변경).
-- 입장 판정: 🆕 제안 `seq <= admitted`로 확정한다. 이탈한 사람이 줄에서 빠지면 ZRANK는 앞당겨지지만 `admitted`는 입장시킨 번호까지만 올라가므로 ZRANK와 비교하면 어긋난다(10/26 피드백: "현 구조라면 seq 기준이 맞다").
+- 입장 판정: `seq <= admitted`로 확정했다(#27). 이탈한 사람이 줄에서 빠지면 ZRANK는 앞당겨지지만 `admitted`는 입장시킨 번호까지만 올라가므로 ZRANK와 비교하면 어긋난다(10/26 피드백: "현 구조라면 seq 기준이 맞다").
 - 표시용 순번은 `max(0, seq - admitted)`로 O(1) 계산한다.
 - 알려진 비용: 이탈자의 번호도 `admitted`가 지나가므로 그 슬롯만큼 실제 입장 속도가 N보다 낮아진다. 이탈이 많으면 N을 높여 보정한다.
 - Redis 장애·느려짐 정책은 9-5다.
@@ -1422,7 +1455,7 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 | reservation_status_history | 36,000~120,000 | reservation × 평균 3회 전이 |
 | ticket | 30,000 이하 | 확정 좌석 수 |
 | user_schedule_quota | 입장자 수 × 회차 | 입장자 50,000명이면 100,000행 |
-| seat_hold_request (🆕) | 접수형 요청 수 | 선점 시도 수와 같음 |
+| seat_hold_request | 선점 요청 수 | 선점 시도 수와 같음 |
 | payment / history | 15,000 / 45,000 | 확정 + 거절·UNKNOWN 소수, 이력 평균 3건 |
 | outbox, processed_event, idempotency_record | 수만 건 | 7일(멱등 24시간) 후 정리하므로 보관 기간치 이벤트 수 |
 - 이 규모의 용량은 1GB를 넘지 않을 것으로 보인다(행 크기는 미측정). 적재량 추정의 용도는 용량보다 보관·정리 정책과 인덱스 크기 확인이다. 병목은 용량이 아니라 같은 좌석 행에 몰리는 쓰기 동시성이다.
@@ -1430,15 +1463,16 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 
 ## 13. 패키지 구조 (4계층)
 
-결정 기록 #22 계층 구조: 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈).
+결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈).
 
 ```
 iseonjwa/
 ├─ common/              이벤트 봉투·이벤트 클래스, BaseEntity·AuditorAware (서비스 코드에 의존 금지)
-├─ common-response/     🆕 응답 6키 DTO·ErrorCode (Gateway 포함 전 서비스)
-├─ common-web/          🆕 MVC 예외 처리기 (Gateway 제외)
+├─ common-response/     성공·실패 응답 DTO·ErrorCode (Gateway 포함 전 서비스)
+├─ common-web/          MVC 예외 처리기 (Gateway 제외)
 ├─ common-messaging/    Outbox 릴레이, processed_event, 재시도·DLQ 설정 (결제 담당)
 ├─ gateway/  eureka/  config-server/  mock-pg/
+├─ config-repo/         Config 서버가 읽는 설정 파일 (application.yml, {서비스}-{프로필}.yml)
 ├─ user-service/
 ├─ payment-service/
 └─ reservation-service/
@@ -1472,12 +1506,7 @@ iseonjwa/
 
 ## 14. AI 활용 설계 검증 로그
 
-<aside>
-✅
-
-제출 기준: 검증 항목 3개 이상, 그중 1개 이상은 AI 피드백을 거부하고 근거를 쓴다. 계층형 아키텍처(4계층) 검증은 모든 팀 필수, DDD는 선택. 프롬프트와 AI 답변 원문은 아래 토글과 「1차 AI SA 피드백」 페이지에 보관해 발표용 대표 사례(2건 이상)로 쓴다. 잠정 결정 38건은 팀이 시간 안에 판단하기 어려운 항목을 Claude 추천안으로 우선 채택한 것이며, 팀 검토를 거치면 결정으로 바꾼다.
-
-</aside>
+> 제출 기준: 검증 항목 3개 이상, 그중 1개 이상은 AI 피드백을 거부하고 근거를 쓴다. 계층형 아키텍처(4계층) 검증은 모든 팀 필수, DDD는 선택. 프롬프트와 AI 답변 원문은 아래 토글과 「1차 AI SA 피드백」 페이지에 보관해 발표용 대표 사례(2건 이상)로 쓴다. 잠정 결정(10/26 기준 37건)은 팀이 시간 안에 판단하기 어려운 항목을 Claude 추천안으로 우선 채택한 것이며, 팀 검토를 거치면 결정으로 바꾼다.
 
 직접 설계 → AI 검증 요청 → 수용·거부와 근거 기록 순서로 진행한다. 1차 AI SA 피드백(10/23, codex + Claude 교차 검토 후 종합)을 검증 1회차로 기록하고, 결정 기록에서 피드백과 다르게 정한 곳은 거부로 남긴다.
 
@@ -1489,10 +1518,12 @@ iseonjwa/
 | 4 | 응모 처리 | 응모 Kafka 접수·자동결제 파티셔닝은 과하다, 1인 1응모는 유니크 제약으로 충분 | 유니크 제약 **수용** / 응모 동기 처리 **거부** | 응모는 결과가 바로 필요 없고 마감 직전에 몰림. 접수만 받고 나중에 처리하는 편이 안정적이고, 같은 패턴을 결제 결과와 공유함 |
 | 5 | Kafka 파티션 키 | 파티션 순서를 정합성 수단으로 쓰지 말고 키는 userId/reservationId로 | 원칙 **수용** / 키 선택 **부분 거부** | 정합성은 DB 조건부 UPDATE가 지킴(수용). 다만 접수형 선점 키는 회차 + 구역: 같은 구역 요청을 한 줄로 처리해 락 경합을 줄이려는 목적이고, 인기 회차 하나가 파티션 하나에 몰리지 않게 구역까지 포함 |
 | 6 | Outbox·DLQ 범위 | Outbox·DLQ 전부를 필수로 볼 필요는 없다, 최소 경로부터 | **부분 거부** | 결제 결과가 사라지면 돈과 예매가 어긋나 고객 피해가 가장 큼. 수신 실패를 보관(DLQ)하지 않으면 원인 추적도 못 함 → 공통 모듈로 한 번 만들어 모든 토픽에 적용 |
-| 7 | [필수] 계층형 아키텍처 | (2차 설계 후 실행 예정) 도메인 응집, 의존 역전, DTO-엔티티 분리, Fat Service, Kafka·Redis 인프라 격리 | 예정 | 13장 패키지 구조로 아래 토글의 #7 프롬프트 실행 |
-| 8 | 2차 설계 자체 검수 (10/25) | 동시 요청으로 매수 제한 우회(D1), 좌석 상태 기준 두 곳(D2), 다른 멱등키로 중복 결제(D3), 접수형 저장·발행 비원자(D4) | **수용** | 네 건 모두 중복 판매·이중 결제·유실로 이어지는 정합성 문제라 구현 전에 막음. D4는 당시 Outbox 대신 "행 없이 바로 발행"을 골라 측정에 폴링 지연이 섞이지 않게 했으나, 10/26 피드백으로 접수 요청 행 + outbox 🆕 제안이 나옴(10-1) |
-- 거부 사례 3건(#1 Queue, #3, #4) · 부분 거부 2건(#5, #6) · 수용 3건 · 예정 1건
-- 발표용 대표 사례 후보: #1(교차 검토 → 원문 대조 → 종합 과정), #3(권고를 근거를 갖고 거부)
+| 7 | [필수] 계층형 아키텍처 | (실행 예정) 도메인 응집, 의존 역전, DTO-엔티티 분리, Fat Service, Kafka·Redis 인프라 격리 | 예정 | 4계층은 10/26 확정(#22). M1 공통 모듈의 패키지 예시가 나오면 아래 토글의 #7 프롬프트 실행 |
+| 8 | 2차 설계 자체 검수 (10/25) | 동시 요청으로 매수 제한 우회(D1), 좌석 상태 기준 두 곳(D2), 다른 멱등키로 중복 결제(D3), 접수형 저장·발행 비원자(D4) | **수용** | 네 건 모두 중복 판매·이중 결제·유실로 이어지는 정합성 문제라 구현 전에 막음. D4는 당시 Outbox 대신 "행 없이 바로 발행"을 골라 측정에 폴링 지연이 섞이지 않게 했으나, 10/26 피드백으로 접수 요청 행 + outbox로 바꿈(#33, 10-1) |
+| 9 | API 응답 형식 (10/26) | 기존 형식 유지(성공 본문 그대로 + ProblemDetail) 추천 → 균일 형식 요청에 성공·실패 공통 6키 제안. 두 형태 래퍼 검토 시 실패 응답에 traceId·Gateway 처리기·HTTP 코드 유지 지적 | 유지·6키 **거부** / 검토 지적 **수용** | 한 형식이면 개발자가 실수로 잘못 감싼 응답을 받는 쪽이 판단하기 어려움 → 성공·실패 다른 형태 + 둘 다 traceId (#19) |
+| 10 | 대기열 순번 (10/26) | 팀원이 지적한 진입 시각 동점 문제를 검증: 동점은 멤버 사전순, 인스턴스 시계 차이 → seq 카운터 + Lua 추천 | **수용** | 같은 ms 요청이 정상인 오픈 정각에 순번 공정성을 지키려면 Redis 도착 순서 하나를 기준으로 (#27) |
+- 거부 사례 4건(#1 Queue, #3, #4, #9) · 부분 거부 2건(#5, #6) · 수용 4건 · 예정 1건
+- 발표용 대표 사례 후보: #1(교차 검토 → 원문 대조 → 종합 과정), #3(권고를 근거를 갖고 거부), #9(AI 제안 두 번을 받지 않고 검토 지적만 수용). 개인 판단 기록 원문은 저장소 `docs/ai-judgments/`
 - 이전 #0(작성 요청)은 검증이 아니라 작성 요청이어서 제외하고, 1차 AI SA 피드백을 검증 1회차로 재구성했다.
 - 10/26 멘토 피드백은 AI 검증이 아니라 사람 피드백이라 이 표에 넣지 않고 부록 B에 둔다.
 - 검증 프롬프트 원문 (복사해서 사용하고, 실행 후 AI 답변 원문을 아래에 붙여 둔다)
@@ -1543,48 +1574,50 @@ iseonjwa/
 
 ## 15. 설계 결정 기록
 
-2026-10-26 Junhyun An의 구현 지시: Config Server를 추가하고 동일 저장소의 native 설정 폴더를 사용한다. 기존의 Config Server 제외 결정을 변경하며, Spring Boot 전체 워크스페이스·공통 인프라·M1 인증까지 구현 범위를 확장한다. Redis 블랙리스트 조회 실패는 우선 503으로 차단하되 팀 논의가 필요한 잠정 정책이다. 팀 전체 합의로 표기하지 않으며 아래 기존 50건 집계와 별도로 로컬 ADR·AI 판단 기록에 남긴다.
-
-총 50건 · 결정 14 · 잠정 결정 34 · 보류 2 (10/26 기준). 원본은 팀 워크스페이스 「SA 기획·설계 결정 기록」 DB다. 🆕 제안이 합의되면, 추천과 같으면 해당 항목의 상태를 바꾸고 내용이 다르면 기존 항목을 대체됨으로 두고 새 항목을 만든다.
+총 54건 · 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준, ID는 자동 증가라 #51~#55는 비어 있음). 원본은 팀 워크스페이스 「SA 기획·설계 결정 기록」 DB다. 결정이 바뀌면 기존 항목 본문을 고치고 끝에 수정 내역(바뀐 점·이전 결정)을 남긴다. 새 주제만 새 항목으로 만든다.
 
 | 분류 | 결정 | 잠정 결정 · 보류 |
 | --- | --- | --- |
-| 기획·범위 | #1 도메인 선정 · #4 운영자·판매자 역할 · #36 추첨 배분 도입 · #7 프론트 범위·기술 · #9 역할 분담 | #6 MoSCoW · #8 알림 범위 · #9 역할 분담 · 보류 #11 팬클럽 선예매 |
-| 원칙 | #2 결합도 원칙 · #3 동기·비동기 판단 원칙 · #22 계층 구조 | #14 모듈 경계·분리 조건 · #22 계층 구조 |
-| 구조·인프라 | #26 저장소 구성 · #10 서비스 구성 | #10 서비스 구성 · #30 기술 스택 · #34 DB 분리 · #38 로컬 실행·배포 · #40 관측 구성 · #42 메시지 브로커 · #44 Kafka 적용 범위 · #48 인프라 장애 시 동작 |
-| 대기열 | #25 대기열 도입 · #27 대기열 설계 (10/26 순번 카운터) | #27 대기열 설계 (10/26 순번 카운터로 변경) · #37 판매 오픈 판정 · 보류 #49 보안문자 |
-| 좌석·예매 | #29 좌석 선택 방식 · #31 좌석 점유 시점 | #33 좌석 선점·중복 판매 방지 · #35 예매 제한 값 · #50 좌석·예매 데이터 모델 · #13 상태 머신 · #16 취소·환불 정책 · #5 기준 저장소 |
+| 기획·범위 | #1 도메인 선정 · #4 운영자·판매자 역할 · #7 프론트 범위·기술 · #9 역할 분담 · #36 추첨 배분 도입 | #6 MoSCoW · #8 알림 범위 · 보류 #11 팬클럽 선예매 |
+| 원칙·구조 | #2 결합도 원칙 · #3 동기·비동기 판단 원칙 · #10 서비스 구성 · #22 계층 구조 · #26 저장소 구성 | #14 모듈 경계·분리 조건 · #30 기술 스택 · #34 DB 분리 · #38 로컬 실행·배포 · #40 관측 구성 · #42 메시지 브로커 · #44 Kafka 적용 범위 · #48 인프라 장애 시 동작 · #57 외부 노출과 관리자 접근 |
+| 대기열 | #25 대기열 도입 · #27 대기열 설계 | #37 판매 오픈 판정 · 보류 #49 보안문자 |
+| 좌석·예매 | #29 좌석 선택 방식 · #31 좌석 점유 시점 | #5 기준 저장소 · #13 상태 머신 · #16 취소·환불 정책 · #33 좌석 선점·중복 판매 방지 · #35 예매 제한 값 · #50 좌석·예매 데이터 모델 · #58 부분 유니크 인덱스 · #59 레이스 컨디션 해결 방식 |
 | 결제 | — | #12 결제 승인 방식 · #20 결제 금액 처리 · #24 SAGA 방식 · #28 PG 장애 처리 · #32 PG 구성 · #43 자동결제 방식 · #46 이벤트 신뢰성 |
 | 추첨 | — | #18 추첨 모듈 위치 · #39 추첨 규칙 |
-| 공통 규칙 | — | #15 데이터 공통 규칙 · #17 멱등키 · #19 API 공통 규칙 · #21 인증 토큰 · #23 회원·관리자 계정 · #41 숫자 근거 · #45 숫자 기준 초기값 · #47 부하 테스트 설계 |
+| 공통 규칙 | #19 API 공통 규칙 | #15 데이터 공통 규칙 · #17 멱등키 · #21 인증 토큰 · #23 회원·관리자 계정 · #41 숫자 근거 · #45 숫자 기준 초기값 · #47 부하 테스트 설계 · #56 입장·결제 토큰 규칙 |
 
-**🆕 제안이 합의되면 갱신할 결정 기록**
+**10/26에 바뀐 결정 기록**
 
-| 제안 | 처리 | 대상 |
+| 결정 기록 | 바뀐 점 | 이 문서 위치 |
 | --- | --- | --- |
-| 응답 형식, 선점 방식 명칭 (11-2, 4-1) | 대체 | #19 API 공통 규칙 |
-| 접수 요청 테이블 + outbox, 선점 응답에 결제 토큰 (12-3, 11-5) | 대체 | #33 좌석 선점, #46 이벤트 신뢰성 |
-| Redis 정책, Kafka 장애 중 접수 유지 (9-5) | 대체 | #48 인프라 장애 시 동작 |
-| 상태 목록 변경, 중간 상태 정리 규칙 (8-2) | 대체 | #13 상태 머신 |
-| 환불 테이블·재확인 스케줄러 (12-4, 10-5) | 대체 / 본문 수정 | #16 취소·환불 정책 / #28 PG 장애 처리 |
-| 결제 토큰 만료 −10초 (7-3) | 대체 | #35 예매 제한 값 |
-| 토큰 키 분리·`typ`·`aud` (7-3) | 새 항목 | 입장·결제 토큰 규칙 (#21은 Access·Refresh 결정이라 그대로) |
-| 보안그룹·SSH 터널·메모리 예산 (9-2, 9-3) | 새 항목 | 외부 노출과 관리자 접근 |
-| 입장 판정 seq (12-8) | 본문 수정 | #27 대기열 설계 |
-| 입장 속도 역산, 숫자 갱신 (3-3, 9-4) | 본문 수정 | #45 숫자 기준 |
-| 측정 방식 (3-1) | 본문 수정 | #47 부하 테스트 설계 |
-| ADR 후보 2건 | 새 항목 | 부분 유니크 인덱스, 레이스 컨디션 해결 방식 |
+| #30 기술 스택 | 잠정 유지, 내용 변경: Java 25 → 21(Junhyun An 결정, 이유 미기재, 팀 전체 합의로 표기하지 않음). Boot 4.1.x·Spring Cloud 2025.1.x·Gradle 9.x 유지, 가상 스레드 기본 끔. Config 서버를 둠(GGangMY 판단, 설정 파일 통합) | 9-1, 9-6 |
+| #9 역할 분담 · #10 서비스 구성 · #22 계층 구조 | 잠정 → 결정. #9는 공통 부문을 Linear로 가시화, #10은 모듈별 분리 근거 추가 | 6장, 7-1, 13장 |
+| #19 API 공통 규칙 | 결정: 성공·실패 다른 형태 + traceId, 본문 없는 성공 200 + data null, `reasonCode`, 동기형/접수형 명칭 | 11-1, 11-2 |
+| #27 대기열 설계 | 결정: seq 카운터, 입장 판정 `seq <= admitted` | 12-8 |
+| #13 상태 머신 | 접수 요청·환불·NEEDS_MANUAL_CHECK 상태, 중간 상태 정리표 | 8-2, 8-3 |
+| #14 모듈 경계·분리 조건 | 모듈러 모놀리스, 모듈별 분리 근거(lottery 포함) | 7-1 |
+| #15 데이터 공통 규칙 | 법정 보관(전자상거래 5년) 근거, 고객용 번호의 열거형 공격 방어 | 12-1 |
+| #16 취소·환불 정책 | refund 테이블·상태 5개·멱등, FAILED → 수동 확인 | 12-4 |
+| #17 멱등키 | 선점 멱등은 접수 요청 행 PK | 12-3, 12-5 |
+| #28 PG 장애 처리 | 10초 넘은 REQUESTED 재조회, 단계별 간격, NOT_FOUND 망취소 | 10-5, 12-4 |
+| #33 좌석 선점 | 접수 요청 행 + outbox, 동기형도 요청 행, 30초 시한, 선점 응답에 결제 토큰 | 8-1, 12-3, 12-7 |
+| #35 예매 제한 값 | 결제 토큰 만료 = 선점 만료 − 10초 | 7-3, 8-4 |
+| #40 관측 구성 | Redis·서킷·수동 확인·DLQ 지표 | 3장 |
+| #45 숫자 기준 | 결제 토큰·접수 시한·재확인 간격·Redis 수치, 입장 속도 역산 | 3-3, 9-4 |
+| #46 이벤트 신뢰성 | 접수형도 outbox, 재확인 경로 | 10-1, 10-5 |
+| #47 부하 테스트 설계 | 포화점 + 같은 환경 비교, 측정 환경 기록표 | 3-1 |
+| #48 인프라 장애 시 동작 | Redis 타임아웃·서킷(Gateway·Reservation), 기능별 open/closed, Kafka 장애 중 접수 유지 | 9-5 |
+| #56~#59 (새 항목) | 입장·결제 토큰 규칙 / 외부 노출과 관리자 접근(10/26 Config 서버 포트·메모리 반영) / 부분 유니크 인덱스 / 레이스 컨디션 해결 방식 | 7-3 / 9-2·9-3 / 12-3·12-4 / 아래 표 |
 
-**ADR 후보 2건 (🆕 제안)**
-
-- **부분 유니크 인덱스**: `reservation_seat`(D2)와 `payment`(D3)의 정의는 12-3·12-4에 있다. 목적, 대상 상태와 그렇게 정한 이유(DECLINED·RELEASED는 제외해야 재시도·재선택이 가능), 인덱스를 우회하는 경로가 없는지, 위반 시 서비스의 처리(409 변환), 동시 요청 테스트 방법을 기록한다.
-- **레이스 컨디션 해결 방식**: 조건부 UPDATE + 부분 유니크(DB가 기준)를 유지한다. 분산락은 DB 제약이 어차피 필요해 이중이 되고, 락 만료와 Redis 지연이 선점 경로를 막는다. Redis Lua 선점은 Redis 유실 시 판정이 틀려 DB 2차 방어가 필수이므로 접수형 설계와 함께 따로 다룬다. 검증은 E1을 같은 좌석 동시 100요청으로 실행해 1건 성공, 나머지 409, 중복 판매 0건을 기록한다.
+**레이스 컨디션 해결 방식 (#59)**: 조건부 UPDATE + 부분 유니크(DB가 기준)를 쓰고 분산락은 쓰지 않는다. 분산락은 DB 제약이 어차피 필요해 이중이 되고, 락 만료와 Redis 지연이 선점 경로를 막는다. 검증은 E1을 같은 좌석 동시 100요청으로 실행해 1건 성공, 나머지 409, 중복 판매 0건을 기록한다.
 
 | 방식 | 장점 | 단점 |
 | --- | --- | --- |
-| 조건부 UPDATE + 부분 유니크 | 별도 인프라 없음, DB가 최종 방어, 락 만료 문제 없음 | 경합이 심하면 행 락 대기가 DB에 쌓임 |
+| 조건부 UPDATE + 부분 유니크 | 별도 인프라 없음, DB가 최종 방어, 락 만료 문제 없음 | 경합이 심하면 행 락 대기가 DB에 쌓임 (`lock_timeout` 500ms로 상한) |
 | 분산락(Redis 등) | DB 접근 전에 경합을 거를 수 있음 | 락 획득·해제 왕복, 락 만료와 장애 시 정합성 위험, 결국 DB 제약이 필요 |
-| Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 |
+| Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
+
+**부분 유니크 인덱스 (#58)**: `reservation_seat`(D2: HELD·CONFIRMED)와 `payment`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 
@@ -1597,59 +1630,54 @@ iseonjwa/
 5. **판매자 역할 제외**: 판매 대행사 모델이라 운영자가 공연을 등록한다는 점과, 그만큼 아낀 시간을 어디에 쓰는지 설명할 수 있는가
 6. **Mock PG**: 실제 PG로는 타임아웃·응답 유실을 원할 때 재현할 수 없어서 Mock PG로 장애를 주입한다는 점을 설명할 수 있는가
 7. **매수 제한**: 좌석 중복은 좌석 제약이 막지만, 한 사람이 동시에 여러 요청을 보내 매수 제한을 넘는 경우는 사용자·회차별 보유 수 행의 조건부 UPDATE(D1, 12-7)가 막는다는 점
-8. 🆕 **분산락을 쓰지 않은 이유**: 15장 비교표
-9. 🆕 **입장 속도 근거**: N × T는 동시 입장 상한이고, 실제 입장 속도는 선점 포화점에서 리틀의 법칙으로 역산한다는 점(3-3)
-10. 🆕 **토큰 키 분리**: 키를 공유하면 한 토큰으로 다른 검증을 통과할 수 있고, HMAC은 검증자도 서명할 수 있다는 한계와 대안(7-3)
-11. 🆕 **단일 EC2 한계**: 인스턴스 장애 시 전체가 멈춘다는 점을 알고 범위상 컨테이너 분리까지만 했다는 점(9-3)
+8. **분산락을 쓰지 않은 이유**: 15장 비교표
+9. **입장 속도 근거**: N × T는 동시 입장 상한이고, 실제 입장 속도는 선점 포화점에서 리틀의 법칙으로 역산한다는 점(3-3)
+10. **토큰 키 분리**: 키를 공유하면 한 토큰으로 다른 검증을 통과할 수 있고, HMAC은 검증자도 서명할 수 있다는 한계와 대안(7-3)
+11. **단일 EC2 한계**: 인스턴스 장애 시 전체가 멈춘다는 점을 알고 범위상 컨테이너 분리까지만 했다는 점(9-3)
 
 ## 17. 미해결과 10/27 안건
 
 ### 17-1. 10/27 합의 안건
 
+10/26에 결정 기록으로 대부분 정리됐다. 10/27에는 M1 착수에 필요한 계약만 맞춘다.
+
 | 순서 | 안건 | 위치 | 제안 담당 |
 | --- | --- | --- | --- |
-| 1 | 입장 판정 기준 `seq <= admitted` 확정 | 12-8 | 권영은 |
-| 2 | 결제 토큰 만료 규칙(선점 − 10초)과 토큰 키 분리·`typ`·`aud`, claim 이름 | 7-3 | 반효승·권영은·안준현 |
-| 3 | 선점 방식 명칭(동기형/접수형)과 응답 형식 6키 | 4-1, 11-2 | 다 같이 |
-| 4 | 접수형 상태 저장: 접수 요청 테이블 + outbox 채택 여부 | 12-3, 10-1 | 최권우 |
-| 5 | 환불 상태 모델(별도 `refund` 테이블)과 재확인 스케줄러 | 12-4, 10-5 | 안준현 |
-| 6 | Redis 기능별 fail-open/closed 초안, 블랙리스트 정책 | 9-5 | 다 같이 |
-| 7 | 계약 합의 방식: 형식 소유 담당자가 정해 통보, 통보 마감 | 6-9 | 다 같이 |
-| 8 | 보안그룹 규칙표 작성 담당 | 9-2 | 배포 이슈 담당 |
+| 1 | 계약 4종 형식 통보: 입장 토큰 claim(대기열), 선점 결과(좌석 선점), 결제 토큰 claim(예매 흐름), 결제 결과 이벤트(결제). 형식 소유 담당이 정해 공유하고 소비하는 쪽이 리뷰 | 6-9, 7-3, 10-3, 11-5 | 각 담당 |
+| 2 | 공통 모듈 범위와 합치는 방식(M1): `common`·`common-response`·`common-web`·`common-messaging` 경계, 각자 구현 후 비교·병합 기준. Config 서버·`config-repo` 구성(9-6)도 M1에 포함 | 13장, 11-2, 9-6 | 다 같이 |
+| 3 | 잠정 결정 중 팀이 확인할 것 고르기: 특히 #33·#46 접수형 outbox. #30 기술 스택(Java 21, 팀 합의 전)은 합의 여부와 M1 첫 빌드로 의존성 호환 확인 | 15장 | 다 같이 |
+| 4 | 보안그룹 규칙표·배포 이슈 담당 | 9-2 | 배포 이슈 담당 |
+| 5 | 브랜치 전략·Git 컨벤션(브랜치 이름, 보호 규칙, 병합 방식), Linear 범위 | 저장소 `docs/guides/git-workflow.md` | 다 같이 |
 
 ### 17-2. 미해결 목록
 
 | # | 항목 | 정할 때 | 제안 담당 |
 | --- | --- | --- | --- |
-| U1 | 10/27 계약 합의: 입장 토큰·선점 결과·결제 토큰·결제 결과 이벤트 형식 확정 (17-1의 2~5 포함) | 10/27 | 전원 |
+| U1 | 계약 4종 형식 통보 (17-1 #1) | 10/27 | 각 담당 |
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
-| U3 | 만료·결제 경합 규칙 확정 (만료 우선 + 자동 환불, 🆕 결제 토큰 10초 앞당김) | 10/27 | 반효승·안준현 |
-| U7 | Redis 장애 시 인증(블랙리스트)·요청 제한 영향 → 🆕 9-5 제안 있음, 합의 필요 | 10/27 초안, MVP 중 구현 | 다 같이 |
 | U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) | 추첨 시작 때 | 이강민 |
-| U10 | 측정 PC 사양·측정 환경 기록표, EC2 크기 (🆕 9-3 메모리 예산 기준 16GB급) | MVP 초 | 권영은 |
-| U12 | 포트·패키지 이름(`iseonjwa`)·숫자 기준 초기값 확인 | 10/27 | 다 같이 |
-| U13 | 결정 기록 반영: 좌석 선점(D1·D2·D4), 결제 금액 처리(D3), 데이터 공통 규칙, 알림 범위(보류), 프론트 범위·기술, 🆕 15장 갱신 목록 | 10/27 | 이강민 |
-| U14 🆕 | 토큰 claim 이름 확정 | 10/27 | 반효승·권영은 |
-| U15 🆕 | 접수 요청 테이블 채택 시 reservation의 REJECTED 상태·`reject_code` 제거 | 10/27 | 최권우 |
-| U16 🆕 | Mock PG 환불 조회 API와 환불 멱등(`refundId`) 지원 | MVP 초 | 이강민 |
-| U17 🆕 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | MVP 중 | 권영은 |
-| U18 🆕 | 법률 조사(17-4) | 11/9 이전 | 미정 |
-| U19 🆕 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
-| U20 🆕 | `NEEDS_MANUAL_CHECK` 결제를 D3 부분 유니크에 넣을지 | MVP 중 | 안준현 |
-| U21 🆕 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
+| U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
+| U12 | 포트(config-server 8888 포함)·패키지 이름(`iseonjwa`) 확인 | 10/27 | 다 같이 |
+| U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 이강민 |
+| U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
+| U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
+| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
+| U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
+| U22 | 환불 상태 이력을 `payment_status_history`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
 
-해소된 항목: U4(응답 감싸기 → 🆕 11-2로 다시 열렸다가 제안으로 정리), U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4), U6(테이블 행 수·좌석 상태 위치 → 12-9, D2), U8(Mock PG 조회·응답 유실·멱등 → 11-5), U11(SA MASTER 본문 정정 → 이 문서로 통합).
+해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58)
 
 ### 17-3. 체크리스트
 
-- [ ]  응답 형식 통일 제안 합의 → 결정 기록 #19 갱신
-- [x]  시퀀스의 좌석 조회 응답을 `available`로 수정 (8-1에 반영)
-- [ ]  측정 방식(포화점 + 환경 기록표) 합의 → 3장 대용량 트래픽 기준 확정
-- [ ]  대기열 입장 판정 기준 `seq <= admitted` 확정 (12-8에 제안 반영)
-- [ ]  AI 검증 #7 계층형 아키텍처 프롬프트 실행
+- [x]  응답 형식 결정 → 결정 기록 #19 갱신
+- [x]  시퀀스의 좌석 조회 응답을 `available`로 수정 (8-1)
+- [x]  측정 방식(포화점 + 환경 기록표) → #47
+- [x]  대기열 입장 판정 기준 `seq <= admitted` 확정 → #27
+- [x]  10/26 피드백을 결정 기록에 반영 (#13~#48 수정, #56~#59 생성)
+- [x]  ADR 후보 2건 → #58 부분 유니크 인덱스, #59 레이스 컨디션 해결 방식
+- [ ]  AI 검증 #7 계층형 아키텍처 프롬프트 실행 (M1 패키지 예시 후)
 - [ ]  10/27 SA 2차 피드백 전 담당별 2차 설계 확인
-- [ ]  🆕 제안 합의 결과를 이 문서에 반영하고 철회된 항목은 부록 C의 이전 안으로 되돌림
-- [ ]  ADR 2건 작성 (15장)
+- [ ]  잠정 결정 37건 중 팀 확인이 끝난 것부터 결정으로 전환
 
 ### 17-4. 법률 조사 계획
 
@@ -1674,15 +1702,15 @@ iseonjwa/
 | Queue 유지 조건 | 전용 Redis 또는 격리 주장 삭제, 전역 카운터 | ✅ Queue 모듈화로 전용 Redis 불필요, 전역 카운터는 12-8 | 12-8 |
 | AI 로그 #0 | 작성 요청은 검증이 아님 → 재구성 | ✅ | 14장 |
 | C1 | PG 타임아웃 = 결과 모름, UNKNOWN, 만료 뒤 승인 자동 환불 | ✅ | 8-1 · 8-2 |
-| C1 | 결제 진행 중(PAYING) 만료 제외 + 별도 결제 마감 | 🔀 만료 우선 + 자동 환불, 🆕 결제 토큰 10초 앞당김 | 8-4 · 7-3 |
-| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (🆕 환불 조회 추가) | 6-7 · 11-5 |
+| C1 | 결제 진행 중(PAYING) 만료 제외 + 별도 결제 마감 | 🔀 만료 우선 + 자동 환불, 결제 토큰 10초 앞당김(#35) | 8-4 · 7-3 |
+| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (환불 조회·망취소 추가, #16·#28) | 6-7 · 11-5 |
 | C2 | 우선순위 재배치 (토큰 검증·CB·멱등·Outbox 1경로·Synthetic·배포를 Must로) | ✅ | 5-1 |
 | C2 | 비동기 접수는 API 계약을 바꾸니 처음부터 최종형으로 | 🔀 동기형·접수형 응답을 `data.status` 하나로 구분해 화면이 두 경우를 모두 처리 | 11-5 |
 | C3 | 조건부 전이, 부분 유니크 인덱스, 전부 아니면 전부, DB 기준, SKIP LOCKED 만료 | ✅ | 8-4 · 12-7 |
-| M1 | 파티션 키 · 결과 조회 API · 접수 API 발행 확인 · 혼합형 | ✅ 키는 🔀 회차+구역, 결과 조회는 `requestId`, 혼합형은 v3 후보로 내림, 🆕 발행은 outbox 제안 | 10-1 · 11-5 |
+| M1 | 파티션 키 · 결과 조회 API · 접수 API 발행 확인 · 혼합형 | ✅ 키는 🔀 회차+구역, 결과 조회는 `requestId`, 혼합형은 v3 후보로 내림, 발행은 outbox(#33·#46) | 10-1 · 11-5 |
 | M2 | SAGA 방식 · 결제 진입 경로 · 금액 출처 | 🔀 Choreography + 서명 결제 토큰 | AI 검증 #3 · 7-3 |
 | M2 | 취소 시 티켓 무효화 | ✅ | 8-3 |
-| M3 | 입장 토큰 검증 P0, 토큰에 userId·회차·만료, 일정 속도 입장(N×T) | ✅ (🆕 입장 속도 역산) | 7-3 · 9-4 · 3-3 |
+| M3 | 입장 토큰 검증 P0, 토큰에 userId·회차·만료, 일정 속도 입장(N×T) | ✅ (입장 속도 역산, #45) | 7-3 · 9-4 · 3-3 |
 | M3 | 보안문자는 서버 검증 | ✅ 보류 + 도입 시 서버 검증 | 4-4 |
 | M4 | 409와 5xx 구분, 202 처리량 ≠ 실제 처리량, 1초 시작·평균 응답, PG 장애 기준 재작성, 장애 주입 + 대사 | ✅ ➕ | 3장 · 12-7 |
 | M4 | 토큰 사전 발급, 좌석 초기화, 단일 IP 예외, 매수 제한과 맞춘 시나리오 | ✅ 요청 제한은 사용자 단위라 단일 IP 문제 없음 | 6-3 · 3-1 |
@@ -1700,78 +1728,78 @@ iseonjwa/
 | 누락 | SAGA 방식 한 줄, 실패→보상 로그 캡처 | ✅ / 캡처는 구현 후 | 8-1 · 8-3 |
 | 누락 | 자원 지표(CPU·메모리) | ➕ | 3장 |
 | 누락 | README, 발표 준비 일정, AI 발표 사례 수집 방법 | SA 밖 (README·일정 DB·PR 템플릿) | — |
-| 과잉 | Config 서버·JVM 수·2차 분량 | 이전: Config 제외. 2026-10-26 Junhyun An 요청으로 native Config Server 추가, 업무 서비스 3개 유지 | 7-1 · 15장 |
+| 과잉 | Config 서버·JVM 수·2차 분량 | 서비스 3개 ✅ / Config 서버는 🔀 10/26 두기로 바꿈(#30, 9-6) | 7-1, 9-6 |
 | 불일치 | "확정 5개", 담당자 칸, 모노레포 | ✅ 이 문서로 통합 (SA MASTER 본문 정정 U11 해소) | — |
-| 기타 | Redis 하나를 Gateway(블랙리스트·요청 제한)와 대기열·캐시가 함께 씀 | 🆕 9-5 제안으로 기능별 정책 정리, 합의 필요 (U7) | 9-5 |
+| 기타 | Redis 하나를 Gateway(블랙리스트·요청 제한)와 대기열·캐시가 함께 씀 | ✅ 기능별 정책 정리 (#48) | 9-5 |
 
 # 부록 B. 10/26 SA 1차 피드백 반영 현황
 
-원문: [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21). 출처 A는 SA 문서 코멘트, B는 본인 메모, "메모"는 피드백 자리에서 받아 적은 내용이다. 상태: 반영 = 이 문서 본문에 확정 내용으로 있음 · 🆕 제안 = 본문에 합의 전 제안으로 있음 · 과제 = 할 일로 남김.
+원문: [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21). 출처 A는 SA 문서 코멘트, B는 본인 메모, "메모"는 피드백 자리에서 받아 적은 내용이다. 상태: 반영 = 이 문서 본문과 결정 기록에 있음(괄호는 결정 기록 ID) · 과제 = 할 일로 남김.
 
 | # | 피드백 요약 | 출처 | 위치 | 상태 |
 | --- | --- | --- | --- | --- |
-| F1 | Payment가 PG 호출 중 죽으면 REQUESTED로 남음 → 경과한 REQUESTED도 재조회 대상 | A | 8-1, 10-5 | 🆕 제안 |
-| F2 | 환불도 상태를 나누고 반복 확인, 중복 환불 요청 전제 | A, 메모 | 12-4 | 🆕 제안 |
-| F3 | 몇 초는 Kafka, 몇 분 이상은 스케줄러. 외부 장애 대기는 스케줄러로 몇 분마다 | A, 메모 | 10-5, 9-4 | 🆕 제안 |
-| F4 | 결제 토큰 만료를 선점 만료보다 앞당김 | A, 메모 | 7-3, 8-4 | 🆕 제안 |
-| F5 | 입장·결제 토큰 키 분리 | A | 7-3 | 🆕 제안 |
-| F6 | 접수형은 DB 행이 없어 실패 상태를 판단할 수 없음 → 행을 남김 | A | 12-3, 10-1 | 🆕 제안 |
-| F7 | 고아 상태가 남지 않게 | 메모 | 10-5, 12-7 대사 | 🆕 제안 |
-| F8 | v1·v2 표기가 `/api/v1`과 같아 혼란 | A | 4-1 | 🆕 제안 |
-| F9 | 한 API의 여러 응답과 2차 가공 문제 | A, 메모 | 11-2, 11-5 | 🆕 제안 |
-| F10 | 레이스 컨디션 해결 방식 사전 논의 (조건부 UPDATE, 분산락) | A, B | 15장 | 과제 (ADR) |
+| F1 | Payment가 PG 호출 중 죽으면 REQUESTED로 남음 → 경과한 REQUESTED도 재조회 대상 | A | 8-1, 10-5 | 반영 (#28) |
+| F2 | 환불도 상태를 나누고 반복 확인, 중복 환불 요청 전제 | A, 메모 | 12-4 | 반영 (#16) |
+| F3 | 몇 초는 Kafka, 몇 분 이상은 스케줄러. 외부 장애 대기는 스케줄러로 몇 분마다 | A, 메모 | 10-5, 9-4 | 반영 (#46) |
+| F4 | 결제 토큰 만료를 선점 만료보다 앞당김 | A, 메모 | 7-3, 8-4 | 반영 (#35) |
+| F5 | 입장·결제 토큰 키 분리 | A | 7-3 | 반영 (#56) |
+| F6 | 접수형은 DB 행이 없어 실패 상태를 판단할 수 없음 → 행을 남김 | A | 12-3, 10-1 | 반영 (#33) |
+| F7 | 고아 상태가 남지 않게 | 메모 | 10-5, 12-7 대사 | 반영 (#13) |
+| F8 | v1·v2 표기가 `/api/v1`과 같아 혼란 | A | 4-1 | 반영 (#19) |
+| F9 | 한 API의 여러 응답과 2차 가공 문제 | A, 메모 | 11-2, 11-5 | 반영 (#19) |
+| F10 | 레이스 컨디션 해결 방식 사전 논의 (조건부 UPDATE, 분산락) | A, B | 15장 | 반영 (#59) |
 | F11 | quota 행 없음과 한도 초과 구분 | B | 12-7 | 반영 (SA v2 14-7에 이미 행 보장 INSERT가 있었고 요약본에서 빠졌던 것) |
-| F12 | 부분 유니크 다시 보고 문서로 | 메모 | 15장 | 과제 (ADR) |
-| F13 | 입장 판정은 seq 기준이 맞아 보임 | A | 12-8 | 🆕 제안 |
+| F12 | 부분 유니크 다시 보고 문서로 | 메모 | 15장 | 반영 (#58) |
+| F13 | 입장 판정은 seq 기준이 맞아 보임 | A | 12-8 | 반영 (#27) |
 | F14 | 테이블별 적재량 예측 | 메모 | 12-9 | 반영 (추정치) |
 | F15 | 고객용 번호 별도는 열거형 공격 방어 | A | 12-1 | 반영 (긍정 평가) |
-| F16 | Redis 장애는 fail-open/closed 비교로 설계 | A | 9-5 | 🆕 제안 |
-| F17 | Redis 느려짐이 더 위험, 서킷 브레이커·짧은 타임아웃 | A, 메모 | 9-5 | 🆕 제안 |
-| F18 | 요청을 어디서 막는지, EC2 보안그룹 기준 | B | 9-2 | 🆕 제안 |
-| F19 | 관리자 UI는 SSH로만 접근할지, 매뉴얼 | B | 9-2 | 🆕 제안 |
-| F20 | Java 힙 상한과 EC2 메모리 계산 | 메모 | 9-3 | 🆕 제안 |
+| F16 | Redis 장애는 fail-open/closed 비교로 설계 | A | 9-5 | 반영 (#48) |
+| F17 | Redis 느려짐이 더 위험, 서킷 브레이커·짧은 타임아웃 | A, 메모 | 9-5 | 반영 (#48) |
+| F18 | 요청을 어디서 막는지, EC2 보안그룹 기준 | B | 9-2 | 반영 (#57) |
+| F19 | 관리자 UI는 SSH로만 접근할지, 매뉴얼 | B | 9-2 | 반영 (#57) |
+| F20 | Java 힙 상한과 EC2 메모리 계산 | 메모 | 9-3 | 반영 (#57) |
 | F21 | 인스턴스 하나가 죽으면 전부 죽음 (팀 답변: 컨테이너 분리까지) | 메모 | 9-3 | 반영 (한계 명시) |
-| F22 | 입장 토큰 TTL·초당 입장의 근거로 리틀의 법칙 | A, B | 3-3 | 🆕 제안 |
-| F23 | 숫자는 성능 기반 측정 후 수정 | B | 3-1, 9-4 | 🆕 제안 |
+| F22 | 입장 토큰 TTL·초당 입장의 근거로 리틀의 법칙 | A, B | 3-3 | 반영 (#45) |
+| F23 | 숫자는 성능 기반 측정 후 수정 | B | 3-1, 9-4 | 반영 (#47) |
 | F24 | 계약 합의는 담당자들이 정해서 통보 | B | 6-9 | 반영 |
-| F25 | 페르소나를 사용자 예시로 풀기 | A, 메모 | 2-2 | 🆕 제안 (유저스토리 초안) |
-| F26 | 서비스 플로우 차트 | 메모 | 2-6 | 🆕 제안 |
+| F25 | 페르소나를 사용자 예시로 풀기 | A, 메모 | 2-2 | 반영 |
+| F26 | 서비스 플로우 차트 | 메모 | 2-6 | 반영 |
 | F27 | 실제 법률 조사 → 설계로 이어진 사례를 발표에 | 메모 | 12-1, 17-4 | 과제 (전자상거래법 5년만 반영) |
 | F28 | 모듈러 모놀리스 구조 (참고만) | 메모 | 7-1 | 반영 |
 
 # 부록 C. 변경 이력과 대체된 이전 안
 
-충돌한 내용은 최신 문서를 따랐다. 🆕 제안이 철회되면 "이전 안" 열로 되돌린다.
+충돌한 내용은 최신 문서를 따랐다. 10/26 결정으로 모두 "현재" 열이 반영됐고, 이전 안은 결정 기록의 수정 내역에도 남아 있다.
 
 | 항목 | 이전 안 (출처) | 현재 (출처) | 상태 |
 | --- | --- | --- | --- |
 | 대기열 순번 | ZSET 점수 = 진입 시각 (SA v2 14-8) | `seq` 카운터 발급, ZSET 점수 = seq ([5조], 결정 기록 #27) | 반영 (10/26 변경) |
-| 입장 판정 | ZRANK와 seq 중 `(팀 확인)` ([5조]) | `seq <= admitted` (개선안 2-1) | 🆕 제안 |
-| 응답 형식 | 성공은 본문 그대로, 실패는 ProblemDetail + `code`  • `traceId` (SA v2 12-1, U4 해소) | 6키 통일, 204 → 200, `reasonCode` ([5조] 3장) | 🆕 제안 |
-| 선점 방식 명칭 | v1 / v2 (SA v2) | 동기형 / 접수형 (개선안 2-3) | 🆕 제안 |
-| 선점 응답 | 201 `{requestId, reservationId, reservationNo, status, holdExpiresAt, totalAmount}`, 결제 토큰은 예매 조회로 (SA v2 12-4) | 201·접수 결과 HELD에 결제 토큰 포함 (개선안 2-3) | 🆕 제안 |
-| 접수형 저장 (D4) | API는 행을 만들지 않고 Kafka 직접 발행(acks=all, 실패 시 503), 소비자가 결과 행 생성 (SA v2 11·13장) | 접수 요청 행 + outbox 한 트랜잭션 (개선안 2-4) | 🆕 제안 |
-| 예매 REJECTED | reservation.status에 REJECTED, `reject_code` 컬럼 (SA v2 14-3) | `seat_hold_request`가 거절을 기록, reservation에서 제거 후보 | 🆕 제안 (U15) |
-| 입장 토큰 | `{sub, sid, exp}`  • HMAC, 서명 키 공용 `.env` (SA v2 12-4, 9장) | `typ`·`aud`·`jti` 추가, `ENTRY_TOKEN_SECRET` 분리 (개선안 2-2) | 🆕 제안 |
-| 결제 토큰 | `{rid, uid, amt, exp: holdExpiresAt}`  • HMAC (SA v2 12-4) | `typ`·`aud`·`jti` 추가, `PAYMENT_TOKEN_SECRET` 분리, 만료 = 선점 만료 − 10초 (개선안 2-2) | 🆕 제안 |
-| 만료·결제 경합 | 결제 토큰 만료 = 선점 만료, 만료 우선 + 자동 환불 (SA v2 13장, [5조]) | 토큰 10초 앞당김 + 만료 우선 + 자동 환불 (개선안 2-2) | 🆕 제안 (U3) |
-| 결제 재조회 | UNKNOWN만, 10초 간격 6회 후 운영 확인 대상 (SA v2 10-1) | REQUESTED 경과분 포함, 10초×6 → 1분 → 5분 → 15분 → `NEEDS_MANUAL_CHECK` (개선안 2-5) | 🆕 제안 |
-| 결제 재조회 인덱스 | INDEX(status, updated_at) (SA v2 14-4) | `next_check_at` 컬럼 + 부분 인덱스 (개선안 2-5) | 🆕 제안 |
-| 환불 | payment `APPROVED → REFUNDED` 한 단계 (SA v2 13장) | `refund` 테이블, 상태 5개, `pg_refund_id` 멱등 (개선안 2-5) | 🆕 제안 |
-| 결제 거절 필드 | `declineCode` (SA v2 12-4) | `reasonCode` ([5조] 3장) | 🆕 제안 |
-| Redis 장애 | "Redis 장애 시 입장 중단", 인증·요청 제한 영향은 U7 미해결 (SA v2 14-8) | 타임아웃 100ms + 서킷 브레이커, 기능별 fail-open/closed (개선안 2-6) | 🆕 제안 |
-| 외부 공개 포트 | gateway(8080)와 grafana(3000) (SA v2 10장, [5조] 6장) | gateway만, 관리자 UI는 127.0.0.1 바인딩 + SSH 터널 (개선안 2-8) | 🆕 제안 |
-| 대용량 트래픽 목표 | 1차 목표 처리량 200/sec `[가정]`, 미달이면 개선 전·후 비교 (SA v2 3장) | 같은 환경 동기형 → 접수형 비교 + 포화점 ([5조] 10장) | 🆕 제안 |
-| 초당 입장 N | 50명, 최대 동시 입장 = N × T로 계산 (SA v2 10-1) | 50명은 임시값, 포화점에서 리틀의 법칙으로 역산 (개선안 2-9) | 🆕 제안 |
+| 입장 판정 | ZRANK와 seq 중 `(팀 확인)` ([5조]) | `seq <= admitted` (개선안 2-1) | 반영 (#27 결정) |
+| 응답 형식 | 성공은 본문 그대로, 실패는 ProblemDetail + `code`  • `traceId` (SA v2 12-1, U4 해소) | 성공·실패 다른 형태 + 둘 다 traceId, 204 → 200, `reasonCode` (#19) | 반영 (결정) |
+| 선점 방식 명칭 | v1 / v2 (SA v2) | 동기형 / 접수형 (개선안 2-3) | 반영 (#19) |
+| 선점 응답 | 201 `{requestId, reservationId, reservationNo, status, holdExpiresAt, totalAmount}`, 결제 토큰은 예매 조회로 (SA v2 12-4) | 201·접수 결과 HELD에 결제 토큰 포함 (개선안 2-3) | 반영 (#33) |
+| 접수형 저장 (D4) | API는 행을 만들지 않고 Kafka 직접 발행(acks=all, 실패 시 503), 소비자가 결과 행 생성 (SA v2 11·13장) | 접수 요청 행 + outbox 한 트랜잭션 (개선안 2-4) | 반영 (#33·#46) |
+| 예매 REJECTED | reservation.status에 REJECTED, `reject_code` 컬럼 (SA v2 14-3) | `seat_hold_request`가 거절을 기록, reservation에서 제거 후보 | 반영 (#13) |
+| 입장 토큰 | `{sub, sid, exp}`  • HMAC, 서명 키 공용 `.env` (SA v2 12-4, 9장) | `typ`·`aud`·`jti` 추가, `ENTRY_TOKEN_SECRET` 분리 (개선안 2-2) | 반영 (#56) |
+| 결제 토큰 | `{rid, uid, amt, exp: holdExpiresAt}`  • HMAC (SA v2 12-4) | `typ`·`aud`·`jti` 추가, `PAYMENT_TOKEN_SECRET` 분리, 만료 = 선점 만료 − 10초 (개선안 2-2) | 반영 (#56·#35) |
+| 만료·결제 경합 | 결제 토큰 만료 = 선점 만료, 만료 우선 + 자동 환불 (SA v2 13장, [5조]) | 토큰 10초 앞당김 + 만료 우선 + 자동 환불 (개선안 2-2) | 반영 (#35·#13) |
+| 결제 재조회 | UNKNOWN만, 10초 간격 6회 후 운영 확인 대상 (SA v2 10-1) | REQUESTED 경과분 포함, 10초×6 → 1분 → 5분 → 15분 → `NEEDS_MANUAL_CHECK` (개선안 2-5) | 반영 (#28) |
+| 결제 재조회 인덱스 | INDEX(status, updated_at) (SA v2 14-4) | `next_check_at` 컬럼 + 부분 인덱스 (개선안 2-5) | 반영 (#28) |
+| 환불 | payment `APPROVED → REFUNDED` 한 단계 (SA v2 13장) | `refund` 테이블, 상태 5개, `pg_refund_id` 멱등 (개선안 2-5) | 반영 (#16) |
+| 결제 거절 필드 | `declineCode` (SA v2 12-4) | `reasonCode` ([5조] 3장) | 반영 (#19) |
+| Redis 장애 | "Redis 장애 시 입장 중단", 인증·요청 제한 영향은 U7 미해결 (SA v2 14-8) | 타임아웃 100ms + 서킷 브레이커, 기능별 fail-open/closed (개선안 2-6) | 반영 (#48) |
+| 외부 공개 포트 | gateway(8080)와 grafana(3000) (SA v2 10장, [5조] 6장) | gateway만, 관리자 UI는 127.0.0.1 바인딩 + SSH 터널 (개선안 2-8) | 반영 (#57) |
+| 대용량 트래픽 목표 | 1차 목표 처리량 200/sec `[가정]`, 미달이면 개선 전·후 비교 (SA v2 3장) | 같은 환경 동기형 → 접수형 비교 + 포화점 ([5조] 10장) | 반영 (#47) |
+| 초당 입장 N | 50명, 최대 동시 입장 = N × T로 계산 (SA v2 10-1) | 50명은 임시값, 포화점에서 리틀의 법칙으로 역산 (개선안 2-9) | 반영 (#45) |
 | 장애 격리 목표 | "PG 장애 중에도 조회·대기열은 정상" (SA MASTER) | "선점·예매 생성 정상, 결제는 CB OPEN 즉시 거절, 복구 후 CLOSED" ([5조]) | 반영 |
 | 테이블 크기 | reservation 15,000–30,000행(판매 좌석 ÷ 평균 2매 + 만료·거절) (SA v2 14-9) | 전 테이블 추정, 평균 2.5매 (개선안 2-12) | 반영 (추정치) |
-| 페르소나 | 상황·바라는 것·대응 (SA v2 2장), 유저스토리 열은 비어 있음 ([5조]) | 유저스토리 초안 채움 (개선안 2-12) | 🆕 제안 |
-| 로그아웃·대기 취소 응답 | 204 (SA v2 12-3) | 200 + `data: null` ([5조] 3장) | 🆕 제안 |
+| 페르소나 | 상황·바라는 것·대응 (SA v2 2장), 유저스토리 열은 비어 있음 ([5조]) | 유저스토리 초안 채움 (개선안 2-12) | 반영 |
+| 로그아웃·대기 취소 응답 | 204 (SA v2 12-3) | 200 + `data: null` ([5조] 3장) | 반영 (#19) |
 
 **본문에서 뺀 내용**
 
 - SA v2 12장의 "응답 형식 추천(이전 프로젝트 내용)" 토글: 다른 프로젝트의 클래스 이름(`ApiResponse`, `ErrorResponse`, `FeignErrorDecoder` 등)을 그대로 옮긴 참고 자료라 11-2 제안으로 대체했다. 원문은 SA v2에 남아 있다.
-- 이전 안의 ProblemDetail 실패 응답 예시 (응답 형식 제안이 철회되면 이 형식으로 되돌린다):
+- 이전 안의 ProblemDetail 실패 응답 예시 (참고용, 10/26 #19 결정으로 쓰지 않음):
 
 ```json
 {

@@ -1,0 +1,26 @@
+# kangmin AI 판단 기록
+
+kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgment` 스킬](../../../.agents/skills/ai-judgment/SKILL.md)을 따른다. 최신이 위로 온다. `공통`이 `예`인 기록은 [팀 공통 판단](../README.md#팀-공통-판단)에도 올라간다.
+
+## 개별 기록
+
+거부 판단은 굵게 표시한다.
+
+| 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
+|---|---|---|---|---|---|---|
+| 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | Claude Code, codex | **거부** | 예 | 아님 | [기록](2026-10-26-config-server.md) |
+| 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-10-26-tech-stack-java21.md) |
+| 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-26-layered-architecture-four-layers.md) |
+| 2026-10-26 | 결정 기록 운영: 기존 항목 이력 덧붙이기 대신 대체됨 + 새 항목 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-26-decision-record-supersede.md) |
+| 2026-10-26 | 서비스 구성: 팀이 3개로 확정, 대기열·추첨·알림은 모듈로 두고 근거가 쌓이면 분리 | Claude Code, codex | 수용 | 예 | 아님 | [기록](2026-10-26-service-composition-three-modules.md) |
+| 2026-10-26 | 역할 분담: AI의 재검토 제안 대신 결정된 것으로 봄 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-26-role-assignment-not-reopen.md) |
+| 2026-10-26 | API 응답 형식: AI의 기존 유지·6키 통일 대신 성공·실패 다른 형태 + traceId | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-10-26-api-response-single-envelope.md) |
+| 2026-10-26 | 대기열 정렬 기준: 팀원 지적(진입 시각 동점)을 검증하고 순번 카운터(seq) 선택 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-26-queue-order-seq-counter.md) |
+
+## 일지
+
+작은 판단을 하루 한 파일에 한 줄씩 남긴다.
+
+| 날짜 | 일지 |
+|---|---|
+| 2026-10-26 | [daily/2026-10-26.md](daily/2026-10-26.md) |
