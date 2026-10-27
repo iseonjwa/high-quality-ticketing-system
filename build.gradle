@@ -13,7 +13,7 @@ def workspaceTool = { String taskName, String operation ->
         javaLauncher = project(':workspace-tools').javaToolchains.launcherFor {
             languageVersion = JavaLanguageVersion.of(21)
         }
-        mainClass = 'iseonjwa.workspace.WorkspaceTool'
+        mainClass = 'com.iseonjwa.workspace.WorkspaceTool'
         systemProperty 'workspace.root', rootProject.projectDir.absolutePath
         workingDir rootProject.projectDir
         args operation
@@ -86,7 +86,7 @@ subprojects {
 subprojects {
     apply plugin: 'java-library'
 
-    group = 'iseonjwa'
+    group = 'com.iseonjwa'
     version = '0.0.1-SNAPSHOT'
 
     repositories {
