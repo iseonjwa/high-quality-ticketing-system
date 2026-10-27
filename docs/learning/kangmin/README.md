@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | .env 파일과 initLocalEnv는 무엇이고, 통합 뒤 왜 다시 만들어야 하나 | [qna/2026-10-27-env-file-and-init-local-env.md](qna/2026-10-27-env-file-and-init-local-env.md) |
 | 2026-10-27 | 공통 모듈 4개와 config-repo 파일 14개는 너무 잘게 나눈 것인가 | [qna/2026-10-27-common-module-config-repo-granularity.md](qna/2026-10-27-common-module-config-repo-granularity.md) |
 | 2026-10-27 | Config 서버는 무슨 역할을 하고, 설정을 따로 분리하면 무엇을 얻고 잃나 | [qna/2026-10-27-config-server-role-tradeoffs.md](qna/2026-10-27-config-server-role-tradeoffs.md) |
 | 2026-10-27 | 브랜치 이름에 슬래시(/)를 여러 번 넣는 것은 흔한가, 주의할 점은 무엇인가 | [qna/2026-10-27-branch-name-slashes.md](qna/2026-10-27-branch-name-slashes.md) |

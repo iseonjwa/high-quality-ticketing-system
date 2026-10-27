@@ -36,7 +36,7 @@
 
 ## 외부 원본
 
-- Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb) — 설계 정본 (10/26 SA v2·SA MASTER·[5조] SA 문서·피드백 모음·개선안을 통합, 충돌은 최신 우선). 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)는 v3.1로, 10/26 결정 기록 수정을 반영해 `🆕 제안` 표시를 없애고 결정 기록 번호를 붙였다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
+- Notion [SA MASTER v3.2 (통합 회의 반영)](https://app.notion.com/p/94a7bd823b7582f1a2a50125bc85ca2d) — 설계 정본. 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)를 가져온 판이다. 이전 판인 [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)(10/26 문서 통합)과 v3.1(10/26 결정 기록 반영)은 근거로 남긴다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
 - Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53) — 10/26 이전 정본, 근거 보관용
 - Notion [1차 SA 피드백](https://app.notion.com/p/4027bd823b758034966df87b7622c9b1) — sa-review/01과 같은 내용
 - Notion [발제문 원본](https://app.notion.com/p/4027bd823b758019a04dda70d6ae39ab), [첫날 회의](https://app.notion.com/p/4027bd823b7580b19317f4c4c8df4a08)
