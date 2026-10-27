@@ -18,6 +18,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | 현재 구현에서 어떤 부분을 먼저 보강하면 좋은가 | [qna/2026-10-27-implementation-hardening-review.md](qna/2026-10-27-implementation-hardening-review.md) |
 | 2026-10-27 | 가독성과 학습을 위해 공통 코드 작성 규칙을 어떻게 보완하면 좋은가 | [qna/2026-10-27-common-coding-rules.md](qna/2026-10-27-common-coding-rules.md) |
 | 2026-10-27 | 서비스가 Access JWT를 직접 검증할 때 HS256과 RS256은 무엇이 다른가 | [qna/2026-10-27-jwt-hs256-vs-rs256.md](qna/2026-10-27-jwt-hs256-vs-rs256.md) |
 | 2026-10-27 | MSA 사용자 JWT·Gateway 내부 토큰 비교와 이중 검증의 비용·보안 절충 | [qna/2026-10-27-msa-service-identity-verification.md](qna/2026-10-27-msa-service-identity-verification.md) |

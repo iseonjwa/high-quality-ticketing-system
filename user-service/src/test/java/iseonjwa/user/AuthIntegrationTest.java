@@ -5,7 +5,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -21,11 +24,15 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
@@ -40,6 +47,12 @@ class AuthIntegrationTest {
 
     @Autowired
     StringRedisTemplate redis;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @MockitoSpyBean
+    PasswordEncoder passwords;
 
     private final HttpClient client = HttpClient.newHttpClient();
     private final JsonMapper mapper = JsonMapper.builder().build();
@@ -247,6 +260,68 @@ class AuthIntegrationTest {
 
         var missing = resetPassword(Long.MAX_VALUE);
         assertEquals(404, missing.statusCode());
+    }
+
+    @Test
+    void 비밀번호_초기화_중_이전_비밀번호로_시작한_로그인은_세션을_만들지_못한다() throws Exception {
+        var email = register();
+        var before = data(login(email));
+        var userId = userId(claims(before.get("accessToken").asString()));
+        var checking = new CountDownLatch(1);
+        var resume = new CountDownLatch(1);
+        pauseFirstPasswordCheck(email, checking, resume);
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var pending = executor.submit(() -> login(email));
+            try {
+                assertTrue(checking.await(10, TimeUnit.SECONDS));
+                assertEquals(200, resetPassword(userId).statusCode());
+            } finally {
+                resume.countDown();
+            }
+            assertEquals(401, pending.get(10, TimeUnit.SECONDS).statusCode());
+        }
+        assertFalse(Boolean.TRUE.equals(redis.hasKey("auth:refresh:" + userId)));
+        assertEquals(401, refresh(before.get("refreshToken").asString()).statusCode());
+    }
+
+    @Test
+    void 비밀번호_변경_중_이전_비밀번호로_시작한_로그인은_세션을_만들지_못한다() throws Exception {
+        var email = register();
+        var before = data(login(email));
+        var userId = userId(claims(before.get("accessToken").asString()));
+        var checking = new CountDownLatch(1);
+        var resume = new CountDownLatch(1);
+        pauseFirstPasswordCheck(email, checking, resume);
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var pending = executor.submit(() -> login(email));
+            try {
+                assertTrue(checking.await(10, TimeUnit.SECONDS));
+                assertEquals(200, post("/api/v1/auth/password-change",
+                        Map.of("email", email, "currentPassword", PASSWORD,
+                                "newPassword", "changed-during-login")).statusCode());
+            } finally {
+                resume.countDown();
+            }
+            assertEquals(401, pending.get(10, TimeUnit.SECONDS).statusCode());
+        }
+        assertFalse(Boolean.TRUE.equals(redis.hasKey("auth:refresh:" + userId)));
+        assertEquals(200, login(email, "changed-during-login").statusCode());
+    }
+
+    private void pauseFirstPasswordCheck(String email, CountDownLatch checking, CountDownLatch resume) {
+        var hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE email = ?", String.class, email);
+        var paused = new AtomicBoolean();
+        doAnswer(invocation -> {
+            if (paused.compareAndSet(false, true)) {
+                checking.countDown();
+                if (!resume.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("비밀번호 비교 재개를 기다리지 못했습니다");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(passwords).matches(eq(PASSWORD), eq(hash));
     }
 
     private void passwordBoundary(String valid, String oversized) throws Exception {

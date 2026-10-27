@@ -14,7 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -35,16 +37,19 @@ public class AuthService {
     private final PasswordEncoder passwords;
     private final AuthTokens tokens;
     private final AuthSessions sessions;
+    private final TransactionTemplate transactions;
     private final int maxLoginFailures;
     // 없는 이메일도 BCrypt 비교를 해서 응답 시간으로 계정 존재 여부를 알 수 없게 한다.
     private final String dummyPasswordHash;
 
     public AuthService(UserRepository users, PasswordEncoder passwords, AuthTokens tokens, AuthSessions sessions,
+            PlatformTransactionManager transactionManager,
             @Value("${auth.max-login-failures}") int maxLoginFailures) {
         this.users = users;
         this.passwords = passwords;
         this.tokens = tokens;
         this.sessions = sessions;
+        this.transactions = new TransactionTemplate(transactionManager);
         this.maxLoginFailures = maxLoginFailures;
         this.dummyPasswordHash = passwords.encode("dummy-password-for-timing");
     }
@@ -60,15 +65,21 @@ public class AuthService {
         }
     }
 
-    // 실패 횟수 기록이 예외와 함께 롤백되지 않도록 트랜잭션 없이 저장소 단위로 커밋한다.
     public AuthTokens.Pair login(String email, String password) {
-        var user = authenticate(email, password);
-        if (user.isPasswordChangeRequired()) {
-            throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
-        }
-        var pair = tokens.issue(user.getId(), user.getRole());
-        sessions.save(user.getId(), pair.refreshToken(), tokens.refreshTtl());
-        return pair;
+        var authenticated = authenticate(email, password);
+        return transactions.execute(status -> {
+            var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
+            validateAuthenticatedUser(authenticated, user);
+            if (user.isPasswordChangeRequired()) {
+                throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
+            }
+            if (user.getFailedLoginCount() > 0) {
+                users.resetLoginFailures(user.getId());
+            }
+            var pair = tokens.issue(user.getId(), user.getRole());
+            sessions.save(user.getId(), pair.refreshToken(), tokens.refreshTtl());
+            return pair;
+        });
     }
 
     // 임시 비밀번호로 로그인할 수 없으므로 토큰 없이 현재 비밀번호로 확인한다.
@@ -77,28 +88,36 @@ public class AuthService {
         if (newPassword.equals(currentPassword)) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
-        var user = authenticate(email, currentPassword);
-        sessions.revokeRefresh(user.getId());
-        users.updatePassword(user.getId(), passwords.encode(newPassword), false, user.getId());
+        var authenticated = authenticate(email, currentPassword);
+        var newHash = passwords.encode(newPassword);
+        transactions.executeWithoutResult(status -> {
+            var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
+            validateAuthenticatedUser(authenticated, user);
+            sessions.revokeRefresh(user.getId());
+            users.updatePassword(user.getId(), newHash, false, user.getId());
+        });
     }
 
     // Redis 폐기를 먼저 해서 실패하면 비밀번호도 바뀌지 않게 한다.
     public PasswordReset resetPassword(Long adminId, Long targetUserId) {
-        var target = users.findById(targetUserId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         var temporaryPassword = generateTemporaryPassword();
-        sessions.revokeRefresh(target.getId());
-        users.updatePassword(target.getId(), passwords.encode(temporaryPassword), true, adminId);
-        return new PasswordReset(temporaryPassword);
+        var temporaryHash = passwords.encode(temporaryPassword);
+        return transactions.execute(status -> {
+            var target = lockUser(targetUserId, CommonErrorCode.NOT_FOUND);
+            sessions.revokeRefresh(target.getId());
+            users.updatePassword(target.getId(), temporaryHash, true, adminId);
+            return new PasswordReset(temporaryPassword);
+        });
     }
 
     public AuthTokens.Pair refresh(String refreshToken) {
         var claims = tokens.decodeRefresh(refreshToken);
-        var user = users.findById(claims.userId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        var pair = tokens.issue(user.getId(), user.getRole());
-        sessions.rotate(user.getId(), refreshToken, pair.refreshToken(), tokens.refreshTtl());
-        return pair;
+        return transactions.execute(status -> {
+            var user = lockUser(claims.userId(), CommonErrorCode.UNAUTHORIZED);
+            var pair = tokens.issue(user.getId(), user.getRole());
+            sessions.rotate(user.getId(), refreshToken, pair.refreshToken(), tokens.refreshTtl());
+            return pair;
+        });
     }
 
     public void logout(Long userId, String authorization) {
@@ -153,10 +172,22 @@ public class AuthService {
         if (!passwords.matches(password, user.getPasswordHash())) {
             throw loginFailure(user);
         }
-        if (user.getFailedLoginCount() > 0) {
-            users.resetLoginFailures(user.getId());
-        }
         return user;
+    }
+
+    // Note: BCrypt 비교는 잠금 밖에서 수행하고 발급·폐기만 같은 사용자 행으로 직렬화한다.
+    // 실패 횟수 갱신은 이 트랜잭션 밖이므로 인증 예외로 롤백되지 않는다.
+    private User lockUser(Long userId, CommonErrorCode missingError) {
+        return users.findByIdForUpdate(userId).orElseThrow(() -> new BusinessException(missingError));
+    }
+
+    private void validateAuthenticatedUser(User authenticated, User current) {
+        if (!authenticated.getPasswordHash().equals(current.getPasswordHash())) {
+            throw new BusinessException(UserErrorCode.INVALID_CREDENTIALS);
+        }
+        if (current.isLocked()) {
+            throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
+        }
     }
 
     private BusinessException loginFailure(User user) {
