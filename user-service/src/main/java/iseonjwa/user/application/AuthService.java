@@ -45,6 +45,9 @@ public class AuthService {
     public AuthService(UserRepository users, PasswordEncoder passwords, AuthTokens tokens, AuthSessions sessions,
             PlatformTransactionManager transactionManager,
             @Value("${auth.max-login-failures}") int maxLoginFailures) {
+        if (maxLoginFailures <= 0) {
+            throw new IllegalArgumentException("로그인 실패 제한은 양수여야 합니다");
+        }
         this.users = users;
         this.passwords = passwords;
         this.tokens = tokens;

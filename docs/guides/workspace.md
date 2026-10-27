@@ -92,6 +92,8 @@ SA의 /api/v1 경로를 사용한다. 응답은 SA v3.1(#19)의 성공 `{status,
 
 Access는 30분, Refresh는 14일이다. 두 서명 키를 분리하고 HS256을 사용한다. issuer는 iseonjwa-auth, Access audience는 iseonjwa-api, Refresh audience는 user-service다. sub·role·jti·iat·exp·token_type을 검증한다. Refresh를 Access로 사용하거나 반대로 사용할 수 없다.
 
+Access·Refresh 만료 초와 `auth.max-login-failures`는 양수여야 한다. 0·음수이면 User 서비스 빈 생성 단계에서 기동을 실패시켜 첫 인증 요청까지 설정 오류가 미뤄지지 않게 한다.
+
 Redis의 auth:refresh:{userId}에는 사용자당 하나의 Refresh SHA-256 해시를 저장한다. 새 로그인은 이전 Refresh를 대체한다. 재발급은 Lua 비교·교체로 동시 요청 중 하나만 성공한다. 로그아웃은 해당 사용자의 Refresh를 제거하고 요청 Access jti를 남은 시간 동안 블랙리스트에 넣는다. 다른 기발급 Access를 일괄 폐기하는 기능은 없다.
 
 재발급은 활성 Refresh 확인 뒤 현재 계정 상태를 검사한다. 폐기된 Refresh는 401, 잠긴 계정은 423, 비밀번호 변경이 필요한 계정은 403이며 거절한 세션은 회전하지 않는다. 정상 재발급은 활성 세션 조회와 Lua 비교·교체를 수행한다. 이 추가 조회는 Gateway의 요청별 인증 경로에는 들어가지 않는다.

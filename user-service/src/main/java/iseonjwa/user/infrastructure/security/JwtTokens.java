@@ -38,6 +38,9 @@ public class JwtTokens implements AuthTokens {
             @Value("${auth.issuer}") String issuer,
             @Value("${auth.access-seconds}") long accessSeconds,
             @Value("${auth.refresh-seconds}") long refreshSeconds) {
+        if (accessSeconds <= 0 || refreshSeconds <= 0) {
+            throw new IllegalArgumentException("Access·Refresh 만료 시간은 양수여야 합니다");
+        }
         if (accessSecret.equals(refreshSecret)) {
             throw new IllegalArgumentException("토큰 서명 키는 분리해야 합니다");
         }

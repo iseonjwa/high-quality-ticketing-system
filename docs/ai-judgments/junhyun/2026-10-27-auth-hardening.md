@@ -37,9 +37,13 @@ shared: 예
 | 로그인·비밀번호 초기화 경합 | 구현 | PostgreSQL·Redis·HTTP 통합 테스트 18개 통과, 새 경합 2개는 수정 전 실패 확인 |
 | 잠금 상태의 Refresh 거절 | 구현 | 잠금·변경 필요 상태 거절과 세션 미회전, 폐기 토큰 401 우선 처리 포함 통합 테스트 20개 통과 |
 | Gateway Redis 연결 준비 | 구현 | Gateway 테스트 42개(예열 5개 포함), 실제 컨테이너 재기동 후 첫 보호 요청의 User 도달 확인 |
-| 인증 설정 기동 검증 | 진행 전 | |
+| 인증 설정 기동 검증 | 구현 | 잘못된 설정 6개는 수정 전 실패 확인. 기동 컨텍스트 8개와 인증 통합 20개 통과 |
 
 [ADR 0010](../../decisions/0010-auth-session-serialization.md)에 동시성 제어의 범위와 비용을 남겼다. SA의 Gateway 인증·헤더 전달·HS256과 기존 Access의 만료 정책은 유지한다.
+
+최종 검증: Java 21에서 `bash script/check.sh`가 통과했다. JUnit 105개·Python 14개, 포트 공개 검사, 전체 빌드, Config 불가 시 기동 실패, 기록·diff 검사를 확인했다.
+`python3 script/smoke-workspace.py --redis-failure --cold-start`도 통과했다. 실제 스택 HTTP 계약 55건과 Config·Eureka·Kafka·Prometheus·Grafana·Zipkin, 재기동 첫 인증 요청, Redis 장애·복구를 확인했다.
+운영 배포와 부하 용량은 검증 범위 밖이다.
 
 ## 판단 이력
 
