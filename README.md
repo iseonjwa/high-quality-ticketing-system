@@ -25,6 +25,18 @@ clone한 뒤 아래 세 가지를 한다. 3분이면 끝난다.
 - 기록 구조는 `script/records-check.sh`로 확인한다. Claude Code는 종료 전에 자동으로, GitHub는 PR마다 검사한다.
 - 비밀값(`.env`, 토큰, 실제 비밀번호)은 커밋하지 않는다.
 
+## 개발 워크스페이스
+
+Java 21, Spring Boot 4.1.2, Spring Cloud 2025.1.4 기반의 앱 7개와 공통 모듈 4개를 사용한다. Config Server·Eureka·Gateway·User·Reservation·Payment·Mock PG와 전체 인프라를 준비한다.
+
+```bash
+python3 script/init-local-env.py
+docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 180
+python3 script/smoke-workspace.py --redis-failure
+```
+
+전체 빌드와 PostgreSQL·Redis 인증 통합 테스트는 `script/check.sh`로 실행한다. 인프라만 Compose로 실행하고 앱을 IntelliJ·bootRun으로 실행하는 방법, 환경변수, 포트, 인증 계약과 검증 범위는 [워크스페이스 가이드](docs/guides/workspace.md)에 있다.
+
 ## PR
 
 `.github/pull_request_template.md`가 자동으로 채워진다. STAR(상황·과제·행동·결과) 형식이고, 이 PR에 쓴 AI 판단 기록 링크를 적는 칸이 있다.
