@@ -17,10 +17,15 @@ dependencyResolutionManagement {
 
 rootProject.name = "high-quality-ticketing-system"
 
-// 공통 라이브러리. 서비스 모듈은 각 단계에서 추가한다
+// 공통 라이브러리
 include(
     "common",
     "common-response",
     "common-web",
     "common-messaging",
+)
+
+// 실행 서비스
+include(
+    "config-server",
 )

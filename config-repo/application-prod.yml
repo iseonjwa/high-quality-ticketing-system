@@ -1,0 +1,5 @@
+# 배포(EC2). 추적 샘플링을 낮춘다
+management:
+  tracing:
+    sampling:
+      probability: 0.1

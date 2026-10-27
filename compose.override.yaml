@@ -12,3 +12,6 @@ services:
     ports: ["127.0.0.1:6379:6379"]
   kafka:
     ports: ["127.0.0.1:9092:9092"]
+  # IntelliJ로 띄운 서비스가 localhost:8888에서 설정을 받는다 (SA 9-6 로컬 개발)
+  config-server:
+    ports: ["127.0.0.1:8888:8888"]

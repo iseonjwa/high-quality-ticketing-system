@@ -1,0 +1,44 @@
+# 모든 서비스 공통 설정. 기본 주소는 compose 네트워크 안의 서비스 이름이다
+# IntelliJ로 띄울 때는 application-local.yml이 localhost로 덮어쓴다
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka:8761/eureka/
+  instance:
+    # 컨테이너 이름 대신 IP로 등록해 Gateway가 바로 찾아가게 한다
+    prefer-ip-address: true
+
+spring:
+  kafka:
+    bootstrap-servers: kafka:29092
+  threads:
+    virtual:
+      # Java 21은 synchronized 안에서 가상 스레드가 고정된다(JDK 24에서 해결). 기본은 끈다 (SA 9-1)
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      # 개발 중에는 모든 요청을 추적한다. loadtest·prod는 낮춘다
+      probability: 1.0
+    export:
+      zipkin:
+        endpoint: http://zipkin:9411/api/v2/spans
+
+# 팀 공통 숫자 기준 (SA 9-4, [가정]). 측정 후 이 파일에서 바꾼다
+iseonjwa:
+  token:
+    access-ttl: 30m
+    refresh-ttl: 14d

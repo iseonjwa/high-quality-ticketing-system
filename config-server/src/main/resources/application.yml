@@ -1,0 +1,25 @@
+# Config 서버 자신의 설정. 자기 자신에게서 설정을 읽을 수 없으므로 이 파일만 모듈 안에 둔다 (SA 9-6)
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    # native: Git 저장소 대신 파일 시스템의 config-repo/를 읽는다
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # 컨테이너에서는 /config-repo에 마운트한다. bootRun은 build.gradle.kts에서 바꿔 준다
+          search-locations: ${CONFIG_REPO_LOCATION:file:/config-repo/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 0.0

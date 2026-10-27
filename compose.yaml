@@ -113,6 +113,29 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ---------- 애플리케이션: 같은 Dockerfile을 MODULE 인자만 바꿔 쓴다 ----------
+  # 기동 순서: config-server → eureka → 서비스 (SA 9-6). healthy가 되어야 다음이 뜬다
+
+  config-server:
+    build:
+      context: .
+      args:
+        MODULE: config-server
+    image: iseonjwa/config-server:local
+    environment:
+      JAVA_OPTS: -Xmx256m
+    volumes:
+      - ./config-repo:/config-repo:ro
+    expose: ["8888"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8888/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   # ---------- 관리 UI: 127.0.0.1에만 바인딩해 호스트 밖으로 열리지 않게 한다 (9-2) ----------
   kafka-ui:
     image: kafbat/kafka-ui:v1.5.0

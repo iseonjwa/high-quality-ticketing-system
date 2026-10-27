@@ -1,0 +1,12 @@
+# 이미지 빌드에 필요 없는 것과 비밀값은 빌드 컨텍스트에 넣지 않는다
+.env
+.git
+.gradle
+.idea
+.claude
+**/build
+**/out
+docs
+notion-drafts
+infra
+config-repo
