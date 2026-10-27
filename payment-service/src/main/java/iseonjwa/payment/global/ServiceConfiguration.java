@@ -1,11 +1,16 @@
 package iseonjwa.payment.global;
 
-import iseonjwa.common.persistence.*;
-import iseonjwa.common.web.CommonWebConfiguration;
 import iseonjwa.common.messaging.CommonMessagingConfiguration;
-import org.springframework.context.annotation.*;
+import iseonjwa.common.persistence.CommonJpaConfiguration;
+import iseonjwa.common.persistence.CurrentActorProvider;
+import iseonjwa.common.web.CommonWebConfiguration;
+import iseonjwa.common.web.GatewayIdentityFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
 import java.util.Optional;
 
 @Configuration(proxyBeanMethods = false)
@@ -16,7 +21,8 @@ public class ServiceConfiguration {
         return () -> {
             var attributes = RequestContextHolder.getRequestAttributes();
             if (attributes instanceof ServletRequestAttributes servlet) {
-                return Optional.ofNullable((Long) servlet.getRequest().getAttribute("currentUserId"));
+                var userId = servlet.getRequest().getAttribute(GatewayIdentityFilter.USER_ID_ATTRIBUTE);
+                return Optional.ofNullable((Long) userId);
             }
             return Optional.empty();
         };

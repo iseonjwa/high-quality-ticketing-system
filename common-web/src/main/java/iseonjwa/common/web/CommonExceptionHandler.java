@@ -1,10 +1,16 @@
 package iseonjwa.common.web;
 
-import iseonjwa.common.response.*;
+import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.BusinessException;
+import iseonjwa.common.response.CommonErrorCode;
+import iseonjwa.common.response.FieldError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.http.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -60,12 +66,15 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
             case 503 -> CommonErrorCode.SERVICE_UNAVAILABLE;
             default -> null;
         };
-        var response = error != null
-                ? ApiResponse.failure(error, null, MDC.get("traceId"))
-                : new ApiResponse<>(status.value(), status.is5xxServerError() ? "INTERNAL_SERVER_ERROR" : "REQUEST_FAILED",
-                        status.is5xxServerError() ? "서버 오류가 발생했습니다" : "요청을 처리할 수 없습니다",
-                        null, null, MDC.get("traceId"));
+        var response = error != null ? ApiResponse.failure(error, null, MDC.get("traceId")) : fallback(status);
         return new ResponseEntity<>(response, headers, status);
+    }
+
+    private ApiResponse<Object> fallback(HttpStatusCode status) {
+        var serverError = status.is5xxServerError();
+        var code = serverError ? "INTERNAL_SERVER_ERROR" : "REQUEST_FAILED";
+        var message = serverError ? "서버 오류가 발생했습니다" : "요청을 처리할 수 없습니다";
+        return new ApiResponse<>(status.value(), code, message, null, null, MDC.get("traceId"));
     }
 
     @ExceptionHandler(Exception.class)

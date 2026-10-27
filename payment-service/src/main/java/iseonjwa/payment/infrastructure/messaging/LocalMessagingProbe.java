@@ -1,11 +1,16 @@
 package iseonjwa.payment.infrastructure.messaging;
 
-import iseonjwa.common.response.*;
+import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.BusinessException;
+import iseonjwa.common.response.CommonErrorCode;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -14,7 +19,10 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LocalMessagingProbe {
     private final ObjectMapper mapper;
     private final AtomicReference<String> received = new AtomicReference<>();
-    public LocalMessagingProbe(ObjectMapper mapper) { this.mapper = mapper; }
+
+    public LocalMessagingProbe(ObjectMapper mapper) {
+        this.mapper = mapper;
+    }
 
     @KafkaListener(topics = "bootstrap.integration", groupId = "payment-service.bootstrap")
     public void receive(String body) {
@@ -23,7 +31,9 @@ public class LocalMessagingProbe {
 
     @GetMapping("/api/v1/payments/_system/events/{eventId}")
     public ApiResponse<?> received(@PathVariable String eventId) {
-        if (!eventId.equals(received.get())) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        if (!eventId.equals(received.get())) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        }
         return ApiResponse.success(200, Map.of("eventId", eventId), MDC.get("traceId"));
     }
 }
