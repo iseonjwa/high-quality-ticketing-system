@@ -1,1 +1,13 @@
 rootProject.name = 'ticketingsystem'
+
+// 공통
+include 'common'
+
+// 인프라
+include 'eureka-registry'
+include 'gateway-edge'
+
+// 도메인 서비스
+include 'user-service'
+include 'reservation-service'
+include 'payment-service'

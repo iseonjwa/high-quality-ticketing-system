@@ -1,0 +1,17 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+description = 'eureka-registry'
+
+
+
+dependencies {
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+}

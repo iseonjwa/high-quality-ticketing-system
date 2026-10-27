@@ -6,6 +6,7 @@
 |---|---|
 | [junhyun](junhyun/README.md) | 질문 노트(`qna/`) |
 | [kangmin](kangmin/README.md) | 질문 노트(`qna/`) |
+| [kwonwoo](kwonwoo/README.md) | 질문 노트(`qna/`) |
 
 ## 규칙
 - 자기 폴더만 고친다. 다른 사람의 노트에 의견이 있으면 PR 리뷰나 Notion에 남긴다.

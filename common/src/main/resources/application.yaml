@@ -1,0 +1,23 @@
+spring:
+  config:
+    import:
+      - optional:file:../.env[.properties]
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME}
+    username: ${db.username}
+    password: ${db.password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${DDL:update}
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        default_schema: ${db.schema}
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+
+  application:
+    name: common

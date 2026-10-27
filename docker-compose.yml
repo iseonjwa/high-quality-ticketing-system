@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: i-seon-jwa
+    ports:
+      - "${DB_PORT}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Seoul
+
+      USER_DB_USER: ${USER_DB_USER}
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+
+      RESERVATION_DB_USER: ${RESERVATION_DB_USER}
+      RESERVATION_DB_PASSWORD: ${RESERVATION_DB_PASSWORD}
+
+      PAYMENT_DB_USER: ${PAYMENT_DB_USER}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg-isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+

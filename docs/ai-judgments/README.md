@@ -32,6 +32,7 @@
 |---|---|
 | [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 0건, 일지 0일 |
 
 ## 팀 공통 판단
 
