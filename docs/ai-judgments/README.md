@@ -32,6 +32,7 @@
 |---|---|
 | [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
+| [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 
 ## 팀 공통 판단
 
@@ -39,6 +40,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | M1 진행 방식: AI의 "각자 만드는 건 공통 모듈만" 설명 대신 전원이 같은 범위를 각자 만들고 병합 | 팀 (전달: hyoseung) | Claude Code | **거부** | 아님 | [기록](hyoseung/2026-10-27-m1-everyone-builds-full-skeleton.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |
 | 2026-10-26 | 계층 구조: AI 추천 4계층을 팀이 확정 | 팀 (전달: kangmin) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-26-layered-architecture-four-layers.md) |
