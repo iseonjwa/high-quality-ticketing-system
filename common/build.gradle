@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+// JPA·Web은 쓰는 서비스가 이미 가지고 있으므로 컴파일에만 쓰고 전이시키지 않는다
+dependencies {
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.springframework:spring-web'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework:spring-web'
+    testImplementation 'jakarta.servlet:jakarta.servlet-api'
+    testImplementation 'org.springframework.data:spring-data-commons'
+}

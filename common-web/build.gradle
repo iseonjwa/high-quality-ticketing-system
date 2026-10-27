@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+// MVC 서비스 전용. Gateway(WebFlux)는 쓰지 않는다 (SA 11-2)
+dependencies {
+    api project(':common-response')
+
+    compileOnly 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+}

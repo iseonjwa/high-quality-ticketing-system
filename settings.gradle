@@ -1,1 +1,3 @@
 rootProject.name = 'iseonjwa'
+
+include 'common', 'common-response', 'common-web'
