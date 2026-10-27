@@ -1,4 +1,5 @@
 rootProject.name = 'high-quality-ticketing-system'
 
-include 'common', 'common-response', 'common-web', 'common-messaging'
-include 'config-server', 'eureka', 'user-service', 'gateway'
+include 'common', 'common-response', 'common-web'
+include 'common-messaging', 'gateway', 'eureka', 'config-server'
+include 'user-service', 'reservation-service', 'payment-service', 'mock-pg'
