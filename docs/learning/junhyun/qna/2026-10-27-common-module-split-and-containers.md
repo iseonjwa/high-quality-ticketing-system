@@ -42,5 +42,12 @@ common 모듈은 컨테이너가 되지 않는다. Gradle이 `bootJar`를 만들
 ### 확인한 근거
 Gradle 모듈의 의존 관계는 각 `build.gradle`의 `project(':...')` 선언으로, 컨테이너 목록은 `docker compose -f compose.yml config --services`로 확인했다.
 
+### 후속 질문: 그러면 Config Server는 없는가
+있다. config-server는 컨테이너 17개 중 앱 7개에 들어가는 독립 서버(포트 8888)이고, common 모듈과는 별개다. "공통 모듈을 쓰지 않는다"는 말은 코드 라이브러리를 가져다 쓰지 않는다는 뜻이지 서버가 없다는 뜻이 아니다. 앱들이 설정을 받아 가는 방식은 다음과 같다.
+- 설정 파일은 저장소의 `config-repo/` 폴더에 있다(`application.yml` 공통, `gateway.yml`·`user-service.yml` 등 서비스별, `application-local.yml` 등 프로필별).
+- config-server가 이 폴더를 읽기 전용으로 마운트해 제공하고(native 백엔드), 다른 앱은 시작할 때 `spring.config.import=configserver:...`로 가져온다. 못 받으면 제한된 재시도 뒤 기동에 실패한다.
+- DB 비밀번호와 JWT 키 같은 비밀값은 config-server에 두지 않고 각 앱의 환경변수로 넣는다.
+- 근거: [ADR 0003](../../../decisions/0003-config-server-native.md), SA 9-6.
+
 ## 더 보기
 - [공통 모듈 가이드](../../../guides/common-modules.md), [워크스페이스 가이드](../../../guides/workspace.md)
