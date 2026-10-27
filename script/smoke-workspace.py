@@ -279,12 +279,26 @@ def check_redis_failure(user_id, email, password):
                lambda: http('GET', BASE + '/api/v1/users/me', token=recovered['access'])[0] == 200, timeout=35)
 
 
+def check_gateway_cold_start():
+    subprocess.run(COMPOSE + ['restart', 'gateway'], cwd=ROOT, check=True, capture_output=True)
+    wait_until('Gateway 재기동 준비',
+               lambda: http('GET', 'http://127.0.0.1:18080/actuator/health/readiness')[0] == 200)
+    wait_until('Gateway 재기동 후 User 탐색', lambda: http('POST', BASE + '/api/v1/users', {})[0] == 400)
+    token = forge(ENV['JWT_ACCESS_SECRET'], sub=str(2**63 - 1))
+    check('재기동 후 첫 인증 요청이 Redis 연결 지연 없이 User에 도달',
+          'GET', '/api/v1/users/me', 404, token=token)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--redis-failure', action='store_true',
                         help='이 스택의 Redis만 잠깐 pause하고 반드시 복구한다')
+    parser.add_argument('--cold-start', action='store_true',
+                        help='Gateway를 재기동하고 첫 인증 요청이 처리되는지 확인한다')
     args = parser.parse_args()
 
+    if args.cold_start:
+        check_gateway_cold_start()
     wait_until('Gateway → User 준비', lambda: http('POST', BASE + '/api/v1/users', {})[0] == 400)
     email = f'smoke-{uuid.uuid4()}@test.local'
     password = secrets.token_hex(12)

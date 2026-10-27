@@ -36,7 +36,7 @@ shared: 예
 |---|---|---|
 | 로그인·비밀번호 초기화 경합 | 구현 | PostgreSQL·Redis·HTTP 통합 테스트 18개 통과, 새 경합 2개는 수정 전 실패 확인 |
 | 잠금 상태의 Refresh 거절 | 구현 | 잠금·변경 필요 상태 거절과 세션 미회전, 폐기 토큰 401 우선 처리 포함 통합 테스트 20개 통과 |
-| Gateway Redis 연결 준비 | 진행 전 | |
+| Gateway Redis 연결 준비 | 구현 | Gateway 테스트 42개(예열 5개 포함), 실제 컨테이너 재기동 후 첫 보호 요청의 User 도달 확인 |
 | 인증 설정 기동 검증 | 진행 전 | |
 
 [ADR 0010](../../decisions/0010-auth-session-serialization.md)에 동시성 제어의 범위와 비용을 남겼다. SA의 Gateway 인증·헤더 전달·HS256과 기존 Access의 만료 정책은 유지한다.

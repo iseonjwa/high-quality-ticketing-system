@@ -28,7 +28,7 @@ tags: [code-review, authentication, concurrency, redis, configuration]
 |---|---|
 | 비밀번호 초기화·변경과 로그인 경합 | 사용자 행 잠금·최신 해시 재확인 적용. 실제 PostgreSQL·Redis·HTTP 통합 테스트 18개 통과 |
 | 잠금 상태와 Refresh 정책 | 활성 세션 확인 뒤 잠금 423·변경 필요 403. 거절 시 미회전, 폐기 토큰 401 우선 처리. 통합 테스트 20개 통과 |
-| Gateway Redis 연결 준비 | 진행 전 |
+| Gateway Redis 연결 준비 | 준비 완료 전 PING, 제한 재시도·실패 시 기동 중단. Gateway 테스트 42개와 실제 재기동의 첫 보호 요청 확인 |
 | 인증 설정 기동 검증 | 진행 전 |
 
 구현 판단은 [수용 기록](../../../ai-judgments/junhyun/2026-10-27-auth-hardening.md), 동시성 범위는 [ADR 0010](../../../decisions/0010-auth-session-serialization.md)에 있다.

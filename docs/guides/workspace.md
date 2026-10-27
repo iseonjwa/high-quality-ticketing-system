@@ -113,6 +113,8 @@ MVC 서비스는 경로로 판단하지 않는다. `GatewayIdentityFilter`는 �
 
 Redis 인증 조회는 100ms 타임아웃과 Resilience4j 서킷을 사용한다. 장애·OPEN이면 503과 Retry-After를 반환한다. 이 차단 정책은 [ADR 0005](../decisions/0005-auth-redis-fail-closed.md)의 잠정 구현이며 팀 논의가 필요하다. Redis 명령 타임아웃 뒤에도 서버 측 실행이 완료될 수 있으므로 실패 응답이 변경 전 상태를 보장하지 않는다. 복구 검증은 새 로그인으로 진행한다.
 
+Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 시도당 2초, 최대 3회, 재시도 간격 200ms이며 PONG을 받지 못하면 기동에 실패한다. 기동 후 요청별 100ms 제한과 런타임 장애 처리는 그대로다.
+
 입장·결제 토큰, 대기열·예약·결제 업무, Mock PG 승인·환불, Outbox·재시도·DLQ 처리 로직은 아직 없다. local 전용 진단 API는 identity와 bootstrap.integration 이벤트 송수신만 확인한다. loadtest·prod에서는 진단 컨트롤러가 생성되지 않는다.
 
 ## 관측성
@@ -128,7 +130,7 @@ local 추적은 100%, loadtest는 1%, prod는 10% 샘플링한다. 대시보드�
 
 ```bash
 script/check.sh
-python3 script/smoke-workspace.py --redis-failure
+python3 script/smoke-workspace.py --redis-failure --cold-start
 ```
 
 check.sh는 격리된 iseonjwa-test PostgreSQL·Redis를 올린 뒤 전체 빌드·테스트·기록·diff를 검사한다. 테스트 DB는 tmpfs이며 업무 DB 볼륨을 사용하지 않는다. CI에서도 같은 테스트 인프라를 사용하고 종료한다. 로컬 테스트 인프라는 다음 명령으로 중지할 수 있다.
@@ -138,6 +140,8 @@ docker compose -f compose.test.yml stop
 ```
 
 `script/check.sh`는 dotenv·JVM 실행 환경 회귀(Python), 모듈 단위 테스트, PostgreSQL·Redis 통합 테스트(인증·로그인 잠금·비밀번호 초기화), Config 불가 시 기동 실패, 기록 검사를 한 번에 확인한다. `smoke-workspace.py`는 Gateway를 통한 HTTP 계약, Config 비밀값 비노출, Eureka 등록, Reservation → Kafka → Payment, Prometheus·Grafana·Zipkin, 로그인 잠금과 관리자 초기화, Redis pause 중 503과 복구를 확인한다. 실행 결과와 소요 시간은 이 문서가 아니라 PR 본문의 결과 칸에 적는다.
+
+`--cold-start`는 Gateway를 재기동해 readiness와 공개 경로의 User 탐색을 기다린 뒤 첫 보호 요청을 한 번만 확인한다. 존재하지 않는 테스트 사용자에 대한 User의 404를 기대해 Redis 연결 지연의 503과 구분한다. 재기동을 원하지 않는 검사에서는 이 옵션을 생략한다.
 
 EC2 배포, 부하·운영 용량, 실제 PG, GitHub 원격 CI, IntelliJ UI 실행은 이 가이드의 검증 범위 밖이다.
 
