@@ -69,10 +69,8 @@ public class AuthService {
         var authenticated = authenticate(email, password);
         return transactions.execute(status -> {
             var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
-            validateAuthenticatedUser(authenticated, user);
-            if (user.isPasswordChangeRequired()) {
-                throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
-            }
+            validateUnchangedPassword(authenticated, user);
+            validateTokenIssueAllowed(user);
             if (user.getFailedLoginCount() > 0) {
                 users.resetLoginFailures(user.getId());
             }
@@ -92,7 +90,8 @@ public class AuthService {
         var newHash = passwords.encode(newPassword);
         transactions.executeWithoutResult(status -> {
             var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
-            validateAuthenticatedUser(authenticated, user);
+            validateUnchangedPassword(authenticated, user);
+            validateUnlocked(user);
             sessions.revokeRefresh(user.getId());
             users.updatePassword(user.getId(), newHash, false, user.getId());
         });
@@ -114,6 +113,8 @@ public class AuthService {
         var claims = tokens.decodeRefresh(refreshToken);
         return transactions.execute(status -> {
             var user = lockUser(claims.userId(), CommonErrorCode.UNAUTHORIZED);
+            sessions.validateRefresh(user.getId(), refreshToken);
+            validateTokenIssueAllowed(user);
             var pair = tokens.issue(user.getId(), user.getRole());
             sessions.rotate(user.getId(), refreshToken, pair.refreshToken(), tokens.refreshTtl());
             return pair;
@@ -166,9 +167,7 @@ public class AuthService {
             passwords.matches(password, dummyPasswordHash);
             throw new BusinessException(UserErrorCode.INVALID_CREDENTIALS);
         }
-        if (user.isLocked()) {
-            throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
-        }
+        validateUnlocked(user);
         if (!passwords.matches(password, user.getPasswordHash())) {
             throw loginFailure(user);
         }
@@ -181,12 +180,22 @@ public class AuthService {
         return users.findByIdForUpdate(userId).orElseThrow(() -> new BusinessException(missingError));
     }
 
-    private void validateAuthenticatedUser(User authenticated, User current) {
+    private void validateUnchangedPassword(User authenticated, User current) {
         if (!authenticated.getPasswordHash().equals(current.getPasswordHash())) {
             throw new BusinessException(UserErrorCode.INVALID_CREDENTIALS);
         }
-        if (current.isLocked()) {
+    }
+
+    private void validateUnlocked(User user) {
+        if (user.isLocked()) {
             throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
+        }
+    }
+
+    private void validateTokenIssueAllowed(User user) {
+        validateUnlocked(user);
+        if (user.isPasswordChangeRequired()) {
+            throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
         }
     }
 

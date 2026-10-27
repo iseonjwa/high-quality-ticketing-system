@@ -310,6 +310,40 @@ class AuthIntegrationTest {
         assertEquals(200, login(email, "changed-during-login").statusCode());
     }
 
+    @Test
+    void 잠긴_계정은_Refresh를_재발급하지_않고_기존_세션도_회전하지_않는다() throws Exception {
+        var email = register();
+        var replaced = data(login(email)).get("refreshToken").asString();
+        var before = data(login(email));
+        var userId = userId(claims(before.get("accessToken").asString()));
+        var stored = redis.opsForValue().get("auth:refresh:" + userId);
+        lockOut(email);
+
+        var rejected = refresh(before.get("refreshToken").asString());
+
+        assertEquals(423, rejected.statusCode());
+        assertEquals("ACCOUNT_LOCKED", code(rejected));
+        assertEquals(stored, redis.opsForValue().get("auth:refresh:" + userId));
+        assertEquals(401, refresh(replaced).statusCode());
+    }
+
+    @Test
+    void 비밀번호_변경이_필요한_계정은_Refresh를_재발급하지_않는다() throws Exception {
+        var before = data(login(register()));
+        var userId = userId(claims(before.get("accessToken").asString()));
+        var token = before.get("refreshToken").asString();
+        var stored = redis.opsForValue().get("auth:refresh:" + userId);
+        jdbc.update("UPDATE users SET password_change_required = true WHERE id = ?", userId);
+
+        var rejected = refresh(token);
+
+        assertEquals(403, rejected.statusCode());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", code(rejected));
+        assertEquals(stored, redis.opsForValue().get("auth:refresh:" + userId));
+        jdbc.update("UPDATE users SET password_change_required = false WHERE id = ?", userId);
+        assertEquals(200, refresh(token).statusCode());
+    }
+
     private void pauseFirstPasswordCheck(String email, CountDownLatch checking, CountDownLatch resume) {
         var hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE email = ?", String.class, email);
         var paused = new AtomicBoolean();

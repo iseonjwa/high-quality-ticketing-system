@@ -50,6 +50,17 @@ public class RedisSessionStore implements AuthSessions {
     }
 
     @Override
+    public void validateRefresh(Long userId, String refresh) {
+        try {
+            if (!hash(refresh).equals(redis.opsForValue().get(refreshKey(userId)))) {
+                throw new BusinessException(UserErrorCode.TOKEN_REVOKED);
+            }
+        } catch (DataAccessException exception) {
+            throw unavailable();
+        }
+    }
+
+    @Override
     public void rotate(Long userId, String oldToken, String newToken, Duration ttl) {
         try {
             var result = redis.execute(ROTATE, List.of(refreshKey(userId)),
