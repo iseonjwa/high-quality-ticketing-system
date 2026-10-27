@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -m unittest discover -s script/tests -v
+python3 script/check-port-exposure.py
 docker compose -f compose.test.yml up -d --wait --wait-timeout 120
 ./gradlew clean build --no-daemon
 python3 script/check-config-failure.py

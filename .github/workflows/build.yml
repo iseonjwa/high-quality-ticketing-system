@@ -20,6 +20,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: dotenv와 JVM 실행 환경 회귀 검사
         run: python3 -m unittest discover -s script/tests -v
+      - name: 서비스 포트 비공개 전제 검사
+        run: python3 script/check-port-exposure.py
       - name: 인증 통합 테스트 인프라
         run: docker compose -f compose.test.yml up -d --wait --wait-timeout 120
       - name: 전체 모듈 빌드와 PostgreSQL·Redis 통합 테스트
