@@ -1,1 +1,3 @@
 rootProject.name = 'high-quality-ticketing-system'
+
+include 'common', 'common-response', 'common-web', 'common-messaging'
