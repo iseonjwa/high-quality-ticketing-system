@@ -86,10 +86,30 @@ Spring Boot 기본 기능만으로도 같은 3단 구조를 얻을 수 있다. `
 ### 되돌릴 조건 (SA 9-6)
 기동 실패나 설정 추적 문제가 반복되면 `.env` + 프로필로 되돌린다. 설정 파일 구조(`{서비스}-{프로필}.yml`)는 그대로 각 서비스 `resources`로 옮기면 되므로 되돌리는 비용은 크지 않다.
 
+### Config 서버가 죽으면 서비스가 다 죽나 (10/27 통합 회의 질문)
+아니다. 서비스는 **기동할 때 한 번** 설정을 받아 메모리에 올리고, 그 뒤에는 Config 서버를 다시 부르지 않는다(`/actuator/refresh`나 Spring Cloud Bus를 쓰지 않는 한). 그래서 Config 서버는 "실행 중 장애점"이 아니라 "기동 의존성"이다.
+
+통합 브랜치 compose(16개 컨테이너)에서 Config 서버를 멈추고 측정했다.
+
+| 상황 | 결과 |
+|---|---|
+| Config 서버 중지 후 실행 중인 gateway·reservation·payment | 계속 healthy. Gateway는 요청에 정상 응답했다 |
+| 그 상태에서 user-service 재시작 | 6번 재시도 뒤 `ConfigClientFailFastException: Could not locate PropertySource and the fail fast property is set`으로 종료(Exited 1). 재시작부터 종료까지 약 30초 |
+| Config 서버 복구 후 user-service 재기동 | healthy. 단 Gateway를 거친 로그인은 약 40초 동안 503이었다가 정상 응답(401, 없는 계정)으로 돌아왔다 |
+
+- 재시도 설정: `configserver:...?fail-fast=true&max-attempts=6&initial-interval=1000&max-interval=5000&multiplier=1.5` (`spring-retry` 필요). 대기 간격은 1초부터 1.5배씩 늘고 5초에서 멈춘다.
+- 복구 뒤 503이 이어진 것은 Config 서버가 아니라 Gateway의 서비스 목록 캐시(Eureka 등록·조회 주기) 때문으로 보인다. 원인을 따로 확인하지는 못했다.
+- 따라서 위험한 때는 "Config 서버가 죽은 동안 서비스를 새로 띄우거나 재시작할 때"다. 배포·스케일 아웃·장애 재시작이 여기에 걸린다.
+
+막는 방법은 세 가지가 있고, 지금은 첫째만 쓴다.
+1. **기동 순서와 재시도**: compose `depends_on: condition: service_healthy` + 위 재시도 설정. 지금 구성.
+2. **Config 서버를 2대 이상 띄움**: native 백엔드는 같은 폴더를 읽으므로 상태가 없어 늘리기 쉽다. 대신 컨테이너가 늘어난다.
+3. **`optional:configserver:`**: 못 받으면 서비스 안의 기본값으로 뜬다. 가용성은 오르지만 잘못된 설정으로 조용히 뜰 위험이 생겨 fail-fast와 반대 방향이다.
+
 ## 이 프로젝트에서는
 - 서버: `config-server/` (`@EnableConfigServer`, native, `search-locations: ${CONFIG_REPO_LOCATION:file:/config-repo/}`)
 - 설정: `config-repo/` (application·서비스·프로필별 yml, README에 우선순위)
-- 클라이언트: 각 서비스 `application.yml`의 `on-profile: "!test"` 문서에 `spring.config.import: configserver:${CONFIG_SERVER_URL:http://localhost:8888}`, 기본 문서에 `spring.cloud.config.fail-fast: true`
+- 클라이언트: 각 서비스 `application.yml`의 `spring.config.import: "configserver:${CONFIG_SERVER_URL:http://localhost:8888}?fail-fast=true&max-attempts=6..."` (통합 브랜치 기준. 강민 브랜치는 `on-profile: "!test"` 문서에 import를 두고 기본 문서에 `fail-fast: true`를 뒀다)
 - 검증: `config-server/src/test/.../ConfigRepoTest.java` (우선순위, loadtest 샘플링, 비밀값이 `${`로 시작하는지)
 - 결정 경위: 10/24 "발제상 선택이라 과잉"이라는 AI 피드백으로 빼기로 했다가, 10/26 설정 파일을 한 곳으로 모으자는 판단으로 다시 넣었다(SA 9-6, #30 잠정).
 
