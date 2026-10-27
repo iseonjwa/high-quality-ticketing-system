@@ -64,7 +64,7 @@ PostgreSQL 18부터 데이터 경로가 `/var/lib/postgresql/18/docker`로 바�
 | 선택 | 비교한 것 | 고른 이유 |
 |---|---|---|
 | native(파일) 백엔드 | Git 백엔드 | 모노레포의 `config-repo/`를 마운트만 한다. 설정 변경도 PR로 리뷰된다 (SA 9-6) |
-| 클라이언트는 `optional:configserver:` + `fail-fast: true` | `configserver:`만 | test 프로필에서 Config를 끌 수 있고(TS-2), 실제 기동에서는 Config 서버가 없으면 멈춘다 |
+| 클라이언트는 `on-profile: "!test"` 문서에서만 `configserver:` import + `fail-fast: true` | 기본 문서에 `optional:configserver:` (처음 구현, TS-2) | 테스트는 Config 서버 없이 돌고, 실제 기동에서는 Config 서버가 없으면 멈춘다. 처음 구현은 Config 서버가 꺼져 있으면 테스트가 실패했다(TS-5) |
 | 서비스 모듈의 `application.yml`에는 이름과 import만 | 모듈마다 설정 | 설정이 한 곳에만 있다 |
 
 **우선순위(테스트로 확인)**: `{서비스}-{프로필}` > `application-{프로필}` > `{서비스}` > `application`. 프로필 파일이 서비스 이름 파일보다 앞선다. 처음에 반대로 알고 README를 썼다가 `ConfigRepoTest`가 잡아냈다. 서비스마다 다른 값을 `application-local.yml`에 두면 모든 서비스의 같은 키를 덮어쓴다.

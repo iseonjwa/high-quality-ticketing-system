@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-27 | 공통 모듈 4개와 config-repo 파일 14개는 너무 잘게 나눈 것인가 | [qna/2026-10-27-common-module-config-repo-granularity.md](qna/2026-10-27-common-module-config-repo-granularity.md) |
+| 2026-10-27 | Config 서버는 무슨 역할을 하고, 설정을 따로 분리하면 무엇을 얻고 잃나 | [qna/2026-10-27-config-server-role-tradeoffs.md](qna/2026-10-27-config-server-role-tradeoffs.md) |
 | 2026-10-27 | 브랜치 이름에 슬래시(/)를 여러 번 넣는 것은 흔한가, 주의할 점은 무엇인가 | [qna/2026-10-27-branch-name-slashes.md](qna/2026-10-27-branch-name-slashes.md) |
 | 2026-10-27 | DSL(도메인 특화 언어)은 무엇이고 Gradle의 Kotlin·Groovy DSL은 어떤 의미인가 | [qna/2026-10-27-what-is-dsl.md](qna/2026-10-27-what-is-dsl.md) |
 | 2026-10-27 | Gradle 빌드 스크립트를 Kotlin DSL에서 Groovy로 바꾸면 무엇이 달라지나 | [qna/2026-10-27-gradle-groovy-vs-kotlin-dsl.md](qna/2026-10-27-gradle-groovy-vs-kotlin-dsl.md) |
