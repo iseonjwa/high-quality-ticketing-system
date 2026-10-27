@@ -2,3 +2,4 @@ rootProject.name = 'iseonjwa'
 
 include 'common', 'common-response', 'common-web'
 include 'config-server', 'eureka', 'gateway'
+include 'user-service'

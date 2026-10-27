@@ -1,0 +1,12 @@
+# 나머지 설정은 Config 서버의 config-repo/user-service.yml에 있다 (SA 9-6)
+spring:
+  application:
+    name: user-service
+  config:
+    import:
+      - configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+      # IntelliJ로 실행할 때 저장소 루트 .env의 비밀값을 읽는다. 컨테이너에는 없어서 건너뛴다
+      - optional:file:../.env[.properties]
+  cloud:
+    config:
+      fail-fast: true

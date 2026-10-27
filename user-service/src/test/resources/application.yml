@@ -1,0 +1,11 @@
+# 테스트는 Config 서버·Eureka 없이 띄운다 (SA 9-6). 이 파일이 main의 application.yml을 가린다
+spring:
+  application:
+    name: user-service
+  cloud:
+    config:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
