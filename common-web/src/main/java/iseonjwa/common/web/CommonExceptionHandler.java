@@ -1,6 +1,6 @@
 package iseonjwa.common.web;
 
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.FailureResponse;
 import iseonjwa.common.response.BusinessException;
 import iseonjwa.common.response.CommonErrorCode;
 import iseonjwa.common.response.FieldError;
@@ -26,7 +26,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleBusinessException(BusinessException exception) {
         var error = exception.getErrorCode();
         return ResponseEntity.status(error.status())
-                .body(ApiResponse.failure(error, null, MDC.get("traceId")));
+                .body(FailureResponse.of(error, null, MDC.get("traceId")));
     }
 
     @Override
@@ -36,7 +36,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
                 .map(error -> new FieldError(error instanceof org.springframework.validation.FieldError fieldError
                         ? fieldError.getField() : error.getObjectName(), error.getDefaultMessage()))
                 .toList();
-        return new ResponseEntity<>(ApiResponse.failure(CommonErrorCode.VALIDATION_FAILED,
+        return new ResponseEntity<>(FailureResponse.of(CommonErrorCode.VALIDATION_FAILED,
                 errors, MDC.get("traceId")), headers, status);
     }
 
@@ -46,7 +46,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleServletRequestBindingException(ServletRequestBindingException exception,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         if (exception.getClass() == ServletRequestBindingException.class) {
-            return new ResponseEntity<>(ApiResponse.failure(CommonErrorCode.UNAUTHORIZED, null, MDC.get("traceId")),
+            return new ResponseEntity<>(FailureResponse.of(CommonErrorCode.UNAUTHORIZED, null, MDC.get("traceId")),
                     headers, HttpStatus.UNAUTHORIZED);
         }
         return super.handleServletRequestBindingException(exception, headers, status, request);
@@ -66,21 +66,21 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
             case 503 -> CommonErrorCode.SERVICE_UNAVAILABLE;
             default -> null;
         };
-        var response = error != null ? ApiResponse.failure(error, null, MDC.get("traceId")) : fallback(status);
+        var response = error != null ? FailureResponse.of(error, null, MDC.get("traceId")) : fallback(status);
         return new ResponseEntity<>(response, headers, status);
     }
 
-    private ApiResponse<Object> fallback(HttpStatusCode status) {
+    private FailureResponse fallback(HttpStatusCode status) {
         var serverError = status.is5xxServerError();
         var code = serverError ? "INTERNAL_SERVER_ERROR" : "REQUEST_FAILED";
         var message = serverError ? "서버 오류가 발생했습니다" : "요청을 처리할 수 없습니다";
-        return new ApiResponse<>(status.value(), code, message, null, null, MDC.get("traceId"));
+        return FailureResponse.of(status.value(), code, message, MDC.get("traceId"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception exception) {
         log.error("처리하지 못한 요청 예외", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure(CommonErrorCode.INTERNAL_SERVER_ERROR, null, MDC.get("traceId")));
+                .body(FailureResponse.of(CommonErrorCode.INTERNAL_SERVER_ERROR, null, MDC.get("traceId")));
     }
 }

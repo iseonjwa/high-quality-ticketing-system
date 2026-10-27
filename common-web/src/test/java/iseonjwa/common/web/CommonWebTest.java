@@ -47,7 +47,7 @@ class CommonWebTest {
         var json = body(result, 404);
         assertEquals("NOT_FOUND", json.get("code").asString());
         assertEquals("trace-test", json.get("traceId").asString());
-        assertTrue(json.get("errors").isNull());
+        assertFalse(json.has("errors"));
     }
 
     @Test
@@ -114,9 +114,9 @@ class CommonWebTest {
     private JsonNode body(MvcResult result, int status) throws Exception {
         assertEquals(status, result.getResponse().getStatus());
         var json = mapper.readTree(result.getResponse().getContentAsString());
-        assertEquals(6, json.size());
         assertEquals(status, json.get("status").asInt());
-        assertTrue(json.get("data").isNull());
+        assertTrue(json.has("traceId"));
+        assertFalse(json.has("data"));
         return json;
     }
 

@@ -1,6 +1,6 @@
 package iseonjwa.user.presentation;
 
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.SuccessResponse;
 import iseonjwa.user.application.AuthService;
 import iseonjwa.user.presentation.AuthDtos.Login;
 import iseonjwa.user.presentation.AuthDtos.PasswordChange;
@@ -29,35 +29,35 @@ public class AuthController {
     @PostMapping("/users")
     public ResponseEntity<?> signup(@Valid @RequestBody Signup request) {
         var result = auth.signup(request.email(), request.password(), request.nickname());
-        return ResponseEntity.status(201).body(ApiResponse.success(201, result, traceId()));
+        return ResponseEntity.status(201).body(SuccessResponse.of(201, "가입되었습니다", result, traceId()));
     }
 
     @PostMapping("/auth/login")
-    public ApiResponse<?> login(@Valid @RequestBody Login request) {
-        return ApiResponse.success(200, auth.login(request.email(), request.password()), traceId());
+    public SuccessResponse<?> login(@Valid @RequestBody Login request) {
+        return SuccessResponse.of(200, "로그인되었습니다", auth.login(request.email(), request.password()), traceId());
     }
 
     @PostMapping("/auth/refresh")
-    public ApiResponse<?> refresh(@Valid @RequestBody Refresh request) {
-        return ApiResponse.success(200, auth.refresh(request.refreshToken()), traceId());
+    public SuccessResponse<?> refresh(@Valid @RequestBody Refresh request) {
+        return SuccessResponse.of(200, "토큰이 재발급되었습니다", auth.refresh(request.refreshToken()), traceId());
     }
 
     @PostMapping("/auth/logout")
-    public ApiResponse<?> logout(@RequestAttribute Long currentUserId,
+    public SuccessResponse<?> logout(@RequestAttribute Long currentUserId,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         auth.logout(currentUserId, authorization);
-        return ApiResponse.success(200, null, traceId());
+        return SuccessResponse.of(200, "로그아웃되었습니다", null, traceId());
     }
 
     @PostMapping("/auth/password-change")
-    public ApiResponse<?> changePassword(@Valid @RequestBody PasswordChange request) {
+    public SuccessResponse<?> changePassword(@Valid @RequestBody PasswordChange request) {
         auth.changePassword(request.email(), request.currentPassword(), request.newPassword());
-        return ApiResponse.success(200, null, traceId());
+        return SuccessResponse.of(200, "비밀번호가 변경되었습니다", null, traceId());
     }
 
     @GetMapping("/users/me")
-    public ApiResponse<?> me(@RequestAttribute Long currentUserId) {
-        return ApiResponse.success(200, auth.me(currentUserId), traceId());
+    public SuccessResponse<?> me(@RequestAttribute Long currentUserId) {
+        return SuccessResponse.of(200, "조회되었습니다", auth.me(currentUserId), traceId());
     }
 
     private String traceId() {

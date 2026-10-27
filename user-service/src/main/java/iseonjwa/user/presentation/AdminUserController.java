@@ -1,7 +1,7 @@
 package iseonjwa.user.presentation;
 
 import iseonjwa.common.identity.Roles;
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.SuccessResponse;
 import iseonjwa.common.response.BusinessException;
 import iseonjwa.common.response.CommonErrorCode;
 import iseonjwa.user.application.AuthService;
@@ -34,6 +34,6 @@ public class AdminUserController {
         var result = auth.resetPassword(currentUserId, userId);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(200, result, MDC.get("traceId")));
+                .body(SuccessResponse.of(200, "비밀번호가 초기화되었습니다", result, MDC.get("traceId")));
     }
 }

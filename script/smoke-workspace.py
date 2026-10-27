@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV = load_local_env(ROOT / '.env')
 COMPOSE = ['docker', 'compose', '-f', 'compose.yml', '-f', 'compose.local.yml']
 BASE = 'http://127.0.0.1:8080'
-RESPONSE_KEYS = {'status', 'code', 'message', 'data', 'errors', 'traceId'}
+SUCCESS_KEYS = {'status', 'message', 'data', 'traceId'}
+FAILURE_KEYS = {'status', 'code', 'message', 'traceId'}
 passed = 0
 
 
@@ -44,11 +45,18 @@ def http(method, url, body=None, token=None, headers=None):
 
 
 def check(label, method, path, expected, body=None, token=None, headers=None):
-    """Gateway 응답의 상태와 6키 본문을 함께 검사한다."""
+    """Gateway 응답의 상태와 SA 11-2의 성공·실패 본문 형태를 함께 검사한다."""
     global passed
     status, result = http(method, BASE + path, body, token, headers)
     assert status == expected, f'{label}: HTTP {status}, 기대 {expected}'
-    assert isinstance(result, dict) and set(result) == RESPONSE_KEYS, f'{label}: 응답 6키 불일치'
+    assert isinstance(result, dict), f'{label}: JSON 본문이 아님'
+    if 200 <= expected < 300:
+        expected_keys = SUCCESS_KEYS
+    elif expected == 400 and 'errors' in result:
+        expected_keys = FAILURE_KEYS | {'errors'}  # errors는 검증 실패일 때만 있다
+    else:
+        expected_keys = FAILURE_KEYS
+    assert set(result) == expected_keys, f'{label}: 응답 키 불일치 {sorted(result)}'
     assert result['status'] == expected, f'{label}: HTTP와 본문 상태 불일치'
     passed += 1
     print(f'통과 {passed}: {label}')

@@ -2,7 +2,7 @@ package iseonjwa.common.web;
 
 import iseonjwa.common.identity.IdentityHeaders;
 import iseonjwa.common.identity.Roles;
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.FailureResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,7 +52,7 @@ public class GatewayIdentityFilter extends OncePerRequestFilter {
     }
 
     private void writeUnauthorized(HttpServletResponse response) throws IOException {
-        var body = new ApiResponse<>(401, "UNAUTHORIZED", "인증이 필요합니다", null, null, MDC.get("traceId"));
+        var body = FailureResponse.of(401, "UNAUTHORIZED", "인증이 필요합니다", MDC.get("traceId"));
         response.setStatus(401);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");

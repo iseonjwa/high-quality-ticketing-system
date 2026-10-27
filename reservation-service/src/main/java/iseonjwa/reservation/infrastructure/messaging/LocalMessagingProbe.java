@@ -1,7 +1,7 @@
 package iseonjwa.reservation.infrastructure.messaging;
 
 import iseonjwa.common.event.EventEnvelope;
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.SuccessResponse;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
@@ -42,6 +42,6 @@ public class LocalMessagingProbe {
         var event = new EventEnvelope<>(id, "BootstrapProbe", 1, Instant.now(), "reservation-service",
                 MDC.get("traceId"), Map.of("userId", currentUserId));
         kafka.send(TOPIC, id.toString(), mapper.writeValueAsString(event)).get(5, TimeUnit.SECONDS);
-        return ResponseEntity.status(202).body(ApiResponse.success(202, Map.of("eventId", id), MDC.get("traceId")));
+        return ResponseEntity.status(202).body(SuccessResponse.of(202, "접수되었습니다", Map.of("eventId", id), MDC.get("traceId")));
     }
 }

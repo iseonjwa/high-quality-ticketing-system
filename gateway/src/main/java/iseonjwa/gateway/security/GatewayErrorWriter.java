@@ -1,7 +1,7 @@
 package iseonjwa.gateway.security;
 
 import io.micrometer.tracing.Tracer;
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.FailureResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -30,7 +30,7 @@ public class GatewayErrorWriter {
 
         var span = tracer.currentSpan();
         var traceId = span == null ? null : span.context().traceId();
-        var body = new ApiResponse<>(status, code, message, null, null, traceId);
+        var body = FailureResponse.of(status, code, message, traceId);
         var buffer = response.bufferFactory().wrap(mapper.writeValueAsBytes(body));
         return response.writeWith(Mono.just(buffer));
     }

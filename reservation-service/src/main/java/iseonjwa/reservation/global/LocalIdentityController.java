@@ -1,6 +1,6 @@
 package iseonjwa.reservation.global;
 
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.SuccessResponse;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,8 +13,8 @@ import java.util.Map;
 @RestController
 public class LocalIdentityController {
     @GetMapping("/api/v1/reservations/_system/identity")
-    public ApiResponse<?> identity(@RequestAttribute Long currentUserId, @RequestAttribute String currentUserRole) {
+    public SuccessResponse<?> identity(@RequestAttribute Long currentUserId, @RequestAttribute String currentUserRole) {
         var identity = Map.of("service", "reservation-service", "userId", currentUserId, "role", currentUserRole);
-        return ApiResponse.success(200, identity, MDC.get("traceId"));
+        return SuccessResponse.of(200, "조회되었습니다", identity, MDC.get("traceId"));
     }
 }

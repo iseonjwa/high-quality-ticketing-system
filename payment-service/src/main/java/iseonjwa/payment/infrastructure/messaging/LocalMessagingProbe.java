@@ -1,6 +1,6 @@
 package iseonjwa.payment.infrastructure.messaging;
 
-import iseonjwa.common.response.ApiResponse;
+import iseonjwa.common.response.SuccessResponse;
 import iseonjwa.common.response.BusinessException;
 import iseonjwa.common.response.CommonErrorCode;
 import org.slf4j.MDC;
@@ -30,10 +30,10 @@ public class LocalMessagingProbe {
     }
 
     @GetMapping("/api/v1/payments/_system/events/{eventId}")
-    public ApiResponse<?> received(@PathVariable String eventId) {
+    public SuccessResponse<?> received(@PathVariable String eventId) {
         if (!eventId.equals(received.get())) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
-        return ApiResponse.success(200, Map.of("eventId", eventId), MDC.get("traceId"));
+        return SuccessResponse.of(200, "조회되었습니다", Map.of("eventId", eventId), MDC.get("traceId"));
     }
 }
