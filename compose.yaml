@@ -1,0 +1,262 @@
+# 실행 환경 (SA 6-2, 9-1, 9-2, 9-3, 9-6)
+#
+#   인프라만 (로컬 개발: 앱은 IntelliJ로 실행)   docker compose up -d
+#   전부 (측정·배포, M1 걷는 뼈대 확인)          docker compose --profile app up -d --build
+#
+# 포트 노출 규칙 (SA 9-2): 외부 공개는 gateway(8080)뿐이다. 관리 화면은 127.0.0.1에만 열고,
+# DB·Redis·Kafka·Config 서버·서비스는 compose 네트워크 안에서만 쓴다(expose).
+# 로컬 개발용 포트는 compose.override.yaml이 127.0.0.1로만 연다.
+# 메모리 상한과 힙은 SA 9-3 시작값이다. docker stats로 측정한 뒤 바꾼다.
+
+name: iseonjwa
+
+x-spring-app: &spring-app
+  profiles: [app]
+  restart: unless-stopped
+  environment: &spring-env
+    CONFIG_SERVER_URL: http://config-server:8888
+    EUREKA_URL: http://eureka:8761/eureka
+    ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+services:
+
+  # ---------- 설정 ----------
+
+  config-server:
+    build:
+      context: .
+      args:
+        MODULE: config-server
+    image: iseonjwa/config-server:local
+    environment:
+      CONFIG_REPO_LOCATION: file:/config-repo/
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      JAVA_TOOL_OPTIONS: -Xmx256m
+    volumes:
+      - ./config-repo:/config-repo:ro
+    expose: ["8888"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8888/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  # ---------- 앱 (profile: app) ----------
+
+  eureka:
+    <<: *spring-app
+    build:
+      context: .
+      args:
+        MODULE: eureka
+    image: iseonjwa/eureka:local
+    environment:
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      JAVA_TOOL_OPTIONS: -Xmx256m
+    ports:
+      - "127.0.0.1:8761:8761"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  gateway:
+    <<: *spring-app
+    build:
+      context: .
+      args:
+        MODULE: gateway
+    image: iseonjwa/gateway:local
+    environment:
+      <<: *spring-env
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:?.env에 JWT_SECRET을 넣어야 한다}
+      JAVA_TOOL_OPTIONS: -Xmx512m
+    ports:
+      - "8080:8080"
+    mem_limit: 768m
+    depends_on:
+      config-server: { condition: service_healthy }
+      eureka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  user-service:
+    <<: *spring-app
+    build:
+      context: .
+      args:
+        MODULE: user-service
+    image: iseonjwa/user-service:local
+    environment:
+      <<: *spring-env
+      JWT_SECRET: ${JWT_SECRET:?.env에 JWT_SECRET을 넣어야 한다}
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?.env에 USER_DB_PASSWORD를 넣어야 한다}
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    expose: ["8081"]
+    mem_limit: 640m
+    depends_on:
+      config-server: { condition: service_healthy }
+      eureka: { condition: service_healthy }
+      postgres-user: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  # ---------- 데이터 ----------
+
+  postgres-user:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: user_service
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD:?.env에 USER_DB_PASSWORD를 넣어야 한다}
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    expose: ["5432"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_service -d user_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres-reservation:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: reservation_db
+      POSTGRES_USER: reservation_service
+      POSTGRES_PASSWORD: ${RESERVATION_DB_PASSWORD:?.env에 RESERVATION_DB_PASSWORD를 넣어야 한다}
+    volumes:
+      - postgres-reservation-data:/var/lib/postgresql/data
+    expose: ["5432"]
+    mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reservation_service -d reservation_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres-payment:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_service
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?.env에 PAYMENT_DB_PASSWORD를 넣어야 한다}
+    volumes:
+      - postgres-payment-data:/var/lib/postgresql/data
+    expose: ["5432"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_service -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    # 대기열·블랙리스트처럼 지워지면 안 되는 키가 있어 꽉 차면 지우지 않고 쓰기를 거부한다
+    command: ["redis-server", "--maxmemory", "400mb", "--maxmemory-policy", "noeviction"]
+    expose: ["6379"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------- 메시징 ----------
+
+  kafka:
+    image: apache/kafka:4.1.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # KRaft 클러스터 ID(Base64 UUID). 브로커 1대짜리 로컬·EC2용 고정값이다
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      # INTERNAL: compose 안의 앱, EXTERNAL: IntelliJ로 띄운 앱(compose.override.yaml이 포트를 연다)
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # 브로커 1대라 복제 계수는 1이다 (SA 9-1)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_HEAP_OPTS: -Xms1g -Xmx1g
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    expose: ["9092"]
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.3.0
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      JAVA_OPTS: -Xmx256m
+    ports:
+      - "127.0.0.1:8085:8080"
+    mem_limit: 512m
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  # ---------- 관측 ----------
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    mem_limit: 768m
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?.env에 GRAFANA_ADMIN_PASSWORD를 넣어야 한다}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 384m
+    depends_on:
+      - prometheus
+
+  zipkin:
+    image: openzipkin/zipkin:3.5
+    environment:
+      JAVA_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "127.0.0.1:9411:9411"
+    mem_limit: 768m
+
+volumes:
+  postgres-user-data:
+  postgres-reservation-data:
+  postgres-payment-data:
+  kafka-data:
+  grafana-data:
