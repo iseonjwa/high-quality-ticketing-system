@@ -1,6 +1,9 @@
 description = 'gateway-edge'
 
 dependencies {
-    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webmvc'
+    // 응답 형식만 쓴다. common은 웹 스택을 compileOnly로 두므로 MVC가 딸려 오지 않는다.
+    implementation project(':common')
+
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 }

@@ -32,7 +32,7 @@
 |---|---|
 | [junhyun](junhyun/README.md) | 개별 기록 3건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 8건, 일지 1일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 1건, 일지 0일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -40,6 +40,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-27 | 공통 모듈: SA 4개 분리 대신 common 하나로 두고 메시징만 나중에 분리하는 AI 추천을 수용 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-common-module-minimal-split.md) |
+| 2026-10-27 | Gateway 스택: 현재 WebMVC 대신 SA 전제와 AI 추천대로 WebFlux로 전환 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-10-27-gateway-webflux.md) |
 | 2026-10-27 | 멀티모듈 빌드: AI 진단·수정안(common 라이브러리화, 공통 의존성 루트 집약) 수용 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-10-27-multimodule-build-fix.md) |
 | 2026-10-26 | Config 서버: AI의 '없이 .env + 프로필' 추천 대신 Config 서버를 둠 | kangmin | Claude Code, codex | **거부** | 아님 | [기록](kangmin/2026-10-26-config-server.md) |
 | 2026-10-26 | 기술 스택: AI 추천 Java 25 대신 Java 21(팀 합의 전), Boot 4.1·Spring Cloud 2025.1 유지 | junhyun 결정 (조정 요청: kangmin) | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-26-tech-stack-java21.md) |

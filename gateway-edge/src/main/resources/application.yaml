@@ -6,7 +6,7 @@ spring:
   cloud:
     gateway:
       server:
-        webmvc:
+        webflux:
           # lb://<서비스 이름>은 Eureka에 등록된 인스턴스 중 하나로 보낸다.
           routes:
             - id: user-service
