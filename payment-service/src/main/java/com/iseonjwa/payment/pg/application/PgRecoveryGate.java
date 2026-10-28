@@ -1,7 +1,6 @@
 package com.iseonjwa.payment.pg.application;
 
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -10,10 +9,9 @@ import java.util.function.Supplier;
  */
 public interface PgRecoveryGate {
     /**
-     * 허가를 얻어 호출하고 결과로 정산한다. 허가를 못 얻으면 호출하지 않고 빈 값을 돌려준다. 호출한 쪽은 다음 주기로
-     * 넘기고 시도 횟수를 세지 않는다. 예외가 나면 실패로 세고 그대로 다시 던진다.
-     *
-     * @param isFailure 결과를 CB에 실패로 셀지 정한다(보통 {@link PgClient.Unknown})
+     * 허가를 얻어 호출하고 결과로 정산한다({@link PgPermit#settle}). 허가를 못 얻으면 호출하지 않고 빈 값을 돌려준다.
+     * 호출한 쪽은 다음 주기로 넘기고 시도 횟수를 세지 않는다. {@code call}은 null을 돌려주지 않아야 하며, 예외(null 포함)가
+     * 나면 실패로 세고 그대로 다시 던진다. Error는 결과로 세지 않고 허가만 돌려준다.
      */
-    <R> Optional<R> execute(Supplier<R> call, Predicate<R> isFailure);
+    <R> Optional<R> execute(Supplier<R> call);
 }

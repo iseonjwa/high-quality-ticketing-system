@@ -5,9 +5,10 @@ dependencies {
     implementation 'org.springframework:spring-aspects'
     implementation project(':common')
     implementation 'org.springframework.security:spring-security-oauth2-jose'
-    // Note: Spring Boot BOM이 관리하지 않아 버전을 직접 정한다. Spring 통합 모듈 없이 코어만 써 설정을 코드에서 읽을 수 있게 한다
-    implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.3.0'
-    implementation 'io.github.resilience4j:resilience4j-bulkhead:2.3.0'
+    // Note: 버전은 spring-cloud-dependencies BOM이 관리한다. 애노테이션 AOP는 "TX1 앞에서 허가를 얻고 PG 호출 결과로
+    // 정산"하는 흐름을 표현하지 못해 Spring 통합 모듈 없이 코어를 직접 쓴다
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+    implementation 'io.github.resilience4j:resilience4j-bulkhead'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'

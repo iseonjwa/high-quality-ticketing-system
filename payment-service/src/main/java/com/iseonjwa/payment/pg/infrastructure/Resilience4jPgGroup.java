@@ -14,6 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 한 그룹(승인 또는 복구)의 Bulkhead와 Circuit Breaker. 허가의 획득과 정산을 이 클래스 한 곳에 모아
  * 반환을 빠뜨리지 않게 한다(0018).
+ *
+ * <p>Note: 허가를 얻은 뒤 CB의 OPEN 시간(기본 10초)보다 오래 정산하지 않으면 Resilience4j가 상태 전환 뒤의 호출로
+ * 잘못 세는 경우가 있다(예: HALF_OPEN 중 반환이 시험 호출 자리를 늘림). 한 요청의 허가 보유 시간(TX1 1초 + PG 2.5초)이
+ * OPEN 시간보다 충분히 짧아야 하므로 OPEN 시간을 크게 줄일 때 확인한다.
  */
 final class Resilience4jPgGroup {
     private final CircuitBreaker circuitBreaker;
@@ -58,12 +62,18 @@ final class Resilience4jPgGroup {
     private static final class Permit implements PgPermit {
         private final CircuitBreaker circuitBreaker;
         private final Bulkhead bulkhead;
-        private final long startedAtNanos = System.nanoTime();
+        // 허가를 얻은 시각으로 시작하고 PG 호출을 시작하면 그 시각으로 바꾼다(TX1 시간을 호출 시간에 섞지 않는다)
+        private volatile long startedAtNanos = System.nanoTime();
         private final AtomicBoolean settled = new AtomicBoolean();
 
         private Permit(CircuitBreaker circuitBreaker, Bulkhead bulkhead) {
             this.circuitBreaker = circuitBreaker;
             this.bulkhead = bulkhead;
+        }
+
+        @Override
+        public void callStarted() {
+            startedAtNanos = System.nanoTime();
         }
 
         @Override
