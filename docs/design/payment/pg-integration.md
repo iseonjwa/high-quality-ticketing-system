@@ -61,7 +61,7 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 - `Unknown`과 PG 5xx는 CB에 실패로 기록하고, 정상 거절과 `NotFound`는 성공으로 센다.
 - 허가 획득과 정산은 PG 호출 래퍼 한 곳에서 `try/finally`로 묶는다. 승인은 TX1 앞에서 얻고 TX1이 실패하면 호출 결과로 세지 않고 반환한다.
 - Ops 명령은 별도 프로세스라 같은 설정의 별도 Resilience4j 인스턴스를 쓴다.
-- Resilience4j 의존성은 아직 `payment-service/build.gradle`에 없어 추가한다.
+- 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate.execute`(허가를 못 얻으면 빈 값, 호출하지 않고 시도 횟수를 세지 않는다)다. 설정은 `payment.pg.protection.{approve,recovery}.*`다. 복구 그룹의 호출자(재확인 스케줄러·환불 워커)는 ISE-38·39에서 붙인다.
 - PG 호출은 트랜잭션 밖이고 TX1 커밋 뒤에 한다.
 
 시간 예산: 승인 요청 한 건은 TX1(연결 대기 1초 이내) + PG 최대 2.5초 + TX2(연결 대기 1초 이내)라 Gateway 응답 시한 3초를 넘을 수 있다. 넘으면 클라이언트는 504를 받고 서버는 처리를 계속한다. 같은 키 재시도로 결과를 받는다([api.md](api.md) 응답 절, N29).
