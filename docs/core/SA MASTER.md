@@ -339,8 +339,8 @@ flowchart TD
 | 대기열 | 권영은 | 진입·순번·입장 토큰·일정 속도 입장, 입장 토큰 검증 필터, 부하 테스트 기준선 | 대기열 고도화, 부하 테스트·Synthetic Data 주관 |
 | 좌석 선점 | 최권우 | 동기형 일괄 선점·중복 판매 방지·만료·멱등 | 접수형 Kafka 접수 → 재측정 |
 | 공연·좌석 조회 → 예매 흐름 | 반효승 | 공연·좌석 등록·조회 → 예매 상태·확정·발권·결제 토큰·보상 | 예매 취소, 캐싱 (알림함 보류) |
-| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 환불 상태·재확인 스케줄러 | 취소 환불, 토스 테스트 모드 어댑터 |
-| Mock PG → 추첨 | 이강민 | Mock PG·장애 주입·결제 조회 연동, 망취소, 환불 조회·멱등 | 추첨 전체 + 빌링키 자동결제 |
+| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 환불 상태·재확인 스케줄러, Mock PG(장애 주입·망취소·환불 조회·멱등) | 취소 환불, 토스 테스트 모드 어댑터 |
+| User·공통 → 추첨 | 이강민 | User·공통 모듈 개선, 추첨 기획·설계 | 추첨 전체 + 빌링키 자동결제 |
 | 프론트 | 안준현 | — | 최소 화면 (AI 도구로 생성) |
 | 내부 AI 상담 | 안준현 | — | Could, 필수 기능과 측정이 끝난 뒤 |
 
@@ -405,19 +405,20 @@ flowchart TD
 | MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_event), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
 | MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
 | MVP | 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
+| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
+| MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
 | 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
 
-### 6-7. Mock PG → 추첨: 이강민
+### 6-7. User·공통 → 추첨: 이강민
 
-MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤트 → 예매 확정이 끝까지 돌고 Mock 장애 주입으로 거절·타임아웃이 재현되면 추첨으로 넘어간다(대략 11/3~11/6).
+10/28 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당(6-6)이 맡고, 결제 쪽 지원도 필요 없다고 확인했다. MVP 기간에는 User·공통 모듈을 개선하고 추첨을 기획·설계한다. 추첨 구현은 좌석 선점·결제 승인·`payment.result` 계약이 생긴 뒤 MVP 이후에 한다.
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
-| MVP | 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
-| MVP | 결제 재확인 스케줄러 (결제 담당과 함께) | — |
+| MVP | User·공통 모듈 개선: 계층 의존 방향 정리, 토큰 발급 규칙을 도메인으로 이동 (14장 #7 후속) | — |
+| MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
 | 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
 | 이후 | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
 | 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
@@ -442,7 +443,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 - **10/27 계약 통보**: 형식을 소유한 담당이 정해 공유하고 소비하는 쪽이 리뷰한다. 입장 토큰(대기열 → Gateway·좌석 선점), 선점 결과(좌석 선점 → 예매 흐름), 결제 토큰(예매 흐름 → 결제), 결제 결과 이벤트(결제 → 예매 흐름). 공통 응답·에러 형식은 #19로 결정됨. 진행 방식은 형식을 소유한 서비스 담당자가 정해서 통보하고, 소비하는 쪽이 리뷰한다(10/26 메모).
 - **첫 주 순서**: 공연·좌석 데이터 → 좌석 선점 → 예매 흐름 ↔ 결제, 대기열은 병렬
 - 각자 담당 영역의 AI 검증 항목을 1개 이상 로그에 남긴다.
-- `⚠ 미해결` 안준현 님은 MVP 기간 결제 + 이벤트 공통 모듈(환불·재확인 스케줄러 포함)이라 부담이 크다. 결제가 밀리면 이강민 님이 추첨으로 넘어가는 시점을 늦춰 결제를 돕는다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
+- 결제 담당 부담 (10/28 해소): MVP 기간 결제 + 이벤트 공통 모듈(환불·재확인 스케줄러 포함)이라 부담이 크다는 우려에 "결제가 밀리면 이강민 님이 추첨 시작을 늦추고 결제를 돕는다"고 적어 두었다. 결제 담당이 Mock PG를 포함해 모두 맡고 지원은 필요 없다고 확인해 이 계획을 뺐다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
 
 ---
 
@@ -943,8 +944,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Reservation | GET `/api/v1/reservations/me` | 인증 | 내 예매 목록 | 200 | 반효승 |
 | MVP | Payment | POST `/api/v1/payments` | 인증 · 멱등 | 결제 승인 | 200 / 202 (UNKNOWN) | 안준현 |
 | MVP | Payment | GET `/api/v1/payments/{paymentId}` | 인증 | 결제 상태 | 200 | 안준현 |
-| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 이강민 |
-| MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 이강민 |
+| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 안준현 |
+| MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 안준현 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
 | 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정 | 201 | 이강민 |
@@ -1704,7 +1705,7 @@ high-quality-ticketing-system/
 | U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) | 추첨 시작 때 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
 | U12 | ~~포트·패키지 이름 확인~~ 해소(10/27): 패키지 `com.iseonjwa`, 포트는 9-1 표(통합 코드 기준) | 10/27 | 다 같이 |
-| U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 이강민 |
+| U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
 | U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
 | U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
@@ -1749,7 +1750,7 @@ high-quality-ticketing-system/
 | AI 로그 #0 | 작성 요청은 검증이 아님 → 재구성 | ✅ | 14장 |
 | C1 | PG 타임아웃 = 결과 모름, UNKNOWN, 만료 뒤 승인 자동 환불 | ✅ | 8-1 · 8-2 |
 | C1 | 결제 진행 중(PAYING) 만료 제외 + 별도 결제 마감 | 🔀 만료 우선 + 자동 환불, 결제 토큰 10초 앞당김(#35) | 8-4 · 7-3 |
-| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (환불 조회·망취소 추가, #16·#28) | 6-7 · 11-5 |
+| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (환불 조회·망취소 추가, #16·#28) | 6-6 · 11-5 |
 | C2 | 우선순위 재배치 (토큰 검증·CB·멱등·Outbox 1경로·Synthetic·배포를 Must로) | ✅ | 5-1 |
 | C2 | 비동기 접수는 API 계약을 바꾸니 처음부터 최종형으로 | 🔀 동기형·접수형 응답을 `data.status` 하나로 구분해 화면이 두 경우를 모두 처리 | 11-5 |
 | C3 | 조건부 전이, 부분 유니크 인덱스, 전부 아니면 전부, DB 기준, SKIP LOCKED 만료 | ✅ | 8-4 · 12-7 |
@@ -1845,6 +1846,7 @@ high-quality-ticketing-system/
 | 패키지 이름 | `iseonjwa` `(팀 확인)` (v3.1 13장, U12) | `com.iseonjwa` (10/27 회의 D4, ADR 0014) | 반영 (v3.2) |
 | 블랙리스트 Redis 장애 | open: 로그아웃된 토큰이 최대 30분 통함 (#48 잠정), 이후 closed 잠정 구현 (ADR 0005 제안) | closed 확정 (10/27 회의 D14, ADR 0005 채택) | 반영 (v3.2) |
 | 구현 버전 | Gradle 9.1.0 (통합 기준 브랜치) | Gradle 9.8.2, Groovy DSL, PostgreSQL 17, Lombok 사용 (10/27 회의 D2·D3·D12·D13) | 반영 (v3.2) |
+| Mock PG 담당과 결제 지원 | Mock PG·장애 주입·망취소·환불 조회는 이강민, 결제가 밀리면 이강민이 추첨 시작을 늦추고 돕는다 (v3.2 6-1·6-7·6-9) | Mock PG 포함 결제 전부 안준현, 지원 불필요. 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 (10/28 결제 담당 확인) | 반영 (10/28) |
 
 **본문에서 뺀 내용**
 
