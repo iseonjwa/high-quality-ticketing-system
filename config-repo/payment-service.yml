@@ -6,7 +6,9 @@ spring:
     username: ${DB_USER:iseonjwa}
     password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 5
+      # Note: SA 9-4의 서비스당 20. 연결 대기는 1초로 줄여 요청 스레드가 Gateway 3초 제한을 넘겨 기다리지 않게 한다
+      maximum-pool-size: 20
+      connection-timeout: 1000
   kafka:
     consumer:
       group-id: payment-service.bootstrap
