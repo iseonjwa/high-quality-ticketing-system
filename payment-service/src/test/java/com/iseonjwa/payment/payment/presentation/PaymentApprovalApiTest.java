@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.payment.presentation;
 
 import com.iseonjwa.payment.payment.application.PaymentTx;
+import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
+import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
@@ -25,9 +27,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -38,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -66,10 +74,14 @@ class PaymentApprovalApiTest {
     PgClient pg;
     @MockitoSpyBean
     PaymentTx paymentTx;
+    @MockitoSpyBean
+    IdempotencyRecordRepository idempotency;
+    @MockitoSpyBean
+    PaymentRepository payments;
 
     @BeforeEach
     void stubPg() {
-        reset(pg, paymentTx);
+        reset(pg, paymentTx, idempotency, payments);
         when(pg.approve(any())).thenAnswer(invocation -> approved(AMOUNT));
     }
 
@@ -268,9 +280,9 @@ class PaymentApprovalApiTest {
     void 토큰이_만료돼도_같은_키_재요청은_저장된_결과를_받는다() throws Exception {
         var reservation = newReservation();
         var key = key();
-        var soon = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(2)).build();
-        approve(USER, key, soon, AMOUNT);
-        Thread.sleep(2200);
+        var soon = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
+        assertEquals(200, approve(USER, key, soon, AMOUNT).status());
+        Thread.sleep(3300);
 
         var retry = approve(USER, key, soon, AMOUNT);
 
@@ -281,9 +293,9 @@ class PaymentApprovalApiTest {
     @Test
     void 만료된_토큰이라도_기존_결제를_새_키로_조회할_수_있다() throws Exception {
         var reservation = newReservation();
-        var soon = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(2)).build();
-        approve(USER, key(), soon, AMOUNT);
-        Thread.sleep(2200);
+        var soon = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
+        assertEquals(200, approve(USER, key(), soon, AMOUNT).status());
+        Thread.sleep(3300);
 
         var viaNewKey = approve(USER, key(), soon, AMOUNT);
 
@@ -308,17 +320,70 @@ class PaymentApprovalApiTest {
     }
 
     @Test
-    void TX2가_실패해도_202로_응답하고_결제는_재확인_대상으로_남는다() throws Exception {
+    void TX2가_전이_뒤에_실패하면_전부_롤백되고_202로_응답하며_재확인_대상으로_남는다() throws Exception {
         var reservation = newReservation();
-        doThrow(new DataAccessResourceFailureException("DB 장애")).when(paymentTx).settleApproved(any(), any(), any());
+        doThrow(new DataAccessResourceFailureException("DB 장애")).when(idempotency)
+                .saveResponse(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), any());
 
         var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), AMOUNT);
 
         assertEquals(202, response.status());
+        assertEquals("REQUESTED", response.json().get("data").get("status").asString());
+        assertNotNull(response.location());
         assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?",
-                String.class, reservation));
+                String.class, reservation), "승인 전이가 롤백돼 REQUESTED로 남는다");
         assertNotNull(jdbc.queryForObject("SELECT next_check_at FROM payment WHERE reservation_id = ?", Instant.class,
                 reservation));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+                String.valueOf(reservation)), "이벤트도 롤백된다");
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment_status_history WHERE payment_id = "
+                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+        assertNull(jdbc.queryForObject("SELECT response_status FROM idempotency_record WHERE resource_id = "
+                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+    }
+
+    @Test
+    void PG_호출_전_구간의_DB_오류는_500이_아니라_503이다() throws Exception {
+        doThrow(new DataAccessResourceFailureException("연결 대기 초과")).when(payments).findByReservationId(any());
+
+        var response = approve(USER, key(), token(USER, newReservation(), AMOUNT).build(), AMOUNT);
+
+        assertEquals(503, response.status());
+        assertEquals("SERVICE_UNAVAILABLE", response.json().get("code").asString());
+        verify(pg, never()).approve(any());
+    }
+
+    @Test
+    void PG_어댑터가_예외를_던져도_결과를_모르는_것으로_다뤄_거절로_닫지_않는다() throws Exception {
+        var reservation = newReservation();
+        when(pg.approve(any())).thenThrow(new IllegalStateException("어댑터 오류"));
+
+        var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), AMOUNT);
+
+        assertEquals(202, response.status());
+        assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    @Test
+    void TX1과_PG_호출_사이에_토큰이_만료되면_PG를_부르지_않고_거절한다() throws Exception {
+        var reservation = newReservation();
+        // TX1 직후 토큰이 만료될 때까지 기다리게 한다. JWT exp는 초 단위라 여유를 둔다
+        doAnswer(invocation -> {
+            var created = invocation.callRealMethod();
+            Thread.sleep(3200);
+            return created;
+        }).when(paymentTx).createRequested(any(), any(), any());
+        var token = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
+
+        var response = approve(USER, key(), token, AMOUNT);
+
+        assertEquals(200, response.status());
+        assertEquals("DECLINED", response.json().get("data").get("status").asString());
+        assertEquals("TOKEN_EXPIRED", response.json().get("data").get("reasonCode").asString());
+        verify(pg, never()).approve(any());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ? AND event_type = 'PaymentDeclined'",
+                Integer.class, String.valueOf(reservation)));
     }
 
     @Test
@@ -326,38 +391,126 @@ class PaymentApprovalApiTest {
         var reservation = newReservation();
         var key = key();
         var token = token(USER, reservation, AMOUNT).build();
+        var responses = concurrently(() -> approve(USER, key, token, AMOUNT), () -> approve(USER, key, token, AMOUNT));
+
+        // 두 요청이 모두 TX1까지 들어온 뒤 진행해 유니크 위반 경로를 실제로 탄다
+        verify(paymentTx, times(2)).createRequested(any(), any(), any());
+        assertEquals(1, paymentCount(reservation));
+        verify(pg, times(1)).approve(any());
+        for (var response : responses) {
+            assertTrue(response.status() == 200 || response.status() == 202, "동시 요청도 500이 아니다: " + response.status());
+        }
+        assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
+                responses.get(1).json().get("data").get("paymentId").asLong());
+    }
+
+    @Test
+    void 다른_키가_같은_예매에_동시에_와도_결제는_한_건이고_진_쪽은_ALIAS로_같은_결제를_받는다() throws Exception {
+        var reservation = newReservation();
+        var token = token(USER, reservation, AMOUNT).build();
+        var keyA = key();
+        var keyB = key();
+        var responses = concurrently(() -> approve(USER, keyA, token, AMOUNT), () -> approve(USER, keyB, token, AMOUNT));
+
+        verify(paymentTx, times(2)).createRequested(any(), any(), any());
+        assertEquals(1, paymentCount(reservation));
+        verify(pg, times(1)).approve(any());
+        assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
+                responses.get(1).json().get("data").get("paymentId").asLong());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE link_type = 'ALIAS' "
+                + "AND resource_id = (SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+    }
+
+    @Test
+    void 같은_사용자가_같은_키로_다른_예매를_동시에_보내면_한쪽은_409이고_결제는_한_건이다() throws Exception {
+        var key = key();
+        var reservationA = newReservation();
+        var reservationB = newReservation();
+        var tokenA = token(USER, reservationA, AMOUNT).build();
+        var tokenB = token(USER, reservationB, AMOUNT).build();
+
+        var responses = concurrently(() -> approve(USER, key, tokenA, AMOUNT), () -> approve(USER, key, tokenB, AMOUNT));
+
+        var statuses = responses.stream().map(Response::status).sorted().toList();
+        assertTrue(statuses.contains(409), "다른 본문이 같은 키를 쓴 요청은 거절된다: " + statuses);
+        assertEquals(1, paymentCount(reservationA) + paymentCount(reservationB), "승인되는 결제는 하나뿐이다");
+        verify(pg, times(1)).approve(any());
+    }
+
+    // 두 요청이 모두 TX1(createRequested)에 들어온 뒤에 진행하도록 막아 두고 동시에 보낸다
+    @SafeVarargs
+    private List<Response> concurrently(Callable<Response>... requests) throws Exception {
+        var barrier = new CyclicBarrier(requests.length);
+        doAnswer(invocation -> {
+            try {
+                barrier.await(5, TimeUnit.SECONDS);
+            } catch (java.util.concurrent.TimeoutException | java.util.concurrent.BrokenBarrierException exception) {
+                // 한 요청이 TX1에 도달하지 않는 경로(재생 등)면 기다리지 않고 진행한다
+            }
+            return invocation.callRealMethod();
+        }).when(paymentTx).createRequested(any(), any(), any());
         when(pg.approve(any())).thenAnswer(invocation -> {
-            Thread.sleep(400);
+            Thread.sleep(300);
             return approved(AMOUNT);
         });
-        var start = new CountDownLatch(1);
-        var executor = Executors.newFixedThreadPool(2);
+        var executor = Executors.newFixedThreadPool(requests.length);
         try {
-            var futures = new java.util.ArrayList<java.util.concurrent.Future<Response>>();
-            for (var i = 0; i < 2; i++) {
-                futures.add(executor.submit(() -> {
-                    start.await();
-                    return approve(USER, key, token, AMOUNT);
-                }));
-            }
-            start.countDown();
-            for (var future : futures) {
-                var status = future.get(15, TimeUnit.SECONDS).status();
-                assertTrue(status == 200 || status == 202, "동시 요청도 500이 아니다: " + status);
-            }
+            var futures = new ArrayList<Future<Response>>();
+            for (var request : requests) futures.add(executor.submit(request));
+            var results = new ArrayList<Response>();
+            for (var future : futures) results.add(future.get(20, TimeUnit.SECONDS));
+            return results;
         } finally {
             executor.shutdownNow();
         }
+    }
 
-        assertEquals(1, paymentCount(reservation));
-        verify(pg, times(1)).approve(any());
+    @Test
+    void 요청_금액에_소수가_있거나_토큰이_너무_길면_거부한다() throws Exception {
+        var token = token(USER, newReservation(), AMOUNT).build();
+
+        var decimal = post(USER, key(), "{\"paymentToken\":\"" + token + "\",\"amount\":50000.5,\"method\":\"CARD\"}", true);
+        var tooLong = post(USER, key(), "{\"paymentToken\":\"" + "a".repeat(4097) + "\",\"amount\":50000,\"method\":\"CARD\"}", true);
+
+        assertEquals(400, decimal.status());
+        assertEquals("VALIDATION_FAILED", decimal.json().get("code").asString());
+        assertEquals(403, tooLong.status());
+        assertEquals("PAYMENT_TOKEN_INVALID", tooLong.json().get("code").asString());
+        verify(pg, never()).approve(any());
+    }
+
+    @Test
+    void 같은_키라도_사용자가_다르면_서로_독립이다() throws Exception {
+        var key = key();
+        var first = approve(USER, key, token(USER, newReservation(), AMOUNT).build(), AMOUNT);
+        var other = approve(USER + 1, key, token(USER + 1, newReservation(), AMOUNT).build(), AMOUNT);
+
+        assertEquals(200, first.status());
+        assertEquals(200, other.status());
+        verify(pg, times(2)).approve(any());
+    }
+
+    @Test
+    void 확인_필요_결제에_새_키로_요청하면_409와_Location이다() throws Exception {
+        var reservation = newReservation();
+        when(pg.approve(any())).thenAnswer(invocation -> approved(AMOUNT - 1000));
+        var token = token(USER, reservation, AMOUNT).build();
+        approve(USER, key(), token, AMOUNT);
+
+        var viaNewKey = approve(USER, key(), token, AMOUNT);
+
+        assertEquals(409, viaNewKey.status());
+        assertEquals("PAYMENT_ALREADY_EXISTS", viaNewKey.json().get("code").asString());
+        assertNotNull(viaNewKey.location());
     }
 
     @Test
     void CARD가_아닌_수단이나_잘못된_요청_형식은_400이다() throws Exception {
         var token = token(USER, newReservation(), AMOUNT).build();
 
-        assertEquals(400, post(USER, key(), "{\"paymentToken\":\"" + token + "\",\"amount\":50000,\"method\":\"BILLING\"}", true).status());
+        var billing = post(USER, key(), "{\"paymentToken\":\"" + token + "\",\"amount\":50000,\"method\":\"BILLING\"}", true);
+        assertEquals(400, billing.status());
+        assertEquals("VALIDATION_FAILED", billing.json().get("code").asString());
         assertEquals(400, post(USER, key(), "{\"paymentToken\":\"" + token + "\",\"amount\":-1,\"method\":\"CARD\"}", true).status());
         assertEquals(400, post(USER, "not-a-uuid", "{\"paymentToken\":\"" + token + "\",\"amount\":50000,\"method\":\"CARD\"}", true).status());
         assertEquals(400, post(USER, null, "{\"paymentToken\":\"" + token + "\",\"amount\":50000,\"method\":\"CARD\"}", true).status());
