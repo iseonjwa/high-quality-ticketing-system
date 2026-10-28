@@ -16,3 +16,8 @@ payment:
   token:
     # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
     secret: ${PAYMENT_TOKEN_SECRET:}
+  pg:
+    # 현재 어댑터는 mock뿐이다. toss는 M4에서 추가한다(ADR 0023)
+    provider: mock
+    mock:
+      base-url: ${MOCK_PG_URL:http://localhost:8090}

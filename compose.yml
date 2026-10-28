@@ -119,6 +119,7 @@ services:
       DB_USER: ${DB_USER:-iseonjwa}
       DB_PASSWORD: ${DB_PASSWORD:?필수}
       PAYMENT_TOKEN_SECRET: ${PAYMENT_TOKEN_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
+      MOCK_PG_URL: http://mock-pg:8090
     depends_on:
       config-server:
         condition: service_healthy
