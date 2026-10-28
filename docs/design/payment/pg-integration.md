@@ -25,8 +25,8 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 
 | 결과 | 대조 | 불일치 처리 |
 |---|---|---|
-| `Approved`·`AlreadyApproved` | `amount = payment.amount`, `currency = payment.currency` | 결제 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`. `pg_tx_id`·`pg_approved_amount`·`approved_at`을 저장하고 `PaymentApproved`를 내지 않는다. 즉시 알림. 코드가 이 검사를 빠뜨려도 `chk_payment_approved`가 `APPROVED` 저장을 막는다 |
-| `Refunded` | `amount = refund.amount`, `currency = payment.currency` | 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`, `PaymentRefunded` 없음, 즉시 알림 |
+| `Approved`·`AlreadyApproved` | `amount = payments.amount`, `currency = payments.currency` | 결제 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`. `pg_tx_id`·`pg_approved_amount`·`approved_at`을 저장하고 `PaymentApproved`를 내지 않는다. 즉시 알림. 코드가 이 검사를 빠뜨려도 `chk_payments_approved`가 `APPROVED` 저장을 막는다 |
+| `Refunded` | `amount = refunds.amount`, `currency = payments.currency` | 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`, `PaymentRefunded` 없음, 즉시 알림 |
 
 금액이 다른 승인은 예매를 확정하지 않는다. 고객 돈은 PG에 묶여 있으므로 운영자가 Ops `payment resolve`로 PG 승인을 다시 확인하고 PG 승인 금액 전액을 환불한다([manual-recovery.md](manual-recovery.md) 2절).
 
@@ -34,9 +34,9 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 
 | 이름 | 누가 만드나 | DB | Mock | 토스 |
 |---|---|---|---|---|
-| `PgOrderId` | 우리 | `payment.pg_order_id` | `orderId` | `orderId` |
-| `PgPaymentRef` | PG | `payment.pg_tx_id` | `pgTxId` | `paymentKey` |
-| `PgRefundId` | 우리 | `refund.pg_refund_id` | `refundId` | 취소 요청의 멱등키로 사용 |
+| `PgOrderId` | 우리 | `payments.pg_order_id` | `orderId` | `orderId` |
+| `PgPaymentRef` | PG | `payments.pg_tx_id` | `pgTxId` | `paymentKey` |
+| `PgRefundId` | 우리 | `refunds.pg_refund_id` | `refundId` | 취소 요청의 멱등키로 사용 |
 | `PgIdempotencyKey` | 우리(결정적 파생) | 저장하지 않음 | 승인 = `pg_order_id`, 환불 = `pg_refund_id` | `Idempotency-Key` 헤더 |
 
 `clientPaymentRef`는 구매자가 결제창에서 받은 PG 발급 식별자다. 토스는 필수이고 Mock은 무시한다. 있으면 TX1에서 `pg_tx_id`에 저장해 응답을 잃어도 같은 키로 재확인한다. 토스는 결제창을 열 때 `orderId`가 필요하므로 TX1보다 먼저 정해져야 한다. 예매당 결제가 하나라서([0026](../../decisions/0026-payment-one-per-reservation.md)) 예매마다 `orderId` 하나를 미리 정할 수 있다(결제 토큰 claim에 넣거나 예매 ID에서 결정적으로 파생). 방식은 M4에서 정한다(5절 #6).

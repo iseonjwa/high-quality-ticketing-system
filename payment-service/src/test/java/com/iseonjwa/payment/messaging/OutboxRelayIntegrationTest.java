@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // Note: common.messaging의 릴레이는 PostgreSQL 문법(SKIP LOCKED, RETURNING)을 쓰므로 PostgreSQL이 있는
-// 서비스 쪽에서 검증한다(common의 테스트 DB는 H2). 릴레이는 테이블 전체에서 행을 집어 매 테스트 전에 outbox를 비운다.
+// 서비스 쪽에서 검증한다(common의 테스트 DB는 H2). 릴레이는 테이블 전체에서 행을 집어 매 테스트 전에 outbox_events를 비운다.
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
 class OutboxRelayIntegrationTest {
@@ -57,7 +57,7 @@ class OutboxRelayIntegrationTest {
     void clean() {
         reset(sender, outbox);
         when(sender.send(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        jdbc.update("DELETE FROM outbox");
+        jdbc.update("DELETE FROM outbox_events");
     }
 
     @Test
@@ -68,7 +68,7 @@ class OutboxRelayIntegrationTest {
 
         verify(sender).send(eq("payment.result"), eq("100"), any());
         assertEquals("SENT", status("100"));
-        assertNotNull(jdbc.queryForObject("SELECT sent_at FROM outbox WHERE message_key = '100'", Instant.class));
+        assertNotNull(jdbc.queryForObject("SELECT sent_at FROM outbox_events WHERE message_key = '100'", Instant.class));
     }
 
     @Test
@@ -89,8 +89,8 @@ class OutboxRelayIntegrationTest {
         assertEquals(new OutboxRelay.Result(1, 0), relay.relayOnce());
 
         assertEquals("PENDING", status("100"));
-        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM outbox WHERE message_key = '100'", Integer.class));
-        assertEquals("브로커 장애", jdbc.queryForObject("SELECT last_error FROM outbox WHERE message_key = '100'", String.class));
+        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM outbox_events WHERE message_key = '100'", Integer.class));
+        assertEquals("브로커 장애", jdbc.queryForObject("SELECT last_error FROM outbox_events WHERE message_key = '100'", String.class));
     }
 
     @Test
@@ -225,10 +225,10 @@ class OutboxRelayIntegrationTest {
     }
 
     private void expireLease() {
-        jdbc.update("UPDATE outbox SET claimed_until = now() - interval '1 second'");
+        jdbc.update("UPDATE outbox_events SET claimed_until = now() - interval '1 second'");
     }
 
     private String status(String key) {
-        return jdbc.queryForObject("SELECT status FROM outbox WHERE message_key = ?", String.class, key);
+        return jdbc.queryForObject("SELECT status FROM outbox_events WHERE message_key = ?", String.class, key);
     }
 }

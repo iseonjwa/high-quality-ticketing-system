@@ -40,8 +40,8 @@ public class PaymentApprovalService {
     private static final Logger log = LoggerFactory.getLogger(PaymentApprovalService.class);
     // 유니크 위반 뒤 다시 조회하는 횟수. 한 번이면 충분하고 계속 겹치면 일시 장애로 본다
     private static final int MAX_ATTEMPTS = 2;
-    private static final String RESERVATION_UNIQUE = "uq_payment_reservation_id";
-    private static final String IDEMPOTENCY_PK = "idempotency_record_pkey";
+    private static final String RESERVATION_UNIQUE = "uq_payments_reservation_id";
+    private static final String IDEMPOTENCY_PK = "idempotency_records_pkey";
 
     private final PaymentTokenVerifier tokens;
     private final PaymentRepository payments;

@@ -87,12 +87,12 @@ class PaymentApprovalApiTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM idempotency_record WHERE resource_id IN (SELECT id FROM payment WHERE reservation_id >= ?)",
+        jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
-        jdbc.update("DELETE FROM outbox WHERE message_key ~ '^81[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_history WHERE payment_id IN (SELECT id FROM payment WHERE reservation_id >= ?)",
+        jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^81[0-9]{5}$'");
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
-        jdbc.update("DELETE FROM payment WHERE reservation_id >= ?", FIRST_RESERVATION);
+        jdbc.update("DELETE FROM payments WHERE reservation_id >= ?", FIRST_RESERVATION);
     }
 
     @Test
@@ -107,11 +107,11 @@ class PaymentApprovalApiTest {
         assertEquals(reservation, data.get("reservationId").asLong());
         assertEquals(AMOUNT, data.get("amount").asLong());
         assertNotNull(data.get("approvedAt"));
-        assertEquals("APPROVED", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?", String.class, reservation));
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ? AND event_type = 'PaymentApproved'",
+        assertEquals("APPROVED", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?", String.class, reservation));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ? AND event_type = 'PaymentApproved'",
                 Integer.class, String.valueOf(reservation)));
-        assertEquals(200, jdbc.queryForObject("SELECT response_status FROM idempotency_record WHERE resource_id = "
-                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+        assertEquals(200, jdbc.queryForObject("SELECT response_status FROM idempotency_records WHERE resource_id = "
+                + "(SELECT id FROM payments WHERE reservation_id = ?)", Integer.class, reservation));
     }
 
     @Test
@@ -124,7 +124,7 @@ class PaymentApprovalApiTest {
         assertEquals(200, response.status());
         assertEquals("DECLINED", response.json().get("data").get("status").asString());
         assertEquals("CARD_DECLINED", response.json().get("data").get("reasonCode").asString());
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ? AND event_type = 'PaymentDeclined'",
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ? AND event_type = 'PaymentDeclined'",
                 Integer.class, String.valueOf(reservation)));
     }
 
@@ -156,7 +156,7 @@ class PaymentApprovalApiTest {
         assertEquals(200, second.status());
         assertEquals(first.json().get("data").get("paymentId").asLong(), second.json().get("data").get("paymentId").asLong());
         assertEquals(200, third.status());
-        assertEquals("ALIAS", jdbc.queryForObject("SELECT link_type FROM idempotency_record WHERE idem_key = ?::uuid",
+        assertEquals("ALIAS", jdbc.queryForObject("SELECT link_type FROM idempotency_records WHERE idem_key = ?::uuid",
                 String.class, newKey));
         verify(pg, times(1)).approve(any());
         assertEquals(1, paymentCount(reservation));
@@ -195,8 +195,8 @@ class PaymentApprovalApiTest {
         assertEquals("/api/v1/payments/" + paymentId, first.location());
         assertEquals(202, retry.status());
         assertEquals(paymentId, retry.json().get("data").get("paymentId").asLong());
-        assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payment WHERE id = ?", String.class, paymentId));
-        assertNotNull(jdbc.queryForObject("SELECT next_check_at FROM payment WHERE id = ?", Instant.class, paymentId),
+        assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class, paymentId));
+        assertNotNull(jdbc.queryForObject("SELECT next_check_at FROM payments WHERE id = ?", Instant.class, paymentId),
                 "재확인 스케줄러가 집을 수 있어야 한다");
         verify(pg, times(1)).approve(any());
     }
@@ -313,9 +313,9 @@ class PaymentApprovalApiTest {
         assertEquals(409, response.status());
         assertEquals("PAYMENT_ALREADY_EXISTS", response.json().get("code").asString());
         assertNotNull(response.location());
-        assertEquals("NEEDS_MANUAL_CHECK", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?",
+        assertEquals("NEEDS_MANUAL_CHECK", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?",
                 String.class, reservation));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ?", Integer.class,
                 String.valueOf(reservation)));
     }
 
@@ -330,16 +330,16 @@ class PaymentApprovalApiTest {
         assertEquals(202, response.status());
         assertEquals("REQUESTED", response.json().get("data").get("status").asString());
         assertNotNull(response.location());
-        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?",
+        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?",
                 String.class, reservation), "승인 전이가 롤백돼 REQUESTED로 남는다");
-        assertNotNull(jdbc.queryForObject("SELECT next_check_at FROM payment WHERE reservation_id = ?", Instant.class,
+        assertNotNull(jdbc.queryForObject("SELECT next_check_at FROM payments WHERE reservation_id = ?", Instant.class,
                 reservation));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ?", Integer.class,
                 String.valueOf(reservation)), "이벤트도 롤백된다");
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment_status_history WHERE payment_id = "
-                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
-        assertNull(jdbc.queryForObject("SELECT response_status FROM idempotency_record WHERE resource_id = "
-                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment_status_histories WHERE payment_id = "
+                + "(SELECT id FROM payments WHERE reservation_id = ?)", Integer.class, reservation));
+        assertNull(jdbc.queryForObject("SELECT response_status FROM idempotency_records WHERE resource_id = "
+                + "(SELECT id FROM payments WHERE reservation_id = ?)", Integer.class, reservation));
     }
 
     @Test
@@ -361,7 +361,7 @@ class PaymentApprovalApiTest {
         var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), AMOUNT);
 
         assertEquals(202, response.status());
-        assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payment WHERE reservation_id = ?",
+        assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?",
                 String.class, reservation));
     }
 
@@ -382,7 +382,7 @@ class PaymentApprovalApiTest {
         assertEquals("DECLINED", response.json().get("data").get("status").asString());
         assertEquals("TOKEN_EXPIRED", response.json().get("data").get("reasonCode").asString());
         verify(pg, never()).approve(any());
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ? AND event_type = 'PaymentDeclined'",
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ? AND event_type = 'PaymentDeclined'",
                 Integer.class, String.valueOf(reservation)));
     }
 
@@ -417,8 +417,8 @@ class PaymentApprovalApiTest {
         verify(pg, times(1)).approve(any());
         assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
                 responses.get(1).json().get("data").get("paymentId").asLong());
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE link_type = 'ALIAS' "
-                + "AND resource_id = (SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE link_type = 'ALIAS' "
+                + "AND resource_id = (SELECT id FROM payments WHERE reservation_id = ?)", Integer.class, reservation));
     }
 
     @Test
@@ -536,7 +536,7 @@ class PaymentApprovalApiTest {
     }
 
     private int paymentCount(long reservationId) {
-        return jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id = ?", Integer.class, reservationId);
+        return jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class, reservationId);
     }
 
     private static PgClient.Approved approved(long amount) {

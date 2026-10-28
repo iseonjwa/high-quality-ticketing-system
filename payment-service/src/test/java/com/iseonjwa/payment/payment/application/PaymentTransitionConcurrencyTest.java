@@ -41,10 +41,10 @@ class PaymentTransitionConcurrencyTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM outbox WHERE message_key = ?", String.valueOf(RESERVATION_ID));
-        jdbc.update("DELETE FROM payment_status_history WHERE payment_id IN "
-                + "(SELECT id FROM payment WHERE reservation_id = ?)", RESERVATION_ID);
-        jdbc.update("DELETE FROM payment WHERE reservation_id = ?", RESERVATION_ID);
+        jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(RESERVATION_ID));
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN "
+                + "(SELECT id FROM payments WHERE reservation_id = ?)", RESERVATION_ID);
+        jdbc.update("DELETE FROM payments WHERE reservation_id = ?", RESERVATION_ID);
     }
 
     @Test
@@ -74,7 +74,7 @@ class PaymentTransitionConcurrencyTest {
 
             assertEquals(1, succeeded, "조건부 UPDATE는 한 경로만 통과시킨다");
             assertEquals(1, histories.findByPaymentId(payment.getId()).size());
-            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ?", Integer.class,
                     String.valueOf(RESERVATION_ID)), "진 쪽은 이벤트를 만들지 않는다(INV-5)");
         } finally {
             executor.shutdownNow();

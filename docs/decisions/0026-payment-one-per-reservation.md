@@ -33,14 +33,14 @@ SA 12-4의 D3는 `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN',
 | SA 4-2 ④ | 자동결제 요청 Kafka: "실패 건만 재시도" | 10-4·10-5의 소비 재시도 문맥으로 읽는다. 결제 거절 뒤 재승인 요구로 보지 않는다 |
 | SA 부록 A M6, 17-2 U9 | "결제 실패 유형별 재시도·승계 … ⚠ 미해결", 담당 이강민, 추첨 시작 때 | 요구가 확정되지 않았다. 확정되면 이 ADR을 다시 연다 |
 | 코드 | `payment-service`에는 `PaymentApplication`, `LocalIdentityController`, `ServiceConfiguration`, `LocalMessagingProbe`만 있고 결제 엔티티·마이그레이션이 없다 | 기존 데이터·코드 제약 없음 |
-| 설계 문서 | 결제 행이 `pg_order_id` 하나를 갖고(UNIQUE), 재조회는 같은 주문을 조회하며, 환불은 결제당 1건(`refund.payment_id` UNIQUE) | 행은 논리적 결제이면서 PG 주문 하나 |
+| 설계 문서 | 결제 행이 `pg_order_id` 하나를 갖고(UNIQUE), 재조회는 같은 주문을 조회하며, 환불은 결제당 1건(`refunds.payment_id` UNIQUE) | 행은 논리적 결제이면서 PG 주문 하나 |
 
 결론: SA v3.2에는 명확한 승인 거절 뒤 같은 예매를 다시 결제하는 요구가 없다. 사용자 조건에 따라 전체 UNIQUE를 적용한다. U9는 미결이라 재검토 조건으로 남긴다.
 
 ## 결정
 
 1. 결제 행은 **예매당 하나인 논리적 결제**다. 결제 행 하나 = PG 주문(`pg_order_id`) 하나 = 승인 호출 1회다. 재조회는 같은 주문을 조회할 뿐 새 승인 시도를 만들지 않는다.
-2. `payment`에 `UNIQUE(reservation_id)`를 상태와 무관하게 건다. D3 부분 유니크와 `INDEX(reservation_id, status)`를 대체한다.
+2. `payments`에 `UNIQUE(reservation_id)`를 상태와 무관하게 건다. D3 부분 유니크와 `INDEX(reservation_id, status)`를 대체한다.
 3. TX1의 유니크 위반은 정상 흐름이다. 롤백하고 허가를 반환한 뒤 기존 결제를 다시 읽어 0019의 표로 응답한다(500 금지). 같은 키 충돌(멱등 기록 PK)은 0017의 현재 상태 응답으로 간다.
 4. 0016의 조회(`DECLINED`·`REFUNDED`면 409 `PAYMENT_ALREADY_CLOSED`)는 빠른 응답과 명확한 에러 코드를 위해 유지한다. 조회와 쓰기 사이의 경합은 DB 제약이 막는다. 조회만으로 중복을 막는 로직은 남기지 않는다.
 5. 거절·환불된 예매에 다시 결제하려면 좌석을 다시 선점해 새 예매로 결제한다.
@@ -49,7 +49,7 @@ SA 12-4의 D3는 `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN',
 ## 검토한 대안
 
 - **D3 부분 유니크 + 조회 후 쓰기 유지**: 변경이 없다. 위 경합으로 토큰 재사용 차단이 뚫린다.
-- **Payment와 PaymentAttempt 분리**: `payment`(논리, `UNIQUE(reservation_id)`)와 `payment_attempt`(`pg_order_id` UNIQUE, 시도 상태, 진행 중 시도 하나만 허용하는 부분 유니크)로 나눈다. 거절 뒤 재시도를 지원한다. 상태 머신이 둘이 되고, 이벤트·멱등 기록·재조회·환불이 어느 단위를 가리키는지 모두 정해야 한다. 지금 요구가 없어 채택하지 않았다. U9 결과에 따른 준비된 대안이다.
+- **Payment와 PaymentAttempt 분리**: `payments`(논리, `UNIQUE(reservation_id)`)와 `payment_attempts`(`pg_order_id` UNIQUE, 시도 상태, 진행 중 시도 하나만 허용하는 부분 유니크)로 나눈다. 거절 뒤 재시도를 지원한다. 상태 머신이 둘이 되고, 이벤트·멱등 기록·재조회·환불이 어느 단위를 가리키는지 모두 정해야 한다. 지금 요구가 없어 채택하지 않았다. U9 결과에 따른 준비된 대안이다.
 - **부분 유니크 + 예매 단위 잠금(advisory lock 또는 `SELECT … FOR UPDATE`)**: 경합을 막는다. 모든 쓰기 경로가 잠금을 잡아야 해서 한 곳만 빠져도 뚫린다. DB 제약은 경로와 무관하게 막는다.
 
 ## 트레이드오프

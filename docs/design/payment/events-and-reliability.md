@@ -12,7 +12,7 @@
 
 페이로드 변경([SA 변경 요청](sa-change-requests.md) S-18, 0027): `PaymentApproved`·`PaymentRefunded`에 `currency`(`"KRW"`)를 더하고, `RefundRequested`에 `userId`·`amount`·`currency`를 더하며 `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE`을 추가한다. SA 10-4는 필드 추가만 허용하므로 `version`은 그대로 1이다.
 
-구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_event` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·정리·실행기 분리는 ISE-40이다. 발행 실패 시 지금은 임대(30초)가 끝나면 다시 시도한다. 한 번의 릴레이 실행은 전송 확인을 최대 전송 시한(12초)까지 기다리고(프로듀서의 `max.block.ms`·`delivery.timeout.ms`가 이 안에 들어오는지 기동 때 검증), 마감을 넘긴 행은 임대를 바로 푼다. 실제 소요는 시한에 `send` 호출이 막히는 시간(`max.block.ms`)과 후처리 쓰기가 더해진다.
+구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_events` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·정리·실행기 분리는 ISE-40이다. 발행 실패 시 지금은 임대(30초)가 끝나면 다시 시도한다. 한 번의 릴레이 실행은 전송 확인을 최대 전송 시한(12초)까지 기다리고(프로듀서의 `max.block.ms`·`delivery.timeout.ms`가 이 안에 들어오는지 기동 때 검증), 마감을 넘긴 행은 임대를 바로 푼다. 실제 소요는 시한에 `send` 호출이 막히는 시간(`max.block.ms`)과 후처리 쓰기가 더해진다.
 
 ## 2. 공통 규칙: 실제로 바뀐 전이만 후속 쓰기를 한다
 
@@ -22,8 +22,8 @@
 |---|---|
 | 승인 API TX2 | 후속 쓰기 없음. 현재 상태를 다시 읽어 응답 |
 | 재확인 스케줄러·환불 워커 | 후속 쓰기 없음. 건너뜀 |
-| `payment.command` 소비자·DLQ 처리기 | 업무 쓰기 없음. `processed_event`·`dead_letter`만 기록 |
-| Ops 명령 | `manual_action_log`에 REJECTED만 남기고 실패로 끝남 |
+| `payment.command` 소비자·DLQ 처리기 | 업무 쓰기 없음. `processed_events`·`dead_letters`만 기록 |
+| Ops 명령 | `manual_action_logs`에 REJECTED만 남기고 실패로 끝남 |
 
 모든 경로에서 `payment_transition_conflict_total{operation}`을 올린다. 0행은 대개 다른 경로가 먼저 전이한 정상 경합이고, 지표가 갑자기 늘면 중복 처리 경로를 의심한다.
 
@@ -43,7 +43,7 @@
 소비자는 환불 요청을 검증하고 DB에 영속화만 한다. PG 환불은 부르지 않는다. PG 호출은 환불 워커(6절) 한 곳에서만 한다.
 
 1. `RefundRequested`를 아래 표로 교차 검증한다.
-2. 통과하면 한 트랜잭션에서 `processed_event(event_id, 'payment.command')`, 환불 `INSERT … SELECT … ON CONFLICT (payment_id) DO NOTHING`(`REQUESTED`, `next_check_at` = 현재, `source=EVENT`), 이력을 쓴다([data-model.md](data-model.md) 4절). 0행이고 환불 행이 이미 있으면 중복이라 `processed_event`만 남긴다.
+2. 통과하면 한 트랜잭션에서 `processed_events(event_id, 'payment.command')`, 환불 `INSERT … SELECT … ON CONFLICT (payment_id) DO NOTHING`(`REQUESTED`, `next_check_at` = 현재, `source=EVENT`), 이력을 쓴다([data-model.md](data-model.md) 4절). 0행이고 환불 행이 이미 있으면 중복이라 `processed_events`만 남긴다.
 3. 검증 실패와 역직렬화 실패는 영구 오류다. 재시도하지 않고 바로 DLQ로 보낸다(재시도 제외 예외로 등록).
 4. 일시 오류(DB 연결, 잠금 시간 초과)는 1·2·4초 간격 3회 재시도 뒤 DLQ로 보낸다.
 5. 오프셋은 처리 성공 뒤에 커밋한다(`ack-mode=record`). DLQ로 보내는 것이 실패하면 원 메시지의 오프셋을 올리지 않는다. 역직렬화 실패는 `ErrorHandlingDeserializer`로 DLQ에 보내 원문을 보존한다.
@@ -63,9 +63,9 @@ Kafka에는 브로커 인증이 없다(0008 T5). 메시지 위조 경로를 줄�
 
 ## 5. DLQ 처리기 ([0020](../../decisions/0020-payment-refund-dlq-manual-check.md))
 
-DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭션에서 `dead_letter`를 `INSERT … ON CONFLICT (event_key) DO NOTHING`으로 저장하고, 4절과 같은 검증을 다시 해 아래처럼 처리하고, `processed_event(event_id, 'payment.command-dlq')`를 쓴다.
+DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭션에서 `dead_letters`를 `INSERT … ON CONFLICT (event_key) DO NOTHING`으로 저장하고, 4절과 같은 검증을 다시 해 아래처럼 처리하고, `processed_events(event_id, 'payment.command-dlq')`를 쓴다.
 
-| 메시지 | 처리 | `dead_letter` |
+| 메시지 | 처리 | `dead_letters` |
 |---|---|---|
 | 검증 통과, 환불 행 없음 | 환불 `REQUESTED` 생성(`source=DLQ`), 워커가 이어받음 | `RESOLVED(AUTO_PERSISTED)`, `refund_id` |
 | 검증 통과, 환불 행 있음 | 변경 없음 | `RESOLVED(DUPLICATE)`, `refund_id` |
@@ -125,21 +125,21 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 
 | 대상 | 삭제 조건 | 기간 |
 |---|---|---|
-| `outbox` | `SENT`이고 `sent_at` 경과 | 7일 |
-| `processed_event` | `processed_at` 경과 | 14일(Kafka·DLQ 보관 + 수동 재처리 기간보다 길게. 시작 때 설정값 비교) |
-| `idempotency_record` | `expires_at` 경과, 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아님 | 24시간 |
+| `outbox_events` | `SENT`이고 `sent_at` 경과 | 7일 |
+| `processed_events` | `processed_at` 경과 | 14일(Kafka·DLQ 보관 + 수동 재처리 기간보다 길게. 시작 때 설정값 비교) |
+| `idempotency_records` | `expires_at` 경과, 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아님 | 24시간 |
 
 배치 1,000건 단위, `pg_try_advisory_lock`으로 중복 실행 방지, 실패는 다음 주기(10분`[가정]`)에 재시도한다. 그 밖의 결제 테이블은 지우지 않는다([data-model.md](data-model.md) 12절).
 
 ## 9. 오래된 이벤트 재전달 방어
 
-`processed_event`가 지워진 뒤 재전달돼도 다음이 중복 결제·환불을 막는다(INV-1·INV-2).
+`processed_events`가 지워진 뒤 재전달돼도 다음이 중복 결제·환불을 막는다(INV-1·INV-2).
 - 조건부 UPDATE와 영향 행 확인(2절)
-- `payment.reservation_id` 전체 UNIQUE([0026](../../decisions/0026-payment-one-per-reservation.md))
-- `refund.payment_id` UNIQUE와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT`
+- `payments.reservation_id` 전체 UNIQUE([0026](../../decisions/0026-payment-one-per-reservation.md))
+- `refunds.payment_id` UNIQUE와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT`
 - 환불 재호출 전 `findRefund`, PG 멱등키(`pg_order_id`·`pg_refund_id`)
 - Reservation의 paymentId 대조(0027)
 
 ## 10. 대사 ([0029](../../decisions/0029-payment-reservation-reconciliation.md))
 
-`housekeeping` 실행기가 5분`[가정]`마다 결제 DB와 예매 내부 조회 API를 대조해 RC-1~RC-8 불일치를 `reconciliation_mismatch`에 기록하고 Gauge로 알린다. 데이터는 고치지 않는다. 허용 지연은 10분`[가정]`이다.
+`housekeeping` 실행기가 5분`[가정]`마다 결제 DB와 예매 내부 조회 API를 대조해 RC-1~RC-8 불일치를 `reconciliation_mismatches`에 기록하고 Gauge로 알린다. 데이터는 고치지 않는다. 허용 지연은 10분`[가정]`이다.

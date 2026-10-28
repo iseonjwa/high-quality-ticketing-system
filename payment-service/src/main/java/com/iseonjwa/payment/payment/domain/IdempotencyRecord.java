@@ -22,7 +22,7 @@ import java.util.UUID;
  * 응답 컬럼은 TX2에서 저장소의 조건부 UPDATE로만 채운다.
  */
 @Entity
-@Table(name = "idempotency_record")
+@Table(name = "idempotency_records")
 public class IdempotencyRecord implements Persistable<IdempotencyRecordId> {
     // 멱등 기록 보관 기간(SA 12-1)
     static final Duration RETENTION = Duration.ofHours(24);

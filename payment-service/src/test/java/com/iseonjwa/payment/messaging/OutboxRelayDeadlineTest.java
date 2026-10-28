@@ -33,7 +33,7 @@ class OutboxRelayDeadlineTest {
 
     @BeforeEach
     void clean() {
-        jdbc.update("DELETE FROM outbox");
+        jdbc.update("DELETE FROM outbox_events");
     }
 
     @Test
@@ -47,8 +47,8 @@ class OutboxRelayDeadlineTest {
         assertEquals(new OutboxRelay.Result(1, 0), result);
         assertTrue(Duration.ofNanos(System.nanoTime() - started).compareTo(SEND_TIMEOUT.multipliedBy(3)) < 0,
                 "시한 안에 실행이 끝나야 한다");
-        assertEquals("PENDING", jdbc.queryForObject("SELECT status FROM outbox", String.class));
-        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM outbox", Integer.class));
+        assertEquals("PENDING", jdbc.queryForObject("SELECT status FROM outbox_events", String.class));
+        assertEquals(1, jdbc.queryForObject("SELECT attempts FROM outbox_events", Integer.class));
     }
 
     @Test
@@ -66,7 +66,7 @@ class OutboxRelayDeadlineTest {
 
         assertEquals(3, result.claimed());
         assertEquals(1, result.sent());
-        var released = jdbc.queryForObject("SELECT count(*) FROM outbox WHERE status = 'PENDING' AND claimed_until IS NULL",
+        var released = jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE status = 'PENDING' AND claimed_until IS NULL",
                 Integer.class);
         assertEquals(2, released, "보내지 못한 두 행은 임대가 풀려 다음 실행이 바로 집는다");
     }

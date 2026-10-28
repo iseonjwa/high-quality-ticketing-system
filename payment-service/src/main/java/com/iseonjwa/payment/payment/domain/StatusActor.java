@@ -4,7 +4,7 @@ package com.iseonjwa.payment.payment.domain;
  * 상태 이력의 행위자. 시스템 작업은 SYSTEM, 운영자 명령은 OPS:&lt;operator&gt;로 남긴다.
  */
 public record StatusActor(String value) {
-    // payment_status_history.actor 컬럼 길이
+    // payment_status_histories.actor 컬럼 길이
     private static final int MAX_LENGTH = 40;
     public static final StatusActor SYSTEM = new StatusActor("SYSTEM");
 

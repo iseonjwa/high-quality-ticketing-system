@@ -29,7 +29,7 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 | 환불 | 대기(`REQUESTED`·`UNKNOWN`)와 `NEEDS_MANUAL_CHECK`의 건수와 최고령 | Gauge |
 | 전이 | 조건부 UPDATE 0행 수(경로별) | Counter |
 | Outbox | `PENDING` 최고령(초), `FAILED` 건수, 재시도 중 건수 | Gauge |
-| DLQ | DLQ 처리기 실패, `dead_letter` OPEN 건수와 최고령, 컨슈머 랙 | Counter, Gauge |
+| DLQ | DLQ 처리기 실패, `dead_letters` OPEN 건수와 최고령, 컨슈머 랙 | Counter, Gauge |
 | 대사 | 규칙별 미해결 불일치 수 | Gauge |
 | 작업 | 작업별 마지막 성공 시각, 실패 수 | Gauge, Counter |
 | DB 연결 | Hikari 대기, 연결 대기 시간 초과 | 제공 지표 사용 |
@@ -41,7 +41,7 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 |---|---|---|
 | 즉시 확인 | `NEEDS_MANUAL_CHECK` 발생(결제·환불) | 건수 > 0 |
 | 즉시 확인 | PG 승인·환불 금액 불일치 | 발생 |
-| 즉시 확인 | `dead_letter` 미해결 | `OPEN` > 0 |
+| 즉시 확인 | `dead_letters` 미해결 | `OPEN` > 0 |
 | 즉시 확인 | DLQ 처리기 실패 | 실패 건 발생 또는 재시도 중 건 > 0이 5분 지속 |
 | 즉시 확인 | Outbox `FAILED` | 건수 > 0 |
 | 즉시 확인 | 결제·예매 대사 불일치 | 규칙별 > 0 |
@@ -87,7 +87,7 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 
 ## 개정 이력
 
-- 2026-10-28: `REQUESTED` 최고령(H4), 환불 대기, 금액 불일치, 전이 0행, `dead_letter` OPEN, 대사, 작업별 마지막 성공, DB 연결, Ops 명령 지표를 더했다. 0020의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림을 알림 표에 넣었다(L6). 이전 초안의 `dlq_pending`과 정리 작업 전용 지표는 `observability.md`에서 이름을 바꿨다.
+- 2026-10-28: `REQUESTED` 최고령(H4), 환불 대기, 금액 불일치, 전이 0행, `dead_letters` OPEN, 대사, 작업별 마지막 성공, DB 연결, Ops 명령 지표를 더했다. 0020의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림을 알림 표에 넣었다(L6). 이전 초안의 `dlq_pending`과 정리 작업 전용 지표는 `observability.md`에서 이름을 바꿨다.
 
 ## 면접에서 설명할 한 줄
 

@@ -9,7 +9,7 @@
 
 ## 맥락
 
-0016는 Reservation에 "`HELD`가 아닌 예매(EXPIRED·RELEASED·CANCELED 등)에 `PaymentApproved`가 오면 `RefundRequested`"를 요청했다. 이 규칙에는 `CONFIRMED`도 들어간다. `PaymentApproved`가 재전달되면(Outbox 중복 전송, `processed_event` 정리 뒤 재전달) 이미 확정된 예매의 결제가 환불되어 고객은 티켓을 가진 채 돈을 돌려받는다(Opus 검토 C1).
+0016는 Reservation에 "`HELD`가 아닌 예매(EXPIRED·RELEASED·CANCELED 등)에 `PaymentApproved`가 오면 `RefundRequested`"를 요청했다. 이 규칙에는 `CONFIRMED`도 들어간다. `PaymentApproved`가 재전달되면(Outbox 중복 전송, `processed_events` 정리 뒤 재전달) 이미 확정된 예매의 결제가 환불되어 고객은 티켓을 가진 채 돈을 돌려받는다(Opus 검토 C1).
 
 또 SA 8-3은 이벤트의 금액·사용자를 예매 원장과 대조하라고 하지 않는다. 버그나 위조로 다른 금액·다른 사용자의 승인이 와도 확정된다(H2). SA 10-3의 이벤트에는 통화가 없다.
 
@@ -55,8 +55,8 @@ Reservation의 `reservation.payment-result` 소비자는 이벤트의 `reservati
 | `CONFIRMED` | `paymentId` 다름 | 기록(중복 승인의 환불 완료) |
 
 ### 공통 규칙
-- 한 트랜잭션에서 `processed_event`, 조건부 UPDATE, 예매 이력, Outbox(`RefundRequested`)를 쓴다. 조건부 UPDATE가 있는 처리는 영향 행이 1일 때만 Outbox를 쓴다(0022과 같은 규칙). 상태 변경 없이 환불만 요청하는 줄은 `processed_event`와 Outbox를 한 트랜잭션에 쓴다.
-- "이상 격리"는 상태를 바꾸지 않고 이벤트와 사유를 기록해 사람이 보게 하는 것이다. 저장 위치(예: 이상 기록 테이블 또는 Reservation 쪽 `dead_letter`)와 알림 지표 이름은 반효승이 정한다.
+- 한 트랜잭션에서 `processed_events`, 조건부 UPDATE, 예매 이력, Outbox(`RefundRequested`)를 쓴다. 조건부 UPDATE가 있는 처리는 영향 행이 1일 때만 Outbox를 쓴다(0022과 같은 규칙). 상태 변경 없이 환불만 요청하는 줄은 `processed_events`와 Outbox를 한 트랜잭션에 쓴다.
+- "이상 격리"는 상태를 바꾸지 않고 이벤트와 사유를 기록해 사람이 보게 하는 것이다. 저장 위치(예: 이상 기록 테이블 또는 Reservation 쪽 `dead_letters`)와 알림 지표 이름은 반효승이 정한다.
 - 소비 실패가 3회 재시도 뒤 DLQ로 가면 Reservation의 `payment.result` DLQ 처리기가 이어받는다(0022의 통보 항목).
 
 ### 이벤트 필드

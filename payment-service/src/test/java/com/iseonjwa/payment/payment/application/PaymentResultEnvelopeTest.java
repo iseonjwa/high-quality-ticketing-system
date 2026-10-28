@@ -104,14 +104,14 @@ class PaymentResultEnvelopeTest {
         transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-env2", AMOUNT, Instant.now(),
                 StatusActor.SYSTEM);
 
-        var eventId = jdbc.queryForObject("SELECT event_id::text FROM outbox WHERE message_key = ?", String.class,
+        var eventId = jdbc.queryForObject("SELECT event_id::text FROM outbox_events WHERE message_key = ?", String.class,
                 String.valueOf(payment.getReservationId()));
 
         assertEquals(eventId, envelope(payment).get("eventId").asString());
     }
 
     private JsonNode envelope(Payment payment) {
-        return mapper.readTree(jdbc.queryForObject("SELECT payload::text FROM outbox WHERE message_key = ?",
+        return mapper.readTree(jdbc.queryForObject("SELECT payload::text FROM outbox_events WHERE message_key = ?",
                 String.class, String.valueOf(payment.getReservationId())));
     }
 

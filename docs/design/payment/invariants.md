@@ -12,9 +12,9 @@
 | ID | 불변 조건 | 주 방어 | 보조 방어·탐지 | ADR |
 |---|---|---|---|---|
 | INV-1 | 예매 하나에 승인된 결제는 하나뿐이다 | `UNIQUE(reservation_id)` 전체, 상태 전이 검증, PG 멱등키 | 멱등 기록, 결제당 승인 호출 1회, `UNIQUE(pg_tx_id)`, Reservation 중복 승인 환불, 대사 RC-4 | 0016, 0017, 0019, 0026, 0027 |
-| INV-2 | 같은 결제 이벤트·명령이 다시 와도 추가 확정·추가 환불이 없다 | `processed_event`, paymentId 대조, `refund.payment_id` UNIQUE | 조건부 전이, 재호출 전 조회, PG 환불 멱등키, 대사 RC-3 | 0020, 0022, 0023, 0027 |
+| INV-2 | 같은 결제 이벤트·명령이 다시 와도 추가 확정·추가 환불이 없다 | `processed_events`, paymentId 대조, `refunds.payment_id` UNIQUE | 조건부 전이, 재호출 전 조회, PG 환불 멱등키, 대사 RC-3 | 0020, 0022, 0023, 0027 |
 | INV-3 | PG 승인 금액·통화는 결제와 같고, 결제의 금액·사용자는 예매와 같다 | 토큰 금액 검증, PG 결과 금액·통화 대조 | APPROVED CHECK(`pg_approved_amount = amount`), Reservation 대조, 대사 RC-5·RC-6 | 0023, 0025, 0027, 0029 |
-| INV-4 | 환불 의무는 완료 또는 명시적 미해결 상태로 추적된다 | 환불 행 영속화, 자동 환불 워커, 미커밋 재처리 | NMC·dead_letter 알림과 최고령 지표, 대사 RC-2 | 0020, 0027, 0029 |
+| INV-4 | 환불 의무는 완료 또는 명시적 미해결 상태로 추적된다 | 환불 행 영속화, 자동 환불 워커, 미커밋 재처리 | NMC·dead_letters 알림과 최고령 지표, 대사 RC-2 | 0020, 0027, 0029 |
 | INV-5 | 상태 변경과 이력·이벤트는 함께 성공하거나 함께 실패하고, 실제로 바뀐 전이만 이벤트를 만든다 | 같은 트랜잭션 + Outbox, 영향 행 1일 때만 후속 쓰기 | CHECK 제약, 대사 RC-7·RC-8 | 0022 |
 | INV-6 | 서비스 사이 상태 불일치는 허용 지연을 넘기면 발견된다 | 결제·예매 대사 | Outbox·DLQ·환불 대기 지표, 대사 작업 정체 알림 | 0024, 0029 |
 | INV-7 | 운영자 복구도 같은 전이 규칙·이벤트·감사 기록을 거친다 | Ops 명령, PG 근거 강제, 감사 로그 | append-only 트리거, 대사 RC-7·RC-8 | 0028 |
@@ -42,10 +42,10 @@
 
 | 수단 | 맡는 실패 | 무너지는 경우 | 그때 잡는 것 |
 |---|---|---|---|
-| `processed_event`(SA 10-4) | 14일 안의 재전달 | 정리 뒤 재전달 | 아래 업무 규칙 |
+| `processed_events`(SA 10-4) | 14일 안의 재전달 | 정리 뒤 재전달 | 아래 업무 규칙 |
 | 영향 행 1일 때만 후속 쓰기(INV-5) | 이미 지난 전이의 반복 | — | — |
 | Reservation의 paymentId 대조(0027) | `PaymentApproved` 재전달로 확정 티켓 환불(C1) | 규칙 누락 | 같은 결제의 환불은 한 건(아래), 대사 RC-3 |
-| `refund.payment_id` UNIQUE와 `INSERT … SELECT … ON CONFLICT`(0020) | `RefundRequested` 중복·DLQ 재처리 | — | PG 환불 멱등키 |
+| `refunds.payment_id` UNIQUE와 `INSERT … SELECT … ON CONFLICT`(0020) | `RefundRequested` 중복·DLQ 재처리 | — | PG 환불 멱등키 |
 | 환불 워커 claim과 재호출 전 조회(0020, 0023) | 응답 유실 뒤 재호출, 토스 멱등키 15일 만료 뒤 재시도 | PG 조회가 오답 | PG 멱등키 `pg_refund_id`, PG의 취소 완료 결제 재취소 거절`[가정]` |
 | Ops 명령은 PG 환불을 직접 부르지 않고 워커로 넘김(0028) | 수동 환불 중복 | PG 콘솔 직접 환불 | 예외 절차(환불 NMC에서만, PG 확인 뒤 반영) |
 
@@ -56,8 +56,8 @@
 | 수단 | 맡는 실패 | 무너지는 경우 | 그때 잡는 것 |
 |---|---|---|---|
 | 토큰 금액 = 요청 금액, 토큰은 Reservation이 서명(SA 7-3, 0025) | 요청 금액 조작 | 키 유출 | 아래 대조 |
-| PG 결과 금액·통화 대조(0023) | PG가 다른 금액을 승인 | 코드 누락 | `chk_payment_approved`(DB) |
-| `chk_payment_approved`: APPROVED면 `pg_approved_amount = amount` | 불일치 결제의 APPROVED 저장 | — | — |
+| PG 결과 금액·통화 대조(0023) | PG가 다른 금액을 승인 | 코드 누락 | `chk_payments_approved`(DB) |
+| `chk_payments_approved`: APPROVED면 `pg_approved_amount = amount` | 불일치 결제의 APPROVED 저장 | — | — |
 | Reservation의 userId·amount·currency 대조(0027) | 예매와 다른 결제로 확정 | 규칙 누락 | 대사 RC-5·RC-6 |
 | 환불 금액 = PG 승인 금액(`INSERT … SELECT`), 환불 결과 금액 대조(0020, 0023) | 부분·과다 환불 | — | 대사 RC-5, Mock PG 원장 검사(V2) |
 
@@ -65,7 +65,7 @@
 
 ### INV-4 환불 의무는 완료 또는 명시적 미해결 상태로 추적된다
 
-명시적 미해결 상태는 환불 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`, 운영자 종결 `FAILED`(외부 조치 기록 필수), `dead_letter` `OPEN`이다. 모두 건수·최고령 지표와 알림이 있다([observability.md](observability.md)).
+명시적 미해결 상태는 환불 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`, 운영자 종결 `FAILED`(외부 조치 기록 필수), `dead_letters` `OPEN`이다. 모두 건수·최고령 지표와 알림이 있다([observability.md](observability.md)).
 
 | 수단 | 맡는 실패 | 무너지는 경우 | 그때 잡는 것 |
 |---|---|---|---|
@@ -73,7 +73,7 @@
 | 소비자는 환불 행만 영속화하고 PG를 부르지 않음, 실패 시 오프셋 미커밋(0020) | 소비 중 장애 | 재시도 3회 실패 | DLQ 처리기 |
 | DLQ 처리기의 영속화, 실패 시 오프셋 미커밋·무한 백오프(0020) | DLQ 도착 메시지 유실 | `.dlq` 보관 7일 초과 | 대사 RC-2, DLQ 처리기 실패·랙 알림 |
 | 환불 워커 재시도(PG 호출 9회, 약 21분) 뒤 NMC(0020) | PG 일시 장애 | 장기 장애 | NMC 알림, 환불 대기 최고령 알림 |
-| 검증 실패 명령은 `dead_letter` OPEN + 알림(0020) | 위조·불일치 명령의 조용한 폐기 | — | dead_letter 최고령 알림, 대사 RC-2 |
+| 검증 실패 명령은 `dead_letters` OPEN + 알림(0020) | 위조·불일치 명령의 조용한 폐기 | — | dead_letters 최고령 알림, 대사 RC-2 |
 | Ops 명령(0028) | 사람이 처리한 건의 이벤트 누락 | — | 대사 RC-7·RC-8 |
 
 테스트: E8, N7, N8, N19, N20, N23, N28, FT-4, FT-5.
@@ -124,7 +124,7 @@
 |---|---|---|---|
 | 결제 토큰(서명·`typ`·`aud`·`exp`·`sub`·금액, 키는 두 서비스만)(0025) | 위조·타인 토큰 | 키 유출 | 키 회전 절차, 대사 |
 | 소유자 조건 조회(0021) | 타인 결제 조회(IDOR) | — | — |
-| Ops 명령은 SSH 세션의 일회성 실행 + 허용 목록 + 4-eyes(0028) | 무단 복구 | 운영자 신원은 자기 신고 | `manual_action_log` |
+| Ops 명령은 SSH 세션의 일회성 실행 + 허용 목록 + 4-eyes(0028) | 무단 복구 | 운영자 신원은 자기 신고 | `manual_action_logs` |
 | Kafka-UI READONLY, 소비자 교차 검증(0020, 0027) | 이벤트 위조 | 브로커 무인증(내부망) | 대사 |
 
 테스트: E14, N9, N12, N27, N28, N32.
