@@ -99,10 +99,10 @@ class Resilience4jPgGroupTest {
     }
 
     @Test
-    void OPEN이_끝나면_시험_호출이_성공해야_CB가_닫힌다() throws Exception {
+    void OPEN이_끝나면_시험_호출이_성공해야_CB가_닫힌다() {
         var group = group(5);
         for (var i = 0; i < 4; i++) group.tryAcquire().orElseThrow().failure();
-        Thread.sleep(OPEN_DURATION.toMillis() + 50);
+        group.circuitBreaker().transitionToHalfOpenState();
 
         var trials = new ArrayList<com.iseonjwa.payment.pg.application.PgPermit>();
         for (var i = 0; i < 3; i++) trials.add(group.tryAcquire().orElseThrow());
@@ -114,10 +114,10 @@ class Resilience4jPgGroupTest {
     }
 
     @Test
-    void 시험_호출을_정산하지_않으면_CB가_닫히지_않는다() throws Exception {
+    void 시험_호출을_정산하지_않으면_CB가_닫히지_않는다() {
         var group = group(5);
         for (var i = 0; i < 4; i++) group.tryAcquire().orElseThrow().failure();
-        Thread.sleep(OPEN_DURATION.toMillis() + 50);
+        group.circuitBreaker().transitionToHalfOpenState();
         for (var i = 0; i < 3; i++) group.tryAcquire().orElseThrow();
 
         // 허가를 쥔 채 정산하지 않은 상태. 이것이 허가 정산을 한 곳에 묶는 이유다(0018)
@@ -126,10 +126,10 @@ class Resilience4jPgGroupTest {
     }
 
     @Test
-    void Bulkhead가_거절하면_CB_허가를_돌려줘_시험_호출_자리가_새지_않는다() throws Exception {
+    void Bulkhead가_거절하면_CB_허가를_돌려줘_시험_호출_자리가_새지_않는다() {
         var group = new Resilience4jPgGroup("test", settings(1, 1));
         for (var i = 0; i < 4; i++) group.tryAcquire().orElseThrow().failure();
-        Thread.sleep(OPEN_DURATION.toMillis() + 50);
+        group.circuitBreaker().transitionToHalfOpenState();
         // Bulkhead를 다른 호출이 이미 채운 상태에서 시험 호출을 시도한다
         assertTrue(group.bulkhead().tryAcquirePermission());
 
@@ -143,10 +143,8 @@ class Resilience4jPgGroupTest {
     void 복구_그룹은_결과를_돌려주고_Unknown만_실패로_센다() {
         var gate = new Resilience4jPgRecoveryGate(group(2));
 
-        var found = gate.<PgClient.PaymentLookupResult>execute(PgClient.NotFound::new,
-                result -> result instanceof PgClient.Unknown);
-        var unknown = gate.<PgClient.PaymentLookupResult>execute(() -> new PgClient.Unknown(UnknownCause.TIMEOUT),
-                result -> result instanceof PgClient.Unknown);
+        var found = gate.<PgClient.PaymentLookupResult>execute(PgClient.NotFound::new);
+        var unknown = gate.<PgClient.PaymentLookupResult>execute(() -> new PgClient.Unknown(UnknownCause.TIMEOUT));
 
         assertTrue(found.isPresent());
         assertTrue(unknown.isPresent());
@@ -161,7 +159,7 @@ class Resilience4jPgGroupTest {
 
         assertThrows(IllegalStateException.class, () -> gate.execute(() -> {
             throw new IllegalStateException("어댑터 오류");
-        }, result -> false));
+        }));
 
         assertEquals(1, gate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
         assertEquals(2, gate.bulkhead().getMetrics().getAvailableConcurrentCalls());
@@ -176,7 +174,7 @@ class Resilience4jPgGroupTest {
         Optional<String> result = gate.execute(() -> {
             called[0] = true;
             return "x";
-        }, r -> false);
+        });
 
         assertTrue(result.isEmpty());
         assertFalse(called[0]);
@@ -191,9 +189,52 @@ class Resilience4jPgGroupTest {
             approve.circuitBreaker().onError(1, java.util.concurrent.TimeUnit.MILLISECONDS, new RuntimeException());
         }
 
-        var result = recovery.execute(() -> "복구 조회", r -> false);
+        assertEquals(CircuitBreaker.State.OPEN, approve.circuitBreaker().getState());
+        assertEquals(0, approve.bulkhead().getMetrics().getAvailableConcurrentCalls());
+
+        var result = recovery.execute(() -> "복구 조회");
 
         assertTrue(result.isPresent(), "승인 장애가 복구를 막지 않는다");
+        assertEquals(CircuitBreaker.State.CLOSED, recovery.circuitBreaker().getState());
+    }
+
+    @Test
+    void 정산_분류는_응답은_성공_결과를_모르면_실패_요청_오류는_세지_않는다() {
+        // 실패가 쌓여도 CB가 열려 허가를 막지 않도록 창을 넉넉히 둔다
+        var group = new Resilience4jPgGroup("test", new PgProtectionProperties.Group(10, 20, 20, 50f, OPEN_DURATION, 3));
+
+        group.tryAcquire().orElseThrow().settle(new PgClient.Declined(com.iseonjwa.payment.payment.domain.DeclineReason.OTHER));
+        group.tryAcquire().orElseThrow().settle(new PgClient.NotFound());
+        group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.TIMEOUT));
+        group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.CONNECTION_LOST));
+        group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.PG_ERROR));
+        group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.PROCESSING));
+        group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.CLIENT_ERROR));
+
+        var metrics = group.circuitBreaker().getMetrics();
+        // 응답 2건은 성공, 결과를 모르는 4건은 실패, 요청 오류는 세지 않는다(0018 개정)
+        assertEquals(6, metrics.getNumberOfBufferedCalls());
+        assertEquals(4, metrics.getNumberOfFailedCalls());
+        assertEquals(10, group.bulkhead().getMetrics().getAvailableConcurrentCalls(), "모든 허가가 반환된다");
+    }
+
+    @Test
+    void 요청_오류만_계속_와도_CB는_열리지_않는다() {
+        var group = group(5);
+
+        for (var i = 0; i < 20; i++) group.tryAcquire().orElseThrow().settle(new PgClient.Unknown(UnknownCause.CLIENT_ERROR));
+
+        assertEquals(CircuitBreaker.State.CLOSED, group.circuitBreaker().getState());
+    }
+
+    @Test
+    void 복구_호출이_null을_돌려주면_실패로_세고_예외를_던진다() {
+        var gate = new Resilience4jPgRecoveryGate(group(2));
+
+        assertThrows(NullPointerException.class, () -> gate.<String>execute(() -> null));
+
+        assertEquals(1, gate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
+        assertEquals(2, gate.bulkhead().getMetrics().getAvailableConcurrentCalls());
     }
 
     @Test
@@ -201,6 +242,19 @@ class Resilience4jPgGroupTest {
         assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(0, null, null, null, null, null));
         assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 0, null, null, null, null));
         assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 4, 101f, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 10, null, null, null),
+                "최소 호출 수는 창 크기를 넘을 수 없다");
+    }
+
+    @Test
+    void 그룹의_일부만_설정해도_동시_호출_수_기본값은_그룹별로_적용된다() {
+        var partial = new PgProtectionProperties.Group(null, null, null, null, Duration.ofSeconds(5), null);
+
+        var properties = new PgProtectionProperties(partial, partial);
+
+        assertEquals(10, properties.approve().maxConcurrentCalls());
+        assertEquals(2, properties.recovery().maxConcurrentCalls(), "복구 그룹의 동시 수가 10으로 새지 않는다");
+        assertEquals(Duration.ofSeconds(5), properties.recovery().openDuration());
     }
 
     @Test

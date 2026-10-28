@@ -130,6 +130,9 @@ class PgProtectionApiTest {
         assertEquals(202, sameKey.status());
         assertEquals(first.json().get("data").get("paymentId").asLong(), sameKey.json().get("data").get("paymentId").asLong());
         assertEquals(202, newKey.status());
+        assertEquals(first.json().get("data").get("paymentId").asLong(), newKey.json().get("data").get("paymentId").asLong());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE link_type = 'ALIAS' AND resource_id = "
+                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
         verify(pg, times(4)).approve(any());
     }
 
@@ -141,6 +144,8 @@ class PgProtectionApiTest {
 
         assertEquals(503, response.status());
         assertEquals("SERVICE_UNAVAILABLE", response.json().get("code").asString());
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id >= ?", Integer.class,
+                FIRST_RESERVATION));
         assertEquals(2, approvalGate.bulkhead().getMetrics().getAvailableConcurrentCalls());
         assertEquals(0, approvalGate.circuitBreaker().getMetrics().getNumberOfBufferedCalls());
         verify(pg, times(0)).approve(any());
@@ -163,7 +168,7 @@ class PgProtectionApiTest {
             var overloadedReservation = newReservation();
 
             var overloaded = approve(key(), overloadedReservation);
-            var recovery = recoveryGate.execute(() -> "복구 조회", result -> false);
+            var recovery = recoveryGate.execute(() -> "복구 조회");
 
             assertEquals(503, overloaded.status());
             assertEquals("PG_UNAVAILABLE", overloaded.json().get("code").asString());
