@@ -19,6 +19,7 @@
 | [failure-scenarios.md](failure-scenarios.md) | 실패 시나리오, 장애 유형별 통합 테스트와 필수 검증(V1~V3) |
 | [observability.md](observability.md) | 지표, 알림, 대시보드 |
 | [manual-recovery.md](manual-recovery.md) | Ops 명령, 알림별 원인 확인과 복구, 긴급 콘솔 환불, 키 유출 대응 |
+| [contracts.md](contracts.md) | 결제 토큰 claim(ISE-22)과 `payment.result` 이벤트(ISE-23) 계약, Reservation 확인 요청 |
 | [sa-change-requests.md](sa-change-requests.md) | SA 변경 요청 목록(S-1~S-28) |
 
 ## 결정 기록
