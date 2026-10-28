@@ -26,99 +26,99 @@ class PaymentMigrationTest {
 
     @Test
     void 결제_제약과_인덱스가_카탈로그에_존재한다() {
-        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'payment'::regclass");
+        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'payments'::regclass");
         assertTrue(constraints.containsAll(List.of(
-                "uq_payment_payment_no", "uq_payment_reservation_id", "uq_payment_pg_order_id", "uq_payment_pg_tx_id",
-                "chk_payment_amount", "chk_payment_currency", "chk_payment_method", "chk_payment_status",
-                "chk_payment_check_schedule", "chk_payment_approved", "chk_payment_refunded", "chk_payment_declined")),
+                "uq_payments_payment_no", "uq_payments_reservation_id", "uq_payments_pg_order_id", "uq_payments_pg_tx_id",
+                "chk_payments_amount", "chk_payments_currency", "chk_payments_method", "chk_payments_status",
+                "chk_payments_check_schedule", "chk_payments_approved", "chk_payments_refunded", "chk_payments_declined")),
                 "누락된 제약이 있다: " + constraints);
-        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'payment'");
-        assertTrue(indexes.containsAll(List.of("idx_payment_next_check_at", "idx_payment_unsettled_created_at")));
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'payments'");
+        assertTrue(indexes.containsAll(List.of("idx_payments_next_check_at", "idx_payments_unsettled_created_at")));
     }
 
     @Test
     void Outbox_릴레이용_인덱스가_카탈로그에_존재한다() {
-        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox'");
-        assertTrue(indexes.containsAll(List.of("idx_outbox_pending_next_attempt", "idx_outbox_pending_message_key",
-                "idx_outbox_pending_id")), indexes.toString());
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox_events'");
+        assertTrue(indexes.containsAll(List.of("idx_outbox_events_pending_next_attempt", "idx_outbox_events_pending_message_key",
+                "idx_outbox_events_pending_id")), indexes.toString());
     }
 
     @Test
     void 예매_하나에_결제_행을_둘_만들_수_없다() {
         var reservationId = 1001L;
         insertPayment(reservationId, "REQUESTED");
-        assertViolation("uq_payment_reservation_id", () -> insertPayment(reservationId, "REQUESTED"));
+        assertViolation("uq_payments_reservation_id", () -> insertPayment(reservationId, "REQUESTED"));
     }
 
     @Test
     void 거절된_예매에도_두_번째_결제_행을_만들_수_없다() {
         var reservationId = 1002L;
         jdbc.update(insertSql("DECLINED", "decline_code", "'OTHER'"), args(reservationId));
-        assertViolation("uq_payment_reservation_id", () -> insertPayment(reservationId, "REQUESTED"));
+        assertViolation("uq_payments_reservation_id", () -> insertPayment(reservationId, "REQUESTED"));
     }
 
     @Test
     void 같은_PG_거래를_두_결제에_연결할_수_없다() {
         approvedPayment(1003L, "pg-tx-duplicated");
-        assertViolation("uq_payment_pg_tx_id", () -> approvedPayment(1004L, "pg-tx-duplicated"));
+        assertViolation("uq_payments_pg_tx_id", () -> approvedPayment(1004L, "pg-tx-duplicated"));
     }
 
     @Test
     void 승인_금액이_결제_금액과_다르면_APPROVED로_저장할_수_없다() {
-        assertViolation("chk_payment_approved", () -> jdbc.update(
+        assertViolation("chk_payments_approved", () -> jdbc.update(
                 insertSql("APPROVED", "pg_tx_id, approved_at, pg_approved_amount", "'pg-tx-1', now(), 49000"),
                 args(1005L)));
     }
 
     @Test
     void PG_거래_식별자_없이_APPROVED로_저장할_수_없다() {
-        assertViolation("chk_payment_approved", () -> jdbc.update(
+        assertViolation("chk_payments_approved", () -> jdbc.update(
                 insertSql("APPROVED", "approved_at, pg_approved_amount", "now(), 50000"), args(1006L)));
     }
 
     @Test
     void 다음_조회_시각_없이_REQUESTED로_저장할_수_없다() {
-        assertViolation("chk_payment_check_schedule", () -> jdbc.update(
+        assertViolation("chk_payments_check_schedule", () -> jdbc.update(
                 insertSql("REQUESTED", "next_check_at", "NULL"), args(1007L)));
     }
 
     @Test
     void 사유_없이_DECLINED로_저장할_수_없다() {
-        assertViolation("chk_payment_declined", () -> jdbc.update(
+        assertViolation("chk_payments_declined", () -> jdbc.update(
                 insertSql("DECLINED", "decline_code", "NULL"), args(1008L)));
     }
 
     @Test
     void 환불_완료_시각_없이_REFUNDED로_저장할_수_없다() {
-        assertViolation("chk_payment_refunded", () -> jdbc.update(
+        assertViolation("chk_payments_refunded", () -> jdbc.update(
                 insertSql("REFUNDED", "pg_tx_id, refunded_at", "'pg-tx-2', NULL"), args(1009L)));
     }
 
     @Test
     void 원화가_아닌_통화를_거절한다() {
-        assertViolation("chk_payment_currency", () -> jdbc.update(
+        assertViolation("chk_payments_currency", () -> jdbc.update(
                 insertSql("REQUESTED", "next_check_at, currency", "now(), 'USD'"), args(1010L)));
     }
 
     @Test
     void 금액이_0원_이하인_결제를_거절한다() {
-        assertViolation("chk_payment_amount", () -> jdbc.update(
+        assertViolation("chk_payments_amount", () -> jdbc.update(
                 insertSql("REQUESTED", "next_check_at", "now()").replace("50000", "0"), args(1011L)));
     }
 
     @Test
     void 이력_테이블은_대상_종류를_제한하고_존재하지_않는_결제를_참조할_수_없다() {
         var message = assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
-                INSERT INTO payment_status_history (payment_id, target_type, to_status, actor, created_at)
+                INSERT INTO payment_status_histories (payment_id, target_type, to_status, actor, created_at)
                 VALUES (999999999, 'PAYMENT', 'REQUESTED', 'SYSTEM', now())""")).getMessage();
-        assertTrue(message.contains("payment_status_history_payment_id_fkey"), message);
+        assertTrue(message.contains("payment_status_histories_payment_id_fkey"), message);
     }
 
     @Test
     void 멱등_기록은_사용자와_키를_합친_기본키를_쓴다() {
         var key = UUID.randomUUID();
         insertIdempotencyRecord(7L, key);
-        assertViolation("idempotency_record_pkey", () -> insertIdempotencyRecord(7L, key));
+        assertViolation("idempotency_records_pkey", () -> insertIdempotencyRecord(7L, key));
     }
 
     @Test
@@ -126,23 +126,23 @@ class PaymentMigrationTest {
         var key = UUID.randomUUID();
         insertIdempotencyRecord(7L, key);
         insertIdempotencyRecord(8L, key);
-        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE idem_key = ?", Integer.class, key));
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE idem_key = ?", Integer.class, key));
     }
 
     @Test
     void 같은_eventId는_Outbox에_두_번_들어갈_수_없다() {
         var eventId = UUID.randomUUID();
         insertOutbox(eventId);
-        assertViolation("uq_outbox_event_id", () -> insertOutbox(eventId));
+        assertViolation("uq_outbox_events_event_id", () -> insertOutbox(eventId));
     }
 
     @Test
     void 같은_이벤트도_소비_그룹이_다르면_각각_처리한_것으로_기록한다() {
         var eventId = UUID.randomUUID();
-        jdbc.update("INSERT INTO processed_event VALUES (?, 'group-a', now())", eventId);
-        jdbc.update("INSERT INTO processed_event VALUES (?, 'group-b', now())", eventId);
-        assertViolation("processed_event_pkey",
-                () -> jdbc.update("INSERT INTO processed_event VALUES (?, 'group-a', now())", eventId));
+        jdbc.update("INSERT INTO processed_events VALUES (?, 'group-a', now())", eventId);
+        jdbc.update("INSERT INTO processed_events VALUES (?, 'group-b', now())", eventId);
+        assertViolation("processed_events_pkey",
+                () -> jdbc.update("INSERT INTO processed_events VALUES (?, 'group-a', now())", eventId));
     }
 
     private void insertPayment(long reservationId, String status) {
@@ -157,7 +157,7 @@ class PaymentMigrationTest {
     // Note: 상태별 필수 컬럼은 호출부가 extraColumns로 넘기고, 나머지 NOT NULL 컬럼은 여기서 채운다.
     private static String insertSql(String status, String extraColumns, String extraValues) {
         return """
-                INSERT INTO payment (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
                                      created_at, updated_at, %s)
                 VALUES (?, ?, 1, 50000, 'CARD', '%s', ?, now(), now(), %s)""".formatted(extraColumns, status, extraValues);
     }
@@ -169,13 +169,13 @@ class PaymentMigrationTest {
 
     private void insertIdempotencyRecord(long userId, UUID key) {
         jdbc.update("""
-                INSERT INTO idempotency_record (user_id, idem_key, request_hash, resource_id, link_type, expires_at, created_at)
+                INSERT INTO idempotency_records (user_id, idem_key, request_hash, resource_id, link_type, expires_at, created_at)
                 VALUES (?, ?, repeat('a', 64), 1, 'ORIGIN', now() + interval '24 hours', now())""", userId, key);
     }
 
     private void insertOutbox(UUID eventId) {
         jdbc.update("""
-                INSERT INTO outbox (event_id, topic, message_key, event_type, payload, status, next_attempt_at, created_at)
+                INSERT INTO outbox_events (event_id, topic, message_key, event_type, payload, status, next_attempt_at, created_at)
                 VALUES (?, 'payment.result', '1', 'PaymentApproved', '{}'::jsonb, 'PENDING', now(), now())""", eventId);
     }
 

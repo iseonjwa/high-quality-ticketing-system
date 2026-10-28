@@ -21,7 +21,7 @@ public class ProcessedEventRepository {
      */
     public boolean markProcessed(UUID eventId, String consumerGroup, Instant processedAt) {
         return jdbc.update("""
-                INSERT INTO processed_event (event_id, consumer_group, processed_at) VALUES (?, ?, ?)
+                INSERT INTO processed_events (event_id, consumer_group, processed_at) VALUES (?, ?, ?)
                 ON CONFLICT (event_id, consumer_group) DO NOTHING
                 """, eventId, consumerGroup, Timestamp.from(processedAt)) == 1;
     }

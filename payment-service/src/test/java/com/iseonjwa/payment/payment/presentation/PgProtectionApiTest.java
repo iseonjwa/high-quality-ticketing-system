@@ -88,12 +88,12 @@ class PgProtectionApiTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM idempotency_record WHERE resource_id IN (SELECT id FROM payment WHERE reservation_id >= ?)",
+        jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
-        jdbc.update("DELETE FROM outbox WHERE message_key ~ '^84[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_history WHERE payment_id IN (SELECT id FROM payment WHERE reservation_id >= ?)",
+        jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^84[0-9]{5}$'");
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
-        jdbc.update("DELETE FROM payment WHERE reservation_id >= ?", FIRST_RESERVATION);
+        jdbc.update("DELETE FROM payments WHERE reservation_id >= ?", FIRST_RESERVATION);
     }
 
     @Test
@@ -108,8 +108,8 @@ class PgProtectionApiTest {
 
         assertEquals(503, response.status());
         assertEquals("PG_UNAVAILABLE", response.json().get("code").asString());
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id = ?", Integer.class, blocked));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE idem_key = ?::uuid",
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class, blocked));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE idem_key = ?::uuid",
                 Integer.class, blockedKey), "허가를 못 얻으면 멱등 기록도 남기지 않는다");
         verify(pg, times(4)).approve(any());
     }
@@ -131,8 +131,8 @@ class PgProtectionApiTest {
         assertEquals(first.json().get("data").get("paymentId").asLong(), sameKey.json().get("data").get("paymentId").asLong());
         assertEquals(202, newKey.status());
         assertEquals(first.json().get("data").get("paymentId").asLong(), newKey.json().get("data").get("paymentId").asLong());
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_record WHERE link_type = 'ALIAS' AND resource_id = "
-                + "(SELECT id FROM payment WHERE reservation_id = ?)", Integer.class, reservation));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE link_type = 'ALIAS' AND resource_id = "
+                + "(SELECT id FROM payments WHERE reservation_id = ?)", Integer.class, reservation));
         verify(pg, times(4)).approve(any());
     }
 
@@ -144,7 +144,7 @@ class PgProtectionApiTest {
 
         assertEquals(503, response.status());
         assertEquals("SERVICE_UNAVAILABLE", response.json().get("code").asString());
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id >= ?", Integer.class,
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id >= ?", Integer.class,
                 FIRST_RESERVATION));
         assertEquals(2, approvalGate.bulkhead().getMetrics().getAvailableConcurrentCalls());
         assertEquals(0, approvalGate.circuitBreaker().getMetrics().getNumberOfBufferedCalls());
@@ -172,7 +172,7 @@ class PgProtectionApiTest {
 
             assertEquals(503, overloaded.status());
             assertEquals("PG_UNAVAILABLE", overloaded.json().get("code").asString());
-            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id = ?", Integer.class,
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class,
                     overloadedReservation));
             assertTrue(recovery.isPresent(), "신규 승인 과부하가 복구 호출을 막지 않는다");
             release.countDown();
@@ -205,13 +205,13 @@ class PgProtectionApiTest {
         assertEquals(200, retry.status());
         assertEquals("APPROVED", retry.json().get("data").get("status").asString());
         assertEquals(1, calls.get(), "재시도는 PG를 다시 부르지 않는다");
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id = ?", Integer.class, reservation));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class, reservation));
     }
 
     private boolean waitForStatus(long reservation, String status) throws InterruptedException {
         var deadline = System.nanoTime() + 8_000_000_000L;
         while (System.nanoTime() < deadline) {
-            var current = jdbc.queryForList("SELECT status FROM payment WHERE reservation_id = ?", String.class, reservation);
+            var current = jdbc.queryForList("SELECT status FROM payments WHERE reservation_id = ?", String.class, reservation);
             if (!current.isEmpty() && current.get(0).equals(status)) return true;
             Thread.sleep(50);
         }

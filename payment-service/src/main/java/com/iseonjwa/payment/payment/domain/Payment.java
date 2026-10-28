@@ -24,7 +24,7 @@ import java.util.UUID;
  * 전이는 {@link PaymentRepository}의 조건부 UPDATE로만 한다(domain-and-states.md 4절).
  */
 @Entity
-@Table(name = "payment")
+@Table(name = "payments")
 public class Payment extends BaseEntity {
     // 첫 PG 호출이 끝나지 않았을 때 재확인 스케줄러가 처음 집어 가는 시점
     static final Duration FIRST_RECHECK_DELAY = Duration.ofSeconds(10);

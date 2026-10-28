@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 17건, 일지 2일 |
-| [kangmin](kangmin/README.md) | 개별 기록 16건, 일지 3일 |
+| [kangmin](kangmin/README.md) | 개별 기록 18건, 일지 3일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
 | [youngeun](youngeun/README.md) | 개별 기록 1건, 일지 0일 |
 
@@ -42,6 +42,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-28 | Notion SA 반영 방법: 구간 교체 HTML 대신 v3.3 전체를 가져오기로 교체 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-full-import.md) |
+| 2026-10-28 | 테이블 이름 복수형 적용 범위: 결제 코드·문서는 후속 이슈(ISE-67), `outbox_events`, M3 테이블 제외 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-table-naming-scope.md) |
 | 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-batch-sync.md) |
 | 2026-10-28 | 역할 변경 확정: 결제 담당이 Mock PG까지 맡고 지원 불필요, SA·마일스톤 담당 표기 정정 | kangmin (결제 담당 확인 전달) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-role-change-confirmed.md) |
 | 2026-10-28 | Outbox·처리 이력 코드를 payment-service에 둔 AI 판단을 되돌려 common 모듈로 옮기기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-10-28-outbox-code-location.md) |

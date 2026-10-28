@@ -45,10 +45,10 @@ class PaymentResultTransactionTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM outbox WHERE message_key = ?", String.valueOf(RESERVATION_ID));
-        jdbc.update("DELETE FROM payment_status_history WHERE payment_id IN (SELECT id FROM payment WHERE reservation_id = ?)",
+        jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(RESERVATION_ID));
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION_ID);
-        jdbc.update("DELETE FROM payment WHERE reservation_id = ?", RESERVATION_ID);
+        jdbc.update("DELETE FROM payments WHERE reservation_id = ?", RESERVATION_ID);
     }
 
     @Test
@@ -63,7 +63,7 @@ class PaymentResultTransactionTest {
             return null;
         });
 
-        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payment WHERE id = ?", String.class,
+        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class,
                 payment.getId()));
         assertEquals(0, outboxCount());
     }
@@ -76,7 +76,7 @@ class PaymentResultTransactionTest {
         new TransactionTemplate(transactionManager).execute(status -> transitions.decline(payment.getId(),
                 PaymentStatus.REQUESTED, DeclineReason.OTHER, StatusActor.SYSTEM));
 
-        assertEquals("DECLINED", jdbc.queryForObject("SELECT status FROM payment WHERE id = ?", String.class,
+        assertEquals("DECLINED", jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class,
                 payment.getId()));
         assertEquals(1, outboxCount());
     }
@@ -86,16 +86,16 @@ class PaymentResultTransactionTest {
         var payment = payments.save(Payment.request("PAY-TX-3", RESERVATION_ID, 1L, BigDecimal.valueOf(50000),
                 PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
         // Outbox INSERT만 실패하도록 이 예매 키를 거부하는 제약을 임시로 건다
-        jdbc.execute("ALTER TABLE outbox ADD CONSTRAINT chk_test_block CHECK (message_key <> '" + RESERVATION_ID + "')");
+        jdbc.execute("ALTER TABLE outbox_events ADD CONSTRAINT chk_test_block CHECK (message_key <> '" + RESERVATION_ID + "')");
         try {
             assertThrows(RuntimeException.class, () -> new TransactionTemplate(transactionManager).execute(status ->
                     transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER,
                             StatusActor.SYSTEM)));
         } finally {
-            jdbc.execute("ALTER TABLE outbox DROP CONSTRAINT chk_test_block");
+            jdbc.execute("ALTER TABLE outbox_events DROP CONSTRAINT chk_test_block");
         }
 
-        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payment WHERE id = ?", String.class,
+        assertEquals("REQUESTED", jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class,
                 payment.getId()));
         assertEquals(0, outboxCount());
     }
@@ -109,7 +109,7 @@ class PaymentResultTransactionTest {
     }
 
     private int outboxCount() {
-        return jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+        return jdbc.queryForObject("SELECT count(*) FROM outbox_events WHERE message_key = ?", Integer.class,
                 String.valueOf(RESERVATION_ID));
     }
 }
