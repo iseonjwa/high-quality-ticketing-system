@@ -21,6 +21,15 @@
 | 6 | SA 범위 밖 기능 채택: 로그인 5회 실패 잠금, 관리자 비밀번호 초기화, `@RequireRole`, `/internal/**` 외부 차단, workspace-tools, system-tests | 저장소 ADR | D11, ADR 0007·0012 |
 | 7 | 브랜치 전략: `{type}/ISE-{번호}-{주제}`, dev에서 출발, squash 기본, 필수 리뷰 없음(AI 검증 후 머지·공유), main·dev는 PR과 CI 통과 필수, 마일스톤마다 dev → main | 17-1 #5 | D16, `docs/guides/git-workflow.md` 5절 |
 
+### 🆕 10/27 대기열 제안 (팀 합의 전, 대기열 담당)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 입장 토큰 검증에 `sub` = JWT 사용자 ID 확인 추가. 다른 사람이 받은 입장 토큰으로 대기열을 우회하지 못하게 한다 | 7-3 | ADR 0015 |
+| 2 | Redis 키 `queue:{scheduleId}:lastTick` 추가. 인스턴스가 여러 개여도 `admitted`를 1초에 한 번만 올린다(1차 AI 피드백 Queue 유지 조건 3이 "전역 카운터"로만 요약돼 빠진 장치) | 12-8 | ADR 0015 |
+| 3 | `admitted` 상한을 발급된 `seq`로 둔다. 줄이 빈 동안 카운터가 앞서가 오픈 순간 한꺼번에 입장하는 것을 막는다 | 12-8 | ADR 0015 |
+| 4 | Redis 키 `queue:{scheduleId}:issued` 추가. 입장 토큰 발급 시 `waiting`에서 빼고 발급 시각을 기록한다. 재조회해도 만료 시각이 같고, 응답 유실·새로고침 때 같은 토큰을 다시 받는다. 대기열 진입·순번 조회 Lua 모두 `issued`를 먼저 확인해, 토큰이 유효하면 새 seq 없이 같은 토큰을 다시 응답한다. 만료 뒤에는 다시 줄을 선다 | 12-8 | ADR 0015 |
+
 ### 10/26 바뀐 점
 
 | # | 변경 | 위치 | 결정 기록 |
@@ -503,7 +512,7 @@ flowchart LR
 | 서명 키 | `ENTRY_TOKEN_SECRET` | `PAYMENT_TOKEN_SECRET` |
 | 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), 예매 ID, 금액, `exp`, `jti` |
 | 만료 | 발급 후 10분 `[가정]` | `hold_expires_at - 10초` `[가정]` |
-| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
+| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
 - 키를 분리하면 Gateway는 결제 키를, Payment는 입장 키를 갖지 않아 서로의 토큰을 위조할 수 없다. `typ`·`aud`는 키가 실수로 같아져도 교차 사용을 막는 이중 방어다.
 - HMAC은 검증 키로 서명도 할 수 있다. "Gateway·Payment도 토큰을 만들 수 있다"는 피드백은 이 구조의 한계다. 비대칭 서명(발급자 개인키, 검증자 공개키)으로 풀 수 있으나 키 관리 비용이 늘어 MVP 이후로 둔다.
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
@@ -1460,6 +1469,8 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 | `queue:{scheduleId}:seq` | 문자열 (카운터) | 회차 판매 종료까지 | 진입 순번 발급 (INCR) | 권영은 |
 | `queue:{scheduleId}:waiting` | ZSET (점수 = 진입 순번 seq) | 같음 | 계정당 1자리, 이탈 제거(ZREM) | 권영은 |
 | `queue:{scheduleId}:admitted` | 문자열 (카운터) | 같음 | 지금까지 입장시킨 순번 (전역 카운터, 초당 N씩 증가) | 권영은 |
+| 🆕 `queue:{scheduleId}:lastTick` | 문자열 | 회차 판매 종료까지 | 마지막으로 `admitted`를 올린 초(Redis `TIME` 기준). 인스턴스가 여러 개여도 1초에 한 번만 증가 (제안, ADR 0015) | 권영은 |
+| 🆕 `queue:{scheduleId}:issued` | ZSET (점수 = 입장 토큰 발급 시각) | 회차 판매 종료까지, 항목은 토큰 유효 시간 T가 지나면 정리 | 입장 토큰을 받은 사용자. 재조회 시 같은 발급 시각으로 토큰을 다시 응답 (제안, ADR 0015) | 권영은 |
 | `auth:refresh:{userId}` | 문자열 | 14일 | Refresh 토큰 | 공통 |
 | `auth:blacklist:{jti}` | 문자열 | Access 남은 시간 | 로그아웃된 Access | 공통 |
 | `ratelimit:{userId}` | 문자열 (카운터) | 1초 | 사용자 단위 요청 제한 | 공통 |
@@ -1468,6 +1479,10 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 - 입장 판정: `seq <= admitted`로 확정했다(#27). 이탈한 사람이 줄에서 빠지면 ZRANK는 앞당겨지지만 `admitted`는 입장시킨 번호까지만 올라가므로 ZRANK와 비교하면 어긋난다(10/26 피드백: "현 구조라면 seq 기준이 맞다").
 - 표시용 순번은 `max(0, seq - admitted)`로 O(1) 계산한다.
 - 알려진 비용: 이탈자의 번호도 `admitted`가 지나가므로 그 슬롯만큼 실제 입장 속도가 N보다 낮아진다. 이탈이 많으면 N을 높여 보정한다.
+- 🆕 입장 처리(제안, ADR 0015): 스케줄러가 1초마다 Lua 하나로 처리한다. `lastTick`이 현재 초(Redis `TIME`)면 건너뛰고, 아니면 `admitted = min(admitted + N, seq)`로 올린다. 인스턴스마다 스케줄러가 돌아도 입장 속도가 N을 넘지 않고, 줄이 빈 동안 카운터가 발급된 번호를 앞질러 가지 않는다.
+- 🆕 대기열 진입 시 입장 기록 확인(제안, ADR 0015): 대기열 진입 Lua도 먼저 `issued`를 본다. T 안의 기록이 있으면 새 seq를 발급하지 않고 "이미 입장" 응답과 함께 같은 발급 시각으로 토큰을 다시 응답한다. 기록이 없을 때만 기존대로 waiting 확인 → seq INCR → ZADD를 한다. 한 사람이 입장 상태와 대기 자리를 동시에 갖지 않게 하기 위해서다.
+- 🆕 입장 토큰 발급(제안, ADR 0015): 순번 조회 Lua에서 `issued`를 먼저 본다. 기록이 있고 T 안이면 같은 발급 시각으로 토큰을 다시 응답한다(만료 = 발급 시각 + T). 없으면 `waiting`에서 seq를 찾고, `seq <= admitted`면 `waiting`에서 빼고 `issued`에 발급 시각을 기록한 뒤 토큰을 발급한다. 토큰 서명은 앱이 한다.
+- 🆕 만료 뒤 재진입(제안, ADR 0015): `issued` 기록이 T를 넘으면 정리되고, 다시 진입하면 새 seq로 맨 뒤에 선다.
 - Redis 장애·느려짐 정책은 9-5다.
 
 ### 12-9. 적재량 추정 `[가정]`
