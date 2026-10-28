@@ -8,7 +8,10 @@ public enum DeclineReason {
     NOT_SENT,
     // PG 호출 직전에 결제 토큰이 만료된 경우
     TOKEN_EXPIRED,
+    // PG가 카드를 거절함
+    CARD_DECLINED,
+    // 한도 부족
+    INSUFFICIENT_LIMIT,
     // 매핑할 수 없는 PG 사유
     OTHER
-    // TODO: PG 거절 사유(한도 초과, 카드 오류 등)는 PgClient 계약을 만드는 ISE-34에서 더한다
 }
