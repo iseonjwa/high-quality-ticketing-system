@@ -118,8 +118,7 @@ services:
       DB_URL: jdbc:postgresql://postgres-payment:5432/payment
       DB_USER: ${DB_USER:-iseonjwa}
       DB_PASSWORD: ${DB_PASSWORD:?필수}
-      # Note: 비어 있어도 compose 전체를 막지 않는다. 기존 .env에 키가 없으면 payment-service만 시작 검증에서 멈춘다
-      PAYMENT_TOKEN_SECRET: ${PAYMENT_TOKEN_SECRET:-}
+      PAYMENT_TOKEN_SECRET: ${PAYMENT_TOKEN_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
     depends_on:
       config-server:
         condition: service_healthy

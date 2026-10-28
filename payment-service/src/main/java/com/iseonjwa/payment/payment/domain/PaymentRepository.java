@@ -7,6 +7,9 @@ import java.util.Optional;
 /**
  * 결제 저장소. 상태 전이는 모두 "현재 상태가 from일 때만" 바꾸는 조건부 UPDATE이고,
  * 반환값은 실제로 바뀌었는지(영향 행이 1인지)다. 호출한 쪽은 true일 때만 이력·이벤트를 쓴다(INV-5).
+ *
+ * <p>Note: 전이 쿼리는 영속성 컨텍스트를 비운다. 같은 트랜잭션에서 미리 읽어 둔 엔티티는 분리되므로,
+ * 전이 뒤에 값이 필요하면 다시 읽고 엔티티를 바꿔 저장하는 일은 전이 앞에 끝낸다.
  */
 public interface PaymentRepository {
     Payment save(Payment payment);

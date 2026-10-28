@@ -6,6 +6,7 @@ import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistory;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistoryRepository;
 import com.iseonjwa.payment.payment.domain.StatusActor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,13 +29,15 @@ public class PaymentTransitionService {
     private final Clock clock;
 
     public PaymentTransitionService(PaymentRepository payments, PaymentStatusHistoryRepository histories,
-            Clock clock) {
+            @Qualifier("commonAuditingClock") Clock clock) {
         this.payments = payments;
         this.histories = histories;
         this.clock = clock;
     }
 
     @Transactional
+    // Note: 승인 금액이 결제 금액과 같은지는 호출한 승인 흐름(ISE-35)이 먼저 확인하고, 다르면 markAmountMismatch를 쓴다.
+    // 이 메서드에 다른 금액이 들어오면 chk_payment_approved가 마지막으로 막는다(예외, 트랜잭션 롤백).
     public boolean approve(Long paymentId, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount,
             StatusActor actor) {
         from.requireTransitionTo(PaymentStatus.APPROVED);
@@ -62,15 +65,24 @@ public class PaymentTransitionService {
         return recordIfChanged(changed, paymentId, from, PaymentStatus.UNKNOWN, reason, actor, now);
     }
 
+    // PG가 승인했지만 금액이 결제와 다르다. PG 거래 정보를 남기고 운영자 확인으로 넘긴다.
     @Transactional
-    public boolean markNeedsManualCheck(Long paymentId, PaymentStatus from, String pgTxId,
-            BigDecimal pgApprovedAmount, String reason, StatusActor actor) {
+    public boolean markAmountMismatch(Long paymentId, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount,
+            StatusActor actor) {
         from.requireTransitionTo(PaymentStatus.NEEDS_MANUAL_CHECK);
         var now = clock.instant();
-        // PG 승인 정보가 있는 불일치 전이만 승인 시각을 남긴다. 재조회 소진은 승인된 적이 없다
-        var approvedAt = pgTxId == null ? null : now;
-        var changed = payments.markNeedsManualCheck(paymentId, from, pgTxId, pgApprovedAmount, approvedAt, now);
-        return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, reason, actor, now);
+        var changed = payments.markNeedsManualCheck(paymentId, from, pgTxId, pgApprovedAmount, now, now);
+        return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_AMOUNT_MISMATCH", actor,
+                now);
+    }
+
+    // 재조회를 소진해도 PG 결과를 알 수 없다. 승인된 적이 없으므로 PG 정보와 승인 시각을 남기지 않는다.
+    @Transactional
+    public boolean markUnresolved(Long paymentId, PaymentStatus from, StatusActor actor) {
+        from.requireTransitionTo(PaymentStatus.NEEDS_MANUAL_CHECK);
+        var now = clock.instant();
+        var changed = payments.markNeedsManualCheck(paymentId, from, null, null, null, now);
+        return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_UNRESOLVED", actor, now);
     }
 
     private boolean recordIfChanged(boolean changed, Long paymentId, PaymentStatus from, PaymentStatus to,

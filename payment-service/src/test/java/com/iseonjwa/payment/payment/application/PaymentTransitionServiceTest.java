@@ -103,8 +103,8 @@ class PaymentTransitionServiceTest {
     void 금액_불일치는_확인_필요로_두고_PG_정보를_보존한다() {
         var payment = requested();
 
-        assertTrue(transitions.markNeedsManualCheck(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-mismatch",
-                BigDecimal.valueOf(49000), "PG_AMOUNT_MISMATCH", StatusActor.SYSTEM));
+        assertTrue(transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-mismatch",
+                BigDecimal.valueOf(49000), StatusActor.SYSTEM));
 
         var checked = payments.findById(payment.getId()).orElseThrow();
         assertEquals(PaymentStatus.NEEDS_MANUAL_CHECK, checked.getStatus());
@@ -114,13 +114,12 @@ class PaymentTransitionServiceTest {
     }
 
     @Test
-    void 재조회_소진은_이전에_저장한_PG_정보를_지우지_않는다() {
+    void 재조회_소진은_PG_정보와_승인_시각을_남기지_않는다() {
         var payment = requested();
         assertTrue(transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED, Instant.now().plusSeconds(30),
                 "TIMEOUT", StatusActor.SYSTEM));
 
-        assertTrue(transitions.markNeedsManualCheck(payment.getId(), PaymentStatus.UNKNOWN, null, null,
-                "PG_UNRESOLVED", StatusActor.SYSTEM));
+        assertTrue(transitions.markUnresolved(payment.getId(), PaymentStatus.UNKNOWN, StatusActor.SYSTEM));
 
         var checked = payments.findById(payment.getId()).orElseThrow();
         assertEquals(PaymentStatus.NEEDS_MANUAL_CHECK, checked.getStatus());
@@ -149,8 +148,7 @@ class PaymentTransitionServiceTest {
     @Test
     void 운영자_전이는_이력의_행위자에_OPS를_남긴다() {
         var payment = requested();
-        assertTrue(transitions.markNeedsManualCheck(payment.getId(), PaymentStatus.REQUESTED, null, null,
-                "PG_UNRESOLVED", StatusActor.SYSTEM));
+        assertTrue(transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM));
 
         assertTrue(transitions.approve(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK, "pg-tx-ops", AMOUNT,
                 StatusActor.ops("kim")));

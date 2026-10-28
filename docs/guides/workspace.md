@@ -42,7 +42,7 @@ docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-t
 ./gradlew :system-tests:systemTest -PredisFailure=true --no-daemon
 ```
 
-환경변수 생성기는 .env가 있으면 덮어쓰지 않는다. 그래서 `PAYMENT_TOKEN_SECRET`이 생기기 전에 만든 .env에는 키가 없다. 이 경우 `openssl rand -hex 32`로 만든 값을 `PAYMENT_TOKEN_SECRET=`에 직접 넣는다(없으면 `payment-service`만 시작 검증에서 멈춘다). 새 파일은 0600으로 만들고 값을 출력하지 않는다. 변수 목록은 .env.example에 있다. 실제 키·비밀번호는 .env에만 두고 커밋하지 않는다. Config Server에는 이 비밀값을 전달하지 않고 각 클라이언트 프로세스의 환경변수로 주입한다.
+환경변수 생성기는 .env가 있으면 덮어쓰지 않는다. 그래서 `PAYMENT_TOKEN_SECRET`이 생기기 전에 만든 .env에는 키가 없다. 이 경우 `openssl rand -hex 32`로 만든 값을 `PAYMENT_TOKEN_SECRET=`에 직접 넣는다(없으면 compose가 시작 전에 오류로 멈춘다). 새 파일은 0600으로 만들고 값을 출력하지 않는다. 변수 목록은 .env.example에 있다. 실제 키·비밀번호는 .env에만 두고 커밋하지 않는다. Config Server에는 이 비밀값을 전달하지 않고 각 클라이언트 프로세스의 환경변수로 주입한다.
 
 JVM runner와 Java 시스템 테스트는 컨테이너 생성 없이 Compose의 dotenv 해석 결과를 사용한다. 따옴표·주석·이스케이프·보간을 지원하고, 쉘 환경변수가 .env보다 우선하는 규칙을 유지한다. 값은 출력하지 않는다.
 

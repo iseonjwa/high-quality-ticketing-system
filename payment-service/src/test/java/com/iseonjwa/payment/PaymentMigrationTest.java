@@ -46,7 +46,7 @@ class PaymentMigrationTest {
     @Test
     void 거절된_예매에도_두_번째_결제_행을_만들_수_없다() {
         var reservationId = 1002L;
-        jdbc.update(insertSql("DECLINED", "decline_code", "'CARD_REJECTED'"), args(reservationId));
+        jdbc.update(insertSql("DECLINED", "decline_code", "'OTHER'"), args(reservationId));
         assertViolation("uq_payment_reservation_id", () -> insertPayment(reservationId, "REQUESTED"));
     }
 
