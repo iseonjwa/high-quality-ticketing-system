@@ -10,9 +10,12 @@ import com.iseonjwa.payment.payment.domain.PaymentMethod;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
+import com.iseonjwa.payment.pg.application.PgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.PgPermit;
+import com.iseonjwa.payment.pg.application.PgUnavailableException;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +35,9 @@ import java.util.function.Supplier;
  * 결제 승인 흐름(api.md 1절 처리 순서). 인증 → 멱등 기록 조회 → 토큰·금액 검증 → 같은 예매의 기존 결제 → TX1 →
  * PG 호출(트랜잭션 밖) → TX2 순서다. 이 클래스는 트랜잭션을 열지 않고 구간은 {@link PaymentTx}가 맡는다.
  *
- * <p>TODO: 신규 승인의 {@code pg-approve} 허가(Bulkhead·Circuit Breaker, 처리 순서 6단계)는 ISE-37에서 붙인다.
- * 그때까지 PG 호출 보호는 어댑터의 연결 0.5초·응답 2초 제한뿐이다.
+ * <p>Note: 신규 승인 시도만 6단계에서 {@code pg-approve} 허가(Bulkhead·Circuit Breaker)를 얻는다. 같은 키·기존 결제
+ * 응답은 허가 없이 나가서 CB가 OPEN이어도 그대로 응답한다. 허가는 TX1 앞에서 얻어, 못 얻으면 행도 멱등 기록도 남지
+ * 않는다(0018). 허가는 어떤 경로로 끝나도 {@code finally}에서 반환한다.
  */
 @Service
 public class PaymentApprovalService {
@@ -48,17 +52,19 @@ public class PaymentApprovalService {
     private final IdempotencyRecordRepository idempotency;
     private final PaymentTx tx;
     private final PgClient pg;
+    private final PgApprovalGate approvalGate;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public PaymentApprovalService(PaymentTokenVerifier tokens, PaymentRepository payments,
-            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClient pg, ObjectMapper mapper,
-            @Qualifier("commonAuditingClock") Clock clock) {
+            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClient pg, PgApprovalGate approvalGate,
+            ObjectMapper mapper, @Qualifier("commonAuditingClock") Clock clock) {
         this.tokens = tokens;
         this.payments = payments;
         this.idempotency = idempotency;
         this.tx = tx;
         this.pg = pg;
+        this.approvalGate = approvalGate;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -96,28 +102,49 @@ public class PaymentApprovalService {
                 throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
             }
 
-            // 7단계: TX1. 이 try는 TX1만 감싼다. PG 호출·TX2의 예외가 여기로 들어오면 안 된다
-            Payment payment;
-            try {
-                payment = tx.createRequested(command, token, requestHash);
-            } catch (DataIntegrityViolationException exception) {
-                if (!isExpectedConflict(exception)) throw exception;
-                // 같은 키·같은 예매의 동시 요청이다. 500이 아니라 정상 흐름이므로 처음부터 다시 조회한다(0017·0026)
-                log.info("TX1 유니크 충돌 attempt={}", attempt);
-                continue;
+            // 6단계: 신규 승인 허가. 못 얻으면 행도 멱등 기록도 만들지 않고 503이다
+            try (var permit = acquirePermit()) {
+                // 7단계: TX1. 이 try는 TX1만 감싼다. PG 호출·TX2의 예외가 여기로 들어오면 안 된다
+                Payment payment;
+                try {
+                    payment = tx.createRequested(command, token, requestHash);
+                } catch (DataIntegrityViolationException exception) {
+                    if (!isExpectedConflict(exception)) throw exception;
+                    // 같은 키·같은 예매의 동시 요청이다. 500이 아니라 정상 흐름이므로 처음부터 다시 조회한다(0017·0026).
+                    // 허가는 close()가 호출 결과로 세지 않고 반환한다
+                    log.info("TX1 유니크 충돌 attempt={}", attempt);
+                    continue;
+                }
+                return proceed(payment, command, token, permit);
             }
-            return proceed(payment, command, token);
         }
         throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE);
     }
 
+    private PgPermit acquirePermit() {
+        try {
+            return approvalGate.acquire();
+        } catch (PgUnavailableException exception) {
+            log.warn("PG 승인 허가 거절: {}", exception.getMessage());
+            throw new BusinessException(PaymentErrorCode.PG_UNAVAILABLE);
+        }
+    }
+
     // 8~10단계: 만료 재검사, PG 호출, TX2
-    private PaymentOutcome proceed(Payment payment, ApprovePaymentCommand command, PaymentToken token) {
+    private PaymentOutcome proceed(Payment payment, ApprovePaymentCommand command, PaymentToken token,
+            PgPermit permit) {
         if (token.isExpired(clock.instant())) {
-            // PG를 부르지 않았으므로 미전송이 확실하다. 토큰이 TX1과 PG 호출 사이에 만료된 경우다(0018)
+            // PG를 부르지 않았으므로 미전송이 확실하다. 토큰이 TX1과 PG 호출 사이에 만료된 경우다(0018).
+            // 호출 결과로 세지 않고 허가를 돌려준다
+            permit.release();
             return settle(payment, () -> tx.settleDeclined(payment, command, DeclineReason.TOKEN_EXPIRED));
         }
-        return switch (callPg(payment)) {
+        var result = callPg(payment);
+        // 허가는 PG 호출이 끝난 즉시 정산한다. TX2가 PG 호출 용량을 붙잡으면 안 된다
+        // 성공·정상 거절은 성공, 결과를 모르면(타임아웃·연결 실패·5xx 등) 실패로 CB에 센다
+        if (result instanceof PgClient.Unknown) permit.failure();
+        else permit.success();
+        return switch (result) {
             case PgClient.Approved approved -> settle(payment, () -> tx.settleApproved(payment, command, approved));
             case PgClient.Declined declined ->
                     settle(payment, () -> tx.settleDeclined(payment, command, declined.reason()));
