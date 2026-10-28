@@ -24,6 +24,10 @@ eureka:
   client:
     enabled: false
 payment:
+  pg:
+    provider: mock
+    mock:
+      base-url: http://127.0.0.1:8090
   token:
     # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
     secret: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
