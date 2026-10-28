@@ -12,3 +12,7 @@ spring:
   kafka:
     consumer:
       group-id: payment-service.bootstrap
+payment:
+  token:
+    # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
+    secret: ${PAYMENT_TOKEN_SECRET:}
