@@ -1,0 +1,12 @@
+spring:
+  cloud:
+    config:
+      enabled: false
+  data:
+    redis:
+      host: localhost
+      port: ${TEST_REDIS_PORT:26379}
+      timeout: 1s
+eureka:
+  client:
+    enabled: false
