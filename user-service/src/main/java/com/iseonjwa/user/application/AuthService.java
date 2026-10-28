@@ -9,6 +9,7 @@ import com.iseonjwa.user.application.AuthResult.SignupResult;
 import com.iseonjwa.user.domain.AuthSessions;
 import com.iseonjwa.user.domain.AuthTokens;
 import com.iseonjwa.user.domain.User;
+import com.iseonjwa.user.domain.UserErrorCode;
 import com.iseonjwa.user.domain.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;

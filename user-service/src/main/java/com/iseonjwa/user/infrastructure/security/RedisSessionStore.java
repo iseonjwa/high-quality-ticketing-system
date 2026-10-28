@@ -2,8 +2,8 @@ package com.iseonjwa.user.infrastructure.security;
 
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
-import com.iseonjwa.user.application.UserErrorCode;
 import com.iseonjwa.user.domain.AuthSessions;
+import com.iseonjwa.user.domain.UserErrorCode;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
