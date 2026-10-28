@@ -75,21 +75,27 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 
 ### Mock PG 프로토콜(어댑터가 가정하는 응답)
 
-SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를 만들 때 이 표를 따른다. `MockPgAdapterContractTest`의 가짜 서버가 같은 프로토콜을 흉내 낸다.
+SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를 만들 때 이 표를 따르고, 서버가 준비되면 `PgClientContractTest`를 실제 앱을 상대로 돌린다(`PgScenario`는 장애 주입 API로 구현). 지금은 `MockPgAdapterContractTest`의 가짜 서버가 같은 프로토콜을 흉내 낸다.
 
 | 호출 | 성공 응답 | 어댑터 해석 |
 |---|---|---|
 | POST `/mock-pg/payments` `{orderId, amount, currency}` | 200 `{pgTxId, status: APPROVED, amount, currency, approvedAt}` | `Approved` |
 | 〃 | 200 `{status: DECLINED, declineCode}` | `Declined`(`declineCode`를 `DeclineReason`으로 매핑, 모르면 `OTHER`) |
 | 〃 | 202 또는 `status: PROCESSING` | `Unknown(PROCESSING)` |
-| 〃 | 409(망취소된 주문) | `Declined(NOT_SENT)` |
-| GET `/mock-pg/payments/{orderId}` | 위 승인·거절 응답, 없으면 404 | `Approved`·`Declined`·`NotFound` |
-| POST `/mock-pg/payments/{orderId}/cancel` | `{status: CANCELED}` 또는 승인 응답 | `Prevented` · `AlreadyApproved` |
-| POST `/mock-pg/refunds` `{pgTxId, refundId, amount, currency, reason}` | 200 `{refundTxId, pgTxId, status: REFUNDED, amount, currency, refundedAt}` | `Refunded` |
+| 〃 | 409 `{code: ORDER_CANCELED}`(망취소된 주문) | `Declined(NOT_SENT)` |
+| 〃 | 그 밖의 409 | `Unknown(PROCESSING)`(거절로 단정하지 않는다) |
+| GET `/mock-pg/payments/{orderId}` | 위 승인·거절 응답. 없으면 404 `{code: NOT_FOUND}` | `Approved`·`Declined`·`NotFound` |
+| POST `/mock-pg/payments/{orderId}/cancel` | `{status: CANCELED}`, 이미 승인됐으면 승인 응답, 승인이 처리 중이면 202 | `Prevented` · `AlreadyApproved` · `Unknown(PROCESSING)` |
+| POST `/mock-pg/refunds` `{pgTxId, refundId, amount, currency, reason}` | 200 `{refundTxId, pgTxId, status: REFUNDED, amount, currency, refundedAt}` | `Refunded`(`refundTxId`·`pgTxId` 필수, `pgTxId`는 요청과 같아야 함) |
 | 〃 | 422 `{status: REJECTED, code}` | `RefundRejected`(`NOT_REFUNDABLE`·`OTHER`) |
-| GET `/mock-pg/refunds/{refundId}` | 환불 응답, 없으면 404 | `Refunded`·`NotFound` |
+| GET `/mock-pg/refunds/{refundId}` | 환불 응답. 없으면 404 `{code: NOT_FOUND}` | `Refunded`·`NotFound` |
 
-공통: 5xx와 해석할 수 없는 응답, 승인 응답의 `pgTxId`·`amount`·`currency`·`approvedAt` 누락은 `Unknown(PG_ERROR)`, 그 밖의 4xx는 `Unknown(CLIENT_ERROR)`다. 응답 시간 초과는 `TIMEOUT`, 연결 실패·응답 없이 끊김은 `CONNECTION_LOST`다. 같은 `orderId`·`refundId`의 재요청은 저장된 결과를 돌려준다(멱등).
+서버가 지켜야 할 것:
+- 같은 `orderId`·`refundId`의 재요청은 저장된 결과를 돌려준다(멱등).
+- 승인 저장과 망취소는 원자적이다. `CANCELED`를 응답한 주문은 이후 승인을 저장하지 않으며, 승인이 처리 중인 주문에 취소가 오면 `CANCELED`가 아니라 202를 준다(INV-8).
+- 원장을 메모리에만 두면 재시작 때 사라져 `NotFound`·`CANCELED`가 나온다. 장애·부하 테스트에서 Mock PG를 재시작한다면 원장을 유지하거나 테스트 가정으로 적는다.
+
+어댑터의 공통 규칙: 5xx와 해석할 수 없는 응답, 승인·환불 응답의 필수 필드(`pgTxId`·`refundTxId`·`amount`·`currency`·시각) 누락, 정수가 아닌 금액은 `Unknown(PG_ERROR)`다. 그 밖의 4xx와 본문 코드가 없는 404는 `Unknown(CLIENT_ERROR)`다. 응답 시간 초과는 `TIMEOUT`, 연결 실패와 응답 없이 끊김은 `CONNECTION_LOST`다. 금액은 BigDecimal로 파싱한다(double이면 소수 오차가 일치로 보인다).
 
 ## 7. 토스 어댑터가 M4에서 확인할 것
 1. 승인(confirm)이 멱등키를 지원하는지, 같은 키 다른 본문과 오류 응답 재생 동작.
