@@ -18,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-// Note: 스케줄러를 켠 컨텍스트가 캐시되어 남으면 다른 테스트의 outbox 행을 집어 가므로 끝나면 컨텍스트를 닫는다.
+// Note: 스케줄러를 켠 컨텍스트가 캐시되어 남으면 다른 테스트의 outbox_events 행을 집어 가므로 끝나면 컨텍스트를 닫는다.
 @DirtiesContext
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
         "messaging.outbox.relay-enabled=true", "messaging.outbox.interval=100ms"})
@@ -41,13 +41,13 @@ class OutboxRelaySchedulerTest {
 
     @Test
     void 스케줄러가_주기적으로_Outbox를_비운다() throws InterruptedException {
-        jdbc.update("DELETE FROM outbox");
+        jdbc.update("DELETE FROM outbox_events");
         outbox.insert(UUID.randomUUID(), "payment.result", "9001", "PaymentApproved", "{}", Instant.now());
 
         var deadline = System.nanoTime() + 5_000_000_000L;
         String status;
         do {
-            status = jdbc.queryForObject("SELECT status FROM outbox WHERE message_key = '9001'", String.class);
+            status = jdbc.queryForObject("SELECT status FROM outbox_events WHERE message_key = '9001'", String.class);
             if (status.equals("SENT")) break;
             Thread.sleep(50);
         } while (System.nanoTime() < deadline);

@@ -31,8 +31,8 @@ class PaymentTxIdempotencyTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM idempotency_record WHERE user_id = ?", USER);
-        jdbc.update("DELETE FROM payment WHERE reservation_id IN (?, ?)", RESERVATION_A, RESERVATION_B);
+        jdbc.update("DELETE FROM idempotency_records WHERE user_id = ?", USER);
+        jdbc.update("DELETE FROM payments WHERE reservation_id IN (?, ?)", RESERVATION_A, RESERVATION_B);
     }
 
     @Test
@@ -46,9 +46,9 @@ class PaymentTxIdempotencyTest {
                 new ApprovePaymentCommand(USER, key, "token-b", 50000),
                 new PaymentToken(USER, RESERVATION_B, BigDecimal.valueOf(50000), expiresAt), "b".repeat(64)));
 
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payment WHERE reservation_id = ?", Integer.class,
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class,
                 RESERVATION_B), "두 번째 결제는 롤백된다");
-        assertEquals("a".repeat(64), jdbc.queryForObject("SELECT request_hash FROM idempotency_record WHERE user_id = ?",
+        assertEquals("a".repeat(64), jdbc.queryForObject("SELECT request_hash FROM idempotency_records WHERE user_id = ?",
                 String.class, USER).trim(), "기존 기록은 그대로다");
     }
 }

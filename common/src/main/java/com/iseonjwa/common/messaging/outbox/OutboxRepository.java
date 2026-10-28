@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * {@code outbox} 테이블 접근. 엔티티 없이 JDBC로 쓰므로 서비스가 엔티티 스캔을 따로 설정할 필요가 없다.
+ * {@code outbox_events} 테이블 접근. 엔티티 없이 JDBC로 쓰므로 서비스가 엔티티 스캔을 따로 설정할 필요가 없다.
  * 테이블은 서비스의 Flyway가 만든다(표준 DDL은 docs/guides/common-modules.md).
  *
  * <p>Note: {@code insert}는 호출한 트랜잭션에 참여한다. JPA 트랜잭션 안에서 같은 연결을 쓰므로 업무 변경과 함께
@@ -32,7 +32,7 @@ public class OutboxRepository {
 
     public void insert(UUID eventId, String topic, String messageKey, String eventType, String payload, Instant now) {
         jdbc.update("""
-                INSERT INTO outbox (event_id, topic, message_key, event_type, payload, status, attempts,
+                INSERT INTO outbox_events (event_id, topic, message_key, event_type, payload, status, attempts,
                                     next_attempt_at, created_at)
                 VALUES (?, ?, ?, ?, ?::jsonb, 'PENDING', 0, ?, ?)
                 """, eventId, topic, messageKey, eventType, payload, Timestamp.from(now), Timestamp.from(now));
@@ -47,12 +47,12 @@ public class OutboxRepository {
     public List<OutboxMessage> claimNext(Instant now, Instant leaseUntil, int batchSize) {
         // TODO: 앞선 행이 FAILED여도 뒤 행을 막도록 조건을 넓힌다(ISE-40, FAILED 전이를 만들 때)
         var claimed = jdbc.query("""
-                UPDATE outbox SET claimed_until = ?
+                UPDATE outbox_events SET claimed_until = ?
                 WHERE id = ANY(ARRAY(
-                    SELECT o.id FROM outbox o
+                    SELECT o.id FROM outbox_events o
                     WHERE o.status = 'PENDING' AND o.next_attempt_at <= ?
                       AND (o.claimed_until IS NULL OR o.claimed_until <= ?)
-                      AND NOT EXISTS (SELECT 1 FROM outbox earlier
+                      AND NOT EXISTS (SELECT 1 FROM outbox_events earlier
                                       WHERE earlier.message_key = o.message_key AND earlier.status = 'PENDING'
                                         AND earlier.id < o.id)
                     ORDER BY o.id
@@ -67,7 +67,7 @@ public class OutboxRepository {
     // 아직 PENDING일 때만 SENT로 바꾼다. 반환값은 실제로 바뀌었는지다.
     public boolean markSent(long id, Instant sentAt) {
         return jdbc.update("""
-                UPDATE outbox SET status = 'SENT', sent_at = ?, claimed_until = NULL
+                UPDATE outbox_events SET status = 'SENT', sent_at = ?, claimed_until = NULL
                 WHERE id = ? AND status = 'PENDING'
                 """, Timestamp.from(sentAt), id) == 1;
     }
@@ -76,7 +76,7 @@ public class OutboxRepository {
     public void recordFailure(long id, String error) {
         // Note: SMALLINT 상한을 넘기면 갱신 자체가 실패해 같은 배치의 다른 행이 계속 늦어진다
         jdbc.update("""
-                UPDATE outbox SET attempts = LEAST(attempts + 1, ?), last_error = ?
+                UPDATE outbox_events SET attempts = LEAST(attempts + 1, ?), last_error = ?
                 WHERE id = ? AND status = 'PENDING'
                 """, ATTEMPTS_MAX, error, id);
     }
@@ -91,7 +91,7 @@ public class OutboxRepository {
         if (ids.isEmpty()) return;
         jdbc.update(connection -> {
             var statement = connection.prepareStatement("""
-                    UPDATE outbox SET claimed_until = NULL
+                    UPDATE outbox_events SET claimed_until = NULL
                     WHERE id = ANY(?) AND status = 'PENDING' AND claimed_until = ?
                     """);
             statement.setArray(1, connection.createArrayOf("bigint", ids.toArray()));

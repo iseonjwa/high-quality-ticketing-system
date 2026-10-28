@@ -208,13 +208,13 @@ class PaymentTransitionServiceTest {
     }
 
     private java.util.List<java.util.Map<String, Object>> outboxRows(Long reservationId) {
-        return jdbc.queryForList("SELECT event_type, topic, status FROM outbox WHERE message_key = ? ORDER BY id",
+        return jdbc.queryForList("SELECT event_type, topic, status FROM outbox_events WHERE message_key = ? ORDER BY id",
                 String.valueOf(reservationId));
     }
 
     // 봉투 안 payload 객체의 필드 값을 문자열로 읽는다
     private String payloadField(Long reservationId, String field) {
-        return jdbc.queryForObject("SELECT payload -> 'payload' ->> ? FROM outbox WHERE message_key = ?",
+        return jdbc.queryForObject("SELECT payload -> 'payload' ->> ? FROM outbox_events WHERE message_key = ?",
                 String.class, field, String.valueOf(reservationId));
     }
 

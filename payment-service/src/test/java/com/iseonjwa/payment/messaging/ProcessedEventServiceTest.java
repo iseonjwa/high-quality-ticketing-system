@@ -32,7 +32,7 @@ class ProcessedEventServiceTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM processed_event WHERE consumer_group LIKE 'test.%'");
+        jdbc.update("DELETE FROM processed_events WHERE consumer_group LIKE 'test.%'");
     }
 
     @Test
