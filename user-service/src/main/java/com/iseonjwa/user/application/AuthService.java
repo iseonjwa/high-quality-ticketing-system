@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Locale;
 
 @Service
 public class AuthService {
@@ -60,7 +59,7 @@ public class AuthService {
     @Transactional
     public SignupResult signup(String email, String password, String nickname) {
         validatePasswordBytes(password);
-        var user = users.save(new User(normalize(email), passwords.encode(password), nickname, Roles.USER));
+        var user = users.save(new User(email, passwords.encode(password), nickname, Roles.USER));
         return new SignupResult(user.getId(), user.getEmail(), user.getNickname());
     }
 
@@ -69,7 +68,7 @@ public class AuthService {
         return transactions.execute(status -> {
             var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
             validateUnchangedPassword(authenticated, user);
-            validateTokenIssueAllowed(user);
+            user.ensureTokenIssuable();
             if (user.getFailedLoginCount() > 0) {
                 users.resetLoginFailures(user.getId());
             }
@@ -90,7 +89,7 @@ public class AuthService {
         transactions.executeWithoutResult(status -> {
             var user = lockUser(authenticated.getId(), CommonErrorCode.UNAUTHORIZED);
             validateUnchangedPassword(authenticated, user);
-            validateUnlocked(user);
+            user.ensureUnlocked();
             sessions.revokeRefresh(user.getId());
             users.updatePassword(user.getId(), newHash, false, user.getId());
         });
@@ -113,7 +112,7 @@ public class AuthService {
         return transactions.execute(status -> {
             var user = lockUser(claims.userId(), CommonErrorCode.UNAUTHORIZED);
             sessions.validateRefresh(user.getId(), refreshToken);
-            validateTokenIssueAllowed(user);
+            user.ensureTokenIssuable();
             var pair = tokens.issue(user.getId(), user.getRole());
             sessions.rotate(user.getId(), refreshToken, pair.refreshToken(), tokens.refreshTtl());
             return pair;
@@ -140,7 +139,7 @@ public class AuthService {
     // 운영자 계정이 이미 있으면 비밀번호는 유지하고, 잠긴 경우만 재기동으로 풀 수 있게 한다.
     @Transactional
     public void seedAdmin(String email, String password) {
-        var existing = users.findByEmail(normalize(email));
+        var existing = users.findByEmail(User.normalizeEmail(email));
         if (existing.isPresent()) {
             var admin = existing.get();
             if (!Roles.ADMIN.equals(admin.getRole())) {
@@ -155,18 +154,18 @@ public class AuthService {
         if (bytes < MIN_PASSWORD_BYTES || bytes > MAX_PASSWORD_BYTES) {
             throw new IllegalArgumentException("운영자 비밀번호는 8~72바이트여야 합니다");
         }
-        users.save(new User(normalize(email), passwords.encode(password), "운영자", Roles.ADMIN));
+        users.save(new User(email, passwords.encode(password), "운영자", Roles.ADMIN));
     }
 
     // 비밀번호가 맞으면 사용자를 돌려주고, 틀리면 실패 횟수를 올린다. 잠긴 계정은 맞아도 거절한다.
     private User authenticate(String email, String password) {
         validatePasswordBytes(password);
-        var user = users.findByEmail(normalize(email)).orElse(null);
+        var user = users.findByEmail(User.normalizeEmail(email)).orElse(null);
         if (user == null) {
             passwords.matches(password, dummyPasswordHash);
             throw new BusinessException(UserErrorCode.INVALID_CREDENTIALS);
         }
-        validateUnlocked(user);
+        user.ensureUnlocked();
         if (!passwords.matches(password, user.getPasswordHash())) {
             throw loginFailure(user);
         }
@@ -185,19 +184,6 @@ public class AuthService {
         }
     }
 
-    private void validateUnlocked(User user) {
-        if (user.isLocked()) {
-            throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
-        }
-    }
-
-    private void validateTokenIssueAllowed(User user) {
-        validateUnlocked(user);
-        if (user.isPasswordChangeRequired()) {
-            throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
-        }
-    }
-
     private BusinessException loginFailure(User user) {
         users.recordLoginFailure(user.getId(), maxLoginFailures);
         var locked = users.findById(user.getId()).map(User::isLocked).orElse(false);
@@ -210,10 +196,6 @@ public class AuthService {
             password.append(TEMPORARY_PASSWORD_ALPHABET.charAt(random.nextInt(TEMPORARY_PASSWORD_ALPHABET.length())));
         }
         return password.toString();
-    }
-
-    private String normalize(String email) {
-        return email.strip().toLowerCase(Locale.ROOT);
     }
 
     private void validatePasswordBytes(String password) {
