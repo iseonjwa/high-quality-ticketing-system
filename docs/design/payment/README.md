@@ -47,5 +47,7 @@
 | 담당 | 필요한 일 | 근거 |
 |---|---|---|
 | 반효승 | 결제 토큰 claim 이름 통보(U1). 결제 이벤트 처리 계약(원장 대조, 상태별 규칙, `CONFIRMED` + `PaymentRefunded` 격리). `RefundRequested`의 `userId`·`amount`·`currency`와 새 사유. `payment.result` 소비의 DLQ 처리기. 대사용 읽기 전용 내부 조회 API. 결제 토큰 발급기는 `TokenDecoders.signingKey`로 키 바이트를 만든다 | 0022, 0025, 0027, 0029 |
-| 이강민 | Mock PG 환불 조회·환불 멱등·망취소와 경로 확정(U16), 장애 주입 모드, 응답의 `amount`·`currency`, 테스트 전용 원장 조회. U9(추첨 결제 실패 유형별 재시도)가 같은 예매 재결제를 요구하는지 확인 | 0023, 0026 |
+| 이강민 | U9(추첨 결제 실패 유형별 재시도)가 같은 예매 재결제를 요구하는지 확인 | 0026 |
 | 팀 전체 | SA 변경 요청 리뷰, U22(환불 이력 위치), Kafka-UI READONLY, `payment-service` 연결 풀 설정 | [sa-change-requests.md](sa-change-requests.md) |
+
+Mock PG 환불 조회·환불 멱등·망취소와 경로 확정(U16), 장애 주입 모드, 응답의 `amount`·`currency`, 테스트 전용 원장 조회는 10/28 역할 변경으로 결제 담당이 함께 구현한다(0023).

@@ -68,7 +68,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | V2 환불 중복 없음 | `payment_id`별 환불 행 수, Mock PG 원장의 결제별 환불 수·금액 | 결제당 환불 ≤ 1, PG 환불 합계 ≤ 승인 금액 |
 | V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatch` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letter` OPEN)이고 그 지표가 0보다 크다 |
 
-Mock PG 원장 조회는 테스트 프로필 전용 기능이 필요하다(이강민 협의, S-28).
+Mock PG 원장 조회는 테스트 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28).
 
 | # | 장애 유형 | 주입 지점과 기대 | 관련 |
 |---|---|---|---|
