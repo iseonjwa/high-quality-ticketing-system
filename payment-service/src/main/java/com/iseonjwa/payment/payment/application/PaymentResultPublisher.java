@@ -20,6 +20,7 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class PaymentResultPublisher {
     static final String TOPIC = "payment.result";
+    private static final int VERSION = 1;
 
     private final OutboxWriter outbox;
 
@@ -31,13 +32,13 @@ public class PaymentResultPublisher {
         // SA 10-2의 예시처럼 밀리초 정밀도로 내보낸다
         var payload = new PaymentApprovedEvent(payment.getId(), payment.getReservationId(), payment.getUserId(),
                 payment.getAmount(), payment.getCurrency(), pgApprovedAt.truncatedTo(ChronoUnit.MILLIS));
-        outbox.write(TOPIC, key(payment), "PaymentApproved", payload);
+        outbox.write(TOPIC, key(payment), "PaymentApproved", VERSION, payload);
     }
 
     public void publishDeclined(Payment payment, DeclineReason reason) {
         var payload = new PaymentDeclinedEvent(payment.getId(), payment.getReservationId(), payment.getUserId(),
                 reason.name());
-        outbox.write(TOPIC, key(payment), "PaymentDeclined", payload);
+        outbox.write(TOPIC, key(payment), "PaymentDeclined", VERSION, payload);
     }
 
     // 파티션 키는 reservationId다. 같은 예매의 결제 이벤트는 순서가 유지된다

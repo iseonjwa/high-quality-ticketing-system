@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -46,6 +48,8 @@ class OutboxRelayIntegrationTest {
     JdbcTemplate jdbc;
     @MockitoSpyBean
     OutboxRepository outbox;
+    @Autowired
+    PlatformTransactionManager transactionManager;
     @MockitoBean
     OutboxEventSender sender;
 
@@ -162,29 +166,34 @@ class OutboxRelayIntegrationTest {
     }
 
     @Test
-    void 두_릴레이가_동시에_집어도_같은_행을_집지_못한다() throws Exception {
-        for (var key = 1; key <= 6; key++) add(String.valueOf(key), "PaymentApproved");
+    void 다른_릴레이가_잠근_행은_기다리지_않고_건너뛰고_나머지만_집는다() throws Exception {
+        for (var key = 1; key <= 6; key++) add(String.valueOf(key));
         var now = Instant.now();
+        var firstHasClaimed = new CountDownLatch(1);
+        var releaseFirst = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
-        var start = new CountDownLatch(1);
         try {
-            var first = executor.submit(() -> {
-                start.await();
-                return outbox.claimNext(now, now.plusSeconds(30), 6);
-            });
-            var second = executor.submit(() -> {
-                start.await();
-                return outbox.claimNext(now, now.plusSeconds(30), 6);
-            });
-            start.countDown();
-            var claimedByFirst = first.get(10, TimeUnit.SECONDS);
-            var claimedBySecond = second.get(10, TimeUnit.SECONDS);
+            // 첫 릴레이: 3건을 집고 커밋하지 않은 채 행 잠금을 쥔다
+            var first = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                var claimed = outbox.claimNext(now, now.plusSeconds(30), 3);
+                firstHasClaimed.countDown();
+                await(releaseFirst);
+                return claimed;
+            }));
+            assertTrue(firstHasClaimed.await(10, TimeUnit.SECONDS));
 
-            var all = new java.util.HashSet<Long>();
-            claimedByFirst.forEach(message -> assertTrue(all.add(message.id()), "중복으로 집힌 행"));
-            claimedBySecond.forEach(message -> assertTrue(all.add(message.id()), "중복으로 집힌 행"));
-            assertEquals(6, all.size(), "임대 덕분에 모든 행이 정확히 한 번씩 집힌다");
+            // 두 번째 릴레이는 잠금을 기다리지 않고(1초 안에) 첫 릴레이의 행을 뺀 나머지만 집는다
+            var second = executor.submit(() -> outbox.claimNext(now, now.plusSeconds(30), 6)).get(1, TimeUnit.SECONDS);
+            releaseFirst.countDown();
+            var firstClaimed = first.get(10, TimeUnit.SECONDS);
+
+            var ids = new java.util.HashSet<Long>();
+            firstClaimed.forEach(message -> assertTrue(ids.add(message.id())));
+            second.forEach(message -> assertTrue(ids.add(message.id()), "두 릴레이가 같은 행을 집었다"));
+            assertEquals(3, firstClaimed.size());
+            assertEquals(3, second.size(), "잠긴 3건을 빼고 남은 3건을 집는다");
         } finally {
+            releaseFirst.countDown();
             executor.shutdownNow();
         }
     }
@@ -196,6 +205,18 @@ class OutboxRelayIntegrationTest {
 
         assertTrue(outbox.markSent(message.id(), Instant.now()));
         assertFalse(outbox.markSent(message.id(), Instant.now()));
+    }
+
+    private void add(String key) {
+        add(key, "PaymentApproved");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void add(String key, String eventType) {

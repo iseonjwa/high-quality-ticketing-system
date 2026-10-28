@@ -1,9 +1,6 @@
 server:
   address: 127.0.0.1
 spring:
-  jackson:
-    # config-repo/application.yml과 같다. 이벤트 JSON에 null 필드(traceId)도 키가 있어야 한다
-    default-property-inclusion: always
   cloud:
     config:
       enabled: false
@@ -16,6 +13,11 @@ spring:
     hibernate:
       ddl-auto: validate
   kafka:
+    producer:
+      properties:
+        # config-repo/payment-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
+        delivery.timeout.ms: 10000
+        max.block.ms: 2000
     listener:
       auto-startup: false
 management:

@@ -154,13 +154,13 @@ class PaymentTransitionServiceTest {
         var payment = requested();
 
         assertTrue(transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-mismatch",
-                BigDecimal.valueOf(49000), StatusActor.SYSTEM));
+                BigDecimal.valueOf(49000), Instant.parse("2026-11-02T11:00:01Z"), StatusActor.SYSTEM));
 
         var checked = payments.findById(payment.getId()).orElseThrow();
         assertEquals(PaymentStatus.NEEDS_MANUAL_CHECK, checked.getStatus());
         assertEquals("pg-tx-mismatch", checked.getPgTxId());
         assertEquals(0, BigDecimal.valueOf(49000).compareTo(checked.getPgApprovedAmount()));
-        assertNotNull(checked.getApprovedAt());
+        assertEquals(Instant.parse("2026-11-02T11:00:01Z"), checked.getApprovedAt(), "PG가 승인한 시각을 저장한다");
     }
 
     @Test

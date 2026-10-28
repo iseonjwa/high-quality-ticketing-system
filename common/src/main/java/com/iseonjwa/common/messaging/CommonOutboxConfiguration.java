@@ -27,13 +27,12 @@ import java.time.Duration;
  * Outbox 발행과 처리 이력(processed_event)을 쓰는 서비스가 {@code @Import}한다. 스캔하지 않으므로 User·Gateway 같은
  * Kafka 없는 서비스에는 빈이 생기지 않는다(ADR 0013).
  *
- * <p>쓰는 서비스는 JPA 쪽 의존(spring-jdbc, spring-kafka)을 직접 선언하고, Flyway로 {@code outbox}와
- * {@code processed_event} 테이블을 만든다. 시계는 {@code commonAuditingClock}을 쓰므로
- * {@code CommonJpaConfiguration}도 함께 가져와야 한다. {@code messaging.outbox.relay-enabled=false}면 릴레이 스케줄러를 만들지
- * 않는다(테스트). {@code @EnableScheduling}이 앱 전체에 켜지는 점에 유의한다.
+ * <p>쓰는 서비스는 spring-jdbc와 spring-kafka를 직접 선언하고, Flyway로 {@code outbox}와 {@code processed_event}
+ * 테이블을 만든다. 시계는 {@code commonAuditingClock}을 쓰므로 {@code CommonJpaConfiguration}도 함께 가져와야 한다.
+ * {@code messaging.outbox.relay-enabled=false}면 릴레이 스케줄러와 {@code @EnableScheduling}을 켜지 않는다(테스트).
+ * 프로듀서의 {@code max.block.ms + delivery.timeout.ms}가 {@code send-timeout} 안에 들어오지 않으면 기동이 실패한다.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableScheduling
 public class CommonOutboxConfiguration {
     @Bean
     OutboxProperties outboxProperties(@Value("${messaging.outbox.batch-size:20}") int batchSize,
@@ -54,8 +53,8 @@ public class CommonOutboxConfiguration {
     }
 
     @Bean
-    OutboxEventSender outboxEventSender(KafkaTemplate<String, String> kafka) {
-        return new KafkaOutboxEventSender(kafka);
+    OutboxEventSender outboxEventSender(KafkaTemplate<String, String> kafka, OutboxProperties properties) {
+        return KafkaOutboxEventSender.create(kafka, properties.sendTimeout());
     }
 
     @Bean
@@ -64,10 +63,15 @@ public class CommonOutboxConfiguration {
         return new OutboxRelay(repository, sender, clock, properties);
     }
 
-    @Bean
+    // 스케줄링은 릴레이를 켰을 때만 활성화한다(relay-enabled=false면 앱 전체에도 켜지지 않는다)
+    @Configuration(proxyBeanMethods = false)
+    @EnableScheduling
     @ConditionalOnProperty(name = "messaging.outbox.relay-enabled", havingValue = "true", matchIfMissing = true)
-    OutboxRelayScheduler outboxRelayScheduler(OutboxRelay relay) {
-        return new OutboxRelayScheduler(relay);
+    static class RelaySchedulingConfiguration {
+        @Bean
+        OutboxRelayScheduler outboxRelayScheduler(OutboxRelay relay) {
+            return new OutboxRelayScheduler(relay);
+        }
     }
 
     @Bean

@@ -74,10 +74,10 @@ public class PaymentTransitionService {
     // PG가 승인했지만 금액이 결제와 다르다. PG 거래 정보를 남기고 운영자 확인으로 넘긴다.
     @Transactional
     public boolean markAmountMismatch(Long paymentId, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount,
-            StatusActor actor) {
+            Instant pgApprovedAt, StatusActor actor) {
         from.requireTransitionTo(PaymentStatus.NEEDS_MANUAL_CHECK);
         var now = clock.instant();
-        var changed = payments.markNeedsManualCheck(paymentId, from, pgTxId, pgApprovedAmount, now, now);
+        var changed = payments.markNeedsManualCheck(paymentId, from, pgTxId, pgApprovedAmount, pgApprovedAt, now);
         return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_AMOUNT_MISMATCH", actor,
                 now);
     }

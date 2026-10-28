@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * {@code outbox} 테이블 접근. 엔티티 없이 JDBC로 쓰므로 서비스가 엔티티 스캔을 따로 설정할 필요가 없다.
- * 테이블은 서비스의 Flyway가 만든다(스키마는 docs/design/payment/data-model.md 6절).
+ * 테이블은 서비스의 Flyway가 만든다(표준 DDL은 docs/guides/common-modules.md).
  *
  * <p>Note: {@code insert}는 호출한 트랜잭션에 참여한다. JPA 트랜잭션 안에서 같은 연결을 쓰므로 업무 변경과 함께
  * 커밋되거나 롤백된다. 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서가 커밋 순서와 같다는
@@ -40,6 +40,7 @@ public class OutboxRepository {
 
     /**
      * 발행할 행을 집어 임대한다. 한 문장으로 집기와 임대를 함께 해 별도 트랜잭션이 필요 없다.
+     * 서브쿼리는 ARRAY(...)로 감싸 한 번만 실행되게 고정한다(IN 서브쿼리는 계획에 따라 다시 실행될 수 있다).
      * 같은 키에 앞선 PENDING 행이 있으면 집지 않아 키별 순서를 지키고(임대 중인 행도 PENDING이라 뒤 행을 막는다),
      * 다른 릴레이가 잠근 행은 기다리지 않고 건너뛴다. 임대가 끝나면 다시 집힌다(중복 전송, 소비자가 멱등).
      */
@@ -47,7 +48,7 @@ public class OutboxRepository {
         // TODO: 앞선 행이 FAILED여도 뒤 행을 막도록 조건을 넓힌다(ISE-40, FAILED 전이를 만들 때)
         var claimed = jdbc.query("""
                 UPDATE outbox SET claimed_until = ?
-                WHERE id IN (
+                WHERE id = ANY(ARRAY(
                     SELECT o.id FROM outbox o
                     WHERE o.status = 'PENDING' AND o.next_attempt_at <= ?
                       AND (o.claimed_until IS NULL OR o.claimed_until <= ?)
@@ -56,7 +57,7 @@ public class OutboxRepository {
                                         AND earlier.id < o.id)
                     ORDER BY o.id
                     LIMIT ?
-                    FOR UPDATE OF o SKIP LOCKED)
+                    FOR UPDATE OF o SKIP LOCKED))
                 RETURNING id, event_id, topic, message_key, event_type, payload::text AS payload
                 """, MESSAGE, Timestamp.from(leaseUntil), Timestamp.from(now), Timestamp.from(now), batchSize);
         // RETURNING의 행 순서는 보장되지 않는다
@@ -80,10 +81,22 @@ public class OutboxRepository {
                 """, ATTEMPTS_MAX, error, id);
     }
 
-    // 이번 실행에서 보내지 못한 행의 임대를 바로 푼다. 임대가 끝나길 기다리지 않고 다음 실행이 집게 한다.
-    public void release(Collection<Long> ids) {
-        for (var id : ids) {
-            jdbc.update("UPDATE outbox SET claimed_until = NULL WHERE id = ? AND status = 'PENDING'", id);
-        }
+    /**
+     * 이번 실행에서 보내지 못한 행의 임대를 바로 푼다. 임대가 끝나길 기다리지 않고 다음 실행이 집게 한다.
+     *
+     * <p>Note: 내가 건 임대(leaseUntil)인 행만 푼다. 실행이 길어져 임대가 끝난 뒤 다른 릴레이가 다시 집었다면
+     * 그 새 임대를 지우지 않는다.
+     */
+    public void release(Collection<Long> ids, Instant leaseUntil) {
+        if (ids.isEmpty()) return;
+        jdbc.update(connection -> {
+            var statement = connection.prepareStatement("""
+                    UPDATE outbox SET claimed_until = NULL
+                    WHERE id = ANY(?) AND status = 'PENDING' AND claimed_until = ?
+                    """);
+            statement.setArray(1, connection.createArrayOf("bigint", ids.toArray()));
+            statement.setTimestamp(2, Timestamp.from(leaseUntil));
+            return statement;
+        });
     }
 }

@@ -103,7 +103,7 @@ class PaymentResultTransactionTest {
     @Test
     void 트랜잭션_밖에서는_Outbox에_쓰지_못한다() {
         var exception = assertThrows(IllegalTransactionStateException.class,
-                () -> outboxWriter.write("payment.result", "1", "PaymentApproved", java.util.Map.of()));
+                () -> outboxWriter.write("payment.result", "1", "PaymentApproved", 1, java.util.Map.of()));
 
         assertTrue(exception.getMessage().contains("트랜잭션"));
     }
