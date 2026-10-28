@@ -16,5 +16,5 @@ public interface IdempotencyRecordRepository {
     boolean linkAlias(Long userId, UUID idemKey, String requestHash, Long paymentId, Instant now);
 
     // ORIGIN이고 아직 응답이 없을 때만 저장한다. 반환값은 실제로 저장했는지다.
-    boolean saveResponse(Long userId, UUID idemKey, int status, String body);
+    boolean saveResponse(Long userId, UUID idemKey, Long paymentId, int status, String body);
 }

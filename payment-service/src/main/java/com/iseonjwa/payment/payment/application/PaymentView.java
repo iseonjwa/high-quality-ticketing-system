@@ -10,6 +10,9 @@ import java.time.temporal.ChronoUnit;
 
 /**
  * 결제 상태별 응답 {@code data}(api.md 1절 표 A). 상태에 해당하지 않는 필드는 내보내지 않는다.
+ *
+ * <p>Note: 이 모양은 멱등 기록의 {@code response_body}에 24시간 저장돼 같은 키 재요청에 재생된다. 필드를 지우거나
+ * 이름을 바꾸면 저장된 응답을 읽지 못하므로 추가만 한다.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PaymentView(Long paymentId, Long reservationId, PaymentStatus status, BigDecimal amount,

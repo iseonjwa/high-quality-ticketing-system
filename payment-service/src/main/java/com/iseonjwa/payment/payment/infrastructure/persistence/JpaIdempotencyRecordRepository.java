@@ -36,7 +36,7 @@ public class JpaIdempotencyRecordRepository implements IdempotencyRecordReposito
     }
 
     @Override
-    public boolean saveResponse(Long userId, UUID idemKey, int status, String body) {
-        return repository.saveResponse(userId, idemKey, status, body) == 1;
+    public boolean saveResponse(Long userId, UUID idemKey, Long paymentId, int status, String body) {
+        return repository.saveResponse(userId, idemKey, paymentId, status, body) == 1;
     }
 }

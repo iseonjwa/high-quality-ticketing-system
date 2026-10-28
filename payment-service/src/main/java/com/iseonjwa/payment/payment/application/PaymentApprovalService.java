@@ -13,6 +13,7 @@ import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * 결제 승인 흐름(api.md 1절 처리 순서). 인증 → 멱등 기록 조회 → 토큰·금액 검증 → 같은 예매의 기존 결제 → TX1 →
@@ -62,6 +64,21 @@ public class PaymentApprovalService {
     }
 
     public PaymentOutcome approve(ApprovePaymentCommand command) {
+        // 2단계: 길이 상한은 해시 계산과 DB 조회보다 먼저 본다
+        if (command.paymentToken().length() > PaymentTokenVerifier.MAX_TOKEN_LENGTH) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
+        }
+        try {
+            return approveFlow(command);
+        } catch (DataAccessException | TransactionException exception) {
+            // PG를 부르기 전 구간의 DB 오류(연결 대기 초과 포함)다. 행이 만들어지지 않았거나 PG 호출 전이라 같은 키로 다시
+            // 시도할 수 있다. PG 호출 뒤의 DB 오류는 settle이 잡아 202로 응답하므로 여기까지 오지 않는다
+            log.warn("PG 호출 전 구간 DB 오류", exception);
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
+    private PaymentOutcome approveFlow(ApprovePaymentCommand command) {
         var requestHash = PaymentRequestHash.of(command.paymentToken(), command.amount());
         for (var attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             // 3단계: 토큰 검증보다 먼저 같은 키의 기록을 본다. 토큰이 이미 만료됐어도 재시도가 결과를 받게 한다(0017)
@@ -79,18 +96,17 @@ public class PaymentApprovalService {
                 throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
             }
 
-            // 7단계: TX1
+            // 7단계: TX1. 이 try는 TX1만 감싼다. PG 호출·TX2의 예외가 여기로 들어오면 안 된다
+            Payment payment;
             try {
-                return proceed(tx.createRequested(command, token, requestHash), command, token);
+                payment = tx.createRequested(command, token, requestHash);
             } catch (DataIntegrityViolationException exception) {
                 if (!isExpectedConflict(exception)) throw exception;
                 // 같은 키·같은 예매의 동시 요청이다. 500이 아니라 정상 흐름이므로 처음부터 다시 조회한다(0017·0026)
                 log.info("TX1 유니크 충돌 attempt={}", attempt);
-            } catch (DataAccessException | TransactionException exception) {
-                // 행이 만들어지지 않았다. 같은 키로 다시 시도할 수 있게 저장하지 않는 503이다
-                log.warn("TX1 실패", exception);
-                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE);
+                continue;
             }
+            return proceed(payment, command, token);
         }
         throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE);
     }
@@ -101,9 +117,7 @@ public class PaymentApprovalService {
             // PG를 부르지 않았으므로 미전송이 확실하다. 토큰이 TX1과 PG 호출 사이에 만료된 경우다(0018)
             return settle(payment, () -> tx.settleDeclined(payment, command, DeclineReason.TOKEN_EXPIRED));
         }
-        var result = pg.approve(new ApproveCommand(new PgOrderId(payment.getPgOrderId()), payment.getAmount(),
-                payment.getCurrency(), PgIdempotencyKey.ofApproval(new PgOrderId(payment.getPgOrderId())), null));
-        return switch (result) {
+        return switch (callPg(payment)) {
             case PgClient.Approved approved -> settle(payment, () -> tx.settleApproved(payment, command, approved));
             case PgClient.Declined declined ->
                     settle(payment, () -> tx.settleDeclined(payment, command, declined.reason()));
@@ -112,12 +126,25 @@ public class PaymentApprovalService {
         };
     }
 
-    // TX2가 실패해도 PG 결과는 이미 정해졌다. 202(REQUESTED)로 응답하면 재확인 스케줄러가 10초 뒤 확정한다(api.md 10단계)
-    private PaymentOutcome settle(Payment payment, java.util.function.Supplier<PaymentOutcome> settlement) {
+    // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 호출한 쪽이 결과를 모르는 것(Unknown)으로 다룬다
+    private PgClient.ApproveResult callPg(Payment payment) {
+        var orderId = new PgOrderId(payment.getPgOrderId());
+        try {
+            return pg.approve(new ApproveCommand(orderId, payment.getAmount(), payment.getCurrency(),
+                    PgIdempotencyKey.ofApproval(orderId), null));
+        } catch (RuntimeException exception) {
+            log.error("PG 승인 호출 중 예외 paymentId={}", payment.getId(), exception);
+            return new PgClient.Unknown(UnknownCause.PG_ERROR);
+        }
+    }
+
+    // TX2가 어떤 이유로 실패해도 PG 결과는 이미 정해졌다. 202(REQUESTED)로 응답하면 재확인 스케줄러가 10초 뒤 확정한다.
+    // 롤백됐으므로 상태·이력·Outbox·응답 저장은 모두 없던 일이다(INV-5)
+    private PaymentOutcome settle(Payment payment, Supplier<PaymentOutcome> settlement) {
         try {
             return settlement.get();
-        } catch (DataAccessException | TransactionException exception) {
-            log.warn("TX2 실패, 재확인 스케줄러가 확정한다 paymentId={}", payment.getId(), exception);
+        } catch (RuntimeException exception) {
+            log.error("TX2 실패, 재확인 스케줄러가 확정한다 paymentId={}", payment.getId(), exception);
             return PaymentOutcome.of(payment);
         }
     }
@@ -169,8 +196,13 @@ public class PaymentApprovalService {
             // 다른 사용자나 다른 조건의 결제를 돌려주지 않는다. Location도 주지 않아 존재를 드러내지 않는다
             return PaymentOutcome.rejected(PaymentErrorCode.PAYMENT_ALREADY_EXISTS);
         }
-        tx.linkAlias(command, requestHash, existing);
-        log.info("event=PAYMENT_LINKED_BY_NEW_KEY paymentId={} userId={}", existing.getId(), command.userId());
+        if (tx.linkAlias(command, requestHash, existing)) {
+            log.info("event=PAYMENT_LINKED_BY_NEW_KEY paymentId={} userId={} idemKey={}", existing.getId(),
+                    command.userId(), command.idempotencyKey());
+        } else {
+            // 같은 새 키가 동시에 와서 다른 요청이 먼저 저장했다. 다시 읽어 같은 본문인지 확인한다(0019)
+            replayByIdempotencyKey(command, requestHash);
+        }
         return PaymentOutcome.of(existing);
     }
 

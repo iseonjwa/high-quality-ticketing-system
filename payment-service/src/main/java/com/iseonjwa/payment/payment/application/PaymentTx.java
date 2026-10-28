@@ -10,6 +10,8 @@ import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.StatusActor;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.UnknownCause;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import java.util.UUID;
 public class PaymentTx {
     // UNKNOWN이 된 결제를 재확인 스케줄러가 처음 다시 조회하는 시점(SA 9-4의 첫 간격)
     private static final Duration FIRST_RECHECK_DELAY = Duration.ofSeconds(10);
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentTx.class);
 
     private final PaymentRepository payments;
     private final IdempotencyRecordRepository idempotency;
@@ -64,10 +68,10 @@ public class PaymentTx {
         return payment;
     }
 
-    /** 새 키를 기존 결제에 연결한다(ALIAS). 같은 키가 동시에 오면 한쪽만 저장되고 둘 다 같은 응답을 받는다. */
+    /** 새 키를 기존 결제에 연결한다(ALIAS). 같은 키가 동시에 오면 한쪽만 저장되고 진 쪽은 false다(호출한 쪽이 다시 읽어 대조). */
     @Transactional
-    public void linkAlias(ApprovePaymentCommand command, String requestHash, Payment existing) {
-        idempotency.linkAlias(command.userId(), command.idempotencyKey(), requestHash, existing.getId(),
+    public boolean linkAlias(ApprovePaymentCommand command, String requestHash, Payment existing) {
+        return idempotency.linkAlias(command.userId(), command.idempotencyKey(), requestHash, existing.getId(),
                 clock.instant());
     }
 
@@ -82,9 +86,13 @@ public class PaymentTx {
             changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
                     result.amount(), result.approvedAt(), StatusActor.SYSTEM);
         } else {
+            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다. 그 전까지는 로그가 유일한 신호다(INV-3, N16)
+            log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
+                    payment.getAmount(), result.amount(), result.paymentRef().value());
             changed = transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED,
                     result.paymentRef().value(), result.amount(), result.approvedAt(), StatusActor.SYSTEM);
         }
+        if (!changed) warnIfApprovalNotRecorded(payment, result);
         return outcomeAfterTransition(payment, command, changed);
     }
 
@@ -103,14 +111,27 @@ public class PaymentTx {
         return outcomeAfterTransition(payment, command, changed);
     }
 
+    // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했다. 같은 PG 거래로 이미 승인된 것이면 정상 경합이고, 그렇지 않으면
+    // 돈은 승인됐는데 우리 기록에 PG 거래가 남지 않는다.
+    // TODO: 이 경합의 복구 규칙은 재확인 스케줄러(ISE-38) 설계에서 정한다. 지금은 로그로만 남긴다
+    private void warnIfApprovalNotRecorded(Payment payment, PgClient.Approved result) {
+        var current = payments.findById(payment.getId()).orElseThrow();
+        var recordedSameApproval = current.getStatus() == PaymentStatus.APPROVED
+                && result.paymentRef().value().equals(current.getPgTxId());
+        if (!recordedSameApproval) {
+            log.error("event=PG_APPROVED_NOT_RECORDED paymentId={} pgTxId={} pgAmount={} currentStatus={}",
+                    payment.getId(), result.paymentRef().value(), result.amount(), current.getStatus());
+        }
+    }
+
     // 전이가 실제로 일어났을 때만 응답을 저장한다. 0행이면 다른 경로가 먼저 바꾼 것이라 현재 상태로 답한다(INV-5)
     private PaymentOutcome outcomeAfterTransition(Payment payment, ApprovePaymentCommand command, boolean changed) {
         var current = payments.findById(payment.getId()).orElseThrow();
         var outcome = PaymentOutcome.of(current);
         // 저장하는 응답은 200·202뿐이다. 확인 필요(409)는 저장하지 않는다(0017)
         if (changed && !outcome.isError()) {
-            idempotency.saveResponse(command.userId(), command.idempotencyKey(), outcome.httpStatus(),
-                    mapper.writeValueAsString(outcome.data()));
+            idempotency.saveResponse(command.userId(), command.idempotencyKey(), current.getId(),
+                    outcome.httpStatus(), mapper.writeValueAsString(outcome.data()));
         }
         return outcome;
     }

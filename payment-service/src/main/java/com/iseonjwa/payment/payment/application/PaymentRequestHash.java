@@ -14,7 +14,8 @@ final class PaymentRequestHash {
     private PaymentRequestHash() {}
 
     static String of(String paymentToken, long amount) {
-        // 구분자는 필드 값에 나올 수 없는 줄바꿈이다
+        // Note: 토큰 원문이 해시에 들어간다. 같은 키로 재발급된 다른 토큰을 보내면 다른 본문으로 보고 409다(SA의 "같은 본문").
+        // 금액은 숫자, 수단은 고정값이라 이어 붙이는 경계가 모호하지 않다
         var canonical = paymentToken + "\n" + amount + "\n" + METHOD_CARD;
         try {
             var digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));

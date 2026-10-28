@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -35,16 +36,19 @@ public class PaymentController {
     public ResponseEntity<?> approve(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @Valid @RequestBody ApproveRequest request) {
         var outcome = approval.approve(new ApprovePaymentCommand(currentUserId, parseKey(idempotencyKey),
-                request.paymentToken(), request.amount()));
+                request.paymentToken(), request.amount().longValueExact()));
         return toResponse(outcome);
     }
 
+    // UUID.fromString은 "1-1-1-1-1"처럼 자리수가 모자란 값도 받아들여서 표준 형식(8-4-4-4-12)을 먼저 확인한다
+    private static final Pattern UUID_FORMAT = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
     private static UUID parseKey(String value) {
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException exception) {
+        if (!UUID_FORMAT.matcher(value).matches()) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
+        return UUID.fromString(value);
     }
 
     private ResponseEntity<?> toResponse(PaymentOutcome outcome) {

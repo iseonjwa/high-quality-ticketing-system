@@ -25,8 +25,10 @@ interface SpringDataIdempotencyRecordRepository extends JpaRepository<Idempotenc
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
             UPDATE idempotency_record SET response_status = :status, response_body = CAST(:body AS jsonb)
-            WHERE user_id = :userId AND idem_key = :idemKey AND link_type = 'ORIGIN' AND response_status IS NULL
+            WHERE user_id = :userId AND idem_key = :idemKey AND resource_id = :paymentId
+              AND link_type = 'ORIGIN' AND response_status IS NULL
             """)
-    int saveResponse(@Param("userId") Long userId, @Param("idemKey") UUID idemKey, @Param("status") int status,
+    int saveResponse(@Param("userId") Long userId, @Param("idemKey") UUID idemKey, @Param("paymentId") Long paymentId,
+            @Param("status") int status,
             @Param("body") String body);
 }

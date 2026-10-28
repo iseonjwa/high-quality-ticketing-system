@@ -5,9 +5,13 @@ import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.domain.Persistable;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -19,7 +23,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "idempotency_record")
-public class IdempotencyRecord {
+public class IdempotencyRecord implements Persistable<IdempotencyRecordId> {
     // 멱등 기록 보관 기간(SA 12-1)
     static final Duration RETENTION = Duration.ofHours(24);
 
@@ -52,7 +56,28 @@ public class IdempotencyRecord {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // Note: ID를 직접 정하는 엔티티는 Spring Data가 새 엔티티로 보지 않고 merge로 저장한다. merge는 같은 기본키가 이미
+    // 있으면 위반 없이 넘어가 "같은 키는 한 번만"이라는 계약이 조용히 깨진다. 저장 전까지 새 엔티티로 표시해 persist로 보낸다.
+    @Transient
+    private boolean isNew = true;
+
     protected IdempotencyRecord() {}
+
+    @Override
+    public IdempotencyRecordId getId() {
+        return id;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
+    }
 
     private IdempotencyRecord(Long userId, UUID idemKey, String requestHash, Long resourceId,
             IdempotencyLinkType linkType, Instant now) {

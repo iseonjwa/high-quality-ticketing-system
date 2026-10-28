@@ -1,9 +1,12 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+
+import java.math.BigDecimal;
 
 public final class PaymentDtos {
     private PaymentDtos() {}
@@ -14,6 +17,6 @@ public final class PaymentDtos {
      */
     public record ApproveRequest(
             @NotBlank String paymentToken,
-            @NotNull @Positive Long amount,
+            @NotNull @Positive @Digits(integer = 15, fraction = 0, message = "소수 없는 정수여야 합니다") BigDecimal amount,
             @NotNull @Pattern(regexp = "CARD", message = "CARD만 지원합니다") String method) {}
 }

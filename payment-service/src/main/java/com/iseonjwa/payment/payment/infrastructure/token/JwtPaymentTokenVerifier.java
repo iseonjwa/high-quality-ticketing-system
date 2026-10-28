@@ -27,9 +27,6 @@ import java.math.BigDecimal;
 @Component
 class JwtPaymentTokenVerifier implements PaymentTokenVerifier {
     private static final Logger log = LoggerFactory.getLogger(JwtPaymentTokenVerifier.class);
-    // 길이 상한을 넘으면 파싱하지 않고 거절한다(0025 `[가정]`)
-    static final int MAX_TOKEN_LENGTH = 4096;
-
     private final JwtDecoder decoder;
 
     JwtPaymentTokenVerifier(PaymentTokenKey key) {
@@ -76,8 +73,11 @@ class JwtPaymentTokenVerifier implements PaymentTokenVerifier {
 
     private static long reservationId(Jwt jwt) {
         var value = jwt.getClaim(PaymentTokenClaims.RESERVATION_ID);
-        if (!(value instanceof Number number) || number.longValue() <= 0) throw new IllegalArgumentException();
-        return number.longValue();
+        // 예매 ID는 정수 claim이어야 한다. 소수는 longValue()로 잘려 다른 예매가 되므로 받지 않는다
+        if (!(value instanceof Long || value instanceof Integer) || ((Number) value).longValue() <= 0) {
+            throw new IllegalArgumentException();
+        }
+        return ((Number) value).longValue();
     }
 
     // KRW는 정수 금액이다. 소수가 섞이면 토큰이 잘못된 것이다
