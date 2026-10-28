@@ -58,7 +58,17 @@
 | 식별 | `jti`는 로그·추적용 |
 | 길이 | 4,096자 이하`[가정]` |
 
-claim 이름은 상수 한 곳에 두고 반효승이 통보한 값으로 채운다(U1).
+claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentTokenClaims`)에 두고 반효승이 통보한 값으로 채운다(U1).
+
+### 구현 메모 (ISE-35)
+
+- **토큰 claim 가정**: 통보를 기다리지 않고 SA 7-3의 서술에서 정한 값으로 구현했다. `sub`=사용자 ID, `reservationId`=예매 ID, `amount`=원화 정수 금액, `typ`=`payment`, `aud`=`payment-service`, `jti`·`iat`·`exp`는 표준 claim이다. HS256, 키는 `PAYMENT_TOKEN_SECRET`(0025). Reservation 발급기는 이 모양으로 만들거나, 다르면 `PaymentTokenClaims`를 고친다. `amount`는 소수 없는 숫자여야 하고 `reservationId`는 숫자여야 한다.
+- **TX1의 쓰기 순서**: 7단계는 멱등 기록을 먼저 쓰라고 했지만 `idempotency_record.resource_id`가 NOT NULL이라 결제 ID가 필요해 결제를 먼저 쓴다. 한 트랜잭션이고 어느 유니크 위반이든 전체가 롤백돼 결과는 같다. 위반(`uq_payment_reservation_id`, `idempotency_record_pkey`) 뒤에는 3단계부터 한 번 다시 조회한다.
+- **아직 없는 것**: 6단계의 `pg-approve` 허가(Bulkhead·Circuit Breaker)는 ISE-37에서 붙인다. 그때까지 `PG_UNAVAILABLE`은 나오지 않는다. 요청 처리 시간 제한(Gateway 3초)과 504 뒤 재시도는 Gateway 쪽 설정이다.
+- **요청 해시**: 토큰 원문이 해시에 들어가므로(SA의 "같은 본문") 같은 키로 재발급된 다른 토큰을 보내면 409 `IDEMPOTENCY_KEY_REUSED`다. 새 키로 보내면 ALIAS로 결과를 받는다. Reservation이 같은 예매에 토큰을 재발급하는지 확정되면 해시 기준(예: `(reservationId, amount, method)`)을 다시 정한다(0017 순서 변경이라 ADR 개정 필요).
+- **오류 분류**: PG 호출 전 구간(멱등 조회, 기존 결제 조회, TX1)의 DB 오류는 모두 503 `SERVICE_UNAVAILABLE`이다. PG 호출 뒤의 TX2는 어떤 예외든 롤백하고 202(`REQUESTED`)로 응답한다. `PgClient`가 예외를 던지면 결과를 모르는 것(`Unknown`)으로 다룬다. `amount`는 소수 없는 정수(15자리 이하)만 받는다.
+- **알려진 경합**: 재확인 스케줄러(ISE-38)가 `REQUESTED`를 닫은 사이 요청 스레드의 PG 호출이 승인되면 TX2가 0행이 되고 승인 정보가 기록되지 않는다. 지금은 ERROR 로그(`PG_APPROVED_NOT_RECORDED`)만 남기며 복구 규칙은 ISE-38 설계에서 정한다.
+- **응답 저장**: ORIGIN의 200(`APPROVED`·`DECLINED`)과 202(`UNKNOWN`)만 TX2에서 저장한다. TX2가 실패하면 저장하지 못하고 202(`REQUESTED`)로 응답하며 재확인 스케줄러(ISE-38)가 10초 뒤 확정한다.
 
 ## 2. 결제 조회 `GET /api/v1/payments/{paymentId}`
 
