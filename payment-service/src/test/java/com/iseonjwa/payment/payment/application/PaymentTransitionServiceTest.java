@@ -47,7 +47,7 @@ class PaymentTransitionServiceTest {
     void 승인_전이는_상태와_PG_정보를_바꾸고_이력을_남긴다() {
         var payment = requested();
 
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-approve", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-approve", AMOUNT, Instant.now(),
                 StatusActor.SYSTEM));
 
         var approved = payments.findById(payment.getId()).orElseThrow();
@@ -66,7 +66,7 @@ class PaymentTransitionServiceTest {
     @Test
     void 이미_바뀐_결제를_같은_상태_기준으로_다시_전이하면_이력을_쓰지_않는다() {
         var payment = requested();
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, Instant.now(),
                 StatusActor.SYSTEM));
 
         assertFalse(transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER,
@@ -80,7 +80,7 @@ class PaymentTransitionServiceTest {
     void 승인하면_같은_트랜잭션에서_PaymentApproved를_Outbox에_쓴다() {
         var payment = requested();
 
-        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-outbox", AMOUNT, StatusActor.SYSTEM);
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-outbox", AMOUNT, Instant.now(), StatusActor.SYSTEM);
 
         var rows = outboxRows(payment.getReservationId());
         assertEquals(1, rows.size());
@@ -107,7 +107,7 @@ class PaymentTransitionServiceTest {
     @Test
     void 영향_행이_0이면_Outbox에도_쓰지_않는다() {
         var payment = requested();
-        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, StatusActor.SYSTEM);
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, Instant.now(), StatusActor.SYSTEM);
 
         transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER, StatusActor.SYSTEM);
 
@@ -184,7 +184,7 @@ class PaymentTransitionServiceTest {
                 StatusActor.SYSTEM));
 
         assertThrows(IllegalStateException.class, () -> transitions.approve(payment.getId(), PaymentStatus.DECLINED,
-                "pg-tx-late", AMOUNT, StatusActor.SYSTEM));
+                "pg-tx-late", AMOUNT, Instant.now(), StatusActor.SYSTEM));
     }
 
     @Test
@@ -192,7 +192,7 @@ class PaymentTransitionServiceTest {
         var payment = requested();
 
         assertThrows(DataIntegrityViolationException.class, () -> transitions.approve(payment.getId(),
-                PaymentStatus.REQUESTED, "pg-tx-wrong", BigDecimal.valueOf(49000), StatusActor.SYSTEM));
+                PaymentStatus.REQUESTED, "pg-tx-wrong", BigDecimal.valueOf(49000), Instant.now(), StatusActor.SYSTEM));
     }
 
     @Test
@@ -200,7 +200,7 @@ class PaymentTransitionServiceTest {
         var payment = requested();
         assertTrue(transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM));
 
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK, "pg-tx-ops", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK, "pg-tx-ops", AMOUNT, Instant.now(),
                 StatusActor.ops("kim")));
 
         var history = histories.findByPaymentId(payment.getId());

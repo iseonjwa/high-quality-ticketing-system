@@ -55,7 +55,7 @@ class PaymentTransitionConcurrencyTest {
         Callable<Boolean> approve = () -> {
             start.await();
             return transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-race",
-                    BigDecimal.valueOf(50000), StatusActor.SYSTEM);
+                    BigDecimal.valueOf(50000), Instant.now(), StatusActor.SYSTEM);
         };
         Callable<Boolean> decline = () -> {
             start.await();
@@ -74,6 +74,8 @@ class PaymentTransitionConcurrencyTest {
 
             assertEquals(1, succeeded, "조건부 UPDATE는 한 경로만 통과시킨다");
             assertEquals(1, histories.findByPaymentId(payment.getId()).size());
+            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM outbox WHERE message_key = ?", Integer.class,
+                    String.valueOf(RESERVATION_ID)), "진 쪽은 이벤트를 만들지 않는다(INV-5)");
         } finally {
             executor.shutdownNow();
         }
