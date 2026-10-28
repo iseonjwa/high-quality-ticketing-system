@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-28 | ISE-47 user-service 계층 정리는 무엇을 왜 바꿨고 어떻게 검증했나 | [qna/2026-10-28-ise47-user-layer-refactoring.md](qna/2026-10-28-ise47-user-layer-refactoring.md) |
 | 2026-10-28 | 우리 4계층 분리는 DDD인가, 계층형 아키텍처와 DDD는 무엇이 다른가 | [qna/2026-10-28-layered-architecture-vs-ddd.md](qna/2026-10-28-layered-architecture-vs-ddd.md) |
 | 2026-10-28 | AI 검증 #7의 "응답 레코드 분리 거부"는 무엇을 거부한 것인가 | [qna/2026-10-28-response-record-separation.md](qna/2026-10-28-response-record-separation.md) |
 | 2026-10-27 | 추첨 배분 설계로 이 프로젝트에서 무엇을 얻어 갈 수 있나 | [qna/2026-10-27-lottery-design-learning-points.md](qna/2026-10-27-lottery-design-learning-points.md) |
