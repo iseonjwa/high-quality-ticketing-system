@@ -10,6 +10,12 @@ spring:
       maximum-pool-size: 20
       connection-timeout: 1000
   kafka:
+    producer:
+      properties:
+        # Note: Outbox 릴레이가 브로커 확인을 기다리는 시간의 기준이다. 임대(30초)는 이 값의 2배 이상으로 둔다
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        linger.ms: 0
     consumer:
       group-id: payment-service.bootstrap
 payment:

@@ -24,6 +24,9 @@ eureka:
   client:
     enabled: false
 payment:
+  outbox:
+    # 테스트는 릴레이를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    relay-enabled: false
   pg:
     provider: mock
     mock:
