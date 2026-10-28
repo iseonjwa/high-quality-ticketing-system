@@ -1,10 +1,10 @@
-# 0021. Outbox는 지속 재시도하고, 실제로 바뀐 전이만 이벤트를 만들며, 정리는 미처리 건을 지우지 않는 배치로 한다
+# 0022. Outbox는 지속 재시도하고, 실제로 바뀐 전이만 이벤트를 만들며, 정리는 미처리 건을 지우지 않는 배치로 한다
 
 - 상태: 제안 (SA 변경 요청 필요. 2026-10-28 개정)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0016](0016-payment-idempotency-in-progress.md), [0017](0017-payment-pg-permit-before-tx1.md), [0019](0019-payment-refund-dlq-manual-check.md), [0025](0025-payment-one-per-reservation.md), [0028](0028-payment-reservation-reconciliation.md)
+- 관련 결정: [0017](0017-payment-idempotency-in-progress.md), [0018](0018-payment-pg-permit-before-tx1.md), [0020](0020-payment-refund-dlq-manual-check.md), [0026](0026-payment-one-per-reservation.md), [0029](0029-payment-reservation-reconciliation.md)
 - 불변 조건: INV-2, INV-5([invariants.md](../design/payment/invariants.md))
 
 ## 맥락
@@ -19,7 +19,7 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 - 상태 전이는 조건부 UPDATE이고, **영향 행이 1일 때만** 같은 트랜잭션에서 이력·Outbox·멱등 응답·감사 기록(APPLIED)을 쓴다. 0행이면 후속 쓰기를 하지 않는다.
 - 적용 범위는 승인 API TX2, 재확인 스케줄러, 환불 워커, `payment.command` 소비자, DLQ 처리기, Ops 명령 전부다. 경로별 0행 처리는 [events-and-reliability.md](../design/payment/events-and-reliability.md) 2절이 기준이다.
 - 상태는 엔티티 변경 감지로 바꾸지 않고, 영향 행 수를 돌려주는 저장소 메서드로만 바꾼다. 0행은 `payment_transition_conflict_total`로 센다.
-- 이 규칙이 빠져도 대사 RC-7(상태·이력 불일치)·RC-8(확정 전이 이벤트 누락)이 찾는다([0028](0028-payment-reservation-reconciliation.md)).
+- 이 규칙이 빠져도 대사 RC-7(상태·이력 불일치)·RC-8(확정 전이 이벤트 누락)이 찾는다([0029](0029-payment-reservation-reconciliation.md)).
 
 ### 2. Outbox 릴레이
 - **발행 성공은 Kafka 전송 확인으로만 판단한다.** `acks=all`로 보내고 브로커 확인을 기다린 뒤에 `SENT`로 표시한다.
@@ -44,7 +44,7 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 | `idempotency_record` | `expires_at` 경과 + 아래 조건 | 24시간(SA 9-4) |
 
 - `processed_event` 보존 기간은 Kafka 토픽 보관(7일`[가정]`), DLQ 보관(7일`[가정]`), 수동 재처리 기간보다 충분히 길어야 한다. 시작할 때 설정값(토픽·DLQ 보관, `processed_event` 보존)을 비교해 보존 기간이 모자라면 기동을 실패시킨다.
-- `idempotency_record`는 만료 뒤에도 **연결된 결제(`resource_id`, 0016)가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`이면 지우지 않는다.** ORIGIN·ALIAS 모두 같다.
+- `idempotency_record`는 만료 뒤에도 **연결된 결제(`resource_id`, 0017)가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`이면 지우지 않는다.** ORIGIN·ALIAS 모두 같다.
 
 ### 6. 정리 작업 방식
 - PostgreSQL 기반 작업 하나가 작은 배치(예: 1,000건) 단위로 `DELETE`한다. 배치마다 별도 트랜잭션이고 배치 사이에 잠시 쉬어 부하를 줄인다.
@@ -58,10 +58,10 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 ### 8. 오래된 이벤트 재전달에도 중복이 없게 유지
 `processed_event`가 지워진 뒤에 오래된 이벤트가 다시 와도 업무 규칙이 막는다.
 - 상태 전이는 `WHERE status = 이전상태` 조건부 UPDATE이고 영향 행 1일 때만 후속 쓰기를 한다(1절).
-- 같은 예매의 중복 결제는 `UNIQUE(reservation_id)` 전체가 막는다([0025](0025-payment-one-per-reservation.md)).
-- 환불은 `UNIQUE(payment_id)`와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT DO NOTHING`, 재호출 전 조회, PG 환불 멱등키 `pg_refund_id`가 막는다(0019).
+- 같은 예매의 중복 결제는 `UNIQUE(reservation_id)` 전체가 막는다([0026](0026-payment-one-per-reservation.md)).
+- 환불은 `UNIQUE(payment_id)`와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT DO NOTHING`, 재호출 전 조회, PG 환불 멱등키 `pg_refund_id`가 막는다(0020).
 - 결제 승인 호출은 결제 행당 한 번이고 PG 멱등키 `pg_order_id`가 한 번 더 막는다.
-- 예매 쪽은 paymentId 대조가 확정 티켓의 환불을 막는다([0026](0026-reservation-payment-event-contract.md)).
+- 예매 쪽은 paymentId 대조가 확정 티켓의 환불을 막는다([0027](0027-reservation-payment-event-contract.md)).
 
 ### 9. 알림과 지표
 - `FAILED` outbox 건수
@@ -99,7 +99,7 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 
 ## 개정 이력
 
-- 2026-10-28: (1) 조건부 UPDATE 영향 행이 1일 때만 후속 쓰기를 하는 규칙을 1절로 넣었다(검토 H3, 사용자 지정 수정). (2) 실행기 분리(M4)와 작업별 마지막 성공 지표를 넣었다. (3) 임대와 프로듀서 전송 시한의 관계를 정했다(L5). (4) 재전달 방어를 전체 UNIQUE(0025), 환불 `INSERT … SELECT`, 재호출 전 조회, 예매 paymentId 대조로 갱신했다. 제목을 바꿨다(이전: "Outbox는 지속 재시도하고, 정리는 배치 삭제로 하되 미처리 건은 지우지 않는다").
+- 2026-10-28: (1) 조건부 UPDATE 영향 행이 1일 때만 후속 쓰기를 하는 규칙을 1절로 넣었다(검토 H3, 사용자 지정 수정). (2) 실행기 분리(M4)와 작업별 마지막 성공 지표를 넣었다. (3) 임대와 프로듀서 전송 시한의 관계를 정했다(L5). (4) 재전달 방어를 전체 UNIQUE(0026), 환불 `INSERT … SELECT`, 재호출 전 조회, 예매 paymentId 대조로 갱신했다. 제목을 바꿨다(이전: "Outbox는 지속 재시도하고, 정리는 배치 삭제로 하되 미처리 건은 지우지 않는다").
 
 ## 면접에서 설명할 한 줄
 

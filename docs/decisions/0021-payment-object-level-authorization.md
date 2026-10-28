@@ -1,10 +1,10 @@
-# 0020. 결제 조회는 소유자 또는 ADMIN만 허용하고 타인 결제는 404로 숨긴다
+# 0021. 결제 조회는 소유자 또는 ADMIN만 허용하고 타인 결제는 404로 숨긴다
 
 - 상태: 제안 (SA 변경 요청 필요. 2026-10-28 개정)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0006](0006-gateway-single-access-policy.md), [0008](0008-internal-trust-and-auth-design.md), [0018](0018-payment-new-key-existing-payment.md)
+- 관련 결정: [0006](0006-gateway-single-access-policy.md), [0008](0008-internal-trust-and-auth-design.md), [0019](0019-payment-new-key-existing-payment.md)
 
 ## 맥락
 
@@ -19,9 +19,9 @@ SA 11-4는 `GET /api/v1/payments/{paymentId}`를 "인증"만 요구한다. 소�
 3. **타인의 결제는 존재하지 않는 결제와 같은 404 `NOT_FOUND`**로 응답한다. 상태 코드, 에러 코드, 메시지, 본문 구조가 같아야 하고, 응답에 결제 ID가 들어가지 않는다.
 4. `X-User-Id`는 클라이언트 입력을 직접 신뢰하지 않는다. Gateway(신뢰된 인증 계층)가 검증해 넣은 값만 쓴다. Payment로 가는 직접 접근과 헤더 위조는 SA 9-2의 네트워크 규칙으로 막는다(서비스 포트는 compose 내부 네트워크 전용, 호스트 포트는 loopback 바인딩, 외부 노출은 Gateway뿐).
 5. **`paymentId`를 받는 모든 API**에 같은 규칙을 적용한다. 컨트롤러는 소유자 조건이 들어간 조회 메서드(`findByIdAndUserId` 등)만 쓰고, 조건 없는 `findById`를 외부 요청 경로에서 부르지 않는다. 앞으로 추가될 환불 조회·취소 API도 같다.
-   - 승인 `POST /payments`: 토큰의 `sub`가 `X-User-Id`와 같아야 하고(SA 7-3), 멱등 기록은 `(user_id, idem_key)`로 조회한다(0016). 기존 결제 연결은 사용자 일치를 확인한다(0018).
-   - 이벤트로 시작하는 환불(`RefundRequested`)은 사용자 요청이 아니라 서비스 사이 이벤트라 이 규칙의 대상이 아니다. 이벤트 위조는 Kafka 접근 통제(내부망), Kafka-UI READONLY, 소비자의 교차 검증([0019](0019-payment-refund-dlq-manual-check.md), [0026](0026-reservation-payment-event-contract.md))으로 막고, 막지 못한 건은 대사([0028](0028-payment-reservation-reconciliation.md))가 찾는다.
-   - 운영자 복구는 HTTP API가 아니라 Ops 명령이라 이 규칙의 대상이 아니다. 접근 통제는 [0027](0027-payment-ops-commands.md)을 따른다.
+   - 승인 `POST /payments`: 토큰의 `sub`가 `X-User-Id`와 같아야 하고(SA 7-3), 멱등 기록은 `(user_id, idem_key)`로 조회한다(0017). 기존 결제 연결은 사용자 일치를 확인한다(0019).
+   - 이벤트로 시작하는 환불(`RefundRequested`)은 사용자 요청이 아니라 서비스 사이 이벤트라 이 규칙의 대상이 아니다. 이벤트 위조는 Kafka 접근 통제(내부망), Kafka-UI READONLY, 소비자의 교차 검증([0020](0020-payment-refund-dlq-manual-check.md), [0027](0027-reservation-payment-event-contract.md))으로 막고, 막지 못한 건은 대사([0029](0029-payment-reservation-reconciliation.md))가 찾는다.
+   - 운영자 복구는 HTTP API가 아니라 Ops 명령이라 이 규칙의 대상이 아니다. 접근 통제는 [0028](0028-payment-ops-commands.md)을 따른다.
 6. 타인 결제 접근 시도는 외부 응답은 같게 하되 내부 로그에는 WARN으로 남긴다(요청 사용자 ID, 대상 `paymentId`, `traceId`). 응답으로는 구분할 수 없어도 운영자는 추적할 수 있어야 한다.
 
 MVP에서는 `paymentId`를 BIGINT로 유지한다. 추측하기 어려운 외부 식별자(`payment_no`나 UUID)로 바꾸는 일은 별도 개선 사항으로 관리한다. 소유자 검사가 있으므로 ID 추측만으로는 정보가 새지 않는다.

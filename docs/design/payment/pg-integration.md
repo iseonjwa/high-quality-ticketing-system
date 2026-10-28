@@ -1,6 +1,6 @@
 # PG 연동
 
-PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·응답·에러 코드를 보지 못한다. 결정 근거와 토스 문서 확인 내용은 [0022](../../decisions/0022-payment-pg-client-port.md), 호출 자원 분리는 [0017](../../decisions/0017-payment-pg-permit-before-tx1.md)에 있다. 지키는 조건은 INV-1·INV-2·INV-3·INV-8([invariants.md](invariants.md))이다.
+PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·응답·에러 코드를 보지 못한다. 결정 근거와 토스 문서 확인 내용은 [0023](../../decisions/0023-payment-pg-client-port.md), 호출 자원 분리는 [0018](../../decisions/0018-payment-pg-permit-before-tx1.md)에 있다. 지키는 조건은 INV-1·INV-2·INV-3·INV-8([invariants.md](invariants.md))이다.
 
 ## 1. 포트
 
@@ -39,18 +39,18 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 | `PgRefundId` | 우리 | `refund.pg_refund_id` | `refundId` | 취소 요청의 멱등키로 사용 |
 | `PgIdempotencyKey` | 우리(결정적 파생) | 저장하지 않음 | 승인 = `pg_order_id`, 환불 = `pg_refund_id` | `Idempotency-Key` 헤더 |
 
-`clientPaymentRef`는 구매자가 결제창에서 받은 PG 발급 식별자다. 토스는 필수이고 Mock은 무시한다. 있으면 TX1에서 `pg_tx_id`에 저장해 응답을 잃어도 같은 키로 재확인한다. 토스는 결제창을 열 때 `orderId`가 필요하므로 TX1보다 먼저 정해져야 한다. 예매당 결제가 하나라서([0025](../../decisions/0025-payment-one-per-reservation.md)) 예매마다 `orderId` 하나를 미리 정할 수 있다(결제 토큰 claim에 넣거나 예매 ID에서 결정적으로 파생). 방식은 M4에서 정한다(5절 #6).
+`clientPaymentRef`는 구매자가 결제창에서 받은 PG 발급 식별자다. 토스는 필수이고 Mock은 무시한다. 있으면 TX1에서 `pg_tx_id`에 저장해 응답을 잃어도 같은 키로 재확인한다. 토스는 결제창을 열 때 `orderId`가 필요하므로 TX1보다 먼저 정해져야 한다. 예매당 결제가 하나라서([0026](../../decisions/0026-payment-one-per-reservation.md)) 예매마다 `orderId` 하나를 미리 정할 수 있다(결제 토큰 claim에 넣거나 예매 ID에서 결정적으로 파생). 방식은 M4에서 정한다(5절 #6).
 
 ## 4. 호출 규칙
 
 - `approve`는 결제 행 하나에 한 번, 승인 API 요청 스레드만 부른다. 재확인은 `findPayment`·`preventLateApproval`만 쓰고 같은 주문을 다시 승인하지 않는다. 토스 승인의 멱등 지원이 확인되지 않아도 같은 주문이 두 번 승인되지 않게 하는 구조다(INV-1).
-- `refund`는 환불 워커만 부른다. `payment.command` 소비자, DLQ 처리기, Ops 명령은 환불 행만 만들거나 상태를 되돌리고 PG 환불을 부르지 않는다([0027](../../decisions/0027-payment-ops-commands.md)).
+- `refund`는 환불 워커만 부른다. `payment.command` 소비자, DLQ 처리기, Ops 명령은 환불 행만 만들거나 상태를 되돌리고 PG 환불을 부르지 않는다([0028](../../decisions/0028-payment-ops-commands.md)).
 - 환불을 다시 부르기 전에는 `findRefund`로 먼저 확인하고 `NotFound`일 때만 같은 `pg_refund_id`로 다시 부른다. 토스 멱등키 유효기간(15일)이 지난 뒤의 재시도도 이 순서가 이중 환불을 막는다(INV-2).
 - `NotFound`인 결제는 `preventLateApproval`이 `Prevented`를 돌려준 뒤에만 `DECLINED(NOT_SENT)`로 닫는다(INV-8).
 
 ## 5. 호출 보호
 
-PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다([0017](../../decisions/0017-payment-pg-permit-before-tx1.md)). 값은 모두 `[가정]`이며 부하 측정 뒤 조정한다.
+PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md)). 값은 모두 `[가정]`이며 부하 측정 뒤 조정한다.
 
 | 그룹 | 호출 | 호출자 | Bulkhead | Circuit Breaker | 허가를 못 얻으면 |
 |---|---|---|---|---|---|

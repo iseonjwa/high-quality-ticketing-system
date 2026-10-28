@@ -18,7 +18,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 |---|---|---|---|
 | id | BIGINT | PK | |
 | payment_no | VARCHAR(20) | NOT NULL, UNIQUE | 고객용 번호 |
-| reservation_id | BIGINT | NOT NULL, **UNIQUE** | Reservation 서비스 ID(FK 없음). 예매당 결제 하나([0025](../../decisions/0025-payment-one-per-reservation.md)) |
+| reservation_id | BIGINT | NOT NULL, **UNIQUE** | Reservation 서비스 ID(FK 없음). 예매당 결제 하나([0026](../../decisions/0026-payment-one-per-reservation.md)) |
 | user_id | BIGINT | NOT NULL | |
 | amount | NUMERIC(15,0) | NOT NULL, CHECK (amount > 0) | 토큰 금액과 검증한 값 |
 | currency | CHAR(3) | NOT NULL, DEFAULT 'KRW', CHECK (currency = 'KRW') | **신규.** 원화만(SA 4-5). PG 결과·이벤트와 대조 |
@@ -46,7 +46,7 @@ CHECK 제약:
 - `UNIQUE(reservation_id)` — 예매당 결제 하나(INV-1). SA D3의 부분 유니크와 `INDEX(reservation_id, status)`를 대체한다. 예매별 기존 결제 조회도 이 인덱스를 쓴다.
 - `UNIQUE(pg_order_id)`, `UNIQUE(pg_tx_id)`
 - `INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN')` — 재확인 스케줄러
-- `INDEX(status, created_at) WHERE status IN ('REQUESTED','UNKNOWN','NEEDS_MANUAL_CHECK')` — 최고령 Gauge([0023](../../decisions/0023-payment-observability-metrics.md))
+- `INDEX(status, created_at) WHERE status IN ('REQUESTED','UNKNOWN','NEEDS_MANUAL_CHECK')` — 최고령 Gauge([0024](../../decisions/0024-payment-observability-metrics.md))
 
 `pg_tx_id` 길이(SA 12-4는 VARCHAR(64))는 토스 `paymentKey`를 담도록 넓혔다. 실제 최대 길이는 M4에서 확인한다. 종결 상태로 갈 때 `next_check_at`은 NULL로 비운다.
 
@@ -121,15 +121,15 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | user_id | BIGINT | PK(user_id, idem_key) | |
 | idem_key | UUID | | |
 | request_hash | CHAR(64) | NOT NULL | 본문 SHA-256 |
-| resource_id | BIGINT | NOT NULL | 연결된 결제 ID([0016](../../decisions/0016-payment-idempotency-in-progress.md)) |
-| link_type | VARCHAR(10) | NOT NULL, CHECK (ORIGIN·ALIAS) | **신규.** ORIGIN은 TX1에서 결제를 만든 키, ALIAS는 기존 결제에 연결된 새 키([0018](../../decisions/0018-payment-new-key-existing-payment.md)) |
+| resource_id | BIGINT | NOT NULL | 연결된 결제 ID([0017](../../decisions/0017-payment-idempotency-in-progress.md)) |
+| link_type | VARCHAR(10) | NOT NULL, CHECK (ORIGIN·ALIAS) | **신규.** ORIGIN은 TX1에서 결제를 만든 키, ALIAS는 기존 결제에 연결된 새 키([0019](../../decisions/0019-payment-new-key-existing-payment.md)) |
 | response_status | SMALLINT | | ORIGIN의 저장 응답(200·202). 처리 중과 ALIAS는 NULL |
 | response_body | JSONB | | |
 | expires_at | TIMESTAMPTZ | NOT NULL | 24시간 |
 | created_at | TIMESTAMPTZ | NOT NULL | |
 
 - `INDEX(resource_id)`: 결제별 연결 키 조회(운영 확인용).
-- 삭제는 `expires_at` 경과 + 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아닐 때만 한다([0021](../../decisions/0021-outbox-retry-and-retention.md)). ORIGIN·ALIAS 모두 같다.
+- 삭제는 `expires_at` 경과 + 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아닐 때만 한다([0022](../../decisions/0022-outbox-retry-and-retention.md)). ORIGIN·ALIAS 모두 같다.
 
 ## 6. outbox
 
@@ -175,7 +175,7 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | BIGINT PK | |
-| command | VARCHAR(40) NOT NULL | Ops 명령 이름([0027](../../decisions/0027-payment-ops-commands.md)) |
+| command | VARCHAR(40) NOT NULL | Ops 명령 이름([0028](../../decisions/0028-payment-ops-commands.md)) |
 | target_type · target_id | VARCHAR(20) · BIGINT | PAYMENT·REFUND·OUTBOX·DEAD_LETTER |
 | from_status · to_status | VARCHAR(20) | 적용했으면 전이, 거부면 NULL 가능 |
 | result | VARCHAR(10) NOT NULL, CHECK (APPLIED·REJECTED) | 0행·근거 불일치·검증 실패는 REJECTED |
@@ -193,7 +193,7 @@ append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | BIGINT PK | |
-| rule | VARCHAR(10) NOT NULL | RC-1~RC-8([0028](../../decisions/0028-payment-reservation-reconciliation.md)) |
+| rule | VARCHAR(10) NOT NULL | RC-1~RC-8([0029](../../decisions/0029-payment-reservation-reconciliation.md)) |
 | reservation_id · payment_id | BIGINT | 대상(없으면 NULL) |
 | detail | JSONB NOT NULL | 양쪽 상태·금액·사용자·시각 |
 | status | VARCHAR(10) NOT NULL, CHECK (OPEN·RESOLVED) | 다음 대사에서 일치하면 RESOLVED. 데이터를 고치지 않는다 |

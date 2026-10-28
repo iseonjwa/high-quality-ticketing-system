@@ -1,15 +1,15 @@
-# 0028. 결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다
+# 0029. 결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다
 
 - 상태: 제안 (반효승 협의 필요, SA 변경 요청 필요. 서비스 경계 해법은 AI 제안이라 사용자 확인 필요)
 - 날짜: 2026-10-28
 - 결정자: 안준현(M3에 최소 대사, 상태·금액·환불 여부 대조, 허용 지연 초과 탐지, MVP는 자동 수정 없이 기록과 Grafana 알림은 사용자 결정)
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0019](0019-payment-refund-dlq-manual-check.md), [0021](0021-outbox-retry-and-retention.md), [0026](0026-reservation-payment-event-contract.md), [0027](0027-payment-ops-commands.md), [0008](0008-internal-trust-and-auth-design.md)
+- 관련 결정: [0020](0020-payment-refund-dlq-manual-check.md), [0022](0022-outbox-retry-and-retention.md), [0027](0027-reservation-payment-event-contract.md), [0028](0028-payment-ops-commands.md), [0008](0008-internal-trust-and-auth-design.md)
 - 불변 조건: INV-6, 그리고 INV-3·INV-4·INV-5·INV-7의 탐지 수단([invariants.md](../design/payment/invariants.md))
 
 ## 맥락
 
-SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대사 쿼리로 맞춰 유실 0건·중복 처리 0건 확인"으로 검증한다고 적지만 결제와 예매 사이 대사는 설계되지 않았다. 0019는 "Reservation의 EXPIRED·CANCELED 예매와 Payment의 환불 상태를 맞춰 보는 대사"를 후속 과제로 남겼다(Opus 검토 H8).
+SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대사 쿼리로 맞춰 유실 0건·중복 처리 0건 확인"으로 검증한다고 적지만 결제와 예매 사이 대사는 설계되지 않았다. 0020는 "Reservation의 EXPIRED·CANCELED 예매와 Payment의 환불 상태를 맞춰 보는 대사"를 후속 과제로 남겼다(Opus 검토 H8).
 
 각 장치는 자기 쪽 실패만 본다. Outbox 지표는 발행 정체를, DLQ 지표는 소비 실패를 본다. Reservation이 `RefundRequested`를 아예 내지 못한 경우나 예매가 결제 없이 확정된 경우처럼 두 서비스 사이에서 생긴 어긋남은 어느 쪽 지표에도 나타나지 않는다.
 
@@ -38,7 +38,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
    | RC-8 | 최근 24시간 이력의 확정 전이(→ `APPROVED`·`DECLINED`·`REFUNDED`)에 대응하는 Outbox 행이 없음 | 이벤트 없는 확정 |
 
    RC-7·RC-8은 Payment DB만으로 판단한다. 환불 행이 있으면(`FAILED` 포함) 의무가 추적 중이라 RC-2가 아니다.
-5. **기록과 알림만**: 불일치는 `reconciliation_mismatch`에 `OPEN`으로 기록하고(같은 불일치는 행 하나를 이어 갱신), 다음 대사에서 맞으면 `RESOLVED`로 닫는다. 결제·예매 데이터는 고치지 않는다. `reconciliation_mismatch_open{rule}` Gauge가 0보다 크면 즉시 알림이고, 대사 작업의 마지막 성공이 15분을 넘으면 경고다([observability.md](../design/payment/observability.md)). 복구는 [manual-recovery.md](../design/payment/manual-recovery.md) 6절과 Ops 명령(0027)으로 한다.
+5. **기록과 알림만**: 불일치는 `reconciliation_mismatch`에 `OPEN`으로 기록하고(같은 불일치는 행 하나를 이어 갱신), 다음 대사에서 맞으면 `RESOLVED`로 닫는다. 결제·예매 데이터는 고치지 않는다. `reconciliation_mismatch_open{rule}` Gauge가 0보다 크면 즉시 알림이고, 대사 작업의 마지막 성공이 15분을 넘으면 경고다([observability.md](../design/payment/observability.md)). 복구는 [manual-recovery.md](../design/payment/manual-recovery.md) 6절과 Ops 명령(0028)으로 한다.
 
 ## 검토한 대안
 
@@ -60,7 +60,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 
 - 반효승: 내부 조회 API 두 개(S-23). 이 결정은 반효승 합의 전까지 제안이다.
 - `data-model.md`의 `reconciliation_mismatch`, `outbox`의 `INDEX(created_at)`, `payment_status_history`의 `target_type`.
-- 0019의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
+- 0020의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
 - 테스트: N23, N30, FT-1~FT-5의 V3(테스트 프로필은 L을 5초로 줄이고 대사를 강제 실행).
 
 ## 면접에서 설명할 한 줄

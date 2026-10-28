@@ -1,17 +1,17 @@
-# 0023. 결제는 핵심 지표와 대시보드 1장, 금전 정합성 알림을 MVP에 둔다
+# 0024. 결제는 핵심 지표와 대시보드 1장, 금전 정합성 알림을 MVP에 둔다
 
 - 상태: 제안 (SA 변경 요청 필요. 2026-10-28 개정)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0017](0017-payment-pg-permit-before-tx1.md), [0019](0019-payment-refund-dlq-manual-check.md), [0021](0021-outbox-retry-and-retention.md), [0022](0022-payment-pg-client-port.md), [0027](0027-payment-ops-commands.md), [0028](0028-payment-reservation-reconciliation.md)
+- 관련 결정: [0018](0018-payment-pg-permit-before-tx1.md), [0020](0020-payment-refund-dlq-manual-check.md), [0022](0022-outbox-retry-and-retention.md), [0023](0023-payment-pg-client-port.md), [0028](0028-payment-ops-commands.md), [0029](0029-payment-reservation-reconciliation.md)
 - 불변 조건: INV-4, INV-6의 탐지 수단([invariants.md](../design/payment/invariants.md))
 
 ## 맥락
 
-SA H10은 Prometheus·Grafana·Zipkin을 Must로 두고 10-5는 `NEEDS_MANUAL_CHECK`의 Grafana 건수 지표와 알림 기준을 말한다. 그러나 결제 서비스가 무엇을 내보낼지, 어떤 상태에 알림을 걸지는 정해져 있지 않다. 앞선 결정(0017~0022)이 새 지표 요구를 여럿 만들었다. 결제는 지표 없이 장애를 알아채기 어렵고, 돈이 걸린 상태(미확정·수동 확인)는 오래 두면 사고가 된다. 지표는 발표와 부하 측정의 근거이기도 하다. 저장소에는 이미 `infra/prometheus.yml`, `infra/grafana/`가 있다.
+SA H10은 Prometheus·Grafana·Zipkin을 Must로 두고 10-5는 `NEEDS_MANUAL_CHECK`의 Grafana 건수 지표와 알림 기준을 말한다. 그러나 결제 서비스가 무엇을 내보낼지, 어떤 상태에 알림을 걸지는 정해져 있지 않다. 앞선 결정(0018~0023)이 새 지표 요구를 여럿 만들었다. 결제는 지표 없이 장애를 알아채기 어렵고, 돈이 걸린 상태(미확정·수동 확인)는 오래 두면 사고가 된다. 지표는 발표와 부하 측정의 근거이기도 하다. 저장소에는 이미 `infra/prometheus.yml`, `infra/grafana/`가 있다.
 
-2026-10-28 검토에서 `REQUESTED` 체류를 보는 지표가 없어 재확인 시각이 빠진 결제를 놓칠 수 있고(H4), 0019의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림이 관측 문서에서 빠졌다는 점(L6)이 나왔다. 이후 결정(0019 개정, 0027, 0028)도 환불 대기·대사·Ops 지표를 요구한다.
+2026-10-28 검토에서 `REQUESTED` 체류를 보는 지표가 없어 재확인 시각이 빠진 결제를 놓칠 수 있고(H4), 0020의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림이 관측 문서에서 빠졌다는 점(L6)이 나왔다. 이후 결정(0020 개정, 0028, 0029)도 환불 대기·대사·Ops 지표를 요구한다.
 
 ## 결정
 
@@ -23,7 +23,7 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 |---|---|---|
 | 승인 API | 지연 p50·p95·p99 | Timer(백분위 히스토그램) |
 | 승인 API | 결과별 건수(`APPROVED`·`DECLINED`·`UNKNOWN`·`REJECTED`(요청 거절)·`LINKED`(기존 결제 연결)) | Counter |
-| PG 호출 | 호출 지연(승인·조회·환불별), `Unknown` 원인(0022), 금액·통화 불일치 | Timer, Counter |
+| PG 호출 | 호출 지연(승인·조회·환불별), `Unknown` 원인(0023), 금액·통화 불일치 | Timer, Counter |
 | 보호 장치 | Circuit Breaker 상태, Bulkhead 점유율(`pg-approve`, `pg-recovery`) | Resilience4j 제공 Micrometer 지표를 그대로 사용 |
 | 결제 상태 | `REQUESTED` 최고령(초), `UNKNOWN`·`NEEDS_MANUAL_CHECK` 현재 건수와 최고령(초) | Gauge |
 | 환불 | 대기(`REQUESTED`·`UNKNOWN`)와 `NEEDS_MANUAL_CHECK`의 건수와 최고령 | Gauge |
@@ -45,12 +45,12 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 | 즉시 확인 | DLQ 처리기 실패 | 실패 건 발생 또는 재시도 중 건 > 0이 5분 지속 |
 | 즉시 확인 | Outbox `FAILED` | 건수 > 0 |
 | 즉시 확인 | 결제·예매 대사 불일치 | 규칙별 > 0 |
-| 임계값 경고 | `NEEDS_MANUAL_CHECK` 장기 미해결 | 최고령 > 30분(심각 24시간, 0019) |
+| 임계값 경고 | `NEEDS_MANUAL_CHECK` 장기 미해결 | 최고령 > 30분(심각 24시간, 0020) |
 | 임계값 경고 | `REQUESTED` 체류 | 최고령 > 60초 |
 | 임계값 경고 | `UNKNOWN` 장기 체류 | 최고령 > 5분 |
 | 임계값 경고 | 환불 대기 장기 체류 | 최고령 > 30분(심각 2시간) |
 | 임계값 경고 | PG Circuit Breaker OPEN | 그룹별 |
-| 임계값 경고 | Outbox 발행 지연 | `PENDING` 최고령 > 5분(심각 30분, 0021) |
+| 임계값 경고 | Outbox 발행 지연 | `PENDING` 최고령 > 5분(심각 30분, 0022) |
 | 임계값 경고 | 작업 정체 | 작업별 마지막 성공 이후 기준 초과(observability.md) |
 | 임계값 경고 | DB 연결 대기 초과 | 증가 |
 
@@ -87,7 +87,7 @@ Micrometer + Prometheus + Grafana로 핵심 결제 지표를 수집하고, Grafa
 
 ## 개정 이력
 
-- 2026-10-28: `REQUESTED` 최고령(H4), 환불 대기, 금액 불일치, 전이 0행, `dead_letter` OPEN, 대사, 작업별 마지막 성공, DB 연결, Ops 명령 지표를 더했다. 0019의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림을 알림 표에 넣었다(L6). 이전 초안의 `dlq_pending`과 정리 작업 전용 지표는 `observability.md`에서 이름을 바꿨다.
+- 2026-10-28: `REQUESTED` 최고령(H4), 환불 대기, 금액 불일치, 전이 0행, `dead_letter` OPEN, 대사, 작업별 마지막 성공, DB 연결, Ops 명령 지표를 더했다. 0020의 `NEEDS_MANUAL_CHECK` 장기 미해결 알림을 알림 표에 넣었다(L6). 이전 초안의 `dlq_pending`과 정리 작업 전용 지표는 `observability.md`에서 이름을 바꿨다.
 
 ## 면접에서 설명할 한 줄
 

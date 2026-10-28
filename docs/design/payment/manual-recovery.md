@@ -1,6 +1,6 @@
 # 수동 복구 절차
 
-알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letter`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0027](../../decisions/0027-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). 구현 전이며 실제 환경에서 실행해 확인하지 않았다.
+알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letter`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). 구현 전이며 실제 환경에서 실행해 확인하지 않았다.
 
 ## 1. 원칙과 Ops 명령
 
@@ -40,7 +40,7 @@
 
 1. `inspect --with-pg`로 대상과 PG 상태를 본다. 결제는 `pg_order_id`, 환불은 `pg_refund_id`와 `pg_tx_id`로 조회된다.
 2. 결제 NMC는 `payment resolve`를 dry-run으로 실행해 PG 근거와 계획을 확인한 뒤 승인자와 함께 apply한다.
-   - `APPROVED`가 되면 `PaymentApproved`가 나간다. 이 시점에 예매는 대개 만료돼 있으므로 Reservation이 `RefundRequested`를 보내고 자동 환불로 이어진다(0026).
+   - `APPROVED`가 되면 `PaymentApproved`가 나간다. 이 시점에 예매는 대개 만료돼 있으므로 Reservation이 `RefundRequested`를 보내고 자동 환불로 이어진다(0027).
    - 금액 불일치(`PG_AMOUNT_MISMATCH`)는 예매를 확정하지 않고 PG 승인 금액 전액을 환불한다.
    - PG가 아직 불확실(`Unknown`)이면 명령은 거부되고 상태는 그대로다. PG 장애가 풀린 뒤 다시 한다.
 3. 환불 NMC는 사유로 나눈다.
@@ -77,7 +77,7 @@
 |---|---|---|
 | RC-1 승인 미확정 | Reservation의 `payment.result` 소비 랙·DLQ, 만료 스케줄러 | 반효승과 Reservation 쪽 처리. 예매가 만료되면 RC-2 경로로 환불된다 |
 | RC-2 환불 의무 미등록 | Reservation의 `RefundRequested` 발행 여부, Payment `dead_letter` | 원인 쪽에서 `RefundRequested`를 다시 내게 한다. Payment 쪽 원인이면 `dead-letter resolve --replay` |
-| RC-3 환불 뒤 확정 유지 | 예매 취소 근거, Reservation의 이상 격리 기록(0026) | 반효승과 확인. 자동 좌석 해제 금지 |
+| RC-3 환불 뒤 확정 유지 | 예매 취소 근거, Reservation의 이상 격리 기록(0027) | 반효승과 확인. 자동 좌석 해제 금지 |
 | RC-4 미승인 확정 | 예매의 `payment_id`, 결제 존재 여부 | 반효승과 확인(위조·버그 의심) |
 | RC-5 금액, RC-6 사용자 불일치 | 결제·예매·토큰 발급 기록 | 원인 확인 뒤 담당자와 처리 |
 | RC-7 상태·이력 불일치, RC-8 이벤트 누락 | 직접 SQL 실행 흔적, 배포 이력 | 원인 확인. 누락 이벤트는 해당 전이의 Ops 명령 절차로 보충하는 방법을 담당자와 정한다 |
@@ -104,7 +104,7 @@
 5. 콘솔 환불 뒤에는 `refund retry`를 쓰지 않는다.
 
 ## 9. 결제 토큰 키 유출
-1. 새 `PAYMENT_TOKEN_SECRET`(32바이트 난수의 16진수 64자)을 만들어 Reservation과 Payment에만 주입한다([0024](../../decisions/0024-payment-token-secret-injection.md)).
+1. 새 `PAYMENT_TOKEN_SECRET`(32바이트 난수의 16진수 64자)을 만들어 Reservation과 Payment에만 주입한다([0025](../../decisions/0025-payment-token-secret-injection.md)).
 2. 두 서비스를 함께 재배포하면 이전 키로 서명한 토큰은 검증에 실패한다(결제 토큰 수명은 최대 4분 50초). 진행 중인 사용자는 새 토큰을 받아 다시 결제한다.
 3. 유출 시점 이후의 승인 요청과 비정상 결제를 조회해 확인하고, 환불이 필요하면 2절 절차를 따른다.
 4. 키는 로그·저장소에 남기지 않고, 회전 사실과 처리자는 `manual_action_log`가 아닌 운영 기록에 남긴다.

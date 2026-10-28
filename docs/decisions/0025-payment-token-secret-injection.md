@@ -1,10 +1,10 @@
-# 0024. 결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다
+# 0025. 결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다
 
 - 상태: 제안 (SA 변경 요청 필요. 2026-10-28 개정, 키 해석 선택은 AI 판단이라 사용자 확인 필요)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0015](0015-payment-declined-token-reuse.md), [0008](0008-internal-trust-and-auth-design.md), [0013](0013-single-common-module.md), [0018](0018-payment-new-key-existing-payment.md)
+- 관련 결정: [0016](0016-payment-declined-token-reuse.md), [0008](0008-internal-trust-and-auth-design.md), [0013](0013-single-common-module.md), [0019](0019-payment-new-key-existing-payment.md)
 - 불변 조건: INV-3, INV-9([invariants.md](../design/payment/invariants.md))
 
 ## 맥락
@@ -42,9 +42,9 @@ SA 7-3은 결제 토큰을 HMAC-SHA256으로 서명하고 키 `PAYMENT_TOKEN_SEC
 | 서명 | HMAC-SHA256, 키 바이트는 위 결정 2. 알고리즘은 고정(토큰 헤더의 `alg`를 믿지 않고 `none`·다른 알고리즘 거절). 서명 비교는 상수시간이다. 라이브러리(Nimbus)의 비교가 상수시간인지 구현 때 확인하고`[가정]`, 직접 비교하면 `MessageDigest.isEqual`을 쓴다 |
 | 용도 | `typ=payment` |
 | 대상 | `aud=payment-service` |
-| 만료 | `exp`, 허용 오차 0초(`TokenDecoders`와 같음). 발급·검증이 같은 호스트 시계를 쓰고, 선점 만료와의 10초 간격(SA 7-3)이 이미 여유라서 허용 오차를 두면 그 간격을 갉아먹는다. 만료 토큰은 신규 승인에 쓰지 않고, 만료 뒤 24시간 안에는 기존 결제 조회에만 쓴다(0018) |
+| 만료 | `exp`, 허용 오차 0초(`TokenDecoders`와 같음). 발급·검증이 같은 호스트 시계를 쓰고, 선점 만료와의 10초 간격(SA 7-3)이 이미 여유라서 허용 오차를 두면 그 간격을 갉아먹는다. 만료 토큰은 신규 승인에 쓰지 않고, 만료 뒤 24시간 안에는 기존 결제 조회에만 쓴다(0019) |
 | 사용자 | `sub`가 인증된 `X-User-Id`와 같다 |
-| 예매 | 토큰의 예매 ID를 결제 대상으로 쓴다. 같은 예매에 DECLINED·REFUNDED 결제가 있으면 거절한다(0015) |
+| 예매 | 토큰의 예매 ID를 결제 대상으로 쓴다. 같은 예매에 DECLINED·REFUNDED 결제가 있으면 거절한다(0016) |
 | 금액 | 요청 금액이 토큰 금액과 같다 |
 | 식별 | `jti`는 로그·추적용(폐기 목록 없음, SA 7-3) |
 

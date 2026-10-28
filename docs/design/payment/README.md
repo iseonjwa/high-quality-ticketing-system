@@ -25,27 +25,27 @@
 
 | ADR | 결정 | 출처 |
 |---|---|---|
-| [0015](../../decisions/0015-payment-declined-token-reuse.md) | 거절·환불된 예매의 결제 토큰 재사용을 Payment와 Reservation이 함께 막는다(10/28 개정: 경합은 0025, 예매 규칙은 0026) | 빈틈 #1, C1·H1 |
-| [0016](../../decisions/0016-payment-idempotency-in-progress.md) | 같은 멱등키가 처리 중이면 202와 기존 paymentId, TX1 유니크 위반은 재조회 응답 | 빈틈 #3, M1·L6 |
-| [0017](../../decisions/0017-payment-pg-permit-before-tx1.md) | 신규 승인 시도만 허가를 TX1 앞에서 얻고, PG 호출 자원을 승인·복구 두 그룹으로 나눈다 | 빈틈 #4, M2·M3·L9 |
-| [0018](../../decisions/0018-payment-new-key-existing-payment.md) | 다른 멱등키로 같은 예매를 재요청하면 기존 결제로 응답하고 새 키는 ALIAS로 기록 | 빈틈 #5, L3 |
-| [0019](../../decisions/0019-payment-refund-dlq-manual-check.md) | 환불 요청은 DB에 영속화해 자동 환불 워커가 처리하고, DLQ도 같은 경로로 복구 | 빈틈 #6, C2·H5·M7·M8·L6 |
-| [0020](../../decisions/0020-payment-object-level-authorization.md) | 결제 조회는 소유자 또는 ADMIN, 타인은 404 | 빈틈 #7 |
-| [0021](../../decisions/0021-outbox-retry-and-retention.md) | Outbox 지속 재시도와 배치 정리, 영향 행 1일 때만 후속 쓰기, 실행기 분리 | 빈틈 #8, H3·M4·L5 |
-| [0022](../../decisions/0022-payment-pg-client-port.md) | `PgClient` 포트와 계약 테스트, 결과의 금액·통화 검증 | 빈틈 #9, H2·H5·H6·M5·M9 |
-| [0023](../../decisions/0023-payment-observability-metrics.md) | 핵심 지표·대시보드 1장·알림 | 빈틈 #10, H4·L6 |
-| [0024](../../decisions/0024-payment-token-secret-injection.md) | 결제 토큰 키 주입과 시작 검증, 키 바이트 해석 통일 | 빈틈 #11, L4 |
-| [0025](../../decisions/0025-payment-one-per-reservation.md) | 결제 행은 예매당 하나인 논리적 결제, `reservation_id` 전체 UNIQUE | 사용자 결정 1, H1 |
-| [0026](../../decisions/0026-reservation-payment-event-contract.md) | Reservation은 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리 | 사용자 결정 4, C1·H2 |
-| [0027](../../decisions/0027-payment-ops-commands.md) | 운영자 복구는 감사되는 Ops 명령으로만, 직접 SQL 금지 | 사용자 결정 5, H6·H7 |
-| [0028](../../decisions/0028-payment-reservation-reconciliation.md) | 결제·예매 대사는 Payment가 예매 내부 조회 API로, MVP는 기록과 알림만 | 사용자 결정 6, H8 |
+| [0016](../../decisions/0016-payment-declined-token-reuse.md) | 거절·환불된 예매의 결제 토큰 재사용을 Payment와 Reservation이 함께 막는다(10/28 개정: 경합은 0026, 예매 규칙은 0027) | 빈틈 #1, C1·H1 |
+| [0017](../../decisions/0017-payment-idempotency-in-progress.md) | 같은 멱등키가 처리 중이면 202와 기존 paymentId, TX1 유니크 위반은 재조회 응답 | 빈틈 #3, M1·L6 |
+| [0018](../../decisions/0018-payment-pg-permit-before-tx1.md) | 신규 승인 시도만 허가를 TX1 앞에서 얻고, PG 호출 자원을 승인·복구 두 그룹으로 나눈다 | 빈틈 #4, M2·M3·L9 |
+| [0019](../../decisions/0019-payment-new-key-existing-payment.md) | 다른 멱등키로 같은 예매를 재요청하면 기존 결제로 응답하고 새 키는 ALIAS로 기록 | 빈틈 #5, L3 |
+| [0020](../../decisions/0020-payment-refund-dlq-manual-check.md) | 환불 요청은 DB에 영속화해 자동 환불 워커가 처리하고, DLQ도 같은 경로로 복구 | 빈틈 #6, C2·H5·M7·M8·L6 |
+| [0021](../../decisions/0021-payment-object-level-authorization.md) | 결제 조회는 소유자 또는 ADMIN, 타인은 404 | 빈틈 #7 |
+| [0022](../../decisions/0022-outbox-retry-and-retention.md) | Outbox 지속 재시도와 배치 정리, 영향 행 1일 때만 후속 쓰기, 실행기 분리 | 빈틈 #8, H3·M4·L5 |
+| [0023](../../decisions/0023-payment-pg-client-port.md) | `PgClient` 포트와 계약 테스트, 결과의 금액·통화 검증 | 빈틈 #9, H2·H5·H6·M5·M9 |
+| [0024](../../decisions/0024-payment-observability-metrics.md) | 핵심 지표·대시보드 1장·알림 | 빈틈 #10, H4·L6 |
+| [0025](../../decisions/0025-payment-token-secret-injection.md) | 결제 토큰 키 주입과 시작 검증, 키 바이트 해석 통일 | 빈틈 #11, L4 |
+| [0026](../../decisions/0026-payment-one-per-reservation.md) | 결제 행은 예매당 하나인 논리적 결제, `reservation_id` 전체 UNIQUE | 사용자 결정 1, H1 |
+| [0027](../../decisions/0027-reservation-payment-event-contract.md) | Reservation은 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리 | 사용자 결정 4, C1·H2 |
+| [0028](../../decisions/0028-payment-ops-commands.md) | 운영자 복구는 감사되는 Ops 명령으로만, 직접 SQL 금지 | 사용자 결정 5, H6·H7 |
+| [0029](../../decisions/0029-payment-reservation-reconciliation.md) | 결제·예매 대사는 Payment가 예매 내부 조회 API로, MVP는 기록과 알림만 | 사용자 결정 6, H8 |
 
-빈틈 #2(D3 부분 유니크 인덱스에 `NEEDS_MANUAL_CHECK` 누락)는 0025의 전체 UNIQUE로 대체됐다. 출처 칸의 C·H·M·L 번호는 2026-10-27 설계에 대한 Opus 검토 지적이다([AI 판단 기록](../../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)).
+빈틈 #2(D3 부분 유니크 인덱스에 `NEEDS_MANUAL_CHECK` 누락)는 0026의 전체 UNIQUE로 대체됐다. 출처 칸의 C·H·M·L 번호는 2026-10-27 설계에 대한 Opus 검토 지적이다([AI 판단 기록](../../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)).
 
 ## 이번 설계가 의존하는 다른 담당의 일
 
 | 담당 | 필요한 일 | 근거 |
 |---|---|---|
-| 반효승 | 결제 토큰 claim 이름 통보(U1). 결제 이벤트 처리 계약(원장 대조, 상태별 규칙, `CONFIRMED` + `PaymentRefunded` 격리). `RefundRequested`의 `userId`·`amount`·`currency`와 새 사유. `payment.result` 소비의 DLQ 처리기. 대사용 읽기 전용 내부 조회 API. 결제 토큰 발급기는 `TokenDecoders.signingKey`로 키 바이트를 만든다 | 0021, 0024, 0026, 0028 |
-| 이강민 | Mock PG 환불 조회·환불 멱등·망취소와 경로 확정(U16), 장애 주입 모드, 응답의 `amount`·`currency`, 테스트 전용 원장 조회. U9(추첨 결제 실패 유형별 재시도)가 같은 예매 재결제를 요구하는지 확인 | 0022, 0025 |
+| 반효승 | 결제 토큰 claim 이름 통보(U1). 결제 이벤트 처리 계약(원장 대조, 상태별 규칙, `CONFIRMED` + `PaymentRefunded` 격리). `RefundRequested`의 `userId`·`amount`·`currency`와 새 사유. `payment.result` 소비의 DLQ 처리기. 대사용 읽기 전용 내부 조회 API. 결제 토큰 발급기는 `TokenDecoders.signingKey`로 키 바이트를 만든다 | 0022, 0025, 0027, 0029 |
+| 이강민 | Mock PG 환불 조회·환불 멱등·망취소와 경로 확정(U16), 장애 주입 모드, 응답의 `amount`·`currency`, 테스트 전용 원장 조회. U9(추첨 결제 실패 유형별 재시도)가 같은 예매 재결제를 요구하는지 확인 | 0023, 0026 |
 | 팀 전체 | SA 변경 요청 리뷰, U22(환불 이력 위치), Kafka-UI READONLY, `payment-service` 연결 풀 설정 | [sa-change-requests.md](sa-change-requests.md) |

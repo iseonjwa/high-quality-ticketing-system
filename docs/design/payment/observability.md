@@ -1,6 +1,6 @@
 # 결제 관측 지표와 알림
 
-Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보드 1장과 알림 규칙으로 본다. 결정과 근거는 [0023](../../decisions/0023-payment-observability-metrics.md)에 있다. 지표 이름은 구현 때 확정하며 아래는 초안이다. 결제 지표는 "돈이 확정되지 않은 채 남은 건과 그 나이"를 먼저 본다(INV-4·INV-6, [invariants.md](invariants.md)).
+Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보드 1장과 알림 규칙으로 본다. 결정과 근거는 [0024](../../decisions/0024-payment-observability-metrics.md)에 있다. 지표 이름은 구현 때 확정하며 아래는 초안이다. 결제 지표는 "돈이 확정되지 않은 채 남은 건과 그 나이"를 먼저 본다(INV-4·INV-6, [invariants.md](invariants.md)).
 
 ## 1. 지표
 
@@ -49,7 +49,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 경고 | DB 연결 대기 초과 | Hikari 연결 대기 시간 초과 증가 | 같은 문서 7절 |
 
 - 즉시 확인은 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태다. 경고는 자동 복구가 아직 진행 중이지만 늦어지는 상태다.
-- `NEEDS_MANUAL_CHECK` 장기 미해결 기준(30분·24시간)은 [0019](../../decisions/0019-payment-refund-dlq-manual-check.md)의 값이고, 이전 초안의 표에서 빠져 있던 것을 넣었다.
+- `NEEDS_MANUAL_CHECK` 장기 미해결 기준(30분·24시간)은 [0020](../../decisions/0020-payment-refund-dlq-manual-check.md)의 값이고, 이전 초안의 표에서 빠져 있던 것을 넣었다.
 - `REQUESTED` 60초 기준은 TX1이 `next_check_at`을 10초 뒤로 채우고 재확인이 그 시각에 집는다는 전제다. 넘으면 스케줄러 정지나 `next_check_at` 누락을 의심한다(CHECK 제약이 누락을 막는다).
 
 ## 3. 대시보드 구성 (1장)

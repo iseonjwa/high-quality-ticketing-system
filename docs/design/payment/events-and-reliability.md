@@ -6,15 +6,15 @@
 
 | 토픽 | 이벤트 | 키 | 이 서비스의 역할 |
 |---|---|---|---|
-| `payment.result` | `PaymentApproved`·`PaymentDeclined`·`PaymentRefunded` | reservationId | 발행(Outbox). Reservation 그룹 `reservation.payment-result`의 처리 규칙은 [0026](../../decisions/0026-reservation-payment-event-contract.md) |
+| `payment.result` | `PaymentApproved`·`PaymentDeclined`·`PaymentRefunded` | reservationId | 발행(Outbox). Reservation 그룹 `reservation.payment-result`의 처리 규칙은 [0027](../../decisions/0027-reservation-payment-event-contract.md) |
 | `payment.command` | `RefundRequested`(MVP)·`BillingPaymentRequested`(M4) | reservationId | 구독, 그룹 `payment.command` |
 | `payment.command.dlq` | 소비 실패 | 원본 키 | 구독, 그룹 `payment.command-dlq`(DLQ 처리기) |
 
-페이로드 변경([SA 변경 요청](sa-change-requests.md) S-18, 0026): `PaymentApproved`·`PaymentRefunded`에 `currency`(`"KRW"`)를 더하고, `RefundRequested`에 `userId`·`amount`·`currency`를 더하며 `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE`을 추가한다. SA 10-4는 필드 추가만 허용하므로 `version`은 그대로 1이다.
+페이로드 변경([SA 변경 요청](sa-change-requests.md) S-18, 0027): `PaymentApproved`·`PaymentRefunded`에 `currency`(`"KRW"`)를 더하고, `RefundRequested`에 `userId`·`amount`·`currency`를 더하며 `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE`을 추가한다. SA 10-4는 필드 추가만 허용하므로 `version`은 그대로 1이다.
 
 ## 2. 공통 규칙: 실제로 바뀐 전이만 후속 쓰기를 한다
 
-조건부 UPDATE의 영향 행이 1일 때만 이력·Outbox·멱등 응답·감사 기록(APPLIED)을 같은 트랜잭션에 쓴다(INV-5, [0021](../../decisions/0021-outbox-retry-and-retention.md)).
+조건부 UPDATE의 영향 행이 1일 때만 이력·Outbox·멱등 응답·감사 기록(APPLIED)을 같은 트랜잭션에 쓴다(INV-5, [0022](../../decisions/0022-outbox-retry-and-retention.md)).
 
 | 경로 | 0행일 때 |
 |---|---|
@@ -25,7 +25,7 @@
 
 모든 경로에서 `payment_transition_conflict_total{operation}`을 올린다. 0행은 대개 다른 경로가 먼저 전이한 정상 경합이고, 지표가 갑자기 늘면 중복 처리 경로를 의심한다.
 
-## 3. Outbox 릴레이 ([0021](../../decisions/0021-outbox-retry-and-retention.md))
+## 3. Outbox 릴레이 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
 1. 전용 실행기(7절)에서 500ms마다 `status='PENDING' AND next_attempt_at <= now()`이고 임대가 끝났으며 같은 `message_key`에 앞선 미발행 행이 없는 행을 `FOR UPDATE SKIP LOCKED`로 집어 `claimed_until = now() + 30초`로 갱신한다(트랜잭션은 이 갱신까지).
 2. 트랜잭션 밖에서 `acks=all`로 전송하고 브로커 확인을 기다린다. 프로듀서는 `delivery.timeout.ms=10000`, `request.timeout.ms=5000`, `linger.ms=0`(값은 `[가정]`)이고, 전송 대기는 `delivery.timeout.ms` + 2초까지다. 임대(30초)는 전송 시한의 2배 이상이어야 한다. 짧으면 전송이 아직 재시도 중인데 다른 실행이 같은 행을 다시 보내 순서가 뒤섞인 중복이 생긴다.
@@ -36,7 +36,7 @@
 
 `SENT`는 Kafka 발행 성공만 뜻한다. Reservation 소비 실패와 `payment.result` DLQ 복구는 Reservation이 관리한다(반효승 통보 항목). 발행은 됐는데 Reservation이 반영하지 못한 건은 대사(10절)가 찾는다.
 
-## 4. 소비 `payment.command` ([0019](../../decisions/0019-payment-refund-dlq-manual-check.md))
+## 4. 소비 `payment.command` ([0020](../../decisions/0020-payment-refund-dlq-manual-check.md))
 
 소비자는 환불 요청을 검증하고 DB에 영속화만 한다. PG 환불은 부르지 않는다. PG 호출은 환불 워커(6절) 한 곳에서만 한다.
 
@@ -57,9 +57,9 @@
 | 결제 상태 | `APPROVED`면 새 환불. 환불 행이 이미 있으면 중복(정상). 그 밖(`REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`·`DECLINED`)은 영구 오류 |
 | 봉투 `producer` | `reservation-service`. 위조를 막지는 못하지만 잘못 보낸 메시지를 거른다 |
 
-Kafka에는 브로커 인증이 없다(0008 T5). 메시지 위조 경로를 줄이기 위해 Kafka-UI를 READONLY로 둔다(S-24, 0019).
+Kafka에는 브로커 인증이 없다(0008 T5). 메시지 위조 경로를 줄이기 위해 Kafka-UI를 READONLY로 둔다(S-24, 0020).
 
-## 5. DLQ 처리기 ([0019](../../decisions/0019-payment-refund-dlq-manual-check.md))
+## 5. DLQ 처리기 ([0020](../../decisions/0020-payment-refund-dlq-manual-check.md))
 
 DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭션에서 `dead_letter`를 `INSERT … ON CONFLICT (event_key) DO NOTHING`으로 저장하고, 4절과 같은 검증을 다시 해 아래처럼 처리하고, `processed_event(event_id, 'payment.command-dlq')`를 쓴다.
 
@@ -119,7 +119,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.
 
-## 8. 정리 작업 ([0021](../../decisions/0021-outbox-retry-and-retention.md))
+## 8. 정리 작업 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
 | 대상 | 삭제 조건 | 기간 |
 |---|---|---|
@@ -133,11 +133,11 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 
 `processed_event`가 지워진 뒤 재전달돼도 다음이 중복 결제·환불을 막는다(INV-1·INV-2).
 - 조건부 UPDATE와 영향 행 확인(2절)
-- `payment.reservation_id` 전체 UNIQUE([0025](../../decisions/0025-payment-one-per-reservation.md))
+- `payment.reservation_id` 전체 UNIQUE([0026](../../decisions/0026-payment-one-per-reservation.md))
 - `refund.payment_id` UNIQUE와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT`
 - 환불 재호출 전 `findRefund`, PG 멱등키(`pg_order_id`·`pg_refund_id`)
-- Reservation의 paymentId 대조(0026)
+- Reservation의 paymentId 대조(0027)
 
-## 10. 대사 ([0028](../../decisions/0028-payment-reservation-reconciliation.md))
+## 10. 대사 ([0029](../../decisions/0029-payment-reservation-reconciliation.md))
 
 `housekeeping` 실행기가 5분`[가정]`마다 결제 DB와 예매 내부 조회 API를 대조해 RC-1~RC-8 불일치를 `reconciliation_mismatch`에 기록하고 Gauge로 알린다. 데이터는 고치지 않는다. 허용 지연은 10분`[가정]`이다.

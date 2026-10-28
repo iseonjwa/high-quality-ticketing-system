@@ -1,10 +1,10 @@
-# 0019. 환불 요청은 DB에 영속화해 자동 환불 워커가 처리하고, DLQ에 온 요청도 같은 경로로 복구한다
+# 0020. 환불 요청은 DB에 영속화해 자동 환불 워커가 처리하고, DLQ에 온 요청도 같은 경로로 복구한다
 
 - 상태: 제안 (SA 변경 요청 필요. 2026-10-28 개정)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
-- 관련 결정: [0015](0015-payment-declined-token-reuse.md), [0021](0021-outbox-retry-and-retention.md), [0022](0022-payment-pg-client-port.md), [0026](0026-reservation-payment-event-contract.md), [0027](0027-payment-ops-commands.md), [0028](0028-payment-reservation-reconciliation.md)
+- 관련 결정: [0016](0016-payment-declined-token-reuse.md), [0022](0022-outbox-retry-and-retention.md), [0023](0023-payment-pg-client-port.md), [0027](0027-reservation-payment-event-contract.md), [0028](0028-payment-ops-commands.md), [0029](0029-payment-reservation-reconciliation.md)
 - 불변 조건: INV-2, INV-4, INV-9([invariants.md](../design/payment/invariants.md))
 
 ## 맥락
@@ -19,13 +19,13 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 
 ### 상태의 의미
 - 환불 `NEEDS_MANUAL_CHECK`는 실패 확정이 아니라 **운영자 확인이 필요한 상태**다. 자동 경로가 끝내지 못한 건(PG의 명확한 거절, 재시도 소진, 금액 불일치, 상태 충돌)이 여기에 온다.
-- 환불 `FAILED`는 **운영자가 PG로는 환불할 수 없음을 확인하고 시스템 밖 조치(예: 계좌 환불)로 넘긴 종결 상태**다. Ops 명령으로만 들어가고 `manual_action_log`에 외부 조치 참조가 필수다([0027](0027-payment-ops-commands.md)). 자동 경로는 `FAILED`를 쓰지 않는다. PG의 명확한 거절(`RefundRejected`)은 바로 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`다.
+- 환불 `FAILED`는 **운영자가 PG로는 환불할 수 없음을 확인하고 시스템 밖 조치(예: 계좌 환불)로 넘긴 종결 상태**다. Ops 명령으로만 들어가고 `manual_action_log`에 외부 조치 참조가 필수다([0028](0028-payment-ops-commands.md)). 자동 경로는 `FAILED`를 쓰지 않는다. PG의 명확한 거절(`RefundRejected`)은 바로 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`다.
 - 상태 전이 전체는 [domain-and-states.md](../design/payment/domain-and-states.md) 2절이 기준이다.
 
 ### 환불 요청은 먼저 영속화한다
 - `payment.command` 소비자는 `RefundRequested`를 검증하고 한 트랜잭션에서 `processed_event`, 환불 행(`REQUESTED`, `next_check_at` = 현재), 이력을 쓴다. **PG 환불은 부르지 않는다.**
 - 환불 행 생성은 결제 상태를 조건으로 한 `INSERT … SELECT … FROM payment WHERE status = 'APPROVED' … ON CONFLICT (payment_id) DO NOTHING`이다. 환불 금액은 이벤트 값이 아니라 결제의 PG 승인 금액이다(INV-3).
-- PG 환불은 **환불 워커** 한 곳에서만 부른다. 워커는 `REQUESTED`·`UNKNOWN` 환불을 `SKIP LOCKED`로 집고, `pg-recovery` 허가를 얻은 뒤 claim(임대 30초, 시도 + 1)하고 트랜잭션 밖에서 PG를 부른다. 첫 호출이 아니면 `findRefund`로 먼저 확인하고 `NotFound`일 때만 같은 `pg_refund_id`로 다시 부른다(0022, 검토 H5·H6).
+- PG 환불은 **환불 워커** 한 곳에서만 부른다. 워커는 `REQUESTED`·`UNKNOWN` 환불을 `SKIP LOCKED`로 집고, `pg-recovery` 허가를 얻은 뒤 claim(임대 30초, 시도 + 1)하고 트랜잭션 밖에서 PG를 부른다. 첫 호출이 아니면 `findRefund`로 먼저 확인하고 `NotFound`일 때만 같은 `pg_refund_id`로 다시 부른다(0023, 검토 H5·H6).
 - 결과: `Refunded`(금액 일치)면 환불·결제 `REFUNDED`와 `PaymentRefunded`, `RefundRejected`면 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`, `Unknown`이면 다음 간격.
 - 검토 H6의 "환불 행을 새로 만든 경우에만 PG를 부른다"는 이 구조로 지켜진다. 소비자·DLQ 처리기·Ops 명령은 PG를 부르지 않고, 워커는 claim에 성공한 행만 부른다. 이중 환불 방어는 환불 행 UNIQUE, claim, 재호출 전 조회, PG 멱등키의 네 겹이다.
 
@@ -51,7 +51,7 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 - 운영자는 원인이 풀리면 Ops `refund retry`로 `NEEDS_MANUAL_CHECK`를 `REQUESTED`로 되돌려 자동 경로에 다시 맡긴다.
 
 ### 수동 복구와 감사
-- 상태를 바꾸는 직접 SQL은 쓰지 않고 Ops 명령으로만 복구한다(0027). MVP에 관리자 재처리 HTTP API는 만들지 않는다.
+- 상태를 바꾸는 직접 SQL은 쓰지 않고 Ops 명령으로만 복구한다(0028). MVP에 관리자 재처리 HTTP API는 만들지 않는다.
 - 감사 기록은 append-only `manual_action_log`에 남긴다: 명령, 대상, 전이, 결과, PG 근거, 외부 조치 참조, 실행자·승인자, 시각, 메모.
 
 ### 알림
@@ -63,20 +63,20 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 
 | 경로 | 유실 가능성 | 대응 |
 |---|---|---|
-| Reservation의 RefundRequested 발행 | 상태 변경과 outbox를 한 트랜잭션에 저장하므로 발행 유실은 없다. 발행 자체를 하지 못하는 경우(Reservation 소비 실패)는 남는다 | Outbox는 영구 오류만 `FAILED`로 두고 알린다(0021). 발행되지 않은 의무는 대사 RC-2가 찾는다(0028) |
+| Reservation의 RefundRequested 발행 | 상태 변경과 outbox를 한 트랜잭션에 저장하므로 발행 유실은 없다. 발행 자체를 하지 못하는 경우(Reservation 소비 실패)는 남는다 | Outbox는 영구 오류만 `FAILED`로 두고 알린다(0022). 발행되지 않은 의무는 대사 RC-2가 찾는다(0029) |
 | 릴레이 → Kafka | `acks=all`, idempotence. 전송 뒤 `SENT` 표시 전에 죽으면 중복 | 소비자가 멱등이라 중복은 무해하다 |
 | Payment 소비 중 오류 | 오프셋을 영속화 뒤에 커밋(`ack-mode=record`)하므로 없다. 3회 재시도 뒤 DLQ | 위 DLQ 처리기 |
 | DLQ 토픽으로 보내기 실패(Kafka 장애) | 보내지 못하면 원 메시지도 커밋하지 않고 다시 처리한다 | 복구 설정이 실패해도 오프셋을 올리지 않는지 통합 테스트로 확인한다 |
 | 역직렬화 실패(poison message) | `ErrorHandlingDeserializer` 없이는 컨슈머가 같은 레코드에서 멈춘다 | `ErrorHandlingDeserializer`로 DLQ에 보내고 원문을 `dead_letter`에 `OPEN`으로 저장한다 |
 | DLQ 처리기의 DB 장애 | 오프셋 미커밋으로 메시지가 남는다 | 백오프 무한 재시도, 처리기 실패 알림 |
-| 토픽 보관 기간 초과 | 컨슈머가 7일 넘게 멈추면 메시지가 사라질 수 있다 | 대사 RC-2가 결제 `APPROVED` + 예매 비확정 + 환불 행 없음으로 찾는다(0028) |
+| 토픽 보관 기간 초과 | 컨슈머가 7일 넘게 멈추면 메시지가 사라질 수 있다 | 대사 RC-2가 결제 `APPROVED` + 예매 비확정 + 환불 행 없음으로 찾는다(0029) |
 | 환불 행 생성 뒤 PG 호출 전 중단 | 환불 행이 `REQUESTED`로 남는다 | 환불 워커가 이어받는다 |
 
 ## 검토한 대안
 
 - **DLQ 도착 시 곧바로 `NEEDS_MANUAL_CHECK`(2026-10-27 원안)**: 처리기가 단순하고 모든 건을 사람이 본다. 일시 장애로 DLQ에 온 정상 요청까지 사람이 처리해야 하고 복구가 느리다. 사용자가 2026-10-28에 자동 복구로 바꿨다.
 - **소비자가 PG 환불까지 호출(원안)**: 환불이 빠르다. PG 지연 동안 Kafka 파티션을 잡고, 소비 재시도·DLQ 재처리·스케줄러가 서로 다른 경로로 PG를 불러 중복 호출 경로가 늘어난다.
-- **관리자 재처리 API**: 원인을 고친 뒤 DLQ 메시지를 원 토픽으로 다시 보낸다. API·권한·감사 범위가 늘어 MVP에서 제외한다. 같은 일은 Ops `dead-letter resolve --replay`가 한다(0027).
+- **관리자 재처리 API**: 원인을 고친 뒤 DLQ 메시지를 원 토픽으로 다시 보낸다. API·권한·감사 범위가 늘어 MVP에서 제외한다. 같은 일은 Ops `dead-letter resolve --replay`가 한다(0028).
 - **알림만 두고 Kafka-UI로 수동 재전송**: 구현이 가장 작다. DB에 상태가 없어 환불 누락을 찾을 기준이 없고 감사 기록도 남지 않는다.
 
 ## 트레이드오프
@@ -93,12 +93,12 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 
 - SA 변경 요청: S-5(상태 의미와 전이), S-8(DLQ 처리기와 테이블), S-19(영속화와 워커), S-24(Kafka-UI READONLY).
 - `data-model.md`의 `refund`(`source`, `pg_requested_at` 등)·`dead_letter`·`manual_action_log`, `events-and-reliability.md` 4~6절, `manual-recovery.md` 2·3절.
-- 반효승: `RefundRequested`에 `userId`·`amount`·`currency`를 넣는다(0026, S-18).
+- 반효승: `RefundRequested`에 `userId`·`amount`·`currency`를 넣는다(0027, S-18).
 - 테스트: N7, N8, N19, N20, N28, E13, FT-1·FT-4·FT-5.
 
 ## 개정 이력
 
-- 2026-10-28: 사용자 결정 2와 즉시 수정 지시를 반영해 다시 썼다. 이전 제목은 "환불 요청이 DLQ로 가면 DLQ 처리기가 운영자 확인 상태로 전환한다"였다. (1) DLQ에 온 요청을 곧바로 `NEEDS_MANUAL_CHECK`로 보내지 않고 환불 행으로 영속화해 자동 환불 워커가 복구하게 했다(M8). (2) 소비자는 PG를 부르지 않고 영속화만 한다. (3) 환불 `FAILED`를 운영자 종결로만 정의하고 PG 거절은 바로 `NEEDS_MANUAL_CHECK`로 했다(C2). (4) 원안 본문의 "`dead_letter.event_id`가 UNIQUE"를 `event_key`로 바로잡았다(L6). (5) `RefundRequested` 교차 검증과 Kafka-UI READONLY를 더했다(M7). (6) 수동 복구를 SQL 템플릿에서 Ops 명령으로 바꿨다(0027). (7) "토픽 보관 기간 초과" 잔여 위험을 대사(0028)가 맡는다.
+- 2026-10-28: 사용자 결정 2와 즉시 수정 지시를 반영해 다시 썼다. 이전 제목은 "환불 요청이 DLQ로 가면 DLQ 처리기가 운영자 확인 상태로 전환한다"였다. (1) DLQ에 온 요청을 곧바로 `NEEDS_MANUAL_CHECK`로 보내지 않고 환불 행으로 영속화해 자동 환불 워커가 복구하게 했다(M8). (2) 소비자는 PG를 부르지 않고 영속화만 한다. (3) 환불 `FAILED`를 운영자 종결로만 정의하고 PG 거절은 바로 `NEEDS_MANUAL_CHECK`로 했다(C2). (4) 원안 본문의 "`dead_letter.event_id`가 UNIQUE"를 `event_key`로 바로잡았다(L6). (5) `RefundRequested` 교차 검증과 Kafka-UI READONLY를 더했다(M7). (6) 수동 복구를 SQL 템플릿에서 Ops 명령으로 바꿨다(0028). (7) "토픽 보관 기간 초과" 잔여 위험을 대사(0029)가 맡는다.
 
 ## 면접에서 설명할 한 줄
 
