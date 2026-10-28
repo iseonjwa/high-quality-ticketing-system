@@ -41,6 +41,7 @@ class PaymentTransitionConcurrencyTest {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("DELETE FROM outbox WHERE message_key = ?", String.valueOf(RESERVATION_ID));
         jdbc.update("DELETE FROM payment_status_history WHERE payment_id IN "
                 + "(SELECT id FROM payment WHERE reservation_id = ?)", RESERVATION_ID);
         jdbc.update("DELETE FROM payment WHERE reservation_id = ?", RESERVATION_ID);

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,8 @@ class PaymentTransitionServiceTest {
     PaymentRepository payments;
     @Autowired
     PaymentStatusHistoryRepository histories;
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void 승인_전이는_상태와_PG_정보를_바꾸고_이력을_남긴다() {
@@ -71,6 +74,53 @@ class PaymentTransitionServiceTest {
 
         assertEquals(PaymentStatus.APPROVED, payments.findById(payment.getId()).orElseThrow().getStatus());
         assertEquals(1, histories.findByPaymentId(payment.getId()).size(), "영향 행이 0이면 이력도 없다(INV-5)");
+    }
+
+    @Test
+    void 승인하면_같은_트랜잭션에서_PaymentApproved를_Outbox에_쓴다() {
+        var payment = requested();
+
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-outbox", AMOUNT, StatusActor.SYSTEM);
+
+        var rows = outboxRows(payment.getReservationId());
+        assertEquals(1, rows.size());
+        assertEquals("PaymentApproved", rows.get(0).get("event_type"));
+        assertEquals("payment.result", rows.get(0).get("topic"));
+        assertEquals("PENDING", rows.get(0).get("status"));
+        assertEquals(String.valueOf(payment.getId()), payloadField(payment.getReservationId(), "paymentId"));
+        assertEquals("50000", payloadField(payment.getReservationId(), "amount"));
+        assertEquals("KRW", payloadField(payment.getReservationId(), "currency"));
+    }
+
+    @Test
+    void 거절하면_PaymentDeclined를_Outbox에_쓴다() {
+        var payment = requested();
+
+        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.TOKEN_EXPIRED, StatusActor.SYSTEM);
+
+        var rows = outboxRows(payment.getReservationId());
+        assertEquals(1, rows.size());
+        assertEquals("PaymentDeclined", rows.get(0).get("event_type"));
+        assertEquals("TOKEN_EXPIRED", payloadField(payment.getReservationId(), "reasonCode"));
+    }
+
+    @Test
+    void 영향_행이_0이면_Outbox에도_쓰지_않는다() {
+        var payment = requested();
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, StatusActor.SYSTEM);
+
+        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER, StatusActor.SYSTEM);
+
+        assertEquals(1, outboxRows(payment.getReservationId()).size(), "승인 이벤트 하나뿐이다");
+    }
+
+    @Test
+    void 확인_필요로_바뀌는_전이는_이벤트를_내지_않는다() {
+        var payment = requested();
+
+        transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM);
+
+        assertEquals(0, outboxRows(payment.getReservationId()).size());
     }
 
     @Test
@@ -155,6 +205,17 @@ class PaymentTransitionServiceTest {
 
         var history = histories.findByPaymentId(payment.getId());
         assertEquals("OPS:kim", history.get(1).getActor());
+    }
+
+    private java.util.List<java.util.Map<String, Object>> outboxRows(Long reservationId) {
+        return jdbc.queryForList("SELECT event_type, topic, status FROM outbox WHERE message_key = ? ORDER BY id",
+                String.valueOf(reservationId));
+    }
+
+    // 봉투 안 payload 객체의 필드 값을 문자열로 읽는다
+    private String payloadField(Long reservationId, String field) {
+        return jdbc.queryForObject("SELECT payload -> 'payload' ->> ? FROM outbox WHERE message_key = ?",
+                String.class, field, String.valueOf(reservationId));
     }
 
     private Payment requested() {
