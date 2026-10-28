@@ -37,6 +37,13 @@ class PaymentMigrationTest {
     }
 
     @Test
+    void Outbox_릴레이용_인덱스가_카탈로그에_존재한다() {
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox'");
+        assertTrue(indexes.containsAll(List.of("idx_outbox_pending_next_attempt", "idx_outbox_pending_message_key",
+                "idx_outbox_pending_id")), indexes.toString());
+    }
+
+    @Test
     void 예매_하나에_결제_행을_둘_만들_수_없다() {
         var reservationId = 1001L;
         insertPayment(reservationId, "REQUESTED");

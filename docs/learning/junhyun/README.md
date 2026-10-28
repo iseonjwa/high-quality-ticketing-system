@@ -18,6 +18,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-28 | Outbox·처리 이력 같은 공통 메시징 코드를 common에 둘지, 별도 모듈로 나눌지 | [qna/2026-10-28-common-messaging-placement.md](qna/2026-10-28-common-messaging-placement.md) |
 | 2026-10-27 | common 모듈은 왜 여러 개로 나뉘었고 Docker에서도 컨테이너가 여러 개인가 | [qna/2026-10-27-common-module-split-and-containers.md](qna/2026-10-27-common-module-split-and-containers.md) |
 | 2026-10-27 | Spring Boot 프로젝트의 개발·검증 스크립트는 왜 Python으로 작성했는가 | [qna/2026-10-27-spring-boot-python-scripts.md](qna/2026-10-27-spring-boot-python-scripts.md) |
 | 2026-10-27 | 현재 구현에서 어떤 부분을 먼저 보강하면 좋은가 | [qna/2026-10-27-implementation-hardening-review.md](qna/2026-10-27-implementation-hardening-review.md) |

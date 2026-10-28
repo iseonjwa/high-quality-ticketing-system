@@ -13,6 +13,11 @@ spring:
     hibernate:
       ddl-auto: validate
   kafka:
+    producer:
+      properties:
+        # config-repo/payment-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
+        delivery.timeout.ms: 10000
+        max.block.ms: 2000
     listener:
       auto-startup: false
 management:
@@ -23,6 +28,10 @@ management:
 eureka:
   client:
     enabled: false
+messaging:
+  outbox:
+    # 테스트는 릴레이를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    relay-enabled: false
 payment:
   pg:
     provider: mock

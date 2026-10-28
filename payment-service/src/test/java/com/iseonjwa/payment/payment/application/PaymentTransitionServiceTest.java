@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,12 +40,14 @@ class PaymentTransitionServiceTest {
     PaymentRepository payments;
     @Autowired
     PaymentStatusHistoryRepository histories;
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void 승인_전이는_상태와_PG_정보를_바꾸고_이력을_남긴다() {
         var payment = requested();
 
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-approve", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-approve", AMOUNT, Instant.now(),
                 StatusActor.SYSTEM));
 
         var approved = payments.findById(payment.getId()).orElseThrow();
@@ -63,7 +66,7 @@ class PaymentTransitionServiceTest {
     @Test
     void 이미_바뀐_결제를_같은_상태_기준으로_다시_전이하면_이력을_쓰지_않는다() {
         var payment = requested();
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, Instant.now(),
                 StatusActor.SYSTEM));
 
         assertFalse(transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER,
@@ -71,6 +74,53 @@ class PaymentTransitionServiceTest {
 
         assertEquals(PaymentStatus.APPROVED, payments.findById(payment.getId()).orElseThrow().getStatus());
         assertEquals(1, histories.findByPaymentId(payment.getId()).size(), "영향 행이 0이면 이력도 없다(INV-5)");
+    }
+
+    @Test
+    void 승인하면_같은_트랜잭션에서_PaymentApproved를_Outbox에_쓴다() {
+        var payment = requested();
+
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-outbox", AMOUNT, Instant.now(), StatusActor.SYSTEM);
+
+        var rows = outboxRows(payment.getReservationId());
+        assertEquals(1, rows.size());
+        assertEquals("PaymentApproved", rows.get(0).get("event_type"));
+        assertEquals("payment.result", rows.get(0).get("topic"));
+        assertEquals("PENDING", rows.get(0).get("status"));
+        assertEquals(String.valueOf(payment.getId()), payloadField(payment.getReservationId(), "paymentId"));
+        assertEquals("50000", payloadField(payment.getReservationId(), "amount"));
+        assertEquals("KRW", payloadField(payment.getReservationId(), "currency"));
+    }
+
+    @Test
+    void 거절하면_PaymentDeclined를_Outbox에_쓴다() {
+        var payment = requested();
+
+        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.TOKEN_EXPIRED, StatusActor.SYSTEM);
+
+        var rows = outboxRows(payment.getReservationId());
+        assertEquals(1, rows.size());
+        assertEquals("PaymentDeclined", rows.get(0).get("event_type"));
+        assertEquals("TOKEN_EXPIRED", payloadField(payment.getReservationId(), "reasonCode"));
+    }
+
+    @Test
+    void 영향_행이_0이면_Outbox에도_쓰지_않는다() {
+        var payment = requested();
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-first", AMOUNT, Instant.now(), StatusActor.SYSTEM);
+
+        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, DeclineReason.OTHER, StatusActor.SYSTEM);
+
+        assertEquals(1, outboxRows(payment.getReservationId()).size(), "승인 이벤트 하나뿐이다");
+    }
+
+    @Test
+    void 확인_필요로_바뀌는_전이는_이벤트를_내지_않는다() {
+        var payment = requested();
+
+        transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM);
+
+        assertEquals(0, outboxRows(payment.getReservationId()).size());
     }
 
     @Test
@@ -104,13 +154,13 @@ class PaymentTransitionServiceTest {
         var payment = requested();
 
         assertTrue(transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-mismatch",
-                BigDecimal.valueOf(49000), StatusActor.SYSTEM));
+                BigDecimal.valueOf(49000), Instant.parse("2026-11-02T11:00:01Z"), StatusActor.SYSTEM));
 
         var checked = payments.findById(payment.getId()).orElseThrow();
         assertEquals(PaymentStatus.NEEDS_MANUAL_CHECK, checked.getStatus());
         assertEquals("pg-tx-mismatch", checked.getPgTxId());
         assertEquals(0, BigDecimal.valueOf(49000).compareTo(checked.getPgApprovedAmount()));
-        assertNotNull(checked.getApprovedAt());
+        assertEquals(Instant.parse("2026-11-02T11:00:01Z"), checked.getApprovedAt(), "PG가 승인한 시각을 저장한다");
     }
 
     @Test
@@ -134,7 +184,7 @@ class PaymentTransitionServiceTest {
                 StatusActor.SYSTEM));
 
         assertThrows(IllegalStateException.class, () -> transitions.approve(payment.getId(), PaymentStatus.DECLINED,
-                "pg-tx-late", AMOUNT, StatusActor.SYSTEM));
+                "pg-tx-late", AMOUNT, Instant.now(), StatusActor.SYSTEM));
     }
 
     @Test
@@ -142,7 +192,7 @@ class PaymentTransitionServiceTest {
         var payment = requested();
 
         assertThrows(DataIntegrityViolationException.class, () -> transitions.approve(payment.getId(),
-                PaymentStatus.REQUESTED, "pg-tx-wrong", BigDecimal.valueOf(49000), StatusActor.SYSTEM));
+                PaymentStatus.REQUESTED, "pg-tx-wrong", BigDecimal.valueOf(49000), Instant.now(), StatusActor.SYSTEM));
     }
 
     @Test
@@ -150,11 +200,22 @@ class PaymentTransitionServiceTest {
         var payment = requested();
         assertTrue(transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM));
 
-        assertTrue(transitions.approve(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK, "pg-tx-ops", AMOUNT,
+        assertTrue(transitions.approve(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK, "pg-tx-ops", AMOUNT, Instant.now(),
                 StatusActor.ops("kim")));
 
         var history = histories.findByPaymentId(payment.getId());
         assertEquals("OPS:kim", history.get(1).getActor());
+    }
+
+    private java.util.List<java.util.Map<String, Object>> outboxRows(Long reservationId) {
+        return jdbc.queryForList("SELECT event_type, topic, status FROM outbox WHERE message_key = ? ORDER BY id",
+                String.valueOf(reservationId));
+    }
+
+    // 봉투 안 payload 객체의 필드 값을 문자열로 읽는다
+    private String payloadField(Long reservationId, String field) {
+        return jdbc.queryForObject("SELECT payload -> 'payload' ->> ? FROM outbox WHERE message_key = ?",
+                String.class, field, String.valueOf(reservationId));
     }
 
     private Payment requested() {

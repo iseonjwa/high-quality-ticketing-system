@@ -44,6 +44,7 @@
 |---|---|---|---|---|---|---|
 | 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-batch-sync.md) |
 | 2026-10-28 | 역할 변경 확정: 결제 담당이 Mock PG까지 맡고 지원 불필요, SA·마일스톤 담당 표기 정정 | kangmin (결제 담당 확인 전달) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-role-change-confirmed.md) |
+| 2026-10-28 | Outbox·처리 이력 코드를 payment-service에 둔 AI 판단을 되돌려 common 모듈로 옮기기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-10-28-outbox-code-location.md) |
 | 2026-10-27 | 결제 상세 설계 빈틈 11개 결정과 Opus 검토 반영(10/28 갱신: 예매당 결제 하나, 환불 자동 복구, Ops 명령, 대사, 불변 조건) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-10-27-payment-design-gaps.md) |
 | 2026-10-27 | AI 설계 검증 #7: 계층형 아키텍처 제안 7건 부분 수용, 응답 레코드 분리 거부 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-27-layered-architecture-check7.md) |
 | 2026-10-27 | 대기열 입장 토큰 발급: 발급 기록(issued)을 남기는 B안 선택, 입장 처리 중복 방지·sub 확인 보강 | youngeun | Claude (Cowork) | 수용 | 후보 | [기록](youngeun/2026-10-27-queue-admission-guards.md) |

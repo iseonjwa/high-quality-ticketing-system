@@ -10,8 +10,22 @@ spring:
       maximum-pool-size: 20
       connection-timeout: 1000
   kafka:
+    producer:
+      properties:
+        # Note: Outbox 릴레이가 브로커 확인을 기다리는 시간의 기준이다. 임대(30초)는 이 값의 2배 이상으로 둔다
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        # 메타데이터를 못 받을 때 send 호출이 막히는 시간. 릴레이의 실행 시한(12초) 안에 들어오게 짧게 둔다
+        max.block.ms: 2000
+        linger.ms: 0
     consumer:
       group-id: payment-service.bootstrap
+messaging:
+  outbox:
+    # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
+    batch-size: 20
+    lease: 30s
+    send-timeout: 12s
 payment:
   token:
     # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
