@@ -1,13 +1,13 @@
 # 결제 데이터 모델
 
-payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다(현재 비어 있음). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
+payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
 
 ## 1. 마이그레이션 순서
 
 | 버전 | 내용 | 마일스톤 |
 |---|---|---|
-| `V1__payment_core.sql` | `payment`, `payment_status_history`(append-only 트리거), `idempotency_record`, `outbox`, `processed_event` | M2 |
-| `V2__refund_and_recovery.sql` | `refund`, `dead_letter`, `manual_action_log`(append-only 트리거), `reconciliation_mismatch` | M3 |
+| `V1__payment_core.sql` | `payment`, `payment_status_history`, `idempotency_record`, `outbox`, `processed_event` | M2 |
+| `V2__refund_and_recovery.sql` | `refund`, `dead_letter`, `manual_action_log`, `reconciliation_mismatch`, `reject_modification()`과 append-only 트리거(`payment_status_history`·`manual_action_log`) | M3 |
 | `V3__billing_key.sql` | `billing_key` | M4 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).

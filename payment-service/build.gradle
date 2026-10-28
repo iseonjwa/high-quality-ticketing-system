@@ -4,6 +4,7 @@ dependencies {
     implementation 'org.springframework.retry:spring-retry'
     implementation 'org.springframework:spring-aspects'
     implementation project(':common')
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -11,4 +12,10 @@ dependencies {
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
+}
+
+// Note: 결제 통합 테스트는 compose.test.yml의 PostgreSQL(payment_test)을 쓴다.
+// ./gradlew build나 IDE의 Gradle 테스트 실행만으로도 테스트 인프라가 먼저 뜨게 한다(Docker 필요)
+tasks.named('test') {
+    dependsOn ':prepareTestInfra'
 }

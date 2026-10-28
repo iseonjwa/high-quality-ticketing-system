@@ -58,6 +58,8 @@ class LocalEnvironmentTest {
         assertTrue(result.get("JWT_ACCESS_SECRET").length() >= 32);
         assertTrue(result.get("JWT_REFRESH_SECRET").length() >= 32);
         assertFalse(result.get("JWT_ACCESS_SECRET").equals(result.get("JWT_REFRESH_SECRET")), "서명 키는 분리해야 한다");
+        assertTrue(result.get("PAYMENT_TOKEN_SECRET").matches("[0-9a-f]{64}"), "결제 토큰 키는 소문자 16진수 64자다");
+        assertFalse(result.get("PAYMENT_TOKEN_SECRET").equals(result.get("JWT_ACCESS_SECRET")), "서명 키는 분리해야 한다");
     }
 
     @Test

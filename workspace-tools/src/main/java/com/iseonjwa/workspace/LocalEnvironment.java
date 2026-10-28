@@ -21,7 +21,7 @@ import java.util.Set;
 
 public final class LocalEnvironment {
     public static final List<String> KEYS = List.of("DB_USER", "DB_PASSWORD", "JWT_ACCESS_SECRET",
-            "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
+            "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private LocalEnvironment() {}
@@ -69,7 +69,7 @@ public final class LocalEnvironment {
             var value = switch (key) {
                 case "DB_USER" -> "iseonjwa";
                 case "ADMIN_EMAIL" -> "admin@iseonjwa.local";
-                case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET" -> randomHex(random, 32);
+                case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET" -> randomHex(random, 32);
                 case "DB_PASSWORD" -> randomHex(random, 24);
                 default -> randomHex(random, 16);
             };
