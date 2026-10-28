@@ -19,7 +19,7 @@ SA MASTER v3.2는 대기열을 Redis 키 세 개(`seq`, `waiting`, `admitted`)�
 1. Gateway의 입장 토큰 검증에 **입장 토큰 `sub` = JWT 사용자 ID** 확인을 추가한다. 다르면 403 `ENTRY_TOKEN_INVALID`.
 2. Redis 키 **`queue:{scheduleId}:lastTick`**을 둔다. 입장 처리 Lua가 Redis `TIME`의 현재 초와 비교해 이미 처리한 초면 건너뛴다.
 3. 입장 처리는 **`admitted = min(admitted + N, seq)`**로 올린다.
-4. Redis 키 **`queue:{scheduleId}:issued`**(ZSET, 점수 = 발급 시각)를 둔다. 토큰 발급 시 `waiting`에서 빼고 `issued`에 기록한다. 재조회하면 같은 발급 시각으로 토큰을 다시 응답한다(만료 = 발급 시각 + T). T가 지난 기록은 정리하고, 그 뒤 진입하면 새 seq로 맨 뒤에 선다.
+4. Redis 키 **`queue:{scheduleId}:issued`**(ZSET, 점수 = 발급 시각)를 둔다. 토큰 발급 시 `waiting`에서 빼고 `issued`에 기록한다. 재조회하면 같은 발급 시각으로 토큰을 다시 응답한다(만료 = 발급 시각 + T). T가 지난 기록은 정리하고, 그 뒤 진입하면 새 seq로 맨 뒤에 선다. 대기열 진입 Lua와 순번 조회 Lua는 모두 `issued`를 먼저 확인한다. T 안의 기록이 있으면 대기열 진입 요청에도 새 seq를 발급하지 않고 같은 발급 시각으로 토큰을 다시 응답한다. 토큰을 받으면 `waiting`에서 빠지므로, 이 확인이 없으면 토큰이 유효한 동안 대기열 진입 API를 다시 불렀을 때 새 seq가 생겨 한 사람이 입장 상태와 대기 자리를 동시에 갖게 된다.
 
 ## 검토한 대안
 
