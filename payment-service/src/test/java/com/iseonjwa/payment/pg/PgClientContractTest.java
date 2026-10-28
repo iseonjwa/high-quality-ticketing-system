@@ -170,6 +170,7 @@ public abstract class PgClientContractTest {
         var first = assertInstanceOf(Refunded.class, client().refund(refundCommand(approved, refundId)));
         var second = assertInstanceOf(Refunded.class, client().refund(refundCommand(approved, refundId)));
 
+        assertFalse(first.refundRef().isBlank());
         assertEquals(first.refundRef(), second.refundRef());
     }
 
@@ -182,23 +183,74 @@ public abstract class PgClientContractTest {
     }
 
     @Test
-    void 승인되지_않은_주문은_늦은_승인을_막고_이후_승인을_거부한다() {
+    void 승인되지_않은_주문은_늦은_승인을_막고_이후에도_승인으로_조회되지_않는다() {
         var order = newOrder();
 
         assertInstanceOf(Prevented.class, client().preventLateApproval(order));
 
-        var declined = assertInstanceOf(Declined.class, client().approve(approveCommand(order)));
-        assertEquals(DeclineReason.NOT_SENT, declined.reason());
+        assertFalse(client().findPayment(order) instanceof Approved);
     }
 
     @Test
     void 이미_승인된_주문은_늦은_승인_방지가_승인_사실을_알린다() {
         var order = newOrder();
-        client().approve(approveCommand(order));
+        var approved = assertInstanceOf(Approved.class, client().approve(approveCommand(order)));
 
         var already = assertInstanceOf(AlreadyApproved.class, client().preventLateApproval(order));
 
-        assertEquals(0, AMOUNT.compareTo(already.amount()));
+        assertEquals(approved.paymentRef(), already.paymentRef());
+        assertTrue(already.matches(AMOUNT, KRW));
+    }
+
+    @Test
+    void 처리_중인_승인의_늦은_승인_방지가_Prevented를_줬다면_뒤늦게_승인되지_않는다() {
+        var order = newOrder();
+        scenario().nextApprovalIsSlow();
+        assertUnknown(UnknownCause.TIMEOUT, client().approve(approveCommand(order)));
+
+        var prevention = client().preventLateApproval(order);
+        scenario().awaitPendingEffects();
+        var found = client().findPayment(order);
+
+        if (prevention instanceof Prevented) {
+            assertFalse(found instanceof Approved, "Prevented를 준 뒤에 승인이 저장됐다");
+        } else if (prevention instanceof AlreadyApproved) {
+            assertInstanceOf(Approved.class, found);
+        } else {
+            // 보장할 수 없으면 Unknown이어야 한다. 서비스는 이때 DECLINED로 닫지 않는다
+            assertInstanceOf(Unknown.class, prevention);
+        }
+    }
+
+    @Test
+    void PG가_5xx를_주면_거절이_아니라_PG_ERROR인_Unknown이다() {
+        scenario().nextApprovalIsServerError();
+
+        assertUnknown(UnknownCause.PG_ERROR, client().approve(approveCommand(newOrder())));
+    }
+
+    @Test
+    void 정수가_아닌_금액은_원화_금액으로_인정하지_않고_PG_ERROR인_Unknown이다() {
+        scenario().nextApprovalHasFractionalAmount();
+
+        assertUnknown(UnknownCause.PG_ERROR, client().approve(approveCommand(newOrder())));
+    }
+
+    @Test
+    void 거절된_주문을_조회하면_Declined다() {
+        var order = newOrder();
+        scenario().nextApprovalIsDeclined();
+        client().approve(approveCommand(order));
+
+        assertInstanceOf(Declined.class, client().findPayment(order));
+    }
+
+    @Test
+    void 환불_응답에_금액과_통화가_없으면_PG_ERROR인_Unknown이다() {
+        var approved = approve();
+        scenario().nextRefundOmitsAmountAndCurrency();
+
+        assertUnknown(UnknownCause.PG_ERROR, client().refund(refundCommand(approved, newRefund())));
     }
 
     protected final PgOrderId newOrder() {

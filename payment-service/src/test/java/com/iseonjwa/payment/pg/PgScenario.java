@@ -15,6 +15,15 @@ public interface PgScenario {
 
     void nextApprovalIsBadRequest();
 
+    void nextApprovalIsServerError();
+
+    void nextApprovalHasFractionalAmount();
+
+    void nextRefundOmitsAmountAndCurrency();
+
+    // 응답 시간이 지나 클라이언트가 포기한 뒤에도 PG 쪽에서 진행 중이던 처리가 끝날 때까지 기다린다
+    void awaitPendingEffects();
+
     void nextApprovalOmitsAmountAndCurrency();
 
     void nextApprovalUsesDifferentAmount();

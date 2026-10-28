@@ -20,7 +20,18 @@ class PgConfigurationTest {
     }
 
     @Test
-    void 아직_없는_provider를_고르면_조용히_넘기지_않고_PgClient_빈이_없다() {
+    void provider가_없으면_기동이_실패한다() {
+        runner.run(context -> assertNotNull(context.getStartupFailure()));
+    }
+
+    @Test
+    void mock인데_base_url이_없으면_기동이_실패한다() {
+        runner.withPropertyValues("payment.pg.provider=mock")
+                .run(context -> assertNotNull(context.getStartupFailure()));
+    }
+
+    @Test
+    void 아직_구현하지_않은_toss를_고르면_PgClient_빈이_없다() {
         runner.withPropertyValues("payment.pg.provider=toss")
                 .run(context -> assertTrue(context.getBeansOfType(PgClient.class).isEmpty()));
     }
