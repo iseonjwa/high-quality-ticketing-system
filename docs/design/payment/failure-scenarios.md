@@ -25,11 +25,11 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N4 | `pg-approve` CB OPEN 중 같은 키·새 키 재요청 | 기존 상태로 응답(허가 없이, PG 호출 없음) | 1 | 0018, 0019 | I |
 | N5 | 허가 획득 뒤 TX1 실패(DB 오류) | 허가 반환, 결제 행 없음, 503 `SERVICE_UNAVAILABLE` | 5 | 0018 | U, I |
 | N6 | `UNKNOWN` 중 새 키 재요청 | 202 + 기존 `paymentId`, ALIAS 저장. 금액·수단·통화가 다르면 409(`Location` 없음). `NEEDS_MANUAL_CHECK`는 409 + `Location` | 1 | 0019 | I |
-| N7 | `RefundRequested`가 DB 장애로 3회 실패해 DLQ 도착 | DLQ 처리기가 환불 `REQUESTED`로 영속화(`dead_letter` `RESOLVED(AUTO_PERSISTED)`), 환불 워커가 환불, `PaymentRefunded`. 같은 DLQ 메시지 재전달에도 환불 행·PG 환불 1건 | 2, 4 | 0020 | I |
+| N7 | `RefundRequested`가 DB 장애로 3회 실패해 DLQ 도착 | DLQ 처리기가 환불 `REQUESTED`로 영속화(`dead_letters` `RESOLVED(AUTO_PERSISTED)`), 환불 워커가 환불, `PaymentRefunded`. 같은 DLQ 메시지 재전달에도 환불 행·PG 환불 1건 | 2, 4 | 0020 | I |
 | N8 | DLQ 처리기의 DB 기록 실패 | 오프셋 미커밋, 백오프 재시도, DB 복구 뒤 영속화와 환불 완료, 메시지 유실 없음 | 4 | 0020 | I |
 | N9 | 다른 사용자 결제 조회 | 404 `NOT_FOUND`(존재하지 않는 ID와 같은 본문), 내부 WARN 로그 | 9 | 0021 | I |
 | N10 | Kafka 장애 중 결제 승인 | 승인은 성공하고 Outbox가 쌓이며 복구 뒤 자동 발행. 영구 오류만 `FAILED` | 5 | 0022 | I |
-| N11 | `processed_event` 삭제 뒤 이벤트 재전달 | 조건부 UPDATE·UNIQUE·`INSERT … SELECT … ON CONFLICT`·재호출 전 조회로 중복 결제·환불 없음 | 1, 2 | 0022 | I |
+| N11 | `processed_events` 삭제 뒤 이벤트 재전달 | 조건부 UPDATE·UNIQUE·`INSERT … SELECT … ON CONFLICT`·재호출 전 조회로 중복 결제·환불 없음 | 1, 2 | 0022 | I |
 | N12 | `PAYMENT_TOKEN_SECRET` 없음·형식(64자 소문자 16진수) 오류 | 서비스 기동 실패(키 값은 메시지에 없음) | 9 | 0025 | U |
 | N13 | 같은 예매에 다른 키 2건 동시 요청 | TX1 `reservation_id` 유니크 충돌, 결제 1건. 진 쪽은 재조회해 202 + ALIAS(500 아님) | 1 | 0026, 0017 | I |
 | N14 | 같은 키 2건 동시 요청 | 결제 1건. 진 쪽은 멱등 기록 재조회로 202 | 1 | 0017 | I |
@@ -39,21 +39,21 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N18 | `next_check_at` 없이 `REQUESTED` 저장 시도 | CHECK 위반. 정상 저장은 10초 뒤 스케줄러가 집음 | 4 | data-model.md | I |
 | N19 | 환불 응답 유실 뒤 PG에 환불 기록 없음(`NotFound`) | 같은 `pg_refund_id`로 재호출, PG 환불 1회 | 2, 4 | 0020, 0023 | I |
 | N20 | PG가 환불을 명확히 거절 | 환불 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`(`FAILED` 아님), 알림 | 4 | 0020 | I |
-| N21 | Ops `payment resolve`로 NMC 결제 확인 | PG 승인·금액 일치면 `APPROVED` + `PaymentApproved` + 이력(actor OPS) + `manual_action_log`. PG가 `Unknown`이면 거부·상태 유지. `manual_action_log`·이력의 UPDATE·DELETE는 트리거가 거부 | 7 | 0028 | I |
+| N21 | Ops `payment resolve`로 NMC 결제 확인 | PG 승인·금액 일치면 `APPROVED` + `PaymentApproved` + 이력(actor OPS) + `manual_action_logs`. PG가 `Unknown`이면 거부·상태 유지. `manual_action_logs`·이력의 UPDATE·DELETE는 트리거가 거부 | 7 | 0028 | I |
 | N22 | 예매 계약 | `CONFIRMED` + 같은 paymentId 재전달은 변화 없음. 다른 paymentId는 `RefundRequested(DUPLICATE_APPROVAL)`. `CONFIRMED` + `PaymentRefunded`는 좌석 유지·이상 격리·알림. 사용자·금액·통화 불일치 승인은 확정하지 않음 | 2, 3 | 0027 | I, S(반효승) |
 | N23 | `RefundRequested`가 발행되지 않음(Reservation 소비 실패 모의) | 허용 지연 뒤 대사 RC-2 기록·알림. 자동 수정 없음 | 4, 6 | 0029 | I, S |
 | N24 | 새 키 ALIAS | 같은 새 키 재요청은 PG 호출 0회로 현재 상태. 만료 토큰 + 새 키는 기존 결제가 있으면 조회만, 없으면 403 | 1 | 0019 | I |
 | N25 | 그룹 분리 | `pg-approve` OPEN 중에도 재확인·환불 진행, `pg-recovery` OPEN 중에도 신규 승인 진행. 복구 CB OPEN 동안 시도 횟수 불변 | 4 | 0018 | I |
 | N26 | 재확인 중 PG 지연 | Outbox 릴레이·Gauge 갱신이 늦어지지 않음(실행기 분리) | 5 | 0022 | I |
 | N27 | Kafka-UI로 메시지 발행 시도 | READONLY로 거부 | 9 | 0020, S-24 | S |
-| N28 | `RefundRequested` 교차 검증 실패(결제 없음, 예매·사용자·금액 불일치, 미지정 사유) | 재시도 없이 DLQ, `dead_letter` `OPEN`, PG 호출 0회, 즉시 알림 | 3, 4, 9 | 0020 | I |
+| N28 | `RefundRequested` 교차 검증 실패(결제 없음, 예매·사용자·금액 불일치, 미지정 사유) | 재시도 없이 DLQ, `dead_letters` `OPEN`, PG 호출 0회, 즉시 알림 | 3, 4, 9 | 0020 | I |
 | N29 | Gateway 504 뒤 같은 키 재시도 | 서버 처리 계속, PG 승인 1회, 재시도는 결과 응답 | 1 | 0018 | S |
 | N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림 | 6, 7 | 0028, 0029 | I |
 | N31 | 긴급 콘솔 환불 뒤 `refund resolve` | PG API로 환불 확인되면 `REFUNDED` + `PaymentRefunded` + `external_ref`. 확인 불가면 거부·NMC 유지 | 2, 7 | 0028 | I |
 | N32 | Ops 명령 통제 | 승인자 없음·실행자와 같음·허용 목록 밖·계획 해시 불일치는 거부(REJECTED 기록) | 7, 9 | 0028 | U, I |
 
 ## 3. 시나리오별 확인 규칙
-- 장애 주입 시나리오는 DB 상태, Kafka 토픽, 지표(NMC 건수, Outbox 최고령, `dead_letter` OPEN, 대사 불일치)를 함께 확인한다.
+- 장애 주입 시나리오는 DB 상태, Kafka 토픽, 지표(NMC 건수, Outbox 최고령, `dead_letters` OPEN, 대사 불일치)를 함께 확인한다.
 - 응답 동일성(N9)은 `traceId`를 제외한 본문이 같은지 비교한다.
 - PG 어댑터의 공통 계약 테스트 목록은 [pg-integration.md](pg-integration.md) 6절에 있다.
 - 구현 후 실제로 실행한 시나리오와 결과는 PR 본문에 기록한다.
@@ -66,13 +66,13 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 |---|---|---|
 | V1 결제 승인 중복 없음 | 결제 DB `reservation_id`별 행 수, Mock PG 원장의 주문별 승인 수, PG 승인 주문 집합과 `pg_tx_id`가 있는 결제 집합 | 예매당 결제 ≤ 1, 주문당 승인 ≤ 1, PG에만 있는 승인 0 |
 | V2 환불 중복 없음 | `payment_id`별 환불 행 수, Mock PG 원장의 결제별 환불 수·금액 | 결제당 환불 ≤ 1, PG 환불 합계 ≤ 승인 금액 |
-| V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatch` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letter` OPEN)이고 그 지표가 0보다 크다 |
+| V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
 
 Mock PG 원장 조회는 테스트 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28).
 
 | # | 장애 유형 | 주입 지점과 기대 | 관련 |
 |---|---|---|---|
-| FT-1 | 메시지 중복 | (a) `PaymentApproved`를 같은 eventId·새 eventId로 재발행: 확정 1회, 환불 없음. (b) `RefundRequested` 3중 발행·DLQ 재전달: 환불 1건. (c) Outbox 전송 확인 전 릴레이 중단으로 중복 전송: 소비 1회. (d) `processed_event` 정리 뒤 재전달 | N7, N11, N22 |
+| FT-1 | 메시지 중복 | (a) `PaymentApproved`를 같은 eventId·새 eventId로 재발행: 확정 1회, 환불 없음. (b) `RefundRequested` 3중 발행·DLQ 재전달: 환불 1건. (c) Outbox 전송 확인 전 릴레이 중단으로 중복 전송: 소비 1회. (d) `processed_events` 정리 뒤 재전달 | N7, N11, N22 |
 | FT-2 | PG 응답 유실 | (a) 승인 `DROP_RESPONSE`: `UNKNOWN` → 조회로 `APPROVED`, 승인 1회. (b) 환불 응답 유실: `UNKNOWN` → `findRefund`로 `REFUNDED`. (c) 환불이 PG에 도달하지 않음: `NotFound` → 같은 키 재호출. (d) PG 미도달 승인: `NotFound` → 늦은 승인 방지 → `DECLINED(NOT_SENT)` | E9, N19 |
 | FT-3 | 서버 재시작 | `payment-service` 강제 종료 시점: (a) TX1 커밋 뒤 PG 호출 전, (b) PG 호출 중, (c) PG 승인 뒤 TX2 전, (d) 환불 워커의 claim 뒤 PG 호출 중, (e) Outbox 전송 중, (f) DLQ 처리기 트랜잭션 중. 재기동 뒤 모두 확정되거나 명시적 미해결 | E12, N3, N17 |
 | FT-4 | DB 일시 장애 | `postgres-payment` 일시 정지 시점: (a) TX1: 503, 행 없음, 같은 요청 재시도 성공. (b) TX2: 202, DB 복구 뒤 재확인으로 확정. (c) `payment.command` 소비 중: 재시도 뒤 DLQ, 처리기가 DB 복구까지 대기 후 영속화. (d) 환불 결과 기록 중: 임대 만료 뒤 조회로 확정, PG 환불 1회 | N5, N7, N8 |

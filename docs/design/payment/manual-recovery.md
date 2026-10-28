@@ -1,6 +1,6 @@
 # 수동 복구 절차
 
-알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letter`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). 구현 전이며 실제 환경에서 실행해 확인하지 않았다.
+알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letters`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). 구현 전이며 실제 환경에서 실행해 확인하지 않았다.
 
 ## 1. 원칙과 Ops 명령
 
@@ -13,12 +13,12 @@
 
 | 명령 | 대상 | 하는 일 | PG | 4-eyes |
 |---|---|---|---|---|
-| `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letter`, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조 | 조회(선택) | 아니오 |
+| `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letters`, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조 | 조회(선택) | 아니오 |
 | `payment resolve` | 결제 `NEEDS_MANUAL_CHECK` | PG 근거로 `APPROVED`(승인, 금액 일치), `DECLINED`(거절, 또는 미발견 + 늦은 승인 방지 성공), 환불 시작(승인, 금액 불일치) 중 하나 | 조회, 늦은 승인 방지 | 예 |
 | `refund retry` | 환불 `NEEDS_MANUAL_CHECK` | 원인이 풀린 뒤 `REQUESTED`로 되돌려 자동 환불 워커가 이어받게 함(워커는 조회부터 한다) | 조회 | 예 |
 | `refund resolve` | 환불 `NEEDS_MANUAL_CHECK` | PG가 환불 완료면 `REFUNDED`. PG가 거절이고 `--close-failed --external-ref`가 있으면 `FAILED` | 조회 | 예 |
 | `outbox requeue` | Outbox `FAILED` | 원인을 고친 뒤 `PENDING`으로 되돌림 | 없음 | 아니오 |
-| `dead-letter resolve` | `dead_letter` `OPEN` | `--replay`: 원인을 고친 뒤 DLQ 처리기와 같은 검증·영속화를 다시 실행. `--no-obligation`: 환불 의무가 없음을 확인하고 닫음 | 없음 | 예 |
+| `dead-letter resolve` | `dead_letters` `OPEN` | `--replay`: 원인을 고친 뒤 DLQ 처리기와 같은 검증·영속화를 다시 실행. `--no-obligation`: 환불 의무가 없음을 확인하고 닫음 | 없음 | 예 |
 
 전이별로 함께 쓰는 것(모두 한 트랜잭션, 조건부 UPDATE가 1행일 때만):
 
@@ -31,10 +31,10 @@
 | `refund resolve` → 완료 | 환불 NMC → `REFUNDED`, 결제 → `REFUNDED` | `PaymentRefunded` | 환불·결제 | 같음 |
 | `refund resolve` → 종결 | 환불 NMC → `FAILED` | 없음 | 환불 | APPLIED + 외부 조치 참조 |
 | `outbox requeue` | Outbox `FAILED` → `PENDING` | 기존 이벤트 재발행 | 없음 | APPLIED |
-| `dead-letter resolve --replay` | `dead_letter` → `RESOLVED(REPLAYED)`, 환불 `REQUESTED` 생성 | 없음 | 환불 | APPLIED |
-| `dead-letter resolve --no-obligation` | `dead_letter` → `RESOLVED(NO_OBLIGATION)` | 없음 | 없음 | APPLIED + 근거 메모 |
+| `dead-letter resolve --replay` | `dead_letters` → `RESOLVED(REPLAYED)`, 환불 `REQUESTED` 생성 | 없음 | 환불 | APPLIED |
+| `dead-letter resolve --no-obligation` | `dead_letters` → `RESOLVED(NO_OBLIGATION)` | 없음 | 없음 | APPLIED + 근거 메모 |
 
-거부(근거 불일치, 0행, 4-eyes 미충족, 해시 불일치)는 `manual_action_log`에 REJECTED로만 남는다.
+거부(근거 불일치, 0행, 4-eyes 미충족, 해시 불일치)는 `manual_action_logs`에 REJECTED로만 남는다.
 
 ## 2. NEEDS_MANUAL_CHECK (결제·환불, 금액 불일치 포함)
 
@@ -50,14 +50,14 @@
    - `REFUND_AMOUNT_MISMATCH`: PG의 실제 환불 금액을 확인하고 담당자와 원인을 찾은 뒤 위 중 하나로 처리한다.
 4. 처리 뒤 다음 대사에서 해당 예매의 불일치가 없어졌는지 확인한다.
 
-## 3. dead_letter OPEN·DLQ 처리기 실패
+## 3. dead_letters OPEN·DLQ 처리기 실패
 
-1. `inspect`로 `dead_letter`의 사유(검증 실패 항목, 역직렬화 실패)와 원문을 본다.
+1. `inspect`로 `dead_letters`의 사유(검증 실패 항목, 역직렬화 실패)와 원문을 본다.
 2. DB 장애로 처리기가 재시도 중이면 DB를 복구한다. 처리기는 오프셋을 커밋하지 않고 기다렸다가 이어서 처리한다.
 3. 검증 실패 건은 위조·버그·데이터 불일치를 가린다. 결제와 예매를 함께 확인한다.
    - 정당한 환불 요청인데 데이터·코드 문제로 실패했으면 원인을 고친 뒤 `dead-letter resolve --replay`.
    - 환불 의무가 없음이 확인되면(이미 환불됨, 존재하지 않는 결제 등) `dead-letter resolve --no-obligation`과 근거 메모. 실제 의무가 남아 있었다면 대사 RC-2가 다시 찾는다.
-4. `.dlq` 토픽 보관 기간(7일`[가정]`) 안에 처리한다. `dead_letter`에 원문이 있으므로 토픽이 지워져도 근거는 남는다.
+4. `.dlq` 토픽 보관 기간(7일`[가정]`) 안에 처리한다. `dead_letters`에 원문이 있으므로 토픽이 지워져도 근거는 남는다.
 
 ## 4. Outbox FAILED·발행 지연
 
@@ -76,7 +76,7 @@
 | 규칙 | 먼저 볼 것 | 복구 |
 |---|---|---|
 | RC-1 승인 미확정 | Reservation의 `payment.result` 소비 랙·DLQ, 만료 스케줄러 | 반효승과 Reservation 쪽 처리. 예매가 만료되면 RC-2 경로로 환불된다 |
-| RC-2 환불 의무 미등록 | Reservation의 `RefundRequested` 발행 여부, Payment `dead_letter` | 원인 쪽에서 `RefundRequested`를 다시 내게 한다. Payment 쪽 원인이면 `dead-letter resolve --replay` |
+| RC-2 환불 의무 미등록 | Reservation의 `RefundRequested` 발행 여부, Payment `dead_letters` | 원인 쪽에서 `RefundRequested`를 다시 내게 한다. Payment 쪽 원인이면 `dead-letter resolve --replay` |
 | RC-3 환불 뒤 확정 유지 | 예매 취소 근거, Reservation의 이상 격리 기록(0027) | 반효승과 확인. 자동 좌석 해제 금지 |
 | RC-4 미승인 확정 | 예매의 `payment_id`, 결제 존재 여부 | 반효승과 확인(위조·버그 의심) |
 | RC-5 금액, RC-6 사용자 불일치 | 결제·예매·토큰 발급 기록 | 원인 확인 뒤 담당자와 처리 |
@@ -107,4 +107,4 @@
 1. 새 `PAYMENT_TOKEN_SECRET`(32바이트 난수의 16진수 64자)을 만들어 Reservation과 Payment에만 주입한다([0025](../../decisions/0025-payment-token-secret-injection.md)).
 2. 두 서비스를 함께 재배포하면 이전 키로 서명한 토큰은 검증에 실패한다(결제 토큰 수명은 최대 4분 50초). 진행 중인 사용자는 새 토큰을 받아 다시 결제한다.
 3. 유출 시점 이후의 승인 요청과 비정상 결제를 조회해 확인하고, 환불이 필요하면 2절 절차를 따른다.
-4. 키는 로그·저장소에 남기지 않고, 회전 사실과 처리자는 `manual_action_log`가 아닌 운영 기록에 남긴다.
+4. 키는 로그·저장소에 남기지 않고, 회전 사실과 처리자는 `manual_action_logs`가 아닌 운영 기록에 남긴다.

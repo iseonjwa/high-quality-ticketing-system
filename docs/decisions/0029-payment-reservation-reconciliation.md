@@ -38,7 +38,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
    | RC-8 | 최근 24시간 이력의 확정 전이(→ `APPROVED`·`DECLINED`·`REFUNDED`)에 대응하는 Outbox 행이 없음 | 이벤트 없는 확정 |
 
    RC-7·RC-8은 Payment DB만으로 판단한다. 환불 행이 있으면(`FAILED` 포함) 의무가 추적 중이라 RC-2가 아니다.
-5. **기록과 알림만**: 불일치는 `reconciliation_mismatch`에 `OPEN`으로 기록하고(같은 불일치는 행 하나를 이어 갱신), 다음 대사에서 맞으면 `RESOLVED`로 닫는다. 결제·예매 데이터는 고치지 않는다. `reconciliation_mismatch_open{rule}` Gauge가 0보다 크면 즉시 알림이고, 대사 작업의 마지막 성공이 15분을 넘으면 경고다([observability.md](../design/payment/observability.md)). 복구는 [manual-recovery.md](../design/payment/manual-recovery.md) 6절과 Ops 명령(0028)으로 한다.
+5. **기록과 알림만**: 불일치는 `reconciliation_mismatches`에 `OPEN`으로 기록하고(같은 불일치는 행 하나를 이어 갱신), 다음 대사에서 맞으면 `RESOLVED`로 닫는다. 결제·예매 데이터는 고치지 않는다. `reconciliation_mismatch_open{rule}` Gauge가 0보다 크면 즉시 알림이고, 대사 작업의 마지막 성공이 15분을 넘으면 경고다([observability.md](../design/payment/observability.md)). 복구는 [manual-recovery.md](../design/payment/manual-recovery.md) 6절과 Ops 명령(0028)으로 한다.
 
 ## 검토한 대안
 
@@ -59,7 +59,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 ## 결과
 
 - 반효승: 내부 조회 API 두 개(S-23). 이 결정은 반효승 합의 전까지 제안이다.
-- `data-model.md`의 `reconciliation_mismatch`, `outbox`의 `INDEX(created_at)`, `payment_status_history`의 `target_type`.
+- `data-model.md`의 `reconciliation_mismatches`, `outbox_events`의 `INDEX(created_at)`, `payment_status_histories`의 `target_type`.
 - 0020의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
 - 테스트: N23, N30, FT-1~FT-5의 V3(테스트 프로필은 L을 5초로 줄이고 대사를 강제 실행).
 

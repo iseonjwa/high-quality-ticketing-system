@@ -35,7 +35,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 |---|---|---|---|
 | 즉시 확인 | `NEEDS_MANUAL_CHECK` 발생(결제·환불) | 건수 > 0 | [manual-recovery.md](manual-recovery.md) 2절 |
 | 즉시 확인 | PG 승인·환불 금액 불일치 | `payment_pg_amount_mismatch_total` 증가 | 같은 문서 2절 |
-| 즉시 확인 | `dead_letter` 미해결 | `OPEN` 건수 > 0 | 같은 문서 3절 |
+| 즉시 확인 | `dead_letters` 미해결 | `OPEN` 건수 > 0 | 같은 문서 3절 |
 | 즉시 확인 | DLQ 처리기 실패 | 실패 발생 또는 DLQ 그룹 랙 > 0이 5분 지속 | 같은 문서 3절 |
 | 즉시 확인 | Outbox `FAILED` | 건수 > 0 | 같은 문서 4절 |
 | 즉시 확인 | 결제·예매 대사 불일치 | `reconciliation_mismatch_open` > 0(규칙별) | 같은 문서 6절 |
@@ -56,7 +56,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 
 | 줄 | 패널 |
 |---|---|
-| 1. 돈이 걸린 미해결 | 결제·환불 NMC 건수와 최고령, 환불 대기 최고령, `dead_letter` OPEN, 대사 불일치(규칙별) |
+| 1. 돈이 걸린 미해결 | 결제·환불 NMC 건수와 최고령, 환불 대기 최고령, `dead_letters` OPEN, 대사 불일치(규칙별) |
 | 2. 승인 흐름 | 승인 결과별 건수, 승인 지연 p95·p99, PG 호출 지연, `Unknown` 원인 |
 | 3. 보호 장치 | CB 상태·Bulkhead 점유(그룹별), Hikari 대기 |
 | 4. 이벤트 | Outbox `PENDING` 최고령·`FAILED`, DLQ 랙, 전이 충돌 |

@@ -44,11 +44,11 @@ SA는 M2에 Mock PG(결제 담당, 10/28 역할 변경)를 쓰고 M4에 토스�
 
    `Declined`는 PG가 **명확히 거절한** 경우만이다. 거절 사유는 우리 `DeclineReason`으로 바꿔 담고(어댑터가 매핑, 매핑 못 한 코드는 `OTHER`), PG 원본 코드는 로그에만 남긴다. 금액·통화는 PG가 응답한 값이다. 응답에 없으면 어댑터는 값을 지어내지 않고 `Unknown(PG_ERROR)`로 둔다.
 3. **불확실하면 `Unknown`**: 타임아웃, 연결이 끊김, 요청은 보냈지만 응답을 못 받음, 응답을 해석하지 못함, PG 5xx, "처리 중"(토스 409 `IDEMPOTENT_REQUEST_PROCESSING`)은 모두 `Unknown`이다. 원인 분류(`TIMEOUT`, `CONNECTION_LOST`, `PG_ERROR`, `PROCESSING`, `CLIENT_ERROR`)를 담아 재확인 스케줄러와 지표가 쓴다. 연결 전 실패처럼 미전송이 확실한 경우도 일단 `Unknown`으로 둔다(보수적, 최적화는 나중에). PG가 요청 형식·인증을 거절한 4xx(우리 쪽 설정·코드 문제)는 거절이 아니라 `Unknown`(`CLIENT_ERROR`)으로 두고 알림을 낸다. 결제를 `DECLINED`로 닫지 않는다.
-4. **결과 검증**: 서비스는 승인 결과의 금액·통화를 결제의 `amount`·`currency`와, 환불 결과를 환불의 `amount`·결제 `currency`와 대조한다. 승인 불일치는 결제를 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`로 두고 `pg_approved_amount`를 저장하며 `PaymentApproved`를 내지 않는다. 환불 불일치는 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`다. 둘 다 즉시 알린다. DB의 `chk_payment_approved`(`pg_approved_amount = amount`)가 코드 누락을 한 번 더 막는다. 금액이 다른 승인은 예매를 확정하지 않고 PG 승인 금액 전액을 환불한다(Ops `payment resolve`, [0028](0028-payment-ops-commands.md)).
+4. **결과 검증**: 서비스는 승인 결과의 금액·통화를 결제의 `amount`·`currency`와, 환불 결과를 환불의 `amount`·결제 `currency`와 대조한다. 승인 불일치는 결제를 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`로 두고 `pg_approved_amount`를 저장하며 `PaymentApproved`를 내지 않는다. 환불 불일치는 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`다. 둘 다 즉시 알린다. DB의 `chk_payments_approved`(`pg_approved_amount = amount`)가 코드 누락을 한 번 더 막는다. 금액이 다른 승인은 예매를 확정하지 않고 PG 승인 금액 전액을 환불한다(Ops `payment resolve`, [0028](0028-payment-ops-commands.md)).
 5. **어댑터가 변환한다**: PG의 HTTP 상태와 자체 에러 코드는 어댑터 안에서 결과 타입으로 바꾼다.
 6. **식별자 구조**(토스의 세 식별자를 반영):
-   - `PgOrderId`: 우리가 발급하는 주문 식별자(`payment.pg_order_id`). 토스 `orderId`. 예매당 결제가 하나라([0026](0026-payment-one-per-reservation.md)) 토스 결제창 전에 예매마다 하나를 정할 수 있다. 방식(결제 토큰 claim 또는 예매 ID에서 결정적 파생)은 M4에서 정한다.
-   - `PgPaymentRef`: PG가 발급하는 불투명 거래 식별자(`payment.pg_tx_id`, UNIQUE). Mock `pgTxId`, 토스 `paymentKey`. 서비스 코드는 값의 의미를 해석하지 않는다.
+   - `PgOrderId`: 우리가 발급하는 주문 식별자(`payments.pg_order_id`). 토스 `orderId`. 예매당 결제가 하나라([0026](0026-payment-one-per-reservation.md)) 토스 결제창 전에 예매마다 하나를 정할 수 있다. 방식(결제 토큰 claim 또는 예매 ID에서 결정적 파생)은 M4에서 정한다.
+   - `PgPaymentRef`: PG가 발급하는 불투명 거래 식별자(`payments.pg_tx_id`, UNIQUE). Mock `pgTxId`, 토스 `paymentKey`. 서비스 코드는 값의 의미를 해석하지 않는다.
    - `PgIdempotencyKey`: PG 호출 한 건의 재시도 식별자. 승인은 `pg_order_id`에서, 환불은 `pg_refund_id`에서 **결정적으로 만든다**(같은 호출을 다시 보내도 같은 키). 어댑터가 PG별 헤더·필드로 옮기고, 지원하지 않는 PG에서는 멱등을 조회로 보완한다.
    - 승인 명령은 `ApproveCommand(orderId, amount, currency, idempotencyKey, clientPaymentRef?)`다. `clientPaymentRef`는 구매자가 결제창에서 받은 PG 발급 식별자다. 토스는 필수이고 Mock은 무시한다. 있으면 **TX1에서 `pg_tx_id`에 먼저 저장**해, 응답을 잃어도 같은 키로 재확인할 수 있게 한다.
 7. **호출 규칙**:

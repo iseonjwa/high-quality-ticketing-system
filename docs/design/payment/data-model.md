@@ -6,14 +6,14 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 
 | 버전 | 내용 | 마일스톤 |
 |---|---|---|
-| `V1__payment_core.sql` | `payment`, `payment_status_history`, `idempotency_record`, `outbox`, `processed_event` | M2 |
-| `V2__outbox_claim_index.sql` | `outbox`의 릴레이용 부분 인덱스 `(id) WHERE status = 'PENDING'`(ISE-24 리뷰, 아래 6절) | M2 |
-| `V3__refund_and_recovery.sql` | `refund`, `dead_letter`, `manual_action_log`, `reconciliation_mismatch`, `reject_modification()`과 append-only 트리거(`payment_status_history`·`manual_action_log`) | M3 |
-| `V4__billing_key.sql` | `billing_key` | M4 |
+| `V1__payment_core.sql` | `payments`, `payment_status_histories`, `idempotency_records`, `outbox_events`, `processed_events` | M2 |
+| `V2__outbox_claim_index.sql` | `outbox_events`의 릴레이용 부분 인덱스 `(id) WHERE status = 'PENDING'`(ISE-24 리뷰, 아래 6절) | M2 |
+| `V3__refund_and_recovery.sql` | `refunds`, `dead_letters`, `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`) | M3 |
+| `V4__billing_key.sql` | `billing_keys` | M4 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).
 
-## 2. payment
+## 2. payments
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -38,10 +38,10 @@ CHECK 제약:
 
 | 이름 | 조건 | 막는 것 |
 |---|---|---|
-| `chk_payment_check_schedule` | `status NOT IN ('REQUESTED','UNKNOWN') OR next_check_at IS NOT NULL` | 재확인 스케줄러가 집지 못하는 미확정 결제(INV-4·INV-8) |
-| `chk_payment_approved` | `status <> 'APPROVED' OR (pg_tx_id IS NOT NULL AND approved_at IS NOT NULL AND pg_approved_amount = amount)` | PG 거래 식별자 없는 승인, 금액이 다른 승인(INV-3) |
-| `chk_payment_refunded` | `status <> 'REFUNDED' OR (pg_tx_id IS NOT NULL AND refunded_at IS NOT NULL)` | 근거 없는 환불 완료 |
-| `chk_payment_declined` | `status <> 'DECLINED' OR decline_code IS NOT NULL` | 사유 없는 거절 |
+| `chk_payments_check_schedule` | `status NOT IN ('REQUESTED','UNKNOWN') OR next_check_at IS NOT NULL` | 재확인 스케줄러가 집지 못하는 미확정 결제(INV-4·INV-8) |
+| `chk_payments_approved` | `status <> 'APPROVED' OR (pg_tx_id IS NOT NULL AND approved_at IS NOT NULL AND pg_approved_amount = amount)` | PG 거래 식별자 없는 승인, 금액이 다른 승인(INV-3) |
+| `chk_payments_refunded` | `status <> 'REFUNDED' OR (pg_tx_id IS NOT NULL AND refunded_at IS NOT NULL)` | 근거 없는 환불 완료 |
+| `chk_payments_declined` | `status <> 'DECLINED' OR decline_code IS NOT NULL` | 사유 없는 거절 |
 
 인덱스:
 - `UNIQUE(reservation_id)` — 예매당 결제 하나(INV-1). SA D3의 부분 유니크와 `INDEX(reservation_id, status)`를 대체한다. 예매별 기존 결제 조회도 이 인덱스를 쓴다.
@@ -51,7 +51,7 @@ CHECK 제약:
 
 `pg_tx_id` 길이(SA 12-4는 VARCHAR(64))는 토스 `paymentKey`를 담도록 넓혔다. 실제 최대 길이는 M4에서 확인한다. 종결 상태로 갈 때 `next_check_at`은 NULL로 비운다.
 
-## 3. payment_status_history (append-only)
+## 3. payment_status_histories (append-only)
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -65,22 +65,22 @@ CHECK 제약:
 
 - `INDEX(payment_id, id)`. 대사 RC-7이 대상별 마지막 이력을 읽는다.
 - 환불 이력 위치(U22)는 M3 전 결정이다. 이 설계는 `target_type`을 둔 이 테이블을 기본안으로 쓴다(SA 12-4의 `(팀 확인)`).
-- append-only: `BEFORE UPDATE OR DELETE` 행 트리거와 `BEFORE TRUNCATE` 문장 트리거가 예외를 던진다. 함수 하나(`reject_modification()`)를 `manual_action_log`와 함께 쓴다.
+- append-only: `BEFORE UPDATE OR DELETE` 행 트리거와 `BEFORE TRUNCATE` 문장 트리거가 예외를 던진다. 함수 하나(`reject_modification()`)를 `manual_action_logs`와 함께 쓴다.
 
 ```sql
 CREATE FUNCTION reject_modification() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
 END $$;
-CREATE TRIGGER payment_status_history_no_update BEFORE UPDATE OR DELETE ON payment_status_history
+CREATE TRIGGER payment_status_history_no_update BEFORE UPDATE OR DELETE ON payment_status_histories
   FOR EACH ROW EXECUTE FUNCTION reject_modification();
-CREATE TRIGGER payment_status_history_no_truncate BEFORE TRUNCATE ON payment_status_history
+CREATE TRIGGER payment_status_history_no_truncate BEFORE TRUNCATE ON payment_status_histories
   FOR EACH STATEMENT EXECUTE FUNCTION reject_modification();
 ```
 
 트리거는 테이블 소유 계정이 끌 수 있다. 현재 compose는 DB 계정 하나(`DB_USER`)를 쓰므로 마이그레이션 계정과 앱 계정을 나누는 것은 후속 과제다([invariants.md](invariants.md) 3절 #4).
 
-## 4. refund (M3)
+## 4. refunds (M3)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -103,11 +103,11 @@ CREATE TRIGGER payment_status_history_no_truncate BEFORE TRUNCATE ON payment_sta
 - 생성은 결제 상태를 조건으로 한 원자적 쓰기다(E13, INV-2·INV-3).
 
 ```sql
-INSERT INTO refund (payment_id, pg_refund_id, amount, reason, source, source_event_id,
+INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, source_event_id,
                     status, next_check_at, created_at, ...)
 SELECT p.id, :pgRefundId, p.pg_approved_amount, :reason, :source, :eventId,
        'REQUESTED', now(), now(), ...
-  FROM payment p
+  FROM payments p
  WHERE p.id = :paymentId AND p.reservation_id = :reservationId AND p.status = 'APPROVED'
 ON CONFLICT (payment_id) DO NOTHING;
 -- 0행이면 다시 읽어 "이미 환불 행 있음"(중복, 정상)과 "결제 조건 불일치"(영구 오류)를 구분한다
@@ -115,7 +115,7 @@ ON CONFLICT (payment_id) DO NOTHING;
 
 Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NEEDS_MANUAL_CHECK' AND p.pg_tx_id IS NOT NULL AND p.pg_approved_amount IS NOT NULL` 조건을 쓴다.
 
-## 5. idempotency_record
+## 5. idempotency_records
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -132,7 +132,7 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 - `INDEX(resource_id)`: 결제별 연결 키 조회(운영 확인용).
 - 삭제는 `expires_at` 경과 + 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아닐 때만 한다([0022](../../decisions/0022-outbox-retry-and-retention.md)). ORIGIN·ALIAS 모두 같다.
 
-## 6. outbox
+## 6. outbox_events
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -149,10 +149,10 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 
 인덱스: `INDEX(next_attempt_at, id) WHERE status = 'PENDING'`(재시도 대기), `INDEX(id) WHERE status = 'PENDING'`(릴레이가 id 순으로 집을 때. 없으면 SENT가 쌓일수록 기본키를 훑어 느려진다, V2), `INDEX(message_key, id) WHERE status = 'PENDING'`(같은 키 순서 확인), `INDEX(sent_at) WHERE status = 'SENT'`(정리), `INDEX(created_at)`(대사 RC-8의 최근 24시간 범위).
 
-## 7. processed_event
+## 7. processed_events
 `PK(event_id, consumer_group)`, `processed_at NOT NULL`. 보존 14일, 정리 인덱스 `INDEX(processed_at)`.
 
-## 8. dead_letter (M3)
+## 8. dead_letters (M3)
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -171,7 +171,7 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 - CHECK: `status <> 'RESOLVED' OR resolution IS NOT NULL`.
 - `INDEX(status, created_at) WHERE status = 'OPEN'`(최고령 Gauge).
 
-## 9. manual_action_log (M3, append-only)
+## 9. manual_action_logs (M3, append-only)
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -189,7 +189,7 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 
 append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 
-## 10. reconciliation_mismatch (M3)
+## 10. reconciliation_mismatches (M3)
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -203,8 +203,8 @@ append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 - `UNIQUE(rule, reservation_id, payment_id) WHERE status = 'OPEN'`(NULL은 0으로 바꾼 식 인덱스): 같은 불일치는 행 하나로 이어 본다.
 - `INDEX(status, rule) WHERE status = 'OPEN'`(Gauge).
 
-## 11. billing_key (M4)
+## 11. billing_keys (M4)
 SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개). 암호화 키 관리는 M4에서 설계한다.
 
 ## 12. 보관
-`payment`·`refund`·`payment_status_history`·`manual_action_log`·`dead_letter`·`reconciliation_mismatch`는 자동 삭제하지 않는다(결제 기록 5년 보관, SA 12-1). 정리 대상은 `outbox`·`processed_event`·`idempotency_record`뿐이다([events-and-reliability.md](events-and-reliability.md) 8절).
+`payments`·`refunds`·`payment_status_histories`·`manual_action_logs`·`dead_letters`·`reconciliation_mismatches`는 자동 삭제하지 않는다(결제 기록 5년 보관, SA 12-1). 정리 대상은 `outbox_events`·`processed_events`·`idempotency_records`뿐이다([events-and-reliability.md](events-and-reliability.md) 8절).
