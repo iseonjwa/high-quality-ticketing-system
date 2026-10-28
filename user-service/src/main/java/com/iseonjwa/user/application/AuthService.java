@@ -12,7 +12,6 @@ import com.iseonjwa.user.domain.User;
 import com.iseonjwa.user.domain.UserErrorCode;
 import com.iseonjwa.user.domain.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -61,12 +60,8 @@ public class AuthService {
     @Transactional
     public SignupResult signup(String email, String password, String nickname) {
         validatePasswordBytes(password);
-        try {
-            var user = users.save(new User(normalize(email), passwords.encode(password), nickname, Roles.USER));
-            return new SignupResult(user.getId(), user.getEmail(), user.getNickname());
-        } catch (DataIntegrityViolationException exception) {
-            throw new BusinessException(UserErrorCode.EMAIL_DUPLICATED);
-        }
+        var user = users.save(new User(normalize(email), passwords.encode(password), nickname, Roles.USER));
+        return new SignupResult(user.getId(), user.getEmail(), user.getNickname());
     }
 
     public AuthTokens.Pair login(String email, String password) {
