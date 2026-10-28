@@ -57,6 +57,7 @@ public final class LocalApps {
             supply(result, values, "DB_USER", "DB_PASSWORD");
         }
         if (Set.of("gateway", "user-service").contains(app.name())) supply(result, values, "JWT_ACCESS_SECRET");
+        if (app.name().equals("payment-service")) supply(result, values, "PAYMENT_TOKEN_SECRET");
         if (app.name().equals("user-service")) supply(result, values, "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD");
         return result;
     }

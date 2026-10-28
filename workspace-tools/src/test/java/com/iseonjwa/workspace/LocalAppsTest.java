@@ -44,6 +44,15 @@ class LocalAppsTest {
     }
 
     @Test
+    void 결제_토큰_키는_결제_서비스에만_전달한다() {
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
+            assertEquals(app.name().equals("payment-service"), environment.containsKey("PAYMENT_TOKEN_SECRET"),
+                    app.name());
+        }
+    }
+
+    @Test
     void 필수_값이_없으면_값을_노출하지_않고_거절한다() {
         var values = values();
         values.put("DB_PASSWORD", "");
