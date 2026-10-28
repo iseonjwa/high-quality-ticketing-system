@@ -66,7 +66,10 @@ class PaymentQueryApiTest {
 
         assertEquals(200, response.status());
         var data = response.json().get("data");
+        assertEquals(java.util.Set.of("paymentId", "reservationId", "status", "amount", "approvedAt", "refundedAt"),
+                data.propertyNames().stream().collect(java.util.stream.Collectors.toSet()));
         assertEquals(id, data.get("paymentId").asLong());
+        assertEquals(reservationOf(id), data.get("reservationId").asLong());
         assertEquals("APPROVED", data.get("status").asString());
         assertEquals(50000, data.get("amount").asLong());
         assertFalse(data.get("approvedAt").isNull());
@@ -95,6 +98,27 @@ class PaymentQueryApiTest {
     }
 
     @Test
+    void 거절된_결제는_금액과_null_시각을_함께_내보낸다() throws Exception {
+        var id = insert(OWNER, "DECLINED", "decline_code", "'CARD_DECLINED'");
+
+        var data = get(id, OWNER, "USER").json().get("data");
+
+        assertEquals("DECLINED", data.get("status").asString());
+        assertTrue(data.get("approvedAt").isNull() && data.get("refundedAt").isNull());
+    }
+
+    @Test
+    void 금액_불일치로_수동_확인이_된_결제는_승인_시각을_내보내지_않는다() throws Exception {
+        var id = insert(OWNER, "NEEDS_MANUAL_CHECK", "pg_tx_id, approved_at, pg_approved_amount",
+                "'pg-" + UUID.randomUUID() + "', now(), 40000");
+
+        var data = get(id, OWNER, "USER").json().get("data");
+
+        assertEquals("NEEDS_MANUAL_CHECK", data.get("status").asString());
+        assertTrue(data.get("approvedAt").isNull());
+    }
+
+    @Test
     void 타인의_결제는_없는_결제와_같은_404이고_본문이_같다() throws Exception {
         var othersId = insert(OTHER, "REQUESTED", "next_check_at", "now() + interval '10 seconds'");
         var missingId = othersId + 1_000_000;
@@ -106,18 +130,19 @@ class PaymentQueryApiTest {
         assertEquals(404, missing.status());
         assertEquals("NOT_FOUND", others.json().get("code").asString());
         assertEquals(withoutTraceId(missing), withoutTraceId(others));
-        assertFalse(others.body().contains(Long.toString(othersId)), "응답에 결제 ID가 들어가면 안 된다");
     }
 
     @Test
     void 타인의_결제_접근은_WARN으로_남고_없는_결제는_남기지_않는다() throws Exception {
         var othersId = insert(OTHER, "REQUESTED", "next_check_at", "now() + interval '10 seconds'");
 
-        get(othersId, OWNER, "USER");
+        var response = get(othersId, OWNER, "USER");
         var warns = logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
         assertEquals(1, warns.size());
         var message = warns.get(0).getFormattedMessage();
         assertTrue(message.contains("userId=" + OWNER) && message.contains("paymentId=" + othersId), message);
+        var traceId = response.json().get("traceId").asString();
+        assertTrue(message.contains("traceId=" + traceId), message);
 
         logs.list.clear();
         get(othersId + 1_000_000, OWNER, "USER");
@@ -130,6 +155,7 @@ class PaymentQueryApiTest {
 
         assertEquals(200, get(id, OWNER, "ADMIN").status());
         assertEquals(404, get(id + 1_000_000, OWNER, "ADMIN").status());
+        assertTrue(logs.list.stream().noneMatch(e -> e.getLevel() == Level.WARN));
     }
 
     @Test
@@ -154,6 +180,10 @@ class PaymentQueryApiTest {
                 VALUES (?, ?, ?, 50000, 'CARD', '%s', ?, now(), now()%s) RETURNING id""".formatted(columns, status, values),
                 Long.class, "PAY-" + reservationId + "-" + UUID.randomUUID().toString().substring(0, 8), reservationId, userId,
                 UUID.randomUUID());
+    }
+
+    private long reservationOf(long paymentId) {
+        return jdbc.queryForObject("SELECT reservation_id FROM payments WHERE id = ?", Long.class, paymentId);
     }
 
     private String withoutTraceId(Response response) {
