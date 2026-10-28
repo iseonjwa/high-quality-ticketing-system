@@ -8,6 +8,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-28 | Notion SA 반영 방법: 구간 교체 HTML 대신 v3.3 전체를 가져오기로 교체 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-28-notion-sa-full-import.md) |
+| 2026-10-28 | 테이블 이름 복수형 적용 범위: 결제 코드·문서는 후속 이슈, `outbox_events`, M3 테이블 제외 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-28-table-naming-scope.md) |
 | 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-28-notion-sa-batch-sync.md) |
 | 2026-10-28 | 역할 변경 확정: 결제 담당이 Mock PG까지 맡고 지원 불필요, SA·마일스톤 담당 표기 정정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-28-role-change-confirmed.md) |
 | 2026-10-27 | 추첨 설계 포인트: 수치화된 트래픽 트러블슈팅이 약하다고 지적 | Claude Code | 부분 수용 | 아니오 | 아님 | [기록](2026-10-27-lottery-measurability-concern.md) |
