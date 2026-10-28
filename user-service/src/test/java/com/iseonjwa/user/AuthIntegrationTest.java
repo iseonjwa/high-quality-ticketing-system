@@ -17,6 +17,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -80,8 +81,20 @@ class AuthIntegrationTest {
 
         var duplicated = post("/api/v1/users", Map.of("email", email, "password", PASSWORD, "nickname", "중복"));
         assertEquals(409, duplicated.statusCode());
+        assertEquals("EMAIL_DUPLICATED", code(duplicated));
         assertEquals(401, login(email, "wrong").statusCode());
         assertEquals(401, login(email()).statusCode());
+    }
+
+    @Test
+    void 대소문자만_다른_이메일도_같은_계정으로_본다() throws Exception {
+        var email = register();
+        var variant = email.toUpperCase(Locale.ROOT);
+
+        var duplicated = post("/api/v1/users", Map.of("email", variant, "password", PASSWORD, "nickname", "중복"));
+        assertEquals(409, duplicated.statusCode());
+        assertEquals("EMAIL_DUPLICATED", code(duplicated));
+        assertEquals(200, login(variant).statusCode());
     }
 
     @Test
@@ -101,6 +114,28 @@ class AuthIntegrationTest {
         assertNotEquals(token, rotated);
         assertEquals(401, refresh(token).statusCode());
         assertEquals(200, refresh(rotated).statusCode());
+    }
+
+    @Test
+    void 같은_이메일_동시_가입은_하나만_성공한다() throws Exception {
+        var email = email();
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var gate = new CountDownLatch(1);
+            Callable<HttpResponse<String>> action = () -> {
+                gate.await();
+                return post("/api/v1/users", Map.of("email", email, "password", PASSWORD, "nickname", "동시"));
+            };
+            var first = executor.submit(action);
+            var second = executor.submit(action);
+            gate.countDown();
+
+            var responses = Set.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS));
+            assertEquals(Set.of(201, 409), Set.copyOf(responses.stream().map(HttpResponse::statusCode).toList()));
+            responses.stream().filter(response -> response.statusCode() == 409)
+                    .forEach(response -> assertEquals("EMAIL_DUPLICATED", code(response)));
+        }
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email));
     }
 
     @Test
