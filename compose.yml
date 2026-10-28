@@ -103,6 +103,8 @@ services:
         condition: service_healthy
       eureka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       postgres-reservation:
         condition: service_healthy
       kafka:
