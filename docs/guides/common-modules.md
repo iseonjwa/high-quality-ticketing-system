@@ -66,7 +66,27 @@ EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·t
 
 - **쓰기**: `OutboxWriter.write(topic, key, eventType, payload)`는 업무 변경과 같은 트랜잭션 안에서만 부를 수 있다(없으면 예외). 공통 봉투(`EventEnvelope`)를 만들어 `outbox` 행으로 쓰고, 상태 변경이 실제로 일어났을 때만 호출한다. 이벤트 페이로드와 발행기는 서비스가 만든다(예: 결제의 `PaymentResultPublisher`).
 - **저장소는 JDBC**: 엔티티 없이 `JdbcTemplate`으로 쓰므로 서비스가 `@EntityScan`을 바꿀 필요가 없고, JPA 트랜잭션과 같은 연결을 쓴다. 테이블은 서비스 Flyway가 만든다(스키마는 [결제 데이터 모델](../design/payment/data-model.md) 6·7절). `ddl-auto: validate`는 이 테이블을 검증하지 않으므로 서비스가 마이그레이션 테스트로 확인한다.
-- **릴레이**: 같은 키의 앞선 PENDING이 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하며 어긋나면 기동이 실패한다. 프로듀서 `max.block.ms`를 짧게(2초) 둬야 한다.
+- **릴레이**: 같은 키의 앞선 PENDING이 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하고, 프로듀서의 `max.block.ms + delivery.timeout.ms`(결제는 2초 + 10초)는 `send-timeout` 안에 들어와야 한다. 어긋나면 기동이 실패한다. 프로듀서 설정(`spring.kafka.producer.properties`)은 쓰는 서비스가 정한다.
 - **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
 - **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).
 - **전제**: 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서와 커밋 순서가 같다는 전제에 기댄다.
+
+표준 DDL(서비스 Flyway에 복사한다. 정본은 [결제 데이터 모델](../design/payment/data-model.md) 6·7절과 `payment-service`의 V1·V2):
+
+```sql
+CREATE TABLE outbox (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id UUID NOT NULL UNIQUE,
+    topic VARCHAR(100) NOT NULL, message_key VARCHAR(100) NOT NULL, event_type VARCHAR(100) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(10) NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
+    attempts SMALLINT NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL, claimed_until TIMESTAMPTZ, last_error VARCHAR(500),
+    created_at TIMESTAMPTZ NOT NULL, sent_at TIMESTAMPTZ);
+CREATE INDEX idx_outbox_pending_next_attempt ON outbox (next_attempt_at, id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_pending_message_key ON outbox (message_key, id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_pending_id ON outbox (id) WHERE status = 'PENDING';
+CREATE TABLE processed_event (
+    event_id UUID NOT NULL, consumer_group VARCHAR(100) NOT NULL, processed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (event_id, consumer_group));
+```

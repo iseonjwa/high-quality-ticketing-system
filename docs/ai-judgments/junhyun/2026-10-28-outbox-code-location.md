@@ -27,10 +27,10 @@ shared: 예
 - 검토한 대안: 위 세 가지, 그리고 별도 Gradle 모듈 `common-messaging`([질문 노트](../../learning/junhyun/qna/2026-10-28-common-messaging-placement.md)).
 
 ## 반영
-- PR #79에 반영 중: `common.messaging`에 Outbox·처리 이력, `payment-service`에 결제 이벤트와 발행기.
+- PR #79: `common.messaging`에 Outbox·처리 이력(JdbcTemplate 기반), `payment-service`에 결제 이벤트와 발행기(`PaymentResultPublisher`).
 
 ## 검증
-- 구현 전
+- `./gradlew :common:test :payment-service:test` 통과(common 46개, payment-service 115개), `./gradlew verifyWorkspace` 통과. Opus 리뷰 2회(1차 중간 4건, 2차 중간 4건)를 반영했다.
 
 ## 판단 이력
 - 2026-10-28 부분 수용: `common`으로 옮기기로 했고 분리 여부는 보류.

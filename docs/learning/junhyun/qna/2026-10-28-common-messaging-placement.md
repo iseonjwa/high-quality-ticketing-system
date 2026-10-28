@@ -23,16 +23,16 @@ tags: [multi-module, gradle, outbox, jpa, architecture]
 
 | 구분 | 위치 | 이유 |
 |---|---|---|
-| `OutboxEvent`, 저장소, 릴레이, `OutboxEventSender` 포트와 Kafka 구현, 처리 이력(`processed_event`) | `common.messaging` | 어떤 서비스가 써도 같은 규칙이어야 한다(임대, 키별 순서, 중복 방지) |
+| `OutboxWriter`, 저장소, 릴레이, `OutboxEventSender` 포트와 Kafka 구현, 처리 이력(`processed_event`) | `common.messaging` | 어떤 서비스가 써도 같은 규칙이어야 한다(임대, 키별 순서, 중복 방지) |
 | `PaymentApprovedEvent`, `PaymentDeclinedEvent`, `PaymentResultPublisher`, `PaymentTransitionService` 연결 | `payment-service` | `Payment` 엔티티와 결제 상태 규칙에 의존한다. 공통 모듈이 서비스를 의존하면 순환이 된다 |
 | `outbox`·`processed_event` 테이블 DDL | 각 서비스의 Flyway | DB가 서비스마다 따로라 테이블도 서비스마다 만든다 |
 
 ## 옮길 때 부딪히는 실제 문제 (common의 현재 제약)
 
 1. **Gateway 격리**: `common`은 JPA·Kafka·MVC를 `compileOnly`로만 가진다. Gateway(WebFlux)가 이것을 받으면 기동하지 못하기 때문이다. Outbox가 쓰는 `spring-tx`, `spring-boot`, `spring-kafka`도 같은 방식으로 `compileOnly`가 되고, 쓰는 서비스가 직접 선언한다.
-2. **Spring Data를 쓰기 어렵다**: 서비스의 `@SpringBootApplication`은 자기 패키지만 스캔한다. `common`의 Spring Data 저장소와 엔티티를 찾게 하려면 서비스가 `@EnableJpaRepositories`·`@EntityScan`으로 `common` 패키지를 추가해야 하고, 이 설정은 서비스 자신의 스캔 기본값을 덮어써서 실수하기 쉽다. 그래서 공통 쪽 저장소는 `EntityManager` 네이티브 쿼리로 쓰고, 엔티티 등록은 `@Import`한 설정 클래스가 맡게 한다.
+2. **Spring Data를 쓰기 어렵다**: 서비스의 `@SpringBootApplication`은 자기 패키지만 스캔한다. `common`의 Spring Data 저장소와 엔티티를 찾게 하려면 서비스가 `@EnableJpaRepositories`·`@EntityScan`으로 `common` 패키지를 추가해야 하고, 이 설정은 서비스 자신의 스캔 기본값을 덮어써서 실수하기 쉽다. 그래서 공통 쪽 저장소는 엔티티 없이 `JdbcTemplate`으로 쓴다. `JpaTransactionManager`가 같은 JDBC 연결을 노출하므로 JPA로 바꾼 상태와 한 트랜잭션이다(롤백·커밋 테스트로 확인).
 3. **테스트 환경이 다르다**: `common`의 테스트는 H2다. 릴레이의 `FOR UPDATE SKIP LOCKED`·`ON CONFLICT`는 PostgreSQL 문법이라 H2로 검증되지 않는다. 그래서 동시성·임대 테스트는 PostgreSQL이 있는 서비스 쪽에 남거나, `common`에 PostgreSQL 테스트 인프라를 따로 만들어야 한다.
-4. **스키마 계약이 복제된다**: 엔티티는 `common`에 있지만 테이블은 서비스 Flyway가 만든다. 서비스마다 같은 DDL을 복사하므로 어긋날 수 있다. 문서(`data-model.md`)를 정본으로 두고 `ddl-auto: validate`가 어긋남을 기동 때 잡게 한다.
+4. **스키마 계약이 복제된다**: 테이블은 서비스 Flyway가 만든다. 서비스마다 같은 DDL을 복사하므로 어긋날 수 있다. 엔티티가 없어 `ddl-auto: validate`가 검증하지 못하므로 서비스의 마이그레이션 테스트가 확인하고, 표준 DDL은 `docs/guides/common-modules.md`에 둔다.
 5. **변경 파급**: `common`을 고치면 모든 서비스가 다시 빌드·테스트된다.
 
 ## 별도 모듈(`common-messaging`)로 나누면

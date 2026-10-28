@@ -12,7 +12,7 @@
 
 페이로드 변경([SA 변경 요청](sa-change-requests.md) S-18, 0027): `PaymentApproved`·`PaymentRefunded`에 `currency`(`"KRW"`)를 더하고, `RefundRequested`에 `userId`·`amount`·`currency`를 더하며 `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE`을 추가한다. SA 10-4는 필드 추가만 허용하므로 `version`은 그대로 1이다.
 
-구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_event` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·정리·실행기 분리는 ISE-40이다. 발행 실패 시 지금은 임대(30초)가 끝나면 다시 시도한다. 한 번의 릴레이 실행은 전송 시한(12초) 안에 끝나고 마감을 넘긴 행은 임대를 바로 푼다.
+구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_event` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·정리·실행기 분리는 ISE-40이다. 발행 실패 시 지금은 임대(30초)가 끝나면 다시 시도한다. 한 번의 릴레이 실행은 전송 확인을 최대 전송 시한(12초)까지 기다리고(프로듀서의 `max.block.ms`·`delivery.timeout.ms`가 이 안에 들어오는지 기동 때 검증), 마감을 넘긴 행은 임대를 바로 푼다. 실제 소요는 시한에 `send` 호출이 막히는 시간(`max.block.ms`)과 후처리 쓰기가 더해진다.
 
 ## 2. 공통 규칙: 실제로 바뀐 전이만 후속 쓰기를 한다
 
