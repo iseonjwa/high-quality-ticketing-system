@@ -13,6 +13,7 @@
 | `web` | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter, RequireRole | spring-boot-starter-webmvc. `@Import(CommonWebConfiguration.class)` |
 | `messaging` | CommonMessagingConfiguration | spring-boot-starter-kafka. `@Import(CommonMessagingConfiguration.class)` |
 | `persistence`, `event` | EventEnvelope, BaseEntity, CurrentActorProvider, CommonJpaConfiguration | spring-boot-starter-data-jpa. `@Import(CommonJpaConfiguration.class)`. 이벤트는 일반 DTO. 감사는 JPA 콜백과 Spring 빈 주입 사용 |
+| `messaging.outbox`, `messaging.inbox` | OutboxWriter·OutboxRelay·OutboxEventSender, ProcessedEventService | spring-jdbc, spring-kafka. `@Import(CommonOutboxConfiguration.class)`(`CommonJpaConfiguration`도 함께). 서비스 Flyway가 `outbox`·`processed_event` 테이블을 만든다 |
 
 ### MVC 응답
 
@@ -58,3 +59,14 @@ EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·t
 
 1. 공통 응답은 어디까지 통일하고 MVC·WebFlux의 예외 처리는 왜 분리하는가?
 2. 시스템 작업이 사용자 요청 뒤 엔티티를 수정하면 감사 사용자 ID는 무엇으로 남아야 하는가?
+
+### Outbox와 처리 이력
+
+`CommonOutboxConfiguration`을 `@Import`하면 발행기(`OutboxWriter`), 릴레이(`OutboxRelay`와 스케줄러), 처리 이력(`ProcessedEventService`)이 생긴다. 스캔하지 않으므로 Kafka가 없는 서비스에는 빈이 없다([ADR 0013](../decisions/0013-single-common-module.md)).
+
+- **쓰기**: `OutboxWriter.write(topic, key, eventType, payload)`는 업무 변경과 같은 트랜잭션 안에서만 부를 수 있다(없으면 예외). 공통 봉투(`EventEnvelope`)를 만들어 `outbox` 행으로 쓰고, 상태 변경이 실제로 일어났을 때만 호출한다. 이벤트 페이로드와 발행기는 서비스가 만든다(예: 결제의 `PaymentResultPublisher`).
+- **저장소는 JDBC**: 엔티티 없이 `JdbcTemplate`으로 쓰므로 서비스가 `@EntityScan`을 바꿀 필요가 없고, JPA 트랜잭션과 같은 연결을 쓴다. 테이블은 서비스 Flyway가 만든다(스키마는 [결제 데이터 모델](../design/payment/data-model.md) 6·7절). `ddl-auto: validate`는 이 테이블을 검증하지 않으므로 서비스가 마이그레이션 테스트로 확인한다.
+- **릴레이**: 같은 키의 앞선 PENDING이 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하며 어긋나면 기동이 실패한다. 프로듀서 `max.block.ms`를 짧게(2초) 둬야 한다.
+- **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
+- **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).
+- **전제**: 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서와 커밋 순서가 같다는 전제에 기댄다.
