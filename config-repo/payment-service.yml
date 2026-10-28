@@ -31,6 +31,23 @@ payment:
     # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
     secret: ${PAYMENT_TOKEN_SECRET:}
   pg:
+    protection:
+      # 값은 모두 [가정]이며 부하 측정 뒤 조정한다(pg-integration.md 5절, ADR 0018).
+      # 승인: 사용자가 기다리는 신규 승인. 복구: 조회·늦은 승인 방지·환불(복구 실행기 스레드 수와 같은 2)
+      approve:
+        max-concurrent-calls: 10
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        open-duration: 10s
+        half-open-permitted-calls: 3
+      recovery:
+        max-concurrent-calls: 2
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        open-duration: 10s
+        half-open-permitted-calls: 3
     # 현재 어댑터는 mock뿐이다. toss는 M4에서 추가한다(ADR 0023)
     provider: mock
     mock:
