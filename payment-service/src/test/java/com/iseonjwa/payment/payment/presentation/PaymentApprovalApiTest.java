@@ -3,6 +3,7 @@ package com.iseonjwa.payment.payment.presentation;
 import com.iseonjwa.payment.payment.application.PaymentTx;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
+import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
@@ -62,6 +63,7 @@ class PaymentApprovalApiTest {
     private static final long AMOUNT = 50000L;
     private static final AtomicLong RESERVATION_IDS = new AtomicLong(8_100_000);
     private static final long FIRST_RESERVATION = 8_100_000;
+    private static final long LAST_RESERVATION = 8_199_999;
 
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -78,21 +80,27 @@ class PaymentApprovalApiTest {
     IdempotencyRecordRepository idempotency;
     @MockitoSpyBean
     PaymentRepository payments;
+    @Autowired
+    Resilience4jPgApprovalGate approvalGate;
 
     @BeforeEach
     void stubPg() {
         reset(pg, paymentTx, idempotency, payments);
+        // 앞선 테스트의 실패 기록이 CB를 열지 않게 매번 초기화한다
+        approvalGate.circuitBreaker().reset();
         when(pg.approve(any())).thenAnswer(invocation -> approved(AMOUNT));
     }
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
-                FIRST_RESERVATION);
+        // 어떤 경로(충돌 재조회, 만료 재검사, PG 예외, TX2 실패)로 끝나도 허가가 새지 않아야 한다(0018)
+        assertEquals(10, approvalGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "Bulkhead 허가가 새고 있다");
+        jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
+                FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^81[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
-                FIRST_RESERVATION);
-        jdbc.update("DELETE FROM payments WHERE reservation_id >= ?", FIRST_RESERVATION);
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
+                FIRST_RESERVATION, LAST_RESERVATION);
+        jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }
 
     @Test
@@ -363,6 +371,8 @@ class PaymentApprovalApiTest {
         assertEquals(202, response.status());
         assertEquals("UNKNOWN", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?",
                 String.class, reservation));
+        assertEquals(1, approvalGate.circuitBreaker().getMetrics().getNumberOfFailedCalls(),
+                "어댑터 예외는 결과를 모르는 호출로 CB에 실패로 센다");
     }
 
     @Test
