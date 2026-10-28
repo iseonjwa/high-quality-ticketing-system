@@ -78,7 +78,8 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 - 일반 사용자는 `WHERE id = :id AND user_id = :userId`로 조회한다. ADMIN은 `id`만으로 조회한다. ADMIN 여부는 Gateway가 검증한 역할로만 판단한다.
 - 타인의 결제와 존재하지 않는 결제는 같은 404 `NOT_FOUND`다(상태·코드·메시지·본문 구조 동일, ID를 응답에 넣지 않음).
 - 타인 결제 접근 시도는 내부 로그에 WARN으로 남긴다(요청 사용자, 대상 `paymentId`, `traceId`).
-- `paymentId`를 받는 모든 API는 소유자 조건이 있는 조회 메서드만 쓴다. 조건 없는 `findById`를 외부 요청 경로에서 부르지 않는다.
+- `paymentId`를 받는 모든 API는 소유자 조건이 있는 조회 메서드만 쓴다. 조건 없는 `findById`를 외부 요청 경로에서 부르지 않는다(ADMIN 조회 제외). 예외로, 일반 사용자의 소유자 조회가 비었을 때만 `existsById`로 존재를 확인해 WARN 로그를 구분한다. 이 확인은 로그 전용이라 응답을 나누지 않고, 실패해도 404를 유지한다.
+- 응답은 여섯 필드를 항상 내보낸다. `approvedAt`은 `APPROVED`·`REFUNDED`만 값이 있고(금액 불일치로 수동 확인이 된 결제는 PG 승인 시각을 저장하지만 null), `refundedAt`은 `REFUNDED`만 값이 있다. 조회 중 DB 오류는 승인 API와 같이 503 `SERVICE_UNAVAILABLE`이다.
 
 ## 3. 에러 코드
 

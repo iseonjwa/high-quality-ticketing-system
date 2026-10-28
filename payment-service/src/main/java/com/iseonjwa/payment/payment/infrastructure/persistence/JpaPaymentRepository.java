@@ -29,6 +29,16 @@ public class JpaPaymentRepository implements PaymentRepository {
     }
 
     @Override
+    public Optional<Payment> findByIdAndUserId(Long id, Long userId) {
+        return repository.findByIdAndUserId(id, userId);
+    }
+
+    @Override
+    public boolean existsById(Long id) {
+        return repository.existsById(id);
+    }
+
+    @Override
     public Optional<Payment> findByReservationId(Long reservationId) {
         return repository.findByReservationId(reservationId);
     }
