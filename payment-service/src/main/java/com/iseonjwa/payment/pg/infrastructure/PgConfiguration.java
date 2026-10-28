@@ -9,8 +9,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(PgProperties.class)
 public class PgConfiguration {
-    // Note: payment.pg.provider를 mock으로 고른 때만 만든다. toss는 M4에서 TossPgAdapter와 함께 추가하며,
-    // 그때까지 toss를 고르면 PgClient 빈이 없어 기동이 실패한다(잘못된 설정을 조용히 넘기지 않는다).
+    // Note: provider가 mock일 때만 만든다. provider가 비었거나 mock인데 base-url이 없으면 PgProperties 바인딩에서
+    // 기동이 실패한다. toss는 M4에서 TossPgAdapter와 함께 추가하며, 그때까지는 PgClient 빈이 없다.
     @Bean
     @ConditionalOnProperty(name = "payment.pg.provider", havingValue = "mock")
     PgClient mockPgClient(PgProperties properties) {

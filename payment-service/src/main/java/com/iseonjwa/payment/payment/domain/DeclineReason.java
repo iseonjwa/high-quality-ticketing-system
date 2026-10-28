@@ -4,7 +4,7 @@ package com.iseonjwa.payment.payment.domain;
  * 우리가 정의한 거절 사유. PG 원본 코드는 저장하지 않고 어댑터가 이 값으로 매핑한다.
  */
 public enum DeclineReason {
-    // 망취소 뒤 PG에 요청이 닿지 않았음이 확인된 경우
+    // PG가 승인하지 않았음이 확인된 경우(망취소된 주문의 승인 거부 등)
     NOT_SENT,
     // PG 호출 직전에 결제 토큰이 만료된 경우
     TOKEN_EXPIRED,

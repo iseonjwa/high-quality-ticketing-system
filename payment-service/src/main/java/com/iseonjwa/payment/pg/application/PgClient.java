@@ -12,6 +12,9 @@ import java.time.Instant;
  * <p>Note: 결과를 모르면 거절이 아니라 {@link Unknown}이다. 타임아웃을 거절로 닫으면 PG에서는 승인된 결제가
  * 우리 쪽에서 실패로 남아 돈이 묶인다(INV-8). 호출 규칙: {@link #approve}는 결제 행 하나에 한 번만 부르고,
  * {@link #refund}는 환불 워커만 부르며 다시 부르기 전에 {@link #findRefund}로 먼저 확인한다.
+ *
+ * <p>PG 결과는 예외로 알리지 않고 결과 타입으로 돌려준다. 그래도 예외가 나오면 호출한 쪽은 결과를 모르는
+ * 것(Unknown)으로 다뤄야 하며 거절로 닫지 않는다.
  */
 public interface PgClient {
     ApproveResult approve(ApproveCommand command);
@@ -61,7 +64,12 @@ public interface PgClient {
     record Prevented() implements LateApprovalResult {}
 
     record AlreadyApproved(PgPaymentRef paymentRef, BigDecimal amount, String currency, Instant approvedAt)
-            implements LateApprovalResult {}
+            implements LateApprovalResult {
+        // 늦은 승인 방지 경로에서도 승인 금액·통화를 결제와 대조한다(INV-3)
+        public boolean matches(BigDecimal expectedAmount, String expectedCurrency) {
+            return PgAmounts.sameAmount(expectedAmount, amount) && expectedCurrency.equals(currency);
+        }
+    }
 
     record Unknown(UnknownCause cause)
             implements ApproveResult, PaymentLookupResult, RefundResult, RefundLookupResult, LateApprovalResult {}
