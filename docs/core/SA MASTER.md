@@ -1,13 +1,28 @@
-# SA MASTER v3.2 (통합 회의 반영)
+# SA MASTER v3.3 (테이블 이름·ERD 정리)
 
-> **SA MASTER v3.2 (통합 회의 반영)** · 2026년 10월 27일 · 5조 이선좌
+> **SA MASTER v3.3 (테이블 이름·ERD 정리)** · 2026년 10월 28일 · 5조 이선좌
 >
 > - 이 문서 하나가 설계 기준이다. 아래 문서들은 근거 보관용으로 남긴다.
 > - 근거: SA MASTER v3.1 (결정 기록 반영, 10/26) · 10/27 초기 환경 통합 회의 결정 시트(저장소 `docs/integration/decision-sheet.md`) · SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - v3.3은 v3.2에 10/27~10/28 저장소 변경(AI 검증 `#7`, 대기열 제안, 역할 변경)과 테이블 이름 복수형 통일·ERD 전체 반영을 더했다(아래 "10/28 바뀐 점"). 저장소 사본 `docs/core/SA MASTER.md`가 원본이고, Notion은 이 파일을 가져와 교체한다.
 > - v3.2는 v3.1에 10/27 초기 환경 통합 회의 결정(아래 "10/27 바뀐 점")을 반영했다. 이전 안은 부록 C에 있다.
 > - v3에서 "제안"으로 적었던 10/26 피드백 변경은 결정 기록에 모두 반영됐다. 이 문서는 그 결과에 맞춰 제안 표시를 없애고 확정된 내용으로 고쳤다. 바뀐 결정은 결정 기록 각 항목의 "수정 내역"에 이전 안과 함께 남아 있다.
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
+
+### 10/28 바뀐 점 (v3.3)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 테이블 이름을 snake_case 복수형으로 통일(`users` 외 21개). 여러 단어는 마지막 단어만 복수형, `history` → `histories`, `outbox` → `outbox_events`. 컬럼·FK 컬럼은 단수형 유지 | 12장 전체, 본문의 테이블 언급 | ADR 0030 (제안), Linear ISE-66 |
+| 2 | ERD를 DB별 그림 5개로 다시 그리고 명세의 모든 테이블·컬럼을 넣음. 이전 ERD에 없던 `billing_keys`·`payment_status_histories`·`notifications`·공통 테이블 3개와 `venues`·`concerts`·`lotteries` 등의 속성 추가 | 12-6 | ISE-66 |
+| 3 | `users`에 로그인 잠금 컬럼 3개(`failed_login_count`·`locked_at`·`password_change_required`) 명세 반영. user-service V2 마이그레이션과 맞춤 | 12-2 | ADR 0007 |
+| 4 | 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당, 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 | 6-1, 6-6, 6-7, 6-9, 11장 Mock PG, 17-2 U16, 부록 A C1, 부록 C | 10/28 회의, PR `#73` |
+| 5 | AI 설계 검증 `#7`(계층형 아키텍처) 결과와 포트 표 | 9-1, 14장, 17-2 U12, 17-3 | PR `#24`·`#25` |
+| 6 | 대기열 안전장치 제안(아래 "10/27 대기열 제안" 표) | 머리말, 7-3, 12-8 | PR `#26`, ADR 0015 (제안) |
+| 7 | 이미 머지된 결제·공통 마이그레이션에 맞춰 테이블 명세 갱신: `payments`의 `currency`·`pg_approved_amount`·`UNIQUE(pg_tx_id)`·상태별 CHECK, D3를 `UNIQUE(reservation_id)` 전체로, `payment_status_histories`의 `target_type`·`actor`, `idempotency_records`의 `resource_id`·`link_type`, `outbox_events`의 재시도 컬럼 3개 | 4장 D3, 12-4, 12-5, 12-6, 15장 #58 | SA 변경 요청 S-3·S-4·S-10(컬럼)·S-11, ADR 0019·0022·0026 (결제 담당 확인) |
+
+- 아직 반영하지 않은 것: 결제 담당의 SA 변경 요청 S-1~S-28(`docs/design/payment/sa-change-requests.md`) 중 위 7번 외의 항목(동작·계약·운영, 미구현 M3 테이블)은 팀 검토 전이라 넣지 않았다. 이미 머지된 payment-service 코드와 결제 설계 문서의 테이블 이름은 ISE-67에서 이 규칙으로 바꾼다. 그 전까지 코드는 단수형이다.
 
 ### 10/27 바뀐 점 (초기 환경 통합 회의)
 
@@ -377,7 +392,7 @@ flowchart TD
 | MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | POST `/api/v1/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` |
 | MVP | 부분 유니크 인덱스(판매 중 좌석만, D2), 선점 만료 스케줄러(SKIP LOCKED), 좌석 상태·보유 매수 대사 쿼리 | — |
 | MVP | 멱등키 처리 (멱등키 = requestId) | `Idempotency-Key` 헤더 |
-| 이후 | 접수형: API가 `seat_hold_request(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
+| 이후 | 접수형: API가 `seat_hold_requests(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
 | 이후 | 동기형 대비 접수형 재측정 (부하 테스트 담당과 함께), 병목 구간 분석(Zipkin) | — |
 
 ### 6-5. 공연·좌석 조회 → 예매 흐름: 반효승
@@ -402,7 +417,7 @@ flowchart TD
 | MVP | 결제 승인(동기): 결제 토큰 서명·`typ`·`aud` 검증, 서버 금액 검증, 멱등키, 같은 예매 중복 결제 방지(D3) | POST `/api/v1/payments` → 200 승인·거절 / 202 UNKNOWN(확인 중) |
 | MVP | PG 호출: 트랜잭션 밖, 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → PG 조회로 확정 | GET `/api/v1/payments/{id}` |
 | MVP | 결제 결과 이벤트 발행(Outbox) | 발행 `payment.result`(PaymentApproved·Declined·Refunded) |
-| MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_event), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
+| MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_events), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
 | MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
 | MVP | 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
 | MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
@@ -455,10 +470,10 @@ flowchart TD
 
 | # | 문제 | 반영 | 위치 |
 | --- | --- | --- | --- |
-| D1 | 같은 사용자가 선점 요청을 동시에 보내면 둘 다 매수 검사를 통과해 회차당 매수 제한을 넘음 | 사용자·회차별 보유 수 행(`user_schedule_quota`)을 먼저 보장하고 조건부 UPDATE로 막음 | 12-3, 12-7 |
-| D2 | `schedule_seat.status`와 `reservation_seat` 부분 유니크가 둘 다 좌석 상태를 들고 있어 기준이 두 곳 | 판매 여부의 기준은 `reservation_seat` 부분 유니크. `schedule_seat.status`는 선점 1차 판정·조회용으로 같은 트랜잭션에서 함께 바꾸고, 어긋나면 `reservation_seat` 기준으로 대사 | 12-3, 12-7 |
-| D3 | 멱등키는 같은 요청 재전송만 막아, 다른 키로 같은 예매를 두 번 결제하는 경우를 못 막음 | `payment`에 부분 유니크 `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')` | 12-4 |
-| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | API가 접수 요청 행(`seat_hold_request`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
+| D1 | 같은 사용자가 선점 요청을 동시에 보내면 둘 다 매수 검사를 통과해 회차당 매수 제한을 넘음 | 사용자·회차별 보유 수 행(`user_schedule_quotas`)을 먼저 보장하고 조건부 UPDATE로 막음 | 12-3, 12-7 |
+| D2 | `schedule_seats.status`와 `reservation_seats` 부분 유니크가 둘 다 좌석 상태를 들고 있어 기준이 두 곳 | 판매 여부의 기준은 `reservation_seats` 부분 유니크. `schedule_seats.status`는 선점 1차 판정·조회용으로 같은 트랜잭션에서 함께 바꾸고, 어긋나면 `reservation_seats` 기준으로 대사 | 12-3, 12-7 |
+| D3 | 멱등키는 같은 요청 재전송만 막아, 다른 키로 같은 예매를 두 번 결제하는 경우를 못 막음 | `payments`에 `UNIQUE(reservation_id)` 전체 제약 (v3.3, ADR 0026. 이전: 상태 조건 부분 유니크) | 12-4 |
+| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | API가 접수 요청 행(`seat_hold_requests`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
 
 ## 7. 서비스 구성과 시스템 구조도
 
@@ -570,7 +585,7 @@ sequenceDiagram
 ### 8-2. 상태 머신
 
 ```
-접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (seat_hold_request, 동기형·접수형 모두)
+접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (seat_hold_requests, 동기형·접수형 모두)
 예매        HELD → CONFIRMED
             HELD → EXPIRED (미결제 만료) · HELD → RELEASED (결제 거절)
             CONFIRMED → CANCELED (취소)
@@ -580,7 +595,7 @@ sequenceDiagram
 결제        REQUESTED → APPROVED | DECLINED | UNKNOWN
             REQUESTED(10초 경과) · UNKNOWN → 재조회 → APPROVED | DECLINED | NEEDS_MANUAL_CHECK
             APPROVED → REFUNDED (환불 완료 시)
-환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refund)
+환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refunds)
             UNKNOWN → 재조회 → REFUNDED | FAILED | NEEDS_MANUAL_CHECK
 추첨        OPEN → CLOSED → DRAWN → DONE
 응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
@@ -592,8 +607,8 @@ sequenceDiagram
 | 전이 | 함께 바뀌는 것 (한 트랜잭션) | 누가 |
 | --- | --- | --- |
 | 예매 → HELD | 매수 한도 +n → 회차 좌석 HELD → 예매·예매 좌석 HELD | 선점 API (동기형) · 선점 소비자 (접수형) |
-| 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_request` 갱신 + `processed_event` 기록 | 선점 소비자 (접수형) |
-| 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_request`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
+| 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_requests` 갱신 + `processed_events` 기록 | 선점 소비자 (접수형) |
+| 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_requests`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
 | 예매 HELD → CONFIRMED | 예매 좌석 CONFIRMED, 회차 좌석 SOLD, 좌석별 티켓 ISSUED | PaymentApproved 소비자 |
 | 예매 HELD → EXPIRED / RELEASED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 매수 한도 −n | 만료 스케줄러 / PaymentDeclined 소비자 |
 | 예매 CONFIRMED → CANCELED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 티켓 VOID, 매수 한도 −n, RefundRequested(Outbox) | 취소 API |
@@ -789,7 +804,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- | --- | --- |
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
 | `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
-| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_request`와 한 트랜잭션) | 접수형 |
+| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_requests`와 한 트랜잭션) | 접수형 |
 | `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
 - Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
@@ -826,7 +841,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 ### 10-4. 소비 규칙
 
 - 컨슈머 그룹 이름은 `{구독 서비스}.{용도}`다.
-- 소비자는 `processed_event(event_id, consumer_group)` 기록과 업무 변경을 한 트랜잭션으로 처리한다. 이미 기록된 eventId는 건너뛴다.
+- 소비자는 `processed_events(event_id, consumer_group)` 기록과 업무 변경을 한 트랜잭션으로 처리한다. 이미 기록된 eventId는 건너뛴다.
 - 순서는 같은 키 안에서만 보장된다. 상태 전이는 조건부 UPDATE라, 순서가 뒤바뀐 이벤트는 0행 갱신 → 기록만 하고 건너뛴다.
 - 형식 변경은 필드 추가만 허용하고, 의미가 바뀌면 `version`을 올린다.
 
@@ -839,7 +854,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 재확인 스케줄러 하나가 `next_check_at <= now()`인 결제 `REQUESTED`(10초 경과분)·`UNKNOWN`과 환불 `REQUESTED`·`UNKNOWN`을 `SKIP LOCKED`로 집어 처리한다. 간격은 9-4.
 - PG 재조회 결과: 승인이면 `APPROVED`, 거절이면 `DECLINED`, 주문 자체를 모르면(`NOT_FOUND`) 같은 주문번호로 망취소를 보내 PG가 늦게 승인하는 경우를 막은 뒤 `DECLINED`(reasonCode `NOT_SENT`)로 닫는다(docs/sa-review/02).
 - `NEEDS_MANUAL_CHECK`는 종결 상태다. Grafana에 건수 지표와 알림 기준을 두고, 운영자가 PG 콘솔에서 확인해 수동으로 닫는다.
-- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_request`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
+- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_requests`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
 - 환불이 `FAILED`(PG가 명확히 거절)면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다(#16).
 
 ## 11. API 명세
@@ -1085,12 +1100,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 공통 클래스 | 컬럼 | 적용 테이블 |
 | --- | --- | --- |
-| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venue, venue_seat, concert, schedule, schedule_seat, user_schedule_quota, reservation, reservation_seat, seat_hold_request, ticket, lottery, lottery_entry, payment, refund, billing_key |
-| 없음 | created_at만 | 기록용 테이블: `*_status_history`, outbox, processed_event, idempotency_record |
+| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venues, venue_seats, concerts, schedules, schedule_seats, user_schedule_quotas, reservations, reservation_seats, seat_hold_requests, tickets, lotteries, lottery_entries, payments, refunds, billing_keys |
+| 없음 | created_at만 | 기록용 테이블: `*_status_histories`, outbox_events, processed_events, idempotency_records |
 - 사람 컬럼은 `BIGINT` 사용자 ID다. 요청이면 `X-User-Id`로 채우고(JPA Auditing), Kafka 소비자·스케줄러가 바꾸면 NULL = 시스템이다. 왜 바뀌었는지는 상태 이력의 `reason`에 남긴다.
 - soft delete는 운영자가 내리는 데이터(공연장·공연·회차)에만 쓴다. 조회는 기본 필터(`deleted_at IS NULL`)를 걸고, 유니크가 필요하면 `WHERE deleted_at IS NULL` 부분 유니크로 둔다.
 - 예매·결제·좌석·티켓·응모·환불은 soft delete를 쓰지 않고 상태 전이로만 처리한다. 만료·거절·취소를 구분해야 하고(E8 자동 환불 판단), 취소 내역도 고객에게 보여야 하고, 중복 판매 방지 부분 유니크가 `status` 기준이기 때문이다.
-- **보관 기간**: 결제·계약 기록은 전자상거래법상 5년 보관 대상이라 판매 기록은 지우지 않고 상태로 남긴다(10/26). outbox·processed_event는 7일, idempotency_record는 24시간 뒤 정리한다.
+- **보관 기간**: 결제·계약 기록은 전자상거래법상 5년 보관 대상이라 판매 기록은 지우지 않고 상태로 남긴다(10/26). outbox_events·processed_events는 7일, idempotency_records는 24시간 뒤 정리한다.
 
 ### 12-2. user DB
 
@@ -1103,18 +1118,22 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | password_hash | VARCHAR(100) | NOT NULL | BCrypt |
 | nickname | VARCHAR(30) | NOT NULL |  |
 | role | VARCHAR(10) | NOT NULL, DEFAULT 'USER', CHECK (USER·ADMIN) | 운영자 계정은 시드 |
+| failed_login_count | INT | NOT NULL, DEFAULT 0 | 연속 로그인 실패 횟수. 5회면 잠금 (ADR 0007) |
+| locked_at | TIMESTAMPTZ |  | 잠긴 시각. 관리자 비밀번호 초기화로 풀림 |
+| password_change_required | BOOLEAN | NOT NULL, DEFAULT FALSE | 임시 비밀번호 발급 뒤 변경 전까지 토큰 발급 금지 |
+- `failed_login_count`·`locked_at`·`password_change_required`는 10/27 회의에서 채택한 로그인 잠금·관리자 초기화(ADR 0007)로 추가했다(user-service V2 마이그레이션). v3.3에서 명세에 반영했다.
 - Refresh 토큰과 로그아웃 블랙리스트는 Redis에 둔다(12-8).
 
 ### 12-3. reservation DB
 
-**venue** (공연장, 시드 데이터)
+**venues** (공연장, 시드 데이터)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | name | VARCHAR(100) | NOT NULL | 예: KSPO DOME |
 
-**venue_seat** (공연장 좌석 배치, 시드 데이터)
+**venue_seats** (공연장 좌석 배치, 시드 데이터)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1126,7 +1145,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | grade | VARCHAR(10) | NOT NULL | VIP·R·S 등 |
 |  |  | UNIQUE(venue_id, section, row_no, seat_no) |  |
 
-**concert**
+**concerts**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1135,7 +1154,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | description | TEXT |  |  |
 | version | BIGINT | NOT NULL | 운영자 동시 수정 방지 |
 
-**schedule** (회차)
+**schedules** (회차)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1148,7 +1167,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | hold_minutes | SMALLINT | NOT NULL, DEFAULT 5 | 선점 유지 |
 | version | BIGINT | NOT NULL |  |
 
-**schedule_seat** (회차 좌석: 선점 1차 판정·조회용)
+**schedule_seats** (회차 좌석: 선점 1차 판정·조회용)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1161,7 +1180,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | status | VARCHAR(10) | NOT NULL, CHECK (AVAILABLE·HELD·SOLD) | 선점 조건부 UPDATE 대상 |
 |  |  | UNIQUE(schedule_id, venue_seat_id), INDEX(schedule_id, section) |  |
 
-**user_schedule_quota** (D1: 사용자·회차별 보유 매수)
+**user_schedule_quotas** (D1: 사용자·회차별 보유 매수)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1169,7 +1188,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | schedule_id | BIGINT | FK |  |
 | held_count | SMALLINT | NOT NULL, DEFAULT 0, CHECK (held_count ≥ 0) | HELD + CONFIRMED 좌석 수 |
 
-**reservation**
+**reservations**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1178,16 +1197,16 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | request_id | UUID | NOT NULL, UNIQUE | 멱등키 = 접수 ID |
 | user_id | BIGINT | NOT NULL | User 서비스 ID |
 | schedule_id | BIGINT | NOT NULL, FK |  |
-| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | REJECTED는 `seat_hold_request`로 옮김 (#13) |
+| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | REJECTED는 `seat_hold_requests`로 옮김 (#13) |
 | quantity | SMALLINT | NOT NULL |  |
 | total_amount | NUMERIC(15,0) | NOT NULL | 서버가 좌석 가격으로 계산 |
 | hold_expires_at | TIMESTAMPTZ |  | HELD일 때 |
 | payment_id | BIGINT |  | 승인된 결제 (환불 요청에 사용) |
 | source | VARCHAR(10) | NOT NULL, DEFAULT 'GENERAL', CHECK (GENERAL·LOTTERY) | 일반·추첨 |
 |  |  | INDEX(status, hold_expires_at), INDEX(user_id, created_at) | 만료 스케줄러, 내 예매 |
-- 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블로 옮겨 제거했다. 거절은 예매 행을 만들지 않고 `seat_hold_request`에 기록한다 (U15).
+- 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블로 옮겨 제거했다. 거절은 예매 행을 만들지 않고 `seat_hold_requests`에 기록한다 (U15).
 
-**reservation_seat**
+**reservation_seats**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1198,7 +1217,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | status | VARCHAR(10) | NOT NULL, CHECK (HELD·CONFIRMED·RELEASED) |  |
 |  |  | UNIQUE(schedule_seat_id) WHERE status IN ('HELD','CONFIRMED') | 판매 여부의 기준 (D2) |
 
-**seat_hold_request** (선점 접수 요청, 동기형·접수형 공통, #33)
+**seat_hold_requests** (선점 접수 요청, 동기형·접수형 공통, #33)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1210,13 +1229,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | reservation_id | BIGINT | FK | HELD일 때 |
 | reason_code | VARCHAR(40) |  | REJECTED일 때 (예: SEAT_ALREADY_HELD, PROCESSING_FAILED, TIMEOUT) |
 |  |  | INDEX(status, created_at) | 30초 넘은 REQUESTED 정리 |
-- API 한 트랜잭션: `seat_hold_request(REQUESTED)` INSERT + `outbox(SeatHoldRequested)` INSERT. 이 경로에서는 좌석 행을 잠그지 않는다.
-- 소비자 한 트랜잭션: 선점 시도(quota → 좌석 → 예매) 후 `seat_hold_request`를 HELD 또는 REJECTED로 갱신하고 `processed_event`를 기록한다.
+- API 한 트랜잭션: `seat_hold_requests(REQUESTED)` INSERT + `outbox_events(SeatHoldRequested)` INSERT. 이 경로에서는 좌석 행을 잠그지 않는다.
+- 소비자 한 트랜잭션: 선점 시도(quota → 좌석 → 예매) 후 `seat_hold_requests`를 HELD 또는 REJECTED로 갱신하고 `processed_events`를 기록한다.
 - 동기형도 같은 행을 남긴다. 조회·멱등 경로가 하나가 되고, 선점 API의 멱등은 이 행의 PK가 맡는다(#17).
 - REQUESTED가 30초 `[가정]` 넘으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫는다. 소비자는 `WHERE status='REQUESTED'` 조건부로 갱신하므로 닫힌 뒤 늦게 온 메시지는 좌석을 잡지 않는다.
 - 대가: API 경로에 INSERT 2건(접수형), 1건(동기형)이 생긴다. 처리량 영향은 측정 전이다(10-1).
 
-**reservation_status_history**
+**reservation_status_histories**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1225,7 +1244,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | from_status · to_status | VARCHAR(20) | to NOT NULL |  |
 | reason | VARCHAR(50) |  | 예: PAYMENT_DECLINED |
 
-**ticket** (좌석당 1장)
+**tickets** (좌석당 1장)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1234,7 +1253,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | reservation_seat_id | BIGINT | NOT NULL, FK, UNIQUE |  |
 | status | VARCHAR(10) | NOT NULL, CHECK (ISSUED·VOID) |  |
 
-**lottery** (이후)
+**lotteries** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1248,7 +1267,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | status | VARCHAR(10) | NOT NULL, CHECK (OPEN·CLOSED·DRAWN·DONE) | 재실행 방지 |
 |  |  | UNIQUE(schedule_id, grade) |  |
 
-**lottery_entry** (이후)
+**lottery_entries** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1261,36 +1280,49 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | draw_rank | INT |  | 추첨 순위 (예비 승계 순서) |
 | reservation_id | BIGINT | FK | 당첨 시 만든 예매 |
 |  |  | UNIQUE(lottery_id, user_id) | 1인 1응모 |
-- 당첨 배정으로 만드는 예매도 일반 예매와 같은 매수 한도(`user_schedule_quota`)를 거친다.
+- 당첨 배정으로 만드는 예매도 일반 예매와 같은 매수 한도(`user_schedule_quotas`)를 거친다.
 
-**notification** (보류): user_id, type, message, read_at
+**notifications** (보류): user_id, type, message, read_at
 
 ### 12-4. payment DB
 
-**payment**
+**payments**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | payment_no | VARCHAR(20) | NOT NULL, UNIQUE | 고객용 번호 |
-| reservation_id | BIGINT | NOT NULL | Reservation 서비스 ID |
+| reservation_id | BIGINT | NOT NULL, UNIQUE | Reservation 서비스 ID. 예매당 결제 하나 (D3, ADR 0026) |
 | user_id | BIGINT | NOT NULL |  |
-| amount | NUMERIC(15,0) | NOT NULL | 토큰 금액과 검증한 값 |
+| amount | NUMERIC(15,0) | NOT NULL, CHECK (amount > 0) | 토큰 금액과 검증한 값 |
+| 🆕 currency | CHAR(3) | NOT NULL, DEFAULT 'KRW', CHECK (KRW) | 통화 (S-3) |
 | method | VARCHAR(10) | NOT NULL, CHECK (CARD·BILLING) |  |
 | status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·APPROVED·DECLINED·UNKNOWN·REFUNDED·NEEDS_MANUAL_CHECK) |  |
 | pg_order_id | UUID | NOT NULL, UNIQUE | PG에 보내는 주문 ID (PG 멱등·조회 키). PG 호출 전에 저장 |
-| pg_tx_id | VARCHAR(64) |  | PG 거래 ID |
-| decline_code | VARCHAR(30) |  | 응답에서는 `reasonCode`로 내보냄. 미전송(망취소 후)은 `NOT_SENT` |
+| pg_tx_id | VARCHAR(200) | UNIQUE | PG 거래 ID. 한 PG 거래가 두 결제에 연결되지 않게 함 (S-3, S-11) |
+| 🆕 pg_approved_amount | NUMERIC(15,0) |  | PG가 승인한 금액. 승인 때 `amount`와 같아야 함 (S-3) |
+| decline_code | VARCHAR(30) |  | 우리 `DeclineReason` 값(PG 원본 코드 아님). 응답에서는 `reasonCode`로 내보냄. 미전송(망취소 후)은 `NOT_SENT` (S-11) |
 | unknown_retry_count | SMALLINT | NOT NULL, DEFAULT 0 | 재조회 횟수 (REQUESTED 경과분 포함) |
 | next_check_at | TIMESTAMPTZ |  | 다음 재조회 시각 |
 | approved_at · refunded_at | TIMESTAMPTZ |  |  |
-|  |  | UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED') | 같은 예매 중복 결제 방지 (D3) |
+|  |  | CHECK: REQUESTED·UNKNOWN이면 `next_check_at` 필수 / APPROVED면 `pg_tx_id`·`approved_at` 필수이고 `pg_approved_amount = amount` / REFUNDED면 `pg_tx_id`·`refunded_at` 필수 / DECLINED면 `decline_code` 필수 | 상태별 필수 값 (S-3) |
 |  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 (이전: INDEX(status, updated_at)) |
-- `NEEDS_MANUAL_CHECK`도 D3 부분 유니크에 넣는다. 결과가 확정되지 않은 결제라, 확인 전에 같은 예매로 새 결제가 시작되면 이중 결제가 될 수 있다(#58).
+|  |  | INDEX(status, created_at) WHERE status IN ('REQUESTED','UNKNOWN','NEEDS_MANUAL_CHECK') | 미확정 결제 최고령 지표 (ADR 0024) |
+- 🆕 v3.3: D3를 상태 조건 부분 유니크(`WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안)에서 `reservation_id` 전체 UNIQUE로 바꿨다. 거절·환불된 예매도 두 번째 결제 행을 만들 수 없다(ADR 0026). payment-service V1 마이그레이션에 이미 구현된 구조를 문서에 맞춘 것이다(S-3). 같은 예매 재결제가 필요한지는 U9(추첨 결제 실패 재시도) 확인 뒤 S-16에서 다시 본다.
 
-**payment_status_history**: id, payment_id(FK), from_status, to_status, reason
+**payment_status_histories**
 
-**refund** (#16)
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| id | BIGINT | PK |  |
+| payment_id | BIGINT | NOT NULL, FK | INDEX(payment_id, id) |
+| 🆕 target_type | VARCHAR(10) | NOT NULL, CHECK (PAYMENT·REFUND) | 결제 전이인지 환불 전이인지 (U22 관련) |
+| from_status · to_status | VARCHAR(20) | to NOT NULL |  |
+| reason | VARCHAR(50) |  |  |
+| 🆕 actor | VARCHAR(40) | NOT NULL | 전이를 일으킨 주체 |
+- `target_type`·`actor`는 V1 마이그레이션에 있으나 SA 변경 요청 목록에는 없다. 의미는 결제 담당 확인이 필요하다 `(팀 확인)`.
+
+**refunds** (#16)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1305,10 +1337,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 |  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 |
 - 멱등: `RefundRequested`를 소비할 때 `INSERT ... ON CONFLICT (payment_id) DO NOTHING`. 만료 뒤 승인(E8)과 사용자 취소가 같은 결제에 동시에 환불을 요청해도 한 건만 생긴다(E13).
 - 환불은 결제가 APPROVED로 확정된 뒤에만 시작한다. 결제가 UNKNOWN인 동안 만료되면 나중에 PaymentApproved가 오고 Reservation이 RefundRequested를 내므로 순서가 지켜진다.
-- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_history`에 reason과 함께 남긴다 `(팀 확인)`.
+- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_histories`에 reason과 함께 남긴다 `(팀 확인)`.
 - 환불 `FAILED`(PG가 명확히 거절)는 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다.
 
-**billing_key** (이후)
+**billing_keys** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1321,7 +1353,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 ### 12-5. 공통 테이블 (reservation·payment DB 각각)
 
-**outbox**
+**outbox_events**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1331,10 +1363,16 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | payload | JSONB | NOT NULL | 10-2 봉투 전체 |
 | status | VARCHAR(10) | NOT NULL, CHECK (PENDING·SENT·FAILED) |  |
 | attempts | SMALLINT | NOT NULL, DEFAULT 0 |  |
-| sent_at | TIMESTAMPTZ |  |  |
+| 🆕 next_attempt_at | TIMESTAMPTZ | NOT NULL | 다음 발행 시도 시각(백오프) (S-10) |
+| 🆕 claimed_until | TIMESTAMPTZ |  | 릴레이가 행을 잡아 둔 임대 만료 시각. 인스턴스가 여러 개여도 한 곳만 발행 (S-10) |
+| 🆕 last_error | VARCHAR(500) |  | 마지막 발행 실패 사유 (S-10) |
+| sent_at | TIMESTAMPTZ |  | `SENT`는 Kafka 발행 성공만 뜻함 |
 |  |  | INDEX(id) WHERE status = 'PENDING' | 릴레이 폴링 |
+|  |  | INDEX(next_attempt_at, id) · INDEX(message_key, id) WHERE status = 'PENDING' | 재시도 대상, 같은 키의 앞선 미발행 행 확인 (S-10) |
+|  |  | INDEX(sent_at) WHERE status = 'SENT' · INDEX(created_at) | 보관 기간 정리 |
+- 🆕 v3.3: `next_attempt_at`·`claimed_until`·`last_error`는 공통 모듈(`common` messaging)의 Outbox 릴레이가 쓰는 컬럼이라 reservation DB의 outbox도 같은 구조가 된다. 재시도 간격·보관 기간·임대 시간 값(S-10의 나머지)과 Reservation의 `payment.result` DLQ 처리기는 이번에 반영하지 않았다.
 
-**processed_event**
+**processed_events**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1342,114 +1380,304 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | consumer_group | VARCHAR(100) |  |  |
 | processed_at | TIMESTAMPTZ | NOT NULL |  |
 
-**idempotency_record**
+**idempotency_records**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | user_id | BIGINT | PK(user_id, idem_key) | 사용자 단위로 키 구분 |
 | idem_key | UUID |  |  |
 | request_hash | CHAR(64) | NOT NULL | 본문 SHA-256 (다른 본문 판별) |
+| 🆕 resource_id | BIGINT | NOT NULL, INDEX | 이 키가 연결된 자원(결제 ID) (S-4) |
+| 🆕 link_type | VARCHAR(10) | NOT NULL, CHECK (ORIGIN·ALIAS) | ORIGIN은 자원을 만든 키, ALIAS는 기존 자원에 연결된 새 키 (S-4, ADR 0019) |
 | response_status | SMALLINT |  | 처리 중이면 NULL |
 | response_body | JSONB |  |  |
 | expires_at | TIMESTAMPTZ | NOT NULL | 24시간 |
+- 🆕 v3.3: `resource_id`·`link_type`은 payment-service에 구현된 컬럼이다(S-4). 멱등 처리는 공통 모듈이 아니라 서비스 코드라, reservation DB(응모·취소)에도 같은 컬럼을 둘지는 예매 담당이 구현할 때 정한다 `(팀 확인)`.
 - 결제는 멱등 기록과 결제 저장을 같은 트랜잭션으로 처리한다(결정 기록 #17).
-- 선점의 멱등은 동기형·접수형 모두 `seat_hold_request` PK가 맡는다. 결제·응모·취소는 `idempotency_record`.
+- 선점의 멱등은 동기형·접수형 모두 `seat_hold_requests` PK가 맡는다. 결제·응모·취소는 `idempotency_records`.
 
 ### 12-6. ERD
 
+테이블 명세(12-2~12-5)의 모든 테이블과 컬럼을 그렸다. 명세를 보지 않고 ERD만 봐도 구조를 알 수 있게 하는 것이 목적이다.
+
+- 그림 1~5는 DB 단위다. user·reservation·payment DB 사이에는 FK가 없고 ID 값으로만 잇는다(속성 설명 "서비스 간 ID").
+- 업무 테이블은 `BaseEntity` 감사 컬럼 6개(created_at · created_by · updated_at · updated_by · deleted_at · deleted_by)를 모두 가진다. 그림에서는 생략했다. 기록용 테이블(`*_status_histories`, `outbox_events`, `processed_events`, `idempotency_records`)은 `created_at`만 가진다(12-1).
+- 부분 유니크와 인덱스는 속성 설명에 요약했다. 정확한 조건은 테이블 명세를 따른다.
+- 테이블 이름은 snake_case 복수형이다(v3.3, ADR 0030). 컬럼과 FK 컬럼은 단수형이다.
+
+**그림 1. user DB**
+
 ```mermaid
 erDiagram
-  VENUE ||--o{ VENUE_SEAT : has
-  VENUE ||--o{ SCHEDULE : hosts
-  CONCERT ||--o{ SCHEDULE : has
-  SCHEDULE ||--o{ SCHEDULE_SEAT : has
-  VENUE_SEAT ||--o{ SCHEDULE_SEAT : "per schedule"
-  SCHEDULE ||--o{ USER_SCHEDULE_QUOTA : limits
-  SCHEDULE ||--o{ RESERVATION : has
-  SCHEDULE ||--o{ SEAT_HOLD_REQUEST : "접수형"
-  SEAT_HOLD_REQUEST |o--o| RESERVATION : "HELD 시"
-  RESERVATION ||--|{ RESERVATION_SEAT : contains
-  SCHEDULE_SEAT ||--o{ RESERVATION_SEAT : "held by"
-  RESERVATION_SEAT ||--o| TICKET : issues
-  RESERVATION ||--o{ RESERVATION_STATUS_HISTORY : logs
-  SCHEDULE ||--o{ LOTTERY : "이후"
-  LOTTERY ||--o{ LOTTERY_ENTRY : receives
-  LOTTERY_ENTRY |o--o| RESERVATION : "당첨 시"
+  users {
+    bigint id PK
+    varchar email UK "로그인 ID"
+    varchar password_hash "BCrypt"
+    varchar nickname
+    varchar role "USER, ADMIN"
+    int failed_login_count "5회면 잠금"
+    timestamptz locked_at
+    boolean password_change_required "임시 비밀번호 뒤 true"
+  }
+```
 
-  SCHEDULE { bigint id PK
+**그림 2. reservation DB (공연·좌석·예매)**
+
+```mermaid
+erDiagram
+  venues ||--o{ venue_seats : has
+  venues ||--o{ schedules : hosts
+  concerts ||--o{ schedules : has
+  schedules ||--o{ schedule_seats : has
+  venue_seats ||--o{ schedule_seats : "per schedule"
+  schedules ||--o{ user_schedule_quotas : limits
+  schedules ||--o{ seat_hold_requests : receives
+  schedules ||--o{ reservations : has
+  seat_hold_requests |o--o| reservations : "HELD 시"
+  reservations ||--|{ reservation_seats : contains
+  schedule_seats ||--o{ reservation_seats : "held by"
+  reservation_seats ||--o| tickets : issues
+  reservations ||--o{ reservation_status_histories : logs
+
+  venues {
+    bigint id PK
+    varchar name "예: KSPO DOME"
+  }
+  venue_seats {
+    bigint id PK
+    bigint venue_id FK
+    varchar section "구역, 접수형 파티션 키"
+    varchar row_no
+    int seat_no
+    varchar grade "VIP, R, S"
+  }
+  concerts {
+    bigint id PK
+    varchar title
+    text description
+    bigint version "운영자 동시 수정 방지"
+  }
+  schedules {
+    bigint id PK
     bigint concert_id FK
     bigint venue_id FK
-    timestamptz open_at
-    smallint max_per_user }
-  SCHEDULE_SEAT { bigint id PK
+    timestamptz starts_at
+    timestamptz open_at "예매 오픈"
+    smallint max_per_user "기본 4"
+    smallint hold_minutes "기본 5"
+    bigint version
+  }
+  schedule_seats {
+    bigint id PK "API의 seatId"
     bigint schedule_id FK
+    bigint venue_seat_id FK
     varchar section
-    bigint price
-    varchar status }
-  USER_SCHEDULE_QUOTA { bigint user_id PK
-    bigint schedule_id PK
-    smallint held_count }
-  SEAT_HOLD_REQUEST { uuid request_id PK
-    bigint user_id
-    varchar status
-    bigint reservation_id FK }
-  RESERVATION { bigint id PK
-    uuid request_id UK
-    bigint user_id
-    varchar status
-    timestamptz hold_expires_at }
-  RESERVATION_SEAT { bigint id PK
+    varchar grade
+    numeric price
+    varchar status "AVAILABLE, HELD, SOLD"
+  }
+  user_schedule_quotas {
+    bigint user_id PK "서비스 간 ID"
+    bigint schedule_id PK, FK
+    smallint held_count "HELD + CONFIRMED 좌석 수"
+  }
+  seat_hold_requests {
+    uuid request_id PK "Idempotency-Key 파생"
+    bigint user_id "서비스 간 ID"
+    bigint schedule_id FK
+    bigint_array seat_ids "BIGINT[]"
+    varchar status "REQUESTED, HELD, REJECTED"
+    bigint reservation_id FK "HELD일 때"
+    varchar reason_code "REJECTED일 때"
+  }
+  reservations {
+    bigint id PK
+    varchar reservation_no UK "고객용 번호"
+    uuid request_id UK "접수 ID"
+    bigint user_id "서비스 간 ID"
+    bigint schedule_id FK
+    varchar status "HELD, CONFIRMED, EXPIRED, RELEASED, CANCELED"
+    smallint quantity
+    numeric total_amount
+    timestamptz hold_expires_at "HELD일 때"
+    bigint payment_id "서비스 간 ID"
+    varchar source "GENERAL, LOTTERY"
+  }
+  reservation_seats {
+    bigint id PK
     bigint reservation_id FK
-    bigint schedule_seat_id FK
-    varchar status }
-  TICKET { bigint id PK
-    bigint reservation_seat_id FK
-    varchar ticket_no UK }
+    bigint schedule_seat_id FK "HELD, CONFIRMED 중 부분 유니크 D2"
+    numeric price "선점 시점 가격"
+    varchar status "HELD, CONFIRMED, RELEASED"
+  }
+  tickets {
+    bigint id PK
+    varchar ticket_no UK
+    bigint reservation_seat_id FK, UK
+    varchar status "ISSUED, VOID"
+  }
+  reservation_status_histories {
+    bigint id PK
+    bigint reservation_id FK
+    varchar from_status
+    varchar to_status
+    varchar reason "예: PAYMENT_DECLINED"
+  }
 ```
+
+**그림 3. reservation DB (추첨·알림, 이후·보류)**
 
 ```mermaid
 erDiagram
-  PAYMENT ||--o{ PAYMENT_STATUS_HISTORY : logs
-  PAYMENT ||--o| REFUND : "환불"
-  PAYMENT { bigint id PK
-    bigint reservation_id "서비스 간 ID 참조"
-    bigint user_id
-    bigint amount
-    varchar status
-    uuid pg_order_id UK
-    timestamptz next_check_at }
-  REFUND { bigint id PK
-    bigint payment_id UK
-    uuid pg_refund_id UK
-    varchar status
-    timestamptz next_check_at }
-  BILLING_KEY { bigint id PK
-    bigint user_id
-    varchar status }
-  USERS { bigint id PK
-    varchar email UK
-    varchar role }
+  schedules ||--o{ lotteries : "이후"
+  lotteries ||--o{ lottery_entries : receives
+  lottery_entries |o--o| reservations : "당첨 시"
+
+  schedules {
+    bigint id PK
+  }
+  reservations {
+    bigint id PK
+  }
+  lotteries {
+    bigint id PK
+    bigint schedule_id FK "schedule_id, grade 유니크"
+    varchar grade "등급별 추첨"
+    int seat_count
+    smallint max_per_entry "1~2"
+    timestamptz entry_start_at
+    timestamptz entry_end_at
+    timestamptz draw_at
+    bigint seed "추첨 재현용"
+    varchar status "OPEN, CLOSED, DRAWN, DONE"
+  }
+  lottery_entries {
+    bigint id PK
+    bigint lottery_id FK "lottery_id, user_id 유니크"
+    uuid request_id UK "접수 ID"
+    bigint user_id "서비스 간 ID"
+    smallint quantity
+    varchar status "ENTERED, WON, WAITLISTED, LOST, PAID, FAILED"
+    int draw_rank "예비 승계 순서"
+    bigint reservation_id FK "당첨 시"
+  }
+  notifications {
+    bigint id PK "보류"
+    bigint user_id "서비스 간 ID"
+    varchar type
+    varchar message
+    timestamptz read_at
+  }
 ```
 
-- user DB(USERS)와 payment DB는 서로, 그리고 reservation DB와 FK 없이 ID 값으로만 이어진다. outbox·processed_event·idempotency_record는 그림에서 생략했다.
+**그림 4. payment DB**
+
+```mermaid
+erDiagram
+  payments ||--o{ payment_status_histories : logs
+  payments ||--o| refunds : "환불"
+
+  payments {
+    bigint id PK
+    varchar payment_no UK "고객용 번호"
+    bigint reservation_id UK "서비스 간 ID, 예매당 하나 D3"
+    bigint user_id "서비스 간 ID"
+    numeric amount "토큰 금액과 검증"
+    char currency "KRW"
+    varchar method "CARD, BILLING"
+    varchar status "REQUESTED, APPROVED, DECLINED, UNKNOWN, REFUNDED, NEEDS_MANUAL_CHECK"
+    uuid pg_order_id UK "PG 호출 전 저장"
+    varchar pg_tx_id UK "PG 거래 ID"
+    numeric pg_approved_amount "승인 때 amount와 같음"
+    varchar decline_code "DeclineReason"
+    smallint unknown_retry_count
+    timestamptz next_check_at "재조회 시각"
+    timestamptz approved_at
+    timestamptz refunded_at
+  }
+  payment_status_histories {
+    bigint id PK
+    bigint payment_id FK
+    varchar target_type "PAYMENT, REFUND"
+    varchar from_status
+    varchar to_status
+    varchar reason
+    varchar actor
+  }
+  refunds {
+    bigint id PK
+    bigint payment_id FK, UK "결제 1건당 1건"
+    uuid pg_refund_id UK "PG 멱등키"
+    numeric amount
+    varchar reason "EXPIRED_AFTER_APPROVAL, CANCELED"
+    varchar status "REQUESTED, REFUNDED, FAILED, UNKNOWN, NEEDS_MANUAL_CHECK"
+    smallint attempt
+    timestamptz next_check_at
+  }
+  billing_keys {
+    bigint id PK "이후"
+    bigint user_id "서비스 간 ID, ACTIVE 1개"
+    varchar billing_key_enc "암호화 저장"
+    char card_last4
+    varchar status "ACTIVE, REVOKED"
+  }
+```
+
+**그림 5. 공통 테이블 (reservation·payment DB에 각각)**
+
+```mermaid
+erDiagram
+  outbox_events {
+    bigint id PK "릴레이 순서"
+    uuid event_id UK
+    varchar topic
+    varchar message_key
+    varchar event_type
+    jsonb payload "10-2 봉투 전체"
+    varchar status "PENDING, SENT, FAILED"
+    smallint attempts
+    timestamptz next_attempt_at "백오프"
+    timestamptz claimed_until "릴레이 임대"
+    varchar last_error
+    timestamptz sent_at "Kafka 발행 성공"
+  }
+  processed_events {
+    uuid event_id PK
+    varchar consumer_group PK
+    timestamptz processed_at
+  }
+  idempotency_records {
+    bigint user_id PK "사용자 단위"
+    uuid idem_key PK
+    char request_hash "본문 SHA-256"
+    bigint resource_id "연결된 결제 ID"
+    varchar link_type "ORIGIN, ALIAS"
+    smallint response_status "처리 중이면 NULL"
+    jsonb response_body
+    timestamptz expires_at "24시간"
+  }
+```
+
+- 그림 3은 그림 2의 `schedules`·`reservations`를 ID만 다시 그려 관계를 보였다.
+- 그림 4·5의 결제·공통 테이블은 v3.3에서 이미 구현된 마이그레이션에 맞췄다(SA 변경 요청 S-3·S-4·S-10 컬럼·S-11). 결제 상세 설계에만 있는 M3 테이블(`dead_letter`, `manual_action_log`, `reconciliation_mismatch`)과 `refunds` 추가 컬럼은 아직 구현 전이라 SA 변경 요청 S-8 등이 승인되면 반영한다.
 
 ### 12-7. 핵심 쿼리: 동기형 선점 (D1·D2)
 
 ```sql
 -- 한 트랜잭션, SET LOCAL lock_timeout = '500ms'
 -- ① 매수 한도 (D1): 행을 먼저 보장한 뒤 같은 사용자의 동시 요청을 이 행 하나에서 줄 세움
-INSERT INTO user_schedule_quota (user_id, schedule_id, held_count)
+INSERT INTO user_schedule_quotas (user_id, schedule_id, held_count)
 VALUES (:userId, :scheduleId, 0) ON CONFLICT (user_id, schedule_id) DO NOTHING;
 
-UPDATE user_schedule_quota
+UPDATE user_schedule_quotas
    SET held_count = held_count + :n, updated_at = now()
  WHERE user_id = :userId AND schedule_id = :scheduleId
    AND held_count + :n <= :maxPerUser;
 -- 0행 → 롤백, 409 PURCHASE_LIMIT_EXCEEDED (행은 위에서 보장되므로 0행은 한도 초과만 뜻함)
 
 -- ② 좌석 조건부 UPDATE: 좌석 ID 오름차순으로 잠가 교착 방지
-UPDATE schedule_seat SET status = 'HELD', updated_at = now()
- WHERE id IN (SELECT id FROM schedule_seat
+UPDATE schedule_seats SET status = 'HELD', updated_at = now()
+ WHERE id IN (SELECT id FROM schedule_seats
                WHERE schedule_id = :scheduleId AND id = ANY(:seatIds)
                  AND status = 'AVAILABLE'
                ORDER BY id FOR UPDATE);
@@ -1457,11 +1685,11 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 -- lock_timeout 초과도 409 SEAT_ALREADY_HELD
 
 -- ③ reservation(HELD) · reservation_seat(HELD) INSERT
---    reservation_seat 부분 유니크가 ②를 비켜 간 경우의 마지막 방어선 (D2)
+--    reservation_seats 부분 유니크가 ②를 비켜 간 경우의 마지막 방어선 (D2)
 ```
 
 - 같은 사용자의 동시 요청이 INSERT에서 부딪혀도 한쪽은 대기 후 `DO NOTHING`이 되고, 이어지는 UPDATE의 행 락이 직렬화한다.
-- 대사 쿼리 (D2): `schedule_seat.status`와 활성 `reservation_seat`가 어긋난 좌석을 찾아 `reservation_seat` 기준으로 고친다. `held_count`와 활성 `reservation_seat` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
+- 대사 쿼리 (D2): `schedule_seats.status`와 활성 `reservation_seats`가 어긋난 좌석을 찾아 `reservation_seats` 기준으로 고친다. `held_count`와 활성 `reservation_seats` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
 
 ### 12-8. Redis 키
 
@@ -1492,16 +1720,16 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 
 | 테이블 | 추정 행 수 | 산식 |
 | --- | --- | --- |
-| venue_seat | 15,000 | 시드 |
-| schedule_seat | 30,000 | 15,000 × 2회차 |
-| reservation | 12,000~40,000 | 확정 약 12,000(30,000석 ÷ 평균 2.5매) + 만료·실패는 확정의 최대 2배 |
-| reservation_seat | 30,000~100,000 | reservation × 평균 2.5매 |
-| reservation_status_history | 36,000~120,000 | reservation × 평균 3회 전이 |
-| ticket | 30,000 이하 | 확정 좌석 수 |
-| user_schedule_quota | 입장자 수 × 회차 | 입장자 50,000명이면 100,000행 |
-| seat_hold_request | 선점 요청 수 | 선점 시도 수와 같음 |
-| payment / history | 15,000 / 45,000 | 확정 + 거절·UNKNOWN 소수, 이력 평균 3건 |
-| outbox, processed_event, idempotency_record | 수만 건 | 7일(멱등 24시간) 후 정리하므로 보관 기간치 이벤트 수 |
+| venue_seats | 15,000 | 시드 |
+| schedule_seats | 30,000 | 15,000 × 2회차 |
+| reservations | 12,000~40,000 | 확정 약 12,000(30,000석 ÷ 평균 2.5매) + 만료·실패는 확정의 최대 2배 |
+| reservation_seats | 30,000~100,000 | reservations × 평균 2.5매 |
+| reservation_status_histories | 36,000~120,000 | reservations × 평균 3회 전이 |
+| tickets | 30,000 이하 | 확정 좌석 수 |
+| user_schedule_quotas | 입장자 수 × 회차 | 입장자 50,000명이면 100,000행 |
+| seat_hold_requests | 선점 요청 수 | 선점 시도 수와 같음 |
+| payments / payment_status_histories | 15,000 / 45,000 | 확정 + 거절·UNKNOWN 소수, 이력 평균 3건 |
+| outbox_events, processed_events, idempotency_records | 수만 건 | 7일(멱등 24시간) 후 정리하므로 보관 기간치 이벤트 수 |
 - 이 규모의 용량은 1GB를 넘지 않을 것으로 보인다(행 크기는 미측정). 적재량 추정의 용도는 용량보다 보관·정리 정책과 인덱스 크기 확인이다. 병목은 용량이 아니라 같은 좌석 행에 몰리는 쓰기 동시성이다.
 - 회차 좌석 3만 행은 `INDEX(schedule_id, section)`으로 구역 단위 조회가 돼서 좌석 상태 조회에 별도 집계 테이블은 두지 않는다. 측정에서 좌석 조회가 병목이면 H2 캐시로 간다.
 
@@ -1516,7 +1744,7 @@ high-quality-ticketing-system/
 │  ├─ auth/                 JWT 검증 (Gateway·User)
 │  ├─ web/                  MVC 예외 처리기, 사용자 헤더 필터, @RequireRole (Gateway 제외)
 │  ├─ persistence/ event/   BaseEntity·감사, 이벤트 봉투
-│  └─ messaging/            Kafka 설정. Outbox 릴레이, processed_event, 재시도·DLQ는 결제 담당이 추가
+│  └─ messaging/            Kafka 설정. Outbox 릴레이, processed_events, 재시도·DLQ는 결제 담당이 추가
 ├─ gateway/  eureka/  config-server/  mock-pg/
 ├─ config-repo/         Config 서버가 읽는 설정 파일 (application.yml, {서비스}-{프로필}.yml)
 ├─ user-service/
@@ -1644,7 +1872,7 @@ high-quality-ticketing-system/
 | #13 상태 머신 | 접수 요청·환불·NEEDS_MANUAL_CHECK 상태, 중간 상태 정리표 | 8-2, 8-3 |
 | #14 모듈 경계·분리 조건 | 모듈러 모놀리스, 모듈별 분리 근거(lottery 포함) | 7-1 |
 | #15 데이터 공통 규칙 | 법정 보관(전자상거래 5년) 근거, 고객용 번호의 열거형 공격 방어 | 12-1 |
-| #16 취소·환불 정책 | refund 테이블·상태 5개·멱등, FAILED → 수동 확인 | 12-4 |
+| #16 취소·환불 정책 | refunds 테이블·상태 5개·멱등, FAILED → 수동 확인 | 12-4 |
 | #17 멱등키 | 선점 멱등은 접수 요청 행 PK | 12-3, 12-5 |
 | #28 PG 장애 처리 | 10초 넘은 REQUESTED 재조회, 단계별 간격, NOT_FOUND 망취소 | 10-5, 12-4 |
 | #33 좌석 선점 | 접수 요청 행 + outbox, 동기형도 요청 행, 30초 시한, 선점 응답에 결제 토큰 | 8-1, 12-3, 12-7 |
@@ -1664,7 +1892,8 @@ high-quality-ticketing-system/
 | 분산락(Redis 등) | DB 접근 전에 경합을 거를 수 있음 | 락 획득·해제 왕복, 락 만료와 장애 시 정합성 위험, 결국 DB 제약이 필요 |
 | Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
 
-**부분 유니크 인덱스 (#58)**: `reservation_seat`(D2: HELD·CONFIRMED)와 `payment`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
+**부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)와 `payments`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
+- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 이 문단의 "재결제가 가능하다"를 고치는 것(S-16)은 U9 확인 뒤 결정 기록 #58과 함께 정정한다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 
@@ -1710,7 +1939,7 @@ high-quality-ticketing-system/
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
 | U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
 | U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
-| U22 | 환불 상태 이력을 `payment_status_history`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
+| U22 | 환불 상태 이력을 `payment_status_histories`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
 
 해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58)
 
@@ -1847,6 +2076,9 @@ high-quality-ticketing-system/
 | 블랙리스트 Redis 장애 | open: 로그아웃된 토큰이 최대 30분 통함 (#48 잠정), 이후 closed 잠정 구현 (ADR 0005 제안) | closed 확정 (10/27 회의 D14, ADR 0005 채택) | 반영 (v3.2) |
 | 구현 버전 | Gradle 9.1.0 (통합 기준 브랜치) | Gradle 9.8.2, Groovy DSL, PostgreSQL 17, Lombok 사용 (10/27 회의 D2·D3·D12·D13) | 반영 (v3.2) |
 | Mock PG 담당과 결제 지원 | Mock PG·장애 주입·망취소·환불 조회는 이강민, 결제가 밀리면 이강민이 추첨 시작을 늦추고 돕는다 (v3.2 6-1·6-7·6-9) | Mock PG 포함 결제 전부 안준현, 지원 불필요. 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 (10/28 결제 담당 확인) | 반영 (10/28) |
+| 테이블 이름 | `users`만 복수형, 나머지 단수형(`payment`, `outbox`, `reservation_status_history` 등) (v3.2 12장) | 모두 snake_case 복수형, `outbox` → `outbox_events` (ADR 0030 제안) | 반영 (v3.3, 결제 코드는 ISE-67) |
+| ERD | 예매 흐름 테이블 위주 2개 그림, 공통 테이블·빌링키·이력 속성 생략 (v3.2 12-6) | DB별 그림 5개, 명세의 모든 테이블·컬럼 | 반영 (v3.3) |
+| 같은 예매 중복 결제 방지 (D3) | `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안 (v3.2 12-4, #58) | `UNIQUE(reservation_id)` 전체, 예매당 결제 하나 (ADR 0026, payment-service V1) | 반영 (v3.3, #58 문장 정정은 U9 뒤 S-16) |
 
 **본문에서 뺀 내용**
 
