@@ -14,7 +14,13 @@ import java.util.Optional;
 public interface PaymentRepository {
     Payment save(Payment payment);
 
+    // 내부 흐름(승인·전이)과 ADMIN 조회만 쓴다. 사용자 요청 경로는 findByIdAndUserId를 쓴다(0021)
     Optional<Payment> findById(Long id);
+
+    // 소유자 조건을 쿼리에 넣어, 타인의 결제는 메모리에 올라오지 않는다
+    Optional<Payment> findByIdAndUserId(Long id, Long userId);
+
+    boolean existsById(Long id);
 
     Optional<Payment> findByReservationId(Long reservationId);
 

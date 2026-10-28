@@ -15,6 +15,8 @@ import java.util.Optional;
 interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByReservationId(Long reservationId);
 
+    Optional<Payment> findByIdAndUserId(Long id, Long userId);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
             UPDATE payments
