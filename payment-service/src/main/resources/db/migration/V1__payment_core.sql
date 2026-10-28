@@ -1,5 +1,5 @@
 -- 결제 핵심 테이블. 설계 기준: docs/design/payment/data-model.md 2~7절
--- refunds·dead_letters·manual_action_logs·reconciliation_mismatches는 V2(M3), billing_keys는 V3(M4)에서 만든다.
+-- refunds·dead_letters·manual_action_logs·reconciliation_mismatches는 V3(M3), billing_keys는 V4(M4)에서 만든다.
 
 CREATE TABLE payments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

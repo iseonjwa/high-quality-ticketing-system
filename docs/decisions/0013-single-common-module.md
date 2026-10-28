@@ -21,7 +21,7 @@
 - Kafka가 없는 User 서비스가 메시징 빈을 만드는 문제는 `CommonMessagingConfiguration`을 Reservation·Payment만 `@Import`하는 것으로 막는다. 원안이 걱정한 "스캔하면 릴레이 빈이 생긴다"는 스캔을 쓰지 않아 해당하지 않는다.
 
 ## 맥락
-- SA 13장은 공통 코드를 `common`(이벤트 봉투, BaseEntity), `common-response`(응답 DTO·ErrorCode, Gateway 포함), `common-web`(MVC 예외 처리기), `common-messaging`(Outbox·processed_events·DLQ) 네 모듈로 나눈다.
+- SA 13장은 공통 코드를 `common`(이벤트 봉투, BaseEntity), `common-response`(응답 DTO·ErrorCode, Gateway 포함), `common-web`(MVC 예외 처리기), `common-messaging`(Outbox·processed_event·DLQ) 네 모듈로 나눈다.
 - Gateway를 WebFlux로 바꾸기로 했다([판단 기록](../ai-judgments/kwonwoo/2026-10-27-gateway-webflux.md)). Spring Boot는 클래스패스에 `spring-webmvc`가 있으면 서블릿으로 뜨므로, Gateway가 쓰는 공통 코드에 MVC 의존이 섞이면 안 된다.
 - 지금 공통으로 둘 코드는 응답 형식, 에러 코드, MVC 예외 처리기 정도로 적다. Kafka는 Reservation·Payment만 쓰고 Gateway·User는 쓰지 않는다(SA 4-2, 10-1).
 
@@ -31,7 +31,7 @@
   1. 웹 스택·JPA·Kafka는 `compileOnly`로만 둔다.
   2. 자동 구성을 두지 않고, MVC 서비스가 `scanBasePackages`에 `com.highquality.common`을 넣어 가져온다. Gateway는 스캔하지 않는다.
   3. Kafka를 쓰는 코드는 넣지 않는다.
-- Outbox·processed_events·재시도·DLQ는 결제 담당이 만들 때 `common-messaging` 모듈로 분리하고 Reservation·Payment만 의존한다.
+- Outbox·processed_event·재시도·DLQ는 결제 담당이 만들 때 `common-messaging` 모듈로 분리하고 Reservation·Payment만 의존한다.
 
 ## 검토한 대안
 - SA 13장대로 네 모듈로 분리: 격리를 빌드 구조로 보장한다. 하지만 지금 공통 코드 양에 비해 모듈 관리 비용이 크다. `common-messaging`은 쓰는 코드가 생길 때 만든다.

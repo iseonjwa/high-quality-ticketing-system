@@ -16,7 +16,7 @@
 - 불규칙형: `history` → `histories`, `lottery` → `lotteries`, `entry` → `entries`, `mismatch` → `mismatches`.
 - 예외를 두지 않는다. 패턴 이름인 `outbox`도 `outbox_events`로 바꾼다.
 - 컬럼 이름과 FK 컬럼은 단수형 그대로 둔다: `reservation_id`, `payment_id`. 행 하나가 가리키는 대상이 하나이기 때문이다.
-- 인덱스·제약 이름은 테이블 이름에 맞춘다(`idx_payments_...`, `uq_payments_...`, `chk_outbox_events_...`). 결제는 ISE-67에서 이 규칙으로 바꿨다. 다른 서비스는 마이그레이션을 만들 때 같은 규칙을 따른다.
+- 인덱스·제약 이름을 테이블 이름에 맞출지는 각 담당이 마이그레이션을 고칠 때 정한다. 결제는 ISE-67에서 맞췄다(`idx_payments_...`, `uq_payments_...`).
 
 | v3.2 | v3.3 |
 |---|---|
@@ -38,6 +38,6 @@
 ## 결과
 - 얻는 것: 테이블 이름을 보고 규칙을 따로 확인할 필요가 없다. 예약어 충돌이 규칙 안에서 해결된다.
 - 감수하는 것: 엔티티 클래스(`Payment`)와 테이블(`payments`) 이름이 달라 `@Table(name = ...)`을 꼭 적어야 한다. 이미 머지된 payment-service 마이그레이션·엔티티·쿼리를 바꿔야 한다.
-- 적용(ISE-67): 배포 전이라 payment-service V1·V2 마이그레이션을 직접 고쳤다(이력이 깔끔하다). 이미 V1을 적용한 로컬·테스트 DB는 Flyway 체크섬이 어긋나므로 볼륨을 지우고 다시 만든다(`docker compose -f compose.test.yml down -v` 등).
-- 후속 범위: payment-service 코드, 공통 모듈 messaging의 Outbox·처리 이력 SQL(`outbox`·`processed_event`가 문자열로 들어 있음), 결제 상세 설계·ADR 0016~0029의 테이블 이름은 결제 담당이 ISE-67에서 한 PR로 바꾼다. 그때까지 SA(v3.3)와 결제 코드·문서의 이름이 다르다. 결제 상세 설계에만 있는 M3 테이블(`dead_letter`, `manual_action_log`, `reconciliation_mismatch`)도 ISE-67에서 같은 규칙을 적용한다.
+- 적용(ISE-67): 배포 전이라 payment-service V1·V2 마이그레이션을 직접 고쳤다(이력이 깔끔하다). 이미 V1을 적용한 로컬 DB는 Flyway 체크섬이 어긋나므로 payment DB 볼륨만 지우고 다시 만든다(`docker compose -f compose.yml -f compose.local.yml rm -sf postgres-payment && docker volume rm iseonjwa_postgres-payment`). 테스트 DB(`compose.test.yml`)는 tmpfs라 컨테이너를 다시 띄우면 된다.
+- 후속 범위였던 payment-service 코드, 공통 모듈 messaging의 Outbox·처리 이력 SQL, 결제 상세 설계·ADR 0016~0029의 테이블 이름(M3 테이블 `dead_letters`·`manual_action_logs`·`reconciliation_mismatches` 포함)은 ISE-67에서 한 PR로 바꿨다.
 - 바꿀 조건: 팀이 단수형을 원하면 이 ADR을 대체하는 결정으로 되돌린다. ISE-67 적용 전이라면 SA만 되돌리면 된다.

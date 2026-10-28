@@ -72,9 +72,9 @@ CREATE FUNCTION reject_modification() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
 END $$;
-CREATE TRIGGER payment_status_history_no_update BEFORE UPDATE OR DELETE ON payment_status_histories
+CREATE TRIGGER payment_status_histories_no_update BEFORE UPDATE OR DELETE ON payment_status_histories
   FOR EACH ROW EXECUTE FUNCTION reject_modification();
-CREATE TRIGGER payment_status_history_no_truncate BEFORE TRUNCATE ON payment_status_histories
+CREATE TRIGGER payment_status_histories_no_truncate BEFORE TRUNCATE ON payment_status_histories
   FOR EACH STATEMENT EXECUTE FUNCTION reject_modification();
 ```
 

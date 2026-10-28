@@ -98,7 +98,7 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 
 ## 개정 이력
 
-- 2026-10-28: 사용자 결정 2와 즉시 수정 지시를 반영해 다시 썼다. 이전 제목은 "환불 요청이 DLQ로 가면 DLQ 처리기가 운영자 확인 상태로 전환한다"였다. (1) DLQ에 온 요청을 곧바로 `NEEDS_MANUAL_CHECK`로 보내지 않고 환불 행으로 영속화해 자동 환불 워커가 복구하게 했다(M8). (2) 소비자는 PG를 부르지 않고 영속화만 한다. (3) 환불 `FAILED`를 운영자 종결로만 정의하고 PG 거절은 바로 `NEEDS_MANUAL_CHECK`로 했다(C2). (4) 원안 본문의 "`dead_letters.event_id`가 UNIQUE"를 `event_key`로 바로잡았다(L6). (5) `RefundRequested` 교차 검증과 Kafka-UI READONLY를 더했다(M7). (6) 수동 복구를 SQL 템플릿에서 Ops 명령으로 바꿨다(0028). (7) "토픽 보관 기간 초과" 잔여 위험을 대사(0029)가 맡는다.
+- 2026-10-28: 사용자 결정 2와 즉시 수정 지시를 반영해 다시 썼다. 이전 제목은 "환불 요청이 DLQ로 가면 DLQ 처리기가 운영자 확인 상태로 전환한다"였다. (1) DLQ에 온 요청을 곧바로 `NEEDS_MANUAL_CHECK`로 보내지 않고 환불 행으로 영속화해 자동 환불 워커가 복구하게 했다(M8). (2) 소비자는 PG를 부르지 않고 영속화만 한다. (3) 환불 `FAILED`를 운영자 종결로만 정의하고 PG 거절은 바로 `NEEDS_MANUAL_CHECK`로 했다(C2). (4) 원안 본문의 "`dead_letter.event_id`가 UNIQUE"를 `event_key`로 바로잡았다(L6). (5) `RefundRequested` 교차 검증과 Kafka-UI READONLY를 더했다(M7). (6) 수동 복구를 SQL 템플릿에서 Ops 명령으로 바꿨다(0028). (7) "토픽 보관 기간 초과" 잔여 위험을 대사(0029)가 맡는다.
 
 ## 면접에서 설명할 한 줄
 
