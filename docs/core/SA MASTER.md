@@ -49,7 +49,7 @@
 | 7 | 에러 코드 `QUEUE_NOT_READY`(409) 추가 | 11-3 | ADR 0031 |
 | 8 | 토큰 발급 쓰기 순서(`issued` 기록 → `waiting` 제거), 만료된 `issued` 기록 처리, 입장 처리 Lua의 1초 정리, Redis `TIME` 기준 시각 | 12-8 | ADR 0031 |
 | 9 | 입장 토큰 `jti`를 회차·사용자·발급 시각으로 계산한다. 같은 발급 시각이면 같은 토큰이 나온다 | 7-3 | ADR 0031 |
-| 10 | 폴링 간격에 jitter를 섞는다 | 9-4 | ADR 0031 |
+| 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
 
 ### 10/26 바뀐 점
 
@@ -758,7 +758,7 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | 회차당 매수 | 4매 | 결정 기록 #35 |
 | 입장 토큰 유효 시간 T | 10분 | 좌석 고르기 + 결제 5분 |
 | 초당 입장 수 N | 50명 (임시값) | 기준선 측정 후 3-3 식으로 역산 |
-| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초). 🆕 ±20% jitter (제안, ADR 0031) | 폴링 부하 상한. jitter는 같은 시각에 폴링이 몰리지 않게 한다 |
+| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초). 🆕 서버가 0~+20% jitter를 ms로 더해 `nextPollAfterMillis`로 준다 (제안, ADR 0031) | 폴링 부하 상한. jitter는 같은 시각에 폴링이 몰리지 않게 하고, 더하기만 해서 상한(최소 3초)을 넘지 않는다 |
 | Access / Refresh 토큰 | 30분 / 14일 | 짧은 Access + Refresh |
 | 결제 → 예매 확정 반영 | 2초 이내 (Outbox 폴링 500ms) | 결과 화면 지연 상한 |
 | 접수형 접수 → 처리 완료 | 2초 이내 (outbox 폴링 500ms + 컨슈머 랙) | 202 처리량과 실제 처리량을 함께 봄 |
@@ -1025,7 +1025,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 ```json
 // POST /api/v1/schedules/31/queue    →  새로 섬 201 / 이미 줄에 있음 200, data
 // GET  /api/v1/schedules/31/queue/me →  200, data (같은 모양)
-{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterSeconds": 10 }
+{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterMillis": 10734 }
 { "status": "READY" }
 
 // 🆕 POST /api/v1/schedules/31/queue/token  →  200, data (처음 발급·재발급 같은 모양)
@@ -1038,6 +1038,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 🆕 입장 토큰은 토큰 API에서만 준다. 진입과 순번 조회는 같은 판단 규칙으로 같은 모양을 응답하고, 순번 조회는 Redis에 쓰지 않는다. 이전 안은 순번 조회가 `ADMITTED`와 토큰을 줬다.
 - 🆕 프론트는 입장 토큰을 `sessionStorage`에 두고, 만료 전이면 대기열을 건너뛴다. 서버의 `issued`는 그게 안 되는 경우(응답 유실, 새 탭, 다른 기기)를 위한 장치다.
 - 🆕 줄에 없거나 토큰이 만료됐으면 순번 조회·토큰 API는 404 `QUEUE_NOT_JOINED`, 차례 전에 토큰을 요청하면 409 `QUEUE_NOT_READY`다.
+- 🆕 `READY`를 받은 뒤 토큰 API는 `ADMITTED` 또는 404 `QUEUE_NOT_JOINED`만 준다. 404는 이미 발급된 토큰 기록이 그 사이 만료된 경우다(`admitted`는 줄지 않으므로 차례가 돼서 받은 `READY`는 그대로 유효하다). 프론트는 만료를 안내하고 진입 버튼을 다시 보여 준다.
+- 🆕 409 `QUEUE_NOT_READY`는 `READY` 없이 토큰 API를 부를 때만 나온다. 정상 흐름에는 없고, 받으면 순번 조회로 돌아간다.
+- 🆕 다음 조회 시각(제안, ADR 0031): 대기열은 `nextPollAfterMillis`(정수 ms)를 쓴다. 서버가 순번 기반 간격(9-4)에 0~+20% jitter를 섞은 값이라 프론트는 그대로 기다린다. 202 응답의 `nextPollAfterSeconds`(11-2)와 단위가 다르다.
+- 🆕 503 `Retry-After`는 HTTP 규칙상 정수 초라서, 프론트가 0~+20%를 ms로 더해 재시도한다. 장애에서 회복되는 순간 재시도가 한꺼번에 몰리지 않게 한다.
 
 **선점**
 
