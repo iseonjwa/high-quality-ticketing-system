@@ -50,6 +50,8 @@
 | 8 | 토큰 발급 쓰기 순서(`issued` 기록 → `waiting` 제거), 만료된 `issued` 기록 처리, 입장 처리 Lua의 1초 정리, Redis `TIME` 기준 시각 | 12-8 | ADR 0031 |
 | 9 | 입장 토큰 `jti`를 회차·사용자·발급 시각으로 계산한다. 같은 발급 시각이면 같은 토큰이 나온다 | 7-3 | ADR 0031 |
 | 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
+| 11 | 입장 토큰 claim 확정: 회차 ID는 `scheduleId`(JSON 정수), `iat` 추가, `exp`·`jti`는 발급 시각 ms에서 계산 | 7-3 | 계약 ① (`docs/design/queue/contracts.md`, ISE-20) |
+| 12 | 좌석 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. Gateway가 입장 토큰의 `scheduleId`를 경로와 비교하고 본문은 읽지 않는다 | 6-4, 7-3, 8-1, 11-4, 11-5 | 계약 ①, 좌석 선점 계약 |
 
 ### 10/26 바뀐 점
 
@@ -395,10 +397,10 @@ flowchart TD
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | POST `/api/v1/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` |
+| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` (제안, 계약 ①. 이전: POST `/api/v1/reservations`) |
 | MVP | 부분 유니크 인덱스(판매 중 좌석만, D2), 선점 만료 스케줄러(SKIP LOCKED), 좌석 상태·보유 매수 대사 쿼리 | — |
 | MVP | 멱등키 처리 (멱등키 = requestId) | `Idempotency-Key` 헤더 |
-| 이후 | 접수형: API가 `seat_hold_requests(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
+| 이후 | 접수형: API가 `seat_hold_requests(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
 | 이후 | 동기형 대비 접수형 재측정 (부하 테스트 담당과 함께), 병목 구간 분석(Zipkin) | — |
 
 ### 6-5. 공연·좌석 조회 → 예매 흐름: 반효승
@@ -532,9 +534,9 @@ flowchart LR
 | 발급 | Reservation | Reservation |
 | 검증 | Gateway | Payment |
 | 서명 키 | `ENTRY_TOKEN_SECRET` | `PAYMENT_TOKEN_SECRET` |
-| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(예매 ID, JSON 정수), `amount`(금액, JSON 정수), `exp`, `jti` |
+| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 🆕 `scheduleId`(회차 ID, JSON 정수), `exp`, 🆕 `iat`, `jti` (계약 ①) | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(예매 ID, JSON 정수), `amount`(금액, JSON 정수), `exp`, `jti` |
 | 만료 | 발급 후 10분 `[가정]` | `hold_expires_at - 10초` `[가정]` |
-| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
+| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 (🆕 Gateway가 요청 경로의 `{scheduleId}`와 비교, 본문은 읽지 않음, 계약 ①) + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
 - 키를 분리하면 Gateway는 결제 키를, Payment는 입장 키를 갖지 않아 서로의 토큰을 위조할 수 없다. `typ`·`aud`는 키가 실수로 같아져도 교차 사용을 막는 이중 방어다.
 - HMAC은 검증 키로 서명도 할 수 있다. "Gateway·Payment도 토큰을 만들 수 있다"는 피드백은 이 구조의 한계다. 비대칭 서명(발급자 개인키, 검증자 공개키)으로 풀 수 있으나 키 관리 비용이 늘어 MVP 이후로 둔다.
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
@@ -542,6 +544,7 @@ flowchart LR
 - `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
 - 🆕 입장 토큰 `jti`는 `entry:{회차 ID}:{userId}:{발급 시각}`의 SHA-256 앞 16바이트(hex)로 계산한다. 같은 발급 시각으로 다시 서명하면 글자까지 같은 토큰이 나온다 (제안, ADR 0031).
 - claim 이름은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim은 10/29 확정했다(`docs/design/payment/contracts.md` 1절, SA 변경 요청 S-15). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- 🆕 입장 토큰 claim은 계약 ①(`docs/design/queue/contracts.md`, ISE-20)으로 정했다: 회차 ID는 `scheduleId`(JSON 정수), `exp`·`iat`는 발급 시각(ms)을 초로 버린 값에서 계산한다 (제안).
 
 ## 8. 흐름과 상태
 
@@ -571,7 +574,7 @@ sequenceDiagram
   GW->>GW: JWT · 입장 토큰 서명·typ·aud 검증
   GW->>RS: 좌석 조회
   RS-->>U: 200 좌석 목록 (available만)
-  U->>GW: POST /reservations (입장 토큰)
+  U->>GW: POST /schedules/{id}/reservations (입장 토큰)
   GW->>GW: JWT · 입장 토큰 검증
   GW->>RS: 선점
   RS->>RS: 한 트랜잭션: 매수 한도 → 좌석 조건부 UPDATE → 예매 저장
@@ -967,7 +970,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Reservation | POST `/api/v1/schedules/{scheduleId}/queue` | 인증 | 대기열 진입, 🆕 순번·상태 응답 | 🆕 새로 섬 201 / 이미 있음 200 | 권영은 |
 | MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 🆕 순번·상태 (읽기 전용) | 200 | 권영은 |
 | MVP | Reservation | 🆕 POST `/api/v1/schedules/{scheduleId}/queue/token` | 인증 | 입장 토큰 발급·재발급 (제안, ADR 0031) | 200 | 권영은 |
-| MVP | Reservation | POST `/api/v1/reservations` | 인증 · 입장 · 멱등 | 좌석 일괄 선점 | 동기형 201 / 접수형 202 | 최권우 |
+| MVP | Reservation | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` | 인증 · 입장 · 멱등 | 좌석 일괄 선점 (이전: POST `/api/v1/reservations`, 계약 ①) | 동기형 201 / 접수형 202 | 최권우 |
 | 이후 | Reservation | GET `/api/v1/reservations/requests/{requestId}` | 인증 | 접수형 접수 결과 | 200 | 최권우 |
 | MVP | Reservation | GET `/api/v1/reservations/{reservationId}` | 인증 | 예매 상세 (결제 토큰·티켓) | 200 | 반효승 |
 | MVP | Reservation | GET `/api/v1/reservations/me` | 인증 | 내 예매 목록 | 200 | 반효승 |
@@ -1046,8 +1049,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 **선점**
 
 ```json
-// POST /api/v1/reservations   X-Entry-Token, Idempotency-Key
-{ "scheduleId": 31, "seatIds": [1023, 1024] }
+// 🆕 POST /api/v1/schedules/31/reservations   X-Entry-Token, Idempotency-Key  (이전: POST /api/v1/reservations, 본문 scheduleId)
+{ "seatIds": [1023, 1024] }
 
 // 동기형 → 201, data
 { "requestId": "c0a8...", "reservationId": 501, "reservationNo": "R20261102-000501",

@@ -36,7 +36,7 @@ shared: 예
 
 ## 반영
 - [`docs/design/reservation/contracts.md`](../../design/reservation/contracts.md)
-- [`docs/decisions/0031-seat-hold-result-and-idempotency-contract.md`](../../decisions/0031-seat-hold-result-and-idempotency-contract.md)
+- [`docs/decisions/0032-seat-hold-result-and-idempotency-contract.md`](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)
 - [`docs/core/SA MASTER.md`](../../core/SA%20MASTER.md) 11-5절, 12-3절
 
 ## 검증
