@@ -18,7 +18,7 @@
 | 0012 | [개발 도구와 검증을 Java·Gradle로 통일한다](0012-java-gradle-workspace-tools.md) | 채택 (브랜치 구현) | 2026-10-27 |
 | 0013 | [공통 모듈은 common 하나로 두고, 메시징만 만들 때 common-messaging으로 분리한다](0013-single-common-module.md) | 채택 (10/27 통합 회의. 메시징도 common에 두는 것으로 조정) | 2026-10-27 |
 | 0014 | [패키지 이름은 com.iseonjwa로 한다](0014-package-name-com-iseonjwa.md) | 채택 | 2026-10-27 |
-| 0015 | [대기열 입장 처리와 입장 토큰 발급의 안전장치](0015-queue-admission-guards.md) | 제안 | 2026-10-27 |
+| 0015 | [대기열 입장 처리와 입장 토큰 발급의 안전장치](0015-queue-admission-guards.md) | 제안 (결정 4번의 토큰 응답 위치·쓰기 순서는 0031로 변경) | 2026-10-27 |
 | 0016 | [거절된 결제의 토큰 재사용은 Payment와 Reservation이 함께 막는다](0016-payment-declined-token-reuse.md) | 제안 (SA 변경 요청·반효승 협의 필요, 10/28 개정) | 2026-10-27 |
 | 0017 | [같은 멱등키 요청이 처리 중이면 202와 기존 paymentId를 돌려준다](0017-payment-idempotency-in-progress.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
 | 0018 | [신규 승인 시도만 PG 호출 허가를 TX1 앞에서 얻고, PG 호출 자원은 승인과 복구 두 그룹으로 나눈다](0018-payment-pg-permit-before-tx1.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
@@ -34,4 +34,5 @@
 | 0028 | [운영자 복구는 감사되는 Ops 명령으로만 하고 상태를 바꾸는 직접 SQL을 금지한다](0028-payment-ops-commands.md) | 제안 (SA 변경 요청 필요) | 2026-10-28 |
 | 0029 | [결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다](0029-payment-reservation-reconciliation.md) | 제안 (반효승 협의·SA 변경 요청 필요) | 2026-10-28 |
 | 0030 | [테이블 이름은 snake_case 복수형으로 통일한다](0030-table-naming-plural.md) | 제안 (팀 확인 필요, 결제 코드 적용은 ISE-67) | 2026-10-28 |
+| 0031 | [대기열 입장 토큰은 토큰 API에서만 발급하고 READY 상태를 둔다](0031-queue-token-api-and-ready-status.md) | 제안 (Gateway·프론트·좌석 선점 확인 필요) | 2026-10-29 |
 | 0031 | [좌석 선점 결과 응답에 seatIds를 포함하고 동기형 멱등 재요청 규칙을 고정한다](0031-seat-hold-result-and-idempotency-contract.md) | 제안 (반효승 확인 필요, ISE-21) | 2026-10-29 |

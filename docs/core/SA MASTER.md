@@ -36,14 +36,20 @@
 | 6 | SA 범위 밖 기능 채택: 로그인 5회 실패 잠금, 관리자 비밀번호 초기화, `@RequireRole`, `/internal/**` 외부 차단, workspace-tools, system-tests | 저장소 ADR | D11, ADR 0007·0012 |
 | 7 | 브랜치 전략: `{type}/ISE-{번호}-{주제}`, dev에서 출발, squash 기본, 필수 리뷰 없음(AI 검증 후 머지·공유), main·dev는 PR과 CI 통과 필수, 마일스톤마다 dev → main | 17-1 #5 | D16, `docs/guides/git-workflow.md` 5절 |
 
-### 🆕 10/27 대기열 제안 (팀 합의 전, 대기열 담당)
+### 🆕 10/27~10/29 대기열 제안 (팀 합의 전, 대기열 담당)
 
 | # | 변경 | 위치 | 근거 |
 | --- | --- | --- | --- |
 | 1 | 입장 토큰 검증에 `sub` = JWT 사용자 ID 확인 추가. 다른 사람이 받은 입장 토큰으로 대기열을 우회하지 못하게 한다 | 7-3 | ADR 0015 |
 | 2 | Redis 키 `queue:{scheduleId}:lastTick` 추가. 인스턴스가 여러 개여도 `admitted`를 1초에 한 번만 올린다(1차 AI 피드백 Queue 유지 조건 3이 "전역 카운터"로만 요약돼 빠진 장치) | 12-8 | ADR 0015 |
 | 3 | `admitted` 상한을 발급된 `seq`로 둔다. 줄이 빈 동안 카운터가 앞서가 오픈 순간 한꺼번에 입장하는 것을 막는다 | 12-8 | ADR 0015 |
-| 4 | Redis 키 `queue:{scheduleId}:issued` 추가. 입장 토큰 발급 시 `waiting`에서 빼고 발급 시각을 기록한다. 재조회해도 만료 시각이 같고, 응답 유실·새로고침 때 같은 토큰을 다시 받는다. 대기열 진입·순번 조회 Lua 모두 `issued`를 먼저 확인해, 토큰이 유효하면 새 seq 없이 같은 토큰을 다시 응답한다. 만료 뒤에는 다시 줄을 선다 | 12-8 | ADR 0015 |
+| 4 | Redis 키 `queue:{scheduleId}:issued` 추가. 입장 토큰을 발급하면 발급 시각을 기록하고 `waiting`에서 뺀다. 다시 요청해도 만료 시각이 같고, 응답 유실·새 탭·다른 기기에서도 같은 토큰을 다시 받는다. 만료 뒤에는 다시 줄을 선다 | 12-8 | ADR 0015 |
+| 5 | 입장 토큰 발급을 POST `/queue/token`으로 분리한다. 진입·순번 조회는 토큰을 주지 않고, 순번 조회는 읽기 전용이다 | 6-3, 8-1, 11-4, 11-5, 12-8 | ADR 0031 |
+| 6 | 응답 상태 `READY`(토큰 API를 부르면 토큰을 받을 수 있음) 추가. 진입과 순번 조회는 같은 판단 규칙으로 같은 모양의 상태를 응답한다. 진입은 새로 서면 201, 이미 있으면 200 | 11-4, 11-5 | ADR 0031 |
+| 7 | 에러 코드 `QUEUE_NOT_READY`(409) 추가 | 11-3 | ADR 0031 |
+| 8 | 토큰 발급 쓰기 순서(`issued` 기록 → `waiting` 제거), 만료된 `issued` 기록 처리, 입장 처리 Lua의 1초 정리, Redis `TIME` 기준 시각 | 12-8 | ADR 0031 |
+| 9 | 입장 토큰 `jti`를 회차·사용자·발급 시각으로 계산한다. 같은 발급 시각이면 같은 토큰이 나온다 | 7-3 | ADR 0031 |
+| 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
 
 ### 10/26 바뀐 점
 
@@ -379,7 +385,7 @@ flowchart TD
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
 | MVP | 대기열 진입(계정당 1자리, Lua로 seq 발급), 내 순번·예상 시간·다음 조회 시각 | POST `/api/v1/schedules/{id}/queue` · GET `/api/v1/schedules/{id}/queue/me` |
-| MVP | 서명 입장 토큰 발급(7-3), 전역 카운터로 일정 속도 입장(`seq <= admitted`), 회차 단위 격리 | 위 GET 응답에 입장 토큰 포함 |
+| MVP | 서명 입장 토큰 발급(7-3), 전역 카운터로 일정 속도 입장(`seq <= admitted`), 회차 단위 격리 | 🆕 POST `/api/v1/schedules/{id}/queue/token` (제안, ADR 0031. 이전: 위 GET 응답에 입장 토큰 포함) |
 | MVP | 입장 토큰 검증 필터 (Gateway, 좌석·예매 API 앞) | — |
 | MVP | 부하 테스트 기준선: 가상 사용자 토큰 사전 발급, 좌석 초기화 스크립트, 측정 환경 기록표 | 스크립트 |
 | 이후 | 이탈 판정, 대기 취소 | DELETE `/api/v1/schedules/{id}/queue/me` |
@@ -526,7 +532,7 @@ flowchart LR
 | 발급 | Reservation | Reservation |
 | 검증 | Gateway | Payment |
 | 서명 키 | `ENTRY_TOKEN_SECRET` | `PAYMENT_TOKEN_SECRET` |
-| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(JSON 정수), `amount`(JSON 정수), `exp`, `jti` |
+| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(예매 ID, JSON 정수), `amount`(금액, JSON 정수), `exp`, `jti` |
 | 만료 | 발급 후 10분 `[가정]` | `hold_expires_at - 10초` `[가정]` |
 | 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
 - 키를 분리하면 Gateway는 결제 키를, Payment는 입장 키를 갖지 않아 서로의 토큰을 위조할 수 없다. `typ`·`aud`는 키가 실수로 같아져도 교차 사용을 막는 이중 방어다.
@@ -534,11 +540,14 @@ flowchart LR
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
 - PG 타임아웃으로 UNKNOWN이 된 결제는 나중에 APPROVED가 될 수 있으므로 만료 뒤 승인(E8)은 사라지지 않는다. 자동 환불은 그대로 필요하다.
 - `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
-- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim(`typ`, `aud`, `sub`, `reservationId`, `amount`, `exp`, `jti`)과 키 바이트 해석(`TokenDecoders.signingKey`)은 `docs/design/payment/contracts.md`로 확정됐다(ISE-22). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- 🆕 입장 토큰 `jti`는 `entry:{회차 ID}:{userId}:{발급 시각}`의 SHA-256 앞 16바이트(hex)로 계산한다. 같은 발급 시각으로 다시 서명하면 글자까지 같은 토큰이 나온다 (제안, ADR 0031).
+- claim 이름은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim은 10/29 확정했다(`docs/design/payment/contracts.md` 1절, SA 변경 요청 S-15). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
 
 ## 8. 흐름과 상태
 
 ### 8-1. 일반 예매 시퀀스 (동기형)
+
+- 🆕 대기열 부분(READY, 토큰 API)은 제안이다 (ADR 0031).
 
 ```mermaid
 sequenceDiagram
@@ -550,10 +559,13 @@ sequenceDiagram
   participant K as Kafka
   U->>GW: POST /schedules/{id}/queue
   GW->>RS: 대기열 진입 (Lua: seq 발급 → Redis ZSET)
-  loop 다음 조회 시각마다
+  RS-->>U: WAITING + 순번 (차례면 READY)
+  loop WAITING인 동안 다음 조회 시각마다
     U->>GW: GET /schedules/{id}/queue/me
-    GW->>RS: 순번 조회 (seq <= admitted면 입장)
+    GW->>RS: 순번 조회 (읽기 전용, seq <= admitted면 READY)
   end
+  U->>GW: POST /schedules/{id}/queue/token
+  GW->>RS: 입장 토큰 발급 (issued 기록 → waiting 제거)
   RS-->>U: ADMITTED + 입장 토큰
   U->>GW: GET /schedules/{id}/seats (입장 토큰)
   GW->>GW: JWT · 입장 토큰 서명·typ·aud 검증
@@ -746,7 +758,7 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | 회차당 매수 | 4매 | 결정 기록 #35 |
 | 입장 토큰 유효 시간 T | 10분 | 좌석 고르기 + 결제 5분 |
 | 초당 입장 수 N | 50명 (임시값) | 기준선 측정 후 3-3 식으로 역산 |
-| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초) | 폴링 부하 상한 |
+| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초). 🆕 서버가 0~+20% jitter를 ms로 더해 `nextPollAfterMillis`로 준다 (제안, ADR 0031) | 폴링 부하 상한. jitter는 같은 시각에 폴링이 몰리지 않게 하고, 더하기만 해서 상한(최소 3초)을 넘지 않는다 |
 | Access / Refresh 토큰 | 30분 / 14일 | 짧은 Access + Refresh |
 | 결제 → 예매 확정 반영 | 2초 이내 (Outbox 폴링 500ms) | 결과 화면 지연 상한 |
 | 접수형 접수 → 처리 완료 | 2초 이내 (outbox 폴링 500ms + 컨슈머 랙) | 202 처리량과 실제 처리량을 함께 봄 |
@@ -917,7 +929,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `VALIDATION_FAILED` | 400 | 요청 형식·값 오류 |
 | `UNAUTHORIZED` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` | 401 | 토큰 없음·만료·로그아웃된 토큰 |
 | `FORBIDDEN` | 403 | 권한 없음 (USER가 운영자 API 호출 등) |
-| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, `typ`·`aud`가 맞지 않는 토큰 (E5, E14) |
+| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, `typ`·`aud`가 맞지 않는 토큰 (E5, E14), 🆕 `sub`가 로그인 사용자와 다름 (제안, ADR 0015) |
 | `NOT_FOUND` | 404 | 대상 없음 |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 같은 멱등키에 다른 본문 |
 | `RATE_LIMITED` | 429 | 사용자 단위 요청 제한 |
@@ -925,7 +937,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `EMAIL_DUPLICATED` | 409 | 가입 이메일 중복 |
 | `INVALID_CREDENTIALS` | 401 | 로그인 실패 |
 | `SALE_NOT_OPEN` | 409 | 오픈 전 진입·선점 (E4) |
-| `QUEUE_NOT_JOINED` | 404 | 대기열에 없는 사용자의 순번 조회 |
+| `QUEUE_NOT_JOINED` | 404 | 대기열에 없는 사용자의 순번 조회. 🆕 입장 토큰 요청, 입장 토큰 만료 뒤 조회 포함 (제안, ADR 0031) |
+| 🆕 `QUEUE_NOT_READY` | 409 | 아직 입장 차례가 아닌 사용자의 입장 토큰 요청 (제안, ADR 0031) |
 | `SEAT_COUNT_MISMATCH` | 400 | 좌석 수가 1–4매 범위 밖이거나 중복 |
 | `SEAT_ALREADY_HELD` | 409 | 요청 좌석 중 하나라도 이미 선택됨, 잠금 대기 초과 포함 (E1) |
 | `PURCHASE_LIMIT_EXCEEDED` | 409 | 회차당 매수 초과 (E3, D1) |
@@ -951,8 +964,9 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/seats` | ADMIN | 회차 좌석 생성 (등급별 가격) | 201 | 반효승 |
 | MVP | Reservation | GET `/api/v1/concerts` · `/api/v1/concerts/{concertId}` | — | 공연 목록·상세 (serverTime) | 200 | 반효승 |
 | MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/seats` | 인증 · 입장 | 회차 좌석 배치·상태 | 200 | 반효승 |
-| MVP | Reservation | POST `/api/v1/schedules/{scheduleId}/queue` | 인증 | 대기열 진입 | 200 | 권영은 |
-| MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 순번·입장 토큰 | 200 | 권영은 |
+| MVP | Reservation | POST `/api/v1/schedules/{scheduleId}/queue` | 인증 | 대기열 진입, 🆕 순번·상태 응답 | 🆕 새로 섬 201 / 이미 있음 200 | 권영은 |
+| MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 🆕 순번·상태 (읽기 전용) | 200 | 권영은 |
+| MVP | Reservation | 🆕 POST `/api/v1/schedules/{scheduleId}/queue/token` | 인증 | 입장 토큰 발급·재발급 (제안, ADR 0031) | 200 | 권영은 |
 | MVP | Reservation | POST `/api/v1/reservations` | 인증 · 입장 · 멱등 | 좌석 일괄 선점 | 동기형 201 / 접수형 202 | 최권우 |
 | 이후 | Reservation | GET `/api/v1/reservations/requests/{requestId}` | 인증 | 접수형 접수 결과 | 200 | 최권우 |
 | MVP | Reservation | GET `/api/v1/reservations/{reservationId}` | 인증 | 예매 상세 (결제 토큰·티켓) | 200 | 반효승 |
@@ -1009,15 +1023,25 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 **대기열**
 
 ```json
-// POST /api/v1/schedules/31/queue  →  200, data  (이미 줄에 있으면 같은 순번)
-{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterSeconds": 10 }
+// POST /api/v1/schedules/31/queue    →  새로 섬 201 / 이미 줄에 있음 200, data
+// GET  /api/v1/schedules/31/queue/me →  200, data (같은 모양)
+{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterMillis": 10734 }
+{ "status": "READY" }
 
-// GET /api/v1/schedules/31/queue/me  →  200, data
+// 🆕 POST /api/v1/schedules/31/queue/token  →  200, data (처음 발급·재발급 같은 모양)
 { "status": "ADMITTED", "entryToken": "eyJ...", "entryTokenExpiresAt": "2026-11-02T20:15:03+09:00" }
 ```
 
 - `position`은 `max(0, seq - admitted)`로 계산한다(12-8). 이탈자 번호가 포함돼 실제보다 클 수 있다.
 - 입장 토큰 claim은 7-3을 따른다.
+- 🆕 상태(제안, ADR 0031): `WAITING`은 아직 차례가 아님, `READY`는 토큰 API를 부르면 토큰을 받을 수 있음(차례가 됐거나 이미 발급됨), `ADMITTED`는 토큰을 받음이다. `READY`를 받으면 프론트는 폴링을 멈추고 토큰 API를 부른다. 진입 응답이 `READY`면 순번 조회를 거치지 않고 바로 부른다.
+- 🆕 입장 토큰은 토큰 API에서만 준다. 진입과 순번 조회는 같은 판단 규칙으로 같은 모양을 응답하고, 순번 조회는 Redis에 쓰지 않는다. 이전 안은 순번 조회가 `ADMITTED`와 토큰을 줬다.
+- 🆕 프론트는 입장 토큰을 `sessionStorage`에 두고, 만료 전이면 대기열을 건너뛴다. 서버의 `issued`는 그게 안 되는 경우(응답 유실, 새 탭, 다른 기기)를 위한 장치다.
+- 🆕 줄에 없거나 토큰이 만료됐으면 순번 조회·토큰 API는 404 `QUEUE_NOT_JOINED`, 차례 전에 토큰을 요청하면 409 `QUEUE_NOT_READY`다.
+- 🆕 `READY`를 받은 뒤 토큰 API는 `ADMITTED` 또는 404 `QUEUE_NOT_JOINED`만 준다. 404는 이미 발급된 토큰 기록이 그 사이 만료된 경우다(`admitted`는 줄지 않으므로 차례가 돼서 받은 `READY`는 그대로 유효하다). 프론트는 만료를 안내하고 진입 버튼을 다시 보여 준다.
+- 🆕 409 `QUEUE_NOT_READY`는 `READY` 없이 토큰 API를 부를 때만 나온다. 정상 흐름에는 없고, 받으면 순번 조회로 돌아간다.
+- 🆕 다음 조회 시각(제안, ADR 0031): 대기열은 `nextPollAfterMillis`(정수 ms)를 쓴다. 서버가 순번 기반 간격(9-4)에 0~+20% jitter를 섞은 값이라 프론트는 그대로 기다린다. 202 응답의 `nextPollAfterSeconds`(11-2)와 단위가 다르다.
+- 🆕 503 `Retry-After`는 HTTP 규칙상 정수 초라서, 프론트가 0~+20%를 ms로 더해 재시도한다. 장애에서 회복되는 순간 재시도가 한꺼번에 몰리지 않게 한다.
 
 **선점**
 
@@ -1700,7 +1724,7 @@ UPDATE schedule_seats SET status = 'HELD', updated_at = now()
 | `queue:{scheduleId}:waiting` | ZSET (점수 = 진입 순번 seq) | 같음 | 계정당 1자리, 이탈 제거(ZREM) | 권영은 |
 | `queue:{scheduleId}:admitted` | 문자열 (카운터) | 같음 | 지금까지 입장시킨 순번 (전역 카운터, 초당 N씩 증가) | 권영은 |
 | 🆕 `queue:{scheduleId}:lastTick` | 문자열 | 회차 판매 종료까지 | 마지막으로 `admitted`를 올린 초(Redis `TIME` 기준). 인스턴스가 여러 개여도 1초에 한 번만 증가 (제안, ADR 0015) | 권영은 |
-| 🆕 `queue:{scheduleId}:issued` | ZSET (점수 = 입장 토큰 발급 시각) | 회차 판매 종료까지, 항목은 토큰 유효 시간 T가 지나면 정리 | 입장 토큰을 받은 사용자. 재조회 시 같은 발급 시각으로 토큰을 다시 응답 (제안, ADR 0015) | 권영은 |
+| 🆕 `queue:{scheduleId}:issued` | ZSET (점수 = 입장 토큰 발급 시각) | 회차 판매 종료까지, 항목은 토큰 유효 시간 T가 지나면 입장 처리 Lua가 정리 | 입장 토큰을 받은 사용자. 토큰 API를 다시 부르면 같은 발급 시각으로 다시 서명 (제안, ADR 0015·0031) | 권영은 |
 | `auth:refresh:{userId}` | 문자열 | 14일 | Refresh 토큰 | 공통 |
 | `auth:blacklist:{jti}` | 문자열 | Access 남은 시간 | 로그아웃된 Access | 공통 |
 | `ratelimit:{userId}` | 문자열 (카운터) | 1초 | 사용자 단위 요청 제한 | 공통 |
@@ -1710,9 +1734,11 @@ UPDATE schedule_seats SET status = 'HELD', updated_at = now()
 - 표시용 순번은 `max(0, seq - admitted)`로 O(1) 계산한다.
 - 알려진 비용: 이탈자의 번호도 `admitted`가 지나가므로 그 슬롯만큼 실제 입장 속도가 N보다 낮아진다. 이탈이 많으면 N을 높여 보정한다.
 - 🆕 입장 처리(제안, ADR 0015): 스케줄러가 1초마다 Lua 하나로 처리한다. `lastTick`이 현재 초(Redis `TIME`)면 건너뛰고, 아니면 `admitted = min(admitted + N, seq)`로 올린다. 인스턴스마다 스케줄러가 돌아도 입장 속도가 N을 넘지 않고, 줄이 빈 동안 카운터가 발급된 번호를 앞질러 가지 않는다.
-- 🆕 대기열 진입 시 입장 기록 확인(제안, ADR 0015): 대기열 진입 Lua도 먼저 `issued`를 본다. T 안의 기록이 있으면 새 seq를 발급하지 않고 "이미 입장" 응답과 함께 같은 발급 시각으로 토큰을 다시 응답한다. 기록이 없을 때만 기존대로 waiting 확인 → seq INCR → ZADD를 한다. 한 사람이 입장 상태와 대기 자리를 동시에 갖지 않게 하기 위해서다.
-- 🆕 입장 토큰 발급(제안, ADR 0015): 순번 조회 Lua에서 `issued`를 먼저 본다. 기록이 있고 T 안이면 같은 발급 시각으로 토큰을 다시 응답한다(만료 = 발급 시각 + T). 없으면 `waiting`에서 seq를 찾고, `seq <= admitted`면 `waiting`에서 빼고 `issued`에 발급 시각을 기록한 뒤 토큰을 발급한다. 토큰 서명은 앱이 한다.
-- 🆕 만료 뒤 재진입(제안, ADR 0015): `issued` 기록이 T를 넘으면 정리되고, 다시 진입하면 새 seq로 맨 뒤에 선다.
+- 🆕 역할 나누기(제안, ADR 0031): 대기열 Lua는 Redis 값을 원자적으로 읽고 쓴 결과(`issued` 발급 시각, seq, admitted)만 돌려준다. `WAITING`·`READY` 판단과 순번 계산은 앱의 도메인 메서드 한 곳에서 하고, 진입과 순번 조회가 같이 쓴다. 토큰 서명도 앱이 한다. 현재 시각은 모든 Lua에서 Redis `TIME`을 쓰고, T와 오픈 시각은 인자로 넘긴다.
+- 🆕 대기열 진입(제안, ADR 0015·0031): ① 오픈 전이면 `SALE_NOT_OPEN` ② `issued`에 T 안의 기록이 있으면 `waiting` 잔여를 지우고 `READY` ③ T가 지난 기록이 있으면 `issued`·`waiting`에서 지우고 ⑤로 간다 ④ `waiting`에 있으면 기존 자리를 그대로 두고 `seq <= admitted`면 `READY`, 아니면 `WAITING` ⑤ 없으면 seq를 INCR해 ZADD하고 201 `WAITING`. 새 seq는 항상 `admitted`보다 크다. 한 사람이 입장 상태와 대기 자리를 동시에 갖지 않고, 만료 뒤 옛 자리로 바로 입장하지 않는다.
+- 🆕 순번 조회(제안, ADR 0031): 읽기 전용이다. 나중에 폴링을 Redis 복제본으로 나눌 수 있게 쓰기를 두지 않는다. `issued`에 T 안의 기록이 있으면 `READY`, T가 지난 기록이 있으면 `waiting`을 보지 않고 `QUEUE_NOT_JOINED`, `waiting`에 없으면 `QUEUE_NOT_JOINED`, `seq <= admitted`면 `READY`, 아니면 `WAITING`이다. T가 지난 기록이 남아 있으면 그 사용자는 만료 뒤 다시 진입하지 않은 사람이다(다시 진입하면 진입 Lua가 기록을 지운다).
+- 🆕 입장 토큰 발급(제안, ADR 0015·0031): 토큰 API의 Lua가 한다. `issued`에 T 안의 기록이 있으면 `waiting` 잔여를 지우고 그 발급 시각을 돌려준다(재발급, 만료 = 발급 시각 + T 그대로). T가 지난 기록이면 `issued`·`waiting`에서 지우고 `QUEUE_NOT_JOINED`. `waiting`에 없으면 `QUEUE_NOT_JOINED`, `seq > admitted`면 `QUEUE_NOT_READY`. 그 밖에는 `issued`에 현재 시각을 기록한 뒤 `waiting`에서 뺀다. 이 순서라 중간에 끊겨도 `issued`가 남아 다음 요청에서 정리된다. 응답 전에 앱이 끊겨도 같은 발급 시각으로 같은 토큰을 다시 만든다.
+- 🆕 만료 기록 정리(제안, ADR 0031): ZSET 항목에는 TTL을 걸 수 없어 직접 지운다. 입장 처리 Lua가 1초마다 `issued`에서 T가 지난 항목을 최대 500개 꺼내 `issued`·`waiting`에서 함께 지운다. 만료 뒤 다시 진입하면 새 seq로 맨 뒤에 선다.
 - Redis 장애·느려짐 정책은 9-5다.
 
 ### 12-9. 적재량 추정 `[가정]`
