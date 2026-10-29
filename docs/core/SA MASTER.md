@@ -842,10 +842,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 이벤트 | 필드 |
 | --- | --- |
-| PaymentApproved | paymentId, reservationId, userId, amount, approvedAt |
+| PaymentApproved | paymentId, reservationId, userId, amount, currency, approvedAt |
 | PaymentDeclined | paymentId, reservationId, userId, reasonCode |
-| PaymentRefunded | paymentId, reservationId, userId, amount, refundedAt |
-| RefundRequested | reservationId, paymentId, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED`) |
+| PaymentRefunded | paymentId, reservationId, userId, amount, currency, refundedAt |
+| RefundRequested | reservationId, paymentId, userId, amount, currency, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED` · `DUPLICATE_APPROVAL` · `NOT_CONFIRMABLE`) |
 | BillingPaymentRequested | reservationId, userId, amount, lotteryEntryId |
 | SeatHoldRequested | requestId, userId, scheduleId, section, seatIds, requestedAt |
 | LotteryEntryRequested | requestId, lotteryId, userId, quantity |
@@ -1051,6 +1051,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 // 동기형 → 201, data
 { "requestId": "c0a8...", "reservationId": 501, "reservationNo": "R20261102-000501",
+  "scheduleId": 31, "seatIds": [1023, 1024],
   "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "totalAmount": 330000,
   "paymentToken": "eyJ...", "paymentTokenExpiresAt": "2026-11-02T20:04:53+09:00" }
 
@@ -1059,12 +1060,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 // GET /api/v1/reservations/requests/c0a8...  →  200, data
 { "requestId": "c0a8...", "status": "HELD",
-  "reservation": { "reservationId": 501, "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ..." } }
+  "reservation": { "reservationId": 501, "reservationNo": "R20261102-000501", "scheduleId": 31, "seatIds": [1023, 1024], "status": "HELD", "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ...", "paymentTokenExpiresAt": "..." } }
 // 처리 전: status REQUESTED / 거절: status REJECTED, reasonCode SEAT_ALREADY_HELD
 ```
 
-- 동기형 201과 접수 결과 HELD에 결제 토큰을 함께 준다. 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
-- `requestId`는 멱등키와 같은 값을 쓴다. 같은 요청 재전송이 같은 결과로 이어진다.
+- 동기형 201과 접수 결과 HELD에 결제 토큰과 선점된 좌석 목록(`seatIds`, 오름차순 정렬)을 함께 준다(상세 계약은 `docs/design/reservation/contracts.md`, ADR 0031). 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
+- `requestId`는 멱등키와 같은 값을 쓴다. 같은 사용자·같은 회차·같은 좌석 목록 재전송은 기존 결과를 돌려주고, 본문이 다르면 409 `IDEMPOTENCY_KEY_REUSED`, 이미 만료·해제·취소된 선점이면 409 `RESERVATION_NOT_PAYABLE`을 돌려준다. 동기형에서 409 실패 시에는 트랜잭션을 전체 롤백해 실패한 `seat_hold_requests` 행을 남기지 않는다(ADR 0031).
 
 **예매 조회**
 

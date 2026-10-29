@@ -12,7 +12,7 @@
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
-| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
+| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
 | 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 코드 작성·수정·리뷰 때 적용 |
