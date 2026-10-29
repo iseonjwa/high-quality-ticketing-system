@@ -50,8 +50,8 @@
 | 8 | 토큰 발급 쓰기 순서(`issued` 기록 → `waiting` 제거), 만료된 `issued` 기록 처리, 입장 처리 Lua의 1초 정리, Redis `TIME` 기준 시각 | 12-8 | ADR 0031 |
 | 9 | 입장 토큰 `jti`를 회차·사용자·발급 시각으로 계산한다. 같은 발급 시각이면 같은 토큰이 나온다 | 7-3 | ADR 0031 |
 | 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
-| 11 | 입장 토큰 claim 확정: 회차 ID는 `scheduleId`(JSON 정수), `iat` 추가, `exp`·`jti`는 발급 시각 ms에서 계산 | 7-3 | 계약 ① (`docs/design/queue/contracts.md`, ISE-20) |
-| 12 | 좌석 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. Gateway가 입장 토큰의 `scheduleId`를 경로와 비교하고 본문은 읽지 않는다 | 6-4, 7-3, 8-1, 11-4, 11-5 | 계약 ①, 좌석 선점 계약 |
+| 11 | 입장 토큰 claim 확정: 회차 ID는 `scheduleId`(JSON 정수), `iat` 추가, `exp`·`jti`는 발급 시각 ms에서 계산 | 7-3 | 계약 ① (`docs/design/queue/contracts.md`, ISE-20), 10/29 확정 |
+| 12 | 좌석 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. Gateway가 입장 토큰의 `scheduleId`를 경로와 비교하고 본문은 읽지 않는다 | 6-4, 7-3, 8-1, 11-4, 11-5 | 계약 ①, 좌석 선점 계약, 10/29 확정 |
 
 ### 10/26 바뀐 점
 
@@ -397,7 +397,7 @@ flowchart TD
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` (제안, 계약 ①. 이전: POST `/api/v1/reservations`) |
+| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` (계약 ① 확정. 이전: POST `/api/v1/reservations`) |
 | MVP | 부분 유니크 인덱스(판매 중 좌석만, D2), 선점 만료 스케줄러(SKIP LOCKED), 좌석 상태·보유 매수 대사 쿼리 | — |
 | MVP | 멱등키 처리 (멱등키 = requestId) | `Idempotency-Key` 헤더 |
 | 이후 | 접수형: API가 `seat_hold_requests(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
@@ -544,7 +544,7 @@ flowchart LR
 - `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
 - 🆕 입장 토큰 `jti`는 `entry:{회차 ID}:{userId}:{발급 시각}`의 SHA-256 앞 16바이트(hex)로 계산한다. 같은 발급 시각으로 다시 서명하면 글자까지 같은 토큰이 나온다 (제안, ADR 0031).
 - claim 이름은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim은 10/29 확정했다(`docs/design/payment/contracts.md` 1절, SA 변경 요청 S-15). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
-- 🆕 입장 토큰 claim은 계약 ①(`docs/design/queue/contracts.md`, ISE-20)으로 정했다: 회차 ID는 `scheduleId`(JSON 정수), `exp`·`iat`는 발급 시각(ms)을 초로 버린 값에서 계산한다 (제안).
+- 🆕 입장 토큰 claim은 계약 ①(`docs/design/queue/contracts.md`, ISE-20)으로 정했다: 회차 ID는 `scheduleId`(JSON 정수), `exp`·`iat`는 발급 시각(ms)을 초로 버린 값에서 계산한다 (10/29 확정).
 
 ## 8. 흐름과 상태
 
