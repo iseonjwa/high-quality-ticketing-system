@@ -15,9 +15,11 @@ import java.util.Optional;
 interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByReservationId(Long reservationId);
 
+    Optional<Payment> findByIdAndUserId(Long id, Long userId);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
-            UPDATE payment
+            UPDATE payments
             SET status = 'APPROVED', pg_tx_id = :pgTxId, pg_approved_amount = :pgApprovedAmount,
                 approved_at = :approvedAt, next_check_at = NULL, updated_at = :now, updated_by = NULL
             WHERE id = :id AND status = :from
@@ -28,7 +30,7 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
-            UPDATE payment
+            UPDATE payments
             SET status = 'DECLINED', decline_code = :reason, next_check_at = NULL, updated_at = :now, updated_by = NULL
             WHERE id = :id AND status = :from
             """)
@@ -37,7 +39,7 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
-            UPDATE payment
+            UPDATE payments
             SET status = 'UNKNOWN', next_check_at = :nextCheckAt, updated_at = :now, updated_by = NULL
             WHERE id = :id AND status = :from
             """)
@@ -47,7 +49,7 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
     // COALESCE: 재조회 소진처럼 PG 정보가 없는 전이가 이전에 저장한 값을 지우지 않게 한다
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
-            UPDATE payment
+            UPDATE payments
             SET status = 'NEEDS_MANUAL_CHECK', pg_tx_id = COALESCE(:pgTxId, pg_tx_id),
                 pg_approved_amount = COALESCE(:pgApprovedAmount, pg_approved_amount),
                 approved_at = COALESCE(:approvedAt, approved_at), next_check_at = NULL,

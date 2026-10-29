@@ -9,7 +9,7 @@
 
 ## 맥락
 
-SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `idempotency_record`를 정의하지만 정리 규칙이 없다. 릴레이의 재시도 한계와 `FAILED` 처리도 없다. 부하 테스트에서는 세 테이블이 빠르게 커지고, 반대로 실패한 이벤트를 버리면 결제 결과가 예매에 전달되지 않아 "돈은 냈는데 예매는 확정되지 않는" 상태가 된다.
+SA 12-5는 `outbox_events`(`PENDING·SENT·FAILED`, `attempts`), `processed_events`, `idempotency_records`를 정의하지만 정리 규칙이 없다. 릴레이의 재시도 한계와 `FAILED` 처리도 없다. 부하 테스트에서는 세 테이블이 빠르게 커지고, 반대로 실패한 이벤트를 버리면 결제 결과가 예매에 전달되지 않아 "돈은 냈는데 예매는 확정되지 않는" 상태가 된다.
 
 2026-10-28 검토에서 세 가지가 더 나왔다. 조건부 UPDATE가 0행인데 이력·Outbox를 쓰면 경합에서 진 쪽이 중복 이벤트를 만든다(H3). Spring 기본 스케줄러는 스레드가 1개라 PG 재조회가 느려지면 릴레이도 멈춘다(M4). 릴레이 임대(30초)가 프로듀서 전송 시한(기본 `delivery.timeout.ms` 120초)보다 짧으면 아직 재시도 중인 전송과 새 전송이 겹친다(L5).
 
@@ -23,7 +23,7 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 
 ### 2. Outbox 릴레이
 - **발행 성공은 Kafka 전송 확인으로만 판단한다.** `acks=all`로 보내고 브로커 확인을 기다린 뒤에 `SENT`로 표시한다.
-- **발행 중 서버가 중단돼도 다시 처리한다.** 릴레이는 행을 `claimed_until`(임대 만료 시각, 30초`[가정]`)로 잡은 뒤 DB 트랜잭션 밖에서 전송하고, 확인을 받으면 `SENT`로 바꾼다. 전송 뒤 표시 전에 죽으면 임대가 끝난 뒤 다시 집어 중복 전송된다. 소비자는 `processed_event`와 상태 전이로 중복을 견딘다(SA 10-4).
+- **발행 중 서버가 중단돼도 다시 처리한다.** 릴레이는 행을 `claimed_until`(임대 만료 시각, 30초`[가정]`)로 잡은 뒤 DB 트랜잭션 밖에서 전송하고, 확인을 받으면 `SENT`로 바꾼다. 전송 뒤 표시 전에 죽으면 임대가 끝난 뒤 다시 집어 중복 전송된다. 소비자는 `processed_events`와 상태 전이로 중복을 견딘다(SA 10-4).
 - **임대는 전송 시한의 2배 이상**이다. 릴레이용 프로듀서는 `delivery.timeout.ms=10000`, `request.timeout.ms=5000`, `linger.ms=0`(값은 `[가정]`)로 두고 전송 대기는 `delivery.timeout.ms` + 2초까지다. 시한을 넘기면 일시 오류로 처리한다.
 - 일시적 오류(타임아웃, 브로커 불가, 리더 변경)는 **지수 백오프로 계속 재시도**한다. 간격은 500ms에서 시작해 두 배씩 늘리고 최대 60초`[가정]`로 제한하며 Jitter를 적용한다(`next_attempt_at`에 기록). 횟수 한계로 포기하지 않는다. `attempts`는 모니터링용이다.
 - **복구 불가능한 영구 오류**(직렬화 실패, 레코드 크기 초과, 잘못된 토픽 등)만 `FAILED`로 바꾸고 `last_error`를 남기며 알림을 낸다. 복구는 Ops `outbox requeue`다.
@@ -39,12 +39,12 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 
 | 테이블 | 삭제 조건 | 초기값 |
 |---|---|---|
-| `outbox` | `SENT`이고 `sent_at` 경과 | 7일 |
-| `processed_event` | `processed_at` 경과 | 14일 |
-| `idempotency_record` | `expires_at` 경과 + 아래 조건 | 24시간(SA 9-4) |
+| `outbox_events` | `SENT`이고 `sent_at` 경과 | 7일 |
+| `processed_events` | `processed_at` 경과 | 14일 |
+| `idempotency_records` | `expires_at` 경과 + 아래 조건 | 24시간(SA 9-4) |
 
-- `processed_event` 보존 기간은 Kafka 토픽 보관(7일`[가정]`), DLQ 보관(7일`[가정]`), 수동 재처리 기간보다 충분히 길어야 한다. 시작할 때 설정값(토픽·DLQ 보관, `processed_event` 보존)을 비교해 보존 기간이 모자라면 기동을 실패시킨다.
-- `idempotency_record`는 만료 뒤에도 **연결된 결제(`resource_id`, 0017)가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`이면 지우지 않는다.** ORIGIN·ALIAS 모두 같다.
+- `processed_events` 보존 기간은 Kafka 토픽 보관(7일`[가정]`), DLQ 보관(7일`[가정]`), 수동 재처리 기간보다 충분히 길어야 한다. 시작할 때 설정값(토픽·DLQ 보관, `processed_events` 보존)을 비교해 보존 기간이 모자라면 기동을 실패시킨다.
+- `idempotency_records`는 만료 뒤에도 **연결된 결제(`resource_id`, 0017)가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`이면 지우지 않는다.** ORIGIN·ALIAS 모두 같다.
 
 ### 6. 정리 작업 방식
 - PostgreSQL 기반 작업 하나가 작은 배치(예: 1,000건) 단위로 `DELETE`한다. 배치마다 별도 트랜잭션이고 배치 사이에 잠시 쉬어 부하를 줄인다.
@@ -56,7 +56,7 @@ SA 12-5는 `outbox`(`PENDING·SENT·FAILED`, `attempts`), `processed_event`, `id
 `SENT`는 **Kafka 발행 성공만 의미한다.** Reservation 소비자의 처리 실패와 DLQ 복구는 Reservation이 따로 관리한다. 특히 `payment.result`의 `PaymentApproved`가 `reservation.payment-result` DLQ로 가면 돈은 받았는데 예매를 확정하지 못하므로 Reservation에 DLQ 처리기(예: 예매 상태 확인 후 `RefundRequested` 발행 또는 운영자 확인)가 필요하다. 반효승에게 통보하는 계약 항목이다. 처리기가 없거나 실패해도 대사 RC-1·RC-2가 찾는다.
 
 ### 8. 오래된 이벤트 재전달에도 중복이 없게 유지
-`processed_event`가 지워진 뒤에 오래된 이벤트가 다시 와도 업무 규칙이 막는다.
+`processed_events`가 지워진 뒤에 오래된 이벤트가 다시 와도 업무 규칙이 막는다.
 - 상태 전이는 `WHERE status = 이전상태` 조건부 UPDATE이고 영향 행 1일 때만 후속 쓰기를 한다(1절).
 - 같은 예매의 중복 결제는 `UNIQUE(reservation_id)` 전체가 막는다([0026](0026-payment-one-per-reservation.md)).
 - 환불은 `UNIQUE(payment_id)`와 결제 상태 조건이 있는 `INSERT … SELECT … ON CONFLICT DO NOTHING`, 재호출 전 조회, PG 환불 멱등키 `pg_refund_id`가 막는다(0020).

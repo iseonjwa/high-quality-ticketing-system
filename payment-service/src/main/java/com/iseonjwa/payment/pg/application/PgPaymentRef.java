@@ -1,7 +1,7 @@
 package com.iseonjwa.payment.pg.application;
 
 /**
- * PG가 발급한 불투명 거래 식별자(`payment.pg_tx_id`). 서비스 코드는 값의 의미를 해석하지 않는다.
+ * PG가 발급한 불투명 거래 식별자(`payments.pg_tx_id`). 서비스 코드는 값의 의미를 해석하지 않는다.
  */
 public record PgPaymentRef(String value) {
     public PgPaymentRef {

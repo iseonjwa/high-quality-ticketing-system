@@ -25,8 +25,8 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 
 | 결과 | 대조 | 불일치 처리 |
 |---|---|---|
-| `Approved`·`AlreadyApproved` | `amount = payment.amount`, `currency = payment.currency` | 결제 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`. `pg_tx_id`·`pg_approved_amount`·`approved_at`을 저장하고 `PaymentApproved`를 내지 않는다. 즉시 알림. 코드가 이 검사를 빠뜨려도 `chk_payment_approved`가 `APPROVED` 저장을 막는다 |
-| `Refunded` | `amount = refund.amount`, `currency = payment.currency` | 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`, `PaymentRefunded` 없음, 즉시 알림 |
+| `Approved`·`AlreadyApproved` | `amount = payments.amount`, `currency = payments.currency` | 결제 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`. `pg_tx_id`·`pg_approved_amount`·`approved_at`을 저장하고 `PaymentApproved`를 내지 않는다. 즉시 알림. 코드가 이 검사를 빠뜨려도 `chk_payments_approved`가 `APPROVED` 저장을 막는다 |
+| `Refunded` | `amount = refunds.amount`, `currency = payments.currency` | 환불 `NEEDS_MANUAL_CHECK(REFUND_AMOUNT_MISMATCH)`, `PaymentRefunded` 없음, 즉시 알림 |
 
 금액이 다른 승인은 예매를 확정하지 않는다. 고객 돈은 PG에 묶여 있으므로 운영자가 Ops `payment resolve`로 PG 승인을 다시 확인하고 PG 승인 금액 전액을 환불한다([manual-recovery.md](manual-recovery.md) 2절).
 
@@ -34,9 +34,9 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 
 | 이름 | 누가 만드나 | DB | Mock | 토스 |
 |---|---|---|---|---|
-| `PgOrderId` | 우리 | `payment.pg_order_id` | `orderId` | `orderId` |
-| `PgPaymentRef` | PG | `payment.pg_tx_id` | `pgTxId` | `paymentKey` |
-| `PgRefundId` | 우리 | `refund.pg_refund_id` | `refundId` | 취소 요청의 멱등키로 사용 |
+| `PgOrderId` | 우리 | `payments.pg_order_id` | `orderId` | `orderId` |
+| `PgPaymentRef` | PG | `payments.pg_tx_id` | `pgTxId` | `paymentKey` |
+| `PgRefundId` | 우리 | `refunds.pg_refund_id` | `refundId` | 취소 요청의 멱등키로 사용 |
 | `PgIdempotencyKey` | 우리(결정적 파생) | 저장하지 않음 | 승인 = `pg_order_id`, 환불 = `pg_refund_id` | `Idempotency-Key` 헤더 |
 
 `clientPaymentRef`는 구매자가 결제창에서 받은 PG 발급 식별자다. 토스는 필수이고 Mock은 무시한다. 있으면 TX1에서 `pg_tx_id`에 저장해 응답을 잃어도 같은 키로 재확인한다. 토스는 결제창을 열 때 `orderId`가 필요하므로 TX1보다 먼저 정해져야 한다. 예매당 결제가 하나라서([0026](../../decisions/0026-payment-one-per-reservation.md)) 예매마다 `orderId` 하나를 미리 정할 수 있다(결제 토큰 claim에 넣거나 예매 ID에서 결정적으로 파생). 방식은 M4에서 정한다(5절 #6).
@@ -58,10 +58,11 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 | `pg-recovery` | `findPayment`, `preventLateApproval`, `refund`, `findRefund` | 재확인 스케줄러, 환불 워커, Ops 명령(조회) | 동시 2(복구 실행기 스레드 수) | 같은 기준, 상태는 별도 | 다음 주기로 넘기고 시도 횟수를 세지 않음. Ops 명령은 거부 |
 
 - 타임아웃은 두 그룹 모두 연결 0.5초·응답 2초다(SA 9-4).
-- `Unknown`과 PG 5xx는 CB에 실패로 기록하고, 정상 거절과 `NotFound`는 성공으로 센다.
+- 결과를 모르는 `Unknown`(`TIMEOUT`·`CONNECTION_LOST`·`PG_ERROR`·`PROCESSING`)은 CB에 실패로 기록하고, 정상 거절과 `NotFound`는 성공으로 센다. `Unknown(CLIENT_ERROR)`(요청·인증을 거절한 4xx)는 셈하지 않고 허가만 반환한다. 분류는 `PgPermit.settle` 한 곳이 맡는다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md) 개정).
 - 허가 획득과 정산은 PG 호출 래퍼 한 곳에서 `try/finally`로 묶는다. 승인은 TX1 앞에서 얻고 TX1이 실패하면 호출 결과로 세지 않고 반환한다.
 - Ops 명령은 별도 프로세스라 같은 설정의 별도 Resilience4j 인스턴스를 쓴다.
-- Resilience4j 의존성은 아직 `payment-service/build.gradle`에 없어 추가한다.
+- 503 `PG_UNAVAILABLE`은 PG 장애만 뜻하지 않는다. 허가는 TX1부터 PG 호출 정산까지 Bulkhead 자리를 잡으므로 DB(TX1)가 느려도 자리가 차서 같은 503이 날 수 있다. 원인은 Bulkhead 가용 수와 TX1 지연을 함께 본다(ISE-41 지표).
+- 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate.execute`(허가를 못 얻으면 빈 값, 호출하지 않고 시도 횟수를 세지 않는다)다. 설정은 `payment.pg.protection.{approve,recovery}.*`다. 복구 그룹의 호출자(재확인 스케줄러·환불 워커)는 ISE-38·39에서 붙인다.
 - PG 호출은 트랜잭션 밖이고 TX1 커밋 뒤에 한다.
 
 시간 예산: 승인 요청 한 건은 TX1(연결 대기 1초 이내) + PG 최대 2.5초 + TX2(연결 대기 1초 이내)라 Gateway 응답 시한 3초를 넘을 수 있다. 넘으면 클라이언트는 504를 받고 서버는 처리를 계속한다. 같은 키 재시도로 결과를 받는다([api.md](api.md) 응답 절, N29).

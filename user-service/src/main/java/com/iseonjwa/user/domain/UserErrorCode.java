@@ -1,4 +1,4 @@
-package com.iseonjwa.user.application;
+package com.iseonjwa.user.domain;
 
 import com.iseonjwa.common.response.ErrorCode;
 

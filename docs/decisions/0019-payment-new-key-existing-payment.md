@@ -35,7 +35,7 @@ SA 11-3은 D3 부분 유니크(`reservation_id`, 진행·확정 상태 4개)에 
 하나라도 다르면 기존 결제 정보를 노출하지 않고 409 `PAYMENT_ALREADY_EXISTS`를 `Location` 없이 돌려준다.
 
 ### 새 키는 별칭 기록으로 남긴다
-- 검증을 통과해 연결한 새 키는 `idempotency_record`에 `link_type=ALIAS`, `resource_id`=기존 `paymentId`, 새 요청의 `request_hash`로 저장한다. 응답은 저장하지 않는다(`response_status` NULL).
+- 검증을 통과해 연결한 새 키는 `idempotency_records`에 `link_type=ALIAS`, `resource_id`=기존 `paymentId`, 새 요청의 `request_hash`로 저장한다. 응답은 저장하지 않는다(`response_status` NULL).
 - 같은 새 키로 다시 오면 0017의 멱등 조회 단계에서 이 기록을 찾아 PG 호출 없이 결제의 현재 상태로 응답한다. 본문이 다르면 409 `IDEMPOTENCY_KEY_REUSED`다.
 - 저장은 `INSERT … ON CONFLICT (user_id, idem_key) DO NOTHING`이다. 같은 새 키가 동시에 오면 한쪽만 저장되고 다른 쪽은 다시 읽어 같은 응답을 받는다.
 - 보관·삭제는 ORIGIN과 같은 규칙이다(만료 24시간 + 연결 결제가 진행 중이 아님, 0022).
@@ -65,13 +65,13 @@ SA 11-3은 D3 부분 유니크(`reservation_id`, 진행·확정 상태 4개)에 
 ## 결과
 
 - SA 변경 요청: S-4(`link_type`), S-7(`PAYMENT_ALREADY_EXISTS` 의미와 연결 응답).
-- `api.md` 처리 순서 3·4·5단계와 표 B, `data-model.md`의 `idempotency_record`.
+- `api.md` 처리 순서 3·4·5단계와 표 B, `data-model.md`의 `idempotency_records`.
 - 0016와의 관계: `DECLINED`·`REFUNDED`는 연결하지 않고 409 `PAYMENT_ALREADY_CLOSED`다.
 - 테스트: N6(UNKNOWN 중 새 키, 불일치 409, NMC 409 + Location), N24(같은 새 키 재요청 PG 0회, 만료 토큰 조회 전용), APPROVED 뒤 새 키 재요청(200, PG 호출 0회), CB OPEN 중 새 키 재요청, N13(TX1 충돌 뒤 연결).
 
 ## 개정 이력
 
-- 2026-10-28: 사용자 결정 7을 반영했다. (1) 새 키를 로그로만 남기던 것을 `idempotency_record`의 ALIAS 기록으로 바꿨다. 같은 키 재요청은 PG 호출 없이 현재 상태로 응답한다. (2) 통화를 검증 항목에 넣었다(결제 `currency` 컬럼 추가, 0023). (3) 토큰 만료 뒤에는 신규 승인 없이 기존 결제 조회만 하도록 나눴다. (4) TX1 유니크 위반도 이 표로 응답한다(0026). 제목을 바꿨다(이전: "같은 예매에 다른 멱등키로 재요청하면 기존 결제로 응답한다").
+- 2026-10-28: 사용자 결정 7을 반영했다. (1) 새 키를 로그로만 남기던 것을 `idempotency_records`의 ALIAS 기록으로 바꿨다. 같은 키 재요청은 PG 호출 없이 현재 상태로 응답한다. (2) 통화를 검증 항목에 넣었다(결제 `currency` 컬럼 추가, 0023). (3) 토큰 만료 뒤에는 신규 승인 없이 기존 결제 조회만 하도록 나눴다. (4) TX1 유니크 위반도 이 표로 응답한다(0026). 제목을 바꿨다(이전: "같은 예매에 다른 멱등키로 재요청하면 기존 결제로 응답한다").
 
 ## 면접에서 설명할 한 줄
 

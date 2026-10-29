@@ -15,7 +15,7 @@ import java.time.Instant;
  * 결제 상태 전이 한 건의 기록. 기록용 테이블이라 BaseEntity를 상속하지 않고 한 번 쓰면 바꾸지 않는다.
  */
 @Entity
-@Table(name = "payment_status_history")
+@Table(name = "payment_status_histories")
 public class PaymentStatusHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

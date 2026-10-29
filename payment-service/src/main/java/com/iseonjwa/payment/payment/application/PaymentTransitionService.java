@@ -41,7 +41,7 @@ public class PaymentTransitionService {
     @Transactional
     // Note: pgApprovedAt은 PG가 승인한 시각이다. 만료 판단(0027)에 쓰이므로 확정한 시각(now)과 구분한다.
     // 승인 금액이 결제 금액과 같은지는 호출한 승인 흐름(ISE-35)이 먼저 확인하고, 다르면 markAmountMismatch를 쓴다.
-    // 이 메서드에 다른 금액이 들어오면 chk_payment_approved가 마지막으로 막는다(예외, 트랜잭션 롤백).
+    // 이 메서드에 다른 금액이 들어오면 chk_payments_approved가 마지막으로 막는다(예외, 트랜잭션 롤백).
     public boolean approve(Long paymentId, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount,
             Instant pgApprovedAt, StatusActor actor) {
         from.requireTransitionTo(PaymentStatus.APPROVED);

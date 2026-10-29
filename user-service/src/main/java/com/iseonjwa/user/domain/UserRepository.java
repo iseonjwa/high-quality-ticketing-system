@@ -9,6 +9,7 @@ public interface UserRepository {
 
     Optional<User> findByEmail(String email);
 
+    // 같은 이메일이 이미 있으면 EMAIL_DUPLICATED로 실패한다. 동시 가입도 DB 유니크 제약이 하나만 통과시킨다.
     User save(User user);
 
     // 실패 횟수를 1 올리고 maxFailures에 도달하면 잠근다.
