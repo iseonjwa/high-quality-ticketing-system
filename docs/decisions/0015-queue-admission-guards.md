@@ -1,6 +1,6 @@
 # 0015. 대기열 입장 처리와 입장 토큰 발급의 안전장치
 
-- 상태: 제안
+- 상태: 제안 (결정 4번 일부는 [0031](0031-queue-token-api-and-ready-status.md)로 변경)
 - 날짜: 2026-10-27
 - 결정자: 권영은 (대기열 담당, 팀 합의 전)
 - 관련 AI 판단: [대기열 입장 토큰 발급 방식과 안전장치](../ai-judgments/youngeun/2026-10-27-queue-admission-guards.md)
@@ -20,6 +20,7 @@ SA MASTER v3.2는 대기열을 Redis 키 세 개(`seq`, `waiting`, `admitted`)�
 2. Redis 키 **`queue:{scheduleId}:lastTick`**을 둔다. 입장 처리 Lua가 Redis `TIME`의 현재 초와 비교해 이미 처리한 초면 건너뛴다.
 3. 입장 처리는 **`admitted = min(admitted + N, seq)`**로 올린다.
 4. Redis 키 **`queue:{scheduleId}:issued`**(ZSET, 점수 = 발급 시각)를 둔다. 토큰 발급 시 `waiting`에서 빼고 `issued`에 기록한다. 재조회하면 같은 발급 시각으로 토큰을 다시 응답한다(만료 = 발급 시각 + T). T가 지난 기록은 정리하고, 그 뒤 진입하면 새 seq로 맨 뒤에 선다. 대기열 진입 Lua와 순번 조회 Lua는 모두 `issued`를 먼저 확인한다. T 안의 기록이 있으면 대기열 진입 요청에도 새 seq를 발급하지 않고 같은 발급 시각으로 토큰을 다시 응답한다. 토큰을 받으면 `waiting`에서 빠지므로, 이 확인이 없으면 토큰이 유효한 동안 대기열 진입 API를 다시 불렀을 때 새 seq가 생겨 한 사람이 입장 상태와 대기 자리를 동시에 갖게 된다.
+   - 2026-10-29 변경: 입장 토큰은 토큰 API에서만 주고, 진입·순번 조회는 `issued`에 T 안의 기록이 있으면 `READY`를 응답한다. 발급 시 쓰기 순서는 `issued` 기록 → `waiting` 제거다. 만료 기록 처리도 [ADR 0031](0031-queue-token-api-and-ready-status.md)을 따른다.
 
 ## 검토한 대안
 
