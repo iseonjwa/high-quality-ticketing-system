@@ -526,7 +526,7 @@ flowchart LR
 | 발급 | Reservation | Reservation |
 | 검증 | Gateway | Payment |
 | 서명 키 | `ENTRY_TOKEN_SECRET` | `PAYMENT_TOKEN_SECRET` |
-| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), 예매 ID, 금액, `exp`, `jti` |
+| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(JSON 정수), `amount`(JSON 정수), `exp`, `jti` |
 | 만료 | 발급 후 10분 `[가정]` | `hold_expires_at - 10초` `[가정]` |
 | 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
 - 키를 분리하면 Gateway는 결제 키를, Payment는 입장 키를 갖지 않아 서로의 토큰을 위조할 수 없다. `typ`·`aud`는 키가 실수로 같아져도 교차 사용을 막는 이중 방어다.
@@ -534,7 +534,7 @@ flowchart LR
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
 - PG 타임아웃으로 UNKNOWN이 된 결제는 나중에 APPROVED가 될 수 있으므로 만료 뒤 승인(E8)은 사라지지 않는다. 자동 환불은 그대로 필요하다.
 - `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
-- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim(`typ`, `aud`, `sub`, `reservationId`, `amount`, `exp`, `jti`)과 키 바이트 해석(`TokenDecoders.signingKey`)은 `docs/design/payment/contracts.md`로 확정됐다(ISE-22). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
 
 ## 8. 흐름과 상태
 
@@ -830,10 +830,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 이벤트 | 필드 |
 | --- | --- |
-| PaymentApproved | paymentId, reservationId, userId, amount, approvedAt |
+| PaymentApproved | paymentId, reservationId, userId, amount, currency, approvedAt |
 | PaymentDeclined | paymentId, reservationId, userId, reasonCode |
-| PaymentRefunded | paymentId, reservationId, userId, amount, refundedAt |
-| RefundRequested | reservationId, paymentId, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED`) |
+| PaymentRefunded | paymentId, reservationId, userId, amount, currency, refundedAt |
+| RefundRequested | reservationId, paymentId, userId, amount, currency, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED` · `DUPLICATE_APPROVAL` · `NOT_CONFIRMABLE`) |
 | BillingPaymentRequested | reservationId, userId, amount, lotteryEntryId |
 | SeatHoldRequested | requestId, userId, scheduleId, section, seatIds, requestedAt |
 | LotteryEntryRequested | requestId, lotteryId, userId, quantity |
@@ -1027,6 +1027,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 // 동기형 → 201, data
 { "requestId": "c0a8...", "reservationId": 501, "reservationNo": "R20261102-000501",
+  "scheduleId": 31, "seatIds": [1023, 1024],
   "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "totalAmount": 330000,
   "paymentToken": "eyJ...", "paymentTokenExpiresAt": "2026-11-02T20:04:53+09:00" }
 
@@ -1035,12 +1036,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 // GET /api/v1/reservations/requests/c0a8...  →  200, data
 { "requestId": "c0a8...", "status": "HELD",
-  "reservation": { "reservationId": 501, "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ..." } }
+  "reservation": { "reservationId": 501, "reservationNo": "R20261102-000501", "scheduleId": 31, "seatIds": [1023, 1024], "status": "HELD", "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ...", "paymentTokenExpiresAt": "..." } }
 // 처리 전: status REQUESTED / 거절: status REJECTED, reasonCode SEAT_ALREADY_HELD
 ```
 
-- 동기형 201과 접수 결과 HELD에 결제 토큰을 함께 준다. 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
-- `requestId`는 멱등키와 같은 값을 쓴다. 같은 요청 재전송이 같은 결과로 이어진다.
+- 동기형 201과 접수 결과 HELD에 결제 토큰과 선점된 좌석 목록(`seatIds`, 오름차순 정렬)을 함께 준다(상세 계약은 `docs/design/reservation/contracts.md`, ADR 0031). 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
+- `requestId`는 멱등키와 같은 값을 쓴다. 같은 사용자·같은 회차·같은 좌석 목록 재전송은 기존 결과를 돌려주고, 본문이 다르면 409 `IDEMPOTENCY_KEY_REUSED`, 이미 만료·해제·취소된 선점이면 409 `RESERVATION_NOT_PAYABLE`을 돌려준다. 동기형에서 409 실패 시에는 트랜잭션을 전체 롤백해 실패한 `seat_hold_requests` 행을 남기지 않는다(ADR 0031).
 
 **예매 조회**
 

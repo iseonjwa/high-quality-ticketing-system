@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 17건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 18건, 일지 3일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 4건, 일지 0일 |
 | [youngeun](youngeun/README.md) | 개별 기록 1건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-29 | 좌석 선점 결과 계약(ISE-21): 동기형 멱등 재요청 처리 규칙(실패 시 롤백·동시 PK 충돌 재조회) 수용 및 응답에 `seatIds` 포함 결정 | kwonwoo | Antigravity (Gemini) | 수용 | 후보 | [기록](kwonwoo/2026-10-29-seat-hold-contract-and-idempotency.md) |
 | 2026-10-28 | Notion SA 반영 방법: 구간 교체 HTML 대신 v3.3 전체를 가져오기로 교체 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-full-import.md) |
 | 2026-10-28 | 테이블 이름 복수형 적용 범위: 결제 코드·문서는 후속 이슈(ISE-67), `outbox_events`, M3 테이블 제외 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-table-naming-scope.md) |
 | 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-batch-sync.md) |
