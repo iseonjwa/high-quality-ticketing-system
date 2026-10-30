@@ -18,6 +18,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-29 | 결제 서비스 구현 완료는 M3까지인가 M4까지인가 | [qna/2026-10-29-payment-done-scope.md](qna/2026-10-29-payment-done-scope.md) |
+| 2026-10-29 | Redis에서 두 곳을 지울 때 순서가 왜 중요한가 (대기열 만료 정리 사례) | [qna/2026-10-29-redis-write-order-recovery.md](qna/2026-10-29-redis-write-order-recovery.md) |
+| 2026-10-29 | 폴링 간격에 ±20% jitter를 섞는다는 것은 무슨 뜻인가 | [qna/2026-10-29-polling-interval-jitter.md](qna/2026-10-29-polling-interval-jitter.md) |
 | 2026-10-28 | 도메인은 예외 종류만 알고 상태 코드 매핑은 바깥 계층이 맡는 전략인가 | [qna/2026-10-28-domain-exception-http-mapping.md](qna/2026-10-28-domain-exception-http-mapping.md) |
 | 2026-10-28 | Outbox·처리 이력 같은 공통 메시징 코드를 common에 둘지, 별도 모듈로 나눌지 | [qna/2026-10-28-common-messaging-placement.md](qna/2026-10-28-common-messaging-placement.md) |
 | 2026-10-27 | common 모듈은 왜 여러 개로 나뉘었고 Docker에서도 컨테이너가 여러 개인가 | [qna/2026-10-27-common-module-split-and-containers.md](qna/2026-10-27-common-module-split-and-containers.md) |

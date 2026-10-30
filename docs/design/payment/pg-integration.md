@@ -69,10 +69,10 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 
 ## 6. 어댑터와 계약 테스트
 
-- M2: `MockPgAdapter`, 공통 계약 테스트. Mock PG(결제 담당, 10/28 역할 변경)는 장애 주입 `NONE·DELAY·DECLINE·DROP_RESPONSE`, 환불 조회·환불 멱등·망취소를 제공한다(U16).
+- M2: `MockPgAdapter`, 공통 계약 테스트. Mock PG(결제 담당, 10/28 역할 변경)는 환불 조회·환불 멱등·망취소와 호출 단위 장애 주입(SA의 `NONE·DELAY·DECLINE·DROP_RESPONSE`에 계약 테스트용 모드를 더함, [mock-pg.md](mock-pg.md) 5절, S-29)을 제공한다(U16).
 - M4: `TossPgAdapter`. HTTP 스텁 테스트(오류·타임아웃)와 토스 테스트 환경 통합 테스트(테스트 키, 기본 CI 밖)를 따로 한다. 테스트 키는 저장소에 두지 않는다.
 - 계약 테스트 항목: 승인 성공(금액·통화 포함), 명확한 거절, 타임아웃, 같은 멱등키 재시도, 결제 조회 미발견, 환불 성공(금액·통화 포함), 환불 거절, 환불 결과 불확실, 환불 조회 미발견 뒤 재호출, 처리 중 응답, `CLIENT_ERROR`, 늦은 승인 방지, 응답에 금액·통화가 없을 때 `Unknown`.
-- 장애 유형별 통합 테스트([failure-scenarios.md](failure-scenarios.md) 4절)는 Mock PG의 원장(주문별 승인 수, 결제별 환불 수와 금액)을 읽어 중복을 검사한다. Mock PG에 테스트 프로필 전용 원장 조회를 둔다(S-28).
+- 장애 유형별 통합 테스트([failure-scenarios.md](failure-scenarios.md) 4절)는 Mock PG의 원장(주문별 승인 호출 수, 결제별 환불 수와 금액)을 읽어 중복을 검사한다. Mock PG에 `test`·`loadtest` 프로필 전용 원장 조회를 둔다(S-28).
 
 ### Mock PG 프로토콜(어댑터가 가정하는 응답)
 
@@ -84,16 +84,17 @@ SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를
 | 〃 | 200 `{status: DECLINED, declineCode}` | `Declined`(`declineCode`를 `DeclineReason`으로 매핑, 모르면 `OTHER`) |
 | 〃 | 202 또는 `status: PROCESSING` | `Unknown(PROCESSING)` |
 | 〃 | 409 `{code: ORDER_CANCELED}`(망취소된 주문) | `Declined(NOT_SENT)` |
-| 〃 | 그 밖의 409 | `Unknown(PROCESSING)`(거절로 단정하지 않는다) |
-| GET `/mock-pg/payments/{orderId}` | 위 승인·거절 응답. 없으면 404 `{code: NOT_FOUND}` | `Approved`·`Declined`·`NotFound` |
-| POST `/mock-pg/payments/{orderId}/cancel` | `{status: CANCELED}`, 이미 승인됐으면 승인 응답, 승인이 처리 중이면 202 | `Prevented` · `AlreadyApproved` · `Unknown(PROCESSING)` |
+| 〃 | 409 `{code: REQUEST_IN_PROGRESS}`(같은 주문의 승인이 처리 중) 등 그 밖의 409 | `Unknown(PROCESSING)`(거절로 단정하지 않는다) |
+| GET `/mock-pg/payments/{orderId}` | 위 승인·거절 응답. 승인이 처리 중이면 202 `{status: PROCESSING}`. 없거나 망취소된 주문은 404 `{code: NOT_FOUND}` | `Approved`·`Declined`·`Unknown(PROCESSING)`·`NotFound` |
+| POST `/mock-pg/payments/{orderId}/cancel` | `{status: CANCELED}`(이미 거절된 주문에도 같은 응답이고 상태는 거절 그대로), 이미 승인됐으면 승인 응답, 승인이 처리 중이면 202 | `Prevented` · `AlreadyApproved` · `Unknown(PROCESSING)` |
 | POST `/mock-pg/refunds` `{pgTxId, refundId, amount, currency, reason}` | 200 `{refundTxId, pgTxId, status: REFUNDED, amount, currency, refundedAt}` | `Refunded`(`refundTxId`·`pgTxId` 필수, `pgTxId`는 요청과 같아야 함) |
 | 〃 | 422 `{status: REJECTED, code}` | `RefundRejected`(`NOT_REFUNDABLE`·`OTHER`) |
 | GET `/mock-pg/refunds/{refundId}` | 환불 응답. 없으면 404 `{code: NOT_FOUND}` | `Refunded`·`NotFound` |
 
 서버가 지켜야 할 것:
 - 같은 `orderId`·`refundId`의 재요청은 저장된 결과를 돌려준다(멱등).
-- 승인 저장과 망취소는 원자적이다. `CANCELED`를 응답한 주문은 이후 승인을 저장하지 않으며, 승인이 처리 중인 주문에 취소가 오면 `CANCELED`가 아니라 202를 준다(INV-8).
+- 승인 저장과 망취소는 원자적이다. `CANCELED`를 응답한 주문은 이후 승인을 저장하지 않으며, 승인이 처리 중인 주문에 취소가 오면 `CANCELED`가 아니라 202를 준다(INV-8). 상세 설계는 [mock-pg.md](mock-pg.md)다.
+- 응답 본문의 `code`·`status`는 어댑터가 분류에 쓰므로 서버가 항상 직접 만든다(mock-pg.md 11절).
 - 원장을 메모리에만 두면 재시작 때 사라져 `NotFound`·`CANCELED`가 나온다. 장애·부하 테스트에서 Mock PG를 재시작한다면 원장을 유지하거나 테스트 가정으로 적는다.
 
 어댑터의 공통 규칙: 5xx와 해석할 수 없는 응답, 승인·환불 응답의 필수 필드(`pgTxId`·`refundTxId`·`amount`·`currency`·시각) 누락, 정수가 아닌 금액은 `Unknown(PG_ERROR)`다. 그 밖의 4xx와 본문 코드가 없는 404는 `Unknown(CLIENT_ERROR)`다. 응답 시간 초과는 `TIMEOUT`, 연결 실패와 응답 없이 끊김은 `CONNECTION_LOST`다. 금액은 BigDecimal로 파싱한다(double이면 소수 오차가 일치로 보인다).
