@@ -10,6 +10,12 @@
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
+### 10/30 바뀐 점 (공연·좌석 담당)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | `venue_seats.row_no`를 `VARCHAR(5)`에서 `INT`로 바꾸고, 좌석 조회·예매 조회 응답의 `row`를 JSON 정수로 바꿈. 문자열이면 정렬이 사전순(1, 10, 2…)이 된다 | 11장 좌석 조회·예매 조회 예시, 12-3, 12-6 | ADR 0033 (제안), Linear ISE-65 |
+
 ### 10/28 바뀐 점 (v3.3)
 
 | # | 변경 | 위치 | 근거 |
@@ -1016,7 +1022,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
   "serverTime": "2026-11-02T20:00:03+09:00",
   "sections": [
     { "section": "A", "grade": "VIP", "price": 165000,
-      "seats": [ { "seatId": 1023, "row": "1", "number": 7, "available": true } ] }
+      "seats": [ { "seatId": 1023, "row": 1, "number": 7, "available": true } ] }
   ]
 }
 ```
@@ -1077,7 +1083,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 {
   "reservationId": 501, "reservationNo": "R20261102-000501", "scheduleId": 31,
   "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "totalAmount": 330000,
-  "seats": [ { "seatId": 1023, "section": "A", "row": "1", "number": 7, "grade": "VIP", "price": 165000 } ],
+  "seats": [ { "seatId": 1023, "section": "A", "row": 1, "number": 7, "grade": "VIP", "price": 165000 } ],
   "paymentToken": "eyJ...",
   "tickets": []
 }
@@ -1168,7 +1174,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | id | BIGINT | PK |  |
 | venue_id | BIGINT | NOT NULL, FK |  |
 | section | VARCHAR(10) | NOT NULL | 구역 (접수형 파티션 키에 쓰임) |
-| row_no | VARCHAR(5) | NOT NULL | 열 |
+| row_no | INT | NOT NULL | 열 (ADR 0033) |
 | seat_no | INT | NOT NULL | 번호 |
 | grade | VARCHAR(10) | NOT NULL | VIP·R·S 등 |
 |  |  | UNIQUE(venue_id, section, row_no, seat_no) |  |
@@ -1475,7 +1481,7 @@ erDiagram
     bigint id PK
     bigint venue_id FK
     varchar section "구역, 접수형 파티션 키"
-    varchar row_no
+    int row_no
     int seat_no
     varchar grade "VIP, R, S"
   }
