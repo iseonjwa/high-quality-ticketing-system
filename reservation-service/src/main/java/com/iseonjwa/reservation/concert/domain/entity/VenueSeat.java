@@ -27,8 +27,8 @@ public class VenueSeat extends BaseEntity {
     @Column(nullable = false, length = 10)
     private String section;
 
-    @Column(name = "row_no", nullable = false, length = 5)
-    private String rowNo;
+    @Column(name = "row_no", nullable = false)
+    private int rowNo;
 
     @Column(name = "seat_no", nullable = false)
     private int seatNo;
@@ -39,7 +39,7 @@ public class VenueSeat extends BaseEntity {
 
     protected VenueSeat() {}
 
-    public VenueSeat(Venue venue, String section, String rowNo, int seatNo, SeatGrade grade) {
+    public VenueSeat(Venue venue, String section, int rowNo, int seatNo, SeatGrade grade) {
         this.venue = venue;
         this.section = section;
         this.rowNo = rowNo;
@@ -50,7 +50,7 @@ public class VenueSeat extends BaseEntity {
     public Long getId() { return id; }
     public Venue getVenue() { return venue; }
     public String getSection() { return section; }
-    public String getRowNo() { return rowNo; }
+    public int getRowNo() { return rowNo; }
     public int getSeatNo() { return seatNo; }
     public SeatGrade getGrade() { return grade; }
 }
