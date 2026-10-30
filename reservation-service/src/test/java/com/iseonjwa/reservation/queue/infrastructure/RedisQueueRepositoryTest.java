@@ -12,7 +12,9 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.*;
 
 import static java.time.temporal.ChronoUnit.DAYS;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class RedisQueueRepositoryTest {
 
     static final long SCHEDULE_ID = 31L;
+    static final long OTHER_SCHEDULE_ID = 32L;
     static final long TOKEN_TTL_MILLIS = 600_000; // 10분
     static final long KEY_EXPIRE_AT_EPOCH_SECOND = Instant.now().plus(1, DAYS).getEpochSecond();
 
@@ -39,6 +42,7 @@ class RedisQueueRepositoryTest {
     @BeforeEach
     void setUp() {
         stringRedisTemplate.delete(QueueKeys.of(SCHEDULE_ID).enterKeys());
+        stringRedisTemplate.delete(QueueKeys.of(OTHER_SCHEDULE_ID).enterKeys());
     }
 
 
@@ -96,8 +100,33 @@ class RedisQueueRepositoryTest {
     }
 
     @Test
+    void 여러_사용자가_동시에_진입해도_seq가_겹치지_않는다() throws Exception {
+        List<Callable<EnterOutcome>> tasks = new ArrayList<>();
+        for (long userId = 1; userId <= 10; userId++) {
+            long u = userId;
+            tasks.add(() -> queueRepository.enter(SCHEDULE_ID, u, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND));
+        }
+
+        try (ExecutorService pool = Executors.newFixedThreadPool(10)) {
+            Set<Long> seqs = new HashSet<>();
+            for (Future<EnterOutcome> f : pool.invokeAll(tasks)) {
+                seqs.add(f.get().seq());
+            }
+            assertEquals(Set.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L), seqs);
+        }
+    }
+
+    @Test
+    void 회차가_다르면_번호가_따로_매겨진다() {
+        EnterOutcome a = queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+        EnterOutcome b = queueRepository.enter(OTHER_SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+
+        assertEquals(1L, a.seq());
+        assertEquals(1L, b.seq());
+    }
+
+    @Test
     void 토큰을_받은_사용자는_새_번호_없이_TOKEN_ISSUED() {
-        /* issued에 지금 시각 ZADD → 진입 → ISSUED, seq 키 없음 */
         long now = System.currentTimeMillis();
         stringRedisTemplate.opsForZSet().add(ISSUED, "42", now);
 
@@ -110,7 +139,7 @@ class RedisQueueRepositoryTest {
 
     @Test
     void 토큰을_받은_사용자의_waiting_잔여는_지운다() {
-        // 준비: 토큰 발급 중간 실패로 issued와 waiting 둘 다에 남음
+        // 토큰 발급 중간 실패로 issued와 waiting 둘 다에 남음
         long now = System.currentTimeMillis();
         stringRedisTemplate.opsForZSet().add(ISSUED, "42", now);
         stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
@@ -123,7 +152,7 @@ class RedisQueueRepositoryTest {
 
     @Test
     void 만료된_issued_기록과_waiting_잔여가_있으면_새_번호를_받는다() {
-        // 준비: 11분 전에 토큰을 받았고(만료), 옛 대기 자리 5번이 남아 있음, 번호표는 5번까지 나감
+        // 11분 전에 토큰을 받았고(만료), 옛 대기 자리 5번이 남아 있음, 번호표는 5번까지 나감
         long elevenMinutesAgo = System.currentTimeMillis() - Duration.ofMinutes(11).toMillis();
         stringRedisTemplate.opsForZSet().add(ISSUED, "42", elevenMinutesAgo);
         stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
@@ -146,5 +175,25 @@ class RedisQueueRepositoryTest {
         assertEquals(Type.SALE_NOT_OPEN, o.type());
         assertFalse(stringRedisTemplate.hasKey(SEQ));
         assertFalse(stringRedisTemplate.hasKey(WAITING));
+    }
+
+    @Test
+    void 새로_받은_seq는_admitted보다_크다() {
+        // 100번까지 번호가 나갔고 100번까지 입장시킨 상태 (줄이 빈 상태)
+        stringRedisTemplate.opsForValue().set(SEQ, "100");
+        stringRedisTemplate.opsForValue().set("queue:{" + SCHEDULE_ID + "}:admitted", "100");
+
+        EnterOutcome o = queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+
+        assertEquals(Type.JOINED, o.type());
+        assertTrue(o.seq() > o.admitted()); // 101 > 100
+    }
+
+    @Test
+    void 새로_줄_서면_seq와_waiting에_만료가_걸린다() {
+        queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+
+        assertTrue(stringRedisTemplate.getExpire(SEQ) > 0); // -1이면 만료가 없는 상태
+        assertTrue(stringRedisTemplate.getExpire(WAITING) > 0);
     }
 }
