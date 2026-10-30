@@ -77,6 +77,15 @@ public class SeatHoldRequest extends BaseEntity implements Persistable<UUID> {
         return new SeatHoldRequest(requestId, userId, scheduleId, seatIds);
     }
 
+    // 동기형은 선점과 같은 트랜잭션에서 결과까지 정해지므로 REQUESTED를 거치지 않고 HELD로 저장한다(ADR 0032)
+    public static SeatHoldRequest held(UUID requestId, Long userId, Long scheduleId, List<Long> seatIds,
+            Long reservationId) {
+        var request = request(requestId, userId, scheduleId, seatIds);
+        request.status = SeatHoldRequestStatus.HELD;
+        request.reservationId = reservationId;
+        return request;
+    }
+
     @Override
     public UUID getId() {
         return requestId;
