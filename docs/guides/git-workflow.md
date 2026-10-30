@@ -27,6 +27,7 @@ type(scope): 요약
 - 본문은 STAR 형식이고 `.github/pull_request_template.md`가 자동으로 채워진다. 상황은 왜 필요한가, 과제는 끝내야 하는 것과 범위 밖인 것, 행동은 무엇을 바꿨나, 결과는 실행한 명령과 결과다. 확인하지 못한 것은 "미확인"으로 적는다.
 - 이 PR에 쓴 AI 판단 기록 링크를 "AI 활용 기록" 칸에 적는다.
 - 스킬(`.agents/skills/`), 훅, `AGENTS.md`를 바꿨으면 본문에 이유를 쓴다.
+- 서비스 간 접점을 바꿨거나 `contract` 이슈를 받아 구현했으면 이슈 번호를 본문에 쓴다([contract-issues.md](contract-issues.md)).
 
 ## 3. 올리면 안 되는 것
 `.env`, `.env.*`(`.env.example` 제외), 키 파일(`*.pem`, `*.key`, `*.p12`, `*.jks`), IDE 설정(`.idea/`), 빌드 결과, 개인 에이전트 설정(`CLAUDE.local.md`, `.claude/settings.local.json`), `script/setup-agents.sh` 결과물(`.claude/skills/`). `.gitignore`에 있는 것은 모두 해당한다. 나에게만 필요한 제외 경로는 `.git/info/exclude`에 쓴다.

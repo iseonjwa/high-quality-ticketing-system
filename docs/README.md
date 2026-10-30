@@ -15,6 +15,7 @@
 | 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
+| 서비스 간 접점(contract) 변경 알림과 작업 전 확인 | [`guides/contract-issues.md`](guides/contract-issues.md) | Linear 라벨 `contract` |
 | 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 코드 작성·수정·리뷰 때 적용 |
 | Java·JUnit 테스트 위치와 기본·시스템 검증 실행 | [`guides/testing.md`](guides/testing.md) | 테스트 작성·실행 때 적용 |
 | 공통 모듈의 사용 계약(응답·예외·사용자 컨텍스트·토큰·감사·이벤트) | [`guides/common-modules.md`](guides/common-modules.md) | 팀 합의 전 |
