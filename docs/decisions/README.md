@@ -36,3 +36,4 @@
 | 0030 | [테이블 이름은 snake_case 복수형으로 통일한다](0030-table-naming-plural.md) | 제안 (팀 확인 필요, 결제 코드 적용은 ISE-67) | 2026-10-28 |
 | 0031 | [대기열 입장 토큰은 토큰 API에서만 발급하고 READY 상태를 둔다](0031-queue-token-api-and-ready-status.md) | 제안 (Gateway·프론트·좌석 선점 확인 필요) | 2026-10-29 |
 | 0032 | [좌석 선점 결과 응답에 seatIds를 포함하고 동기형 멱등 재요청 규칙을 고정한다](0032-seat-hold-result-and-idempotency-contract.md) | 제안 (반효승 확인 필요, ISE-21) | 2026-10-29 |
+| 0033 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0033-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
