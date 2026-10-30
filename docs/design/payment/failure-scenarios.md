@@ -64,11 +64,11 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 
 | 검증 | 확인 방법 | 기대 |
 |---|---|---|
-| V1 결제 승인 중복 없음 | 결제 DB `reservation_id`별 행 수, Mock PG 원장의 주문별 승인 수, PG 승인 주문 집합과 `pg_tx_id`가 있는 결제 집합 | 예매당 결제 ≤ 1, 주문당 승인 ≤ 1, PG에만 있는 승인 0 |
+| V1 결제 승인 중복 없음 | 결제 DB `reservation_id`별 행 수, Mock PG 원장의 주문별 승인 호출 수(`approveCalls`), PG 승인 주문 집합과 `pg_tx_id`가 있는 결제 집합 | 예매당 결제 ≤ 1, 주문당 승인 호출 ≤ 1, PG에만 있는 승인 0 |
 | V2 환불 중복 없음 | `payment_id`별 환불 행 수, Mock PG 원장의 결제별 환불 수·금액 | 결제당 환불 ≤ 1, PG 환불 합계 ≤ 승인 금액 |
 | V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
 
-Mock PG 원장 조회는 테스트 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28).
+Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28, [mock-pg.md](mock-pg.md) 9절). 배경 작업(재확인 스케줄러, 환불 워커)이 PG를 함께 부르므로 장애 주입은 `orderId`·`refundId`로 대상을 지정한다.
 
 | # | 장애 유형 | 주입 지점과 기대 | 관련 |
 |---|---|---|---|
