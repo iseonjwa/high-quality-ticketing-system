@@ -2,25 +2,27 @@
 
 SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결과 형식(`ISE-21`)**을 좌석 선점 담당(최권우) 기준으로 정리한다. 선점 API의 요청·응답 필드, 멱등키(`Idempotency-Key`) 재요청 규칙, 에러 코드, 그리고 예매 흐름 모듈(반효승)과의 결제 토큰 발급 연동 경계를 정의한다.
 
-상태: 제안 (2026-10-29 작성, [ADR 0031](../../decisions/0031-seat-hold-result-and-idempotency-contract.md)). 예매 흐름 담당(반효승) 확인 후 확정으로 바꾼다. 확인 요청 항목은 5절에 있다.
+상태: 제안 (2026-10-29 작성, [ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)). 예매 흐름 담당(반효승) 확인 후 확정으로 바꾼다. 확인 요청 항목은 5절에 있다.
 
 ---
 
-## 1. 요청 계약 (`POST /api/v1/reservations`)
+## 1. 요청 계약 (`POST /api/v1/schedules/{scheduleId}/reservations`)
+
+> 2026-10-29 변경(입장 토큰 계약 ①, ISE-20): 경로를 `POST /api/v1/reservations`에서 바꾸고 `scheduleId`를 본문에서 경로로 옮겼다. Gateway가 본문을 읽지 않고 경로로 입장 토큰의 회차를 비교하기 위해서다.
 
 | 구분 | 이름 | 타입 / 형식 | 필수 | 검증 규칙 |
 |---|---|---|---|---|
 | 헤더 | `Authorization` | `Bearer {accessToken}` | 예 | Gateway가 검증 후 `X-User-Id`, `X-User-Role` 헤더로 전달 |
-| 헤더 | `X-Entry-Token` | JWS compact (JWT) | 예 | 입장 토큰(계약 ①, `ISE-20`). 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id` 및 토큰 회차 ID == 요청 `scheduleId` 일치 |
+| 경로 | `scheduleId` | 정수 (`Long`, 양수) | 예 | 예매할 회차 ID. 0 이하·숫자가 아니면 `400 VALIDATION_FAILED` |
+| 헤더 | `X-Entry-Token` | JWS compact (JWT) | 예 | 입장 토큰(계약 ①, [`docs/design/queue/contracts.md`](../queue/contracts.md)). Gateway가 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id`·토큰 `scheduleId` == 경로 `scheduleId`를 검증한다. 선점 서비스는 다시 검증하지 않는다 |
 | 헤더 | `Idempotency-Key` | UUID 문자열 | 예 | 선점 접수 ID(`requestId`)로 그대로 사용. 누락·UUID 형식 오류 시 `400 VALIDATION_FAILED` |
-| 본문 | `scheduleId` | JSON 정수 (`Long`, 양수) | 예 | 예매할 회차 ID. 누락·0 이하 시 `400 VALIDATION_FAILED` |
 | 본문 | `seatIds` | JSON 정수 배열 (`List<Long>`) | 예 | 회차 좌석(`schedule_seats.id`) 목록. 1개 이상 `maxPerUser`(기본 4)개 이하, 중복 불가 |
 
 요청 본문 예시:
 
 ```json
+// POST /api/v1/schedules/31/reservations
 {
-  "scheduleId": 31,
   "seatIds": [1023, 1024]
 }
 ```
@@ -42,7 +44,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | `reservationId` | JSON 정수 (`Long`) | 예 | 생성된 예매 PK (`reservations.id`) |
 | `reservationNo` | 문자열 | 예 | 고객용 예매 번호 (예: `"R20261102-000501"`) |
 | `scheduleId` | JSON 정수 (`Long`) | 예 | 예매한 회차 ID |
-| `seatIds` | JSON 정수 배열 (`List<Long>`) | 예 | 선점된 회차 좌석 ID 목록(오름차순 정렬). 프론트엔드가 선택 좌석 표시 여부를 선택할 수 있도록 포함한다([ADR 0031](../../decisions/0031-seat-hold-result-and-idempotency-contract.md)) |
+| `seatIds` | JSON 정수 배열 (`List<Long>`) | 예 | 선점된 회차 좌석 ID 목록(오름차순 정렬). 프론트엔드가 선택 좌석 표시 여부를 선택할 수 있도록 포함한다([ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)) |
 | `status` | 문자열 | 예 | `"HELD"` (멱등 재요청 시 이미 결제 확정된 예매면 `"CONFIRMED"`) |
 | `holdExpiresAt` | 문자열 (ISO 8601 `+09:00`) | 예 | 선점 만료 시각 (`now + hold_minutes`, 기본 5분) |
 | `totalAmount` | JSON 정수 (`Long`/`BigDecimal` 소수 0자리) | 예 | 서버가 `schedule_seats.price` 합계로 계산한 원화 정수 금액 |
@@ -75,7 +77,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 
 서버 설정 `seat-hold.mode=async`일 때 동작한다. 클라이언트는 응답의 `data.status`가 `HELD`(동기형 즉시 완료)인지 `REQUESTED`(접수형 폴링 대기)인지만 분기하면 된다.
 
-- **접수 응답 (`POST /api/v1/reservations` → `202 Accepted`)**
+- **접수 응답 (`POST /api/v1/schedules/{scheduleId}/reservations` → `202 Accepted`)**
   - 헤더: `Location: /api/v1/reservations/requests/{requestId}`
   - `data`:
     ```json
@@ -127,12 +129,12 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 
 ## 3. 멱등키(`Idempotency-Key`) 재요청 처리 규칙
 
-선점 API는 `seat_hold_requests` 테이블의 PK(`request_id` = `Idempotency-Key`)로 멱등성을 보장한다([ADR 0031](../../decisions/0031-seat-hold-result-and-idempotency-contract.md)).
+선점 API는 `seat_hold_requests` 테이블의 PK(`request_id` = `Idempotency-Key`)로 멱등성을 보장한다([ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)).
 
 ### 3-1. 본문 일치 판정 기준
 기존 `seat_hold_requests` 행이 존재할 때 아래 3가지가 모두 같아야 "같은 요청의 재시도"로 인정한다. 하나라도 다르면 **`409 IDEMPOTENCY_KEY_REUSED`**를 반환한다.
 1. `seat_hold_requests.user_id == X-User-Id` (다른 사용자의 키 충돌·도용 차단)
-2. `seat_hold_requests.schedule_id == request.scheduleId`
+2. `seat_hold_requests.schedule_id == 경로 scheduleId`
 3. `seat_hold_requests.seat_ids == sort(request.seatIds)` (오름차순 정렬된 좌석 ID 배열 일치)
 
 ### 3-2. 상황별 재요청 응답 (동기형·접수형)
@@ -154,10 +156,10 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 
 | HTTP 상태 | 에러 코드 (`code`) | 발생 조건 |
 |---|---|---|
-| `400` | `VALIDATION_FAILED` | `Idempotency-Key` 헤더 누락·UUID 형식 오류, `scheduleId` 누락·비양수, 요청 JSON 파싱 오류 |
+| `400` | `VALIDATION_FAILED` | `Idempotency-Key` 헤더 누락·UUID 형식 오류, 경로 `scheduleId` 비양수·숫자 아님, 요청 JSON 파싱 오류 |
 | `400` | `SEAT_COUNT_MISMATCH` | `seatIds`가 비어 있거나 회차의 `max_per_user`(기본 4매)를 초과하거나, 배열 안에 중복된 `seatId`가 있거나, 요청한 `seatId`가 해당 `scheduleId`에 속하지 않는 경우 |
 | `401` | `UNAUTHORIZED` / `TOKEN_EXPIRED` / `TOKEN_REVOKED` | Access JWT 누락·만료·로그아웃 (Gateway 또는 `GatewayIdentityFilter`) |
-| `403` | `ENTRY_TOKEN_INVALID` | `X-Entry-Token` 누락·서명 위조·만료·`typ`/`aud` 불일치·`sub != X-User-Id`·토큰 회차 ID != 요청 `scheduleId` (E5, E14) |
+| `403` | `ENTRY_TOKEN_INVALID` | `X-Entry-Token` 누락·서명 위조·만료·`typ`/`aud` 불일치·`sub != X-User-Id`·토큰 `scheduleId` != 경로 `scheduleId` (E5, E14). Gateway가 응답한다 |
 | `404` | `NOT_FOUND` | 존재하지 않는 `scheduleId`로 선점 요청, 또는 접수 결과 조회 시 존재하지 않거나 타인의 `requestId` 조회 |
 | `409` | `SALE_NOT_OPEN` | 서버 시각(`now`)이 회차의 `open_at` 이전이거나 이미 판매 종료된 회차 (E4) |
 | `409` | `PURCHASE_LIMIT_EXCEEDED` | `user_schedule_quotas` 조건부 UPDATE 결과 0행 (`held_count + 요청 매수 > max_per_user`) (E3, D1) |
@@ -185,8 +187,10 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
   ```
 
 ### 5-2. 대기열 모듈·Gateway(권영은)와의 경계 — 입장 토큰 회차 검증 (`ISE-20`)
-- `POST /api/v1/reservations`는 `scheduleId`가 URL 경로가 아니라 JSON 본문에 있다.
-- Gateway가 입장 토큰(`X-Entry-Token`)의 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id`를 검증한 뒤 토큰의 회차 ID를 내부 헤더(예: `X-Entry-Schedule-Id`)로 넘기거나, 선점 컨트롤러/서비스가 `X-Entry-Token`(또는 전달된 헤더)의 회차 ID와 요청 본문의 `scheduleId`를 대조해 다르면 `403 ENTRY_TOKEN_INVALID`를 반환한다.
+- 2026-10-29 정함: 선점 경로에 `scheduleId`를 둔다(`POST /api/v1/schedules/{scheduleId}/reservations`).
+- Gateway가 입장 토큰의 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id`와 토큰 `scheduleId` == 경로 `scheduleId`를 모두 검증하고, 틀리면 `403 ENTRY_TOKEN_INVALID`를 응답한다. Gateway는 요청 본문을 읽지 않는다.
+- 선점 서비스는 입장 토큰을 다시 검증하지 않는다. `seatIds`가 경로 회차의 좌석인지는 선점 서비스가 확인한다(`400 SEAT_COUNT_MISMATCH`).
+- 입장 토큰 형식은 [`docs/design/queue/contracts.md`](../queue/contracts.md)를 따른다.
 
 ### 5-3. 확인 요청 항목 (반효승)
 각 항목에 "그대로 / 이렇게 바꾼다"로 확인해 주면 상태를 `확정`으로 바꾼다.
@@ -194,6 +198,6 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | # | 항목 | 기본 안 |
 |---|---|---|
 | 1 | 동기형 201 응답 및 접수형 `reservation` 블록 필드: `requestId`, `reservationId`, `reservationNo`, `scheduleId`, `seatIds`, `status`, `holdExpiresAt`, `totalAmount`, `paymentToken`, `paymentTokenExpiresAt` | 2절 표 그대로 (`scheduleId`·`seatIds` 포함) |
-| 2 | 동기형 실패(409) 시 `seat_hold_requests` 행도 함께 롤백하고, 성공(`HELD`) 시에만 커밋해 멱등 재요청에 응답 | 3절 표 그대로 ([ADR 0031](../../decisions/0031-seat-hold-result-and-idempotency-contract.md)) |
+| 2 | 동기형 실패(409) 시 `seat_hold_requests` 행도 함께 롤백하고, 성공(`HELD`) 시에만 커밋해 멱등 재요청에 응답 | 3절 표 그대로 ([ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)) |
 | 3 | 이미 만료·해제·취소됐거나 `holdExpiresAt - 10초`가 지난 선점에 같은 멱등키로 재요청 시 `409 RESERVATION_NOT_PAYABLE` 반환 | 3절 표 그대로 |
 | 4 | 결제 토큰 발급기(`PaymentTokenIssuer`) 시그니처와 패키지 위치(`reservation` 도메인/응용 또는 공유 포트) | 5-1절 제안 그대로 |

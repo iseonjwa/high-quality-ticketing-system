@@ -34,7 +34,7 @@
 | [junhyun](junhyun/README.md) | 개별 기록 17건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 18건, 일지 3일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 4건, 일지 0일 |
-| [youngeun](youngeun/README.md) | 개별 기록 3건, 일지 0일 |
+| [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-29 | 입장 토큰 회차 비교: 선점 경로를 /schedules/{scheduleId}/reservations로 바꾸고 Gateway가 경로로 비교 (계약 ①) | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-10-29-entry-token-schedule-check-path.md) |
 | 2026-10-29 | 대기열 설계 설명 중 AI 근거 두 가지(멱등성, issued 선기록의 자동 복구)를 틀렸다고 지적, 만료 기록 처리 추가 | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-10-29-queue-ai-reasoning-corrections.md) |
 | 2026-10-29 | 대기열: 토큰 API 분리, READY 상태, 진입·순번 조회 같은 상태 응답, 순번 조회 읽기 전용, jti 계산 (ADR 0031) | youngeun | Claude (Cowork) | 부분 수용 | 후보 | [기록](youngeun/2026-10-29-queue-token-api-ready.md) |
 | 2026-10-29 | 좌석 선점 결과 계약(ISE-21): 동기형 멱등 재요청 처리 규칙(실패 시 롤백·동시 PK 충돌 재조회) 수용 및 응답에 `seatIds` 포함 결정 | kwonwoo | Antigravity (Gemini) | 수용 | 후보 | [기록](kwonwoo/2026-10-29-seat-hold-contract-and-idempotency.md) |
