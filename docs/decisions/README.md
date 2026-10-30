@@ -38,3 +38,4 @@
 | 0032 | [좌석 선점 결과 응답에 seatIds를 포함하고 동기형 멱등 재요청 규칙을 고정한다](0032-seat-hold-result-and-idempotency-contract.md) | 제안 (반효승 확인 필요, ISE-21) | 2026-10-29 |
 | 0033 | [공연장 좌석의 열 번호(row_no)는 정수로 둔다](0033-venue-seat-row-no-int.md) | 제안 (좌석 응답 `row` 형식 변경, 좌석 선점 담당 확인 필요) | 2026-10-30 |
 | 0034 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0034-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
+| 0035 | [포트폴리오 트러블슈팅 검증을 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 M4 고도화 단계로 분리한다](0035-defer-seathold-concurrency-and-reconciliation-to-m4.md) | 채택 | 2026-10-30 |

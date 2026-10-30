@@ -57,7 +57,10 @@ public final class LocalApps {
             supply(result, values, "DB_USER", "DB_PASSWORD");
         }
         if (Set.of("gateway", "user-service").contains(app.name())) supply(result, values, "JWT_ACCESS_SECRET");
-        if (app.name().equals("payment-service")) supply(result, values, "PAYMENT_TOKEN_SECRET");
+        // 결제 토큰은 Reservation이 발급하고 Payment가 검증한다. 두 서비스에만 키를 준다(0025)
+        if (Set.of("reservation-service", "payment-service").contains(app.name())) {
+            supply(result, values, "PAYMENT_TOKEN_SECRET");
+        }
         if (app.name().equals("user-service")) supply(result, values, "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD");
         return result;
     }
