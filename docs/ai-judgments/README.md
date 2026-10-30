@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 17건, 일지 2일 |
 | [kangmin](kangmin/README.md) | 개별 기록 18건, 일지 3일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 5건, 일지 0일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 6건, 일지 0일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-30 | 포트폴리오 트러블슈팅 서사 확보를 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 MVP 이후 고도화(M4)로 분리 (ADR 0035) | kwonwoo | Antigravity (Gemini) | 수용 | 후보 | [기록](kwonwoo/2026-10-30-mvp-and-troubleshooting-scope-split.md) |
 | 2026-10-30 | 트래픽 집중 지점 격리와 향후 스케일업을 위해 좌석 선점(seathold)을 별도 도메인 모듈로 분리하되 단방향 의존 규칙 수용 (ADR 0034) | kwonwoo | Antigravity (Gemini) | 부분 수용 | 후보 | [기록](kwonwoo/2026-10-30-seathold-module-separation.md) |
 | 2026-10-29 | 입장 토큰 회차 비교: 선점 경로를 /schedules/{scheduleId}/reservations로 바꾸고 Gateway가 경로로 비교 (계약 ①) | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-10-29-entry-token-schedule-check-path.md) |
 | 2026-10-29 | 대기열 설계 설명 중 AI 근거 두 가지(멱등성, issued 선기록의 자동 복구)를 틀렸다고 지적, 만료 기록 처리 추가 | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-10-29-queue-ai-reasoning-corrections.md) |
