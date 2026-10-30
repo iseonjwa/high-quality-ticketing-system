@@ -1,7 +1,7 @@
 ---
 title: 입장 토큰의 회차 비교를 Gateway가 경로로 하도록 좌석 선점 경로를 /schedules/{scheduleId}/reservations로 바꾸기로 했다
 date: 2026-10-29
-updated: 2026-10-29
+updated: 2026-10-30
 judge: youngeun
 ai: Claude (Cowork 앱 대화)
 verdict: 수용
@@ -30,7 +30,7 @@ shared: 예
 - 검토한 대안: B-1(헤더 전달 후 서비스 비교, 좌석 선점 담당의 `docs/sa-review/07-reservation-system-review.md` G2 권장안), C(Gateway 본문 읽기)
 
 ## 반영
-- 계약 ①: [`docs/design/queue/contracts.md`](../../design/queue/contracts.md) (상태: 일부 확정. 선점 경로·경로 기준 회차 비교는 2026-10-29 확정, claim 이름·타입·헤더 이름은 확인 중)
+- 계약 ①: [`docs/design/queue/contracts.md`](../../design/queue/contracts.md) (상태: 확정, 2026-10-30)
 - 좌석 선점 계약 `docs/design/reservation/contracts.md` 1절·5-2절 경로 변경
 - SA MASTER 사본: 머리말 제안 표 11·12번, 6-4, 7-3, 8-1, 11-4, 11-5
 - Linear: ISE-20, ISE-58
@@ -41,6 +41,7 @@ shared: 예
 ## 판단 이력
 - 2026-10-29 수용: 선점 경로를 바꾸고 Gateway가 경로로 회차를 비교하기로 함
 - 2026-10-29 확정: 좌석 선점·좌석 조회 담당이 선점 경로 변경과 경로 기준 회차 비교를 확정 (claim 이름·타입·헤더 이름은 확인 중)
+- 2026-10-30 확정: claim 이름·타입(`scheduleId` JSON 정수, `sub` 문자열)과 헤더 이름 `X-Entry-Token`도 그대로 확정, 계약 ① 상태 확정
 
 ## 발표·면접 포인트
 - Gateway가 요청 본문을 읽지 않게 하려고 API 경로를 바꿨다. 토큰 검증을 한 곳에 모으는 대신 선점 API 계약을 바꾸는 비용을 택했고, 구현 전이라 비용이 작을 때 정했다.

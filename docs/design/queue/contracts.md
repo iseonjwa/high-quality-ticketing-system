@@ -2,7 +2,7 @@
 
 SA 17-2 U1의 계약 ① 입장 토큰 claim을 대기열 담당 기준으로 정리한다. 입장 토큰은 대기열(Reservation `queue` 모듈)이 발급하고 Gateway가 검증한다. 좌석 조회·좌석 선점 서비스는 토큰을 직접 읽지 않는다.
 
-상태: 일부 확정. 4절 1·2번(선점 경로, 경로 기준 회차 비교)은 2026-10-29 확정했고, 3번(claim 이름·타입, 헤더 이름)은 확인 중이다. 3번이 확정되면 상태를 `확정`으로 바꾼다. 발급 위치·재발급 규칙은 [ADR 0031](../../decisions/0031-queue-token-api-and-ready-status.md)을 따른다.
+상태: 확정 (2026-10-30, 좌석 선점 최권우·좌석 조회 반효승 확인). 확인 결과는 4절에 있다. 발급 위치·재발급 규칙은 [ADR 0031](../../decisions/0031-queue-token-api-and-ready-status.md)을 따른다.
 
 ## 1. 계약 ① 입장 토큰 (Reservation 발급 → Gateway 검증)
 
@@ -73,12 +73,12 @@ SA 11-5를 따른다. 입장 토큰은 `sessionStorage`에 두고, 만료(`entry
 | 선점 경로 | POST `/api/v1/reservations`, 본문 `scheduleId` | POST `/api/v1/schedules/{scheduleId}/reservations`, 본문 `seatIds`만 |
 | 회차 비교 | 위치 미정 | Gateway가 경로로 비교 |
 
-## 4. 확인 요청 항목
+## 4. 확인 결과
 
-각 항목에 "그대로 / 이렇게 바꾼다"로 확인해 주면 결과 칸을 채운다. 모두 채워지면 상태를 `확정`으로 바꾼다.
+모든 항목을 기본 안 그대로 확정했다.
 
-| # | 항목 | 확인할 사람 | 결과 |
+| # | 항목 | 확인한 사람 | 결과 |
 |---|---|---|---|
 | 1 | 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. 선점 계약(`docs/design/reservation/contracts.md`)도 같이 고쳤다 | 최권우 | 그대로 (2026-10-29 확정) |
 | 2 | 좌석 조회는 경로 `{scheduleId}`로 Gateway가 회차를 비교한다. 서비스는 입장 토큰을 다시 보지 않는다 | 반효승 | 그대로 (2026-10-29 확정) |
-| 3 | claim 이름·타입(`scheduleId` JSON 정수, `sub` 문자열)과 헤더 이름 `X-Entry-Token` | 최권우, 반효승 | 확인 중 (기본 안: 그대로) |
+| 3 | claim 이름·타입(`scheduleId` JSON 정수, `sub` 문자열)과 헤더 이름 `X-Entry-Token` | 최권우, 반효승 | 그대로 (2026-10-30 확정) |
