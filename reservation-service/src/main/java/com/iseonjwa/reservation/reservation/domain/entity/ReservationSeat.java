@@ -1,8 +1,8 @@
 package com.iseonjwa.reservation.reservation.domain.entity;
 
 import com.iseonjwa.common.persistence.BaseEntity;
-import com.iseonjwa.reservation.reservation.domain.vo.Money;
-import com.iseonjwa.reservation.reservation.domain.vo.MoneyConverter;
+import com.iseonjwa.reservation.global.vo.Money;
+import com.iseonjwa.reservation.global.vo.MoneyConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;

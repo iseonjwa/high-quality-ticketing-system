@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.reservation.domain.entity;
+package com.iseonjwa.reservation.seathold.domain.entity;
 
 public enum SeatHoldRequestStatus {
     REQUESTED,
