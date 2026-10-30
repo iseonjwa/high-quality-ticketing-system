@@ -27,7 +27,7 @@ shared: 예
 - 검토한 대안: 방법 1(`reservation` 단일 패키지 유지), 초기 구상안(`UserScheduleQuota`까지 `seathold`에 두어 양방향 참조가 생기는 구조)
 
 ## 반영
-- ADR: [`docs/decisions/0033-seathold-unidirectional-module-boundary.md`](../../decisions/0033-seathold-unidirectional-module-boundary.md) (상태: 제안, 반효승 확인 후 확정)
+- ADR: [`docs/decisions/0034-seathold-unidirectional-module-boundary.md`](../../decisions/0034-seathold-unidirectional-module-boundary.md) (상태: 제안, 반효승 확인 후 확정)
 - 학습 노트: [`docs/learning/kwonwoo/qna/2026-10-30-reservation-seathold-module-boundary.md`](../../learning/kwonwoo/qna/2026-10-30-reservation-seathold-module-boundary.md)
 - 코드 반영 예정(`ISE-10`): `SeatHoldRequest`, `SeatHoldRequestStatus`는 `com.iseonjwa.reservation.seathold.domain.entity`에 두고, `Reservation`, `ReservationSeat`, `ReservationStatusHistory`, `UserScheduleQuota`는 `com.iseonjwa.reservation.reservation.domain.entity`에 배치
 
