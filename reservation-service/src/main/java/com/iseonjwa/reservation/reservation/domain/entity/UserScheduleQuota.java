@@ -17,6 +17,9 @@ import org.hibernate.type.SqlTypes;
  * <p>Note: 같은 사용자의 동시 선점 요청을 이 행 하나의 행 락에서 줄 세운다. 행 보장은
  * {@code INSERT ... ON CONFLICT DO NOTHING}, 증가는 {@code held_count + n <= 한도} 조건부 UPDATE로 하고(SA 12-7),
  * 엔티티로 읽어 더한 뒤 저장하지 않는다. 읽고 쓰는 사이에 다른 요청이 끼어들어 한도를 넘길 수 있기 때문이다.
+ *
+ * <p>TODO: MVP 기준선은 보유 매수를 읽어 검사한 뒤 upsert로 더한다(ADR 0035). 동시 요청이면 한도를 넘길 수 있고,
+ * M4 동시성 트러블슈팅(TS-2)에서 재현한 뒤 위의 조건부 UPDATE로 바꾼다.
  */
 @Getter
 @Entity
