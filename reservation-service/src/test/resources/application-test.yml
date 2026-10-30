@@ -1,12 +1,30 @@
+server:
+  address: 127.0.0.1
 spring:
   cloud:
     config:
       enabled: false
+  datasource:
+    url: ${TEST_RESERVATION_DB_URL:jdbc:postgresql://localhost:25435/reservation_test}
+    username: test
+    password: test-only-password
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
   data:
     redis:
       host: localhost
       port: ${TEST_REDIS_PORT:26379}
       timeout: 1s
+  kafka:
+    listener:
+      auto-startup: false
+management:
+  tracing:
+    export:
+      zipkin:
+        enabled: false
 eureka:
   client:
     enabled: false
