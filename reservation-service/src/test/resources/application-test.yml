@@ -28,3 +28,7 @@ management:
 eureka:
   client:
     enabled: false
+payment:
+  token:
+    # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
+    secret: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
