@@ -31,9 +31,11 @@
 | S-25 | 12-1, 11-5 | 12-1의 "순번 PK를 밖에 노출하지 않는다"와 11-5의 `paymentId`(BIGINT) 노출이 어긋난다. 0021의 소유자 조건으로 정보 노출은 막고, 외부 식별자 분리는 후속으로 적는다 | 정정 | 0021 | 팀 |
 | S-26 | 9-4 | Gateway 3초 안에 TX1·PG·TX2가 끝나지 않을 수 있음을 적고, 504 뒤에도 Payment 처리는 계속되며 같은 키 재시도로 결과를 받는다고 명시. Gateway에 POST 재시도 필터를 두지 않음 | 추가 | 0018, api.md | 팀 |
 | S-27 | 11-5 결제 | `GET /payments/{id}`의 `APPROVED`는 예매 확정이 아니며 확정·티켓은 예매 조회로 확인한다고 명시 | 추가 | api.md | 팀 |
-| S-28 | 11-5 Mock PG | Mock PG 승인·조회·환불 응답에 `amount`·`currency` 추가, 테스트 프로필 전용 원장 조회(주문별 승인 수, 결제별 환불 수·금액) | 추가 | 0023, [failure-scenarios.md](failure-scenarios.md) | 안준현 (10/28 역할 변경) |
+| S-28 | 11-5 Mock PG | Mock PG 승인·조회·환불 응답에 `amount`·`currency` 추가, `test`·`loadtest` 프로필 전용 원장 조회(주문별 승인 호출 수, 결제별 환불 수·금액) | 추가 | 0023, [failure-scenarios.md](failure-scenarios.md) | 안준현 (10/28 역할 변경) |
+| S-29 | 6-6, 11-4, 11-5 Mock PG | 장애 주입을 호출 단위(`target`: 승인·조회·망취소·환불·환불 조회)로 확장하고 `count`·`orderId`/`refundId` 매칭을 더함. 모드 추가(`PROCESSING`, `SERVER_ERROR`, `BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`, `REJECT`). 응답을 만지지 않는 모드는 `test`·`loadtest`, 변조 모드는 `test`만 허용. 처리 중 승인 재요청은 409 `REQUEST_IN_PROGRESS` | 추가(개정) | 0023, [mock-pg.md](mock-pg.md) | 안준현 (10/28 역할 변경) |
+| S-30 | 9-1, compose | `compose.yml`의 공통 `SPRING_PROFILES_ACTIVE: local`이 mock-pg에도 적용되어 부하 측정·11/6 시연에서 `/faults`가 404가 된다. mock-pg만 `local,loadtest`로 띄우는 override 파일을 두는 안을 팀과 정한다 | 확인 | [mock-pg.md](mock-pg.md) 5·7절 | 팀 |
 
 ## PR 방식
 - SA 변경 요청 PR은 팀 규칙·SA 변경을 별도 PR로 리뷰하는 합의(통합 회의 D9)를 따른다.
-- 영향이 큰 순서로 묶는 것을 제안한다: (1) 돈과 계약이 걸린 S-1·S-16·S-17·S-18·S-5·S-19, (2) API 동작 S-4·S-6·S-7·S-26·S-27, (3) 운영 S-8·S-22·S-23·S-24, (4) 나머지. 반효승이 소유한 계약(S-1·S-10·S-13·S-17·S-18·S-23)과 U9에 걸린 S-16은 해당 담당(S-16은 이강민) 리뷰를 받는다. S-28(Mock PG)은 10/28 역할 변경으로 결제 담당 안에서 처리한다.
+- 영향이 큰 순서로 묶는 것을 제안한다: (1) 돈과 계약이 걸린 S-1·S-16·S-17·S-18·S-5·S-19, (2) API 동작 S-4·S-6·S-7·S-26·S-27, (3) 운영 S-8·S-22·S-23·S-24, (4) 나머지. 반효승이 소유한 계약(S-1·S-10·S-13·S-17·S-18·S-23)과 U9에 걸린 S-16은 해당 담당(S-16은 이강민) 리뷰를 받는다. S-28·S-29(Mock PG)는 10/28 역할 변경으로 결제 담당 안에서 처리한다. S-30은 공유 파일(`compose.yml`)에 걸려 있어 팀 확인이 필요하다.
 - Notion 정본(SA MASTER)과 `docs/core/SA MASTER.md` 사본은 팀이 합의한 뒤 같은 방식으로 함께 고친다.
