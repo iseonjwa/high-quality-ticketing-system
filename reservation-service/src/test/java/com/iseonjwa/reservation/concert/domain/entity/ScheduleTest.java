@@ -43,7 +43,7 @@ class ScheduleTest {
     @Test
     void 회차_좌석은_공연장_좌석의_구역과_등급을_복사하고_AVAILABLE로_시작한다() {
         var schedule = Schedule.create(concert, venue, STARTS_AT, OPEN_AT, 4, 5);
-        var venueSeat = new VenueSeat(venue, "A", "3", 12, SeatGrade.VIP);
+        var venueSeat = new VenueSeat(venue, "A", 3, 12, SeatGrade.VIP);
 
         var seat = ScheduleSeat.create(schedule, venueSeat, Money.of(165_000));
 
@@ -56,7 +56,7 @@ class ScheduleTest {
     @Test
     void 다른_공연장의_좌석으로는_회차_좌석을_만들_수_없다() {
         var schedule = Schedule.create(concert, venue, STARTS_AT, OPEN_AT, 4, 5);
-        var otherVenueSeat = new VenueSeat(new Venue("다른 공연장"), "A", "3", 12, SeatGrade.VIP);
+        var otherVenueSeat = new VenueSeat(new Venue("다른 공연장"), "A", 3, 12, SeatGrade.VIP);
 
         assertThrows(BusinessException.class,
                 () -> ScheduleSeat.create(schedule, otherVenueSeat, Money.of(165_000)));
