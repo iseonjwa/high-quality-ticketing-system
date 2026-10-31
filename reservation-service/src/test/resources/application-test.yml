@@ -28,6 +28,12 @@ management:
 eureka:
   client:
     enabled: false
+queue:
+  admit-per-second: 50
+  entry-token-ttl: 10m
+  poll-min: 3s
+  poll-max: 10s
+  poll-jitter-ratio: 0.2
 payment:
   token:
     # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
