@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-10-31 | 앞 PR을 스쿼시 머지한 뒤 그 위에 쌓은 브랜치는 왜 강제 푸시가 필요하고, 다른 방법은 무엇인가 | [qna/2026-10-31-stacked-branch-after-squash.md](qna/2026-10-31-stacked-branch-after-squash.md) |
 | 2026-10-31 | 세션을 Redis에 공유하는 구조에서 Redis가 죽으면 전체가 멈추는데, 어떻게 막을 수 있나 | [qna/2026-10-31-session-redis-single-point-of-failure.md](qna/2026-10-31-session-redis-single-point-of-failure.md) |
 | 2026-10-31 | 서비스 간 인증에서 mTLS와 서비스 메시는 무엇이고, 이 프로젝트에 왜 과한가 | [qna/2026-10-31-mtls-service-mesh.md](qna/2026-10-31-mtls-service-mesh.md) |
 | 2026-10-30 | NOT_SENT는 언제 생기고, 추첨 자동결제의 NOT_SENT와 결과 미수신 만료는 어떤 선택지로 처리할 수 있나 | [qna/2026-10-30-lottery-payment-failure-options.md](qna/2026-10-30-lottery-payment-failure-options.md) |
