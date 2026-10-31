@@ -8,11 +8,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @SQLRestriction("deleted_at IS NULL")
 @Table(name = "concerts")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Concert extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,14 +34,8 @@ public class Concert extends BaseEntity {
     @Column(nullable = false)
     private Long version;
 
-    protected Concert() {}
-
     public Concert(String title, String description) {
         this.title = title;
         this.description = description;
     }
-
-    public Long getId() { return id; }
-    public String getTitle() { return title; }
-    public String getDescription() { return description; }
 }
