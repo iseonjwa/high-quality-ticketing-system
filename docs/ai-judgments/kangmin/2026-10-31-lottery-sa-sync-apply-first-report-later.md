@@ -29,7 +29,7 @@ shared: 예
 - 감수: 결제 담당과 팀이 반대하면 반영한 내용을 되돌려야 한다. 이를 줄이려고 선반영한 곳마다 "선반영, 담당 확인 대기"를 표시하고, ADR은 상태를 `제안`으로 둔다. 합의 창구는 PR `#134` 리뷰다. 리뷰 승인 없이는 dev에 머지되지 않으므로, 반영 자체가 팀 합의를 덮어쓰지는 않는다.
 
 ## 반영
-- SA 6-6·6-7·7-1·10-1·17-2, 결제 `docs/design/payment/contracts.md`, ADR 0037·0038·0039, `docs/design/lottery/README.md` 5절 표(PR `#134`에 추가 커밋).
+- SA 7-1·17-2, 결제 `docs/design/payment/contracts.md`, ADR 0037·0038·0039, `docs/design/lottery/README.md` 5절 표(PR `#134`에 추가 커밋).
 - Linear: D3는 ISE-87 완료 기준으로, Notion 동기화는 ISE-97로. ISE-82 완료 기준을 조정해 PR `#134` 머지 때 닫는다.
 
 ## 검증
@@ -37,3 +37,4 @@ PR `#134` 리뷰에서 결제 담당·좌석 담당·팀의 확인을 받는다.
 
 ## 판단 이력
 - 2026-10-31 부분 수용: 후속 분리는 수용, 합의 대기는 거부하고 선반영 후 보고.
+- 2026-10-31 범위 변경: D6 `payment.billing` 선반영은 같은 날 D6 변경(공유 그룹 기준선)으로 되돌렸다([기록](2026-10-31-lottery-billing-share-approve-group.md)).

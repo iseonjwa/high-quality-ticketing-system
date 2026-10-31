@@ -42,4 +42,4 @@
 | 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
 | 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
 | 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
-| 0039 | [추첨 자동결제는 전용 토픽 payment.billing과 PG 그룹 pg-billing으로 나눈다](0039-lottery-billing-topic-and-bulkhead.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
+| 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |

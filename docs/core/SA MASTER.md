@@ -12,7 +12,7 @@
 
 ### 10/31 바뀐 점 (추첨 담당)
 
-추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정을 반영했다(ISE-82). 응모 접수 방식(D3)은 측정 시나리오 1 뒤에 반영한다(ISE-87). 7·8·9행은 결제 담당·팀 확인 전에 먼저 반영한 것(선반영)이라 확인 결과에 따라 되돌릴 수 있다.
+추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정을 반영했다(ISE-82). 응모 접수 방식(D3)은 측정 시나리오 1 뒤에 반영한다(ISE-87). 7·8행은 결제 담당·팀 확인 전에 먼저 반영한 것(선반영)이라 확인 결과에 따라 되돌릴 수 있다.
 
 | # | 변경 | 위치 | 근거 |
 | --- | --- | --- | --- |
@@ -22,9 +22,8 @@
 | 4 | 응모 때 빌링키를 확인하지 않고 결제 시점 실패 → 승계. `BILLING_KEY_REQUIRED`는 확장안 | 4-3, 11-3 | D4 |
 | 5 | `lottery_entries`에 `payment_attempts`·`fail_reason`, 상태 `CANCELED` | 12-3, ERD 그림 3 | D5·D12 |
 | 6 | U9를 추첨 담당 결정으로 갱신(결제 담당 확인 대기), U19는 동기 INSERT 기준선으로 시작 | 17-2 | D3·D4·D12 |
-| 7 | 자동결제 요청 `BillingPaymentRequested`를 `payment.command`에서 전용 토픽 `payment.billing`으로 옮김. 환불 요청이 PG 허가를 기다리는 자동결제 뒤에 밀리지 않게 한다. 선반영, 결제 담당 확인 대기(ISE-89) | 6-6, 6-7, 10-1 | D6, ADR 0039 |
-| 8 | 추첨은 결제 거절 `reasonCode`로 분기한다(`NOT_SENT`는 새 예매로 1회 재시도). 결제 `contracts.md`에 같은 문구. 선반영, 결제 담당 확인 대기(ISE-89) | 17-2 U9, `docs/design/payment/contracts.md` | D12, ADR 0038 |
-| 9 | 3개 서비스로 줄인 근거 중 추첨 문장을 "추첨석을 좌석 등급 `LOTTERY`로 떼어 두어 실시간 선점과 같은 좌석을 다투지 않는다"로 바꿈. 선반영, 팀 확인 대기 | 7-1 | D9, ADR 0037 |
+| 7 | 추첨은 결제 거절 `reasonCode`로 분기한다(`NOT_SENT`는 새 예매로 1회 재시도). 결제 `contracts.md`에 같은 문구. 선반영, 결제 담당 확인 대기(ISE-89) | 17-2 U9, `docs/design/payment/contracts.md` | D12, ADR 0038 |
+| 8 | 3개 서비스로 줄인 근거 중 추첨 문장을 "추첨석을 좌석 등급 `LOTTERY`로 떼어 두어 실시간 선점과 같은 좌석을 다투지 않는다"로 바꿈. 선반영, 팀 확인 대기 | 7-1 | D9, ADR 0037 |
 
 ### 10/30 바뀐 점 (공연·좌석 담당)
 
@@ -454,7 +453,7 @@ flowchart TD
 | MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
-| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.billing`(BillingPaymentRequested, 10/31 선반영) |
+| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
 
 ### 6-7. User·공통 → 추첨: 이강민
 
@@ -466,7 +465,7 @@ flowchart TD
 | MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
 | 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
 | 이후 | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
-| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.billing`(BillingPaymentRequested) · 구독 `payment.result` |
+| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
 | 이후 | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
 
 ### 6-8. 프론트 + 내부 AI 상담: 안준현
@@ -841,13 +840,11 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | 토픽 | 이벤트 | 키 | 발행 → 구독 (컨슈머 그룹) | 발행 방식 | 단계 |
 | --- | --- | --- | --- | --- | --- |
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
-| `payment.command` | RefundRequested | reservationId | Reservation → `payment.command` | Outbox | MVP (E8) |
-| `payment.billing` | BillingPaymentRequested | reservationId | Reservation(lottery) → `payment.billing` | Outbox | 이후 (10/31 선반영, 결제 담당 확인 대기) |
+| `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
 | `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_requests`와 한 트랜잭션) | 접수형 |
 | `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
 - Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
-- 자동결제를 `payment.billing`으로 나눈 이유(D6, ADR 0039): 자동결제는 전용 PG 그룹 `pg-billing`(동시 3)의 허가를 기다리며 오프셋을 넘기지 않는다(백프레셔). 같은 토픽이면 그 뒤의 환불 요청까지 밀린다. 리스너 동시성은 그룹 동시 수와 같게, 파티션은 3 이상으로 둔다. 구현 방식은 결제 담당이 최종 결정한다.
 - 접수형 선점을 Outbox로 바꾸면 접수 → 처리 완료 시간에 outbox 폴링(500ms)이 더해진다. 이전 안이 직접 발행을 고른 이유가 이 지연을 측정에 섞지 않기 위해서였다(AI 검증 #8). 재측정에서 동기형, 직접 발행, outbox 세 경우를 같은 환경에서 비교한다.
 - 응모(`lottery.entry`)는 아직 직접 발행이다. 접수형 선점과 같은 "실패 상태를 저장할 곳이 없다" 문제가 있으므로 추첨 시작 때 같은 방식으로 바꿀지 정한다 (U19).
 - 자동결제도 추첨 모듈이 당첨자 예매(HELD)를 먼저 만들고 그 reservationId로 요청한다. 결제는 일반 예매와 같은 키·같은 중복 결제 방지(D3)를 쓴다.

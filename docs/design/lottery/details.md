@@ -52,7 +52,7 @@
 
 | 이벤트 | 토픽 | 발행 | 변경 |
 |---|---|---|---|
-| `BillingPaymentRequested` | 전용 토픽(예: `payment.billing`) 제안, SA는 `payment.command` | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3 그대로(`reservationId`, `userId`, `amount`, `lotteryEntryId`). 키는 `reservationId` |
+| `BillingPaymentRequested` | SA 그대로 `payment.command`(D6 기준선). 전용 토픽은 시나리오 2 뒤 개선 후보 | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3 그대로(`reservationId`, `userId`, `amount`, `lotteryEntryId`). 키는 `reservationId` |
 | `PaymentApproved`·`PaymentDeclined` | `payment.result` | Payment | 변경 없음. 소비자가 `source`로 분기(D11) |
 | `BillingKeyRegistered`·`BillingKeyRevoked` | 미정 | Payment | D4 2단계에서 추가. 필드 `userId`, `cardLast4` |
 | `LotteryEntryRequested` | `lottery.entry` | — | D3 A안이면 쓰지 않는다 |
