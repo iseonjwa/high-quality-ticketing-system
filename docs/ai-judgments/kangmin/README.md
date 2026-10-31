@@ -8,6 +8,23 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-31 | 추첨 이슈화: 다른 서비스·모듈 일거리를 각 담당 배치 대신 추첨 담당이 묶어 맡음(담당은 합의·리뷰) | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-31-lottery-cross-area-work-ownership.md) |
+| 2026-10-31 | 추첨 D9 후속: 설정은 일반 오픈·응모 시작 전만, 좌석 캐시는 DB 조건에 맡김, 알림은 결과 조회 API 기본 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-31-lottery-seat-split-followups.md) |
+| 2026-10-30 | 추첨 D12: `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(대안: 즉시 승계, 원인 확인 후 분기 등), ADR 0026 유지 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-payment-failure-handling.md) |
+| 2026-10-30 | 추첨 D11: 결제 결과는 기존 예매 소비자에서 같은 트랜잭션으로 처리(A)하고, 서비스 분리 대비 모듈 사이 호출은 포트로만 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-payment-result-module-port.md) |
+| 2026-10-30 | 추첨 시간대 정책: 사용자 제안(새벽 추첨 + 예매 차단)을 AI가 나눠, 저트래픽 시간대 추첨은 기본 정책, 예매 차단은 측정 뒤 최후 수단으로 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-draw-time-window-policy.md) |
+| 2026-10-30 | 추첨 D6: 요구 조건 3개 + 전용 Bulkhead `pg-billing` 동시 3·전용 토픽·백프레셔·그룹별 CB를 결제 담당에게 제안 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-billing-bulkhead-proposal.md) |
+| 2026-10-30 | 추첨 D4: 응모 때 빌링키 확인 없이 결제 시점 실패 → 승계 + 사전 안내, 이벤트 사본은 확장안 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-30-lottery-billing-key-check-at-payment.md) |
+| 2026-10-30 | 추첨 D14: 결과 미확정(NMC) 결제는 선점 만료로 끊고 늦은 승인은 E8 환불, 종결 최장 추첨 후 60분 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-30-lottery-close-on-hold-expiry.md) |
+| 2026-10-30 | 추첨 D13: 소비자 안 승계(A) 대신 실패는 FAILED만 기록하고 1초 승계 워커가 추첨 행 잠금으로 승계(D) | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-succession-worker.md) |
+| 2026-10-30 | 추첨 D8: 한 트랜잭션(A) + 쓰기 줄이기·시간 상한·측정, 초과 시 청크(B) | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-draw-single-transaction.md) |
+| 2026-10-30 | 추첨 D7: 해시 정렬(C)은 수용, 시드 약속은 확장안으로 미루고 규칙 공개 + 1계정 중복 차단으로 마무리 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-10-30-lottery-fairness-scope.md) |
+| 2026-10-30 | 추첨 응모 매수: 1인 1매 추천 대신 SA대로 1~2매 유지 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-30-lottery-entry-quantity-keep-two.md) |
+| 2026-10-30 | 추첨 D5: 재응모 허용(A) 추천 대신 마감 전 취소는 받고 같은 회차 재응모는 막기, 재응모는 확장안 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-30-lottery-cancel-no-reentry.md) |
+| 2026-10-29 | 추첨 D9: 추첨석 미리 떼지 않음·구분 컬럼 추천 대신 S석 일부를 좌석 등급 `LOTTERY`로 떼기(관리자가 한 등급+좌석 수, 응모 시작 전 수정) | Claude Code | **거부** | 예 | 후보 | [기록](2026-10-29-lottery-seat-allocation-grade.md) |
+| 2026-10-29 | 추첨 D3: 응모 접수는 동기 INSERT 기준선으로 시작, 측정 시나리오 1로 접수형과 비교 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-29-lottery-entry-sync-insert-baseline.md) |
+| 2026-10-29 | 추첨 D2: "1인 1회차 1응모" 규칙 유지, 좌석 등급별 복수 응모 금지(구현은 추천 A, 팀 확인 전) | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-29-lottery-one-entry-per-schedule.md) |
+| 2026-10-28 | 추첨 방향: 추첨 유지 + 측정 시나리오 3종(마감 몰림, 자동결제 폭주, 일반 예매 간섭) | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-28-lottery-direction-measurement.md) |
 | 2026-10-28 | Notion SA 반영 방법: 구간 교체 HTML 대신 v3.3 전체를 가져오기로 교체 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-28-notion-sa-full-import.md) |
 | 2026-10-28 | 테이블 이름 복수형 적용 범위: 결제 코드·문서는 후속 이슈, `outbox_events`, M3 테이블 제외 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-28-table-naming-scope.md) |
 | 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-28-notion-sa-batch-sync.md) |
@@ -33,6 +50,9 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-10-31 | [daily/2026-10-31.md](daily/2026-10-31.md) |
+| 2026-10-30 | [daily/2026-10-30.md](daily/2026-10-30.md) |
+| 2026-10-29 | [daily/2026-10-29.md](daily/2026-10-29.md) |
 | 2026-10-28 | [daily/2026-10-28.md](daily/2026-10-28.md) |
 | 2026-10-27 | [daily/2026-10-27.md](daily/2026-10-27.md) |
 | 2026-10-26 | [daily/2026-10-26.md](daily/2026-10-26.md) |

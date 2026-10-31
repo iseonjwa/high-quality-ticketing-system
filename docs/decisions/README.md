@@ -39,3 +39,4 @@
 | 0033 | [공연장 좌석의 열 번호(row_no)는 정수로 둔다](0033-venue-seat-row-no-int.md) | 제안 (좌석 응답 `row` 형식 변경, 좌석 선점 담당 확인 필요) | 2026-10-30 |
 | 0034 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0034-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
 | 0035 | [포트폴리오 트러블슈팅 검증을 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 M4 고도화 단계로 분리한다](0035-defer-seathold-concurrency-and-reconciliation-to-m4.md) | 채택 | 2026-10-30 |
+| 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
