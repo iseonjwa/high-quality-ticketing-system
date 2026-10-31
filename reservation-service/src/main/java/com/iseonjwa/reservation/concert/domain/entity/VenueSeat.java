@@ -12,32 +12,35 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "venue_seats")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class VenueSeat extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "venue_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Venue venue;
 
     @Column(nullable = false, length = 10)
     private String section;
 
-    @Column(name = "row_no", nullable = false)
+    @Column(nullable = false)
     private int rowNo;
 
-    @Column(name = "seat_no", nullable = false)
+    @Column(nullable = false)
     private int seatNo;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private SeatGrade grade;
-
-    protected VenueSeat() {}
 
     public VenueSeat(Venue venue, String section, int rowNo, int seatNo, SeatGrade grade) {
         this.venue = venue;
@@ -46,11 +49,4 @@ public class VenueSeat extends BaseEntity {
         this.seatNo = seatNo;
         this.grade = grade;
     }
-
-    public Long getId() { return id; }
-    public Venue getVenue() { return venue; }
-    public String getSection() { return section; }
-    public int getRowNo() { return rowNo; }
-    public int getSeatNo() { return seatNo; }
-    public SeatGrade getGrade() { return grade; }
 }

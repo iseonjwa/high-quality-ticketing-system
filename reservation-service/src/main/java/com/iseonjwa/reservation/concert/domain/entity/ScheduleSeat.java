@@ -17,22 +17,27 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
 @Entity
 @Table(name = "schedule_seats")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ScheduleSeat extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "schedule_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Schedule schedule;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "venue_seat_id", nullable = false)
+    @JoinColumn(nullable = false)
     private VenueSeat venueSeat;
 
     // 구역별 조회와 접수형 파티션 키로 쓰려고 venue_seats 값을 복사해 둔다.
@@ -50,8 +55,6 @@ public class ScheduleSeat extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private ScheduleSeatStatus status;
-
-    protected ScheduleSeat() {}
 
     // Note: FK는 "회차의 공연장 좌석인가"까지는 막지 못한다. 다른 공연장 좌석이 섞이지 않게 여기서 확인한다.
     public static ScheduleSeat create(Schedule schedule, VenueSeat venueSeat, Money price) {
@@ -72,12 +75,4 @@ public class ScheduleSeat extends BaseEntity {
     private static boolean isSameVenue(Venue a, Venue b) {
         return a == b || (a.getId() != null && a.getId().equals(b.getId()));
     }
-
-    public Long getId() { return id; }
-    public Schedule getSchedule() { return schedule; }
-    public VenueSeat getVenueSeat() { return venueSeat; }
-    public String getSection() { return section; }
-    public SeatGrade getGrade() { return grade; }
-    public Money getPrice() { return price; }
-    public ScheduleSeatStatus getStatus() { return status; }
 }

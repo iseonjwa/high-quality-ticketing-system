@@ -13,6 +13,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.time.Instant;
@@ -22,40 +25,51 @@ import java.time.Instant;
 @Entity
 @SQLRestriction("deleted_at IS NULL")
 @Table(name = "schedules")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Schedule extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "concert_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Concert concert;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "venue_id", nullable = false)
+    @JoinColumn(nullable = false)
     private Venue venue;
 
-    @Column(name = "starts_at", nullable = false)
+    @Column(nullable = false)
     private Instant startsAt;
 
-    @Column(name = "open_at", nullable = false)
+    @Column(nullable = false)
     private Instant openAt;
 
-    @Column(name = "max_per_user", nullable = false)
+    @Column(nullable = false)
     private short maxPerUser;
 
-    @Column(name = "hold_minutes", nullable = false)
+    @Column(nullable = false)
     private short holdMinutes;
 
     @Version
     @Column(nullable = false)
     private Long version;
 
-    protected Schedule() {}
+    // SA 12-3 기본값. JPA는 INSERT에 컬럼을 모두 넣어 DB DEFAULT가 쓰이지 않으므로 여기서 채운다.
+    public static final int DEFAULT_MAX_PER_USER = 4;
+    public static final int DEFAULT_HOLD_MINUTES = 5;
 
     // 형식(값이 있는가)은 요청 DTO가 검사하고, 값끼리의 관계는 어떤 경로로 만들어지든 여기서 지킨다.
+    // 매수 한도와 선점 시간은 null이면 기본값을 쓴다.
     public static Schedule create(Concert concert, Venue venue, Instant startsAt, Instant openAt,
-                                  int maxPerUser, int holdMinutes) {
+                                  Integer maxPerUser, Integer holdMinutes) {
+        if (maxPerUser == null) {
+            maxPerUser = DEFAULT_MAX_PER_USER;
+        }
+        if (holdMinutes == null) {
+            holdMinutes = DEFAULT_HOLD_MINUTES;
+        }
         if (!openAt.isBefore(startsAt)) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
@@ -67,16 +81,8 @@ public class Schedule extends BaseEntity {
         schedule.venue = venue;
         schedule.startsAt = startsAt;
         schedule.openAt = openAt;
-        schedule.maxPerUser = (short) maxPerUser;
-        schedule.holdMinutes = (short) holdMinutes;
+        schedule.maxPerUser = maxPerUser.shortValue();
+        schedule.holdMinutes = holdMinutes.shortValue();
         return schedule;
     }
-
-    public Long getId() { return id; }
-    public Concert getConcert() { return concert; }
-    public Venue getVenue() { return venue; }
-    public Instant getStartsAt() { return startsAt; }
-    public Instant getOpenAt() { return openAt; }
-    public int getMaxPerUser() { return maxPerUser; }
-    public int getHoldMinutes() { return holdMinutes; }
 }
