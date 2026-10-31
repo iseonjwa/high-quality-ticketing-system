@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 18건, 일지 3일 |
-| [kangmin](kangmin/README.md) | 개별 기록 35건, 일지 6일 |
+| [kangmin](kangmin/README.md) | 개별 기록 36건, 일지 6일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-31 | 추첨 SA 반영: 후속 분리는 수용, 다른 담당 동의가 필요한 항목은 합의 대기 대신 선반영 후 보고 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-sa-sync-apply-first-report-later.md) |
 | 2026-10-31 | 추첨 이슈화: 다른 서비스·모듈 일거리를 각 담당 배치 대신 추첨 담당이 묶어 맡음(담당은 합의·리뷰) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-31-lottery-cross-area-work-ownership.md) |
 | 2026-10-31 | 추첨 D9 후속: 설정은 일반 오픈·응모 시작 전만, 좌석 캐시는 DB 조건에 맡김, 알림은 결과 조회 API 기본 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-seat-split-followups.md) |
 | 2026-10-30 | **ISE-11 구현이 다른 담당 모듈에 걸친 부분을 contract 이슈로 알리고 유지하자는 AI 권고를 거부하고 선점 모듈 안으로 격리** | kwonwoo | Claude Code | 거부 | 아님 | [기록](kwonwoo/2026-10-30-seathold-isolate-other-owners.md) |

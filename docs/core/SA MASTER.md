@@ -12,7 +12,7 @@
 
 ### 10/31 바뀐 점 (추첨 담당)
 
-추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정 중 조건 없이 정해진 것만 반영했다. 응모 접수 방식(D3)은 측정 시나리오 1 뒤에, 자동결제 토픽(D6)과 결제 계약 문구(D12)는 결제 담당 합의 뒤에 반영한다(ISE-82).
+추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정을 반영했다(ISE-82). 응모 접수 방식(D3)은 측정 시나리오 1 뒤에 반영한다(ISE-87). 7·8·9행은 결제 담당·팀 확인 전에 먼저 반영한 것(선반영)이라 확인 결과에 따라 되돌릴 수 있다.
 
 | # | 변경 | 위치 | 근거 |
 | --- | --- | --- | --- |
@@ -22,6 +22,9 @@
 | 4 | 응모 때 빌링키를 확인하지 않고 결제 시점 실패 → 승계. `BILLING_KEY_REQUIRED`는 확장안 | 4-3, 11-3 | D4 |
 | 5 | `lottery_entries`에 `payment_attempts`·`fail_reason`, 상태 `CANCELED` | 12-3, ERD 그림 3 | D5·D12 |
 | 6 | U9를 추첨 담당 결정으로 갱신(결제 담당 확인 대기), U19는 동기 INSERT 기준선으로 시작 | 17-2 | D3·D4·D12 |
+| 7 | 자동결제 요청 `BillingPaymentRequested`를 `payment.command`에서 전용 토픽 `payment.billing`으로 옮김. 환불 요청이 PG 허가를 기다리는 자동결제 뒤에 밀리지 않게 한다. 선반영, 결제 담당 확인 대기(ISE-89) | 6-6, 6-7, 10-1 | D6, ADR 0039 |
+| 8 | 추첨은 결제 거절 `reasonCode`로 분기한다(`NOT_SENT`는 새 예매로 1회 재시도). 결제 `contracts.md`에 같은 문구. 선반영, 결제 담당 확인 대기(ISE-89) | 17-2 U9, `docs/design/payment/contracts.md` | D12, ADR 0038 |
+| 9 | 3개 서비스로 줄인 근거 중 추첨 문장을 "추첨석을 좌석 등급 `LOTTERY`로 떼어 두어 실시간 선점과 같은 좌석을 다투지 않는다"로 바꿈. 선반영, 팀 확인 대기 | 7-1 | D9, ADR 0037 |
 
 ### 10/30 바뀐 점 (공연·좌석 담당)
 
@@ -451,7 +454,7 @@ flowchart TD
 | MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
-| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
+| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.billing`(BillingPaymentRequested, 10/31 선반영) |
 
 ### 6-7. User·공통 → 추첨: 이강민
 
@@ -463,7 +466,7 @@ flowchart TD
 | MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
 | 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
 | 이후 | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
-| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
+| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.billing`(BillingPaymentRequested) · 구독 `payment.result` |
 | 이후 | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
 
 ### 6-8. 프론트 + 내부 AI 상담: 안준현
@@ -511,7 +514,7 @@ flowchart TD
 | **User** | 회원가입·로그인·권한 | user DB | 모든 서비스가 인증을 쓰지만 회원 데이터는 공유하지 않음 |
 | **Reservation** | 공연·좌석 조회, 대기열, 선점·예매·발권, 추첨, 알림 | reservation DB, Redis | "한 좌석은 한 번만 팔린다"를 한 트랜잭션 경계 안에서 지킴 |
 | **Payment** | 결제·환불·빌링키, PG 연동 | payment DB | 외부 PG 지연·장애 격리 |
-- **5개 → 3개로 줄인 근거**: 응모 → 추첨 → 일반 오픈 순서라 추첨과 실시간 선점이 겹치지 않는다. Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
+- **5개 → 3개로 줄인 근거**: 추첨석은 설정 때 좌석 등급 `LOTTERY`로 떼어 두므로 추첨과 실시간 선점이 같은 좌석을 다투지 않는다(10/31 선반영, 팀 확인 대기. 이전 근거는 "응모 → 추첨 → 일반 오픈 순서라 겹치지 않는다"였다). Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
 - **모듈별 분리 근거 (측정, #10·#14 결정·잠정)**: queue는 순번 조회 부하가 선점 API p95를 늘리면, notification은 알림 채널이 늘면, lottery는 응모·자동결제 처리 중 일반 예매 선점 p95가 늘면 서비스로 분리한다. 그 전까지는 Reservation 안 모듈로 경계를 지킨다.
 - **Reservation 안 모듈 규칙** (결정 기록 #14, 모듈러 모놀리스 방식): reservation·lottery는 직접 호출 허용 / queue는 인터페이스로만 / notification은 Kafka 이벤트로만 / concert 조회는 읽기 직접 허용
 - **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Config 서버, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. 모두 docker-compose로 한 번에 기동한다.
@@ -838,11 +841,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | 토픽 | 이벤트 | 키 | 발행 → 구독 (컨슈머 그룹) | 발행 방식 | 단계 |
 | --- | --- | --- | --- | --- | --- |
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
-| `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
+| `payment.command` | RefundRequested | reservationId | Reservation → `payment.command` | Outbox | MVP (E8) |
+| `payment.billing` | BillingPaymentRequested | reservationId | Reservation(lottery) → `payment.billing` | Outbox | 이후 (10/31 선반영, 결제 담당 확인 대기) |
 | `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_requests`와 한 트랜잭션) | 접수형 |
 | `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
 - Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
+- 자동결제를 `payment.billing`으로 나눈 이유(D6, ADR 0039): 자동결제는 전용 PG 그룹 `pg-billing`(동시 3)의 허가를 기다리며 오프셋을 넘기지 않는다(백프레셔). 같은 토픽이면 그 뒤의 환불 요청까지 밀린다. 리스너 동시성은 그룹 동시 수와 같게, 파티션은 3 이상으로 둔다. 구현 방식은 결제 담당이 최종 결정한다.
 - 접수형 선점을 Outbox로 바꾸면 접수 → 처리 완료 시간에 outbox 폴링(500ms)이 더해진다. 이전 안이 직접 발행을 고른 이유가 이 지연을 측정에 섞지 않기 위해서였다(AI 검증 #8). 재측정에서 동기형, 직접 발행, outbox 세 경우를 같은 환경에서 비교한다.
 - 응모(`lottery.entry`)는 아직 직접 발행이다. 접수형 선점과 같은 "실패 상태를 저장할 곳이 없다" 문제가 있으므로 추첨 시작 때 같은 방식으로 바꿀지 정한다 (U19).
 - 자동결제도 추첨 모듈이 당첨자 예매(HELD)를 먼저 만들고 그 reservationId로 요청한다. 결제는 일반 예매와 같은 키·같은 중복 결제 방지(D3)를 쓴다.
@@ -1990,7 +1995,7 @@ high-quality-ticketing-system/
 | --- | --- | --- | --- |
 | U1 | 계약 4종 형식 통보 (17-1 #1) | 10/27 | 각 담당 |
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
-| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 담당 확인 대기(`NOT_SENT` 보장, ISE-89) | 결제 담당 확인 뒤 | 이강민 |
+| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 `contracts.md`에 "추첨은 사유별로 분기한다"와 `NOT_SENT` 보장 문구를 선반영했다(ADR 0038). 결제 담당 확인 대기(ISE-89) | 결제 담당 확인 뒤 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
 | U12 | ~~포트·패키지 이름 확인~~ 해소(10/27): 패키지 `com.iseonjwa`, 포트는 9-1 표(통합 코드 기준) | 10/27 | 다 같이 |
 | U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
