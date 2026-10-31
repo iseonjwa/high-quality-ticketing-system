@@ -32,6 +32,7 @@ class SoftDeleteFilterTest {
     void setUp() {
         // 공연장은 시드(V20261030_1)를 지우지 않으려고 이 테스트용으로 따로 만든다
         jdbc.update("DELETE FROM schedule_seats; DELETE FROM schedules; DELETE FROM concerts");
+        jdbc.update("DELETE FROM venues WHERE name = '테스트 공연장'");
         Long venueId = jdbc.queryForObject(
                 "INSERT INTO venues (name, created_at, updated_at) VALUES ('테스트 공연장', now(), now()) RETURNING id",
                 Long.class);
