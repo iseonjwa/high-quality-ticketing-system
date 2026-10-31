@@ -40,3 +40,6 @@
 | 0034 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0034-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
 | 0035 | [포트폴리오 트러블슈팅 검증을 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 M4 고도화 단계로 분리한다](0035-defer-seathold-concurrency-and-reconciliation-to-m4.md) | 채택 | 2026-10-30 |
 | 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
+| 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
+| 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
+| 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |

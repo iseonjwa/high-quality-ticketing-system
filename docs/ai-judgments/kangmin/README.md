@@ -8,6 +8,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-10-31 | 추첨 D6 변경: 자동결제 전용 그룹(동시 3)을 두지 않고 `pg-approve`(동시 10)를 함께 씀. 겹침 문제는 시나리오 2 트러블슈팅 소재 | Claude Code | **거부** | 예 | 후보 | [기록](2026-10-31-lottery-billing-share-approve-group.md) |
+| 2026-10-31 | 추첨 SA 반영: 후속 분리는 수용, 다른 담당 동의가 필요한 항목은 합의 대기 대신 선반영 후 보고 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-10-31-lottery-sa-sync-apply-first-report-later.md) |
 | 2026-10-31 | 추첨 이슈화: 다른 서비스·모듈 일거리를 각 담당 배치 대신 추첨 담당이 묶어 맡음(담당은 합의·리뷰) | Claude Code | **거부** | 예 | 아님 | [기록](2026-10-31-lottery-cross-area-work-ownership.md) |
 | 2026-10-31 | 추첨 D9 후속: 설정은 일반 오픈·응모 시작 전만, 좌석 캐시는 DB 조건에 맡김, 알림은 결과 조회 API 기본 | Claude Code | 수용 | 예 | 아님 | [기록](2026-10-31-lottery-seat-split-followups.md) |
 | 2026-10-30 | 추첨 D12: `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(대안: 즉시 승계, 원인 확인 후 분기 등), ADR 0026 유지 | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-30-lottery-payment-failure-handling.md) |

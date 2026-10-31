@@ -86,6 +86,7 @@ Payment 쪽 고칠 곳: claim 이름은 `payment-service`의 `PaymentTokenClaims
 - `amount`는 소수 없는 정수 숫자(원화)다. `currency`는 항상 `"KRW"`다. SA 10-3에는 없는 필드를 변경 요청 S-18로 더했고, 필드 추가라 `version`은 그대로다.
 - `approvedAt`은 Payment가 전이한 시각이 아니라 PG가 승인한 시각이다. Reservation은 이 값을 `hold_expires_at`과 비교해 만료 뒤 승인을 판단한다([0027](../../decisions/0027-reservation-payment-event-contract.md)).
 - `reasonCode`는 Payment가 정한 값이다: `CARD_DECLINED`, `INSUFFICIENT_LIMIT`, `TOKEN_EXPIRED`(PG 호출 전 토큰 만료), `NOT_SENT`(PG에 보내지 않았음이 확인됨), `OTHER`. PG 원본 코드는 내보내지 않는다. Reservation은 사유별로 분기하지 않고 거절 자체로 처리해도 된다.
+- 예외: 추첨 예매(`reservations.source = 'LOTTERY'`)는 `reasonCode`로 분기한다. `NOT_SENT`면 같은 당첨자에게 새 예매로 1회 재시도하고, 나머지 사유는 예비자 승계로 보낸다([0038](../../decisions/0038-lottery-payment-failure-by-reason.md)). 재시도가 안전한 근거는 `NOT_SENT`의 보장이다. Payment는 PG 조회가 `NOT_FOUND`이고 같은 주문번호 망취소가 `Prevented`일 때만 `NOT_SENT`로 닫으므로, 그 `reservationId`로는 이후 승인이 나지 않는다(SA 10-5, `invariants.md` INV-8). 10/31 추첨 담당 선반영, 결제 담당 확인 대기(ISE-89).
 - 예시(`PaymentApproved` payload):
 
 ```json
