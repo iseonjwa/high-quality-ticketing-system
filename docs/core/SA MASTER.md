@@ -10,6 +10,19 @@
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
+### 10/31 바뀐 점 (추첨 담당)
+
+추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정 중 조건 없이 정해진 것만 반영했다. 응모 접수 방식(D3)은 측정 시나리오 1 뒤에, 자동결제 토픽(D6)과 결제 계약 문구(D12)는 결제 담당 합의 뒤에 반영한다(ISE-82).
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 회차당 추첨 1개: `lotteries.grade` → `source_grade`, `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)`. 응모 제약 `UNIQUE(lottery_id, user_id)`는 그대로 | 4-3, 12-3, ERD 그림 3 | D2·D9, ADR 0036 |
+| 2 | 추첨석은 한 등급(기본 S)에서 좌석 수만큼 떼어 좌석 등급 `LOTTERY`로 표시. 일반 선점은 `LOTTERY` 좌석을 잡지 않고, 좌석 생성 API는 `LOTTERY`를 받지 않는다. 종결 때 원래 등급으로 반환. 설정·수정은 일반 오픈·응모 시작 전만 | 4-3, 12-3 `schedule_seats`·`lotteries`, 11-4 | D9 |
+| 3 | 응모 취소(마감 전)와 상태 `CANCELED`, 같은 회차 재응모 불가 | 4-3, 8-2, 11-4, 12-3 | D5 |
+| 4 | 응모 때 빌링키를 확인하지 않고 결제 시점 실패 → 승계. `BILLING_KEY_REQUIRED`는 확장안 | 4-3, 11-3 | D4 |
+| 5 | `lottery_entries`에 `payment_attempts`·`fail_reason`, 상태 `CANCELED` | 12-3, ERD 그림 3 | D5·D12 |
+| 6 | U9를 추첨 담당 결정으로 갱신(결제 담당 확인 대기), U19는 동기 INSERT 기준선으로 시작 | 17-2 | D3·D4·D12 |
+
 ### 10/30 바뀐 점 (공연·좌석 담당)
 
 | # | 변경 | 위치 | 근거 |
@@ -295,9 +308,9 @@ flowchart TD
 ### 4-3. 추첨 배분 상세 (차별화, Should)
 
 - **무엇**: 회차 좌석 일부를 일반 예매와 분리해 추첨용으로 할당한다. 응모할 때 빌링키를 등록하면 당첨 즉시 좌석이 자동 배정되고 결제·발권까지 끝난다.
-- **진행 순서**: 응모 기간 → 응모 마감 → 추첨·자동결제 → 일반 예매 오픈. 추첨과 실시간 선점이 겹치지 않는다.
+- **진행 순서**: 응모 기간 → 응모 마감 → 추첨·자동결제 → 승계 마감(추첨 후 30분) → 종결(최장 추첨 후 60분, 남은 추첨석 반환). 추첨석은 좌석 등급 `LOTTERY`로 분리되어 같은 회차 일반 선점과 좌석이 겹치지 않는다. 추첨 설정은 일반 오픈 전에만 받는다. 추첨 시각은 저트래픽 시간대를 권장한다(10/31).
 - **가치**: 광클·매크로 대신 공정한 기회 / 실패 좌석을 예비자에게 바로 넘겨 판매율 유지 / 수요 일부가 응모 기간으로 분산되어 피크 감소
-- **규칙 (초안)**: 1인 1회차 1응모, 등급별 1–2매, 연석 미보장, 마감 전 응모 취소 가능, 같은 조건 예비자 순번 승계, 승계 마감 후 남은 좌석은 일반 예매로. 추첨 시드를 기록해 재현 가능하게 한다. 세부(실패 유형별 승계·결제수단 확인·늦은 응모)는 추첨 시작 때 확정한다 (U9).
+- **규칙 (10/31 추첨 담당 결정)**: 회차당 추첨 1개(한 등급에서 좌석 수만큼 뗌), 1인 1회차 1응모, 1–2매, 연석 미보장(옆자리 우선), 마감 전 응모 취소 가능·같은 회차 재응모 불가, 순위는 시드 기반 해시 정렬(`SHA-256(seed ‖ entryId)`), 남은 좌석이 매수보다 적으면 건너뜀, 예비자 순번 승계, 승계 마감 후 남은 좌석은 일반 예매로. 응모 때 빌링키는 확인하지 않고 결제 시점에 없으면 실패 → 승계한다. 실패 유형별 처리는 `docs/design/lottery/options.md` D12(U9).
 - 자동결제 방식은 빌링키(잠정)다. 대안이던 가승인은 쓰지 않는다.
 
 ### 4-4. 기능 흐름 팀 결정 (10/23, 이후 변경 반영)
@@ -620,7 +633,8 @@ sequenceDiagram
             UNKNOWN → 재조회 → REFUNDED | FAILED | NEEDS_MANUAL_CHECK
 추첨        OPEN → CLOSED → DRAWN → DONE
 응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
-            WAITLISTED → WON (승계) · WON → PAID | FAILED
+            ENTERED → CANCELED (마감 전 취소, 재응모 불가)
+            WAITLISTED → WON (승계) · WAITLISTED → LOST (승계 마감) · WON → PAID | FAILED
 ```
 
 ### 8-3. 전이 표
@@ -957,7 +971,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `PAYMENT_AMOUNT_MISMATCH` | 400 | 요청 금액 ≠ 토큰 금액 |
 | `PAYMENT_ALREADY_EXISTS` | 409 | 같은 예매에 진행 중·완료된 결제 있음 (D3) |
 | `PG_UNAVAILABLE` | 503 | Circuit Breaker OPEN·Bulkhead 초과 (E10) |
-| `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모 · 빌링키 없음 |
+| `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모(취소 뒤 재응모 포함) · 빌링키 없음(확장안, 1단계는 결제 시점 실패 → 승계) |
 
 ### 11-4. API 목록
 
@@ -986,10 +1000,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 안준현 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
-| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정 | 201 | 이강민 |
+| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만) | 201 | 이강민 |
+| 이후 | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
 | 이후 | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
+| 이후 | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
 | 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
-| 이후 | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 안준현 |
+| 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}` | 공개 | 추첨 정보·응모 규칙 | 200 | 이강민 |
+| 이후 | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 이강민 (결제 담당 리뷰, ISE-96) |
 | 보류 | Reservation | GET `/api/v1/notifications` | 인증 | 알림함 | 200 | — |
 | Could | Assistant | POST `/api/v1/assistant/messages` | 인증 | AI 상담 | 200 | 안준현 |
 
@@ -1209,7 +1226,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | schedule_id | BIGINT | NOT NULL, FK |  |
 | venue_seat_id | BIGINT | NOT NULL, FK |  |
 | section | VARCHAR(10) | NOT NULL | 조회·파티션용 복사 |
-| grade | VARCHAR(10) | NOT NULL |  |
+| grade | VARCHAR(10) | NOT NULL | `LOTTERY`는 추첨석. 추첨 설정 API만 쓰고 일반 선점은 잡지 않는다(4-3) |
 | price | NUMERIC(15,0) | NOT NULL | 등급별 가격 |
 | status | VARCHAR(10) | NOT NULL, CHECK (AVAILABLE·HELD·SOLD) | 선점 조건부 UPDATE 대상 |
 |  |  | UNIQUE(schedule_id, venue_seat_id), INDEX(schedule_id, section) |  |
@@ -1293,13 +1310,14 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | schedule_id | BIGINT | NOT NULL, FK |  |
-| grade | VARCHAR(10) | NOT NULL | 등급별 추첨 |
+| source_grade | VARCHAR(10) | NOT NULL | 추첨석을 떼어 온 등급(기본 S), 종결 때 되돌릴 등급 |
 | seat_count | INT | NOT NULL | 추첨 배정 좌석 수 |
+| waitlist_count | INT | NOT NULL | 예비자 수 |
 | max_per_entry | SMALLINT | NOT NULL, CHECK (1–2) |  |
 | entry_start_at · entry_end_at · draw_at | TIMESTAMPTZ | NOT NULL |  |
-| seed | BIGINT |  | 추첨 재현용 |
+| seed | BIGINT |  | 추첨 재현용. 설정 때 채우고 바꾸지 않는다 |
 | status | VARCHAR(10) | NOT NULL, CHECK (OPEN·CLOSED·DRAWN·DONE) | 재실행 방지 |
-|  |  | UNIQUE(schedule_id, grade) |  |
+|  |  | UNIQUE(schedule_id) | 회차당 추첨 1개 |
 
 **lottery_entries** (이후)
 
@@ -1310,10 +1328,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | request_id | UUID | NOT NULL, UNIQUE | 접수 ID |
 | user_id | BIGINT | NOT NULL |  |
 | quantity | SMALLINT | NOT NULL |  |
-| status | VARCHAR(12) | NOT NULL, CHECK (ENTERED·WON·WAITLISTED·LOST·PAID·FAILED) |  |
+| status | VARCHAR(12) | NOT NULL, CHECK (ENTERED·CANCELED·WON·WAITLISTED·LOST·PAID·FAILED) |  |
 | draw_rank | INT |  | 추첨 순위 (예비 승계 순서) |
 | reservation_id | BIGINT | FK | 당첨 시 만든 예매 |
-|  |  | UNIQUE(lottery_id, user_id) | 1인 1응모 |
+| payment_attempts | SMALLINT | NOT NULL, DEFAULT 0 | 우리 책임 실패(`NOT_SENT`) 재시도 횟수 |
+| fail_reason | VARCHAR(30) |  | FAILED 사유 |
+|  |  | UNIQUE(lottery_id, user_id) | 1인 1응모. 취소한 행도 남아 재응모를 막는다 |
 - 당첨 배정으로 만드는 예매도 일반 예매와 같은 매수 한도(`user_schedule_quotas`)를 거친다.
 
 **notifications** (보류): user_id, type, message, read_at
@@ -1575,9 +1595,10 @@ erDiagram
   }
   lotteries {
     bigint id PK
-    bigint schedule_id FK "schedule_id, grade 유니크"
-    varchar grade "등급별 추첨"
+    bigint schedule_id FK "schedule_id 유니크"
+    varchar source_grade "추첨석을 떼어 온 등급"
     int seat_count
+    int waitlist_count
     smallint max_per_entry "1~2"
     timestamptz entry_start_at
     timestamptz entry_end_at
@@ -1591,9 +1612,11 @@ erDiagram
     uuid request_id UK "접수 ID"
     bigint user_id "서비스 간 ID"
     smallint quantity
-    varchar status "ENTERED, WON, WAITLISTED, LOST, PAID, FAILED"
+    varchar status "ENTERED, CANCELED, WON, WAITLISTED, LOST, PAID, FAILED"
     int draw_rank "예비 승계 순서"
     bigint reservation_id FK "당첨 시"
+    smallint payment_attempts
+    varchar fail_reason
   }
   notifications {
     bigint id PK "보류"
@@ -1967,13 +1990,13 @@ high-quality-ticketing-system/
 | --- | --- | --- | --- |
 | U1 | 계약 4종 형식 통보 (17-1 #1) | 10/27 | 각 담당 |
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
-| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) | 추첨 시작 때 | 이강민 |
+| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 담당 확인 대기(`NOT_SENT` 보장, ISE-89) | 결제 담당 확인 뒤 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
 | U12 | ~~포트·패키지 이름 확인~~ 해소(10/27): 패키지 `com.iseonjwa`, 포트는 9-1 표(통합 코드 기준) | 10/27 | 다 같이 |
 | U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
 | U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
-| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
+| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 — 10/31: 동기 INSERT를 기준선으로 구현하고 측정 시나리오 1(마감 직전 초당 100건, p95 300ms)로 정한다. 4-2 ③·10-1·10-3·11장 202는 그 뒤에 고친다 | 측정 시나리오 1 뒤 (ISE-87) | 이강민 |
 | U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
 | U22 | 환불 상태 이력을 `payment_status_histories`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
 

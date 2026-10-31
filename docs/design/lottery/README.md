@@ -176,17 +176,20 @@ SA의 `(REQUESTED: 응답 상태)`는 D3에서 동기 INSERT를 고르면 없어
 | 기록 | 추천안 중 고른 것은 `docs/decisions/`에 ADR, 고르는 순간은 AI 판단 기록 |
 
 ### SA 일괄 반영 대기
-결정이 모두 끝나면 SA·ADR에 한 번에 반영한다. 그 전까지 공용 문서는 고치지 않는다.
+결정이 모두 끝나면 SA·ADR에 한 번에 반영한다(ISE-82). 10/31에 조건 없는 행을 SA에 반영했다(SA 머리말 "10/31 바뀐 점"). 남은 행은 조건이 풀리면 반영한다.
 
-| 결정 | SA 위치 | 바꿀 내용 |
-|---|---|---|
-| D2·D9 | 12-3 `lotteries` | `grade` → `source_grade`, `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)` |
-| D5 | 12-3 `lottery_entries`, 8-2, 11장 | 상태에 `CANCELED`(제약은 그대로), 취소 API, 재응모 불가 규칙 |
-| D9 | 12-3 `schedule_seats`, 4-3, 11장 추첨 설정 API | 등급 값 `LOTTERY`, 일반 선점 제외 규칙, 설정 본문 `sourceGrade`, 설정·수정은 일반 오픈·응모 시작 전만 |
-| D12 | 결제 `contracts.md`(SA 아님, 결제 담당 문서) | "Reservation은 사유별로 분기하지 않아도 된다"에 "추첨은 분기한다" 추가, `NOT_SENT` 보장 문구 |
-| D6 | 10-1 토픽 목록 | `payment.billing`(자동결제 전용, 결제 담당 합의 뒤) |
-| D4 | 11장 응모 에러 | `BILLING_KEY_REQUIRED`(409)를 확장안으로 표시, 1단계는 결제 시점 실패 → 승계 |
-| D3 | 4-2 ③, 10-1 `lottery.entry`, 10-3 `LotteryEntryRequested`, 11장 응모 202 → 201, AI 검증 `#4` | 동기 INSERT 기준선(측정 뒤) |
+| 결정 | SA 위치 | 바꿀 내용 | 상태 |
+|---|---|---|---|
+| D2·D9 | 12-3 `lotteries`, ERD 그림 3 | `grade` → `source_grade`, `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)` | 반영(10/31) |
+| D5 | 12-3 `lottery_entries`, 8-2, 11장 | 상태에 `CANCELED`(제약은 그대로), 취소 API, 재응모 불가 규칙 | 반영(10/31) |
+| D9 | 12-3 `schedule_seats`, 4-3, 11장 추첨 설정 API | 등급 값 `LOTTERY`, 일반 선점 제외 규칙, 설정·수정은 일반 오픈·응모 시작 전만 | 반영(10/31) |
+| D4 | 11장 응모 에러 | `BILLING_KEY_REQUIRED`(409)를 확장안으로 표시, 1단계는 결제 시점 실패 → 승계 | 반영(10/31) |
+| D12 | 17-2 U9 | 사유별 처리 요약 | 반영(10/31, 결제 담당 확인 대기 표시) |
+| D12 | 결제 `contracts.md`(SA 아님, 결제 담당 문서) | "Reservation은 사유별로 분기하지 않아도 된다"에 "추첨은 분기한다" 추가, `NOT_SENT` 보장 문구 | 대기: 결제 담당 합의(ISE-89) |
+| D6 | 10-1 토픽 목록, 6-6 구독 토픽 | `payment.billing`(자동결제 전용) | 대기: 결제 담당 합의(ISE-89) |
+| D3 | 4-2 ③, 10-1 `lottery.entry`, 10-3 `LotteryEntryRequested`, 11장 응모 202 → 201, AI 검증 `#4` | 동기 INSERT 기준선 | 대기: 측정 시나리오 1(ISE-87). U19에 표시 |
+| 기타 | 7-1 "응모 → 추첨 → 일반 오픈 순서라 겹치지 않는다" | 추첨석 분리로 같은 회차 일반 선점과 좌석이 겹치지 않는다는 근거로 바꿀지 | 대기: 팀 확인(서비스 경계 근거라 개인 판단으로 고치지 않음) |
+| 기타 | Notion SA, 결정 기록 DB(`#36`·`#39`) | 저장소 SA와 같게 | 대기: 저장소 SA 머지 뒤 가져오기로 교체 |
 
 ## 6. 측정과 결정의 연결
 | 시나리오 | 검증하는 결정 | 바뀔 수 있는 것 |
