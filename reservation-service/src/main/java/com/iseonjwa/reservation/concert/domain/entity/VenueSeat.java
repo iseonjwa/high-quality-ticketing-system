@@ -42,7 +42,11 @@ public class VenueSeat extends BaseEntity {
     @Column(nullable = false, length = 10)
     private SeatGrade grade;
 
+    // 추첨석은 회차마다 따로 정하므로 공연장 배치에는 LOTTERY가 올 수 없다
     public VenueSeat(Venue venue, String section, int rowNo, int seatNo, SeatGrade grade) {
+        if (grade == SeatGrade.LOTTERY) {
+            throw new IllegalArgumentException("공연장 좌석 등급에 LOTTERY를 쓸 수 없다");
+        }
         this.venue = venue;
         this.section = section;
         this.rowNo = rowNo;

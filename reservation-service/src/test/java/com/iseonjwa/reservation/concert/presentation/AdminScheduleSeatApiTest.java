@@ -114,6 +114,18 @@ class AdminScheduleSeatApiTest {
         assertEquals(0, countAll(smallScheduleId));
     }
 
+    // 추첨석은 회차 좌석을 만든 뒤 추첨 설정에서 떼어 내므로 가격표에 올 수 없다(추첨 D9)
+    @Test
+    void 추첨_등급_LOTTERY의_가격이_오면_400이고_좌석을_만들지_않는다() throws Exception {
+        var response = post(seedScheduleId, ADMIN_ID, "ADMIN", """
+                {"prices": [{"grade": "VIP", "price": 165000}, {"grade": "R", "price": 143000},
+                            {"grade": "S", "price": 121000}, {"grade": "LOTTERY", "price": 121000}]}""");
+
+        assertEquals(400, response.status());
+        assertEquals("VALIDATION_FAILED", response.json().get("code").asString());
+        assertEquals(0, countAll(seedScheduleId));
+    }
+
     @Test
     void 공연장에_없는_등급의_가격이_오면_400이다() throws Exception {
         var response = post(smallScheduleId, ADMIN_ID, "ADMIN", ALL_GRADES);

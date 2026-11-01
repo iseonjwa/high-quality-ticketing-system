@@ -11,7 +11,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class SeatPriceRequest {
 
-    // VIP, R, S 외의 값은 JSON을 읽을 때 400이 된다
+    // VIP, R, S, LOTTERY 외의 값은 JSON을 읽을 때 400이 된다.
+    // LOTTERY는 공연장 좌석에 없는 등급이라 가격표 등급 비교(ConcertAdminService)에서 400이 된다
     @NotNull
     private SeatGrade grade;
 
