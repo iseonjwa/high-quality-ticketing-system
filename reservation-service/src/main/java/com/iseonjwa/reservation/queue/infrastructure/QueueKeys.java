@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.queue.infrastructure;
 
 import java.util.List;
 
+// Lua에 전달할 Key들 생성
 public record QueueKeys(String prefix) {
 
     static QueueKeys of(long scheduleId) {
@@ -10,5 +11,9 @@ public record QueueKeys(String prefix) {
 
     List<String> enterKeys() {
         return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued");
+    }
+
+    List<String> positionKeys() {
+        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued");
     }
 }

@@ -4,4 +4,7 @@ public interface QueueRepository {
 
     EnterOutcome enter(long scheduleId,
                        long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond);
+
+    PositionOutcome position(long scheduleId,
+                             long userId, long tokenTtlMillis);
 }
