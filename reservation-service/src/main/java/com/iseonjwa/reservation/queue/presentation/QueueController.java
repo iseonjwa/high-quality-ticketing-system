@@ -29,6 +29,6 @@ public class QueueController {
             return ResponseEntity.created(location)
                     .body(SuccessResponse.of(201, "대기열에 등록되었습니다", queueEnterResult.queuePositionResult(), MDC.get("traceId")));
         }
-        return ResponseEntity.ok(SuccessResponse.of(200, "이미 대기열에 등록되어 있습니다", queueEnterResult.queuePositionResult(), MDC.get("traceId")));
+        return ResponseEntity.ok(SuccessResponse.of(200, "이미 대기열에 진입했습니다", queueEnterResult.queuePositionResult(), MDC.get("traceId")));
     }
 }
