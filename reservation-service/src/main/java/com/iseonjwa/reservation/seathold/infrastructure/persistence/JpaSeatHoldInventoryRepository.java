@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.infrastructure.persistence;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeatStatus;
+import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldInventoryRepository;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
@@ -39,6 +40,7 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
 
     // Note: 변경 감지로 상태를 바꾸면 "읽을 때 AVAILABLE이었다"만 확인하고 덮어쓴다. 조건을 WHERE에 두면
     // 먼저 커밋한 요청이 행을 바꾼 뒤 기다리던 요청은 갱신 0행이 되어 같은 좌석을 두 번 잡지 못한다.
+    // 추첨석(LOTTERY)도 같은 WHERE에서 빼서, 요청에 섞이면 이미 잡힌 좌석처럼 409가 된다(추첨 D9).
     @Override
     public int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {
         em.flush();
@@ -48,8 +50,10 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
                          WHERE s.schedule.id = :scheduleId
                            AND s.id IN :ids
                            AND s.status = :available
+                           AND s.grade <> :lottery
                         """)
                 .setParameter("held", ScheduleSeatStatus.HELD)
+                .setParameter("lottery", SeatGrade.LOTTERY)
                 .setParameter("available", ScheduleSeatStatus.AVAILABLE)
                 .setParameter("now", now)
                 .setParameter("actorId", actorId)

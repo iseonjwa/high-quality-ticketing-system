@@ -151,6 +151,20 @@ class SeatHoldApiTest {
         assertNoTrace(key);
     }
 
+    // 추첨 설정이 회차 좌석 등급을 LOTTERY로 바꾼 상태(상태는 AVAILABLE 그대로)를 직접 만든다(추첨 D9)
+    @Test
+    void 추첨석이_하나라도_섞이면_409_SEAT_ALREADY_HELD이고_전체를_되돌린다() throws Exception {
+        jdbc.update("UPDATE schedule_seats SET grade = 'LOTTERY' WHERE id = ?", seatIds.get(1));
+        var key = UUID.randomUUID();
+
+        var response = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0), seatIds.get(1)));
+
+        assertFailure(response, 409, "SEAT_ALREADY_HELD");
+        assertEquals(List.of("AVAILABLE", "AVAILABLE", "AVAILABLE"), seatStatuses());
+        assertEquals(0, heldCount(USER));
+        assertNoTrace(key);
+    }
+
     @Test
     void 좌석_상태와_예매_좌석_원장이_어긋나도_부분_유니크_인덱스가_중복_선점을_막는다() throws Exception {
         // 좌석은 AVAILABLE로 보이지만 다른 예매가 이미 HELD로 잡고 있는 상태(대사 불일치)를 만든다
