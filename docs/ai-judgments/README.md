@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 18건, 일지 3일 |
-| [kangmin](kangmin/README.md) | 개별 기록 38건, 일지 7일 |
+| [kangmin](kangmin/README.md) | 개별 기록 39건, 일지 7일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-01 | 계약 ② 확정·머지 브랜치 삭제: 예매 흐름 담당 답과 소유자 동의를 기다리자는 추천 대신 바로 진행(문서에 확인 없이 확정했다고 명시) | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-01-contract-confirm-without-consumer-check.md) |
 | 2026-10-31 | 추첨 D6 변경: 자동결제 전용 그룹(동시 3)을 두지 않고 `pg-approve`(동시 10)를 함께 씀. 겹침 문제는 시나리오 2 트러블슈팅 소재 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-10-31-lottery-billing-share-approve-group.md) |
 | 2026-10-31 | 추첨 SA 반영: 후속 분리는 수용, 다른 담당 동의가 필요한 항목은 합의 대기 대신 선반영 후 보고 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-sa-sync-apply-first-report-later.md) |
 | 2026-10-31 | 추첨 이슈화: 다른 서비스·모듈 일거리를 각 담당 배치 대신 추첨 담당이 묶어 맡음(담당은 합의·리뷰) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-31-lottery-cross-area-work-ownership.md) |
