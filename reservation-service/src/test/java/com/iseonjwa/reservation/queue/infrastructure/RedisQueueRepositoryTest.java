@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.reservation.queue.domain.EnterOutcome;
+import com.iseonjwa.reservation.queue.domain.PositionOutcome;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ class RedisQueueRepositoryTest {
 
     static final String SEQ = "queue:{" + SCHEDULE_ID + "}:seq";
     static final String WAITING = "queue:{" + SCHEDULE_ID + "}:waiting";
+    static final String ADMITTED = "queue:{" + SCHEDULE_ID + "}:admitted";
     static final String ISSUED = "queue:{" + SCHEDULE_ID + "}:issued";
 
     @Autowired RedisQueueRepository queueRepository;
@@ -185,7 +187,7 @@ class RedisQueueRepositoryTest {
         void 새로_받은_seq는_admitted보다_크다() {
             // 100번까지 번호가 나갔고 100번까지 입장시킨 상태 (줄이 빈 상태)
             stringRedisTemplate.opsForValue().set(SEQ, "100");
-            stringRedisTemplate.opsForValue().set("queue:{" + SCHEDULE_ID + "}:admitted", "100");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "100");
 
             EnterOutcome o = queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
 
@@ -199,6 +201,93 @@ class RedisQueueRepositoryTest {
 
             assertTrue(stringRedisTemplate.getExpire(SEQ) > 0); // -1이면 만료가 없는 상태
             assertTrue(stringRedisTemplate.getExpire(WAITING) > 0);
+        }
+    }
+
+
+    @Nested
+    class 순번_조회 {
+
+        @Test
+        void 줄에_없으면_NOT_JOINED() {
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertEquals(PositionOutcome.Type.NOT_JOINED, o.type());
+            assertNull(o.seq());
+        }
+
+        @Test
+        void 조회는_키를_만들지_않는다() {
+            queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertFalse(stringRedisTemplate.hasKey(WAITING));
+            assertFalse(stringRedisTemplate.hasKey(ADMITTED));
+            assertFalse(stringRedisTemplate.hasKey(ISSUED));
+        }
+
+        @Test
+        void 줄에_있으면_IN_QUEUE와_seq_admitted를_준다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "3");
+
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+
+            assertEquals(PositionOutcome.Type.IN_QUEUE, o.type());
+            assertEquals(5L, o.seq());
+            assertEquals(3L, o.admitted());
+        }
+
+        @Test
+        void admitted가_아직_없으면_0으로_준다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 1);
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertEquals(0L, o.admitted());
+        }
+
+        @Test
+        void 진입한_뒤_조회하면_진입_때와_같은_seq다() {
+            EnterOutcome entered = queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertEquals(PositionOutcome.Type.IN_QUEUE, o.type());
+            assertEquals(entered.seq(), o.seq());
+        }
+
+        @Test
+        void 토큰이_유효하면_TOKEN_ISSUED() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", System.currentTimeMillis());
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertEquals(PositionOutcome.Type.TOKEN_ISSUED, o.type());
+        }
+
+        @Test
+        void 토큰이_유효하고_waiting_잔여가_있어도_TOKEN_ISSUED이고_잔여는_지우지_않는다() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", System.currentTimeMillis());
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+
+            assertEquals(PositionOutcome.Type.TOKEN_ISSUED, o.type());
+            assertEquals(5.0, stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void 토큰이_만료되고_waiting_잔여가_있으면_옛_자리를_보지_않고_NOT_JOINED() {
+            // 옛 자리 5번은 이미 차례가 지남(admitted 10). waiting을 봤다면 READY가 나갔을 상황
+            long elevenMinutesAgo = System.currentTimeMillis() - Duration.ofMinutes(11).toMillis();
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", elevenMinutesAgo);
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+
+            assertEquals(PositionOutcome.Type.NOT_JOINED, o.type());
+            assertNotNull(stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void 다른_회차의_자리는_보이지_않는다() {
+            queueRepository.enter(OTHER_SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+            PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
+            assertEquals(PositionOutcome.Type.NOT_JOINED, o.type());
         }
     }
 }
