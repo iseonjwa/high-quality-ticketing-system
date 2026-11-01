@@ -5,7 +5,7 @@ public record EnterOutcome(Type type, Long seq, Long admitted) {
     public enum Type {
         SALE_NOT_OPEN,
         TOKEN_ISSUED,
-        ALREADY_WAITING,
+        ALREADY_IN_QUEUE,
         JOINED
     }
 

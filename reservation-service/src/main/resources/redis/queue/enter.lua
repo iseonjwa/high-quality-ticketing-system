@@ -1,6 +1,6 @@
 -- KEYS[1]=seq  KEYS[2]=waiting  KEYS[3]=admitted  KEYS[4]=issued
 -- ARGV[1]=userId  ARGV[2]=오픈 시각(ms)  ARGV[3]=토큰 유효 시간 T(ms)  ARGV[4]=키 만료 시각(초)
--- 반환: {종류, seq, admitted}  종류 = SALE_NOT_OPEN | TOKEN_ISSUED | ALREADY_WAITING | JOINED
+-- 반환: {종류, seq, admitted}  종류 = SALE_NOT_OPEN | TOKEN_ISSUED | ALREADY_IN_QUEUE | JOINED
 
 local t = redis.call('TIME')
 local now = tonumber(t[1])*1000 + math.floor(tonumber(t[2])/1000)
@@ -23,7 +23,7 @@ end
 local seq = redis.call('ZSCORE', KEYS[2], userId)
 local admitted = redis.call('GET', KEYS[3]) or '0' -- 아직 안 만들어졌을 수 있음
 if seq then
-    return {'ALREADY_WAITING', tonumber(seq), tonumber(admitted)}
+    return {'ALREADY_IN_QUEUE', tonumber(seq), tonumber(admitted)}
 end
 
 seq = redis.call('INCR', KEYS[1])

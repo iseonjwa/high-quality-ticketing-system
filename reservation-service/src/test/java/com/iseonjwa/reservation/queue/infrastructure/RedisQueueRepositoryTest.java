@@ -57,7 +57,7 @@ class RedisQueueRepositoryTest {
     void 다시_진입하면_같은_번호다() {
         queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
         EnterOutcome o = queueRepository.enter(SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
-        assertEquals(Type.ALREADY_WAITING, o.type());
+        assertEquals(Type.ALREADY_IN_QUEUE, o.type());
         assertEquals(1L, o.seq());
     }
 
