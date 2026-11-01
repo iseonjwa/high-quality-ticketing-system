@@ -1,10 +1,7 @@
 package com.iseonjwa.reservation.queue.application;
 
 import com.iseonjwa.common.response.BusinessException;
-import com.iseonjwa.reservation.queue.domain.AdmissionRule;
-import com.iseonjwa.reservation.queue.domain.AdmissionStatus;
-import com.iseonjwa.reservation.queue.domain.EnterOutcome;
-import com.iseonjwa.reservation.queue.domain.QueueRepository;
+import com.iseonjwa.reservation.queue.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -46,9 +43,30 @@ public class QueueService {
         long position = AdmissionRule.position(enterOutcome.seq(), enterOutcome.admitted());
         long estimatedWaitSeconds = pollPolicy.estimatedWaitSeconds(position);
         long nextPollAfterMillis = pollPolicy.nextPollAfterMillis(estimatedWaitSeconds);
-
         QueuePositionResult queuePositionResult = QueuePositionResult.waiting(position, estimatedWaitSeconds, nextPollAfterMillis);
-
         return new QueueEnterResult(joined, queuePositionResult);
+    }
+
+    public QueuePositionResult position(Long scheduleId, Long userId) {
+        PositionOutcome positionOutcome =
+                queueRepository.position(scheduleId, userId, queueProperties.entryTokenTtl().toMillis());
+
+        if (positionOutcome.type() == PositionOutcome.Type.NOT_JOINED) {
+            throw new BusinessException(QueueErrorCode.QUEUE_NOT_JOINED);
+        }
+
+        AdmissionStatus admissionStatus = AdmissionRule.admissionStatus(
+                positionOutcome.type() == PositionOutcome.Type.TOKEN_ISSUED,
+                positionOutcome.seq(), positionOutcome.admitted());
+
+        if (admissionStatus == AdmissionStatus.READY) {
+            return QueuePositionResult.ready();
+        }
+
+        // admissionStatus == WAITING인 경우
+        long position = AdmissionRule.position(positionOutcome.seq(), positionOutcome.admitted());
+        long estimatedWaitSeconds = pollPolicy.estimatedWaitSeconds(position);
+        long nextPollAfterMillis = pollPolicy.nextPollAfterMillis(estimatedWaitSeconds);
+        return QueuePositionResult.waiting(position, estimatedWaitSeconds, nextPollAfterMillis);
     }
 }

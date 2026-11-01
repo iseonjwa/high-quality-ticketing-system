@@ -27,8 +27,27 @@ public class QueueController {
         if (queueEnterResult.joined()) {
             URI location = URI.create("/api/v1/schedules/" + scheduleId + "/queue/me");
             return ResponseEntity.created(location)
-                    .body(SuccessResponse.of(201, "대기열에 등록되었습니다", queueEnterResult.queuePositionResult(), MDC.get("traceId")));
+                    .body(SuccessResponse.of(
+                            201,
+                            "대기열에 등록되었습니다",
+                            queueEnterResult.queuePositionResult(),
+                            MDC.get("traceId")));
         }
-        return ResponseEntity.ok(SuccessResponse.of(200, "이미 대기열에 진입했습니다", queueEnterResult.queuePositionResult(), MDC.get("traceId")));
+        return ResponseEntity.ok(SuccessResponse.of(
+                200,
+                "이미 대기열에 진입했습니다",
+                queueEnterResult.queuePositionResult(),
+                MDC.get("traceId")));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<SuccessResponse<QueuePositionResult>> position(@PathVariable Long scheduleId,
+                                                                         @RequestAttribute Long currentUserId) {
+        QueuePositionResult queuePositionResult = queueService.position(scheduleId, currentUserId);
+        return ResponseEntity.ok(SuccessResponse.of(
+                200,
+                "대기 상태를 조회했습니다",
+                queuePositionResult,
+                MDC.get("traceId")));
     }
 }
