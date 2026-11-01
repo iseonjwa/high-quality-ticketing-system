@@ -26,27 +26,27 @@ public class RedisQueueRepository implements QueueRepository {
     @Override
     public EnterOutcome enter(long scheduleId,
                               long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
-        List o = stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
+        List r = stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
                 String.valueOf(userId), String.valueOf(openAtEpochMilli),
                 String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond));
 
-        EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) o.get(0));
-        if(o.size() == 1) {
+        EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) r.get(0));
+        if(r.size() == 1) {
             return new EnterOutcome(type, null, null);
         }
-        return new EnterOutcome(type, (Long) o.get(1), (Long) o.get(2));
+        return new EnterOutcome(type, (Long) r.get(1), (Long) r.get(2));
     }
 
     @Override
     public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis) {
-        List o = stringRedisTemplate.execute(POSITION, QueueKeys.of(scheduleId).positionKeys(),
+        List r = stringRedisTemplate.execute(POSITION, QueueKeys.of(scheduleId).positionKeys(),
                 String.valueOf(userId), String.valueOf(tokenTtlMillis));
 
-        PositionOutcome.Type type = PositionOutcome.Type.valueOf((String) o.get(0));
-        if (o.size() == 1) {
+        PositionOutcome.Type type = PositionOutcome.Type.valueOf((String) r.get(0));
+        if (r.size() == 1) {
             return new PositionOutcome(type, null, null);
         }
-        return new PositionOutcome(type, (Long) o.get(1), (Long) o.get(2));
+        return new PositionOutcome(type, (Long) r.get(1), (Long) r.get(2));
     }
 
 
