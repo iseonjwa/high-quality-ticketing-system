@@ -21,10 +21,11 @@ export function QueuePosition({
 
   return (
     <div data-slot="queue-position" className="grid gap-3">
-      {/* 순번이 바뀔 때 화면 낭독기가 읽는다 */}
-      <div aria-live="polite" className="grid gap-1">
-        <p className="type-title tabular-nums text-gray-900">
-          내 앞에 {numberFormat.format(position)}명
+      <div className="grid gap-1">
+        {/* Note: 순번은 max(0, seq - admitted)라 바로 다음 차례가 1이다(SA 12-8). "내 앞에 n명"으로 쓰면 1명 어긋난다.
+            조회마다 읽히므로 화면 낭독기에는 순번 한 줄만 읽힌다(aria-live를 이 줄에만 둔다). */}
+        <p aria-live="polite" aria-atomic="true" className="type-title tabular-nums text-gray-900">
+          내 순번 {numberFormat.format(position)}번
         </p>
         <p className="type-body-sm text-gray-500">
           예상 대기 <span className="tabular-nums">{formatWaitTime(estimatedWaitSeconds)}</span>

@@ -6,7 +6,7 @@ describe('QueuePosition', () => {
   it('순번과 예상 대기 시간을 문구로 보인다', () => {
     render(<QueuePosition position={15234} estimatedWaitSeconds={300} />)
 
-    expect(screen.getByText('내 앞에 15,234명')).toBeInTheDocument()
+    expect(screen.getByText('내 순번 15,234번')).toBeInTheDocument()
     expect(screen.getByText(/예상 대기/)).toHaveTextContent('예상 대기 약 5분')
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
@@ -26,9 +26,10 @@ describe('QueuePosition', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
   })
 
-  it('순번이 바뀌면 읽도록 aria-live를 둔다', () => {
+  it('순번 한 줄에만 aria-live를 둬 예상 시간까지 매번 읽지 않는다', () => {
     render(<QueuePosition position={3} estimatedWaitSeconds={10} />)
 
-    expect(screen.getByText('내 앞에 3명').parentElement).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByText('내 순번 3번')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByText(/예상 대기/).closest('[aria-live]')).toBeNull()
   })
 })
