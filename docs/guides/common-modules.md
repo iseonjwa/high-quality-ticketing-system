@@ -9,7 +9,7 @@
 | 패키지 (`com.iseonjwa.common.`) | 제공 내용 | 서비스가 직접 선언·적용 조건 |
 |---|---|---|
 | `response`, `identity` | SuccessResponse, FailureResponse, FieldError, ErrorCode, CommonErrorCode, BusinessException, IdentityHeaders, Roles | 없음(Spring 의존 없음). 성공의 data는 null이어도 내보내고 실패의 errors는 검증 실패일 때만 내보내는 Jackson 애너테이션 사용 |
-| `auth` | TokenType, TokenDecoders | spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증 |
+| `auth` | TokenType, TokenDecoders, EntryTokenClaims, EntryTokenDecoder | spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증. 입장 토큰은 Reservation이 발급하고 Gateway가 검증 |
 | `web` | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter, RequireRole | spring-boot-starter-webmvc. `@Import(CommonWebConfiguration.class)` |
 | `messaging` | CommonMessagingConfiguration | spring-boot-starter-kafka. `@Import(CommonMessagingConfiguration.class)` |
 | `persistence`, `event` | EventEnvelope, BaseEntity, CurrentActorProvider, CommonJpaConfiguration | spring-boot-starter-data-jpa. `@Import(CommonJpaConfiguration.class)`. 이벤트는 일반 DTO. 감사는 JPA 콜백과 Spring 빈 주입 사용 |
