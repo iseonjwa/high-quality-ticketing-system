@@ -137,6 +137,18 @@ class FaultModesApiTest {
         }
 
         @Test
+        void 지연_중인_조회는_지연이_끝난_시점의_원장을_본다() throws Exception {
+            faults.apply(FaultRules.delay(FaultTarget.PAYMENT_LOOKUP, 500, 1));
+
+            var finding = CompletableFuture.supplyAsync(() -> unchecked(() -> find(orderId)));
+            awaitRuleConsumed(FaultTarget.PAYMENT_LOOKUP);
+            var approved = approve(orderId);
+            var found = finding.get(5, TimeUnit.SECONDS);
+
+            assertResponse(200, approved.body(), found);
+        }
+
+        @Test
         void 처리_중을_걸면_승인된_주문도_202다() throws Exception {
             approve(orderId);
             faults.apply(FaultRules.of(FaultTarget.PAYMENT_LOOKUP, FaultMode.PROCESSING, 1));
@@ -167,6 +179,21 @@ class FaultModesApiTest {
             assertTrue(Duration.ofNanos(System.nanoTime() - startedAt).toMillis() >= DELAY_MILLIS);
             assertResponse(200, "{\"status\":\"CANCELED\"}", canceled);
             assertResponse(409, ORDER_CANCELED, approve(orderId));
+        }
+
+        @Test
+        void 지연_중인_망취소보다_그_사이의_승인이_먼저_반영된다() throws Exception {
+            faults.apply(FaultRules.delay(FaultTarget.CANCEL, 500, 1));
+
+            var canceling = CompletableFuture.supplyAsync(() -> unchecked(() -> cancel(orderId)));
+            awaitRuleConsumed(FaultTarget.CANCEL);
+            var approved = approve(orderId);
+            var canceled = canceling.get(5, TimeUnit.SECONDS);
+
+            assertEquals(200, approved.statusCode(), approved.body());
+            assertTrue(approved.body().contains("\"status\":\"APPROVED\""), approved.body());
+            assertEquals(200, canceled.statusCode(), canceled.body());
+            assertEquals(approved.body(), canceled.body());
         }
 
         @Test
@@ -250,6 +277,18 @@ class FaultModesApiTest {
                     "{\"target\":\"CANCEL\",\"mode\":\"DELAY\",\"delayMs\":300,\"rate\":1.0,\"count\":2,\"orderId\":\"o-1\"}"),
                     current.body());
         }
+    }
+
+    // 횟수 1짜리 규칙이 소비되면 요청이 서버에 도착해 지연에 들어간 것이다. 그때까지 기다려 다음 요청이 지연 중에 도착하게 한다
+    private void awaitRuleConsumed(FaultTarget target) throws InterruptedException {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (System.nanoTime() < deadline) {
+            var consumed = faults.currentRules().stream()
+                    .filter(rule -> rule.target() == target).allMatch(rule -> rule.mode() == FaultMode.NONE);
+            if (consumed) return;
+            Thread.sleep(5);
+        }
+        throw new AssertionError(target + " 규칙이 소비되지 않았다");
     }
 
     // 지연 중인 승인이 원장에 IN_FLIGHT를 남길 때까지 조회해서, 조회가 지연 중에 도착하게 한다

@@ -35,7 +35,8 @@ class PaymentService {
         var fault = faults.claim(FaultTarget.APPROVE, request.orderId());
         if (skipsLedger(fault)) return Outcome.withoutLedger(fault);
 
-        // 새 주문이면 결정 안에서 기다려 지연 동안 원장이 IN_FLIGHT로 남는다. 이미 상태가 있는 주문은 결정을 부르지 않으므로 응답 직전에 기다린다
+        // Note: 새 주문이면 결정 안에서 기다려 지연 동안 원장이 IN_FLIGHT로 남는다.
+        // 이미 상태가 있는 주문은 결정을 부르지 않으므로 응답 직전에 기다린다
         var decisionRan = new AtomicBoolean();
         var state = ledgers.current().approve(request.orderId(), () -> {
             decisionRan.set(true);

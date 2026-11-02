@@ -6,6 +6,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.iseonjwa.mockpg.fault.FaultTarget.APPROVE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,7 +44,7 @@ class FaultRuleTest {
             "APPROVE, NONE", "PAYMENT_LOOKUP, NONE", "CANCEL, NONE"
     })
     void 걸_수_있는_조합은_받는다(FaultTarget target, FaultMode mode) {
-        new FaultRule(target, mode, null, null, null, null);
+        assertDoesNotThrow(() -> new FaultRule(target, mode, null, null, null, null));
     }
 
     @ParameterizedTest

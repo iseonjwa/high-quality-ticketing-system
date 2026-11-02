@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * mock-pg.md 4절 상태 표의 응답을 HTTP로 확인한다. 거절·처리 중 상태는 장애 주입이 아직 없어 원장에 직접 만든다.
+ * mock-pg.md 4절 상태 표의 응답을 HTTP로 확인한다. 거절·처리 중 상태는 장애 주입과 무관하게 상태 표의 칸을 결정적으로 만들려고 원장에 직접 만든다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
