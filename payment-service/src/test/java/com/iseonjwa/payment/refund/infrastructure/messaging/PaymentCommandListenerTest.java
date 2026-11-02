@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
+import com.iseonjwa.payment.payment.application.BillingPaymentCommand;
+import com.iseonjwa.payment.payment.application.BillingPaymentService;
 import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
 import com.iseonjwa.payment.refund.application.RefundRequestService;
 import com.iseonjwa.payment.refund.application.RefundRequestedPayload;
@@ -25,12 +27,16 @@ class PaymentCommandListenerTest {
     private static final String EVENT_ID = "7f3c2a9e-1b4d-4c8e-9a51-3e0f6b2d9c11";
 
     private RefundRequestService service;
+    private BillingPaymentService billingPayments;
     private PaymentCommandListener listener;
 
     @BeforeEach
     void setUp() {
         service = mock(RefundRequestService.class);
-        listener = new PaymentCommandListener(new RefundRequestedMessageParser(JsonMapper.builder().build()), service);
+        billingPayments = mock(BillingPaymentService.class);
+        var mapper = JsonMapper.builder().build();
+        listener = new PaymentCommandListener(new RefundRequestedMessageParser(mapper), service,
+                new BillingPaymentRequestedMessageParser(mapper), billingPayments);
     }
 
     @Test
@@ -58,7 +64,24 @@ class PaymentCommandListenerTest {
 
     @Test
     void eventType이_다르면_영구_오류다() {
-        assertRejected(message(EVENT_ID, "BillingPaymentRequested", "1", "reservation-service", payload("50000", "\"CANCELED\"")));
+        assertRejected(message(EVENT_ID, "SeatHoldRequested", "1", "reservation-service", payload("50000", "\"CANCELED\"")));
+        verify(billingPayments, never()).approve(any());
+    }
+
+    // ISE-89: 같은 토픽의 추첨 자동결제 요청은 환불이 아니라 자동결제 서비스로 간다
+    @Test
+    void 자동결제_요청은_자동결제_서비스로_넘기고_환불은_건드리지_않는다() {
+        listener.onMessage(message(EVENT_ID, "BillingPaymentRequested", "1", "reservation-service", billingPayload("121000")));
+
+        verify(billingPayments).approve(new BillingPaymentCommand(9900001L, 42L, new BigDecimal("121000"), "KRW"));
+        verify(service, never()).handle(any(), any());
+    }
+
+    @Test
+    void 자동결제_요청의_형식이_틀리면_영구_오류다() {
+        assertBillingRejected(message(EVENT_ID, "BillingPaymentRequested", "1", "reservation-service", billingPayload("121000.5")));
+        assertBillingRejected(message(EVENT_ID, "BillingPaymentRequested", "2", "reservation-service", billingPayload("121000")));
+        assertBillingRejected(message(EVENT_ID, "BillingPaymentRequested", "1", "payment-service", billingPayload("121000")));
     }
 
     @Test
@@ -131,6 +154,17 @@ class PaymentCommandListenerTest {
     private void assertRejected(String body) {
         assertThrows(NonRetryableMessageException.class, () -> listener.onMessage(body));
         verify(service, never()).handle(any(), any());
+    }
+
+    private void assertBillingRejected(String body) {
+        assertThrows(NonRetryableMessageException.class, () -> listener.onMessage(body));
+        verify(billingPayments, never()).approve(any());
+    }
+
+    private static String billingPayload(String amount) {
+        return """
+                {"reservationId":9900001,"userId":42,"amount":%s,"currency":"KRW","lotteryEntryId":31}"""
+                .formatted(amount);
     }
 
     private static String payload(String amount, String reason) {
