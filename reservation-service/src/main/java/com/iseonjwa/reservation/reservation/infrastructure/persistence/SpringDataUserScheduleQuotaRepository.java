@@ -21,4 +21,16 @@ interface SpringDataUserScheduleQuotaRepository extends JpaRepository<UserSchedu
             """)
     int addHeldCount(@Param("userId") Long userId, @Param("scheduleId") Long scheduleId,
             @Param("quantity") int quantity, @Param("now") Instant now, @Param("actorId") Long actorId);
+
+    // 조건을 WHERE에 둬서 held_count가 음수가 되는 대신 0행이 된다(chk_user_schedule_quotas_held_count)
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE user_schedule_quotas
+               SET held_count = held_count - :quantity, updated_at = :now, updated_by = :actorId
+             WHERE user_id = :userId
+               AND schedule_id = :scheduleId
+               AND held_count >= :quantity
+            """)
+    int subtractHeldCount(@Param("userId") Long userId, @Param("scheduleId") Long scheduleId,
+            @Param("quantity") int quantity, @Param("now") Instant now, @Param("actorId") Long actorId);
 }

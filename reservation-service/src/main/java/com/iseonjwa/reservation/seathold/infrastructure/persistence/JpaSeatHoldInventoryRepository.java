@@ -83,4 +83,23 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
                 .setParameter("ids", seatIds)
                 .executeUpdate();
     }
+
+    @Override
+    public int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {
+        em.flush();
+        return em.createQuery("""
+                        UPDATE ScheduleSeat s
+                           SET s.status = :available, s.updatedAt = :now, s.updatedBy = :actorId
+                         WHERE s.schedule.id = :scheduleId
+                           AND s.id IN :ids
+                           AND s.status = :held
+                        """)
+                .setParameter("available", ScheduleSeatStatus.AVAILABLE)
+                .setParameter("held", ScheduleSeatStatus.HELD)
+                .setParameter("now", now)
+                .setParameter("actorId", actorId)
+                .setParameter("scheduleId", scheduleId)
+                .setParameter("ids", seatIds)
+                .executeUpdate();
+    }
 }
