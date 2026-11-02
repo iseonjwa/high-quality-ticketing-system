@@ -76,7 +76,9 @@ async function currentAccessToken(): Promise<string> {
   throw new ApiError({ status: 401, code: 'UNAUTHORIZED', message: '로그인이 필요합니다' })
 }
 
-// Gateway는 만료된 Access 토큰에 401 UNAUTHORIZED를 준다(TOKEN_EXPIRED가 아니다). 그래서 코드가 아니라 401로 판단한다.
+// Gateway는 만료에 TOKEN_EXPIRED, 위조·형식 오류에 UNAUTHORIZED, 로그아웃된 토큰에 TOKEN_REVOKED를 준다(SA 11-3).
+// 어느 코드든 401이면 재발급을 한 번 시도한다. 재발급이 안 되는 경우는 재발급 응답이 알려 주고,
+// 코드로 나누지 않아 서버가 코드를 더하거나 바꿔도 깨지지 않는다.
 async function renewAfterUnauthorized(rejectedToken: string): Promise<string> {
   const latestToken = sessionStore.getState().accessToken
   if (latestToken !== null && latestToken !== rejectedToken) {

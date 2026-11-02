@@ -70,7 +70,7 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 | 규칙 | 동작 | 화면이 할 일 |
 |---|---|---|
 | 공통 응답 | 성공은 `data`만 돌려주고, 실패는 `ApiError`(`status`·`code`·`fieldErrors`·`traceId`)로 던진다. 성공 `data`는 Zod 스키마로 검증해 계약이 어긋나면 `RESPONSE_SCHEMA_MISMATCH`로 멈춘다 | 안내 문구는 `describeError(error)`로 얻는다(design-system.md 6절 표를 코드로 옮긴 것) |
-| 401 | Gateway는 만료된 Access 토큰에 `UNAUTHORIZED`를 준다(`TOKEN_EXPIRED`가 아니다). 그래서 코드가 아니라 401이면 재발급을 한 번 하고 같은 요청을 다시 보낸다. 동시에 받은 401은 재발급 하나를 함께 기다린다 | 재발급도 실패하면 세션이 지워진다. 로그인 여부(`useIsSignedIn`)를 보고 로그인 화면으로 보내고, 돌아올 경로를 남긴다. `logout()`은 서버 요청이 실패해도 던지지 않으므로 끝나면 바로 로그인 화면으로 보내고 `queryClient.clear()`로 이전 사용자의 조회 결과를 지운다 |
+| 401 | Gateway는 만료에 `TOKEN_EXPIRED`, 위조·형식 오류에 `UNAUTHORIZED`, 로그아웃된 토큰에 `TOKEN_REVOKED`를 준다(SA 11-3, ISE-131). 코드와 상관없이 401이면 재발급을 한 번 하고 같은 요청을 다시 보낸다. 동시에 받은 401은 재발급 하나를 함께 기다린다 | 재발급도 실패하면 세션이 지워진다. 로그인 여부(`useIsSignedIn`)를 보고 로그인 화면으로 보내고, 돌아올 경로를 남긴다. `logout()`은 서버 요청이 실패해도 던지지 않으므로 끝나면 바로 로그인 화면으로 보내고 `queryClient.clear()`로 이전 사용자의 조회 결과를 지운다 |
 | 멱등키 | 선점·결제 함수는 `Idempotency-Key`를 인자로 받는다. 401 뒤 재시도는 같은 키와 같은 본문(복사해 둔 값)을 쓴다 | 의도마다 `newIdempotencyKey()`로 하나 만든다. `isOutcomeUnknown(error)`(응답 없음·504)면 실패로 보이지 말고 같은 키와 같은 본문으로 다시 보내거나 결과를 조회한다. 고른 좌석이 바뀌거나 예매 조회로 결제 토큰을 다시 받았으면 새 키로 보낸다(결제 토큰 원문도 본문 비교에 들어간다) |
 | 입장 토큰 | `issueEntryToken`이 회차별로 저장하고, 좌석 조회·선점이 `X-Entry-Token`으로 붙인다. 저장한 토큰이 없으면 요청 없이 403 `ENTRY_TOKEN_INVALID`, 서버가 403을 주면 그 요청이 보낸 토큰만 지운다. 브라우저 시계로는 지우지 않는다(시계가 빠르면 대기열과 좌석 화면을 끝없이 오간다) | 대기열 진입 전에 `readEntryToken(scheduleId)`가 있고 `isEntryTokenFresh`면 대기열을 건너뛴다(서버 시각으로 보정한 now를 넘기면 더 정확하다). 403이면 대기열로 보낸다 |
 | 조회 재시도 | TanStack Query 기본값: 연결 실패와 5xx만 두 번까지, `Retry-After`가 있으면 그 초에 0~+20%를 더해 기다린다 | 변경 요청은 자동 재시도하지 않는다. 결제 202·504의 "확인 중" 처리는 결제 화면(ISE-116)이 한다 |

@@ -77,6 +77,7 @@ export const authHandlers = [
     const user = requireUser(request)
     const accessToken = request.headers.get('Authorization')?.slice('Bearer '.length) ?? ''
     mockDb.accessTokens.delete(accessToken)
+    mockDb.revokedAccessTokens.add(accessToken)
     mockDb.refreshTokens.delete(user.userId)
     return ok(null, { message: '로그아웃되었습니다' })
   }),

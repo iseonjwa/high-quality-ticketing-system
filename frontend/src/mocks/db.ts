@@ -82,6 +82,9 @@ interface MockState {
   seats: MockSeat[]
   // 접근 토큰 → 사용자 ID. 지우면 Gateway가 만료로 보고 401을 준다
   accessTokens: Map<string, number>
+  // 만료된 Access 토큰과 로그아웃으로 블랙리스트에 오른 Access 토큰. Gateway처럼 401 코드를 나눠 준다
+  expiredAccessTokens: Set<string>
+  revokedAccessTokens: Set<string>
   // 사용자 ID → 현재 Refresh 토큰. 서버처럼 사용자당 하나이고 재발급마다 바뀐다
   refreshTokens: Map<number, string>
   // `${scheduleId}:${userId}` → 남은 순번 조회 횟수
@@ -126,6 +129,9 @@ export function nextMockId(): number {
 
 // 테스트용: 발급한 Access 토큰을 모두 만료시킨다. Refresh 토큰은 그대로라 재발급하면 이어진다.
 export function expireMockAccessTokens() {
+  for (const token of mockDb.accessTokens.keys()) {
+    mockDb.expiredAccessTokens.add(token)
+  }
   mockDb.accessTokens.clear()
 }
 
@@ -236,6 +242,8 @@ function createInitialState(nowMillis = Date.now()): MockState {
       }),
     ],
     accessTokens: new Map(),
+    expiredAccessTokens: new Set(),
+    revokedAccessTokens: new Set(),
     refreshTokens: new Map(),
     queueEntries: new Map(),
     reservations: new Map(),
