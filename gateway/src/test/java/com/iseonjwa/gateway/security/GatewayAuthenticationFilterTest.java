@@ -1,5 +1,8 @@
 package com.iseonjwa.gateway.security;
 
+import com.iseonjwa.common.auth.TokenDecoders;
+import com.iseonjwa.common.auth.TokenType;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,14 +15,21 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +41,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class GatewayAuthenticationFilterTest {
+    private static final String SECRET = "test-access-secret-that-is-at-least-32-bytes-long";
+    private static final String ISSUER = "iseonjwa-auth";
+
     private final AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
     private final GatewayFilterChain chain = exchange -> {
         forwarded.set(exchange);
@@ -95,6 +108,37 @@ class GatewayAuthenticationFilterTest {
         assertEquals("USER", forwardedHeader("X-User-Role"));
     }
 
+    @Test
+    void 만료된_토큰은_401_TOKEN_EXPIRED다() {
+        var exchange = exchangeWithBearer(signedAccessToken(SECRET, -120));
+
+        filterWith(realDecoder()).filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+        assertEquals("TOKEN_EXPIRED", responseCode(exchange));
+        assertNull(forwarded.get());
+    }
+
+    @Test
+    void 서명이_틀린_만료_토큰은_만료를_알리지_않고_401_UNAUTHORIZED다() {
+        var exchange = exchangeWithBearer(signedAccessToken(SECRET + "other", -120));
+
+        filterWith(realDecoder()).filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+        assertEquals("UNAUTHORIZED", responseCode(exchange));
+    }
+
+    @Test
+    void 형식이_깨진_토큰은_401_UNAUTHORIZED다() {
+        var exchange = exchangeWithBearer("not-a-jwt");
+
+        filterWith(realDecoder()).filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+        assertEquals("UNAUTHORIZED", responseCode(exchange));
+    }
+
     private String forwardedHeader(String name) {
         return forwarded.get().getRequest().getHeaders().getFirst(name);
     }
@@ -109,7 +153,39 @@ class GatewayAuthenticationFilterTest {
         return MockServerWebExchange.from(request.build());
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    private MockServerWebExchange exchangeWithBearer(String token) {
+        var request = MockServerHttpRequest.get("http://localhost/api/v1/users/me")
+                .header("Authorization", "Bearer " + token);
+        return MockServerWebExchange.from(request.build());
+    }
+
+    private String responseCode(MockServerWebExchange exchange) {
+        var body = exchange.getResponse().getBodyAsString().block();
+        return JsonMapper.builder().build().readTree(body).get("code").asString();
+    }
+
+    private JwtDecoder realDecoder() {
+        return TokenDecoders.create(SECRET, ISSUER, TokenType.ACCESS);
+    }
+
+    // 실제 발급기와 같은 claim으로 서명한 Access 토큰. lifetimeSeconds가 음수면 이미 만료됐다.
+    private String signedAccessToken(String key, long lifetimeSeconds) {
+        var encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key.getBytes(StandardCharsets.UTF_8)));
+        var now = Instant.now();
+        var claims = JwtClaimsSet.builder()
+                .issuer(ISSUER)
+                .subject("1")
+                .audience(List.of(TokenType.ACCESS.audience()))
+                .issuedAt(now.minusSeconds(180))
+                .expiresAt(now.plusSeconds(lifetimeSeconds))
+                .id("test-jti")
+                .claim(TokenType.TYPE_CLAIM, TokenType.ACCESS.type())
+                .claim(TokenType.ROLE_CLAIM, "USER")
+                .build();
+        var header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
     private GatewayAuthenticationFilter filter(String role) {
         var decoder = mock(JwtDecoder.class);
         var jwt = Jwt.withTokenValue("access")
@@ -121,7 +197,11 @@ class GatewayAuthenticationFilterTest {
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build();
         when(decoder.decode("access")).thenReturn(jwt);
+        return filterWith(decoder);
+    }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private GatewayAuthenticationFilter filterWith(JwtDecoder decoder) {
         var redis = mock(ReactiveStringRedisTemplate.class);
         when(redis.hasKey(anyString())).thenReturn(Mono.just(false));
 
