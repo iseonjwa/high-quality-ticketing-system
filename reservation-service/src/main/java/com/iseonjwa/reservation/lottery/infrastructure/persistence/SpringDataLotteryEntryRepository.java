@@ -48,4 +48,11 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
     @Query("select e.id, e.quantity from LotteryEntry e where e.lotteryId = :lotteryId and e.status = 'ENTERED'"
             + " order by e.id")
     List<Object[]> findDrawEntrantRows(@Param("lotteryId") Long lotteryId);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE lottery_entries SET status = 'LOST', updated_at = now()
+            WHERE lottery_id = :lotteryId AND status = 'ENTERED'
+            """)
+    int markRemainingLost(@Param("lotteryId") Long lotteryId);
 }

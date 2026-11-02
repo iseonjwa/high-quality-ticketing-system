@@ -1,5 +1,6 @@
 package com.iseonjwa.gateway.security;
 
+import com.iseonjwa.common.auth.EntryTokenDecoder;
 import com.iseonjwa.common.auth.TokenDecoders;
 import com.iseonjwa.common.auth.TokenType;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,13 @@ class GatewayConfiguration {
     JwtDecoder accessTokenDecoder(@Value("${auth.access-secret}") String secret,
             @Value("${auth.issuer}") String issuer) {
         return TokenDecoders.create(secret, issuer, TokenType.ACCESS);
+    }
+
+    // EntryTokenDecoder는 common의 일반 클래스라 컴포넌트 스캔 대상이 아니다. 키를 받아 여기서 빈으로 만든다.
+    // 키가 없거나 32바이트보다 짧으면 생성자가 예외를 던져 Gateway가 기동하지 않는다(계약 ① 서명 키, ISE-135)
+    @Bean
+    EntryTokenDecoder entryTokenDecoder(@Value("${entry-token.secret}") String secret) {
+        return new EntryTokenDecoder(secret);
     }
 
     @Bean

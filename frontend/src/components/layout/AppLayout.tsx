@@ -1,35 +1,49 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Link, Outlet, useNavigate } from 'react-router'
+import { useState, type ReactNode } from 'react'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
 import { paths } from '@/app/paths'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
+import {
+  isAuthPath,
+  readAuthState,
+  toReturnPath,
+  type AuthNavigationState,
+} from '@/auth/navigation'
 import { useIsSignedIn } from '@/auth/session'
 
 export function AppLayout() {
   const isSignedIn = useIsSignedIn()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
 
-  // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과가 남지 않게 캐시를 비우고 홈으로 보낸다.
+  // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과가 남지 않게 캐시를 비운다.
   // 진행 중에는 처리 중으로 둬 두 번 눌러도 요청과 토스트가 한 번만 나가게 한다.
+  // Note: 홈으로 먼저 옮긴 뒤 세션을 지운다. 로그인이 필요한 화면에서 세션부터 지우면 그 화면이 로그인 화면으로
+  // 보내고(RequireAuth) 다시 홈으로 가서, 뒤로 가기에 로그인 화면이 남는다.
   async function handleLogout() {
     if (loggingOut) {
       return
     }
     setLoggingOut(true)
     try {
+      await navigate(paths.home)
       await logout()
       queryClient.clear()
-      await navigate(paths.home)
       toast('로그아웃했어요')
     } finally {
       setLoggingOut(false)
     }
   }
+
+  // 헤더의 로그인 링크는 지금 보는 화면을 돌아갈 곳으로 넘긴다. 인증 화면 안에서는 원래 넘겨받은 곳을 그대로 잇는다
+  const loginState: AuthNavigationState = isAuthPath(location.pathname)
+    ? { from: readAuthState(location.state).from }
+    : { from: toReturnPath(location) }
 
   return (
     <div className="min-h-svh">
@@ -52,16 +66,21 @@ export function AppLayout() {
           <nav aria-label="주 메뉴" className="flex items-center gap-1">
             {isSignedIn ? (
               <>
-                <Button asChild variant="ghost">
-                  <Link to={paths.myReservations}>내 예매</Link>
-                </Button>
+                <SignedInLink to={paths.myReservations} disabled={loggingOut}>
+                  내 예매
+                </SignedInLink>
+                <SignedInLink to={paths.me} disabled={loggingOut}>
+                  내 정보
+                </SignedInLink>
                 <Button variant="ghost" loading={loggingOut} onClick={() => void handleLogout()}>
                   로그아웃
                 </Button>
               </>
             ) : (
               <Button asChild variant="ghost">
-                <Link to={paths.login}>로그인</Link>
+                <Link to={paths.login} state={loginState}>
+                  로그인
+                </Link>
               </Button>
             )}
           </nav>
@@ -72,5 +91,38 @@ export function AppLayout() {
       </div>
       <Toaster />
     </div>
+  )
+}
+
+// 로그아웃 요청을 기다리는 동안(홈으로 먼저 옮긴 뒤) 로그인한 사용자 메뉴를 누르면 로그아웃이 끝난 뒤
+// 그 화면이 로그인 화면으로 보낸다. 그동안은 누름을 막고 흐리게 둔다.
+function SignedInLink({
+  to,
+  disabled,
+  children,
+}: {
+  to: string
+  disabled: boolean
+  children: ReactNode
+}) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      className={disabled ? 'pointer-events-none text-gray-400' : undefined}
+    >
+      <Link
+        to={to}
+        aria-disabled={disabled ? true : undefined}
+        tabIndex={disabled ? -1 : undefined}
+        onClick={(event) => {
+          if (disabled) {
+            event.preventDefault()
+          }
+        }}
+      >
+        {children}
+      </Link>
+    </Button>
   )
 }

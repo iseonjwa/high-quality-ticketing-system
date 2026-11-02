@@ -1,6 +1,9 @@
 package com.iseonjwa.reservation.lottery.application;
 
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
+import com.iseonjwa.reservation.lottery.domain.LotterySeat;
+
+import java.util.List;
 
 /**
  * 추첨이 회차 좌석을 바꾸는 유일한 통로(details.md 4절 모듈 경계). 인자는 ID와 값만 받는다.
@@ -21,4 +24,7 @@ public interface LotterySeatPort {
      * @return 실제로 되돌린 좌석 수
      */
     int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
+
+    // 회차의 추첨석 전체를 ID 오름차순으로 읽는다. 추첨 배정 계산(SeatAllocator)에 넘긴다
+    List<LotterySeat> findLotterySeats(Long scheduleId);
 }
