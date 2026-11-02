@@ -38,7 +38,8 @@ public class RecoveryScheduler implements SmartLifecycle {
 
     @Override
     public synchronized void start() {
-        if (executor != null) return;
+        // 등록된 작업이 없으면 실행기도 스레드도 만들지 않는다
+        if (executor != null || jobs.isEmpty()) return;
         stopping = false;
         executor = new ScheduledThreadPoolExecutor(THREADS, new RecoveryThreadFactory());
         executor.setRemoveOnCancelPolicy(true);

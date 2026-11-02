@@ -161,12 +161,15 @@ class RecoverySchedulerTest {
     }
 
     @Test
-    void 모든_작업이_꺼져_있으면_스케줄러를_만들지_않는다() {
+    void 작업이_없으면_실행기를_만들지_않고_스레드를_띄우지_않는다() {
         contextRunner()
                 .withPropertyValues("payment.recheck.enabled=false", "payment.refund-worker.enabled=false")
                 .run(context -> {
                     assertEquals(0, context.getBeansOfType(RecoveryJob.class).size());
-                    assertEquals(0, context.getBeansOfType(RecoveryScheduler.class).size());
+                    var scheduler = context.getBean(RecoveryScheduler.class);
+                    assertFalse(scheduler.isRunning());
+                    assertTrue(Thread.getAllStackTraces().keySet().stream()
+                            .noneMatch(thread -> thread.getName().startsWith("recovery-")));
                 });
     }
 
