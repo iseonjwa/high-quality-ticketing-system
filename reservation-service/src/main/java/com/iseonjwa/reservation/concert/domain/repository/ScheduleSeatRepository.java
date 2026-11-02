@@ -14,4 +14,7 @@ public interface ScheduleSeatRepository {
 
     // 추첨 설정(D9). sourceGrade의 AVAILABLE 좌석을 ID 오름차순으로 최대 seatCount개 LOTTERY로 바꾸고, 바꾼 수를 돌려준다
     int convertToLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
+
+    // 추첨 수정(D9). LOTTERY 좌석을 ID 내림차순으로 최대 seatCount개 sourceGrade로 되돌리고, 되돌린 수를 돌려준다
+    int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
 }
