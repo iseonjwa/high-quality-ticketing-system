@@ -6,8 +6,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.core.io.FileSystemResource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -33,9 +32,8 @@ import static org.mockito.Mockito.verify;
 
 // Note: 테스트 프로필은 listener.auto-startup=false라 브로커 없이 컨텍스트가 뜬다. 컨테이너는 만들어지지만 시작하지 않는다.
 // KafkaTemplate을 스파이로 바꿔 전송만 가로채고, 리스너 컨테이너에 붙은 오류 처리기가 실제로 이 리스너의 DLQ 규칙인지 동작으로 확인한다.
-@SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
-        // 운영에서는 config-repo/application.yml이 주는 값이다. 테스트 프로필은 설정 서버를 읽지 않아 같은 값을 직접 준다
-        "spring.kafka.listener.ack-mode=record"})
+// Note: 테스트 프로필은 설정 서버를 읽지 않아 공통 ack-mode(record)가 없다. 그래도 RECORD가 나오면 팩토리가 직접 고정한 것이다.
+@SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
 class PaymentCommandContainerWiringTest {
     @Autowired
@@ -66,19 +64,10 @@ class PaymentCommandContainerWiringTest {
                 List.of(record), mock(Consumer.class), mock(MessageListenerContainer.class));
 
         @SuppressWarnings("unchecked")
-        var captor = org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);
+        var captor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(captor.capture());
         assertEquals("payment.command.dlq", captor.getValue().topic());
         assertEquals("8800002", captor.getValue().key());
-    }
-
-    @Test
-    void 공통_설정은_ack_mode를_record로_지정한다() throws Exception {
-        var sources = new YamlPropertySourceLoader().load("config-repo", new FileSystemResource("../config-repo/application.yml"));
-        var ackMode = sources.stream().map(source -> source.getProperty("spring.kafka.listener.ack-mode"))
-                .filter(java.util.Objects::nonNull).findFirst().orElse(null);
-
-        assertEquals("record", ackMode);
     }
 
     @Test
