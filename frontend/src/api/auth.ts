@@ -6,6 +6,10 @@ import { clearSession, saveTokens, tokenPairSchema } from '@/auth/session'
 
 // 회원·인증 API(SA 11-5, user-service AuthController). 재발급은 `auth/refresh.ts`가 맡는다.
 
+export const authQueryKeys = {
+  me: ['users', 'me'],
+} as const
+
 export const roleSchema = z.enum(['USER', 'ADMIN'])
 
 export const signupResultSchema = z.object({
