@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.util.List;
 
@@ -19,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "payment.recheck.enabled=true", "payment.recheck.interval=1h",
         "payment.refund-worker.enabled=true", "payment.refund-worker.interval=1h"})
 @ActiveProfiles("test")
+// Note: 이 설정의 컨텍스트는 다른 테스트가 재사용하지 못한다. 캐시에 남으면 커넥션 풀이 테스트 DB의 max_connections(100)를 채운다
+@DirtiesContext
 class RecoveryWiringTest {
     @Autowired
     ApplicationContext context;
