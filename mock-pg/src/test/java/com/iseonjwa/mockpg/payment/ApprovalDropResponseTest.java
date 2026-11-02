@@ -73,6 +73,17 @@ class ApprovalDropResponseTest {
         assertTrue(sendRawApproval(UUID.randomUUID().toString()) != -1, "두 번째 승인도 응답을 잃었다");
     }
 
+    @Test
+    void 형식이_틀린_요청은_장애_횟수를_쓰지_않아_다음_승인이_응답을_잃는다() throws Exception {
+        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
+        var invalid = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mock-pg/payments"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"amount\":50000,\"currency\":\"KRW\"}")).build();
+
+        assertEquals(400, http.send(invalid, HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertEquals(-1, sendRawApproval(UUID.randomUUID().toString()), "응답 바이트를 받았다");
+    }
+
     // 승인 요청을 원시 소켓으로 보내고 응답의 첫 바이트를 돌려준다. 연결이 응답 없이 닫혔으면 -1이다
     private int sendRawApproval(String orderId) throws IOException {
         var body = ("{\"orderId\":\"" + orderId + "\",\"amount\":50000,\"currency\":\"KRW\"}")
