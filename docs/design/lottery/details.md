@@ -12,11 +12,11 @@
 | `grade` → `source_grade` | VARCHAR(10) | NOT NULL | 추첨석을 떼어 온 등급(기본 S). 종결 때 되돌릴 등급(D9) |
 | 제약 교체 | | `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)` | 회차당 추첨 1개(D2, D9) |
 
-- `seed`는 설정 때 `SecureRandom`으로 채우고 설정 뒤 바꾸지 못하게 막는다(D7). 공개하지 않는다. 시드 약속을 확장할 때 `seed_hash CHAR(64)`를 더하고 응모 시작 전에 공개한다.
-- 설정 검증: `entry_start_at < entry_end_at <= draw_at`, `source_grade`의 AVAILABLE 좌석이 `seat_count` 이상, `source_grade <> 'LOTTERY'`.
+- `seed`(`BYTEA`, 32바이트, ADR 0040)는 설정 때 `SecureRandom`으로 채우고 설정 뒤 바꾸지 못하게 막는다(D7). 공개하지 않는다. 시드 약속을 확장할 때 `seed_hash CHAR(64)`를 더하고 응모 시작 전에 공개한다.
+- 설정 검증: `entry_start_at < entry_end_at <= draw_at`, `draw_at + 60분 <= starts_at`(종결 상한 D14, 11/2 추가), `source_grade`의 AVAILABLE 좌석이 `seat_count` 이상, `source_grade <> 'LOTTERY'`.
 - 설정 시점: 설정·수정 모두 `now() < LEAST(open_at, entry_start_at)`. 어기면 409(D9 후속).
 - 설정 경고: `draw_at`이 저트래픽 시간대(예: 03:00~05:00 `[가정]`) 밖이면 응답에 경고를 담는다. 막지는 않는다(D10 운영 정책).
-- 설정 수정: `now() < entry_start_at`일 때만. 좌석 수를 바꾸면 `LOTTERY` 좌석을 늘리거나 `source_grade`로 되돌린다(D9).
+- 설정 수정: `now() < entry_start_at`일 때만. 좌석 수를 바꾸면 `LOTTERY` 좌석을 늘리거나 ID가 큰 것부터 `source_grade`로 되돌린다(D9). 등급을 바꾸면 모두 되돌린 뒤 새 등급에서 다시 뗀다. 예비자 수·1인 최대 매수도 고칠 수 있다(11/2). 동시 수정은 설정과 같은 회차 행 잠금으로 줄 세운다.
 
 **schedule_seats**: 컬럼 변경 없음. `grade`에 값 `LOTTERY`가 더해진다(D9). 설정 API만 쓰고, 좌석 생성 API는 받지 않는다. 일반 선점은 `grade <> 'LOTTERY'` 좌석만 잡는다(좌석 담당 합의).
 
@@ -39,7 +39,7 @@
 
 | 메서드·경로 | 권한 | 응답 | 비고 |
 |---|---|---|---|
-| POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 201 | 같은 트랜잭션에서 `source_grade` 좌석 `seatCount`개를 `LOTTERY`로 바꾼다(D9). 본문: `sourceGrade`, `seatCount`, `maxPerEntry`, `entryStartAt`, `entryEndAt`, `drawAt`, `waitlistCount`. |
+| POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 201 | 같은 트랜잭션에서 `source_grade` 좌석 `seatCount`개를 `LOTTERY`로 바꾼다(D9). 본문: `sourceGrade`, `seatCount`, `maxPerEntry`, `entryStartAt`, `entryEndAt`, `drawAt`, `waitlistCount`. 응답: `lotteryId`, `scheduleId`, `sourceGrade`, `seatCount`, `status`, `warnings`(예: `DRAW_AT_OUTSIDE_LOW_TRAFFIC_WINDOW`). 409: `LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
 | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 200 | 추가 제안(D9). 응모 시작 전이고 일반 오픈(`open_at`) 전만. `sourceGrade`, `seatCount`, 일정 수정 |
 | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증, `Idempotency-Key` | 201(D3 A안), SA는 202 | 본문: `quantity`. 대기열·입장 토큰을 거치지 않는다 |
 | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | 추가 제안(D5). 마감 전만. 취소 뒤 재응모는 409 |

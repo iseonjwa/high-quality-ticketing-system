@@ -10,6 +10,15 @@
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
+### 11/2 바뀐 점 (추첨 담당)
+
+추첨 테이블 마이그레이션(ISE-85)을 쓰면서 명세를 구현에 맞췄다.
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | `lotteries.seed`를 `BIGINT`에서 `BYTEA NOT NULL, CHECK(32바이트)`로 바꿈. 순위 계산(`DrawRanker`, ISE-84)이 32바이트 시드를 쓴다 | 12-3, ERD 그림 3 | ADR 0040 |
+| 2 | 추첨 설정·수정 에러 코드 3개(`LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH`)와 설정 응답 `warnings` 추가. 설정 검증에 `draw_at + 60분 <= starts_at` 추가 | 11-3, 11-4 | D9·D10·D14 |
+
 ### 10/31 바뀐 점 (추첨 담당)
 
 추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정을 반영했다(ISE-82). 응모 접수 방식(D3)은 측정 시나리오 1 뒤에 반영한다(ISE-87). 7·8행은 결제 담당·팀 확인 전에 먼저 반영한 것(선반영)이라 확인 결과에 따라 되돌릴 수 있다.
@@ -974,6 +983,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `PAYMENT_ALREADY_EXISTS` | 409 | 같은 예매에 진행 중·완료된 결제 있음 (D3) |
 | `PG_UNAVAILABLE` | 503 | Circuit Breaker OPEN·Bulkhead 초과 (E10) |
 | `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모(취소 뒤 재응모 포함) · 빌링키 없음(확장안, 1단계는 결제 시점 실패 → 승계) |
+| `LOTTERY_ALREADY_EXISTS` · `LOTTERY_SETUP_CLOSED` · `LOTTERY_SEATS_NOT_ENOUGH` | 409 | 회차에 추첨이 이미 있음 · 일반 오픈이나 응모 시작이 지나 설정·수정 불가 · 원래 등급의 AVAILABLE 좌석이 추첨석 수보다 적음(좌석 변경 없이 롤백) |
 
 ### 11-4. API 목록
 
@@ -1002,7 +1012,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 안준현 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
-| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만) | 201 | 이강민 |
+| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만). 응답 `warnings`에 권장 시간대 밖 추첨 경고 | 201 | 이강민 |
 | 이후 | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
 | 이후 | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
 | 이후 | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
@@ -1317,7 +1327,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | waitlist_count | INT | NOT NULL | 예비자 수 |
 | max_per_entry | SMALLINT | NOT NULL, CHECK (1–2) |  |
 | entry_start_at · entry_end_at · draw_at | TIMESTAMPTZ | NOT NULL |  |
-| seed | BIGINT |  | 추첨 재현용. 설정 때 채우고 바꾸지 않는다 |
+| seed | BYTEA | NOT NULL, CHECK (32바이트) | 추첨 재현용. 설정 때 `SecureRandom` 32바이트로 채우고 바꾸지 않는다(ADR 0040) |
 | status | VARCHAR(10) | NOT NULL, CHECK (OPEN·CLOSED·DRAWN·DONE) | 재실행 방지 |
 |  |  | UNIQUE(schedule_id) | 회차당 추첨 1개 |
 
@@ -1605,7 +1615,7 @@ erDiagram
     timestamptz entry_start_at
     timestamptz entry_end_at
     timestamptz draw_at
-    bigint seed "추첨 재현용"
+    bytea seed "추첨 재현용, 32바이트"
     varchar status "OPEN, CLOSED, DRAWN, DONE"
   }
   lottery_entries {
