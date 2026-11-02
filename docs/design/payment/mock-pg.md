@@ -107,33 +107,35 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 `POST /mock-pg/faults`는 현재 설정을 바꾸고 `GET /mock-pg/faults`는 현재 설정을 돌려준다. SA 11-5의 `{mode, delayMs, rate}`를 확장한다(SA 번호는 6-6, 11-4, 11-5에 흩어져 있다. 갱신은 S-29).
 
 ```json
-{ "target": "APPROVE", "mode": "DROP_RESPONSE", "delayMs": 0, "rate": 1.0, "count": 1, "orderId": "..." }
+{ "target": "APPROVE", "mode": "DROP_RESPONSE", "rate": 1.0, "count": 1, "orderId": "..." }
 ```
 
 | 필드 | 의미 |
 |---|---|
 | `target` | 호출 종류: `APPROVE`(승인 POST), `PAYMENT_LOOKUP`(주문 조회 GET), `CANCEL`(망취소 POST), `REFUND`(환불 POST), `REFUND_LOOKUP`(환불 조회 GET). 필수. 호출 종류마다 설정을 따로 가진다 |
 | `mode` | 아래 표의 모드 |
-| `delayMs` | `DELAY`의 지연 시간. 0 이상 상한(예: 60,000) 이하 |
+| `delayMs` | `DELAY`에만 쓴다. 1~60,000. 다른 모드에 주면 400 |
 | `rate` | 요청마다 주입을 적용할 확률 0~1. 생략하면 1 |
 | `count` | 주입을 적용할 횟수(1 이상). 다 쓰면 `NONE`으로 돌아간다. 생략하면 해제할 때까지 유지(부하 테스트용) |
 | `orderId` / `refundId` | 선택. 있으면 그 주문·환불을 대상으로 한 요청에만 적용하고 소비한다. 배경에서 도는 재확인 스케줄러와 환불 워커가 다른 주문의 요청으로 `count`를 가져가는 것을 막는다 |
 
 규칙:
-- 적용 순서는 호출 종류 일치 → `orderId`·`refundId` 일치 → `rate` 통과 → 모드 적용 가능 여부 확인이다. **적용되지 않은 요청은 `count`를 소비하지 않는다.** 모드가 그 호출에 적용되지 않는 경우(아래 표에서 `-`)도 같다.
+- 적용 순서는 호출 종류 일치 → `orderId`·`refundId` 일치 → `rate` 통과다. 모드를 그 호출에 걸 수 있는지는 설정할 때 검사한다. **적용되지 않은 요청은 `count`를 소비하지 않는다.** 모드를 그 호출에 걸 수 없는 조합(아래 표에서 `-`)은 설정할 때 400으로 거절한다.
 - 설정은 불변 객체이고 `AtomicReference`로 갈아 끼운다. `count`는 compare-and-set으로 줄여서, 동시에 들어온 요청이 같은 한 번을 나눠 쓰지 않는다. 설정 교체와의 경합에서도 옛 설정의 `count`가 새 설정을 덮어쓰지 않는다.
 - `count`는 `PgScenario`의 "바로 다음 호출 한 번에만 적용" 규칙을 구현하려고 더한다. `count`만으로는 다른 스레드의 호출이 그 한 번을 가져갈 수 있으므로, 배경 호출이 있는 통합 테스트(FT)에서는 `orderId`·`refundId` 매칭을 함께 쓴다.
 - 구현(ISE-129)에서 정한 것:
-  - 모드가 `target`에 걸 수 없는 조합(적용 표의 `-`)은 설정할 때 400 `INVALID_REQUEST`로 거절한다. 받아 두면 영원히 적용되지 않으므로, "적용되지 않음"과 같은 결과를 더 일찍 알린다.
+  - 걸 수 없는 조합을 설정할 때 거절하는 이유는, 받아 두면 영원히 적용되지 않기 때문이다.
   - `delayMs`는 `DELAY`에만 쓰고 1~60,000이다. `rate`는 생략하면 1.0이고 0.0~1.0이다.
   - `PROCESSING`·`SERVER_ERROR`는 원장을 건드리지 않는다. 승인에 걸어도 그 주문은 원장에 남지 않고 망취소에 걸어도 취소되지 않는다.
   - 승인 `DELAY`는 새 주문이면 결정 안에서 기다려 지연 동안 `IN_FLIGHT`로 남는다. 이미 결과가 있는 주문은 저장된 결과를 응답 직전에 지연해서 돌려준다.
   - 망취소 `DELAY`는 지연한 뒤 반영한다. 망취소 `DROP_RESPONSE`는 반영한 뒤 응답을 버린다.
+  - 이미 결과가 있는 주문에 `DECLINE`이 적용되면 결과는 바뀌지 않지만 `count`는 쓴다. 장애 설정을 요청당 한 번 읽는 규칙 때문이다. 배경 호출이 있는 테스트에서는 `orderId`와 함께 건다.
+  - `mock-pg`는 가상 스레드(`spring.threads.virtual.enabled`)로 돌아서 긴 지연이 요청 스레드를 고갈시키지 않는다. 요청과 설정의 모르는 JSON 필드는 400이다(오타 필드가 `orderId` 한정 규칙을 전역 규칙으로 만들지 않게 한다).
   - 변조형 모드와 그 프로필 검사(`loadtest`에서 거절)는 ISE-130에서 더한다. 이번에는 `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사까지 구현했다.
 
 ### 모드와 적용 표
 
-`O`는 적용, `-`는 해당 호출에 적용하지 않음(소비도 없음)이다.
+`O`는 적용, `-`는 해당 호출에 걸 수 없는 조합이라 설정할 때 400으로 거절한다.
 
 | 모드 | 동작 | APPROVE | PAYMENT_LOOKUP | CANCEL | REFUND | REFUND_LOOKUP | 계약 테스트 |
 |---|---|---|---|---|---|---|---|
@@ -290,6 +292,7 @@ ISE-130에서 환불 테스트를 제외하는 방법: 공통 테스트 메서�
 | 환불 거절 | 422 | `{status: REJECTED, code: NOT_REFUNDABLE 또는 OTHER}` | `RefundRejected` |
 | 처리 중(조회·취소·`PROCESSING` 모드) | 202 | `{status: PROCESSING}` | `Unknown(PROCESSING)` |
 | 잘못된 요청(`BAD_REQUEST` 모드) | 400 | `{code: INVALID_REQUEST}` | `Unknown(CLIENT_ERROR)` |
+| 서버 오류(`SERVER_ERROR` 모드) | 500 | `{code: SERVER_ERROR}` | `Unknown(PG_ERROR)` |
 
 ## 12. 문서 간 정합성 (함께 고칠 것)
 
