@@ -40,7 +40,7 @@ class PaymentMigrationTest {
     void Outbox_릴레이용_인덱스가_카탈로그에_존재한다() {
         var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox_events'");
         assertTrue(indexes.containsAll(List.of("idx_outbox_events_pending_next_attempt", "idx_outbox_events_pending_message_key",
-                "idx_outbox_events_pending_id")), indexes.toString());
+                "idx_outbox_events_pending_id", "idx_outbox_events_failed_message_key")), indexes.toString());
     }
 
     @Test
