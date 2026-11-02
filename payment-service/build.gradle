@@ -20,6 +20,15 @@ dependencies {
 
 // Note: 결제 통합 테스트는 compose.test.yml의 PostgreSQL(payment_test)을 쓴다.
 // ./gradlew build나 IDE의 Gradle 테스트 실행만으로도 테스트 인프라가 먼저 뜨게 한다(Docker 필요)
+// Note: Mock PG 계약 테스트는 실제 mock-pg 앱(bootJar)을 별도 JVM으로 띄운다(mock-pg.md 7절 #2).
+// jar 내용이 바뀌면 테스트를 다시 돌리도록 입력으로 등록한다. 경로는 기기마다 다른 절대 경로라 입력 지문에 넣지 않으려고
+// 실행 직전(doFirst)에 시스템 속성으로 넘긴다
+def mockPgJar = project(':mock-pg').tasks.named('bootJar').flatMap { it.archiveFile }
+
 tasks.named('test') {
-    dependsOn ':prepareTestInfra'
+    dependsOn ':prepareTestInfra', ':mock-pg:bootJar'
+    inputs.file(mockPgJar).withPropertyName('mockPgJar').withPathSensitivity(PathSensitivity.NONE)
+    doFirst {
+        systemProperty 'mockPg.jar', mockPgJar.get().asFile.absolutePath
+    }
 }
