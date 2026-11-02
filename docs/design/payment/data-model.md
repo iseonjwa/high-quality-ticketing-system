@@ -12,6 +12,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | `V4__dead_letters.sql` | `dead_letters`(ISE-138) | M3 |
 | `V5__billing_keys.sql` | `billing_keys`(ISE-96, 아래 11절) | M2 |
 | `V6__outbox_failed_key_index.sql` | `outbox_events`의 `(message_key, id) WHERE status = 'FAILED'` 부분 인덱스(ISE-145, 릴레이가 같은 키의 앞선 `FAILED`를 찾을 때). 처음에 `V5`로 만들었으나 같은 날 먼저 머지된 `V5__billing_keys.sql`과 버전이 겹쳐 `V6`으로 옮겼다(ISE-155) | M3 |
+| `V7__idempotency_expires_index.sql` | `idempotency_records(expires_at)` 인덱스(ISE-146, 만료 기록 정리가 오래된 순으로 읽을 때) | M3 |
 | (이후 M3 이슈) | `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).
@@ -135,6 +136,7 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | created_at | TIMESTAMPTZ | NOT NULL | |
 
 - `INDEX(resource_id)`: 결제별 연결 키 조회(운영 확인용).
+- `INDEX(expires_at)`: 만료 기록 정리가 오래된 순으로 읽는다(V7, ISE-146).
 - 삭제는 `expires_at` 경과 + 연결 결제가 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 아닐 때만 한다([0022](../../decisions/0022-outbox-retry-and-retention.md)). ORIGIN·ALIAS 모두 같다.
 
 ## 6. outbox_events

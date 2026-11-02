@@ -115,6 +115,7 @@ class PaymentResultKafkaConfiguration {
 - **재시도와 FAILED**: 일시 오류는 횟수로 포기하지 않고 계속 재시도한다. 실패 기록은 `attempts`를 올리고 `next_attempt_at = 지금 + min(500ms × 2^(k-1), 60s)`의 50~100%(equal jitter)로 정하며 임대를 바로 푼다. 영구 오류(`SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 원인 사슬에 있을 때)만 `FAILED`로 바꾸고 ERROR 로그(`event=OUTBOX_FAILED`)를 남긴다. 그 밖의 예외는 모두 일시 오류다. `FAILED`는 같은 키의 뒤 행을 막고, 복구는 Ops `outbox requeue`(ISE-42)다.
 - **실행기**: `OutboxRelayScheduler`가 단일 스레드 실행기(`outbox-relay`)를 `SmartLifecycle`로 소유한다. `@Scheduled`와 `@EnableScheduling`을 쓰지 않으므로, 쓰는 서비스가 다른 `@Scheduled`를 쓰려면 자기 설정에서 `@EnableScheduling`을 켠다. `TaskScheduler`·`ScheduledExecutorService` 빈은 만들지 않는다(Boot 기본 스케줄러가 빠진다). `relay-enabled=false`면 실행기를 만들지 않는다.
 - **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
+- **보관 정리**: `RetentionCleanup`(`messaging.retention`)이 `deleteSentOutbox(cutoff, batchSize)`(`SENT`이고 `sent_at < cutoff`만. `PENDING`·`FAILED`는 지우지 않는다)와 `deleteProcessedEvents(cutoff, batchSize)`를 준다. 호출 한 번이 배치 하나·트랜잭션 하나이고 지운 행 수를 돌려준다. **빈으로 자동 등록되지 않는다**(`CommonOutboxConfiguration`에 없다). 정리가 필요한 서비스가 `new RetentionCleanup(jdbc, transactionManager)`를 직접 빈으로 등록하고, 주기 실행(배치 반복, 사이 쉼, 상한)은 서비스의 작업 실행기에서 한다(결제의 `CleanupJobs`·`HousekeepingConfiguration`). 배치 트랜잭션 안에서 `pg_try_advisory_xact_lock`을 잡아 다른 인스턴스가 쥐고 있으면 0을 돌려주므로, 지운 수가 배치 크기보다 작으면 멈추면 된다. `outbox_events.sent_at`과 `processed_events.processed_at`에 인덱스가 있어야 한다(아래 DDL). 서비스 고유 테이블의 정리는 `deleteBatch(lockKey, sql, args...)`로 같은 방식을 쓰고, 잠금 키는 작업마다 달라야 한다. 쓰는 서비스는 보관 기간과 토픽 보관 기간을 비교하는 기동 검증을 직접 둔다(결제의 `HousekeepingProperties`).
 - **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).
 - **전제**: 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서와 커밋 순서가 같다는 전제에 기댄다.
 
@@ -134,7 +135,9 @@ CREATE INDEX idx_outbox_events_pending_next_attempt ON outbox_events (next_attem
 CREATE INDEX idx_outbox_events_pending_message_key ON outbox_events (message_key, id) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_events_pending_id ON outbox_events (id) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_events_failed_message_key ON outbox_events (message_key, id) WHERE status = 'FAILED';
+CREATE INDEX idx_outbox_events_sent_at ON outbox_events (sent_at) WHERE status = 'SENT';
 CREATE TABLE processed_events (
     event_id UUID NOT NULL, consumer_group VARCHAR(100) NOT NULL, processed_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (event_id, consumer_group));
+CREATE INDEX idx_processed_events_processed_at ON processed_events (processed_at);
 ```
