@@ -17,7 +17,8 @@ class AccessPolicyTest {
             "POST, /api/v1/auth/refresh",
             "POST, /api/v1/auth/password-change",
             "GET, /api/v1/concerts",
-            "GET, /api/v1/concerts/10"
+            "GET, /api/v1/concerts/10",
+            "GET, /api/v1/lotteries/10"
     })
     void 공개_경로는_인증하지_않는다(String method, String path) {
         assertEquals(Access.PUBLIC, of(method, path));
@@ -31,7 +32,10 @@ class AccessPolicyTest {
             "GET, /api/v1/concerts/10/seats",
             "GET, /api/v1/users",
             "PUT, /api/v1/auth/login",
-            "GET, /api/v1/reservations/1"
+            "GET, /api/v1/reservations/1",
+            "GET, /api/v1/lotteries/10/entries/me",
+            "POST, /api/v1/lotteries/10/entries",
+            "DELETE, /api/v1/lotteries/10/entries/me"
     })
     void 공개로_지정하지_않은_요청은_로그인이_필요하다(String method, String path) {
         assertEquals(Access.USER, of(method, path));
