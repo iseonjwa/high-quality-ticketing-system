@@ -23,10 +23,10 @@ export function QueuePosition({
     <div data-slot="queue-position" className="grid gap-3">
       {/* 순번이 바뀔 때 화면 낭독기가 읽는다 */}
       <div aria-live="polite" className="grid gap-1">
-        <p className="text-title tabular-nums text-gray-900">
+        <p className="type-title tabular-nums text-gray-900">
           내 앞에 {numberFormat.format(position)}명
         </p>
-        <p className="text-body-sm text-gray-500">
+        <p className="type-body-sm text-gray-500">
           예상 대기 <span className="tabular-nums">{formatWaitTime(estimatedWaitSeconds)}</span>
         </p>
       </div>

@@ -10,12 +10,12 @@ export function RouteErrorPage() {
 
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-4 py-12">
-      <h1 className="text-title text-gray-900">문제가 생겼어요</h1>
+      <h1 className="type-title text-gray-900">문제가 생겼어요</h1>
       {/* field는 입력 칸 아래에 쓰는 톤이라 화면 단위 오류에서는 위험으로 보인다 */}
       <Alert variant={notice.tone === 'field' ? 'danger' : notice.tone}>
         <p>{notice.message}</p>
         {notice.traceId ? (
-          <p className="mt-1 text-caption text-gray-500">
+          <p className="mt-1 type-caption text-gray-500">
             문의 번호 <span className="tabular-nums">{notice.traceId}</span>
           </p>
         ) : null}

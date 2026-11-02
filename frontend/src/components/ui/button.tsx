@@ -7,7 +7,7 @@ import { Slot } from 'radix-ui'
 // 설계 4절: 주(default)·보조(outline)·위험(destructive), 크기 기본 44·큰 52.
 // ghost·link는 헤더처럼 버튼 모양이 부담스러운 곳에 쓴다.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding text-body-sm font-medium whitespace-nowrap transition-colors duration-(--dur-fast) ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding type-body-sm font-medium whitespace-nowrap transition-colors duration-(--dur-fast) ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -20,7 +20,7 @@ const buttonVariants = cva(
       size: {
         default: 'h-11 px-5',
         sm: 'h-9 px-3',
-        lg: 'h-[52px] px-6 text-body',
+        lg: 'h-[52px] px-6 type-body',
         icon: 'size-11',
         'icon-sm': 'size-9',
         'icon-lg': 'size-[52px]',

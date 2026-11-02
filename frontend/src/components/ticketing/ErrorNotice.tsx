@@ -29,7 +29,7 @@ export function ErrorNotice({ error, onRetry, onClose }: ErrorNoticeProps) {
     >
       <p>{notice.message}</p>
       {notice.traceId ? (
-        <p className="mt-1 text-caption text-gray-500">
+        <p className="mt-1 type-caption text-gray-500">
           문의 번호 <span className="tabular-nums">{notice.traceId}</span>
         </p>
       ) : null}

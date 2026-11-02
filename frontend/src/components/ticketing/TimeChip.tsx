@@ -61,7 +61,7 @@ export function TimeChip({ label, expiresAt, clock, onExpire }: TimeChipProps) {
       data-slot="time-chip"
       data-level={level}
       className={cn(
-        'inline-flex h-8 items-center gap-2 rounded-pill px-3 text-body-sm',
+        'inline-flex h-8 items-center gap-2 rounded-pill px-3 type-body-sm',
         classes.chip,
       )}
     >

@@ -6,7 +6,7 @@ import { cn } from 'cn'
 import { Toggle as TogglePrimitive } from 'radix-ui'
 
 const toggleVariants = cva(
-  "group/toggle inline-flex items-center justify-center gap-1 rounded-sm text-body-sm font-semibold whitespace-nowrap transition-all outline-none hover:bg-gray-100 hover:text-gray-900 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-gray-0 data-[state=on]:text-gray-900 data-[state=on]:shadow-sm data-[state=on]:hover:bg-gray-0 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/toggle inline-flex items-center justify-center gap-1 rounded-sm type-body-sm font-semibold whitespace-nowrap transition-all outline-none hover:bg-gray-100 hover:text-gray-900 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-gray-0 data-[state=on]:text-gray-900 data-[state=on]:shadow-sm data-[state=on]:hover:bg-gray-0 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

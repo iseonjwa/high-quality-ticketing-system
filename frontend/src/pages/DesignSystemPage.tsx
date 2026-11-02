@@ -64,7 +64,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-heading">{title}</CardTitle>
+        <CardTitle className="type-heading">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">{children}</CardContent>
     </Card>
@@ -82,8 +82,8 @@ export function DesignSystemPage() {
 
   return (
     <main className="flex flex-col gap-6">
-      <h1 className="text-title text-gray-900">디자인 시스템 확인 화면</h1>
-      <p className="text-body-sm text-gray-500">
+      <h1 className="type-title text-gray-900">디자인 시스템 확인 화면</h1>
+      <p className="type-body-sm text-gray-500">
         개발 서버에서만 보이는 화면이다. 상태별 컴포넌트를 한 번에 늘어놓는다.
       </p>
 
@@ -119,7 +119,7 @@ export function DesignSystemPage() {
               aria-describedby="ds-error-text"
               defaultValue="abc"
             />
-            <p id="ds-error-text" className="text-caption text-danger-600">
+            <p id="ds-error-text" className="type-caption text-danger-600">
               이메일 형식을 확인해 주세요
             </p>
           </div>
@@ -256,7 +256,7 @@ export function DesignSystemPage() {
       </Section>
 
       <Section title="좌석표 (최대 4석)">
-        <p className="text-body-sm text-gray-500">
+        <p className="type-body-sm text-gray-500">
           선택 {selectedSeatIds.length}석. A구역 1열 3·4번은 선택할 수 없음, B구역 일부는 추첨석,
           A구역 2열 8번은 방금 선택됨 표시다.
         </p>

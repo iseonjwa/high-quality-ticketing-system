@@ -5,7 +5,7 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } fro
 
 // 설계 4절: 바탕 -50, 글자·아이콘 -600(경고는 글자 -700). 색에만 기대지 않도록 변형마다 아이콘이 다르다.
 const alertVariants = cva(
-  'relative flex w-full items-start gap-3 rounded-md px-4 py-3 text-left text-body-sm',
+  'relative flex w-full items-start gap-3 rounded-md px-4 py-3 text-left type-body-sm',
   {
     variants: {
       variant: {
@@ -87,7 +87,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="alert-description" className={cn('text-body-sm', className)} {...props} />
+  return <div data-slot="alert-description" className={cn('type-body-sm', className)} {...props} />
 }
 
 export { Alert, AlertTitle, AlertDescription }

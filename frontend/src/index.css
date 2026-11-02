@@ -153,25 +153,39 @@
   --shadow-lg: 0 12px 32px rgba(20, 22, 30, 0.18);
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
 
-  --text-display: 32px;
-  --text-display--line-height: 40px;
-  --text-display--font-weight: 700;
-  --text-title: 24px;
-  --text-title--line-height: 32px;
-  --text-title--font-weight: 700;
-  --text-heading: 18px;
-  --text-heading--line-height: 26px;
-  --text-heading--font-weight: 600;
-  --text-body: 16px;
-  --text-body--line-height: 24px;
-  --text-body--font-weight: 400;
-  --text-body-sm: 14px;
-  --text-body-sm--line-height: 20px;
-  --text-body-sm--font-weight: 400;
-  --text-caption: 12px;
-  --text-caption--line-height: 16px;
-  --text-caption--font-weight: 500;
+/* Note: 글자 토큰은 `text-*`가 아니라 `type-*`로 둔다. `cn`(클래스 합치기)이 `text-body` 같은 사용자 `text-` 토큰을
+   글자 색으로 보고, 함께 쓴 `text-primary-foreground` 같은 색 클래스를 지운다. 값은 design-system.md 2-2절이다. */
+@utility type-display {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+}
+@utility type-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+@utility type-heading {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+@utility type-body {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+@utility type-body-sm {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+@utility type-caption {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
 }
 
 @layer base {

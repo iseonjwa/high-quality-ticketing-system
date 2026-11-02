@@ -31,7 +31,7 @@ export function Countdown({ targetAt, serverTime, onComplete }: CountdownProps) 
   }, [done])
 
   return (
-    <div role="timer" data-slot="countdown" className="text-display tabular-nums text-gray-900">
+    <div role="timer" data-slot="countdown" className="type-display tabular-nums text-gray-900">
       {formatCountdown(remaining)}
     </div>
   )

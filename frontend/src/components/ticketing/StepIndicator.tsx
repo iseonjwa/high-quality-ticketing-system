@@ -19,7 +19,7 @@ export function StepIndicator({ steps = BOOKING_STEPS, currentIndex }: StepIndic
             data-status={status}
             aria-current={status === 'current' ? 'step' : undefined}
             className={cn(
-              'flex items-center gap-2 text-body-sm',
+              'flex items-center gap-2 type-body-sm',
               status === 'current' ? 'font-semibold text-gray-900' : 'text-gray-500',
               index > 0 && 'before:mr-2 before:h-px before:w-6 before:bg-gray-200',
             )}
@@ -27,7 +27,7 @@ export function StepIndicator({ steps = BOOKING_STEPS, currentIndex }: StepIndic
             <span
               aria-hidden="true"
               className={cn(
-                'grid size-[22px] place-items-center rounded-full text-caption font-bold',
+                'grid size-[22px] place-items-center rounded-full type-caption font-bold',
                 status === 'done' && 'bg-primary-50 text-primary-600',
                 status === 'current' && 'bg-primary-600 text-white',
                 status === 'upcoming' && 'bg-gray-50 text-gray-500',
