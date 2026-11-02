@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -126,16 +127,23 @@ class LotteryAssignmentTest {
         assertTrue(assignmentService.assignNext().isEmpty());
     }
 
+    // ISE-153: 남은 추첨석이 없으면 승계 마감 전에는 닫지 않고(좌석 반환을 기다림), 마감 뒤에만 NO_SEAT로 FAILED다
     @Test
-    void 남은_추첨석이_모자라면_거절하고_NO_SEAT로_FAILED를_남긴다() {
+    void 남은_추첨석이_모자라면_승계_마감까지_기다리고_그_뒤에_NO_SEAT로_FAILED를_남긴다() {
         jdbc.update("UPDATE schedule_seats SET status = 'SOLD' WHERE schedule_id = ? AND id <> (SELECT min(id)"
                 + " FROM schedule_seats WHERE schedule_id = ?)", scheduleId, scheduleId);
         Long entryId = insertWinner(7301L, 2, 1);
 
         var rejected = assertThrows(AssignmentRejected.class, () -> assignmentService.assignNext());
-        assignmentService.markRejected(rejected.entryId(), rejected.reason());
-
         assertEquals(entryId, rejected.entryId());
+        assertFalse(assignmentService.markRejected(rejected.entryId(), rejected.reason()), "마감 전에는 닫지 않는다");
+        assertEquals("WON", entry(entryId).get("status"));
+        assertNull(entry(entryId).get("reservation_id"));
+
+        jdbc.update("UPDATE lotteries SET draw_at = now() - interval '31 minute',"
+                + " entry_end_at = now() - interval '32 minute' WHERE id = ?", lotteryId);
+        assertTrue(assignmentService.markRejected(rejected.entryId(), rejected.reason()));
+
         assertEquals("FAILED", entry(entryId).get("status"));
         assertEquals("NO_SEAT", entry(entryId).get("fail_reason"));
         assertEquals(0, billingRequests(entryId).size());

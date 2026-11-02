@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,8 @@ import java.util.UUID;
 @Repository
 @RequiredArgsConstructor
 public class JpaLotteryEntryRepository implements LotteryEntryRepository {
+
+    private static final long NO_ENTRY = -1L;
 
     private final SpringDataLotteryEntryRepository springDataLotteryEntryRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -71,8 +74,10 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     }
 
     @Override
-    public Optional<UnassignedWinner> lockNextUnassignedWinner() {
-        return springDataLotteryEntryRepository.lockNextUnassignedWinner().stream().findFirst()
+    public Optional<UnassignedWinner> lockNextUnassignedWinner(Collection<Long> skipEntryIds) {
+        // NOT IN ()은 SQL 문법 오류라 비어 있으면 존재할 수 없는 ID 하나를 넣는다
+        var skip = skipEntryIds.isEmpty() ? List.of(NO_ENTRY) : skipEntryIds;
+        return springDataLotteryEntryRepository.lockNextUnassignedWinner(skip).stream().findFirst()
                 .map(row -> new UnassignedWinner(((Number) row[0]).longValue(), ((Number) row[1]).longValue(),
                         ((Number) row[2]).longValue(), ((Number) row[3]).longValue(),
                         ((Number) row[4]).intValue()));
@@ -86,6 +91,11 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public boolean markAssignmentFailed(Long entryId, String reason) {
         return springDataLotteryEntryRepository.markAssignmentFailed(entryId, reason) == 1;
+    }
+
+    @Override
+    public boolean markNoSeatFailedAfterSuccessionDeadline(Long entryId) {
+        return springDataLotteryEntryRepository.markNoSeatFailedAfterSuccessionDeadline(entryId) == 1;
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.lottery.domain;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,13 +47,17 @@ public interface LotteryEntryRepository {
      * 아직 예매가 없는 당첨 응모 하나를 순위 순으로 집어 행 잠금을 건다. 다른 워커가 잡은 행은 건너뛴다(SKIP LOCKED, D10).
      * 부르는 쪽 트랜잭션이 끝날 때까지 잠금이 유지된다.
      */
-    Optional<UnassignedWinner> lockNextUnassignedWinner();
+    Optional<UnassignedWinner> lockNextUnassignedWinner(Collection<Long> skipEntryIds);
 
     // 당첨 응모에 예매를 연결하고 결제 시도 횟수를 1 올린다. WON이고 아직 예매가 없을 때만 바꾼다
     boolean linkReservation(Long entryId, Long reservationId);
 
     // 예매를 만들 수 없는 당첨(매수 한도 초과, 남은 자리 없음)을 FAILED로 바꾼다. WON이고 예매가 없을 때만
     boolean markAssignmentFailed(Long entryId, String reason);
+
+    // 남은 추첨석이 없어 배정하지 못한 당첨자를 승계 마감(추첨 후 30분)이 지났을 때만 FAILED(NO_SEAT)로 닫는다.
+    // 마감 전이면 false다. 앞 당첨자의 좌석 반환이 늦은 것일 수 있어 다음 주기에 다시 시도한다(ISE-153)
+    boolean markNoSeatFailedAfterSuccessionDeadline(Long entryId);
 
     // 결제 확정. 이 예매에 연결된 WON 응모만 PAID로 바꾼다
     boolean markPaid(Long reservationId);

@@ -23,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -284,6 +285,26 @@ class LotteryScenarioTest {
         assertEquals(first, ranks());
     }
 
+    // S11(ISE-153) 앞 당첨자의 좌석이 반환되기 전에 승계·배정이 돌아도 예비자는 탈락하지 않고, 반환 뒤 배정된다
+    @Test
+    void S11_좌석_반환이_늦어도_승계된_예비자가_탈락하지_않는다() {
+        setUpLottery(2, 1, 2);
+        enterAll(3, 1);
+        closeAndDraw();
+        assignAll();
+        Long declined = reservationsOfWinners().getFirst();
+
+        resultHandler.onFailed(declined, "CARD_DECLINED");
+        assertEquals(1, successionService.succeed(lotteryId));
+        assertEquals(0, assignAll().size(), "좌석이 아직 HELD라 배정하지 못한다");
+        assertEquals(2, countEntries("WON"), "승계된 예비자는 탈락하지 않고 기다린다");
+
+        releaseLikeResultConsumer(declined);
+        assertEquals(1, assignAll().size());
+        reservationsOfWinners().forEach(resultHandler::onPaid);
+        assertEquals(2, countEntries("PAID"));
+    }
+
     private void setUpLottery(int seatCount, int waitlistCount, int sSeats) {
         jdbc.update("INSERT INTO venue_seats (venue_id, section, row_no, seat_no, grade, created_at, updated_at)"
                 + " SELECT ?, 'B', 1, n, 'S', now(), now() FROM generate_series(1, ?) n", venueId, sSeats);
@@ -317,16 +338,19 @@ class LotteryScenarioTest {
         assertTrue(drawService.draw(lotteryId));
     }
 
-    // 배정 스케줄러 한 주기와 같다. 거절은 새 트랜잭션에서 FAILED로 남긴다
+    // 배정 스케줄러 한 주기와 같다. 거절은 새 트랜잭션에서 FAILED로 남기고, 닫지 않은 거절(NO_SEAT)은 이번 주기에 건너뛴다
     private List<Long> assignAll() {
         var assigned = new ArrayList<Long>();
+        var skipped = new HashSet<Long>();
         while (true) {
             try {
-                var next = assignmentService.assignNext();
+                var next = assignmentService.assignNext(skipped);
                 if (next.isEmpty()) return assigned;
                 assigned.add(next.get());
             } catch (AssignmentRejected rejected) {
-                assignmentService.markRejected(rejected.entryId(), rejected.reason());
+                if (!assignmentService.markRejected(rejected.entryId(), rejected.reason())) {
+                    skipped.add(rejected.entryId());
+                }
             }
         }
     }
