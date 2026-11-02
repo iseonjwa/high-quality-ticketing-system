@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -95,6 +96,11 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public boolean markFailed(Long reservationId, String reason) {
         return springDataLotteryEntryRepository.markFailed(reservationId, reason) == 1;
+    }
+
+    @Override
+    public Optional<Instant> findWonDrawAtByReservationId(Long reservationId) {
+        return springDataLotteryEntryRepository.findWonDrawAtByReservationId(reservationId).stream().findFirst();
     }
 
     @Override
