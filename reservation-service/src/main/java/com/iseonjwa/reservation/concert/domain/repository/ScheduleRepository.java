@@ -22,4 +22,7 @@ public interface ScheduleRepository {
 
     // 한 공연의 회차 전부(공연장 이름을 같이 읽는다). 시작 시각 오름차순이다
     List<Schedule> findByConcertIdWithVenue(Long concertId);
+
+    // until까지 예매가 열리고(같은 시각 포함) now에 아직 공연이 시작하지 않은 회차. 예매 오픈 시각 오름차순이다
+    List<Schedule> findOpenBy(Instant until, Instant now);
 }
