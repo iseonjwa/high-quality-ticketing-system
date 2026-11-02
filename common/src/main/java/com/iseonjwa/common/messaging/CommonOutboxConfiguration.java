@@ -16,7 +16,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.PlatformTransactionManager;
 import tools.jackson.databind.ObjectMapper;
 
@@ -29,11 +28,15 @@ import java.time.Duration;
  *
  * <p>쓰는 서비스는 spring-jdbc와 spring-kafka를 직접 선언하고, Flyway로 {@code outbox_events}와 {@code processed_events}
  * 테이블을 만든다. 시계는 {@code commonAuditingClock}을 쓰므로 {@code CommonJpaConfiguration}도 함께 가져와야 한다.
- * {@code messaging.outbox.relay-enabled=false}면 릴레이 스케줄러와 {@code @EnableScheduling}을 켜지 않는다(테스트).
+ * {@code messaging.outbox.relay-enabled=false}면 릴레이 실행기를 만들지 않는다(테스트). 릴레이는 {@code @Scheduled}를 쓰지
+ * 않고 전용 실행기를 직접 소유하므로 이 설정은 {@code @EnableScheduling}을 켜지 않는다.
  * 프로듀서의 {@code max.block.ms + delivery.timeout.ms}가 {@code send-timeout} 안에 들어오지 않으면 기동이 실패한다.
  */
 @Configuration(proxyBeanMethods = false)
 public class CommonOutboxConfiguration {
+    // 전송 시한을 넘긴 뒤 SENT·실패 기록 쓰기가 끝나길 기다리는 여유
+    private static final Duration STOP_MARGIN = Duration.ofSeconds(5);
+
     @Bean
     OutboxProperties outboxProperties(@Value("${messaging.outbox.batch-size:20}") int batchSize,
             @Value("${messaging.outbox.lease:30s}") Duration lease,
@@ -63,14 +66,14 @@ public class CommonOutboxConfiguration {
         return new OutboxRelay(repository, sender, clock, properties);
     }
 
-    // 스케줄링은 릴레이를 켰을 때만 활성화한다(relay-enabled=false면 앱 전체에도 켜지지 않는다)
+    // 릴레이 실행기는 릴레이를 켰을 때만 만든다. 종료 대기는 진행 중인 실행이 브로커 확인을 기다리는 최대 시간(전송 시한)보다 길게 잡는다
     @Configuration(proxyBeanMethods = false)
-    @EnableScheduling
     @ConditionalOnProperty(name = "messaging.outbox.relay-enabled", havingValue = "true", matchIfMissing = true)
     static class RelaySchedulingConfiguration {
         @Bean
-        OutboxRelayScheduler outboxRelayScheduler(OutboxRelay relay) {
-            return new OutboxRelayScheduler(relay);
+        OutboxRelayScheduler outboxRelayScheduler(OutboxRelay relay, OutboxProperties properties,
+                @Value("${messaging.outbox.interval:500ms}") Duration interval) {
+            return new OutboxRelayScheduler(relay, interval, properties.sendTimeout().plus(STOP_MARGIN));
         }
     }
 
