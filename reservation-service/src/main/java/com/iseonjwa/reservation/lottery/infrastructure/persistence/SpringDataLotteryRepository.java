@@ -58,6 +58,28 @@ interface SpringDataLotteryRepository extends JpaRepository<Lottery, Long> {
             """)
     List<Integer> lockForSuccession(@Param("id") Long id);
 
+    @Query(nativeQuery = true, value = """
+            SELECT l.id FROM lotteries l
+            WHERE l.status = 'DRAWN' AND l.deleted_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM lottery_entries e
+                              WHERE e.lottery_id = l.id AND e.status IN ('WON', 'WAITLISTED'))
+            ORDER BY l.draw_at, l.id
+            """)
+    List<Long> findFinishDueIds();
+
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM lotteries WHERE id = :id AND status = 'DRAWN' AND deleted_at IS NULL
+            FOR UPDATE SKIP LOCKED
+            """)
+    Optional<Lottery> lockForFinish(@Param("id") Long id);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE lotteries SET status = 'DONE', updated_at = now()
+            WHERE id = :id AND status = 'DRAWN'
+            """)
+    int markDone(@Param("id") Long id);
+
     // 추첨 트랜잭션이 다른 트랜잭션의 잠금을 오래 기다리지 않게 한다. 트랜잭션이 끝나면 원래 값으로 돌아간다
     @Query(nativeQuery = true, value = "SELECT set_config('lock_timeout', '3s', true)")
     String setLocalLockTimeout();

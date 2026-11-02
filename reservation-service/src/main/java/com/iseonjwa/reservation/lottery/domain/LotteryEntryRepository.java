@@ -80,4 +80,7 @@ public interface LotteryEntryRepository {
 
     // 승계 마감이 지난 DRAWN 추첨의 남은 예비자를 LOST로 바꾸고 바꾼 수를 돌려준다(D14)
     int closeExpiredWaitlists();
+
+    // 아직 끝나지 않은 응모(WON, 또는 승계될 수 있는 WAITLISTED)가 있는지. 있으면 종결하지 않는다(D14)
+    boolean hasUnsettled(Long lotteryId);
 }

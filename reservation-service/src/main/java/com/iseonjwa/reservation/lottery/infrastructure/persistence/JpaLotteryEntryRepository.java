@@ -123,4 +123,9 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     public int closeExpiredWaitlists() {
         return springDataLotteryEntryRepository.closeExpiredWaitlists();
     }
+
+    @Override
+    public boolean hasUnsettled(Long lotteryId) {
+        return springDataLotteryEntryRepository.hasUnsettled(lotteryId);
+    }
 }

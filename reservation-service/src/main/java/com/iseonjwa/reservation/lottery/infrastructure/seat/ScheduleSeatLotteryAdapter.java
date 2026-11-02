@@ -28,6 +28,16 @@ public class ScheduleSeatLotteryAdapter implements LotterySeatPort {
     }
 
     @Override
+    public int revertAllFromLottery(Long scheduleId, SeatGrade sourceGrade, Long actorId) {
+        return scheduleSeatRepository.revertAllFromLottery(scheduleId, sourceGrade, actorId);
+    }
+
+    @Override
+    public long countAllLotterySeats() {
+        return scheduleSeatRepository.countAllLotterySeats();
+    }
+
+    @Override
     public List<LotterySeat> findLotterySeats(Long scheduleId) {
         return toSeats(scheduleSeatRepository.findLotterySeats(scheduleId));
     }

@@ -55,6 +55,21 @@ public class JpaLotteryRepository implements LotteryRepository {
     }
 
     @Override
+    public List<Long> findFinishDueIds() {
+        return springDataLotteryRepository.findFinishDueIds();
+    }
+
+    @Override
+    public Optional<Lottery> lockForFinish(Long id) {
+        return springDataLotteryRepository.lockForFinish(id);
+    }
+
+    @Override
+    public boolean markDone(Long id) {
+        return springDataLotteryRepository.markDone(id) == 1;
+    }
+
+    @Override
     public boolean markDrawn(Long id) {
         springDataLotteryRepository.setLocalLockTimeout();
         return springDataLotteryRepository.markDrawn(id) == 1;
