@@ -14,6 +14,8 @@ export type TokenPair = z.infer<typeof tokenPairSchema>
 interface SessionState {
   accessToken: string | null
   refreshToken: string | null
+  // 재발급이 거절돼 세션이 끝났다. 로그인 화면이 "로그인이 끝났어요"를 보일지 정한다. 저장하지 않는다
+  expired: boolean
 }
 
 const SESSION_STORAGE_KEY = 'iseonjwa.session'
@@ -22,7 +24,7 @@ const SESSION_STORAGE_KEY = 'iseonjwa.session'
 // 새로고침해도 로그인이 유지되고 탭을 닫으면 사라진다. 서버는 사용자당 Refresh 토큰을 하나만 두고
 // 재발급마다 바꾸므로(RedisSessionStore) 여러 탭이 같은 토큰을 나눠 쓰면 먼저 재발급한 탭만 이긴다.
 export const sessionStore = createStore<SessionState>()(
-  persist((): SessionState => ({ accessToken: null, refreshToken: null }), {
+  persist((): SessionState => ({ accessToken: null, refreshToken: null, expired: false }), {
     name: SESSION_STORAGE_KEY,
     storage: createJSONStorage(() => sessionStorage),
     partialize: (state) => ({ refreshToken: state.refreshToken }),
@@ -30,14 +32,28 @@ export const sessionStore = createStore<SessionState>()(
 )
 
 export function saveTokens(tokens: TokenPair) {
-  sessionStore.setState({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken })
+  sessionStore.setState({
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expired: false,
+  })
 }
 
+// 사용자가 나갔다(로그아웃).
 export function clearSession() {
-  sessionStore.setState({ accessToken: null, refreshToken: null })
+  sessionStore.setState({ accessToken: null, refreshToken: null, expired: false })
+}
+
+// 서버가 이 세션을 더 받지 않는다(Refresh 토큰 만료·교체됨·폐기).
+export function expireSession() {
+  sessionStore.setState({ accessToken: null, refreshToken: null, expired: true })
 }
 
 // 화면이 로그인 여부로 경로를 막을 때 쓴다. Access 토큰이 없어도 Refresh 토큰이 있으면 첫 요청에서 재발급한다.
 export function useIsSignedIn(): boolean {
   return useStore(sessionStore, (state) => state.refreshToken !== null)
+}
+
+export function useIsSessionExpired(): boolean {
+  return useStore(sessionStore, (state) => state.expired)
 }

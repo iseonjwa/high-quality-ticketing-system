@@ -1,7 +1,7 @@
 import { ApiError } from '@/api/apiError'
 import { send } from '@/api/transport'
 import {
-  clearSession,
+  expireSession,
   saveTokens,
   sessionStore,
   tokenPairSchema,
@@ -38,7 +38,7 @@ async function runRefresh(): Promise<string> {
     })
   } catch (error) {
     if (isSessionEnded(error) && isSameSession(refreshToken)) {
-      clearSession()
+      expireSession()
     }
     throw error
   }

@@ -138,7 +138,11 @@ describe('일반 예매 흐름', () => {
 
     await logout()
 
-    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken: null })
+    expect(sessionStore.getState()).toEqual({
+      accessToken: null,
+      refreshToken: null,
+      expired: false,
+    })
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
   })
 })
