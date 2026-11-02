@@ -132,4 +132,10 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
               AND e.status = 'WAITLISTED'
             """)
     int closeExpiredWaitlists();
+
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (SELECT 1 FROM lottery_entries
+                           WHERE lottery_id = :lotteryId AND status IN ('WON', 'WAITLISTED'))
+            """)
+    boolean hasUnsettled(@Param("lotteryId") Long lotteryId);
 }

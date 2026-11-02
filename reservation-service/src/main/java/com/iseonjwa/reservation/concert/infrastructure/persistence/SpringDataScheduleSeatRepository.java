@@ -62,6 +62,20 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
     int updateGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
                                @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
 
+    // HELD·SOLD 추첨석도 등급만 되돌린다. 팔린 추첨석은 reservations.source로 구분하고,
+    // 종결 뒤 취소·만료로 풀린 좌석은 원래 등급으로 일반 판매에 나온다(D9)
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE schedule_seats
+            SET grade = :sourceGrade, updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
+            WHERE schedule_id = :scheduleId AND grade = 'LOTTERY' AND deleted_at IS NULL
+            """)
+    int updateAllGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
+                                  @Param("actorId") Long actorId);
+
+    @Query(nativeQuery = true, value = "SELECT count(*) FROM schedule_seats WHERE grade = 'LOTTERY' AND deleted_at IS NULL")
+    long countAllLotterySeats();
+
     @Query(nativeQuery = true, value = """
             SELECT ss.id, ss.section, vs.row_no, vs.seat_no
             FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id

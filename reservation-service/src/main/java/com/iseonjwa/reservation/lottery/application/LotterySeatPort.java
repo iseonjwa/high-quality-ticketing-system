@@ -25,6 +25,12 @@ public interface LotterySeatPort {
      */
     int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
 
+    // 종결(D9). 회차의 추첨석을 상태와 상관없이 모두 sourceGrade로 되돌리고, 되돌린 수를 돌려준다
+    int revertAllFromLottery(Long scheduleId, SeatGrade sourceGrade, Long actorId);
+
+    // 모든 회차의 남은 추첨석 수(지표)
+    long countAllLotterySeats();
+
     // 회차의 추첨석 전체를 ID 오름차순으로 읽는다. 추첨 배정 계산(SeatAllocator)에 넘긴다
     List<LotterySeat> findLotterySeats(Long scheduleId);
 

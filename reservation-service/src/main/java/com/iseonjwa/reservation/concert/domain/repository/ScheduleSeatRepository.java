@@ -19,6 +19,12 @@ public interface ScheduleSeatRepository {
     // 추첨 수정(D9). LOTTERY 좌석을 ID 내림차순으로 최대 seatCount개 sourceGrade로 되돌리고, 되돌린 수를 돌려준다
     int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
 
+    // 추첨 종결(D9). 회차의 LOTTERY 좌석을 상태와 상관없이 모두 sourceGrade로 되돌리고, 되돌린 수를 돌려준다
+    int revertAllFromLottery(Long scheduleId, SeatGrade sourceGrade, Long actorId);
+
+    // 남은 추첨석 지표. 진행 중인 추첨이 없는데 0이 아니면 반환이 빠진 것이다
+    long countAllLotterySeats();
+
     // 추첨 배정 계산(D9). 회차의 LOTTERY 좌석을 ID 오름차순으로, 옆자리 판정에 필요한 구역·열·번호와 함께 돌려준다
     List<LotterySeatRow> findLotterySeats(Long scheduleId);
 

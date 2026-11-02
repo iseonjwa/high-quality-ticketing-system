@@ -40,6 +40,16 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     }
 
     @Override
+    public int revertAllFromLottery(Long scheduleId, SeatGrade sourceGrade, Long actorId) {
+        return springDataScheduleSeatRepository.updateAllGradeFromLottery(scheduleId, sourceGrade.name(), actorId);
+    }
+
+    @Override
+    public long countAllLotterySeats() {
+        return springDataScheduleSeatRepository.countAllLotterySeats();
+    }
+
+    @Override
     public List<LotterySeatRow> findLotterySeats(Long scheduleId) {
         return toRows(springDataScheduleSeatRepository.findLotterySeatRows(scheduleId));
     }

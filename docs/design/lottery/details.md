@@ -71,7 +71,7 @@
 | 배정 워커 | 1초 | `WON AND reservation_id IS NULL` | 1명 = 1트랜잭션: 매수 한도 → 좌석(ID 오름차순) → 예매 HELD → 응모 연결 → outbox(D10) |
 | 승계 워커 | 1초 | `DRAWN AND draw_at + 30분 > now()` 추첨 행 `FOR UPDATE SKIP LOCKED` | 남은 좌석(`seat_count - WON·PAID 매수 합`)만큼 WAITLISTED를 순위 순으로 WON(매수 건너뛰기 규칙 동일). 예매는 배정 워커가 만든다(D13) |
 | 승계 마감 | 10초 | `DRAWN AND draw_at + 30분 <= now()` | 남은 WAITLISTED → LOST. 승계 쿼리도 같은 시각 조건을 가져 마감 뒤 승계가 없다 |
-| 종결 | 1분 | `DRAWN`이고 미종결 WON이 없음 | 한 트랜잭션: DRAWN → DONE, 그 회차 `LOTTERY` 좌석을 상태와 상관없이 `source_grade`로 되돌림(D9) |
+| 종결 | 1분 | `DRAWN`이고 미종결 응모(WON·WAITLISTED)가 없음, 추첨 행 `FOR UPDATE SKIP LOCKED` | 한 트랜잭션: DRAWN → DONE, 그 회차 `LOTTERY` 좌석을 상태와 상관없이 `source_grade`로 되돌림(D9). WAITLISTED도 기다리는 이유는 승계로 WON이 될 수 있어서다(11/2 ISE-91). 잠금 뒤 새 문장으로 다시 확인해 그 사이 커밋된 승계를 놓치지 않는다. 지표 `lottery.seats.remaining`(전체 남은 추첨석 수, 1분마다 갱신) |
 
 기존 코드에 붙는 훅 두 곳(예매 흐름 담당과 합의):
 - 11/2 상태(ISE-88): 시스템 선점(`SystemHoldPort` → `SystemSeatHoldService`, 선점 30분, `source = LOTTERY`, 일반 선점과 같은 잠금 순서·매수 한도)과 처리기 인터페이스 `LotteryPaymentResultHandler`를 만들었다. 아래 두 훅은 붙일 소비자·만료 스케줄러가 아직 없어(ISE-73·74, ISE-8) 그 코드가 생길 때 연결한다.

@@ -36,4 +36,17 @@ public interface LotteryRepository {
      * @return 추첨 좌석 수. 부르는 쪽 트랜잭션이 끝날 때까지 잠금이 유지된다
      */
     Optional<Integer> lockForSuccession(Long id);
+
+    // 미종결 응모(WON·WAITLISTED)가 없는 DRAWN 추첨 ID. 종결 후보다
+    List<Long> findFinishDueIds();
+
+    /**
+     * 종결할 DRAWN 추첨 행에 잠금을 건다. 다른 워커가 잡고 있으면 비어 있다. 승계 워커와 같은 행 잠금이라 승계와 종결이 엇갈리지 않는다.
+     *
+     * @return 잠근 추첨. 부르는 쪽 트랜잭션이 끝날 때까지 잠금이 유지된다
+     */
+    Optional<Lottery> lockForFinish(Long id);
+
+    // DRAWN일 때만 DONE으로 바꾼다
+    boolean markDone(Long id);
 }
