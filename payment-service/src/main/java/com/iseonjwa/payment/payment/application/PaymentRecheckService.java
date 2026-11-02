@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class PaymentRecheckService {
     // claim한 워커가 결과를 반영하기 전에 죽어도 이 시간이 지나면 다시 대상이 된다(7절). 조회 시한보다 충분히 길게 둔다
-    static final Duration LEASE = Duration.ofSeconds(30);
+    private static final Duration LEASE = Duration.ofSeconds(30);
     private static final String PERMIT_DENIED = "RECOVERY_PERMIT_DENIED";
 
     private static final Logger log = LoggerFactory.getLogger(PaymentRecheckService.class);
@@ -64,8 +64,12 @@ public class PaymentRecheckService {
     public boolean recheckNext() {
         var claim = claimNext();
         if (claim.isEmpty()) return false;
-        try (var permit = claim.get().permit()) {
-            resolve(claim.get(), permit);
+        try (var ignored = claim.get().permit()) {
+            resolve(claim.get());
+        } catch (RuntimeException | Error exception) {
+            // 주기 로그에는 결제 id가 없어서, 같은 건이 반복 실패해도 어느 건인지 알 수 없다
+            log.error("결제 재확인 처리 실패 paymentId={}", claim.get().paymentId(), exception);
+            throw exception;
         }
         return true;
     }
@@ -109,7 +113,8 @@ public class PaymentRecheckService {
         if (held != null) held.close();
     }
 
-    private void resolve(Claim claim, PgPermit permit) {
+    private void resolve(Claim claim) {
+        var permit = claim.permit();
         permit.callStarted();
         var result = findPayment(claim);
         permit.settle(result);
@@ -127,7 +132,10 @@ public class PaymentRecheckService {
     // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 결과를 모르는 것(Unknown)으로 다룬다
     private PgClient.PaymentLookupResult findPayment(Claim claim) {
         try {
-            return pg.findPayment(claim.pgOrderId());
+            var result = pg.findPayment(claim.pgOrderId());
+            if (result != null) return result;
+            log.error("PG 결제 조회 결과가 null이다 paymentId={}", claim.paymentId());
+            return new PgClient.Unknown(UnknownCause.PG_ERROR);
         } catch (RuntimeException exception) {
             log.error("PG 결제 조회 중 예외 paymentId={}", claim.paymentId(), exception);
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -145,6 +153,7 @@ public class PaymentRecheckService {
             held.callStarted();
             var result = preventLate(claim);
             held.settle(result);
+            logClientError(claim, result);
             switch (result) {
                 case PgClient.Prevented prevented ->
                         transitions.decline(claim.paymentId(), claim.status(), DeclineReason.NOT_SENT, StatusActor.SYSTEM);
@@ -157,7 +166,10 @@ public class PaymentRecheckService {
 
     private PgClient.LateApprovalResult preventLate(Claim claim) {
         try {
-            return pg.preventLateApproval(claim.pgOrderId());
+            var result = pg.preventLateApproval(claim.pgOrderId());
+            if (result != null) return result;
+            log.error("PG 늦은 승인 방지 결과가 null이다 paymentId={}", claim.paymentId());
+            return new PgClient.Unknown(UnknownCause.PG_ERROR);
         } catch (RuntimeException exception) {
             log.error("PG 늦은 승인 방지 중 예외 paymentId={}", claim.paymentId(), exception);
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -197,7 +209,7 @@ public class PaymentRecheckService {
         }
     }
 
-    private void logClientError(Claim claim, PgClient.PaymentLookupResult result) {
+    private void logClientError(Claim claim, Object result) {
         if (result instanceof PgClient.Unknown unknown && unknown.cause() == UnknownCause.CLIENT_ERROR) {
             // 요청이 PG에 거절됐다. CB에는 세지 않지만 우리 쪽 설정·코드 문제일 수 있어 알린다(INV-8)
             log.error("PG가 결제 조회를 거절했다(CLIENT_ERROR) paymentId={}", claim.paymentId());

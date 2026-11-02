@@ -297,6 +297,46 @@ class PaymentRecheckServiceTest {
     }
 
     @Test
+    void PG_조회_결과가_null이면_불확실로_다룬다() {
+        var payment = fixtures.due(PaymentStatus.REQUESTED, 0);
+        when(pg.findPayment(orderOf(payment))).thenReturn(null);
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.UNKNOWN, fixtures.reload(payment).getStatus());
+    }
+
+    @Test
+    void 늦은_승인_방지_결과가_null이면_불확실로_다룬다() {
+        var payment = fixtures.due(PaymentStatus.REQUESTED, 0);
+        when(pg.findPayment(orderOf(payment))).thenReturn(new PgClient.NotFound());
+        when(pg.preventLateApproval(orderOf(payment))).thenReturn(null);
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.UNKNOWN, fixtures.reload(payment).getStatus());
+    }
+
+    @Test
+    void 늦은_승인_방지_허가를_못_얻으면_호출하지_않고_다음_간격으로_재예약한다() {
+        var payment = fixtures.due(PaymentStatus.REQUESTED, 0);
+        when(pg.findPayment(orderOf(payment))).thenAnswer(invocation -> {
+            // 조회 직후 복구 그룹이 열린 상황을 만든다. 두 번째 허가를 얻지 못한다
+            recoveryGate.circuitBreaker().transitionToOpenState();
+            return new PgClient.NotFound();
+        });
+
+        assertTrue(recheck.recheckNext());
+
+        var rescheduled = fixtures.reload(payment);
+        assertEquals(PaymentStatus.UNKNOWN, rescheduled.getStatus());
+        assertEquals(1, rescheduled.getUnknownRetryCount(), "허가를 못 얻어도 이미 센 시도는 유지한다");
+        assertAbout(Duration.ofSeconds(10), rescheduled.getNextCheckAt());
+        assertEquals("RECOVERY_PERMIT_DENIED", fixtures.lastHistoryReason(payment));
+        verify(pg, never()).preventLateApproval(any());
+    }
+
+    @Test
     void claim_트랜잭션_안에서_Error가_나도_허가를_돌려준다() {
         fixtures.due(PaymentStatus.REQUESTED, 0);
         var maxPermits = recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls();
