@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
@@ -19,11 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link MockPgAdapter}를 실제 mock-pg 앱에 돌리는 계약 테스트(mock-pg.md 10절 단계 0 스파이크).
- * 응답 유실 방식(Valve)과 bootJar 별도 프로세스 기반이 동작하는지 먼저 확인한다.
+ * {@link MockPgAdapter}를 실제 mock-pg 앱에 돌리는 계약 테스트(mock-pg.md 1·10절). 가짜 서버가 아니라 실제 서버의
+ * 응답으로 어댑터의 해석을 확인한다.
  *
- * <p>TODO: ISE-102(PR 1)에서 공통 계약 {@code PgClientContractTest}를 상속하고, 같은 항목을 검사하는 이 클래스의
- * 테스트는 정리한다. 경과 시간 단정은 공통 계약에 없으므로 남긴다.
+ * <p>TODO: ISE-130에서 공통 계약 {@code PgClientContractTest}를 상속하고, 같은 항목을 검사하는 이 클래스의
+ * 테스트는 정리한다. 경과 시간 단정과 이관한 어댑터 고유 테스트는 공통 계약에 없으므로 남긴다.
  */
 class MockPgServerContractTest {
     // Note: 응답 유실이 연결이 끊겨서가 아니라 읽기 시한이 지나서 CONNECTION_LOST가 되는 경우를 걸러내려고
@@ -76,6 +77,37 @@ class MockPgServerContractTest {
         var found = assertInstanceOf(PgClient.Approved.class, client.findPayment(order));
 
         assertTrue(found.matches(BigDecimal.valueOf(50000), "KRW"));
+    }
+
+    @Test
+    void 승인되지_않은_주문은_늦은_승인을_막고_이후에도_승인으로_조회되지_않는다() {
+        var order = newOrder();
+
+        assertInstanceOf(PgClient.Prevented.class, client.preventLateApproval(order));
+
+        assertInstanceOf(PgClient.NotFound.class, client.findPayment(order));
+    }
+
+    @Test
+    void 이미_승인된_주문은_늦은_승인_방지가_승인_사실을_알린다() {
+        var order = newOrder();
+        var approved = assertInstanceOf(PgClient.Approved.class, client.approve(approveCommand(order)));
+
+        var already = assertInstanceOf(PgClient.AlreadyApproved.class, client.preventLateApproval(order));
+
+        assertEquals(approved.paymentRef(), already.paymentRef());
+        assertTrue(already.matches(BigDecimal.valueOf(50000), "KRW"));
+    }
+
+    // 이관: MockPgAdapterContractTest(가짜 서버)에서 옮겼다(mock-pg.md 1절)
+    @Test
+    void 망취소된_주문의_승인은_PG가_거부하므로_NOT_SENT로_거절한다() {
+        var order = newOrder();
+        client.preventLateApproval(order);
+
+        var declined = assertInstanceOf(PgClient.Declined.class, client.approve(approveCommand(order)));
+
+        assertEquals(DeclineReason.NOT_SENT, declined.reason());
     }
 
     private static PgOrderId newOrder() {

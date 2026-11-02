@@ -1,6 +1,5 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
-import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.pg.PgClientContractTest;
 import com.iseonjwa.payment.pg.PgScenario;
 import com.iseonjwa.payment.pg.application.PgClient;
@@ -90,16 +89,6 @@ class MockPgAdapterContractTest extends PgClientContractTest {
         client().refund(refundCommand(approved, refundId));
 
         assertEquals(1, server.refundCount(refundId.value().toString()));
-    }
-
-    @Test
-    void 망취소된_주문의_승인은_PG가_거부하므로_NOT_SENT로_거절한다() {
-        var order = newOrder();
-        client().preventLateApproval(order);
-
-        var declined = assertInstanceOf(PgClient.Declined.class, client().approve(approveCommand(order)));
-
-        assertEquals(DeclineReason.NOT_SENT, declined.reason());
     }
 
     @Test
