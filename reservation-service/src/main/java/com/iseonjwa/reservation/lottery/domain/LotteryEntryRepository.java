@@ -29,4 +29,15 @@ public interface LotteryEntryRepository {
 
     // 추첨 대상. 취소한 응모는 빠진다(D5). 추첨 스케줄러(ISE-87)가 순위 계산에 넘긴다
     List<DrawEntrant> findDrawEntrants(Long lotteryId);
+
+    // 추첨 결과 중 당첨·예비만 순위와 함께 배치로 저장한다(D8 쓰기 줄이기)
+    void saveDrawResults(List<DrawResult> results);
+
+    // 남은 ENTERED를 한 문장으로 LOST로 바꾼다. 낙첨에는 순위를 저장하지 않는다(11/2 결정)
+    int markRemainingLost(Long lotteryId);
+
+    /**
+     * @param drawRank 전체 응모 중 순위(1부터). 예비자는 이 값의 오름차순으로 승계한다
+     */
+    record DrawResult(long entryId, LotteryEntryStatus status, int drawRank) {}
 }
