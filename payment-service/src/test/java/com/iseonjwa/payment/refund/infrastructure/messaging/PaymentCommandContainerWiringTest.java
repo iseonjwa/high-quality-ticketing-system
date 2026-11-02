@@ -1,6 +1,6 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
-import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;

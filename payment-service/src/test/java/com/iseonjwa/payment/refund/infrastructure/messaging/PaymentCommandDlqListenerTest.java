@@ -2,7 +2,8 @@ package com.iseonjwa.payment.refund.infrastructure.messaging;
 
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
-import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
+import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.refund.application.RefundRequestService;
 import com.iseonjwa.payment.refund.domain.DeadLetterRepository;
 import com.iseonjwa.payment.refund.domain.DeadLetterResolution;
@@ -335,7 +336,7 @@ class PaymentCommandDlqListenerTest {
         var kafka = mock(KafkaOperations.class);
         when(kafka.send(any(ProducerRecord.class))).thenReturn(CompletableFuture.completedFuture(null));
         var original = new ConsumerRecord<Object, Object>(ORIGIN_TOPIC, TEST_PARTITION, 4_000_000_000L, "k", "{not json");
-        var handler = PaymentCommandErrorHandlers.create(kafka, new FixedBackOff(1, 1));
+        var handler = ConsumerErrorHandlers.retryThenDeadLetter(kafka, new FixedBackOff(1, 1));
         handler.handleRemaining(new ListenerExecutionFailedException("failed", new NonRetryableMessageException("봉투 오류")),
                 List.of(original), mock(Consumer.class), mock(MessageListenerContainer.class));
         var captor = org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);

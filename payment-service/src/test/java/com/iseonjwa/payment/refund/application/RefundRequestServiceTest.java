@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.support.RefundFixtures;
 import com.iseonjwa.payment.support.RefundFixtures.CreatedPayment;
 import org.junit.jupiter.api.AfterEach;

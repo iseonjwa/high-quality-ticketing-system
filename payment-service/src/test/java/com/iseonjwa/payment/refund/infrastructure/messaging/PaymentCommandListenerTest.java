@@ -1,6 +1,6 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
-import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.refund.application.RefundRequestService;
 import com.iseonjwa.payment.refund.application.RefundRequestedPayload;
 import org.junit.jupiter.api.BeforeEach;
