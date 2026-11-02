@@ -81,7 +81,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 
 1. 한 주기(기본 1초 간격)에 최대 20건`[가정]`을 한 건씩 처리한다. 한 건은 한 트랜잭션에서 후보 하나를 `next_check_at <= now()` 순으로 `FOR UPDATE SKIP LOCKED`로 잠근다. 처리할 건이 없거나 허가를 못 얻으면 그 주기를 끝낸다.
 2. 잠근 직후 `pg-recovery` 허가를 얻는다(`PgRecoveryGate.tryAcquire`). 못 얻으면(CB OPEN·Bulkhead 초과) 아무것도 바꾸지 않고 트랜잭션을 끝내 claim하지 않고 다음 주기로 넘긴다. 이때는 시도 횟수를 세지 않는다.
-3. claim: 같은 트랜잭션에서 조건부 UPDATE로 `next_check_at = now() + 30초`(임대), 시도 횟수 + 1. 1행일 때만 커밋하고 계속한다.
+3. claim: 같은 트랜잭션에서 조건부 UPDATE로 `next_check_at = now() + 30초`(임대), 시도 횟수 + 1. 1행일 때만 계속한다(0행이어도 커밋하고 주기를 끝낸다).
 4. 트랜잭션 밖에서 PG를 부르고, 결과를 조건부 UPDATE로 반영한다(2절).
 
 결제 재확인(`REQUESTED`는 TX1이 `next_check_at`을 저장 + 10초로 채워 10초 뒤 대상이 된다):
@@ -91,7 +91,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 | `Approved`, 금액·통화 일치 | `APPROVED` + Outbox `PaymentApproved` |
 | `Approved`, 금액·통화 불일치 | `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`, 즉시 알림 |
 | `Declined` | `DECLINED` + Outbox `PaymentDeclined` |
-| `NotFound` | `preventLateApproval`: `Prevented`면 `DECLINED(NOT_SENT)` + `PaymentDeclined`, `AlreadyApproved`면 `Approved`와 같게 처리, `Unknown`이면 다음 간격 |
+| `NotFound` | `preventLateApproval`: `Prevented`면 `DECLINED(NOT_SENT)` + `PaymentDeclined`, `AlreadyApproved`면 `Approved`와 같게 처리, `Unknown`이면 다음 간격. 늦은 승인 방지 허가를 못 얻으면 `Unknown`과 같게 다음 간격(시도 횟수는 센다. 9번째면 운영자 확인) |
 | `Unknown` | `REQUESTED`면 `UNKNOWN`으로, 이미 `UNKNOWN`이면 `next_check_at`만 갱신 |
 
 환불 워커(`REQUESTED`·`UNKNOWN` 환불):
@@ -104,7 +104,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 | `RefundRejected` | 환불 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`, 알림. `FAILED`는 쓰지 않는다 |
 | `Unknown` | `REQUESTED`면 `UNKNOWN`으로, 이미 `UNKNOWN`이면 `next_check_at`만 갱신 |
 
-간격은 SA 9-4대로 10초×6회 → 1분 → 5분 → 15분이다. 실제로 PG를 부른 9번째 호출도 확정하지 못하면 `NEEDS_MANUAL_CHECK`(`PG_UNRESOLVED`·`REFUND_UNRESOLVED`)다(약 21분). CB OPEN으로 부르지 못한 주기는 세지 않으므로 PG 전체 장애 중에는 횟수가 줄지 않고, 그동안의 체류는 최고령 지표와 알림이 본다([observability.md](observability.md)). 확정 때만 이벤트를 발행한다.
+간격은 SA 9-4대로 10초×6회 → 1분 → 5분 → 15분이다. 실제로 PG를 부른 9번째 호출도 확정하지 못하면 `NEEDS_MANUAL_CHECK`(`PG_UNRESOLVED`·`REFUND_UNRESOLVED`)다(약 22분, 10초×6 + 1분 + 5분 + 15분 = 1320초). CB OPEN으로 부르지 못한 주기는 세지 않으므로 PG 전체 장애 중에는 횟수가 줄지 않고, 그동안의 체류는 최고령 지표와 알림이 본다([observability.md](observability.md)). 확정 때만 이벤트를 발행한다.
 
 ## 7. 실행기와 DB 연결
 
@@ -117,7 +117,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 | `housekeeping` | 정리(10분`[가정]`), Gauge 갱신(15초), 대사(5분`[가정]`) | 1 | 1 |
 | Kafka 리스너 | `payment.command`, `payment.command.dlq` | 각 1 | 2 |
 
-- `recovery`는 Spring `TaskScheduler` 빈이 아니라 재확인 컴포넌트가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. `TaskScheduler` 빈을 만들면 Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외는 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈춘다). 설정은 `payment.recheck.{enabled,interval,max-per-tick}`다.
+- `recovery`는 Spring `TaskScheduler` 빈이 아니라 재확인 컴포넌트가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. `TaskScheduler` 빈을 만들면(`ScheduledExecutorService` 빈도 같다. Boot 4.1.2의 `TaskSchedulingConfigurations`가 `@ConditionalOnMissingBean({TaskScheduler, ScheduledExecutorService})`라서 ISE-39에서 실행기를 빈으로 노출하면 같은 문제가 생긴다) Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외와 Error는 `Throwable`로 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈추고 예외는 아무도 읽지 않는 Future에만 남는다). 종료할 때는 새 claim을 먼저 멈추고(`stopping` 플래그) 진행 중인 한 건을 최대 15초 기다린다(한 건 최악 시간이 claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션으로 약 7초라서). 설정은 `payment.recheck.{enabled,interval,max-per-tick}`다.
 - 각 작업은 끝날 때 `payment_job_last_success_timestamp{job}`을 갱신하고, 실패는 `payment_job_failures_total{job}`으로 센다. 정체 알림이 이 값을 본다.
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.
