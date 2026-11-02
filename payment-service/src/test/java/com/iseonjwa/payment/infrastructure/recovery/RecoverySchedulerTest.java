@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.infrastructure.recovery;
 
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
+import com.iseonjwa.payment.refund.application.RefundWorkerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 class RecoverySchedulerTest {
     private final PaymentRecheckService recheck = mock(PaymentRecheckService.class);
+    private final RefundWorkerService refundWorker = mock(RefundWorkerService.class);
 
     private RecoveryJob job(int maxPerTick) {
         return new RecoveryJob("recheck", Duration.ofMillis(10), maxPerTick, recheck::recheckNext);
@@ -154,13 +156,14 @@ class RecoverySchedulerTest {
     private ApplicationContextRunner contextRunner() {
         return new ApplicationContextRunner()
                 .withBean(PaymentRecheckService.class, () -> recheck)
+                .withBean(RefundWorkerService.class, () -> refundWorker)
                 .withUserConfiguration(RecoveryConfiguration.class);
     }
 
     @Test
     void 모든_작업이_꺼져_있으면_스케줄러를_만들지_않는다() {
         contextRunner()
-                .withPropertyValues("payment.recheck.enabled=false")
+                .withPropertyValues("payment.recheck.enabled=false", "payment.refund-worker.enabled=false")
                 .run(context -> {
                     assertEquals(0, context.getBeansOfType(RecoveryJob.class).size());
                     assertEquals(0, context.getBeansOfType(RecoveryScheduler.class).size());
@@ -168,11 +171,33 @@ class RecoverySchedulerTest {
     }
 
     @Test
-    void enabled를_주지_않으면_재확인_작업이_등록되고_스케줄러가_시작된다() {
+    void enabled를_주지_않으면_두_작업이_등록되고_스케줄러가_시작된다() {
         contextRunner()
-                .withPropertyValues("payment.recheck.interval=10s")
+                .withPropertyValues("payment.recheck.interval=10s", "payment.refund-worker.interval=10s")
                 .run(context -> {
-                    assertEquals(1, context.getBeansOfType(RecoveryJob.class).size());
+                    assertEquals(2, context.getBeansOfType(RecoveryJob.class).size());
+                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                });
+    }
+
+    @Test
+    void 환불_워커만_꺼도_재확인_작업과_스케줄러는_남는다() {
+        contextRunner()
+                .withPropertyValues("payment.refund-worker.enabled=false", "payment.recheck.interval=10s")
+                .run(context -> {
+                    assertEquals(List.of("recheck"), context.getBeansOfType(RecoveryJob.class).values().stream()
+                            .map(RecoveryJob::name).toList());
+                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                });
+    }
+
+    @Test
+    void 재확인만_꺼도_환불_워커_작업과_스케줄러는_남는다() {
+        contextRunner()
+                .withPropertyValues("payment.recheck.enabled=false", "payment.refund-worker.interval=10s")
+                .run(context -> {
+                    assertEquals(List.of("refund-worker"), context.getBeansOfType(RecoveryJob.class).values().stream()
+                            .map(RecoveryJob::name).toList());
                     assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
                 });
     }

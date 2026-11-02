@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.infrastructure.recovery;
 
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
+import com.iseonjwa.payment.refund.application.RefundWorkerService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,12 +18,19 @@ import java.util.List;
  * 선언 순서대로 평가되기 때문이다.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(PaymentRecheckProperties.class)
+@EnableConfigurationProperties({PaymentRecheckProperties.class, RefundWorkerProperties.class})
 public class RecoveryConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "payment.recheck", name = "enabled", havingValue = "true", matchIfMissing = true)
     RecoveryJob recheckJob(PaymentRecheckService recheck, PaymentRecheckProperties properties) {
         return new RecoveryJob("recheck", properties.interval(), properties.maxPerTick(), recheck::recheckNext);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "payment.refund-worker", name = "enabled", havingValue = "true",
+            matchIfMissing = true)
+    RecoveryJob refundWorkerJob(RefundWorkerService worker, RefundWorkerProperties properties) {
+        return new RecoveryJob("refund-worker", properties.interval(), properties.maxPerTick(), worker::processNext);
     }
 
     @Bean
