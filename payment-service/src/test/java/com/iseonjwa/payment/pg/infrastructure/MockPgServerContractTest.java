@@ -103,7 +103,7 @@ class MockPgServerContractTest {
     @Test
     void 망취소된_주문의_승인은_PG가_거부하므로_NOT_SENT로_거절한다() {
         var order = newOrder();
-        client.preventLateApproval(order);
+        assertInstanceOf(PgClient.Prevented.class, client.preventLateApproval(order));
 
         var declined = assertInstanceOf(PgClient.Declined.class, client.approve(approveCommand(order)));
 
