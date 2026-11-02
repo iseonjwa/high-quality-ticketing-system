@@ -1,6 +1,6 @@
 # 결제 데이터 모델
 
-payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
+payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33), V3·V4는 환불과 DLQ 이슈에서 구현했다(ISE-136·138). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
 
 ## 1. 마이그레이션 순서
 
@@ -8,8 +8,10 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 |---|---|---|
 | `V1__payment_core.sql` | `payments`, `payment_status_histories`, `idempotency_records`, `outbox_events`, `processed_events` | M2 |
 | `V2__outbox_claim_index.sql` | `outbox_events`의 릴레이용 부분 인덱스 `(id) WHERE status = 'PENDING'`(ISE-24 리뷰, 아래 6절) | M2 |
-| `V3__refund_and_recovery.sql` | `refunds`, `dead_letters`, `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`) | M3 |
-| `V4__billing_key.sql` | `billing_keys` | M4 |
+| `V3__refunds.sql` | `refunds`(ISE-136) | M3 |
+| `V4__dead_letters.sql` | `dead_letters`(ISE-138) | M3 |
+| (이후 M3 이슈) | `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
+| (M4) | `billing_keys` | M4 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).
 
@@ -172,6 +174,9 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 
 - CHECK: `status <> 'RESOLVED' OR resolution IS NOT NULL`.
 - `INDEX(status, created_at) WHERE status = 'OPEN'`(최고령 Gauge).
+- 구현(ISE-138, `V4__dead_letters.sql`): `created_at`은 NOT NULL이다. `refund_id`는 `refunds(id)` FK다. 제약 이름은 `uq_dead_letters_event_key`, `chk_dead_letters_status`·`chk_dead_letters_resolution`·`chk_dead_letters_resolved`, 인덱스 이름은 `idx_dead_letters_open_created_at`이다. 엔티티 없이 JDBC 저장소(`JdbcDeadLetterRepository`)로 읽고 쓴다.
+- `event_key`: `eventId`를 읽었으면 그 값, 아니면 **원본** `topic-partition-offset`이다(DLQ 레코드의 위치가 아니다). 같은 원본 메시지가 DLQ에 두 번 들어와도 한 건이 되게 하려는 것이다([events-and-reliability.md](events-and-reliability.md) 5절 구현 메모). 봉투 검사에 실패한 메시지는 `eventId` 필드가 있어도 위치 키를 쓰고 `event_id`는 NULL이다.
+- DLQ 처리기는 `AUTO_PERSISTED`·`DUPLICATE`만 쓰고 `REPLAYED`·`NO_OBLIGATION`은 Ops `dead-letter resolve`가 쓴다.
 
 ## 9. manual_action_logs (M3, append-only)
 
