@@ -52,15 +52,33 @@ describe('AppLayout', () => {
   it('로그아웃하면 세션을 지우고 캐시를 비운 뒤 홈에서 로그인 링크를 다시 보인다', async () => {
     await signInAsDemo()
     const { router, queryClient } = renderRoutes(routes, '/no-such-page')
-    queryClient.setQueryData(['concerts'], ['이전 사용자의 조회 결과'])
+    queryClient.setQueryData(['users', 'me'], { email: '이전 사용자의 조회 결과' })
 
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
 
     expect(await screen.findByRole('link', { name: '로그인' })).toBeInTheDocument()
     expect(sessionStore.getState().refreshToken).toBeNull()
-    expect(queryClient.getQueryData(['concerts'])).toBeUndefined()
+    expect(queryClient.getQueryData(['users', 'me'])).toBeUndefined()
     expect(router.state.location.pathname).toBe('/')
     expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+  })
+
+  it('처음 화면에서 로그아웃해도 공개 조회인 공연 목록은 그대로 두어 깜빡이지 않는다', async () => {
+    await signInAsDemo()
+    const listRequests = recordRequests('/api/v1/concerts')
+    const { queryClient } = renderRoutes(routes, '/')
+    await screen.findByRole('link', { name: '노을섬 단독 콘서트 〈새벽의 좌석〉' })
+    queryClient.setQueryData(['users', 'me'], { email: '이전 사용자의 조회 결과' })
+
+    await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
+
+    expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+    expect(queryClient.getQueryData(['users', 'me'])).toBeUndefined()
+    expect(
+      screen.getByRole('link', { name: '노을섬 단독 콘서트 〈새벽의 좌석〉' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('공연 목록을 불러오고 있어요')).not.toBeInTheDocument()
+    expect(listRequests).toHaveLength(1)
   })
 
   it('로그아웃 요청을 기다리는 동안에는 로그인한 사용자 메뉴를 누를 수 없다', async () => {

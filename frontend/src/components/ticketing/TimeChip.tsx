@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { instantMillis } from '@/lib/instant'
 import { cn } from '@/lib/utils'
 import { formatRemaining } from '@/lib/format'
 import { useNow, type ServerClock } from '@/lib/serverClock'
@@ -37,7 +38,7 @@ interface TimeChipProps {
 // 1초보다 짧은 주기로 다시 계산해 "00:00"과 만료 처리 사이의 지연을 줄인다.
 export function TimeChip({ label, expiresAt, clock, onExpire }: TimeChipProps) {
   const now = useNow(250, clock)
-  const remaining = new Date(expiresAt).getTime() - now
+  const remaining = instantMillis(expiresAt) - now
   const level = timeChipLevel(remaining)
   const expired = remaining <= 0
 

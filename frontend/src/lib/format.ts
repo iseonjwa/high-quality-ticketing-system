@@ -1,3 +1,5 @@
+import { instantMillis } from '@/lib/instant'
+
 const numberFormat = new Intl.NumberFormat('ko-KR')
 
 const SECOND = 1000
@@ -51,4 +53,24 @@ export function formatWaitTime(seconds: number): string {
   return minutes === 0
     ? `약 ${numberFormat.format(hours)}시간`
     : `약 ${numberFormat.format(hours)}시간 ${numberFormat.format(minutes)}분`
+}
+
+// 공연·오픈 일시. 보는 사람의 시간대와 상관없이 한국 시각으로 "2026.11.20 (금) 19:00"처럼 쓴다(디자인 샘플 형식).
+// 서버는 Instant(`Z`)로 주므로 브라우저 시간대로 바꾸면 해외에서 날짜가 달라진다. 공연은 한국에서 열린다.
+const dateTimeParts = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+export function formatDateTime(iso: string): string {
+  const parts = Object.fromEntries(
+    dateTimeParts.formatToParts(instantMillis(iso)).map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}.${parts.month}.${parts.day} (${parts.weekday}) ${parts.hour}:${parts.minute}`
 }

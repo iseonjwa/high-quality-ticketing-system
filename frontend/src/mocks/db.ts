@@ -228,7 +228,18 @@ function createInitialState(nowMillis = Date.now()): MockState {
       {
         concertId: 7,
         title: '노을섬 단독 콘서트 〈새벽의 좌석〉',
-        description: '목 데이터로 만든 공연이다.',
+        description:
+          '목 데이터로 만든 공연이다.\n첫 회차는 예매 중이고, 둘째 회차는 10분 뒤에 오픈한다.',
+      },
+      {
+        concertId: 8,
+        title: '파란 정거장 2026 투어',
+        description: '목 데이터로 만든 공연이다. 오픈까지 이틀이 남았다.',
+      },
+      {
+        concertId: 9,
+        title: '미드나잇 오케스트라 〈별의 지도〉',
+        description: '목 데이터로 만든 공연이다. 모든 회차가 끝났다.',
       },
     ],
     schedules: [
@@ -246,6 +257,22 @@ function createInitialState(nowMillis = Date.now()): MockState {
         venueName: '한강 아트홀',
         startsAtMillis: nowMillis + 19 * DAY,
         openAtMillis: nowMillis + 10 * MINUTE,
+        maxPerUser: 4,
+      },
+      {
+        scheduleId: 41,
+        concertId: 8,
+        venueName: '부산 오션돔',
+        startsAtMillis: nowMillis + 25 * DAY,
+        openAtMillis: nowMillis + 2 * DAY + 3 * 60 * MINUTE,
+        maxPerUser: 2,
+      },
+      {
+        scheduleId: 51,
+        concertId: 9,
+        venueName: '서울 심포니홀',
+        startsAtMillis: nowMillis - DAY,
+        openAtMillis: nowMillis - 10 * DAY,
         maxPerUser: 4,
       },
     ],

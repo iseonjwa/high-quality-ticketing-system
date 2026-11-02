@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { instantMillis } from '@/lib/instant'
 import { formatCountdown } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useNow, type ServerClock } from '@/lib/serverClock'
 
 interface CountdownProps {
@@ -11,6 +13,8 @@ interface CountdownProps {
   // 화면 낭독기가 읽는 이름
   label?: string
   onComplete?: () => void
+  // 글자 크기를 바꿀 때 `type-*`를 넘긴다(기본 type-display)
+  className?: string
 }
 
 export function Countdown({
@@ -18,9 +22,10 @@ export function Countdown({
   clock,
   label = '오픈까지 남은 시간',
   onComplete,
+  className,
 }: CountdownProps) {
   const now = useNow(250, clock)
-  const remaining = new Date(targetAt).getTime() - now
+  const remaining = instantMillis(targetAt) - now
   const done = remaining <= 0
 
   const onCompleteRef = useRef(onComplete)
@@ -43,7 +48,7 @@ export function Countdown({
       role="timer"
       aria-label={label}
       data-slot="countdown"
-      className="type-display tabular-nums text-gray-900"
+      className={cn('type-display tabular-nums text-gray-900', className)}
     >
       {formatCountdown(remaining)}
     </div>

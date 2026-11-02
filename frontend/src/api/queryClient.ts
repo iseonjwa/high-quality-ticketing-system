@@ -35,3 +35,15 @@ export function queryRetryDelay(
       : Math.min(BASE_RETRY_DELAY_MILLIS * 2 ** attemptIndex, MAX_RETRY_DELAY_MILLIS)
   return Math.round(baseMillis * (1 + random() * RETRY_JITTER_RATIO))
 }
+
+// 로그인한 사용자와 상관없는 공개 조회의 키 첫 칸(concertQueryKeys). 로그아웃해도 그대로 둔다
+const PUBLIC_QUERY_ROOTS: readonly unknown[] = ['concerts']
+
+// 로그아웃 뒤 이전 사용자의 조회 결과를 비운다. 공개 조회는 남겨 처음 화면의 공연 목록이 깜빡이지 않게 한다.
+// Note: 지우지(removeQueries) 않고 초기화한다. 화면에 붙은 사용자 조회가 있으면 지울 때 캐시와 끊겨 이전 데이터가
+// 화면에 남지만, 초기화는 데이터를 비운다. 사용자 조회를 새로 만들면 키 첫 칸이 위 목록에 없게 둔다.
+export function resetUserQueries(queryClient: QueryClient): Promise<void> {
+  return queryClient.resetQueries({
+    predicate: (query) => !PUBLIC_QUERY_ROOTS.includes(query.queryKey[0]),
+  })
+}

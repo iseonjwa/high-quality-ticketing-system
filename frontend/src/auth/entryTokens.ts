@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isoDateTime } from '@/api/envelope'
+import { instantMillis } from '@/lib/instant'
 
 // 입장 토큰은 회차마다 sessionStorage에 둔다(`docs/design/queue/contracts.md` 2절, SA 11-5).
 // 만료 전이면 대기열을 건너뛰고, 403 ENTRY_TOKEN_INVALID를 받으면 지우고 대기열부터 다시 한다.
@@ -34,7 +35,7 @@ export function readEntryToken(scheduleId: number): StoredEntryToken | null {
 
 // 대기열을 건너뛸지 정할 때 쓴다. 서버 시각으로 보정한 값을 nowMillis로 넘기면 더 정확하다.
 export function isEntryTokenFresh(entry: StoredEntryToken, nowMillis = Date.now()): boolean {
-  return Date.parse(entry.expiresAt) > nowMillis
+  return instantMillis(entry.expiresAt) > nowMillis
 }
 
 // rejectedToken을 주면 저장한 토큰이 그것일 때만 지운다. 오래 걸린 요청의 403이

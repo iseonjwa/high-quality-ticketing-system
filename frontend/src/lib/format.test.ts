@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatCountdown, formatRemaining, formatWaitTime, formatWon } from '@/lib/format'
+import {
+  formatCountdown,
+  formatDateTime,
+  formatRemaining,
+  formatWaitTime,
+  formatWon,
+} from '@/lib/format'
 
 describe('formatWon', () => {
   it('천 단위 쉼표와 원을 붙인다', () => {
@@ -61,5 +67,19 @@ describe('formatWaitTime', () => {
   it('1시간 이상은 약 N시간 M분', () => {
     expect(formatWaitTime(3900)).toBe('약 1시간 5분')
     expect(formatWaitTime(3600)).toBe('약 1시간')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('서버가 준 Instant를 한국 시각의 월·일·요일·시각으로 쓴다', () => {
+    expect(formatDateTime('2026-11-20T10:00:00Z')).toBe('2026.11.20 (금) 19:00')
+  })
+
+  it('한국 시각으로 날짜가 바뀌는 시각도 한국 날짜로 쓴다', () => {
+    expect(formatDateTime('2026-11-02T15:30:00Z')).toBe('2026.11.03 (화) 00:30')
+  })
+
+  it('+09:00으로 온 시각도 같은 값이다', () => {
+    expect(formatDateTime('2026-11-20T19:00:00+09:00')).toBe('2026.11.20 (금) 19:00')
   })
 })
