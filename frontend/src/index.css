@@ -195,6 +195,72 @@
   }
 }
 
+/* 좌석(design-system.md 3절). 등급 색은 --c로 받는다. */
+@layer components {
+  .seat {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px 5px 3px 3px;
+    background: var(--c, var(--primary-600));
+    cursor: pointer;
+    transition:
+      transform var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast);
+  }
+  .seat:hover:not(:disabled) {
+    transform: scale(1.18);
+    box-shadow: var(--shadow-md);
+    z-index: 1;
+  }
+  .seat:focus-visible {
+    outline: 2px solid var(--primary-600);
+    outline-offset: 2px;
+  }
+  .seat[data-state='selected'] {
+    display: grid;
+    place-items: center;
+    background: var(--seat-selected);
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--primary-500);
+  }
+  .seat[data-state='selected']:focus-visible {
+    outline-offset: 5px;
+  }
+  .seat[data-state='unavailable'] {
+    background: var(--seat-unavailable);
+    cursor: not-allowed;
+  }
+  .seat[data-state='lottery'] {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--seat-lottery-a) 0 3px,
+      var(--seat-lottery-b) 3px 6px
+    );
+    box-shadow: inset 0 0 0 1px var(--seat-lottery-line);
+    cursor: not-allowed;
+  }
+  .seat[data-flashing] {
+    animation: seat-taken 1.6s var(--ease-out);
+  }
+}
+
+@keyframes seat-taken {
+  0%,
+  40% {
+    background: var(--danger-600);
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--danger-600);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
