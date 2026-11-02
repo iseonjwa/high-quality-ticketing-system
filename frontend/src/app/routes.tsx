@@ -1,10 +1,11 @@
 import type { RouteObject } from 'react-router'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
-import { HomePage } from '@/pages/HomePage'
 import { MyInfoPage } from '@/pages/MyInfoPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
+import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
+import { ConcertListPage } from '@/pages/concerts/ConcertListPage'
 import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
@@ -34,7 +35,8 @@ export const routes: RouteObject[] = [
       {
         errorElement: <RouteErrorPage />,
         children: [
-          { path: paths.home, element: <HomePage /> },
+          { path: paths.home, element: <ConcertListPage /> },
+          { path: paths.concert, element: <ConcertDetailPage /> },
           { path: paths.login, element: <LoginPage /> },
           { path: paths.signup, element: <SignupPage /> },
           { path: paths.passwordChange, element: <PasswordChangePage /> },
