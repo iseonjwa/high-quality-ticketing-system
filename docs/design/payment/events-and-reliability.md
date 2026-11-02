@@ -85,6 +85,18 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 - 메시지 내용 문제로는 예외를 던지지 않는다. 내용 문제는 `OPEN`으로 기록하고 커밋한다. 예외는 DB·인프라 오류뿐이라 메시지 하나가 파티션을 영구히 막지 않는다.
 - `.dlq` 토픽 보관은 7일`[가정]`이다. `OPEN` 건의 해결은 Ops `dead-letter resolve`다([manual-recovery.md](manual-recovery.md) 3절).
 
+### 구현 메모 (ISE-138)
+
+- 위치: 리스너는 `refund.infrastructure.messaging.PaymentCommandDlqListener`, 처리는 `refund.application.DeadLetterService`, 저장은 `dead_letters`(`V4__dead_letters.sql`, [data-model.md](data-model.md) 8절)다. 리스너는 `ConsumerRecord<String, String>`을 받아 봉투를 4절의 파서로 읽고(실패는 영구 오류를 잡아 "역직렬화·봉투 오류" 사유로 다룬다. 파싱은 트랜잭션 밖이라 rollback-only 문제가 없다) 서비스에 넘긴다.
+- `event_key`에 원본 위치를 쓰는 이유: 봉투를 읽지 못한 메시지의 키는 DLQ 레코드가 아니라 **원본** `topic-partition-offset`이다. 원본 위치는 Spring Kafka가 DLQ 레코드에 붙이는 `kafka_dlt-original-topic`(UTF-8)·`-partition`(4바이트 int)·`-offset`(8바이트 long) 헤더에서 읽는다. DLQ 전송은 성공했는데 원본 오프셋 커밋이 실패하면 원본이 다시 처리되어 같은 메시지가 DLQ에 두 번 들어오는데, 두 DLQ 레코드의 위치는 달라도 원본 위치는 같아서 한 건으로 묶인다. 헤더가 없거나 길이가 맞지 않으면(직접 넣은 메시지) DLQ 레코드 자신의 위치를 쓰고, `source_topic`·`source_partition`·`source_offset` 컬럼에도 같은 값을 넣는다. 봉투를 읽은 메시지는 `eventId`가 키라 다른 DLQ 레코드로 와도 한 건이다. 봉투 검사에서 걸린 메시지는 `eventId` 필드가 있어도 읽은 것으로 보지 않고 위치 키를 쓴다(`event_id`도 NULL).
+- 검증 재사용은 결과 값으로 한다: 4절의 교차 검증과 환불 생성을 `RefundRequestService`에서 `verify`(읽기만, `Valid(reason)`·`Invalid(message)`)와 `create`(원자적 생성, `Created`·`Duplicate`·`NotApproved`)로 나눴다. 소비자 경로(`handle`)는 `Invalid`·`NotApproved`를 `NonRetryableMessageException`으로 바꿔 던져 ISE-136 동작을 그대로 지킨다. DLQ 처리기는 내용 문제를 예외로 던지면 안 되는데, 바깥 트랜잭션에 참여한 코드가 예외를 던지면 그 트랜잭션이 rollback-only가 되어 예외를 삼켜도 커밋 때 `UnexpectedRollbackException`이 나기 때문이다(`ProcessedEventService.processOnce`의 Note). 결과 값이면 `OPEN` 기록으로 닫고 정상 커밋한다.
+- `processed_events`는 `processOnce`를 쓰지 않고 `ProcessedEventRepository.markProcessed`로 같은 트랜잭션에서 직접 쓴다. 중복 판단은 `dead_letters.event_key` UNIQUE가 먼저 하고(삽입이 0행이면 이미 처리한 메시지라 아무것도 하지 않고 끝난다), `processOnce`는 업무가 예외를 던지면 바깥 트랜잭션을 rollback-only로 만들기 때문이다. `processed_events`는 `eventId`를 읽었을 때만 쓴다.
+- 순서는 한 트랜잭션(`TransactionTemplate`)에서 `dead_letters` OPEN 삽입(`ON CONFLICT (event_key) DO NOTHING`, 사유는 우선 "처리 중") → `processed_events` → 파싱 실패면 `OPEN` 유지 → 검증 → 생성(`source=DLQ`) → 결과 반영이다. `Created`는 `RESOLVED(AUTO_PERSISTED)`와 `refund_id`, `Duplicate`는 `RESOLVED(DUPLICATE)`와 `refund_id`, `Invalid`·`NotApproved`는 `OPEN`과 사유다. 사유는 `VARCHAR(500)`이라 길면 자른다. 원문의 NUL 문자는 PostgreSQL 텍스트가 저장하지 못해 U+FFFD로 바꿔 저장한다(내용 때문에 예외가 나면 같은 메시지를 영원히 다시 처리하게 된다). DB·인프라 오류만 예외로 나가고 트랜잭션이 롤백되어 `dead_letters`·환불·`processed_events`가 모두 남지 않는다.
+- 오류 처리기와 컨테이너: `paymentCommandDlqListenerFactory`는 ISE-136 팩토리처럼 Boot configurer 적용 뒤 ack-mode `RECORD`, 동시성 1로 고정하고 전역 `CommonErrorHandler` 빈은 만들지 않는다. 오류 처리기는 복구기 없는 `DefaultErrorHandler`에 무제한 백오프(1초 시작, 2배, 최대 간격 60초, 횟수·경과 시간 제한 없음)를 쓴다. 다른 토픽으로 보내지 않고 건너뛰지도 않아서, DB 장애 동안 같은 레코드를 계속 다시 처리하며 오프셋을 커밋하지 않는다. 모든 예외를 재시도 대상으로 분류한다. `DefaultErrorHandler`는 기본으로 변환·역직렬화 예외를 재시도 없이 복구하고 기본 복구기는 로그만 남기고 건너뛰는데, 이 리스너에서 건너뛰면 환불 의무가 지워질 수 있기 때문이다.
+- 최대 간격 60초는 `max.poll.interval.ms`(기본 5분)보다 작다. 재시도 대기 중에는 컨슈머가 poll하지 못하므로 한 번의 대기가 이 시간을 넘으면 그룹에서 쫓겨나 리밸런스가 반복된다. 이 값을 키우려면 `max.poll.interval.ms`도 함께 본다.
+- `OPEN`으로 끝난 건은 커밋된 뒤 ERROR 로그(`event=DEAD_LETTER_OPEN`, `eventKey`, 사유)만 남긴다. 즉시 알림과 `OPEN` 건수·최고령 지표는 ISE-41에서 붙인다(TODO). `OPEN` 건의 해결(`REPLAYED`·`NO_OBLIGATION`)은 Ops `dead-letter resolve`라 이 이슈 범위 밖이다.
+- 테스트 범위: DLQ 레코드를 직접 만들어 리스너를 부르는 통합 테스트(실제 테스트 DB)로 표의 세 경우, 재전달 멱등, 원본 위치 키, DB 오류 시 롤백 뒤 재처리(N8)를 확인했다. 오류 처리기는 브로커 없이 단위로 확인한다(백오프가 60초에서 멈추고 끝나지 않는다, 복구기 없음). 실제 브로커에서 DLQ 토픽 소비와 오프셋 보존은 compose 스택에서 확인한다(미확인).
+
 ## 6. 재확인 스케줄러와 환불 워커 (SA 10-5)
 
 두 작업은 복구 실행기(7절)에서 돌고 PG 호출은 `pg-recovery` 그룹을 쓴다([pg-integration.md](pg-integration.md) 5절). 한 건의 처리 순서는 같다.
