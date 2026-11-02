@@ -157,5 +157,7 @@ describe('SeatMap', () => {
     expect(within(legend).getByText('선택함')).toBeInTheDocument()
     expect(within(legend).getByText('선택할 수 없음')).toBeInTheDocument()
     expect(within(legend).getByText('추첨석')).toBeInTheDocument()
+    // 견본은 누를 수 없고 버튼으로 나오지 않는다
+    expect(within(legend).queryByRole('button')).not.toBeInTheDocument()
   })
 })

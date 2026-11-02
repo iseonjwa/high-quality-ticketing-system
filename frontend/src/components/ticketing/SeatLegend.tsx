@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Check } from 'lucide-react'
 import { gradeColor } from '@/components/ticketing/grade'
 import { formatWon } from '@/lib/format'
 
@@ -14,7 +15,9 @@ function Swatch({ state, grade }: { state: string; grade?: string }) {
       data-state={state}
       style={grade ? ({ '--c': gradeColor(grade) } as CSSProperties) : undefined}
       className="seat pointer-events-none grid place-items-center"
-    />
+    >
+      {state === 'selected' ? <Check className="size-3.5 text-white" strokeWidth={3} /> : null}
+    </span>
   )
 }
 
