@@ -1,0 +1,55 @@
+# frontend/가 바뀐 PR과 main·dev push에서 포맷·린트·테스트·빌드를 검사한다.
+# build 워크플로와 같은 방식으로 항상 돌고, 프론트가 바뀌지 않았으면 단계만 건너뛴다.
+# 그래서 필수 검사로 지정해도 프론트와 무관한 PR의 머지를 막지 않는다.
+name: frontend
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 바뀐 영역 확인
+        id: changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: script/ci-changed-areas.sh "$BASE_SHA" "$HEAD_SHA"
+      - name: 프론트 검사 건너뜀
+        if: steps.changes.outputs.frontend != 'true'
+        working-directory: .
+        run: echo "frontend/가 바뀌지 않아 프론트 검사를 건너뛴다."
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.frontend == 'true'
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 의존성 설치
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm ci
+      - name: 포맷 검사
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run format:check
+      - name: 린트
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run lint
+      - name: 테스트
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm test
+      - name: 빌드
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run build
