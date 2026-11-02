@@ -73,16 +73,16 @@ public class PaymentRecheckService {
     // 후보 잠금 → 허가 → 임대를 한 트랜잭션으로 한다. 허가를 못 얻으면 아무것도 바꾸지 않고 끝난다
     private Optional<Claim> claimNext() {
         var heldPermit = new AtomicReference<PgPermit>();
-        Optional<Claim> claim;
+        var claimed = false;
         try {
-            claim = transactionTemplate.execute(status -> claimInTransaction(heldPermit));
-        } catch (RuntimeException exception) {
-            // 임대 커밋이 실패했다. 호출하지 않은 허가를 돌려준다(호출 결과로 세지 않는다)
-            closeIfHeld(heldPermit);
-            throw exception;
+            var claim = transactionTemplate.execute(status -> claimInTransaction(heldPermit));
+            claimed = claim.isPresent();
+            return claim;
+        } finally {
+            // Note: finally라서 Error가 나도 허가가 새지 않는다. 임대 커밋이 실패했거나 임대하지 못했으면 호출하지 않은
+            // 허가를 돌려주고(호출 결과로 세지 않는다), 정상 claim이면 recheckNext가 받아 쓴다
+            if (!claimed) closeIfHeld(heldPermit);
         }
-        if (claim.isEmpty()) closeIfHeld(heldPermit);
-        return claim;
     }
 
     private Optional<Claim> claimInTransaction(AtomicReference<PgPermit> heldPermit) {

@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -31,8 +32,10 @@ import static com.iseonjwa.payment.support.RecheckFixtures.AMOUNT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -50,7 +53,7 @@ class PaymentRecheckServiceTest {
     PaymentRecheckService recheck;
     @Autowired
     PaymentTransitionService transitions;
-    @Autowired
+    @MockitoSpyBean
     PaymentRepository payments;
     @Autowired
     Resilience4jPgRecoveryGate recoveryGate;
@@ -63,7 +66,7 @@ class PaymentRecheckServiceTest {
 
     @BeforeEach
     void setUp() {
-        reset(pg);
+        reset(pg, payments);
         recoveryGate.circuitBreaker().reset();
         fixtures = new RecheckFixtures(payments, jdbc);
         fixtures.parkOtherDuePayments();
@@ -291,6 +294,17 @@ class PaymentRecheckServiceTest {
         assertEquals("pg-tx-other", confirmed.getPgTxId());
         assertEquals(1, fixtures.historyCount(payment), "재확인의 0행 전이는 이력을 쓰지 않는다");
         assertEquals(1, fixtures.outboxCount(payment), "이벤트가 중복되지 않는다");
+    }
+
+    @Test
+    void claim_트랜잭션_안에서_Error가_나도_허가를_돌려준다() {
+        fixtures.due(PaymentStatus.REQUESTED, 0);
+        var maxPermits = recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls();
+        doThrow(new AssertionError("Error 시뮬레이션")).when(payments).claimRecheck(any(), any(), any(), any());
+
+        assertThrows(AssertionError.class, () -> recheck.recheckNext());
+
+        assertEquals(maxPermits, recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls());
     }
 
     private static PgOrderId orderOf(Payment payment) {

@@ -29,13 +29,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 @EnableConfigurationProperties(PaymentRecheckProperties.class)
 public class PaymentRecheckScheduler implements SmartLifecycle {
     static final int THREADS = 2;
-    private static final long STOP_WAIT_SECONDS = 5;
+    // 진행 중인 한 건의 최악 시간: claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션, 약 7초. 그 두 배 가까이 기다린다
+    private static final long STOP_WAIT_SECONDS = 15;
 
     private static final Logger log = LoggerFactory.getLogger(PaymentRecheckScheduler.class);
 
     private final PaymentRecheckService recheck;
     private final PaymentRecheckProperties properties;
     private ScheduledThreadPoolExecutor executor;
+    private volatile boolean stopping;
 
     public PaymentRecheckScheduler(PaymentRecheckService recheck, PaymentRecheckProperties properties) {
         this.recheck = recheck;
@@ -45,6 +47,7 @@ public class PaymentRecheckScheduler implements SmartLifecycle {
     @Override
     public synchronized void start() {
         if (executor != null) return;
+        stopping = false;
         executor = new ScheduledThreadPoolExecutor(THREADS, new RecoveryThreadFactory());
         executor.setRemoveOnCancelPolicy(true);
         var intervalMillis = properties.interval().toMillis();
@@ -54,6 +57,8 @@ public class PaymentRecheckScheduler implements SmartLifecycle {
     @Override
     public synchronized void stop() {
         if (executor == null) return;
+        // 새 claim을 멈춘다. 진행 중인 한 건은 shutdown 뒤에도 끝까지 처리한다
+        stopping = true;
         executor.shutdown();
         try {
             if (!executor.awaitTermination(STOP_WAIT_SECONDS, TimeUnit.SECONDS)) executor.shutdownNow();
@@ -72,15 +77,18 @@ public class PaymentRecheckScheduler implements SmartLifecycle {
     void runTick() {
         try {
             tick();
-        } catch (Exception exception) {
-            log.error("결제 재확인 주기 실패, 다음 주기에 계속한다", exception);
+            // TODO(ISE-41): payment_job_last_success_timestamp{job=recheck} 갱신
+        } catch (Throwable throwable) {
+            // Note: ScheduledThreadPoolExecutor는 주기 작업이 예외로 끝나면 다음 실행을 예약하지 않고, 예외는 아무도 읽지 않는
+            // Future에만 남는다. Error까지 여기서 잡아 로그를 남기고 다음 주기를 계속한다(Spring @Scheduled의 LOG_AND_SUPPRESS와 같다)
+            log.error("결제 재확인 주기 실패, 다음 주기에 계속한다", throwable);
         }
     }
 
     /** 한 주기. 처리한 건수를 돌려준다. */
     int tick() {
         var handled = 0;
-        while (handled < properties.maxPerTick() && !Thread.currentThread().isInterrupted()) {
+        while (handled < properties.maxPerTick() && !stopping && !Thread.currentThread().isInterrupted()) {
             if (!recheck.recheckNext()) break;
             handled++;
         }
