@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
@@ -11,18 +12,28 @@ export function AppLayout() {
   const isSignedIn = useIsSignedIn()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과가 남지 않게 캐시를 비우고 홈으로 보낸다.
+  // 진행 중에는 처리 중으로 둬 두 번 눌러도 요청과 토스트가 한 번만 나가게 한다.
   async function handleLogout() {
-    await logout()
-    queryClient.clear()
-    await navigate(paths.home)
-    toast('로그아웃했어요')
+    if (loggingOut) {
+      return
+    }
+    setLoggingOut(true)
+    try {
+      await logout()
+      queryClient.clear()
+      await navigate(paths.home)
+      toast('로그아웃했어요')
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   return (
     <div className="min-h-svh">
-      <header className="border-b border-gray-100 bg-gray-0">
+      <header className="sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
@@ -44,7 +55,7 @@ export function AppLayout() {
                 <Button asChild variant="ghost">
                   <Link to={paths.myReservations}>내 예매</Link>
                 </Button>
-                <Button variant="ghost" onClick={() => void handleLogout()}>
+                <Button variant="ghost" loading={loggingOut} onClick={() => void handleLogout()}>
                   로그아웃
                 </Button>
               </>

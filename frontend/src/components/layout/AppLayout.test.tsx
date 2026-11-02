@@ -1,12 +1,11 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { NonIndexRouteObject, RouteObject } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { routes } from '@/app/routes'
-import { AppLayout } from '@/components/layout/AppLayout'
-import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { sessionStore } from '@/auth/session'
-import { signInAsDemo } from '@/test/api'
+import { recordRequests, signInAsDemo } from '@/test/api'
 import { renderRoutes } from '@/test/render'
 
 describe('AppLayout', () => {
@@ -57,28 +56,43 @@ describe('RouteErrorPage', () => {
     })
   }
 
-  it('자식 경로가 던진 ApiError를 문구와 문의 번호로 보인다', () => {
-    renderRoutes(
-      [
-        {
-          element: <AppLayout />,
-          errorElement: <RouteErrorPage />,
-          children: [
-            {
-              errorElement: <RouteErrorPage />,
-              children: [{ path: '/boom', element: <ThrowingPage /> }],
-            },
-          ],
-        },
-      ],
-      '/boom',
-    )
+  // 실제 경로 목록의 화면 자리에 오류를 던지는 화면을 하나 끼운다. 안쪽 errorElement가 빠지면 헤더가 사라져 실패한다.
+  function routesWithThrowingPage(): RouteObject[] {
+    // 레이아웃과 화면 묶음 경로는 index 경로가 아니다
+    const layout = routes[0] as NonIndexRouteObject
+    const screens = layout.children?.[0] as NonIndexRouteObject
+    return [
+      {
+        ...layout,
+        children: [
+          {
+            ...screens,
+            children: [{ path: '/boom', element: <ThrowingPage /> }, ...(screens.children ?? [])],
+          },
+        ],
+      },
+    ]
+  }
+
+  it('화면이 던진 ApiError를 문구와 문의 번호로 보이고 헤더는 남긴다', () => {
+    renderRoutes(routesWithThrowingPage(), '/boom')
 
     expect(screen.getByText(/문의할 때 아래 번호를 알려 주세요/)).toBeInTheDocument()
     expect(screen.getByText('trace-abc-123')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '처음으로' })).toBeInTheDocument()
-    // 에러 화면에서도 헤더는 남는다
     expect(screen.getByRole('link', { name: '이선좌' })).toBeInTheDocument()
+  })
+
+  it('로그아웃을 두 번 눌러도 요청은 한 번만 나간다', async () => {
+    await signInAsDemo()
+    const logoutRequests = recordRequests('/api/v1/auth/logout')
+    renderRoutes(routes, '/')
+    const button = screen.getByRole('button', { name: '로그아웃' })
+
+    await userEvent.dblClick(button)
+
+    expect(await screen.findByRole('link', { name: '로그인' })).toBeInTheDocument()
+    expect(logoutRequests).toHaveLength(1)
   })
 })

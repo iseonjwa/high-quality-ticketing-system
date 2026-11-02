@@ -4,12 +4,13 @@ import { paths } from '@/app/paths'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
-// 레이아웃 경로의 errorElement. 헤더는 레이아웃이 그대로 그리므로 본문 자리만 채운다.
+// 경로의 errorElement. 화면이 던진 오류는 안쪽 경로가 받아 헤더 아래 본문 자리만 채우고,
+// 레이아웃 자체가 던진 오류는 바깥 경로가 받아 헤더 없이 이 화면만 보인다(그래서 가로 여백을 스스로 둔다).
 export function RouteErrorPage() {
   const notice = describeError(useRouteError())
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-4 py-12">
+    <main className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12 sm:px-0">
       <h1 className="type-title text-gray-900">문제가 생겼어요</h1>
       {/* field는 입력 칸 아래에 쓰는 톤이라 화면 단위 오류에서는 위험으로 보인다 */}
       <Alert variant={notice.tone === 'field' ? 'danger' : notice.tone}>
