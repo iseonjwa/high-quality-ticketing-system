@@ -1,5 +1,6 @@
-package com.iseonjwa.payment.infrastructure.recovery;
+package com.iseonjwa.payment.infrastructure.job;
 
+import com.iseonjwa.payment.infrastructure.recovery.RecoveryConfiguration;
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
 import com.iseonjwa.payment.refund.application.RefundWorkerService;
 import org.junit.jupiter.api.Test;
@@ -21,16 +22,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class RecoverySchedulerTest {
+class BackgroundJobSchedulerTest {
     private final PaymentRecheckService recheck = mock(PaymentRecheckService.class);
     private final RefundWorkerService refundWorker = mock(RefundWorkerService.class);
 
-    private RecoveryJob job(int maxPerTick) {
-        return new RecoveryJob("recheck", Duration.ofMillis(10), maxPerTick, recheck::recheckNext);
+    private BackgroundJob job(int maxPerTick) {
+        return new BackgroundJob("recheck", Duration.ofMillis(10), maxPerTick, recheck::recheckNext);
     }
 
-    private RecoveryScheduler scheduler(int maxPerTick) {
-        return new RecoveryScheduler(List.of(job(maxPerTick)));
+    private BackgroundJobScheduler scheduler(int maxPerTick) {
+        return new BackgroundJobScheduler("recovery", 2, List.of(job(maxPerTick)));
     }
 
     @Test
@@ -113,9 +114,9 @@ class RecoverySchedulerTest {
     void 두_작업이_등록되면_둘_다_recovery_스레드에서_돈다() throws Exception {
         var names = new ConcurrentHashMap<String, String>();
         var bothRan = new CountDownLatch(2);
-        var scheduler = new RecoveryScheduler(List.of(
-                new RecoveryJob("recheck", Duration.ofMillis(10), 20, () -> record(names, "recheck", bothRan)),
-                new RecoveryJob("refund", Duration.ofMillis(10), 20, () -> record(names, "refund", bothRan))));
+        var scheduler = new BackgroundJobScheduler("recovery", 2, List.of(
+                new BackgroundJob("recheck", Duration.ofMillis(10), 20, () -> record(names, "recheck", bothRan)),
+                new BackgroundJob("refund", Duration.ofMillis(10), 20, () -> record(names, "refund", bothRan))));
 
         scheduler.start();
         try {
@@ -131,11 +132,11 @@ class RecoverySchedulerTest {
     @Test
     void 한_작업이_예외를_던져도_다른_작업은_계속_돈다() throws Exception {
         var otherRuns = new CountDownLatch(3);
-        var scheduler = new RecoveryScheduler(List.of(
-                new RecoveryJob("recheck", Duration.ofMillis(10), 20, () -> {
+        var scheduler = new BackgroundJobScheduler("recovery", 2, List.of(
+                new BackgroundJob("recheck", Duration.ofMillis(10), 20, () -> {
                     throw new IllegalStateException("일시 장애");
                 }),
-                new RecoveryJob("refund", Duration.ofMillis(10), 20, () -> {
+                new BackgroundJob("refund", Duration.ofMillis(10), 20, () -> {
                     otherRuns.countDown();
                     return false;
                 })));
@@ -146,6 +147,28 @@ class RecoverySchedulerTest {
         } finally {
             scheduler.stop();
         }
+    }
+
+    @Test
+    void 이름_접두사가_다른_두_실행기는_서로_다른_스레드에서_돈다() throws Exception {
+        var names = new ConcurrentHashMap<String, String>();
+        var bothRan = new CountDownLatch(2);
+        var recovery = new BackgroundJobScheduler("recovery", 2, List.of(
+                new BackgroundJob("recheck", Duration.ofMillis(10), 20, () -> record(names, "recheck", bothRan))));
+        var housekeeping = new BackgroundJobScheduler("housekeeping", 1, List.of(
+                new BackgroundJob("cleanup", Duration.ofMillis(10), 20, () -> record(names, "cleanup", bothRan))));
+
+        recovery.start();
+        housekeeping.start();
+        try {
+            assertTrue(bothRan.await(5, TimeUnit.SECONDS), "두 작업이 모두 돌지 않았다: " + names);
+        } finally {
+            recovery.stop();
+            housekeeping.stop();
+        }
+
+        assertTrue(names.get("recheck").matches("recovery-\\d+"), names.get("recheck"));
+        assertTrue(names.get("cleanup").matches("housekeeping-\\d+"), names.get("cleanup"));
     }
 
     private static boolean record(ConcurrentHashMap<String, String> names, String job, CountDownLatch latch) {
@@ -165,8 +188,8 @@ class RecoverySchedulerTest {
         contextRunner()
                 .withPropertyValues("payment.recheck.enabled=false", "payment.refund-worker.enabled=false")
                 .run(context -> {
-                    assertEquals(0, context.getBeansOfType(RecoveryJob.class).size());
-                    var scheduler = context.getBean(RecoveryScheduler.class);
+                    assertEquals(0, context.getBeansOfType(BackgroundJob.class).size());
+                    var scheduler = context.getBean("recoveryScheduler", BackgroundJobScheduler.class);
                     assertFalse(scheduler.isRunning());
                     assertTrue(Thread.getAllStackTraces().keySet().stream()
                             .noneMatch(thread -> thread.getName().startsWith("recovery-")));
@@ -178,8 +201,8 @@ class RecoverySchedulerTest {
         contextRunner()
                 .withPropertyValues("payment.recheck.interval=10s", "payment.refund-worker.interval=10s")
                 .run(context -> {
-                    assertEquals(2, context.getBeansOfType(RecoveryJob.class).size());
-                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                    assertEquals(2, context.getBeansOfType(BackgroundJob.class).size());
+                    assertTrue(context.getBean("recoveryScheduler", BackgroundJobScheduler.class).isRunning());
                 });
     }
 
@@ -188,9 +211,9 @@ class RecoverySchedulerTest {
         contextRunner()
                 .withPropertyValues("payment.refund-worker.enabled=false", "payment.recheck.interval=10s")
                 .run(context -> {
-                    assertEquals(List.of("recheck"), context.getBeansOfType(RecoveryJob.class).values().stream()
-                            .map(RecoveryJob::name).toList());
-                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                    assertEquals(List.of("recheck"), context.getBeansOfType(BackgroundJob.class).values().stream()
+                            .map(BackgroundJob::name).toList());
+                    assertTrue(context.getBean("recoveryScheduler", BackgroundJobScheduler.class).isRunning());
                 });
     }
 
@@ -199,9 +222,9 @@ class RecoverySchedulerTest {
         contextRunner()
                 .withPropertyValues("payment.recheck.enabled=false", "payment.refund-worker.interval=10s")
                 .run(context -> {
-                    assertEquals(List.of("refund-worker"), context.getBeansOfType(RecoveryJob.class).values().stream()
-                            .map(RecoveryJob::name).toList());
-                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                    assertEquals(List.of("refund-worker"), context.getBeansOfType(BackgroundJob.class).values().stream()
+                            .map(BackgroundJob::name).toList());
+                    assertTrue(context.getBean("recoveryScheduler", BackgroundJobScheduler.class).isRunning());
                 });
     }
 }
