@@ -16,7 +16,7 @@
 | 그 밖의 409 | 이관. 첫 승인에 `DELAY`를 걸고 지연 중 같은 주문을 다시 승인해 `IN_FLIGHT` 409를 얻는다(3절) | ISE-130 |
 | 다른 결제의 환불 응답 | 이관 | ISE-132 |
 | 같은 주문 승인 1회 | 이관. 원장의 `approveCalls`로 단정 | ISE-128 |
-| 같은 환불 1회 | 이관. 원장의 `refundCalls`로 단정 | ISE-132 |
+| 같은 환불 1회 | 이관. 원장의 `refundCalls`로 단정. 계수가 필요해 ISE-128 이후에 옮기고, 그 전에는 가짜 서버에 둔다 | ISE-128 이후 |
 | 멱등 헤더(`Idempotency-Key`) | 이관. 원장이 헤더를 기록한다(2절) | ISE-128 |
 | 연결 불가 | 서버가 필요 없는 테스트라 어댑터 단위 테스트에 남긴다 | 이관 안 함 |
 | 본문 코드 없는 404 | 실제 앱이 만들 수 없는 응답이라 가짜 서버에 남긴다 | 이관 안 함 |
@@ -244,6 +244,13 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 
 거절 응답은 저장하지 않는다. 같은 `refundId`로 다시 보내면 조건을 다시 평가하고, 그 사이 조건이 바뀌었으면 성공할 수 있다. 거절된 환불의 환불 조회(GET)는 404다. 거절은 `refundCalls`에는 센다.
 
+구현 메모(ISE-132):
+- 후보 `Refunded`(`refundTxId`·`refundedAt` 포함)는 서비스가 `compute` 밖에서 만들어 원장에 넘긴다. 잠금 안에서 UUID와 시계를 부르지 않으려는 것이다. 판정 결과는 람다 밖으로 `AtomicReference`로 꺼낸다.
+- 2-1의 `compute`는 같은 `pgTxId`의 요청만 줄 세운다. 같은 `refundId`가 **다른 `pgTxId`**로 동시에 오면 서로 다른 키라 줄 세워지지 않으므로, 저장은 `refunds.putIfAbsent`로 하고 진 쪽은 `OTHER`로 답하며 누계를 늘리지 않는다. 잠금 순서는 승인이 `orders`→`paymentsByTx`, 환불이 `paymentsByTx`→`refunds`라 거꾸로 잡는 경로가 없다.
+- 승인된 결제가 없는 `pgTxId`는 `compute`가 null을 돌려줘 `paymentsByTx`에 항목이 생기지 않는다.
+- 거절은 저장하지 않으므로 거절된 `refundId`의 GET은 404다. `refundTxId`는 승인의 `pg-<UUID>` 관례를 따라 `rf-<UUID>`다.
+- `Idempotency-Key` 기록·호출 계수는 ISE-128, 환불 장애 주입과 `reset` API는 ISE-133에서 더한다. 어댑터가 보내는 `Idempotency-Key` 헤더는 지금은 무시한다.
+
 ## 9. 원장 조회 (S-28)
 
 `test`·`loadtest` 프로필 전용이다. 값은 모두 읽기 전용이다.
@@ -270,7 +277,7 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 | 2 | ISE-128 | 호출 계수·멱등 헤더 기록과 원장 조회(주문·요약, `inFlightCount`) | 이관 '같은 주문 승인 1회'(`approveCalls`)·'멱등 헤더' 통과, 409 응답도 계수에 들어감, 처리 중 승인이 `inFlightCount`에 잡힘, `local`·`prod`에서 원장 조회 API가 열리지 않음 |
 | 3 | ISE-129 | 승인·조회·망취소 운영형 장애 주입 확장(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭)과 프로필 제한 | 5절 모드×호출 적용 표대로 적용, `local`·`prod`에서 `/faults`가 없음, `test`·`loadtest`에서 운영형 설정 가능, `prod`와 `loadtest`를 함께 켜면 기동 실패 |
 | 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절 |
-| 5 | ISE-132 | 환불·환불 조회·환불 멱등(8절) | 같은 `refundId` 동시 환불에서 `refundedTotal`이 한 번만 늚, 이관 '다른 결제의 환불 응답'·'같은 환불 1회' 통과, 장애 주입이 필요 없는 공통 환불 테스트 2개(환불 성공, 조회 NotFound 뒤 재호출) 통과 |
+| 5 | ISE-132 | 환불·환불 조회·환불 멱등(8절) | 같은 `refundId` 동시 환불에서 `refundedTotal`이 한 번만 늚, 이관 '다른 결제의 환불 응답' 통과('같은 환불 1회'는 `refundCalls`가 필요해 ISE-128 이후), 장애 주입이 필요 없는 환불 테스트 2개(환불 성공, 조회 NotFound 뒤 재호출) 통과 |
 | 6 | ISE-133 | 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`), 주문 목록 원장 조회, 환불 원장 조회, `reset`(9절), 환불 `@Tag` 제외 해제 | 공통 계약 23개 전체와 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김 |
 
 ISE-130에서 환불 테스트를 제외하는 방법: 공통 테스트 메서드는 접근 제어자가 없고(package-private) 하위 클래스가 다른 패키지에 있어서 재정의해 `@Disabled`할 수 없다. 환불 성공·환불 1회 같은 테스트는 `scenario()`를 부르지 않아 시나리오 쪽 `assume`으로도 막을 수 없다. 환불 관련 테스트(리뷰 기준 6개, 구현 때 세어 확인)에 `@Tag`를 달고 ISE-130의 Gradle 태스크에서 제외한다. 공통 테스트 파일을 고치므로 ISE-130 범위에 든다. ISE-132에서 장애 주입이 필요 없는 두 테스트(환불 성공, 조회 NotFound 뒤 재호출)의 태그를 먼저 떼고, 나머지는 ISE-133에서 뗀다. 테스트마다 장애 설정을 `NONE`으로 되돌린다.

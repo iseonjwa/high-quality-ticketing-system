@@ -54,4 +54,7 @@ public interface PaymentRepository {
     // 승인 금액 불일치처럼 PG 거래 정보를 남겨야 하면 값을 넘기고, 재조회 소진처럼 없으면 null이다.
     boolean markNeedsManualCheck(Long id, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount,
             Instant approvedAt, Instant now);
+
+    /** 환불이 완료됐다. 환불 워커가 환불 전이와 같은 트랜잭션에서 부른다. */
+    boolean markRefunded(Long id, PaymentStatus from, Instant refundedAt, Instant now);
 }

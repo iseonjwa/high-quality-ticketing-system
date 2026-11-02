@@ -85,4 +85,9 @@ public class JpaPaymentRepository implements PaymentRepository {
             Instant approvedAt, Instant now) {
         return repository.markNeedsManualCheck(id, from.name(), pgTxId, pgApprovedAmount, approvedAt, now) == 1;
     }
+
+    @Override
+    public boolean markRefunded(Long id, PaymentStatus from, Instant refundedAt, Instant now) {
+        return repository.markRefunded(id, from.name(), refundedAt, now) == 1;
+    }
 }

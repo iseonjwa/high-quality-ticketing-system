@@ -145,6 +145,111 @@ class PaymentMigrationTest {
                 () -> jdbc.update("INSERT INTO processed_events VALUES (?, 'group-a', now())", eventId));
     }
 
+    @Test
+    void 환불_제약과_인덱스가_카탈로그에_존재한다() {
+        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'refunds'::regclass");
+        assertTrue(constraints.containsAll(List.of(
+                "uq_refunds_payment_id", "uq_refunds_pg_refund_id", "chk_refunds_amount", "chk_refunds_reason",
+                "chk_refunds_source", "chk_refunds_status", "chk_refunds_check_schedule", "chk_refunds_refunded")),
+                "누락된 제약이 있다: " + constraints);
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'refunds'");
+        assertTrue(indexes.containsAll(List.of("idx_refunds_next_check_at", "idx_refunds_unsettled_created_at")), indexes.toString());
+    }
+
+    @Test
+    void 결제_하나에_환불_행을_둘_만들_수_없다() {
+        var paymentId = approvedPaymentId(1101L);
+        insertRefund(paymentId, "REQUESTED", "now()", "NULL");
+        assertViolation("uq_refunds_payment_id", () -> insertRefund(paymentId, "REQUESTED", "now()", "NULL"));
+    }
+
+    @Test
+    void 같은_PG_환불_ID를_두_환불에_쓸_수_없다() {
+        var pgRefundId = UUID.randomUUID();
+        jdbc.update(refundSql("REQUESTED", "now()", "NULL"), approvedPaymentId(1102L), pgRefundId);
+        assertViolation("uq_refunds_pg_refund_id",
+                () -> jdbc.update(refundSql("REQUESTED", "now()", "NULL"), approvedPaymentId(1103L), pgRefundId));
+    }
+
+    @Test
+    void 다음_조회_시각_없이_REQUESTED_환불을_저장할_수_없다() {
+        var paymentId = approvedPaymentId(1104L);
+        assertViolation("chk_refunds_check_schedule", () -> insertRefund(paymentId, "REQUESTED", "NULL", "NULL"));
+    }
+
+    @Test
+    void 다음_조회_시각_없이_UNKNOWN_환불을_저장할_수_없다() {
+        var paymentId = approvedPaymentId(1105L);
+        assertViolation("chk_refunds_check_schedule", () -> insertRefund(paymentId, "UNKNOWN", "NULL", "NULL"));
+    }
+
+    @Test
+    void 환불_완료_시각_없이_REFUNDED_환불을_저장할_수_없다() {
+        var paymentId = approvedPaymentId(1106L);
+        assertViolation("chk_refunds_refunded", () -> insertRefund(paymentId, "REFUNDED", "NULL", "NULL"));
+    }
+
+    @Test
+    void 정해진_값이_아닌_환불_사유를_거절한다() {
+        var paymentId = approvedPaymentId(1107L);
+        assertViolation("chk_refunds_reason",
+                () -> jdbc.update(refundSql("REQUESTED", "now()", "NULL").replace("'CANCELED'", "'UNKNOWN_REASON'"),
+                        paymentId, UUID.randomUUID()));
+    }
+
+    @Test
+    void 정해진_값이_아닌_환불_경로와_상태를_거절한다() {
+        var paymentId = approvedPaymentId(1108L);
+        assertViolation("chk_refunds_source",
+                () -> jdbc.update(refundSql("REQUESTED", "now()", "NULL").replace("'EVENT'", "'MANUAL'"),
+                        paymentId, UUID.randomUUID()));
+    }
+
+    @Test
+    void 알_수_없는_환불_상태를_거절한다() {
+        var paymentId = approvedPaymentId(1109L);
+        assertViolation("chk_refunds_status", () -> insertRefund(paymentId, "DECLINED", "now()", "NULL"));
+    }
+
+    @Test
+    void 환불_금액이_0원_이하면_거절한다() {
+        var paymentId = approvedPaymentId(1110L);
+        assertViolation("chk_refunds_amount", () -> jdbc.update(
+                refundSql("REQUESTED", "now()", "NULL").replace("50000", "0"), paymentId, UUID.randomUUID()));
+    }
+
+    @Test
+    void 존재하지_않는_결제의_환불을_저장할_수_없다() {
+        assertViolation("refunds_payment_id_fkey", () -> insertRefund(999_999_999L, "REQUESTED", "now()", "NULL"));
+    }
+
+    @Test
+    void 환불_이력도_결제_이력_테이블에_REFUND로_저장한다() {
+        var paymentId = approvedPaymentId(1111L);
+        jdbc.update("""
+                INSERT INTO payment_status_histories (payment_id, target_type, from_status, to_status, actor, created_at)
+                VALUES (?, 'REFUND', NULL, 'REQUESTED', 'SYSTEM', now())""", paymentId);
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM payment_status_histories WHERE payment_id = ? AND target_type = 'REFUND'",
+                Integer.class, paymentId));
+    }
+
+    private long approvedPaymentId(long reservationId) {
+        approvedPayment(reservationId, "pg-tx-" + reservationId);
+        return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
+    }
+
+    private void insertRefund(long paymentId, String status, String nextCheckAt, String refundedAt) {
+        jdbc.update(refundSql(status, nextCheckAt, refundedAt), paymentId, UUID.randomUUID());
+    }
+
+    private static String refundSql(String status, String nextCheckAt, String refundedAt) {
+        return """
+                INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, next_check_at, refunded_at,
+                                    created_at, updated_at)
+                VALUES (?, ?, 50000, 'CANCELED', 'EVENT', '%s', %s, %s, now(), now())""".formatted(status, nextCheckAt, refundedAt);
+    }
+
     private void insertPayment(long reservationId, String status) {
         jdbc.update(insertSql(status, "next_check_at", "now() + interval '10 seconds'"), args(reservationId));
     }

@@ -87,4 +87,14 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
     int markNeedsManualCheck(@Param("id") Long id, @Param("from") String from, @Param("pgTxId") String pgTxId,
             @Param("pgApprovedAmount") BigDecimal pgApprovedAmount, @Param("approvedAt") Instant approvedAt,
             @Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE payments
+            SET status = 'REFUNDED', refunded_at = :refundedAt, next_check_at = NULL, updated_at = :now,
+                updated_by = NULL
+            WHERE id = :id AND status = :from
+            """)
+    int markRefunded(@Param("id") Long id, @Param("from") String from, @Param("refundedAt") Instant refundedAt,
+            @Param("now") Instant now);
 }

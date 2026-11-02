@@ -3,7 +3,6 @@ package com.iseonjwa.payment.pg.infrastructure;
 import com.iseonjwa.payment.pg.PgClientContractTest;
 import com.iseonjwa.payment.pg.PgScenario;
 import com.iseonjwa.payment.pg.application.PgClient;
-import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -103,17 +102,6 @@ class MockPgAdapterContractTest extends PgClientContractTest {
         server.answerLookupWithBareNotFound();
 
         assertEquals(new PgClient.Unknown(UnknownCause.CLIENT_ERROR), client().findPayment(newOrder()));
-    }
-
-    @Test
-    void 다른_결제의_환불_응답은_환불_완료로_받지_않는다() {
-        var approved = assertInstanceOf(PgClient.Approved.class, client().approve(approveCommand(newOrder())));
-        var refundId = newRefund();
-        client().refund(refundCommand(approved, refundId));
-
-        var result = client().findRefund(refundId, new PgPaymentRef("pg-other"));
-
-        assertEquals(new PgClient.Unknown(UnknownCause.PG_ERROR), result);
     }
 
     @Test

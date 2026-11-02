@@ -21,6 +21,9 @@ public interface SeatHoldInventoryRepository {
     // AVAILABLE인 좌석만 HELD로 바꾸고 바꾼 행 수를 돌려준다(SA 12-7). 요청 수보다 작으면 이미 잡힌 좌석이 섞인 것이다
     int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
 
+    // 추첨 당첨 예매용(D10). AVAILABLE인 LOTTERY 좌석만 HELD로 바꾸고 바꾼 행 수를 돌려준다. 일반 좌석은 잡지 않는다
+    int holdAvailableLotterySeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
+
     // HELD인 좌석만 AVAILABLE로 되돌리고 바꾼 행 수를 돌려준다. 선점 만료가 쓴다
     int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
 }
