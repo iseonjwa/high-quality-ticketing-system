@@ -12,7 +12,7 @@
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
-| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
+| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/frontend/`](design/frontend/README.md) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
 | 서비스 간 접점(contract) 변경 알림과 작업 전 확인 | [`guides/contract-issues.md`](guides/contract-issues.md) | Linear 라벨 `contract` |
@@ -40,7 +40,7 @@
 
 ## 외부 원본
 
-- Notion [SA MASTER v3.3](https://app.notion.com/p/6867bd823b7583f9896c81d8881f0004) — 설계 정본. 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)를 가져온 판이다(11/1, 10/31 추첨 결정까지). 이전 판인 [SA MASTER v3.2 (통합 회의 반영)](https://app.notion.com/p/94a7bd823b7582f1a2a50125bc85ca2d)(10/27), [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)(10/26 문서 통합)과 v3.1(10/26 결정 기록 반영)은 근거로 남긴다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
+- Notion [SA MASTER v3.3](https://app.notion.com/p/6867bd823b7583f9896c81d8881f0004) — 설계 정본. 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)를 가져온 판이다(11/1, 10/31 추첨 결정까지). 이전 판인 [SA MASTER v3.2 (통합 회의 반영)](https://app.notion.com/p/94a7bd823b7582f1a2a50125bc85ca2d)(10/27), [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)(10/26 문서 통합)과 v3.1(10/26 결정 기록 반영)은 근거로 남긴다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따르되, 저장소 `decisions/`가 대체한 결정은 저장소 기록을 따른다(`AGENTS.md` 대전제 4)
 - Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53) — 10/26 이전 정본, 근거 보관용
 - Notion [1차 SA 피드백](https://app.notion.com/p/4027bd823b758034966df87b7622c9b1) — sa-review/01과 같은 내용
 - Notion [발제문 원본](https://app.notion.com/p/4027bd823b758019a04dda70d6ae39ab), [첫날 회의](https://app.notion.com/p/4027bd823b7580b19317f4c4c8df4a08)
