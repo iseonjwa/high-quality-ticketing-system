@@ -67,7 +67,7 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 - **6단계 허가(ISE-37)**: 신규 승인 시도만 `pg-approve` 허가(Bulkhead·Circuit Breaker)를 TX1 앞에서 얻는다. 못 얻으면 503 `PG_UNAVAILABLE`이고 행·멱등 기록이 남지 않는다. 허가는 PG 호출 직후 결과로 정산하고(승인·거절은 성공, 결과를 모르면 실패), TX1 실패·만료 재검사로 PG를 부르지 않은 경우는 결과로 세지 않고 반환한다. 같은 키·기존 결제 응답은 허가 없이 나간다. 요청 처리 시간 제한(Gateway 3초)과 504 뒤 재시도는 Gateway 쪽 설정이고, 서버 처리는 클라이언트가 끊어도 계속된다(`PgProtectionApiTest`로 확인).
 - **요청 해시**: 토큰 원문이 해시에 들어가므로(SA의 "같은 본문") 같은 키로 재발급된 다른 토큰을 보내면 409 `IDEMPOTENCY_KEY_REUSED`다. 새 키로 보내면 ALIAS로 결과를 받는다. Reservation이 같은 예매에 토큰을 재발급하는지 확정되면 해시 기준(예: `(reservationId, amount, method)`)을 다시 정한다(0017 순서 변경이라 ADR 개정 필요).
 - **오류 분류**: PG 호출 전 구간(멱등 조회, 기존 결제 조회, TX1)의 DB 오류는 모두 503 `SERVICE_UNAVAILABLE`이다. PG 호출 뒤의 TX2는 어떤 예외든 롤백하고 202(`REQUESTED`)로 응답한다. `PgClient`가 예외를 던지면 결과를 모르는 것(`Unknown`)으로 다룬다. `amount`는 소수 없는 정수(15자리 이하)만 받는다.
-- **알려진 경합**: 재확인 스케줄러(ISE-38)가 `REQUESTED`를 닫은 사이 요청 스레드의 PG 호출이 승인되면 TX2가 0행이 되고 승인 정보가 기록되지 않는다. 지금은 ERROR 로그(`PG_APPROVED_NOT_RECORDED`)만 남기며 복구 규칙은 ISE-38 설계에서 정한다.
+- **알려진 경합**: 요청 스레드가 TX1 뒤 오래 멈춘 사이 재확인 스케줄러(ISE-38)가 `REQUESTED`를 바꾸면, 뒤늦게 PG 승인을 받은 TX2가 0행이 된다(0행이면 후속 쓰기가 없다는 규칙은 그대로다). 재확인이 `UNKNOWN`으로 바꾼 경우는 다음 간격에 PG를 조회해 `APPROVED`로 확정하므로 승인이 사라지지 않고, WARN `PG_APPROVED_RECHECK_PENDING`만 남긴다. 같은 승인이 이미 기록됐으면 조용히 넘긴다. `DECLINED`는 늦은 승인 방지(`Prevented`) 뒤에만 들어가고 그 뒤 도착한 승인은 PG가 `ORDER_CANCELED`로 거절하므로 이 경합에서 승인이 사라지지 않는다. 남는 위험은 PG가 이 계약을 어기는 경우뿐이고, 그때 ERROR `PG_APPROVED_NOT_RECORDED`를 남긴다(INV-8 남는 위험 #5).
 - **응답 저장**: ORIGIN의 200(`APPROVED`·`DECLINED`)과 202(`UNKNOWN`)만 TX2에서 저장한다. TX2가 실패하면 저장하지 못하고 202(`REQUESTED`)로 응답하며 재확인 스케줄러(ISE-38)가 10초 뒤 확정한다.
 
 ## 2. 결제 조회 `GET /api/v1/payments/{paymentId}`
