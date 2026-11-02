@@ -2,12 +2,19 @@
 // 브라우저 목 모드에서는 새로고침하면 처음 상태로 돌아간다.
 
 export const DEMO_USER = { email: 'demo@iseonjwa.dev', password: 'password1234' } as const
+// 운영자가 비밀번호를 초기화한 상태의 계정. 이 비밀번호로 로그인하면 403 PASSWORD_CHANGE_REQUIRED다
+export const TEMPORARY_PASSWORD_USER = {
+  email: 'temp@iseonjwa.dev',
+  password: 'TempPass2345',
+} as const
 
 const MINUTE = 60 * 1000
 const DAY = 24 * 60 * MINUTE
 
 // 숫자 기준은 서버 설정·SA 9-4와 같다
 export const ACCESS_TOKEN_SECONDS = 1800
+// config-repo/user-service.yml auth.max-login-failures
+export const MAX_LOGIN_FAILURES = 5
 export const ENTRY_TOKEN_MILLIS = 10 * MINUTE
 export const HOLD_MILLIS = 5 * MINUTE
 // 결제 토큰은 선점 만료 10초 전에 끝난다(SA 7-3)
@@ -19,6 +26,21 @@ export interface MockUser {
   password: string
   nickname: string
   role: 'USER' | 'ADMIN'
+  failedLoginCount: number
+  locked: boolean
+  passwordChangeRequired: boolean
+}
+
+const NEW_USER_SECURITY = {
+  failedLoginCount: 0,
+  locked: false,
+  passwordChangeRequired: false,
+} as const satisfies Partial<MockUser>
+
+export function newMockUser(
+  fields: Pick<MockUser, 'userId' | 'email' | 'password' | 'nickname' | 'role'>,
+): MockUser {
+  return { ...fields, ...NEW_USER_SECURITY }
 }
 
 export interface MockSchedule {
@@ -87,6 +109,8 @@ interface MockState {
   revokedAccessTokens: Set<string>
   // 사용자 ID → 현재 Refresh 토큰. 서버처럼 사용자당 하나이고 재발급마다 바뀐다
   refreshTokens: Map<number, string>
+  // 로그아웃·비밀번호 변경으로 폐기한 Refresh 토큰. 브라우저 목 모드가 처음 보는 토큰을 받아 줄 때도 이것은 거절한다
+  revokedRefreshTokens: Set<string>
   // `${scheduleId}:${userId}` → 남은 순번 조회 횟수
   queueEntries: Map<string, { pollsUntilReady: number; issuedEntryToken: string | null }>
   reservations: Map<number, MockReservation>
@@ -186,13 +210,17 @@ function createInitialState(nowMillis = Date.now()): MockState {
   return {
     nextId: 1000,
     users: [
-      { userId: 42, ...DEMO_USER, nickname: '데모', role: 'USER' },
-      {
+      newMockUser({ userId: 42, ...DEMO_USER, nickname: '데모', role: 'USER' }),
+      newMockUser({
         userId: 1,
         email: 'admin@iseonjwa.dev',
         password: 'password1234',
         nickname: '운영자',
         role: 'ADMIN',
+      }),
+      {
+        ...newMockUser({ userId: 43, ...TEMPORARY_PASSWORD_USER, nickname: '임시', role: 'USER' }),
+        passwordChangeRequired: true,
       },
     ],
     // 공연·장소 이름은 지어낸 것이다(디자인 샘플과 같다)
@@ -245,6 +273,7 @@ function createInitialState(nowMillis = Date.now()): MockState {
     expiredAccessTokens: new Set(),
     revokedAccessTokens: new Set(),
     refreshTokens: new Map(),
+    revokedRefreshTokens: new Set(),
     queueEntries: new Map(),
     reservations: new Map(),
     holdRequests: new Map(),
