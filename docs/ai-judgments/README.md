@@ -31,7 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 18건, 일지 3일 |
+| [junhyun](junhyun/README.md) | 개별 기록 23건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 39건, 일지 7일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
@@ -42,6 +42,10 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | **팀 규칙 변경: 결정·논의·학습 기록은 Notion보다 저장소 `docs/`에 먼저 남기고, 어긋나면 저장소 기록을 따른다(`AGENTS.md` 대전제 4). AI가 개인 전역 지침에 넣은 것을 바로잡음** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-docs-first-as-team-rule.md) |
+| 2026-11-02 | 프론트 결정은 Notion 결정 기록 #7을 고치지 않고 저장소 docs(ADR 0040, `docs/design/frontend/`)에 기록 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-records-in-docs-over-notion.md) |
+| 2026-11-02 | 프론트·Gateway 연결은 BFF 대신 nginx 중계. Gateway에 CORS를 넣지 않고 백엔드 계약도 그대로 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-frontend-relay-over-bff.md) |
+| 2026-11-02 | 프론트 스택: 팀 결정 #7(정적 HTML·JS)의 바꿀 조건을 근거로 저장소 안 `frontend/`의 React SPA로 전환, Spring Boot 내장은 하지 않음 (ADR 0040) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-frontend-react-spa.md) |
 | 2026-11-01 | 계약 ② 확정·머지 브랜치 삭제: 예매 흐름 담당 답과 소유자 동의를 기다리자는 추천 대신 바로 진행(문서에 확인 없이 확정했다고 명시) | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-01-contract-confirm-without-consumer-check.md) |
 | 2026-10-31 | 추첨 D6 변경: 자동결제 전용 그룹(동시 3)을 두지 않고 `pg-approve`(동시 10)를 함께 씀. 겹침 문제는 시나리오 2 트러블슈팅 소재 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-10-31-lottery-billing-share-approve-group.md) |
 | 2026-10-31 | 추첨 SA 반영: 후속 분리는 수용, 다른 담당 동의가 필요한 항목은 합의 대기 대신 선반영 후 보고 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-sa-sync-apply-first-report-later.md) |
