@@ -18,6 +18,11 @@ spring:
       port: ${TEST_REDIS_PORT:26379}
       timeout: 1s
   kafka:
+    producer:
+      properties:
+        # config-repo/reservation-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
+        delivery.timeout.ms: 10000
+        max.block.ms: 2000
     listener:
       auto-startup: false
 management:
@@ -37,6 +42,10 @@ queue:
 entry-token:
   # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다
   secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+messaging:
+  outbox:
+    # 테스트는 outbox 행만 확인한다. 릴레이가 돌면 테스트 데이터를 먼저 집어 간다
+    relay-enabled: false
 seathold:
   expiry:
     # 테스트는 스케줄러 메서드를 직접 호출한다. 백그라운드 주기가 테스트 데이터를 먼저 바꾸지 않게 끈다
