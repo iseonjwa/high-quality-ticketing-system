@@ -2,7 +2,7 @@
 
 시연용 웹 화면의 설계를 둔다. 결정과 이유는 [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md)에 있고, 이 문서는 팀원이 한 번에 볼 수 있게 결론을 모은다. 담당은 안준현이다(SA 6-8).
 
-상태: 구조·스택 결정(2026-11-02). 디자인 시스템은 다음 단계에서 이 폴더에 추가한다. 코드는 아직 없다.
+상태: 구조·스택 결정(2026-11-02). 디자인 시스템은 확정했다([design-system.md](design-system.md)). 화면마다 HTML 샘플을 먼저 만든다. 코드는 아직 없다.
 
 원칙: **백엔드에 집중하기 위해 프론트는 단순하게 간다.** 실서비스 구조(BFF, 앞단 대기실, 서버 렌더링 + CDN)는 확인했지만, 기간 한정 시연이라는 조건에 맞춰 가장 적은 구성으로 만든다. 무엇을 알고 무엇을 하지 않았는지는 ADR 0040 4절의 "학습한 실서비스 구조와 이번 선택" 표에 있다.
 
@@ -74,5 +74,6 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 | 종류 | 문서 |
 |---|---|
 | 결정 | [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) |
+| 디자인 시스템 | [design-system.md](design-system.md) (ISE-106), 샘플 화면 [samples/seat-selection.html](samples/seat-selection.html) |
 | AI 판단 | [React SPA 전환](../../ai-judgments/junhyun/2026-11-02-frontend-react-spa.md), [BFF 대신 nginx 중계](../../ai-judgments/junhyun/2026-11-02-frontend-relay-over-bff.md), [Notion 대신 저장소 문서에 기록](../../ai-judgments/junhyun/2026-11-02-records-in-docs-over-notion.md) |
 | 학습 노트 | [저장소 위치와 스택](../../learning/junhyun/qna/2026-11-02-frontend-repo-and-stack.md), [React와 함께 쓸 도구](../../learning/junhyun/qna/2026-11-02-react-spa-stack.md), [중계와 BFF, 실서비스라면](../../learning/junhyun/qna/2026-11-02-reverse-proxy-vs-bff.md), [앞단 대기실과 서버 대기열](../../learning/junhyun/qna/2026-11-02-waiting-room-vs-server-queue.md) |
