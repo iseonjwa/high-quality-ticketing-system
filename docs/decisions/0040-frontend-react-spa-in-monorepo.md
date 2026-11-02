@@ -58,7 +58,7 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 | 패키지 관리 | npm | Node에 기본으로 들어 있어 추가 설치가 없다 | pnpm |
 | 좌석 배치도 | SVG 또는 CSS Grid, 라이브러리 없음 | 좌석 행·번호가 정수(ADR 0033)라 좌표 계산이 단순하다. 수천 석을 넘어 느려지면 Canvas를 검토한다 | 좌석 배치 라이브러리 |
 
-버전은 스캐폴딩할 때 그 시점의 안정 버전으로 고정하고 이 문서에 추가한다. Node 버전은 `.nvmrc`와 Dockerfile에 같은 값으로 둔다.
+버전은 5절에 있다. Node 버전은 `.nvmrc`와 Dockerfile에 같은 값으로 둔다.
 
 ### 4. 실행: 별도 nginx 컨테이너가 화면을 내주고 `/api/`를 Gateway로 중계한다
 
@@ -93,6 +93,26 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 | 모바일 앱 | 앱용 API 또는 앱 전용 BFF | 없음 | 범위 밖 |
 | 매크로·암표 | 보안문자, 본인인증, 봇 관리·WAF | 없음(보안문자는 SA에서 보류) | 범위 밖 |
 
+### 5. 버전 (2026-11-02 스캐폴딩, ISE-107)
+
+`frontend/.npmrc`의 `save-exact=true`로 `package.json`에 정확한 버전을 적고 `package-lock.json`을 함께 커밋한다. 올릴 때는 이 표를 함께 고친다.
+
+| 대상 | 버전 | 메모 |
+|---|---|---|
+| Node | 24 LTS (`.nvmrc`) | 로컬에 설치된 LTS다. 26이 10/28에 Active LTS가 됐지만 필요한 기능이 없고, 24도 유지보수 LTS로 지원된다 |
+| Vite | 8.3.5 | `create-vite` 9.3.3 `react-ts` 템플릿 |
+| React | 19.3.1 | |
+| TypeScript | 6.0.3 | 템플릿 기본은 7.0.2지만 typescript-eslint 8.72.1(canary 포함)이 6.1 미만만 지원해 설치가 막힌다. typescript-eslint가 7을 지원하면 올린다(TS-27) |
+| React Router | 8.5.1 | 데이터 라우터(`createBrowserRouter`). `RouterProvider`는 `react-router/dom`, 나머지는 `react-router`에서 가져온다 |
+| TanStack Query | 5.105.1 | |
+| React Hook Form · `@hookform/resolvers` · Zod | 7.91.0 · 7.0.1 · 4.6.7 | |
+| Tailwind CSS | 4.3.3 | `@tailwindcss/vite` 플러그인 |
+| shadcn CLI · radix-ui | 4.23.0 · 1.8.1 | `--base radix --preset nova`(components.json `radix-nova`). 프리셋이 넣는 Geist 글꼴은 빼고 Pretendard를 쓴다(ISE-111) |
+| Vitest · jsdom | 5.0.5 · 29.1.1 | 전역 API를 켜지 않고 `vitest`에서 가져온다 |
+| Testing Library | react 16.3.3 · jest-dom 7.0.1 · user-event 14.6.8 | |
+| ESLint · typescript-eslint | 10.14.0 · 8.72.1 | 템플릿 기본은 Oxlint지만 3절에서 정한 ESLint로 만들었다(`--eslint`) |
+| Prettier · eslint-config-prettier | 3.9.10 · 10.1.8 | `semi: false`, `singleQuote: true`, `printWidth: 100`. 템플릿 코드 모양에 맞췄다 |
+
 ## 결과
 
 - 얻는 것: 컴포넌트 단위 디자인 시스템, 계약 타입, 폴링·재시도 규칙의 한 곳 관리, 백엔드 구현 전 목 기반 개발. Gateway와 백엔드 계약은 바뀌지 않는다
@@ -102,7 +122,7 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
   - 브라우저가 토큰을 들고 있어 XSS로 토큰이 탈취될 수 있다. Access 토큰을 메모리에만 두는 것으로 일부 줄인다
   - Notion 결정 기록 #7은 고치지 않는다. 프론트 결정은 이 ADR과 `docs/design/frontend/`를 따른다(`AGENTS.md` 대전제 4)
 - 후속 작업 (Linear ISE-104 하위 이슈):
-  - ISE-107: 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules` 추가, 버전 고정 후 이 문서에 추가
+  - ISE-107(완료): 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules`·`frontend/dist` 추가, 5절 버전 기록
   - ISE-108: `.github/workflows/build.yml`에 `paths` 필터를 넣어 화면만 바뀐 PR에 Java 빌드가 돌지 않게 함. 프론트 빌드·테스트 워크플로 추가
   - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩도 함께 고친다. 배포 담당(ISE-6)도 안준현이라 이 이슈 안에서 처리하고, 팀원 로컬 기동이 바뀌는 compose 변경은 PR 본문과 팀 공지로 알린다
   - ISE-110: Refresh 토큰 보관 위치를 정해 이 문서 4절에 추가

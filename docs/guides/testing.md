@@ -12,6 +12,7 @@ API·인증·업무 동작과 앱 기동 정책은 Java·JUnit 테스트로 관�
 | dotenv·비밀값 파일·실행 환경·포트 정책·프로세스 종료 | `workspace-tools/src/test/java` | 기본 `test`·`build`에 포함 |
 | 필수 설정 서버 장애 시 앱 기동 실패 | `system-tests/src/test/java`의 `ConfigServerUnavailableTest` | 기본 `test`·`build`에 포함 |
 | 실행 중인 전체 스택의 API·연동·관측·장애 | 같은 모듈의 `WorkspaceSystemTest` | `:system-tests:systemTest`로 별도 실행 |
+| 프론트 화면·라우팅(Vitest + Testing Library) | `frontend/src/**/*.test.tsx` | `cd frontend && npm test`. Gradle 빌드와 별도다([`frontend/README.md`](../../frontend/README.md)) |
 
 `system-tests`는 검증 전용 모듈이며 실행 서비스나 업무 JAR를 추가하지 않는다. 기존 애플리케이션 테스트는 각 서비스에 그대로 둔다.
 IDE에서도 테스트 클래스를 실행할 수 있다. 저장소 루트는 작업 경로에서 찾으며, 설정 서버 기동 실패 검증 전에는 `:eureka:bootJar`가 필요하다. 시스템 테스트에는 실행 중인 local 스택과 `.env`가 필요하다.
