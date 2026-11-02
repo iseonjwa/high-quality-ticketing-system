@@ -135,6 +135,8 @@ Refresh 토큰은 탭 단위 `sessionStorage`에 두고, Access 토큰은 메모
 | Prettier · eslint-config-prettier | 3.9.10 · 10.1.8 | `semi: false`, `singleQuote: true`, `printWidth: 100`. 템플릿 코드 모양에 맞췄다 |
 | MSW | 3.0.3 (ISE-110) | 2.x의 `onUnhandledRequest`가 `onUnhandledFrame`으로 바뀌었다. `msw/vite` 플러그인이 개발 서버에서 워커 스크립트를 내주므로 `public/`에 복사하지 않고, 운영 빌드에 워커 파일이 들어가지 않는다 |
 | Zustand | 5.0.16 (ISE-110) | 로그인 토큰 저장소. `persist`의 `partialize`로 Refresh 토큰만 `sessionStorage`에 남긴다 |
+| Pretendard | 1.3.9 (ISE-111) | OFL-1.1. 가변 글꼴 dynamic-subset CSS를 `src/index.css`에서 가져와 Vite가 woff2(92조각, `unicode-range`로 필요한 것만 받는다)를 번들한다. CDN을 쓰지 않는다 |
+| sonner | 2.0.8 (ISE-111) | shadcn `Sonner` 토스트. shadcn 컴포넌트가 쓰던 `next-themes`는 다크 모드를 하지 않아 뺐다 |
 
 ## 결과
 
@@ -146,6 +148,7 @@ Refresh 토큰은 탭 단위 `sessionStorage`에 두고, Access 토큰은 메모
   - Notion 결정 기록 #7은 고치지 않는다. 프론트 결정은 이 ADR과 `docs/design/frontend/`를 따른다(`AGENTS.md` 대전제 4)
 - 후속 작업 (Linear ISE-104 하위 이슈):
   - ISE-107(완료): 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules`·`frontend/dist` 추가, 5절 버전 기록
-  - ISE-108(완료): 프론트 워크플로(`frontend.yml`)는 `frontend/`가 바뀐 PR·push에서만 뜬다(`paths` 필터, 필수 검사 아님). `build.yml`은 필수 검사라 항상 돌고 `frontend/`만 바뀐 PR에서 Java 단계만 건너뛴다(`script/ci-changed-areas.sh`)
+  - ISE-108(완료): 프론트 워크플로(`frontend.yml`)는 `frontend/`가 바뀐 PR·push에서만 뜬다(`paths` 필터, 필수 검사 아님). `build.yml`은 필수 검사라 항상 돌고 `frontend/`만 바뀐 PR에서 Java 단계만 건너뛴다(`script/ci-changed-areas.sh`). `frontend/`만 바꾼 PR #192(ISE-111)에서 `java=false`로 Java 단계 4개가 skipped되고 `build`가 6초 만에 성공으로 보고되는 것을 확인했다(2026-11-02). `docs/`가 함께 바뀌면 `java=true`라 Java 검사가 돈다
   - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩도 함께 고친다. 배포 담당(ISE-6)도 안준현이라 이 이슈 안에서 처리하고, 팀원 로컬 기동이 바뀌는 compose 변경은 PR 본문과 팀 공지로 알린다
   - ISE-110(완료): Refresh 토큰은 탭 단위 `sessionStorage`로 정해 4절에 적었다. API 클라이언트 규칙은 `docs/design/frontend/README.md` "API 클라이언트 규칙"에 있다
+  - ISE-111(완료): 디자인 토큰·기본 컴포넌트·티켓팅 컴포넌트·공통 레이아웃. 구현 위치와 설계와 다르게 한 것은 `docs/design/frontend/design-system.md` 4절 아래 "구현"에 있다
