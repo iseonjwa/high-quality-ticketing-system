@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.lottery.domain;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,6 +59,9 @@ public interface LotteryEntryRepository {
 
     // 결제 실패·만료. 이 예매에 연결된 WON 응모만 FAILED로 바꾼다
     boolean markFailed(Long reservationId, String reason);
+
+    // 예매에 연결된 WON 응모가 있으면 그 추첨의 추첨 시각. 선점 만료가 추첨 예매인지 가리고 연장 상한을 계산할 때 쓴다
+    Optional<Instant> findWonDrawAtByReservationId(Long reservationId);
 
     /**
      * 우리 책임 실패(NOT_SENT) 재시도(D12). 시도가 {@code maxAttempts}보다 적고 승계 마감 전이면 예매 연결만 비운다.

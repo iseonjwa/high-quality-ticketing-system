@@ -76,7 +76,7 @@
 기존 코드에 붙는 훅 두 곳(예매 흐름 담당과 합의):
 - 11/2 상태(ISE-88): 시스템 선점(`SystemHoldPort` → `SystemSeatHoldService`, 선점 30분, `source = LOTTERY`, 일반 선점과 같은 잠금 순서·매수 한도)과 처리기 인터페이스 `LotteryPaymentResultHandler`를 만들었다. 아래 두 훅은 붙일 소비자·만료 스케줄러가 아직 없어(ISE-73·74, ISE-8) 그 코드가 생길 때 연결한다.
 - `payment.result` 소비자: `source = LOTTERY`면 lottery 처리기 호출(D11).
-- 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12).
+- 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12). 11/2 ISE-149에서 연결했다: 인터페이스 `LotteryHoldExpiryHook`은 seathold에, 구현은 lottery에 두어 의존 방향을 lottery → seathold 하나로 유지한다. 연장 여부는 따로 저장하지 않고 "기한이 예매 생성 + 31분 안이면 연장 전"으로 본다.
 - 우리 책임 실패의 재시도는 응모 행의 `reservation_id`를 비워 배정 워커에 다시 맡기는 방식이다(D12 `WON → WON`). 응모 행은 현재 예매만 가리키므로, 이전 예매는 `reservations`(source LOTTERY, 같은 사용자)와 예매 상태 이력에서 찾는다.
 
 모듈 경계(D11, 서비스 분리 대비). 모듈 규칙 `#14`의 직접 호출 허용 안에서 호출을 인터페이스 한 곳으로 모은다. DB와 트랜잭션은 공유한다.
