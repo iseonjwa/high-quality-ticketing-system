@@ -1,5 +1,6 @@
 package com.iseonjwa.gateway.security;
 
+import com.iseonjwa.common.auth.TokenDecoders;
 import com.iseonjwa.common.auth.TokenType;
 import com.iseonjwa.common.identity.IdentityHeaders;
 import com.iseonjwa.common.identity.Roles;
@@ -63,7 +64,13 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
         Jwt jwt;
         try {
             jwt = decoder.decode(token);
-        } catch (JwtException | IllegalArgumentException exception) {
+        } catch (JwtException exception) {
+            // 만료와 그 밖의 실패(위조·형식 오류·다른 종류 토큰)를 SA 11-3대로 나눠 응답한다.
+            // 클라이언트는 둘 다 401이라 코드와 상관없이 재발급을 시도한다.
+            return TokenDecoders.isExpired(exception)
+                    ? errors.write(exchange, 401, "TOKEN_EXPIRED", "토큰이 만료됐습니다")
+                    : errors.write(exchange, 401, "UNAUTHORIZED", "유효한 인증 토큰이 필요합니다");
+        } catch (IllegalArgumentException exception) {
             return errors.write(exchange, 401, "UNAUTHORIZED", "유효한 인증 토큰이 필요합니다");
         }
         if (access == Access.ADMIN && !Roles.ADMIN.equals(jwt.getClaimAsString(TokenType.ROLE_CLAIM))) {

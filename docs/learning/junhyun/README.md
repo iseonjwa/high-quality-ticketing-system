@@ -18,6 +18,12 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-02 | Gateway는 왜 만료된 Access 토큰에 TOKEN_EXPIRED가 아니라 UNAUTHORIZED를 주는가 (보안상 숨긴 것인가) | [qna/2026-11-02-gateway-expired-token-error-code.md](qna/2026-11-02-gateway-expired-token-error-code.md) |
+| 2026-11-02 | GitHub Actions 워크플로를 특정 폴더가 바뀔 때만 돌리면 필수 검사와 어떻게 부딪히나 | [qna/2026-11-02-required-checks-and-paths-filter.md](qna/2026-11-02-required-checks-and-paths-filter.md) |
+| 2026-11-02 | 앞단에 가상 대기실을 두면 서버에 만든 대기열 설계는 의미가 없어지는가 | [qna/2026-11-02-waiting-room-vs-server-queue.md](qna/2026-11-02-waiting-room-vs-server-queue.md) |
+| 2026-11-02 | SPA와 API를 잇는 리버스 프록시 중계와 BFF는 무엇이 다른가 (실제 티켓팅 서비스라면 어느 쪽인가) | [qna/2026-11-02-reverse-proxy-vs-bff.md](qna/2026-11-02-reverse-proxy-vs-bff.md) |
+| 2026-11-02 | React SPA로 정한 뒤 함께 쓸 도구는 무엇으로 고르나 (티켓팅 프론트 사례) | [qna/2026-11-02-react-spa-stack.md](qna/2026-11-02-react-spa-stack.md) |
+| 2026-11-02 | 백엔드 MSA 프로젝트의 프론트를 같은 저장소에 둘지, Spring Boot 안에 넣을지 | [qna/2026-11-02-frontend-repo-and-stack.md](qna/2026-11-02-frontend-repo-and-stack.md) |
 | 2026-10-29 | 결제 서비스 구현 완료는 M3까지인가 M4까지인가 | [qna/2026-10-29-payment-done-scope.md](qna/2026-10-29-payment-done-scope.md) |
 | 2026-10-29 | Redis에서 두 곳을 지울 때 순서가 왜 중요한가 (대기열 만료 정리 사례) | [qna/2026-10-29-redis-write-order-recovery.md](qna/2026-10-29-redis-write-order-recovery.md) |
 | 2026-10-29 | 폴링 간격에 ±20% jitter를 섞는다는 것은 무슨 뜻인가 | [qna/2026-10-29-polling-interval-jitter.md](qna/2026-10-29-polling-interval-jitter.md) |

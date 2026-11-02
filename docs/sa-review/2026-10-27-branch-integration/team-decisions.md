@@ -124,7 +124,7 @@
 
 아래는 회의 선택지를 늘릴 항목이 아니라 채택 코드가 정해진 계약을 지키도록 수정·회귀 검증할 항목이다. 정적 지적과 실행 재현을 구분한다.
 
-- [ ] JWT 빈 jti 거절, TOKEN_EXPIRED 구분을 계약에 맞춘다. 효승 verifier를 택하면 exp 필수·iss/aud/종류·알고리즘 제한도 보강한다.
+- [ ] JWT 빈 jti 거절, TOKEN_EXPIRED 구분을 계약에 맞춘다. 효승 verifier를 택하면 exp 필수·iss/aud/종류·알고리즘 제한도 보강한다. (2026-11-02 TOKEN_EXPIRED 구분은 ISE-131에서 반영했다. 빈 jti 거절은 남았다)
 - [ ] 입력/반환값 검증의 errors와 HTTP/body status, Allow·Retry-After, null data/traceId·빈 errors 직렬화를 검사한다.
 - [ ] trace advice·`/error`가 Actuator/Mock PG에 개입하지 않게 하고 패키지 변경 후 스캔·자동구성 등록·테스트 필터를 정렬한다.
 - [ ] 인증 필터·JWT decoder·블랙리스트·서킷 설정·BaseEntity·EventEnvelope의 중복 정본을 제거한다.

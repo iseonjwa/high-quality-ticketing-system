@@ -48,5 +48,5 @@ type(scope): 요약
 | 출발점 | 작업 브랜치는 `dev`에서 만든다 |
 | 병합 방식 | squash가 기본이다. 커밋 단위 이력을 남겨야 할 때만 merge commit을 쓴다 |
 | 리뷰 | 필수 승인은 없다. 작성자가 AI 검증을 거친 뒤 머지하고 팀에 알린다. 다른 사람의 작업을 도왔을 때만 그 사람에게 리뷰를 요청한다 |
-| 보호 규칙 | `main`·`dev`에 직접 push·force push·삭제를 하지 않는다. PR로만 반영하고, 필수 승인은 0명이지만 CI(`build`, `records-check`) 통과가 필수다(GitHub 브랜치 보호 설정). 리뷰를 두지 않는 대신 CI를 자동 관문으로 둔다 |
+| 보호 규칙 | `main`·`dev`에 직접 push·force push·삭제를 하지 않는다. PR로만 반영하고, 필수 승인은 0명이지만 CI(`build`, `records-check`) 통과가 필수다(GitHub 브랜치 보호 설정). 리뷰를 두지 않는 대신 CI를 자동 관문으로 둔다. `build`는 `frontend/`만 바뀐 PR에서 Java 단계만 건너뛰고 성공으로 보고한다(`script/ci-changed-areas.sh`). 필수 검사라 워크플로에 `paths` 필터를 걸지 않는다. 걸면 검사가 보고되지 않아 머지가 막힌다. `frontend` 검사는 `frontend/`가 바뀐 PR에서만 뜨고 필수 검사가 아니다 |
 | main 반영 | 마일스톤마다 `dev` → `main` |
