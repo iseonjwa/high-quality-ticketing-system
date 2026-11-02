@@ -8,8 +8,22 @@ spring:
     hikari:
       maximum-pool-size: 5
   kafka:
+    producer:
+      properties:
+        # Note: Outbox 릴레이가 브로커 확인을 기다리는 시간의 기준이다(payment-service와 같은 값).
+        # max.block.ms + delivery.timeout.ms가 전송 시한(send-timeout) 안에 들어오지 않으면 기동이 실패한다
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        max.block.ms: 2000
+        linger.ms: 0
     consumer:
       group-id: reservation-service.bootstrap
+messaging:
+  outbox:
+    # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
+    batch-size: 20
+    lease: 30s
+    send-timeout: 12s
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m
