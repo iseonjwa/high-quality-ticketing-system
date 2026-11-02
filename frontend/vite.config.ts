@@ -2,6 +2,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { msw } from 'msw/vite'
 import { defineConfig } from 'vite'
 
 // Note: 브라우저는 개발 서버만 보고, /api 요청은 개발 서버가 Gateway로 넘긴다.
@@ -9,7 +10,9 @@ import { defineConfig } from 'vite'
 const apiProxyTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:8080'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // msw(): 개발 서버가 목 워커 스크립트(/mockServiceWorker.js)를 내준다. public/에 두지 않아
+  // 운영 빌드 결과에 워커 파일이 들어가지 않는다.
+  plugins: [react(), tailwindcss(), msw()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

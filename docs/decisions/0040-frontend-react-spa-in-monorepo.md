@@ -1,6 +1,6 @@
 # 0040. 프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다
 
-- 상태: 채택 (프론트 담당 결정. Notion 결정 기록 #7을 대체한다. 프론트 결정은 Notion이 아니라 이 저장소 문서를 정본으로 둔다)
+- 상태: 채택 (프론트 담당 결정. Notion 결정 기록 #7을 대체한다. 프론트 결정은 Notion이 아니라 이 저장소 문서를 정본으로 둔다. 2026-11-02 ISE-110에서 Refresh 토큰 보관 위치를 더했다)
 - 날짜: 2026-11-02
 - 결정자: Junhyun An (프론트 담당, SA 6-8 "기술 선택은 담당자")
 - 관련 AI 판단: [React SPA 전환](../ai-judgments/junhyun/2026-11-02-frontend-react-spa.md), [BFF 대신 nginx 중계](../ai-judgments/junhyun/2026-11-02-frontend-relay-over-bff.md), [Notion 대신 저장소 문서에 기록](../ai-judgments/junhyun/2026-11-02-records-in-docs-over-notion.md), [팀 규칙으로 올림](../ai-judgments/junhyun/2026-11-02-docs-first-as-team-rule.md)
@@ -70,7 +70,7 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 - `frontend/`의 Dockerfile이 Node로 빌드하고(1단계), 결과 정적 파일을 nginx 이미지에 담는다(2단계). 다른 팀원은 Node 없이 compose를 띄운다.
 - nginx는 정적 파일을 내주고, 없는 경로는 `index.html`로 돌려준다(SPA 새로고침). `/api/`로 시작하는 요청만 `gateway:8080`으로 넘긴다. 서비스로 직접 넘기는 경로는 두지 않는다. 서비스는 Gateway가 넣은 `X-User-Id`·`X-User-Role`을 서명 없이 믿기 때문이다(`docs/guides/workspace.md`).
 - 브라우저는 한 출처만 보므로 Gateway에 CORS 설정을 넣지 않는다. 로컬 개발은 Vite 개발 서버의 `server.proxy`가 같은 역할을 한다. Gateway에 CORS가 없던 것은 지금까지 부른 쪽이 HTTP 요청 파일, JUnit 시스템 테스트, 부하 도구처럼 브라우저가 아닌 클라이언트였기 때문이다.
-- 토큰은 브라우저가 들고 `Authorization: Bearer`로 보낸다(현재 계약 그대로). Access 토큰은 JS 메모리에만 둔다. Refresh 토큰 보관 위치는 인증 화면을 설계할 때 정한다. 입장 토큰은 계약대로 `sessionStorage`에 둔다.
+- 토큰은 브라우저가 들고 `Authorization: Bearer`로 보낸다(현재 계약 그대로). Access 토큰은 JS 메모리에만 둔다. Refresh 토큰은 탭 단위 `sessionStorage`에 둔다(아래 "Refresh 토큰 보관 위치"). 입장 토큰은 계약대로 `sessionStorage`에 둔다.
 - 부하 도구는 지금처럼 Gateway를 직접 부른다. nginx는 측정 경로에 끼지 않는다.
 
 #### 검토한 연결 방식
@@ -80,6 +80,27 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 | A. 중계 (채택) | nginx가 요청을 그대로 Gateway로 넘긴다 | — |
 | B. 중계 + Refresh 토큰만 httpOnly 쿠키 | 오래 사는 토큰을 JS에서 뺀다 | user-service 응답 계약 변경이 필요하다. 이후 보강 후보로 남긴다 |
 | C. BFF | 프론트 서버가 세션에 토큰을 두고 API를 대신 부른다. 브라우저는 httpOnly 쿠키만 가진다 | 서버 앱·세션 저장소·CSRF 방어가 늘고, 입장 토큰 `sessionStorage` 같은 대기열 계약의 프론트 규칙이 바뀐다. 대기열이 Gateway 뒤에 있는 이 구조에서는 대기 중 폴링이 모두 BFF를 거친다 |
+
+#### Refresh 토큰 보관 위치 (ISE-110)
+
+Refresh 토큰은 탭 단위 `sessionStorage`에 두고, Access 토큰은 메모리에만 둔다. 새로고침 뒤 첫 요청은 저장한 Refresh 토큰으로 먼저 재발급한다.
+
+서버 쪽 사실: user-service는 사용자당 Refresh 토큰을 하나만 Redis에 두고(`auth:refresh:{userId}`), 재발급마다 새 토큰으로 바꾼다. 바뀌기 전 토큰으로 다시 재발급하면 401 `TOKEN_REVOKED`다(`RedisSessionStore`). Refresh 토큰 수명은 14일, Access 토큰은 30분이다(`config-repo/user-service.yml`).
+
+| 안 | 새로고침 | 새 탭 | 고르지 않은 이유 |
+|---|---|---|---|
+| 메모리만 | 로그인이 풀린다 | 다시 로그인 | 대기열·좌석 화면에서 새로고침 한 번에 다시 로그인해야 한다. 오픈 순간에 치명적이다 |
+| `sessionStorage` (채택) | 유지 | 다시 로그인 | — |
+| `localStorage` | 유지 | 유지 | 브라우저를 닫아도 14일 남는다. 여러 탭이 한 토큰을 나눠 쓰면 서버의 재발급 교체와 부딪혀, 탭 사이 잠금(Web Locks)과 토큰 동기화를 따로 만들어야 한다 |
+| httpOnly 쿠키 (4절 B안) | 유지 | 유지 | JS가 읽지 못해 XSS 탈취를 막는다. user-service 응답과 Gateway를 바꿔야 해서 보강 후보로 남긴다 |
+
+- 탭 하나 안에서는 동시에 401을 받은 요청들이 재발급 하나를 함께 기다린다. 각자 재발급하면 두 번째부터 `TOKEN_REVOKED`로 실패해 세션이 지워지기 때문이다. 탭 사이에서는 토큰을 나눠 쓰지 않아 이 충돌이 생기지 않는다.
+- 입장 토큰도 계약상 탭 단위 `sessionStorage`다. 로그인과 입장의 범위가 같아진다.
+- XSS로 `sessionStorage`를 읽을 수 있는 점은 `localStorage`와 같다. 노출 기간이 탭을 닫을 때까지로 짧아질 뿐이다. 근본 대책은 B안이다.
+- 감수하는 것: 새 탭·새 창에서는 다시 로그인한다. 다른 탭에서 다시 로그인하면 서버의 토큰이 바뀌어, 먼저 연 탭은 Access 토큰이 만료될 때(최대 30분) 재발급에 실패하고 로그인 화면으로 간다. 탭 복제는 `sessionStorage`를 복사하므로 두 탭이 같은 토큰을 갖고, 먼저 재발급한 탭만 이어진다.
+- 재발급이 4xx(만료·교체·잠김·임시 비밀번호)로 실패하면 세션을 지운다. 5xx·408·429와 연결 실패는 토큰이 아직 유효할 수 있어(Redis 장애 중 503 등) 지우지 않는다.
+- 재발급을 기다리는 사이 로그아웃하거나 다시 로그인했으면 늦게 온 재발급 결과로 세션을 덮지 않는다. 로그아웃한 탭이 되살아나지 않게 하기 위해서다.
+- 교체 방식의 한계: 서버는 토큰을 바꿨는데 응답이 유실되면(연결 끊김) 브라우저는 옛 토큰을 들고 있어 다음 재발급이 `TOKEN_REVOKED`로 끝나고 다시 로그인해야 한다. 클라이언트에서 막을 수 없다.
 
 #### 학습한 실서비스 구조와 이번 선택
 
@@ -112,6 +133,8 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 | Testing Library | react 16.3.3 · jest-dom 7.0.1 · user-event 14.6.8 | |
 | ESLint · typescript-eslint | 10.14.0 · 8.72.1 | 템플릿 기본은 Oxlint지만 3절에서 정한 ESLint로 만들었다(`--eslint`) |
 | Prettier · eslint-config-prettier | 3.9.10 · 10.1.8 | `semi: false`, `singleQuote: true`, `printWidth: 100`. 템플릿 코드 모양에 맞췄다 |
+| MSW | 3.0.3 (ISE-110) | 2.x의 `onUnhandledRequest`가 `onUnhandledFrame`으로 바뀌었다. `msw/vite` 플러그인이 개발 서버에서 워커 스크립트를 내주므로 `public/`에 복사하지 않고, 운영 빌드에 워커 파일이 들어가지 않는다 |
+| Zustand | 5.0.16 (ISE-110) | 로그인 토큰 저장소. `persist`의 `partialize`로 Refresh 토큰만 `sessionStorage`에 남긴다 |
 
 ## 결과
 
@@ -125,4 +148,4 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
   - ISE-107(완료): 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules`·`frontend/dist` 추가, 5절 버전 기록
   - ISE-108(완료): 프론트 워크플로(`frontend.yml`)는 `frontend/`가 바뀐 PR·push에서만 뜬다(`paths` 필터, 필수 검사 아님). `build.yml`은 필수 검사라 항상 돌고 `frontend/`만 바뀐 PR에서 Java 단계만 건너뛴다(`script/ci-changed-areas.sh`)
   - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩도 함께 고친다. 배포 담당(ISE-6)도 안준현이라 이 이슈 안에서 처리하고, 팀원 로컬 기동이 바뀌는 compose 변경은 PR 본문과 팀 공지로 알린다
-  - ISE-110: Refresh 토큰 보관 위치를 정해 이 문서 4절에 추가
+  - ISE-110(완료): Refresh 토큰은 탭 단위 `sessionStorage`로 정해 4절에 적었다. API 클라이언트 규칙은 `docs/design/frontend/README.md` "API 클라이언트 규칙"에 있다
