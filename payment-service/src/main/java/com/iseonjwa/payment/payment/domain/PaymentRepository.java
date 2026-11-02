@@ -25,6 +25,21 @@ public interface PaymentRepository {
 
     Optional<Payment> findByReservationId(Long reservationId);
 
+    /**
+     * 재확인할 차례가 된 결제(REQUESTED·UNKNOWN, {@code next_check_at <= now}) 하나를 {@code next_check_at} 순으로 잠가서 돌려준다.
+     * 다른 트랜잭션이 잠근 행은 건너뛴다. 잠금은 호출한 트랜잭션이 끝날 때까지 유지되므로 트랜잭션 안에서만 부른다.
+     */
+    Optional<Payment> findDueForRecheckForUpdate(Instant now);
+
+    /**
+     * 재확인을 맡는다(임대). 현재 상태가 {@code status}일 때만 {@code next_check_at}을 임대 만료 시각으로 미루고
+     * 시도 횟수를 1 올린다. 임대 동안 다른 워커가 같은 결제를 집지 않고, 워커가 죽어도 임대가 끝나면 다시 대상이 된다.
+     */
+    boolean claimRecheck(Long id, PaymentStatus status, Instant leaseUntil, Instant now);
+
+    // UNKNOWN 결제의 다음 재확인 시각만 바꾼다. 다른 경로가 이미 상태를 바꿨으면 아무것도 하지 않고 false다.
+    boolean rescheduleCheck(Long id, Instant nextCheckAt, Instant now);
+
     boolean markApproved(Long id, PaymentStatus from, String pgTxId, BigDecimal pgApprovedAmount, Instant approvedAt,
             Instant now);
 
