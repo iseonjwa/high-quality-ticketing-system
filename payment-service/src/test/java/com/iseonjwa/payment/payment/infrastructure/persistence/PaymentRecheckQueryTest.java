@@ -112,6 +112,19 @@ class PaymentRecheckQueryTest {
     }
 
     @Test
+    void 차례가_아닌_결제는_임대하지_않는다() {
+        var payment = fixtures.create(PaymentStatus.UNKNOWN, 3, Instant.now().plusSeconds(60));
+        var before = fixtures.reload(payment);
+
+        assertFalse(payments.claimRecheck(payment.getId(), PaymentStatus.UNKNOWN, Instant.now().plusSeconds(30),
+                Instant.now()));
+
+        var after = fixtures.reload(payment);
+        assertEquals(3, after.getUnknownRetryCount());
+        assertEquals(before.getNextCheckAt().toEpochMilli(), after.getNextCheckAt().toEpochMilli());
+    }
+
+    @Test
     void 재예약은_UNKNOWN_결제의_다음_확인_시각만_바꾼다() {
         var unknown = fixtures.due(PaymentStatus.UNKNOWN, 2);
         var requested = fixtures.due(PaymentStatus.REQUESTED, 0);

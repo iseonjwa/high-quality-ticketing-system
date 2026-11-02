@@ -32,7 +32,7 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
             UPDATE payments
             SET next_check_at = :leaseUntil, unknown_retry_count = unknown_retry_count + 1, updated_at = :now,
                 updated_by = NULL
-            WHERE id = :id AND status = :status
+            WHERE id = :id AND status = :status AND next_check_at <= :now
             """)
     int claimRecheck(@Param("id") Long id, @Param("status") String status, @Param("leaseUntil") Instant leaseUntil,
             @Param("now") Instant now);
