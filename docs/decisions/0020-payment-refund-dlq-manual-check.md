@@ -67,7 +67,7 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 | 릴레이 → Kafka | `acks=all`, idempotence. 전송 뒤 `SENT` 표시 전에 죽으면 중복 | 소비자가 멱등이라 중복은 무해하다 |
 | Payment 소비 중 오류 | 오프셋을 영속화 뒤에 커밋(`ack-mode=record`)하므로 없다. 3회 재시도 뒤 DLQ | 위 DLQ 처리기 |
 | DLQ 토픽으로 보내기 실패(Kafka 장애) | 보내지 못하면 원 메시지도 커밋하지 않고 다시 처리한다 | 복구 설정이 실패해도 오프셋을 올리지 않는지 통합 테스트로 확인한다 |
-| 역직렬화 실패(poison message) | `ErrorHandlingDeserializer` 없이는 컨슈머가 같은 레코드에서 멈춘다 | `ErrorHandlingDeserializer`로 DLQ에 보내고 원문을 `dead_letters`에 `OPEN`으로 저장한다 |
+| 역직렬화 실패(poison message) | 값 역직렬화기가 형식 있는 객체를 만들다 실패하면 컨슈머가 같은 레코드에서 멈춘다 | 값을 문자열(`StringDeserializer`)로 받고 리스너가 봉투를 읽는다. 깨진 JSON은 리스너의 영구 오류가 되어 재시도 없이 원문 그대로 DLQ로 가고, DLQ 처리기가 원문을 `dead_letters`에 `OPEN`으로 저장한다(개정 이력 2026-11-02) |
 | DLQ 처리기의 DB 장애 | 오프셋 미커밋으로 메시지가 남는다 | 백오프 무한 재시도, 처리기 실패 알림 |
 | 토픽 보관 기간 초과 | 컨슈머가 7일 넘게 멈추면 메시지가 사라질 수 있다 | 대사 RC-2가 결제 `APPROVED` + 예매 비확정 + 환불 행 없음으로 찾는다(0029) |
 | 환불 행 생성 뒤 PG 호출 전 중단 | 환불 행이 `REQUESTED`로 남는다 | 환불 워커가 이어받는다 |
@@ -99,6 +99,7 @@ SA는 `NEEDS_MANUAL_CHECK`를 "종결 상태"로 쓰고 "운영자가 PG 콘솔�
 ## 개정 이력
 
 - 2026-10-28: 사용자 결정 2와 즉시 수정 지시를 반영해 다시 썼다. 이전 제목은 "환불 요청이 DLQ로 가면 DLQ 처리기가 운영자 확인 상태로 전환한다"였다. (1) DLQ에 온 요청을 곧바로 `NEEDS_MANUAL_CHECK`로 보내지 않고 환불 행으로 영속화해 자동 환불 워커가 복구하게 했다(M8). (2) 소비자는 PG를 부르지 않고 영속화만 한다. (3) 환불 `FAILED`를 운영자 종결로만 정의하고 PG 거절은 바로 `NEEDS_MANUAL_CHECK`로 했다(C2). (4) 원안 본문의 "`dead_letter.event_id`가 UNIQUE"를 `event_key`로 바로잡았다(L6). (5) `RefundRequested` 교차 검증과 Kafka-UI READONLY를 더했다(M7). (6) 수동 복구를 SQL 템플릿에서 Ops 명령으로 바꿨다(0028). (7) "토픽 보관 기간 초과" 잔여 위험을 대사(0029)가 맡는다.
+- 2026-11-02(ISE-136): 역직렬화 실패의 대응을 구현에 맞췄다. 원안은 `ErrorHandlingDeserializer`였지만 공통 설정의 값 역직렬화기가 `StringDeserializer`라 역직렬화 단계에서는 실패하지 않는다. 그래서 리스너가 문자열에서 봉투를 읽고, 실패하면 재시도 제외 예외로 바로 DLQ에 보낸다. 원문 보존과 파티션이 멈추지 않는다는 목표는 같다. "DLQ로 보내기 실패" 행의 확인은 브로커 없이 오류 처리기를 직접 부르는 테스트로 했고, 실제 브로커 확인은 compose에서 한다.
 
 ## 면접에서 설명할 한 줄
 

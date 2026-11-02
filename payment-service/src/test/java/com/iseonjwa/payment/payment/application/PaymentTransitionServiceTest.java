@@ -58,8 +58,8 @@ class PaymentTransitionServiceTest {
         assertNull(approved.getNextCheckAt(), "종결 상태는 재확인 대상이 아니다");
         var history = histories.findByPaymentId(payment.getId());
         assertEquals(1, history.size());
-        assertEquals(PaymentStatus.REQUESTED, history.get(0).getFromStatus());
-        assertEquals(PaymentStatus.APPROVED, history.get(0).getToStatus());
+        assertEquals("REQUESTED", history.get(0).getFromStatus());
+        assertEquals("APPROVED", history.get(0).getToStatus());
         assertEquals("SYSTEM", history.get(0).getActor());
     }
 
@@ -121,6 +121,57 @@ class PaymentTransitionServiceTest {
         transitions.markUnresolved(payment.getId(), PaymentStatus.REQUESTED, StatusActor.SYSTEM);
 
         assertEquals(0, outboxRows(payment.getReservationId()).size());
+    }
+
+    @Test
+    void 환불_완료_전이는_결제를_REFUNDED로_바꾸고_PG_환불_시각과_이력을_남긴다() {
+        var payment = approved();
+        var refundedAt = Instant.parse("2026-11-02T11:05:00.100Z");
+
+        assertTrue(transitions.markRefunded(payment.getId(), PaymentStatus.APPROVED, refundedAt, StatusActor.SYSTEM));
+
+        var refunded = payments.findById(payment.getId()).orElseThrow();
+        assertEquals(PaymentStatus.REFUNDED, refunded.getStatus());
+        assertEquals(refundedAt, refunded.getRefundedAt());
+        assertNull(refunded.getNextCheckAt());
+        var history = histories.findByPaymentId(payment.getId());
+        assertEquals("APPROVED", history.get(history.size() - 1).getFromStatus());
+        assertEquals("REFUNDED", history.get(history.size() - 1).getToStatus());
+    }
+
+    @Test
+    void 환불_완료는_PaymentRefunded를_Outbox에_쓰고_금액은_PG_승인_금액이다() {
+        var payment = requested();
+        transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-mismatch",
+                BigDecimal.valueOf(49000), Instant.now(), StatusActor.SYSTEM);
+
+        assertTrue(transitions.markRefunded(payment.getId(), PaymentStatus.NEEDS_MANUAL_CHECK,
+                Instant.parse("2026-11-02T11:05:00.123456Z"), StatusActor.SYSTEM));
+
+        var rows = outboxRows(payment.getReservationId());
+        assertEquals(1, rows.size());
+        assertEquals("PaymentRefunded", rows.get(0).get("event_type"));
+        assertEquals("49000", payloadField(payment.getReservationId(), "amount"), "환불 금액은 결제 금액이 아니라 PG 승인 금액이다");
+        assertEquals("2026-11-02T11:05:00.123Z", payloadField(payment.getReservationId(), "refundedAt"));
+    }
+
+    @Test
+    void 환불_완료는_상태가_맞지_않으면_0행이고_이력과_Outbox도_쓰지_않는다() {
+        var payment = approved();
+        transitions.markRefunded(payment.getId(), PaymentStatus.APPROVED, Instant.now(), StatusActor.SYSTEM);
+
+        assertFalse(transitions.markRefunded(payment.getId(), PaymentStatus.APPROVED, Instant.now(), StatusActor.SYSTEM));
+
+        assertEquals(1, outboxRows(payment.getReservationId()).stream()
+                .filter(row -> "PaymentRefunded".equals(row.get("event_type"))).count());
+    }
+
+    @Test
+    void 허용되지_않는_상태에서_환불_완료로_가는_전이는_거절한다() {
+        var payment = requested();
+
+        assertThrows(IllegalStateException.class, () -> transitions.markRefunded(payment.getId(),
+                PaymentStatus.REQUESTED, Instant.now(), StatusActor.SYSTEM));
     }
 
     @Test
@@ -216,6 +267,13 @@ class PaymentTransitionServiceTest {
     private String payloadField(Long reservationId, String field) {
         return jdbc.queryForObject("SELECT payload -> 'payload' ->> ? FROM outbox_events WHERE message_key = ?",
                 String.class, field, String.valueOf(reservationId));
+    }
+
+    private Payment approved() {
+        var payment = requested();
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-" + payment.getId(), AMOUNT, Instant.now(),
+                StatusActor.SYSTEM);
+        return payment;
     }
 
     private Payment requested() {

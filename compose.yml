@@ -55,6 +55,7 @@ services:
     environment:
       <<: *app-env
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
+      ENTRY_TOKEN_SECRET: ${ENTRY_TOKEN_SECRET:?./gradlew initLocalEnv를 먼저 실행한다}
     ports: ["127.0.0.1:8080:8080"]
     depends_on:
       config-server:

@@ -5,6 +5,7 @@ import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentApprovedEvent;
 import com.iseonjwa.payment.payment.domain.PaymentDeclinedEvent;
+import com.iseonjwa.payment.payment.domain.PaymentRefundedEvent;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -39,6 +40,16 @@ public class PaymentResultPublisher {
         var payload = new PaymentDeclinedEvent(payment.getId(), payment.getReservationId(), payment.getUserId(),
                 reason.name());
         outbox.write(TOPIC, key(payment), "PaymentDeclined", VERSION, payload);
+    }
+
+    /**
+     * 환불 완료를 알린다. 금액은 환불 금액이다. 전액 환불이라 결제의 PG 승인 금액과 같고, 승인 금액이 결제 금액과 달라
+     * 운영자 확인을 거친 결제에서는 {@code payment.amount}가 아니라 PG 승인 금액을 써야 한다.
+     */
+    public void publishRefunded(Payment payment, Instant pgRefundedAt) {
+        var payload = new PaymentRefundedEvent(payment.getId(), payment.getReservationId(), payment.getUserId(),
+                payment.getPgApprovedAmount(), payment.getCurrency(), pgRefundedAt.truncatedTo(ChronoUnit.MILLIS));
+        outbox.write(TOPIC, key(payment), "PaymentRefunded", VERSION, payload);
     }
 
     // 파티션 키는 reservationId다. 같은 예매의 결제 이벤트는 순서가 유지된다

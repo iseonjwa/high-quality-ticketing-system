@@ -46,7 +46,17 @@
 2. 통과하면 한 트랜잭션에서 `processed_events(event_id, 'payment.command')`, 환불 `INSERT … SELECT … ON CONFLICT (payment_id) DO NOTHING`(`REQUESTED`, `next_check_at` = 현재, `source=EVENT`), 이력을 쓴다([data-model.md](data-model.md) 4절). 0행이고 환불 행이 이미 있으면 중복이라 `processed_events`만 남긴다.
 3. 검증 실패와 역직렬화 실패는 영구 오류다. 재시도하지 않고 바로 DLQ로 보낸다(재시도 제외 예외로 등록).
 4. 일시 오류(DB 연결, 잠금 시간 초과)는 1·2·4초 간격 3회 재시도 뒤 DLQ로 보낸다.
-5. 오프셋은 처리 성공 뒤에 커밋한다(`ack-mode=record`). DLQ로 보내는 것이 실패하면 원 메시지의 오프셋을 올리지 않는다. 역직렬화 실패는 `ErrorHandlingDeserializer`로 DLQ에 보내 원문을 보존한다.
+5. 오프셋은 처리 성공 뒤에 커밋한다(`ack-mode=record`). DLQ로 보내는 것이 실패하면 원 메시지의 오프셋을 올리지 않는다. 깨진 메시지는 리스너가 읽다가 영구 오류로 DLQ에 보내 원문을 보존한다(아래 구현 메모).
+
+### 구현 메모 (ISE-136)
+
+- 위치: 환불은 결제와 다른 집합이라 `com.iseonjwa.payment.refund`(domain·application·infrastructure)에 둔다. 소비자는 `refund.infrastructure.messaging`, 교차 검증과 영속화는 `refund.application.RefundRequestService`다. 환불 상태 이력은 새 테이블 없이 `payment_status_histories`에 `target_type=REFUND`로 쓴다. 이 테이블은 환불에만 있는 `FAILED`를 담도록 상태 컬럼을 열거형이 아닌 문자열로 매핑한다.
+- 리스너가 봉투를 읽는다: 값 역직렬화기가 `StringDeserializer`(`config-repo/application.yml`)라 깨진 JSON도 역직렬화 단계에서 실패하지 않는다. 리스너가 문자열에서 봉투를 읽다 실패하면 영구 오류(`NonRetryableMessageException`)가 되어 원문 문자열 그대로 DLQ로 간다. 그래서 `ErrorHandlingDeserializer`를 쓰지 않는다. 5번 문장과 [0020](../../decisions/0020-payment-refund-dlq-manual-check.md)의 해당 행을 이 구현 결정이 대체한다. 봉투는 트리에서 필요한 필드만 읽으므로 모르는 필드는 무시한다(SA 10-4의 필드 추가 허용). `amount`는 정수 숫자만 받고 `50000.0`과 문자열은 영구 오류다.
+- 전용 컨테이너 팩토리: `paymentCommandListenerFactory`만 오류 처리기를 가진다. Boot의 `ConcurrentKafkaListenerContainerFactoryConfigurer`로 공통 설정을 먼저 적용하고 오류 처리기를 바꾼다. `ack-mode`는 공통 설정에도 `record`로 있지만 팩토리에서 `RECORD`로 다시 고정한다. 오프셋 보존이 이 값에 달려 있어 공유 설정 파일이 바뀌어도 흔들리지 않게 하려는 것이다. 전역 `CommonErrorHandler` 빈은 만들지 않는다. 다른 리스너와 DLQ 리스너(ISE-138, 5절)는 오류 규칙이 다르기 때문이다. 동시성은 1이다.
+- 오류 처리기: `DefaultErrorHandler(DeadLetterPublishingRecoverer, BackOff)`. BackOff는 1초에서 시작해 2배, 3회 재시도(1·2·4초)이고 `NonRetryableMessageException`은 재시도 제외로 등록한다. DLQ 전송 결과를 기다리고 실패하면 복구가 실패해 원 메시지가 다시 전달되며 오프셋은 올라가지 않는다.
+- DLQ 파티션은 지정하지 않는다(음수 파티션, 키 기반 배정). DLQ 토픽의 파티션 수가 원본과 같다는 보장이 없고, 원본 파티션 번호를 그대로 쓰면 파티션이 더 적은 DLQ 토픽에서 전송이 실패한다. 키는 원본 그대로 가서 같은 예매는 같은 파티션에 모인다.
+- 0행 뒤에는 환불 행을 먼저 다시 읽는다: 원자적 생성이 0행이면 결제 상태를 보기 전에 `refunds`를 `payment_id`로 읽는다. 행이 있으면 중복(정상)이다. 이미 환불돼 결제가 `REFUNDED`여도 환불 행이 있으면 중복이어야 하므로, 결제 상태로 먼저 거르면 정상 중복을 영구 오류로 오판한다. 행이 없을 때만 결제 상태가 `APPROVED`가 아닌 것이라 영구 오류다.
+- 테스트 범위: 오류 처리기는 브로커 없이 `KafkaOperations` 목으로 단위 확인한다(영구 오류 즉시 DLQ, 일시 오류는 재시도 소진 뒤 DLQ, DLQ 전송 실패 시 재처리). 테스트 프로필은 `listener.auto-startup=false`라 컨테이너를 시작하지 않는다. 실제 브로커에서 DLQ 토픽 도착과 오프셋 보존은 compose 스택에서 확인한다(미확인).
 
 교차 검증(INV-3·INV-9):
 
@@ -106,6 +116,19 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 
 간격은 SA 9-4대로 10초×6회 → 1분 → 5분 → 15분이다. 실제로 PG를 부른 9번째 호출도 확정하지 못하면 `NEEDS_MANUAL_CHECK`(`PG_UNRESOLVED`·`REFUND_UNRESOLVED`)다(약 22분, 10초×6 + 1분 + 5분 + 15분 = 1320초). CB OPEN으로 부르지 못한 주기는 세지 않으므로 PG 전체 장애 중에는 횟수가 줄지 않고, 그동안의 체류는 최고령 지표와 알림이 본다([observability.md](observability.md)). 확정 때만 이벤트를 발행한다.
 
+### 구현 메모 (ISE-137)
+
+- 위치: 환불 워커 한 건의 처리는 `refund.application.RefundWorkerService.processNext()`다. 재확인 서비스와 같은 구조(후보 잠금 → 허가 → 임대 → 트랜잭션 밖 PG 호출 → 결과 반영)이고, 환불 쿼리는 `RefundRepository`, 결제의 환불 완료 전이는 `PaymentTransitionService.markRefunded`, 이벤트는 `PaymentResultPublisher.publishRefunded`다.
+- 환불 claim: 한 트랜잭션에서 `refunds`의 `status IN ('REQUESTED','UNKNOWN') AND next_check_at <= now`(부분 인덱스 `idx_refunds_next_check_at`와 같은 조건)를 `ORDER BY next_check_at LIMIT 1 FOR UPDATE SKIP LOCKED`로 잠그고, `pg-recovery` 허가를 얻은 뒤에 임대 UPDATE를 한다. 못 얻으면 아무것도 바꾸지 않아 시도 횟수를 세지 않는다. 임대 UPDATE는 `next_check_at = now + 30초`, `attempt + 1`, `pg_requested_at = COALESCE(pg_requested_at, now)`다.
+- 첫 호출 판단: claim 전에 읽어 둔 `pg_requested_at`이 NULL이면 첫 호출이라 `refund`를 바로 부르고, 값이 있으면 `findRefund`로 먼저 확인한다. 임대가 값을 처음에만 채우므로(COALESCE) "처음 PG를 부른 시각"이 남고, 첫 응답이 유실되거나 서버가 죽어도 다음 처리는 `findRefund`로 시작한다.
+- 간격은 `RecheckSchedule`을 그대로 쓴다. 다만 결제 재확인은 TX1이 `next_check_at`을 10초 뒤로 채워 첫 10초를 기다리지만 환불은 첫 호출이 바로 나가므로, 환불의 첫 호출이 불확실하면 10초 뒤(n = 1), 이후 n = 2~5는 10초, 6은 1분, 7은 5분, 8은 15분 뒤이고 9번째도 모르면 소진이다. 첫 호출까지의 10초 대기가 없으므로 총 시간은 재확인보다 10초 짧다.
+- 결제 UPDATE가 0행인 경우: 환불 `REFUNDED` 전이, 이력, 결제 전이, Outbox를 한 트랜잭션에서 하고 결제 전이가 0행이면 예외로 전체를 롤백한다. 그다음 새 트랜잭션에서 환불을 `NEEDS_MANUAL_CHECK(STATE_CONFLICT)`로 바꾸고 이력을 남기며 ERROR 로그(`event=REFUND_STATE_CONFLICT`)를 낸다. 환불 UPDATE가 0행이면 다른 경로가 먼저 바꾼 것이라 결제를 포함해 아무것도 더 쓰지 않는다.
+- PG를 부르기 전 방어: 임대 전에 결제 상태를 읽어 환불 사유에 맞는 상태(`PG_AMOUNT_MISMATCH` 사유면 `NEEDS_MANUAL_CHECK`, 아니면 `APPROVED`)가 아니거나 `pg_tx_id`가 없으면 PG를 부르지 않고 환불을 `NEEDS_MANUAL_CHECK(STATE_CONFLICT)`로 넘긴다. 이 경우 임대하지 않으므로 시도 횟수를 세지 않는다. 설계 표에는 없는 경로이고, 돈이 나간 뒤에야 결제가 환불 완료로 옮겨지지 않는다는 것을 알게 되는 일을 막으려고 추가했다.
+- 두 번째 허가: `findRefund`가 `NotFound`면 `refund` 전에 허가를 한 번 더 얻는다. 못 얻으면 호출하지 않고 `Unknown`처럼 다음 간격으로 미룬다(이력 사유 `RECOVERY_PERMIT_DENIED`, 시도 횟수는 센다).
+- `PaymentRefunded`의 `amount`는 결제의 `amount`가 아니라 PG 승인 금액(`pg_approved_amount`)이다. 환불 금액이 승인 금액을 복사하므로 같은 값이고, 승인 금액이 결제 금액과 달라 운영자 확인을 거친 결제(`PG_AMOUNT_MISMATCH`)의 환불에서 두 값이 다르다. `refundedAt`은 PG가 환불한 시각이고 밀리초로 자른다.
+- 테스트 범위: 서비스 단위(목 `PgClient`, 실제 테스트 DB와 복구 그룹), 쿼리, 실제 mock-pg를 띄운 E8·E13·응답 유실·`NotFound` 재호출. 환불 워커는 테스트 프로필에서 꺼 두고 서비스 메서드를 직접 부른다. mock-pg의 환불 호출 계수(원장 조회)는 아직 없어 PG 쪽 호출 횟수는 `PgClient` 스파이로 센다.
+- 미확인: Ops `refund retry`가 `pg_requested_at`을 비워야 하는지(비우면 재시도가 `findRefund` 없이 `refund`부터 시작해 이중 환불 방어가 PG 멱등키에만 의존한다. 비우지 않으면 `findRefund`부터 시작한다). Ops 명령 구현에서 정한다. 실제 Kafka로 `PaymentRefunded`가 Reservation까지 닿는 흐름(Outbox 행까지만 확인), 환불 장애 주입(ISE-133)에서의 동작, 지표와 알림(ISE-41, 코드에 `TODO(ISE-41)`로 자리만 둠), DLQ 경로가 만든 환불의 처리(ISE-138).
+
 ## 7. 실행기와 DB 연결
 
 Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 느려지면 Outbox 릴레이가 같이 멈추고, 승인 결과가 예매에 늦게 닿아 선점이 만료될 수 있다. 작업 성격별로 실행기를 나눈다.
@@ -117,7 +140,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 | `housekeeping` | 정리(10분`[가정]`), Gauge 갱신(15초), 대사(5분`[가정]`) | 1 | 1 |
 | Kafka 리스너 | `payment.command`, `payment.command.dlq` | 각 1 | 2 |
 
-- `recovery`는 Spring `TaskScheduler` 빈이 아니라 재확인 컴포넌트가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. `TaskScheduler` 빈을 만들면(`ScheduledExecutorService` 빈도 같다. Boot 4.1.2의 `TaskSchedulingConfigurations`가 `@ConditionalOnMissingBean({TaskScheduler, ScheduledExecutorService})`라서 ISE-39에서 실행기를 빈으로 노출하면 같은 문제가 생긴다) Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외와 Error는 `Throwable`로 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈추고 예외는 아무도 읽지 않는 Future에만 남는다). 종료할 때는 새 claim을 먼저 멈추고(`stopping` 플래그) 진행 중인 한 건을 최대 15초 기다린다(한 건 최악 시간이 claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션으로 약 7초라서). 설정은 `payment.recheck.{enabled,interval,max-per-tick}`다.
+- `recovery`는 Spring `TaskScheduler` 빈이 아니라 `RecoveryScheduler`가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. 결제 재확인과 환불 워커가 이 실행기를 함께 쓴다. `TaskScheduler` 빈을 만들면(`ScheduledExecutorService` 빈도 같다. Boot 4.1.2의 `TaskSchedulingConfigurations`가 `@ConditionalOnMissingBean({TaskScheduler, ScheduledExecutorService})`라서 실행기를 빈으로 노출하면 같은 문제가 생긴다) Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외와 Error는 `Throwable`로 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈추고 예외는 아무도 읽지 않는 Future에만 남는다). 종료할 때는 새 claim을 먼저 멈추고(`stopping` 플래그) 진행 중인 한 건을 최대 15초 기다린다(한 건 최악 시간이 claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션으로 약 7초라서). 작업은 `RecoveryJob(name, interval, maxPerTick, next)`로 표현하고 스케줄러가 작업마다 `scheduleWithFixedDelay`를 건다. 한 주기는 `maxPerTick`건까지 `next`를 부르다 `false`면 멈춘다. 작업은 `RecoveryConfiguration`이 등록하고, `enabled=false`인 작업은 등록하지 않는다. 스케줄러 빈은 항상 만들고(`ObjectProvider<RecoveryJob>`로 등록된 작업을 받는다. `@ConditionalOnBean`은 자동 설정 밖에서 빈 등록 순서에 결과가 달라질 수 있어 쓰지 않는다), 등록된 작업이 없으면 `start()`가 실행기를 만들지 않아 스레드도 뜨지 않는다. 설정은 `payment.recheck.{enabled,interval,max-per-tick}`와 `payment.refund-worker.{enabled,interval,max-per-tick}`(기본 `true`, 1초, 20)다. 테스트 프로필은 두 작업을 모두 끈다. `scheduleWithFixedDelay`는 같은 작업을 동시에 두 번 돌리지 않으므로 두 작업이 스레드를 하나씩 쓴다.
 - 각 작업은 끝날 때 `payment_job_last_success_timestamp{job}`을 갱신하고, 실패는 `payment_job_failures_total{job}`으로 센다. 정체 알림이 이 값을 본다.
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.

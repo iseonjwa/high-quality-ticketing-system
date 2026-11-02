@@ -99,6 +99,32 @@ class PaymentResultEnvelopeTest {
     }
 
     @Test
+    void PaymentRefunded_봉투와_페이로드_계약() {
+        var payment = requested();
+        transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-refund", AMOUNT, Instant.now(),
+                StatusActor.SYSTEM);
+        var refundedAt = Instant.parse("2026-11-02T11:05:00.123456Z");
+        transitions.markRefunded(payment.getId(), PaymentStatus.APPROVED, refundedAt, StatusActor.SYSTEM);
+
+        var json = mapper.readTree(jdbc.queryForObject(
+                "SELECT payload::text FROM outbox_events WHERE message_key = ? AND event_type = 'PaymentRefunded'",
+                String.class, String.valueOf(payment.getReservationId())));
+
+        assertEquals(ENVELOPE_KEYS, keys(json));
+        assertEquals("PaymentRefunded", json.get("eventType").asString());
+        assertEquals(1, json.get("version").asInt());
+        var body = json.get("payload");
+        assertEquals(Set.of("paymentId", "reservationId", "userId", "amount", "currency", "refundedAt"), keys(body));
+        assertEquals(payment.getId(), body.get("paymentId").asLong());
+        assertEquals(payment.getReservationId(), body.get("reservationId").asLong());
+        assertEquals(42L, body.get("userId").asLong());
+        assertTrue(body.get("amount").isNumber());
+        assertEquals(50000, body.get("amount").asInt());
+        assertEquals("KRW", body.get("currency").asString());
+        assertEquals("2026-11-02T11:05:00.123Z", body.get("refundedAt").asString(), "PG 환불 시각, 밀리초 정밀도");
+    }
+
+    @Test
     void 이벤트_ID는_Outbox_행의_event_id와_같다() {
         var payment = requested();
         transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-env2", AMOUNT, Instant.now(),

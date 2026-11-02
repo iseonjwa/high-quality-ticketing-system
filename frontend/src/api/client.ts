@@ -3,7 +3,7 @@ import { ApiError, isApiError } from '@/api/apiError'
 import { send, type SendOptions } from '@/api/transport'
 import { readEntryToken, removeEntryToken } from '@/auth/entryTokens'
 import { refreshAccessToken } from '@/auth/refresh'
-import { clearSession, sessionStore } from '@/auth/session'
+import { expireSession, sessionStore } from '@/auth/session'
 
 export interface ApiRequestOptions<T extends z.ZodType> extends Omit<SendOptions<T>, 'headers'> {
   // 기본 true. false면 Authorization을 붙이지 않고 401에도 재발급하지 않는다(공개 API, 로그인·재발급 자체).
@@ -60,7 +60,7 @@ async function sendWithAuth<T extends z.ZodType>(options: SendOptions<T>): Promi
       throw error
     }
     const renewedToken = await renewAfterUnauthorized(accessToken)
-    return await sendRenewed(withBearer(options, renewedToken))
+    return await sendRenewed(withBearer(options, renewedToken), renewedToken)
   }
 }
 
@@ -88,13 +88,21 @@ async function renewAfterUnauthorized(rejectedToken: string): Promise<string> {
   return refreshAccessToken()
 }
 
-async function sendRenewed<T extends z.ZodType>(options: SendOptions<T>): Promise<z.output<T>> {
+async function sendRenewed<T extends z.ZodType>(
+  options: SendOptions<T>,
+  renewedToken: string,
+): Promise<z.output<T>> {
   try {
     return await send(options)
   } catch (error) {
     // 방금 받은 토큰도 거절되면 이 세션으로는 더 할 수 없다. 로그인 화면으로 보내도록 세션을 지운다.
-    if (isApiError(error) && error.status === 401) {
-      clearSession()
+    // 재시도를 기다리는 사이 로그아웃하거나 다시 로그인했으면 지금 세션은 이 요청과 상관없으니 건드리지 않는다.
+    if (
+      isApiError(error) &&
+      error.status === 401 &&
+      sessionStore.getState().accessToken === renewedToken
+    ) {
+      expireSession()
     }
     throw error
   }

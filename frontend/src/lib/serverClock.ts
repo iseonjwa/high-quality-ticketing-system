@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react'
+import { instantMillis } from '@/lib/instant'
 
 export interface ServerClock {
   // 서버 시각으로 보정한 현재 시각(밀리초)
@@ -12,7 +13,7 @@ export function createServerClock(
   serverTimeIso: string,
   receivedAtMillis: number = Date.now(),
 ): ServerClock {
-  const offsetMillis = new Date(serverTimeIso).getTime() - receivedAtMillis
+  const offsetMillis = instantMillis(serverTimeIso) - receivedAtMillis
   return { now: () => Date.now() + offsetMillis }
 }
 

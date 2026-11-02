@@ -218,3 +218,10 @@
 - 원인: `prepareTestInfra`가 `docker compose -f compose.test.yml up -d --wait`만 실행한다. 컨테이너가 이미 떠 있으면 다시 만들지 않으므로, tmpfs DB라도 컨테이너가 살아 있는 동안 이전 실행에서 적용한 마이그레이션과 checksum이 남는다. 파일 내용이 바뀌면 Flyway가 기록된 checksum과 달라 검증에서 막는다. CI는 매번 새 컨테이너로 시작하므로 이 문제가 없다.
 - 해결: 로컬에서 `docker compose -f compose.test.yml up -d --force-recreate --wait postgres-reservation`으로 테스트 DB 컨테이너만 새로 띄웠다. 다시 실행해 137개가 모두 통과했고, `./gradlew verifyWorkspace`도 통과했다. 이미 머지된 마이그레이션은 고치지 않고 새 버전 파일을 더한다(다른 사람의 DB에 이미 적용됐기 때문이다).
 - 배운 점: 머지 전 마이그레이션을 고쳤거나 마이그레이션 변이 테스트를 할 때는 테스트 DB 컨테이너를 새로 띄운다. `build.gradle:42`의 `up`만 하는 구조는 인수인계 메모에도 "의도인지 확인 못 함"으로 남아 있다. `--force-recreate`를 기본으로 할지는 실행 시간과 함께 팀이 정한다.
+
+### TS-29 compose로 다시 띄운 서비스가 `Failed to configure a DataSource`로 기동 실패(config-server가 빈 설정을 줌)
+- 서비스·작성: infra(config-server) / junhyun / 2026-11-02
+- 문제: payment-service와 mock-pg 이미지를 새로 빌드해 `docker compose up -d --no-deps payment-service mock-pg`로 띄우자 둘 다 바로 종료됐다. payment-service는 `Failed to configure a DataSource: 'url' attribute is not specified`, mock-pg는 `Management-specific server address cannot be configured as the management server is not listening on a separate port`였다. 두 오류 모두 config-server에서 받아야 할 설정(`config-repo/*.yml`)이 없을 때 나는 오류다.
+- 원인: config-server는 `config-repo`를 바인드 마운트로 읽는데, 컨테이너 안의 `/config-repo`가 비어 있었다(`ls`가 `total 0`, `/payment-service/local` 응답의 `propertySources: []`). 컨테이너는 10/26 22:46에 만들어졌고 호스트의 `config-repo` 디렉터리는 10/27 19:22에 새로 만들어졌다(`stat -f %SB config-repo`). 바인드 마운트는 컨테이너를 만들 때의 디렉터리를 가리키므로, 그 뒤 호스트에서 디렉터리가 지워졌다 다시 생기면 컨테이너는 빈 디렉터리를 본다. 이미 떠 있던 서비스는 기동할 때 설정을 받아 두어서 드러나지 않았고, 새로 띄운 서비스부터 실패했다.
+- 해결: `docker compose up -d --no-deps --force-recreate config-server`로 config-server 컨테이너만 다시 만들었다(이미지는 그대로). `/config-repo`에 파일 11개가 보이고 `payment-service.yml`·`application.yml`·`application-local.yml`을 돌려주는 것을 확인한 뒤 두 서비스를 다시 띄우자 정상 기동했다.
+- 배운 점: 설정 오류처럼 보이는 기동 실패가 여러 서비스에서 함께 나면 먼저 `docker compose exec config-server curl -s localhost:8888/<서비스>/local`로 config-server가 실제로 무엇을 주는지 본다. 빈 `propertySources`면 마운트 문제다.

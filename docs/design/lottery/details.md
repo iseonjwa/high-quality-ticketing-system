@@ -67,13 +67,14 @@
 | 이름 | 주기 | 대상 | 하는 일 |
 |---|---|---|---|
 | 마감 | 10초 | `OPEN AND entry_end_at <= now()` | OPEN → CLOSED. 늦어도 응모 INSERT 조건이 막으므로 결과가 바뀌지 않는다 |
-| 추첨 | 10초 | `CLOSED AND draw_at <= now()` | 한 트랜잭션으로 순위·WON·WAITLISTED·LOST, CLOSED → DRAWN(D8). WON·WAITLISTED만 배치 갱신, LOST는 한 문장. `timeout = 10`초 |
+| 추첨 | 10초 | `CLOSED AND draw_at <= now()` | 한 트랜잭션으로 순위·WON·WAITLISTED·LOST, CLOSED → DRAWN(D8). WON·WAITLISTED만 순위(`draw_rank`, 전체 응모 중 1부터)와 함께 배치 갱신, LOST는 한 문장이고 순위를 저장하지 않는다(11/2 결정). `timeout = 10`초, `lock_timeout` 3초 |
 | 배정 워커 | 1초 | `WON AND reservation_id IS NULL` | 1명 = 1트랜잭션: 매수 한도 → 좌석(ID 오름차순) → 예매 HELD → 응모 연결 → outbox(D10) |
 | 승계 워커 | 1초 | `DRAWN AND draw_at + 30분 > now()` 추첨 행 `FOR UPDATE SKIP LOCKED` | 남은 좌석(`seat_count - WON·PAID 매수 합`)만큼 WAITLISTED를 순위 순으로 WON(매수 건너뛰기 규칙 동일). 예매는 배정 워커가 만든다(D13) |
 | 승계 마감 | 10초 | `DRAWN AND draw_at + 30분 <= now()` | 남은 WAITLISTED → LOST. 승계 쿼리도 같은 시각 조건을 가져 마감 뒤 승계가 없다 |
 | 종결 | 1분 | `DRAWN`이고 미종결 WON이 없음 | 한 트랜잭션: DRAWN → DONE, 그 회차 `LOTTERY` 좌석을 상태와 상관없이 `source_grade`로 되돌림(D9) |
 
 기존 코드에 붙는 훅 두 곳(예매 흐름 담당과 합의):
+- 11/2 상태(ISE-88): 시스템 선점(`SystemHoldPort` → `SystemSeatHoldService`, 선점 30분, `source = LOTTERY`, 일반 선점과 같은 잠금 순서·매수 한도)과 처리기 인터페이스 `LotteryPaymentResultHandler`를 만들었다. 아래 두 훅은 붙일 소비자·만료 스케줄러가 아직 없어(ISE-73·74, ISE-8) 그 코드가 생길 때 연결한다.
 - `payment.result` 소비자: `source = LOTTERY`면 lottery 처리기 호출(D11).
 - 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12).
 - 우리 책임 실패의 재시도는 응모 행의 `reservation_id`를 비워 배정 워커에 다시 맡기는 방식이다(D12 `WON → WON`). 응모 행은 현재 예매만 가리키므로, 이전 예매는 `reservations`(source LOTTERY, 같은 사용자)와 예매 상태 이력에서 찾는다.

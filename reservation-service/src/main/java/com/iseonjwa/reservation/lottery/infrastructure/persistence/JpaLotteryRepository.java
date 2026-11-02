@@ -5,6 +5,7 @@ import com.iseonjwa.reservation.lottery.domain.LotteryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -31,5 +32,31 @@ public class JpaLotteryRepository implements LotteryRepository {
     @Override
     public Optional<Long> findScheduleIdById(Long id) {
         return springDataLotteryRepository.findScheduleIdById(id);
+    }
+
+    @Override
+    public int closeDueLotteries() {
+        return springDataLotteryRepository.closeDueLotteries();
+    }
+
+    @Override
+    public List<Long> findDrawDueIds() {
+        return springDataLotteryRepository.findDrawDueIds();
+    }
+
+    @Override
+    public List<Long> findSuccessionOpenIds() {
+        return springDataLotteryRepository.findSuccessionOpenIds();
+    }
+
+    @Override
+    public Optional<Integer> lockForSuccession(Long id) {
+        return springDataLotteryRepository.lockForSuccession(id).stream().findFirst();
+    }
+
+    @Override
+    public boolean markDrawn(Long id) {
+        springDataLotteryRepository.setLocalLockTimeout();
+        return springDataLotteryRepository.markDrawn(id) == 1;
     }
 }

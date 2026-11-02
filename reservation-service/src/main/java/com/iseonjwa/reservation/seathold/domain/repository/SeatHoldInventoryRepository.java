@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * 선점에 필요한 회차·회차 좌석 조회와 좌석 상태 전이. concert 모듈 엔티티를 읽기만 하고 저장소는 선점 모듈이 가진다(ADR 0034).
- * 좌석 상태 전이(AVAILABLE → HELD)는 선점 모듈 책임이다(ScheduleSeatStatus).
+ * 좌석 상태 전이(AVAILABLE → HELD, 만료 시 HELD → AVAILABLE)는 선점 모듈 책임이다(ScheduleSeatStatus).
  */
 public interface SeatHoldInventoryRepository {
     // 지운 회차(deleted_at)는 찾지 않는다(Schedule의 @SQLRestriction)
@@ -20,4 +20,10 @@ public interface SeatHoldInventoryRepository {
 
     // AVAILABLE인 좌석만 HELD로 바꾸고 바꾼 행 수를 돌려준다(SA 12-7). 요청 수보다 작으면 이미 잡힌 좌석이 섞인 것이다
     int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
+
+    // 추첨 당첨 예매용(D10). AVAILABLE인 LOTTERY 좌석만 HELD로 바꾸고 바꾼 행 수를 돌려준다. 일반 좌석은 잡지 않는다
+    int holdAvailableLotterySeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
+
+    // HELD인 좌석만 AVAILABLE로 되돌리고 바꾼 행 수를 돌려준다. 선점 만료가 쓴다
+    int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
 }
