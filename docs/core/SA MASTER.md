@@ -18,6 +18,7 @@
 | --- | --- | --- | --- |
 | 1 | `lotteries.seed`를 `BIGINT`에서 `BYTEA NOT NULL, CHECK(32바이트)`로 바꿈. 순위 계산(`DrawRanker`, ISE-84)이 32바이트 시드를 쓴다 | 12-3, ERD 그림 3 | ADR 0041 |
 | 2 | 추첨 설정·수정 에러 코드 3개(`LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH`)와 설정 응답 `warnings` 추가. 설정 검증에 `draw_at + 60분 <= starts_at` 추가 | 11-3, 11-4 | D9·D10·D14 |
+| 3 | 추첨을 다른 서비스와 같은 필수 기능으로 올림(Should → Must). 기본 기능은 M2, 통합 테스트는 M3, 측정·수치 기반 개선은 M4. 추첨·빌링키 API 단계를 이후 → MVP로 | 4장 Must·Should, 5-2 일정, 6-7, 11-4 | 11/2 팀 합의 |
 
 ### 10/31 바뀐 점 (추첨 담당)
 
@@ -352,8 +353,8 @@ flowchart TD
 
 | 구분 | 항목 |
 | --- | --- |
-| **Must** | F1 회원·인증(Gateway 인증 필터) · F2 공연·좌석 · F3 대기열 + 입장 토큰 검증 필터 · F4 동기형 선점·만료·확정·발권 · F5-1·2 결제(Mock PG) · H5 SAGA(결제 결과 이벤트 + 보상) · H6 결제 멱등·서버 금액 검증 · H7 타임아웃·CB(UNKNOWN 포함) · 만료 뒤 승인 자동 환불(E8) · H8 Outbox 2경로(결제 결과·환불 요청) + 처리 이력 · H10 Prometheus·Grafana·Zipkin · H11 기준선 측정 + Synthetic Data 1차본 · docker-compose · 배포 1회 |
-| **Should** | 최소 화면(프론트) · H4 접수형 Kafka 접수 → 재측정 · F4-5 취소 + 취소 환불 · H8 나머지 토픽 확장·DLQ 재처리 · F6 추첨 배분 + F5-4·5 빌링키 + H9 · H2 캐싱 · H3 대기열 고도화 · 토스페이먼츠 테스트 모드 어댑터 |
+| **Must** | F1 회원·인증(Gateway 인증 필터) · F2 공연·좌석 · F3 대기열 + 입장 토큰 검증 필터 · F4 동기형 선점·만료·확정·발권 · F5-1·2 결제(Mock PG) · H5 SAGA(결제 결과 이벤트 + 보상) · H6 결제 멱등·서버 금액 검증 · H7 타임아웃·CB(UNKNOWN 포함) · 만료 뒤 승인 자동 환불(E8) · H8 Outbox 2경로(결제 결과·환불 요청) + 처리 이력 · H10 Prometheus·Grafana·Zipkin · H11 기준선 측정 + Synthetic Data 1차본 · F6 추첨 배분 + F5-4·5 빌링키 자동결제 + H9(11/2 팀 합의로 Should → Must) · docker-compose · 배포 1회 |
+| **Should** | 최소 화면(프론트) · H4 접수형 Kafka 접수 → 재측정 · F4-5 취소 + 취소 환불 · H8 나머지 토픽 확장·DLQ 재처리 · H2 캐싱 · H3 대기열 고도화 · 토스페이먼츠 테스트 모드 어댑터 |
 | **Could** | F8 내부 AI 상담 · F7 알림함 · 사전 대기실 + 무작위 순번 · 좌석 자동 배정 · 취소표 지연 공개 · 보안문자 · 팬클럽 선예매 · Loki 로그 수집 |
 | **Won't** | 4-5 제외 범위 |
 
@@ -366,9 +367,9 @@ flowchart TD
 | 기간 | 마일스톤 | 목표 |
 | --- | --- | --- |
 | 10/26~10/29 | M1. 공통 모듈 + 인증 기반 | 10/27 계약 합의(인증 헤더·응답·에러·이벤트 형식·패키지 구조) → 공통 모듈을 각자 구현해 비교 후 하나로 합침 → 인증·Gateway·compose. 완료 기준은 걷는 뼈대: compose 한 번으로 Gateway → User → Prometheus·Zipkin |
-| 10/30~11/3 | M2. 일반 예매 한 흐름 연결 | 입장 → 선점 → 결제 → `payment.result` → 확정·발권을 API 호출로 연결 + 동기형 기준선 1회 측정 |
-| 11/4~11/6 | M3. MVP 완성·배포 | 실패 경로(거절·만료·PG 장애·재확인 스케줄러), Mock PG 장애 주입, Synthetic Data 1차본, EC2 배포 1회, 11/6 MVP 시연 |
-| 11/9~11/16 | M4. 고도화 + 트러블슈팅 | 접수형 → 재측정, 대기열 고도화·입장 속도 역산, 취소·캐싱, 추첨 + 빌링키, 장애 주입·대사 정리 |
+| 10/30~11/3 | M2. 일반 예매 한 흐름 연결 | 입장 → 선점 → 결제 → `payment.result` → 확정·발권을 API 호출로 연결 + 동기형 기준선 1회 측정 + 추첨 기본 기능(설정·응모·추첨·배정·자동결제 요청·승계·종결) |
+| 11/4~11/6 | M3. MVP 완성·배포 | 실패 경로(거절·만료·PG 장애·재확인 스케줄러), Mock PG 장애 주입, 추첨 통합 테스트, Synthetic Data 1차본, EC2 배포 1회, 11/6 MVP 시연 |
+| 11/9~11/16 | M4. 고도화 + 트러블슈팅 | 접수형 → 재측정, 대기열 고도화·입장 속도 역산, 취소·캐싱, 추첨 측정 시나리오·수치 기반 개선, 장애 주입·대사 정리 |
 | 11/16~11/19 | 발표 준비 | 발표 자료 준비(11/16), 제출 마감(11/18), 발표(11/19) |
 
 ### 5-3. 10/26 결정 적용 순서
@@ -462,20 +463,20 @@ flowchart TD
 | MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
-| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
+| MVP | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
 
 ### 6-7. User·공통 → 추첨: 이강민
 
-10/28 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당(6-6)이 맡고, 결제 쪽 지원도 필요 없다고 확인했다. MVP 기간에는 User·공통 모듈을 개선하고 추첨을 기획·설계한다. 추첨 구현은 좌석 선점·결제 승인·`payment.result` 계약이 생긴 뒤 MVP 이후에 한다.
+10/28 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당(6-6)이 맡고, 결제 쪽 지원도 필요 없다고 확인했다. MVP 기간에는 User·공통 모듈을 개선하고 추첨을 기획·설계한다. 11/2 팀 합의로 추첨은 다른 서비스와 같은 필수 기능이다. 기본 기능은 M2, 통합 테스트는 M3, 측정·수치 기반 개선은 M4다(이전: 추첨 구현은 MVP 이후).
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
 | MVP | User·공통 모듈 개선: 계층 의존 방향 정리, 토큰 발급 규칙을 도메인으로 이동 (14장 #7 후속) | — |
 | MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
-| 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
-| 이후 | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
-| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
-| 이후 | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
+| MVP | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
+| MVP | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
+| MVP | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
+| MVP | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
 
 ### 6-8. 프론트 + 내부 AI 상담: 안준현
 
@@ -1012,13 +1013,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 안준현 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
-| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만). 응답 `warnings`에 권장 시간대 밖 추첨 경고 | 201 | 이강민 |
-| 이후 | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
-| 이후 | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
-| 이후 | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
-| 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
-| 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}` | 공개 | 추첨 정보·응모 규칙 | 200 | 이강민 |
-| 이후 | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 이강민 (결제 담당 리뷰, ISE-96) |
+| MVP | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만). 응답 `warnings`에 권장 시간대 밖 추첨 경고 | 201 | 이강민 |
+| MVP | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
+| MVP | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
+| MVP | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
+| MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
+| MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}` | 공개 | 추첨 정보·응모 규칙 | 200 | 이강민 |
+| MVP | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 이강민 (결제 담당 리뷰, ISE-96) |
 | 보류 | Reservation | GET `/api/v1/notifications` | 인증 | 알림함 | 200 | — |
 | Could | Assistant | POST `/api/v1/assistant/messages` | 인증 | AI 상담 | 200 | 안준현 |
 
