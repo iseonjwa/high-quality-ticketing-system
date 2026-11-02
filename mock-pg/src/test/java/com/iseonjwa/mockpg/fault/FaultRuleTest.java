@@ -6,8 +6,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.iseonjwa.mockpg.fault.FaultTarget.APPROVE;
-import static com.iseonjwa.mockpg.fault.FaultTarget.CANCEL;
-import static com.iseonjwa.mockpg.fault.FaultTarget.PAYMENT_LOOKUP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -115,12 +113,5 @@ class FaultRuleTest {
 
         assertTrue(rule.matches("o-1"));
         assertFalse(rule.matches("o-2"));
-    }
-
-    @Test
-    void 대상별로_POST_여부를_안다() {
-        assertTrue(APPROVE.isPost());
-        assertTrue(CANCEL.isPost());
-        assertFalse(PAYMENT_LOOKUP.isPost());
     }
 }

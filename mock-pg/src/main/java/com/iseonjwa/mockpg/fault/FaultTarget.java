@@ -5,20 +5,7 @@ package com.iseonjwa.mockpg.fault;
  * 환불(REFUND·REFUND_LOOKUP)은 ISE-132·133에서 더한다.
  */
 public enum FaultTarget {
-    APPROVE(true),
-    PAYMENT_LOOKUP(false),
-    CANCEL(true);
-
-    private final boolean post;
-
-    FaultTarget(boolean post) {
-        this.post = post;
-    }
-
-    /**
-     * 호출이 POST인지 여부. 응답 유실은 POST에만 걸 수 있다({@link FaultMode#DROP_RESPONSE}).
-     */
-    public boolean isPost() {
-        return post;
-    }
+    APPROVE,
+    PAYMENT_LOOKUP,
+    CANCEL
 }
