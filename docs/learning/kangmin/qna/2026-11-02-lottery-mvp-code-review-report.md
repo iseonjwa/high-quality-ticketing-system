@@ -32,9 +32,10 @@ tags: [lottery, transaction, locking, idempotency, postgresql, spring, gateway, 
 추첨 스케줄러 CLOSED → DRAWN ─────── ISE-87 순위 계산(ISE-84 도메인) → WON / WAITLISTED / LOST
    │
 배정 워커(1초) WON → 예매 HELD ───── ISE-90 (#210) ← 시스템 선점 ISE-88 (#209)
-   │  (자동결제 요청 발행: ISE-92, 아직 없음)
+   │  자동결제 요청 발행(outbox): ISE-92 (#233), 예매 outbox ISE-147 (#231)
+   │  결제 소비·빌링키 자동결제: ISE-89 (#237)·ISE-96 (#236)
 결제 결과 처리기 ────────────────── ISE-90 PAID / FAILED / NOT_SENT면 1회 재시도
-   │                                        └ 처리기를 부르는 소비자·만료 연결: ISE-143 (M3)
+   │                                        └ 만료 연결 ISE-149 (#235), 결제 결과 연결 ISE-150 (ISE-73 대기)
 승계 워커(1초) WAITLISTED → WON ─── ISE-93 (#211) 빈 자리만큼 예비자 승격 → 다시 배정 워커
 승계 마감(10초) WAITLISTED → LOST ─ ISE-93 추첨 후 30분
 종결(1분) DRAWN → DONE, 추첨석 반환 ISE-91 (#224)
@@ -487,6 +488,171 @@ WHERE schedule_id = :scheduleId AND grade = 'LOTTERY' AND deleted_at IS NULL
 
 ---
 
+## 8-2. 11/2 후반: 이슈 재배치(필수 기능 M2 · 통합 테스트 M3 · 고도화 M4)
+
+- **왜 했나**: 설계 이슈 ISE-49 아래에 구현·측정 이슈 16개가 하위 이슈로 묶여 있어 목록을 읽기 어렵고 새 하위 이슈를 만들 자리가 애매했다. 또 ISE-143(M3)에 "결제 결과·만료 처리기 연결"이 들어 있었는데, 이것이 없으면 당첨자가 결제해도 PAID가 되지 않으므로 기능 자체(M2)다.
+- **한 일**
+  - ISE-49 아래에는 설계 문서 반영(ISE-82·97)만 남기고 나머지는 하위 관계를 풀었다. 순서는 하위 관계 대신 `blocks`·`related`로 표시했다(ISE-147 → ISE-92, ISE-96 → ISE-89).
+  - 처리기 연결을 ISE-143에서 떼어 냈다: 선점 만료 연결 ISE-149(M2), 결제 결과 연결 ISE-150(M2, ISE-73 대기). ISE-143은 E2E·실패 경로 통합 테스트와 결과 안내만 남겼다.
+  - ISE-89의 "2,000건 95% 10분" 측정 기준을 ISE-94(M4)로 옮겼다.
+  - SA H9(응모 Kafka 접수)와 실제 구현(동기 201)의 차이는 팀 확인 필요로 ISE-94에 적었다.
+- **왜 이슈를 쪼개나**: PR을 머지하면 연결된 Linear 이슈가 체크리스트와 상관없이 자동 Done이 된다. 일부만 끝내는 PR을 만들면 남은 일이 Done 이슈 안에 묻힌다. 그래서 "PR 하나 = 이슈 하나가 끝나는 단위"로 나눴다.
+- **다른 서비스 영역 작업 방식(사용자 결정)**: 다른 담당 코드가 필요하면 기다리지 않고 별도 이슈(`contract`)를 만들어 담당을 멘션한 뒤 직접 구현하고 리뷰를 받는다. 예매 흐름은 반효승(GitHub `@hyos1`, Linear `@hyozzang99`), 좌석 선점은 최권우(`@KWON-WOO`, `@ckw075`), 결제는 안준현(`@alloy31`).
+
+---
+
+## 8-3. ISE-147 · PR #231 — 예매 서비스 outbox·처리 이력 테이블
+
+### 왜 필요했나
+outbox는 "업무 변경과 이벤트를 같은 DB 트랜잭션에 저장"하는 방식이다. 당첨 예매(HELD)와 자동결제 요청이 함께 커밋돼야 하므로 요청 행도 예매가 있는 reservation DB에 있어야 한다. payment DB의 outbox는 다른 DB라 같은 트랜잭션에 넣을 수 없다. 공통 라이브러리(`common/messaging/outbox`)는 테이블 이름 `outbox_events`를 고정해서 쓰므로 서비스마다 같은 구조의 테이블이 필요하다.
+
+| 방식 | 실패 |
+|---|---|
+| 커밋 뒤 Kafka 발행 | 커밋 직후 서버가 죽으면 이벤트가 사라진다(예매만 남고 결제 요청 없음) |
+| 트랜잭션 안에서 발행 | 발행 뒤 롤백되면 없는 예매로 결제 요청이 나간다 |
+| outbox(선택) | 같은 커밋이라 둘 다 있거나 둘 다 없다. 릴레이가 결국 보내고, 중복은 받는 쪽 멱등으로 막는다 |
+
+### 바꾼 것
+- 마이그레이션 `V20261102_2__outbox_and_processed_events.sql`: payment V1·V2와 같은 구조. `processed_events`도 만들었다. 공통 설정(`CommonOutboxConfiguration`)이 두 테이블을 함께 요구하고, 예매 흐름의 `payment.result` 소비자가 중복 처리 방지에 쓴다.
+- `ServiceConfiguration`에 `CommonOutboxConfiguration` 추가, `config-repo/reservation-service.yml`에 프로듀서 시한과 `messaging.outbox` 설정.
+- **프로듀서 시한을 넣은 이유**: 공통 모듈이 기동 때 `max.block.ms + delivery.timeout.ms`가 전송 시한(12초) 안인지 검사한다. Kafka 기본값(120초)이면 기동이 실패한다.
+
+### 테스트가 증명하는 것
+`ReservationOutboxTest`: 커밋하면 업무 변경과 PENDING 행이 함께 남고, 롤백하면 함께 사라지고, 트랜잭션 밖에서 쓰면 거절된다. 변이 테스트: 공통 설정 가져오기를 빼면 실패.
+
+### 예상 질문
+- "outbox면 정확히 한 번 전달인가?" → 아니다. 릴레이가 보낸 뒤 SENT 표시 전에 죽으면 다시 보내므로 최소 한 번이다. 받는 쪽이 `reservationId` 멱등(결제 `UNIQUE(reservation_id)`)으로 중복을 막아 "효과는 한 번"이 된다.
+
+---
+
+## 8-4. ISE-92 · PR #233 — 당첨 배정과 같은 트랜잭션에서 자동결제 요청 발행
+
+### 코드
+```java
+// LotteryAssignmentService.assignNext (한 트랜잭션)
+var hold = systemHoldPort.hold(winner.userId(), winner.scheduleId(), seatIds);      // 예매 HELD
+lotteryEntryRepository.linkReservation(winner.entryId(), hold.reservationId());     // 응모 연결
+billingPaymentRequestPublisher.publish(hold.reservationId(), winner.userId(),
+        hold.totalAmount(), winner.entryId());                                       // outbox 행
+```
+- `BillingPaymentRequestPublisher`는 payment-service의 `PaymentResultPublisher`와 같은 형태로 `OutboxWriter`를 쓴다. 토픽 `payment.command`(D6 기준선), 키 `reservationId`.
+- 페이로드는 SA 10-3에 `currency: "KRW"`를 더했다. 결제 계약(ADR 0027)이 금액과 통화를 함께 대조하고, SA 10-4가 필드 추가를 허용한다.
+- 선점이 거절되면(남은 좌석 없음, 매수 한도) 예외로 트랜잭션 전체가 롤백돼 요청도 남지 않는다.
+- `NOT_SENT` 재시도는 새 예매라 새 키로 요청이 한 건 더 나간다.
+
+### 발견한 문제와 처리
+코드를 쓰기 전에, 결제 쪽 `payment.command` 리스너가 `RefundRequested`만 받고 다른 `eventType`은 영구 오류로 DLQ에 보낸다는 것을 찾았다. ISE-92만 머지하면 자동결제 요청이 DLQ에 쌓인다. 리스너 분기를 ISE-89의 첫 할 일로 넣고, ISE-92를 먼저 머지했다(dev에 실제 추첨 데이터가 없어 영향이 작다고 판단).
+
+### 테스트
+`LotteryAssignmentTest`에 outbox 확인을 더했다: 배정 1건당 요청 1건(토픽·키·금액·통화), 롤백·거절이면 없음, `NOT_SENT` 재시도는 새 키로 1건 더. 변이 테스트: 발행 호출을 지우면 2개 실패.
+
+---
+
+## 8-5. ISE-149 · PR #235 — 선점 만료에 추첨 처리기 연결과 결과 미수신 1회 연장
+
+### 흐름(`SeatHoldExpiryService.expire`)
+1. 만료 직전에 `LotteryHoldExpiryHook.extensionLimit(reservationId)`로 추첨 당첨 예매인지 묻는다(예매에 연결된 WON 응모가 있으면 추첨 시각 + 60분).
+2. 추첨 예매이고 첫 만료면 `extendLotteryHoldOnce`로 같은 예매 선점을 30분 늘리고 끝낸다(상한까지만).
+3. 아니면 기존 만료(EXPIRED, 좌석·매수 반환) 뒤 같은 트랜잭션에서 `onExpired` → 응모 FAILED(`HOLD_EXPIRED`) → 승계 대상.
+
+### 판단
+| 판단 | 선택지 | 고른 것과 이유 | 감수 |
+|---|---|---|---|
+| 훅 위치 | seathold가 lottery 처리기를 직접 호출 / 인터페이스는 seathold, 구현은 lottery | 후자. lottery가 이미 seathold를 쓰고 있어 직접 호출하면 순환 의존이 생긴다. 의존 방향 lottery → seathold 하나 유지(ADR 0034) | 인터페이스 파일 하나가 seathold에 늘어난다 |
+| 연장 여부 기록 | 횟수 컬럼 추가 / 생성 시각으로 판정 | 후자. 첫 선점은 생성 + 30분, 연장하면 생성 + 60분이라 "기한이 생성 + 31분 안이면 연장 전"으로 가린다. 스키마 변경 없음 | 첫 선점 기한이 30분이 아닌 경로가 생기면 판정을 다시 봐야 한다 |
+| 왜 연장하나 | 바로 FAILED / 1회 연장 | 후자(D12). 추첨 예매가 HELD인 채 기한을 넘겼다면 결제 결과를 못 받은 것이다(결과가 오면 HELD가 아니다). outbox·Kafka·결제 장애일 수 있어 당첨자를 바로 떨어뜨리지 않는다 | 종결이 최대 30분 늦어질 수 있다(상한 T+60분 안) |
+
+### 테스트
+`LotteryHoldExpiryTest` 4개(1회 연장, 연장 뒤 만료 → FAILED·좌석 반환, 상한 지나면 바로 만료, 연장은 상한까지만). 기존 `SeatHoldExpiryTest` 5개 그대로 통과. 변이 테스트 3건(`onExpired` 삭제, "연장 전" 조건 삭제, 상한 조건 삭제) 모두 잡힘.
+
+---
+
+## 8-6. ISE-96 · PR #236 — 빌링키 등록·해지 API와 추첨 자동결제 승인
+
+### 결정한 6가지(사용자가 추천안 선택)
+| # | 안건 | 결정 |
+|---|---|---|
+| 1 | 96·89 경계 | 96: 등록·해지 API, 자동결제 승인 서비스, PG 포트, Mock PG. 89: Kafka 소비·백프레셔 |
+| 2 | 등록 API | `POST /api/v1/payments/billing-keys`, 본문 `authKey`(토스 빌링 흐름과 같음), 해지 `DELETE …/me` |
+| 3 | 암호화 | AES-256-GCM, 키 `BILLING_KEY_SECRET`(ADR 0042) |
+| 4 | 재등록 | 같은 트랜잭션에서 기존 ACTIVE → REVOKED 뒤 새 ACTIVE |
+| 5 | 승인 흐름 | 기존 TX1 → PG → TX2 재사용, `method = BILLING`, 멱등 기록 없음 |
+| 6 | 빌링키 없음 사유 | 새 `DeclineReason.BILLING_KEY_MISSING`(지표로 따로 세려고) |
+
+### 핵심 개념
+- **AES-GCM**: 암호화(기밀성)와 위·변조 감지(무결성, 태그)를 함께 준다. IV는 매번 새로 만들어야 한다. 같은 키로 같은 IV를 다시 쓰면 기밀성이 깨진다(변이 테스트로 IV 고정을 잡음).
+- **키 해석이 결제 토큰과 다른 이유**: HMAC 키(ADR 0025)는 문자열 UTF-8 바이트를 그대로 쓰지만, AES-256은 키가 정확히 32바이트여야 해서 16진수 64자를 디코딩한다.
+- **같은 예매로 두 번 와도 결제 한 건**: 결제가 있으면 PG를 부르지 않고 그 결제를 돌려준다. 동시에 오면 `UNIQUE(reservation_id)` 위반을 잡아 다시 읽는다.
+- **허가 거절 시 행을 만들지 않는다**: `pg-approve` 허가를 TX1 전에 얻는다. 못 얻으면 예외만 던져 소비자가 다시 읽게 한다(ISE-89 백프레셔).
+
+### 코드 흐름(`BillingPaymentService.approve`)
+```java
+var existing = payments.findByReservationId(command.reservationId());
+if (existing.isPresent()) return existing.get();                       // 재요청
+var billingKey = billingKeys.findActiveByUserId(command.userId());
+if (billingKey.isEmpty()) return 생성 후 DECLINED(BILLING_KEY_MISSING);    // PG 안 부름, 허가 불필요
+try (var permit = approvalGate.acquire()) {                              // 못 얻으면 PgUnavailableException
+    var payment = TX1(createBillingRequested);                           // 충돌이면 다시 읽기
+    permit.callStarted();
+    var result = pg.approveBilling(command, 복호화한 빌링키);               // 트랜잭션 밖
+    permit.settle(result);
+    return TX2(settleBillingApproved / Declined / Unknown);               // payment.result는 전이가 발행
+}
+```
+`PaymentTx`는 기존 승인 API의 전이 부분을 private 메서드로 빼서 자동결제 TX가 재사용한다. 기존 동작은 그대로다(payment 426개 테스트 통과).
+
+### 팀 영향
+- `.env`에 `BILLING_KEY_SECRET`이 새로 필요하다. 머지 뒤 `./gradlew initLocalEnv`를 한 번 다시 실행해야 compose에서 payment-service가 뜬다.
+- `payment.result` 거절 사유에 `BILLING_KEY_MISSING`이 늘었다.
+
+### 테스트
+암호화 4개, 등록·자동결제 8개, 실제 mock-pg 앱 계약 테스트 2개. 변이 테스트 3건(`BILLING`→`CARD`, 재등록 해지 생략, IV 고정).
+
+### 예상 질문
+- "빌링키를 왜 DB 암호화(pgcrypto)로 하지 않았나?" → 키를 SQL 파라미터로 넘겨야 해서 DB 로그·통계에 남을 수 있다. 앱에서 암호화하면 DB에는 암호문만 간다.
+- "키를 잃으면?" → 저장된 빌링키를 모두 다시 등록받아야 한다. 키 교체·KMS는 M4 후보(ADR 0042).
+
+---
+
+## 8-7. ISE-89 · PR #237 — payment.command 자동결제 소비와 허가 대기 백프레셔
+
+### 바꾼 것
+- `BillingPaymentRequestedMessageParser`: `eventType`이 `BillingPaymentRequested`면 봉투·페이로드를 검사해 `BillingPaymentCommand`로 바꾸고, 아니면 비워 둬 기존 환불 파서가 판단한다.
+- `PaymentCommandListener`: 자동결제면 `BillingPaymentService.approve`, 아니면 환불.
+- `PaymentCommandErrorHandlers`: `PgUnavailableException`만 `FixedBackOff(1초, 무제한)`. 나머지는 기존 규칙(일시 오류 3회 뒤 DLQ, 영구 오류 바로 DLQ).
+
+### 백프레셔를 왜 이렇게 했나
+| 선택지 | 결과 |
+|---|---|
+| 일반 재시도(3회 뒤 DLQ) | PG 포화가 몇 초만 길어져도 당첨 결제가 DLQ로 빠진다. 사람이 다시 넣기 전까지 결제가 안 된다 |
+| 리스너 안에서 잠들며 기다림 | 소비 스레드를 오래 막아 `max.poll.interval`을 넘기면 리밸런스가 난다 |
+| 오류 처리기가 같은 레코드로 되돌려 다시 읽기(선택) | 오프셋을 커밋하지 않으니 유실이 없고 키 순서도 유지된다. 허가 거절은 결제 행을 만들기 전이라 다시 해도 안전하다 |
+
+감수: 대기 중에는 같은 파티션의 뒤 메시지(환불 포함)도 멈춘다. D6 기준선에서 감수하기로 한 점이고 측정 시나리오 2(ISE-94)에서 잰다.
+
+### 테스트
+리스너 테스트 +2(자동결제 라우팅, 형식 오류 → 영구 오류), 오류 처리기 테스트 +1(허가 거절 10회 → DLQ 없이 계속 다시 읽기). 변이 테스트 2건(백프레셔 설정 삭제, 분기 끄기) 모두 잡힘. 실제 브로커 동작은 추첨 E2E(ISE-143)에서 확인한다.
+
+---
+
+## 8-8. 추첨 결제 흐름 전체(11/2 기준)
+
+```
+배정 워커 ─ 예매 HELD + 응모 연결 + outbox(BillingPaymentRequested)   [ISE-90·92, reservation DB outbox ISE-147]
+   ▼ payment.command (키 reservationId)
+결제 리스너 ─ eventType 분기 → BillingPaymentService                 [ISE-89]
+   │  허가 못 얻음 → 같은 레코드 다시 읽기(백프레셔)
+   ▼ 빌링키 복호화 → PG 자동결제(TX 밖) → 결제 APPROVED/DECLINED/UNKNOWN   [ISE-96]
+   ▼ payment.result (PaymentApproved / PaymentDeclined)
+예매 결과 소비자 ─ source = LOTTERY면 onPaid / onFailed               [ISE-150, ISE-73 대기]
+선점 만료 ─ 추첨 예매면 1회 연장, 그 뒤 만료면 onExpired              [ISE-149]
+   ▼
+승계 워커 → 종결(DONE, 추첨석 반환)                                    [ISE-93·91]
+```
+남은 연결 한 곳은 ISE-150(결제 결과 → 추첨 처리기)이고, 예매 흐름 담당의 `payment.result` 소비자(ISE-73)가 먼저 있어야 한다.
+
+---
+
 ## 9. ISE-141 · PR #216, ISE-144 — 이슈·PR 메타데이터 규칙과 일괄 정리, 추첨 마일스톤 재배치
 
 - GitHub 마일스톤 M1~M4를 Linear와 같은 이름·기간으로 만들고, 팀 전체 PR·이슈 185건의 담당자·라벨·마일스톤 빈칸을 Linear 기준으로 채웠다(덮어쓰지 않음).
@@ -546,6 +712,9 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 | NOT_SENT를 같은 예매로 재결제하지 않는 이유? | 결제는 예매당 1건(ADR 0026), 새 예매로 1회만 재시도(ADR 0038) |
 | 승계가 좌석 수를 넘지 않는 근거는? | 추첨 행 잠금으로 계산·승격을 직렬화, 다른 워커는 건너뜀 |
 | 종결 전에 좌석을 돌려주지 않는다는 근거는? | 추첨 행 잠금 뒤 새 문장으로 WON·WAITLISTED가 없음을 확인하고, DONE과 반환을 한 트랜잭션에서 한다 |
+| 자동결제 요청이 두 번 가면? | 결제 `UNIQUE(reservation_id)`와 기존 결제 반환으로 결제는 한 건 |
+| PG가 포화되면 당첨 결제는? | 허가 거절이면 행을 만들지 않고 같은 메시지를 1초마다 다시 읽는다(DLQ 아님) |
+| 결제 결과를 못 받은 추첨 예매는? | 첫 만료에 같은 예매로 30분 1회 연장, 그 뒤 만료면 FAILED·승계 |
 | 시스템 선점을 트랜잭션 밖에서 부르면? | `MANDATORY`라 즉시 예외, 예매만 남는 일을 막음 |
 | Gateway가 입장 토큰의 회차를 어떻게 아나? | `PathPattern.matchAndExtract`로 경로 `{scheduleId}`를 꺼내 claim과 비교 |
 | 낙첨에 순위를 저장하지 않는 이유? | 쓰기 수만 건을 줄여 추첨 트랜잭션을 짧게(D8). 필요하면 시드로 재계산 가능 |
@@ -556,15 +725,19 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 
 | 항목 | 위치 |
 |---|---|
-| 결제 결과 소비자·만료 스케줄러 연결, 추첨 E2E, D14 안내, Gateway 공개 경로 | ISE-143 (M3) |
-| 자동결제 요청 발행(outbox), 빌링키 자동결제 | ISE-92·96·89 (M2) |
+| 결제 결과 → 추첨 처리기 연결 | ISE-150 (M2, ISE-73 대기) |
+| 추첨 E2E·실패 경로 통합 테스트, D14 안내, Gateway 공개 경로 | ISE-143 (M3) |
+| 자동결제 2,000건 처리 시간, 전용 토픽·그룹 개선, 허가 대기 중 환불 지연 측정 | ISE-94 (M4) |
+| DLQ로 간 자동결제 메시지의 자동 복구(지금은 `dead_letters` OPEN) | 후속(이슈 없음) |
+| 빌링키 암호화 키 교체·KMS | M4 후보(ADR 0042) |
 | 측정 시나리오 1·2·3, 지표 대시보드 | ISE-94 (M4) |
 | 좌석 전환 중 선점 겹침, 매수 한도 동시성(TS-2) | M4 동시성 트러블슈팅 |
 | 추첨 시간 0.5초/4.5초 두 갈래 원인 | 미확인, 배포 환경에서 재측정 |
 
 ## 관련
 - 설계: `docs/design/lottery/options.md`(D1~D14), `details.md`, `numbers-and-measurement.md`
-- 결정: ADR 0034(seathold 경계), 0037(추첨석 등급), 0038(결제 실패 사유별), 0039(PG 그룹 공유), 0041(시드 BYTEA)
+- 결정: ADR 0034(seathold 경계), 0037(추첨석 등급), 0038(결제 실패 사유별), 0039(PG 그룹 공유), 0041(시드 BYTEA), 0042(빌링키 암호화)
+- 학습 노트: `2026-11-02-reservation-outbox-usage.md`(예매 outbox와 ISE-92)
 - 판단 기록: `docs/ai-judgments/kangmin/daily/2026-11-02.md`, `2026-11-02-lottery-must-milestone.md`
 - 트러블슈팅: `docs/troubleshooting.md` TS-28
 - 규칙: `docs/guides/git-workflow.md` 6절
