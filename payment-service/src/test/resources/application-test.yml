@@ -36,6 +36,9 @@ payment:
   recheck:
     # 테스트는 재확인 서비스를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
     enabled: false
+  refund-worker:
+    # 테스트는 환불 워커 서비스를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    enabled: false
   pg:
     provider: mock
     mock:

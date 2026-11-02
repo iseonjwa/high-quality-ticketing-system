@@ -1,4 +1,4 @@
-package com.iseonjwa.payment.payment.infrastructure.recheck;
+package com.iseonjwa.payment.infrastructure.recovery;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
