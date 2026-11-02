@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long> {
 
@@ -60,4 +61,12 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
             """)
     int updateGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
                                @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT ss.id, ss.section, vs.row_no, vs.seat_no
+            FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id
+            WHERE ss.schedule_id = :scheduleId AND ss.grade = 'LOTTERY' AND ss.deleted_at IS NULL
+            ORDER BY ss.id
+            """)
+    List<Object[]> findLotterySeatRows(@Param("scheduleId") Long scheduleId);
 }
