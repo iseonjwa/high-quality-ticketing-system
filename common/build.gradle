@@ -29,5 +29,6 @@ dependencies {
     testImplementation 'org.hibernate.validator:hibernate-validator'
     testRuntimeOnly 'org.apache.tomcat.embed:tomcat-embed-el'
     testRuntimeOnly 'com.h2database:h2'
-    testRuntimeOnly 'ch.qos.logback:logback-classic'
+    testImplementation 'ch.qos.logback:logback-classic'
+    testImplementation 'org.mockito:mockito-core'
 }
