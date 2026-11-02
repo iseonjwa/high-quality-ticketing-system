@@ -14,6 +14,7 @@
 | `messaging` | CommonMessagingConfiguration | spring-boot-starter-kafka. `@Import(CommonMessagingConfiguration.class)` |
 | `persistence`, `event` | EventEnvelope, BaseEntity, CurrentActorProvider, CommonJpaConfiguration | spring-boot-starter-data-jpa. `@Import(CommonJpaConfiguration.class)`. 이벤트는 일반 DTO. 감사는 JPA 콜백과 Spring 빈 주입 사용 |
 | `messaging.outbox`, `messaging.inbox` | OutboxWriter·OutboxRelay·OutboxEventSender, ProcessedEventService | spring-jdbc, spring-kafka. `@Import(CommonOutboxConfiguration.class)`(`CommonJpaConfiguration`도 함께). 서비스 Flyway가 `outbox_events`·`processed_events` 테이블을 만든다 |
+| `messaging.consumer` | ConsumerErrorHandlers, ConsumerContainerFactories, NonRetryableMessageException | spring-boot-starter-kafka. 빈 등록 없이 서비스 `@Configuration`에서 static 메서드로 사용("소비 재시도와 DLQ" 절) |
 
 ### MVC 응답
 
@@ -53,12 +54,56 @@ Hibernate가 리스너를 Spring 빈으로 만들도록 SpringBeanContainer를 �
 
 논리 삭제는 허용된 도메인이 markDeleted를 호출한다. 공통 삭제 필터와 version 필드는 없다. 예매·결제 등 상태로 관리하는 도메인에서 삭제 기능을 호출하지 않는다. 기록용 테이블은 SA대로 BaseEntity를 상속하지 않는다.
 
-EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·traceId·payload를 제공한다. 전송·소비, 도메인별 이벤트 payload, Outbox·멱등 처리·재시도·DLQ는 구현하지 않았다.
+EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·traceId·payload를 제공한다. 전송·소비, 도메인별 이벤트 payload, Outbox·멱등 처리는 "Outbox와 처리 이력" 절, 소비 재시도·DLQ는 "소비 재시도와 DLQ" 절에 있다.
 
 ## 팀 비교 때 확인할 질문
 
 1. 공통 응답은 어디까지 통일하고 MVC·WebFlux의 예외 처리는 왜 분리하는가?
 2. 시스템 작업이 사용자 요청 뒤 엔티티를 수정하면 감사 사용자 ID는 무엇으로 남아야 하는가?
+
+### 소비 재시도와 DLQ
+
+`com.iseonjwa.common.messaging.consumer` 패키지가 이벤트 소비 리스너의 오류 처리 부품을 제공한다. 빈을 자동 등록하지 않는다. 서비스가 자기 `@Configuration`에서 리스너별 컨테이너 팩토리를 만들 때 static 메서드로 가져다 쓴다.
+
+**전역 `CommonErrorHandler` 빈을 만들지 않는 이유**: 리스너마다 오류 규칙이 다르다. 일반 소비자는 재시도 뒤 DLQ로 보내지만, DLQ 처리기는 건너뛰면 의무가 사라지므로 무제한 재시도한다. 전역 빈 하나가 모든 리스너에 적용되면 DLQ 처리기가 메시지를 건너뛸 수 있다.
+
+**언제 무엇을 쓰나**
+
+| 소비자 | 처리기 | 동작 |
+|---|---|---|
+| 일반 소비자(예: `payment.command`, 예매의 `payment.result`) | `ConsumerErrorHandlers.retryThenDeadLetter(template)` | 일시 오류는 1·2·4초 간격 3회 재시도 뒤 `<토픽>.dlq`로 보낸다. `NonRetryableMessageException`은 재시도 없이 바로 보낸다. DLQ 전송이 실패하면 원 메시지를 다시 처리하고 오프셋을 올리지 않는다 |
+| 건너뛰면 의무가 사라지는 소비자(DLQ 처리기) | `ConsumerErrorHandlers.retryForever()` | 복구기 없이 1초에서 2배씩 최대 60초 간격으로 횟수 제한 없이 재시도한다. 모든 예외를 재시도하고 오프셋을 커밋하지 않는다 |
+
+**사용 예**
+
+```java
+@Configuration(proxyBeanMethods = false)
+class PaymentResultKafkaConfiguration {
+    @Bean(PaymentResultListener.CONTAINER_FACTORY)
+    ConcurrentKafkaListenerContainerFactory<Object, Object> paymentResultListenerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
+            KafkaTemplate<String, String> kafkaTemplate) {
+        return ConsumerContainerFactories.recordAck(configurer, consumerFactory,
+                ConsumerErrorHandlers.retryThenDeadLetter(kafkaTemplate));
+    }
+}
+```
+
+`recordAck`는 Boot 공통 설정을 먼저 적용한 뒤 ack-mode `RECORD`, 오류 처리기, 동시성 1로 고정한다. 공유 설정(config-repo)이 바뀌어도 오프셋 보존이 흔들리지 않게 하려고 RECORD를 여기서 다시 고정한다. 리스너는 `@KafkaListener(containerFactory = ...)`로 이 팩토리를 지정한다.
+
+**영구 오류 표시**: 검증 실패, 깨진 JSON처럼 다시 처리해도 결과가 같은 오류는 `NonRetryableMessageException`을 던진다. DB·네트워크처럼 다시 시도하면 풀릴 수 있는 오류에는 쓰지 않는다.
+
+**DLQ 토픽 이름과 적재 내용**
+- 이름은 `원본토픽 + ".dlq"`다(`ConsumerErrorHandlers.deadLetterTopic`). `payment.command`는 `payment.command.dlq`다.
+- 키와 값 원문을 그대로 싣는다. 파티션은 지정하지 않아(키 기반 배정) DLQ 토픽의 파티션 수가 원본과 달라도 전송이 실패하지 않는다.
+- Spring의 `kafka_dlt-*` 헤더가 붙는다: 원본 토픽(`kafka_dlt-original-topic`)·파티션·오프셋, 예외 클래스(`kafka_dlt-exception-fqcn`)·메시지·스택트레이스.
+- 토픽은 서비스(compose)가 만든다. 이 부품은 만들지 않는다.
+
+**확인 방법**
+- Kafka-UI에서 `*.dlq` 토픽의 메시지와 `kafka_dlt-*` 헤더를 본다.
+- DLQ로 보낼 때마다 ERROR 로그 한 줄이 남는다: `event=MESSAGE_DEAD_LETTERED topic partition offset key dlqTopic cause`. 전송이 성공한 뒤에만 남고, 값 원문은 넣지 않는다.
+- 소비자 그룹 랙은 Kafka-UI로 본다. 랙이 늘면 재시도 중이거나 DLQ 전송이 막힌 것이다.
+- 대시보드·알림은 결제 ISE-41에서 만든다. 이 부품은 로그까지만 남긴다.
 
 ### Outbox와 처리 이력
 
