@@ -20,7 +20,7 @@ tags: [lottery, transaction, locking, idempotency, postgresql, spring, gateway, 
 
 ---
 
-## A. 전체 이슈 색인 (담당 이슈 33개, 11/2 기준)
+## A. 전체 이슈 색인 (담당 이슈 35개, 11/3 기준)
 
 이 보고서는 오늘 세션뿐 아니라 내가 맡은 이슈 전체를 다룬다. 코드 이슈는 본문 절과 13장(엄격 리뷰), 문서·운영 이슈는 14장에 있다.
 
@@ -53,10 +53,12 @@ tags: [lottery, transaction, locking, idempotency, postgresql, spring, gateway, 
 | ISE-149 선점 만료에 추첨 처리기, 1회 연장 | M2 | Done | #235 | 코드 | 8-5, 13-14 |
 | ISE-96 빌링키 등록·해지, 자동결제 승인 | M2 | Done | #236 | 코드(payment) | 8-6, 13-15 |
 | ISE-89 payment.command 자동결제 소비, 백프레셔 | M2 | Done | #237 | 코드(payment) | 8-7, 13-16 |
-| ISE-152 추첨 공개 조회 Gateway 공개 | M2 | In Review | #241 | 코드 | 8-9, 13-17 |
+| ISE-152 추첨 공개 조회 Gateway 공개 | M2 | Done | #241 | 코드 | 8-9, 13-17 |
 | ISE-150 payment.result 소비자에 추첨 처리기 | M2 | Backlog | - | 대기(ISE-73) | 12장 |
-| ISE-151 추첨 서비스 내부 시나리오 통합 테스트 | M3 | In Review | #239 | 테스트 | 8-9, 13-18 |
+| ISE-151 추첨 서비스 내부 시나리오 통합 테스트 | M3 | Done | #239·#242 | 테스트 | 8-9, 13-18 |
 | ISE-143 추첨 E2E 통합 테스트와 결과 안내 | M3 | Backlog | - | 테스트(준비 완료) | 8-9 |
+| ISE-153 승계 당첨자 NO_SEAT 영구 탈락(R1) | M2 | Done | #245 | 코드(버그) | 13장 R1, 13-9 |
+| ISE-154 배정 워커 head-of-line(R2) | M2 | Done | #245 | 코드(버그) | 13장 R2, 13-9 |
 | ISE-94 감시 지표·측정 시나리오 2·3·장애 주입 | M4 | Backlog | - | 측정 | 12장 |
 | ISE-95 확장안 묶음 | M4 | Backlog | - | 확장 | 12장 |
 
@@ -790,7 +792,7 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 | 항목 | 위치 |
 |---|---|
 | 결제 결과 → 추첨 처리기 연결 | ISE-150 (M2, ISE-73 대기) |
-| 13장 R1(NO_SEAT 영구 FAILED)·R2(배정 head-of-line) | 후속 이슈 필요(ISE-150과 같은 시기 권장) |
+| 13장 R1(NO_SEAT 영구 FAILED)·R2(배정 head-of-line) | 수정됨(ISE-153·154, PR #245, 11/3). R1은 승계 마감까지 다시 시도로 막았고, 승계 계산을 실제 AVAILABLE 좌석 기준으로 바꾸는 근본 수정은 하지 않음 |
 | outbox·처리 이력 보관 기간 정리 작업 | 후속(이슈 없음, payment·reservation 공통) |
 | 추첨 E2E·실패 경로 통합 테스트, D14 안내, Gateway 공개 경로 | ISE-143 (M3) |
 | 자동결제 2,000건 처리 시간, 전용 토픽·그룹 개선, 허가 대기 중 환불 지연 측정 | ISE-94 (M4) |
@@ -808,8 +810,8 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 
 | # | 심각도 | 이슈 | 위치 | 내용 | 제안 |
 |---|---|---|---|---|---|
-| R1 | 높음 | ISE-90·93 | `LotteryAssignmentService.java:70` | 승계로 WON이 된 예비자가 배정될 때 남은 추첨석이 모두 HELD면 `NO_SEAT`로 **영구 FAILED**다. 실패한 앞 당첨자의 좌석은 결제 결과 소비자(ISE-73)가 반환해야 풀리는데, 승계는 좌석 반환을 기다리지 않고 "좌석 수 − (WON+PAID 매수)"로 계산한다(`LotterySuccessionService.java:39`). 반환이 늦으면 정당한 예비자가 탈락한다 | `NO_SEAT`를 다시 해도 같은 결과인 거절에서 빼고, 승계 마감 전까지는 WON·예매 없음으로 남겨 다음 주기에 다시 집게 한다. 또는 승계 계산을 "AVAILABLE 추첨석 수" 기준으로 바꾼다 |
-| R2 | 중간 | ISE-90 | `LotteryAssignmentScheduler.java:39`, `SpringDataLotteryEntryRepository.java:65` | 예상하지 못한 예외가 나면 주기를 멈춘다. 대상 조회가 `ORDER BY draw_rank LIMIT 1`이라 같은 응모가 매번 맨 앞에 온다. 그 응모의 실패가 계속되면(데이터 오류 등) **모든 추첨의 배정이 멈춘다**(head-of-line blocking) | 실패 횟수를 응모별로 세어 N회 넘으면 `ASSIGN_FAILED`로 닫거나, 실패한 응모를 건너뛰고 다음을 집는다. 연속 실패 지표를 둔다 |
+| R1 | 높음 → **수정됨(ISE-153, #245)** | ISE-90·93 | `LotteryAssignmentService.java:70` | 승계로 WON이 된 예비자가 배정될 때 남은 추첨석이 모두 HELD면 `NO_SEAT`로 **영구 FAILED**다. 실패한 앞 당첨자의 좌석은 결제 결과 소비자(ISE-73)가 반환해야 풀리는데, 승계는 좌석 반환을 기다리지 않고 "좌석 수 − (WON+PAID 매수)"로 계산한다(`LotterySuccessionService.java:39`). 반환이 늦으면 정당한 예비자가 탈락한다 | `NO_SEAT`를 다시 해도 같은 결과인 거절에서 빼고, 승계 마감 전까지는 WON·예매 없음으로 남겨 다음 주기에 다시 집게 한다. 또는 승계 계산을 "AVAILABLE 추첨석 수" 기준으로 바꾼다 |
+| R2 | 중간 → **수정됨(ISE-154, #245)** | ISE-90 | `LotteryAssignmentScheduler.java:39`, `SpringDataLotteryEntryRepository.java:65` | 예상하지 못한 예외가 나면 주기를 멈춘다. 대상 조회가 `ORDER BY draw_rank LIMIT 1`이라 같은 응모가 매번 맨 앞에 온다. 그 응모의 실패가 계속되면(데이터 오류 등) **모든 추첨의 배정이 멈춘다**(head-of-line blocking) | 실패 횟수를 응모별로 세어 N회 넘으면 `ASSIGN_FAILED`로 닫거나, 실패한 응모를 건너뛰고 다음을 집는다. 연속 실패 지표를 둔다 |
 | R3 | 낮음 | ISE-90 | `SpringDataLotteryEntryRepository.java:65` | 배정 대상 조회에 승계 마감·종결 상한 조건이 없다. 배정이 늦어지면 추첨 후 30분 뒤에도 새 예매(30분 선점)를 만들어 종결이 상한(T+60분)을 넘길 수 있다 | `now() < l.draw_at + interval '60 minutes' - 선점 30분` 같은 상한을 두거나, 넘으면 `ASSIGN_FAILED`로 닫는다 |
 | R4 | 중간 | ISE-89 | `PaymentCommandErrorHandlers.java:47` | 허가 대기 중에는 같은 파티션의 뒤 메시지(환불 `RefundRequested` 포함)도 멈춘다. 일반 결제 폭주가 길면 만료 뒤 승인 환불(E8)이 늦어진다 | D6 기준선에서 감수하기로 한 점. 측정 시나리오 2(ISE-94)에서 환불 지연을 재고, 넘으면 전용 토픽·그룹(D6 개선안) |
 | R5 | 중간 | ISE-89 | `PaymentCommandDlqListener` | 자동결제 메시지가 DLQ로 가면(형식 오류, 일시 오류 3회) DLQ 처리기는 환불 파서로만 읽어 `dead_letters`에 OPEN으로 남긴다. 자동 복구 경로가 없어 당첨자는 선점 만료 → 1회 연장 → FAILED → 승계로 간다 | 자동결제 DLQ 복구(재발행) 후속 이슈. 그 전에는 운영자 확인 절차를 runbook에 둔다 |
@@ -857,6 +859,7 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 ### 13-9. ISE-90 · PR #210 배정 워커·처리기
 - 확인: 1명 = 1트랜잭션, `FOR UPDATE OF e SKIP LOCKED`, 거절은 롤백 뒤 새 트랜잭션에서 FAILED. 처리기는 "연결된 WON만" 바꾸는 조건부 UPDATE라 멱등.
 - 엄격 리뷰: **R1(높음)**, **R2(중간)**, R3. 이 세 가지가 이번 리뷰의 핵심이다. 특히 R1은 E2E(ISE-150 뒤)에서 결제 거절이 연속되면 드러날 가능성이 높다.
+- 11/3 수정(ISE-153·154, PR #245): `NO_SEAT`는 승계 마감 전이면 FAILED로 닫지 않고 그 주기에 건너뛰었다가 다시 시도한다(마감 뒤에만 `FAILED(NO_SEAT)`). 예상하지 못한 실패는 `AssignmentError(entryId)`로 감싸 그 응모만 건너뛰고, 같은 응모가 연속 3번 실패하면 `FAILED(ASSIGN_ERROR)`. 시나리오 S11(좌석 반환 전 승계·배정 → 대기 → 반환 뒤 배정)과 스케줄러 단위 테스트 3개로 확인, 변이 2건 확인. R3(배정에 마감 상한 없음)은 남아 있다.
 
 ### 13-10. ISE-93 · PR #211 승계
 - 확인: 추첨 행 `FOR UPDATE SKIP LOCKED` + 마감 조건을 같은 문장에. 매수 건너뛰기. 빈 목록이면 `promoteToWon`을 부르지 않는다(`IN ()` 오류 방지).
