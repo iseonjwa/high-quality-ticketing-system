@@ -70,6 +70,11 @@ public final class RecheckFixtures {
                 Integer.class, payment.getId());
     }
 
+    public String lastHistoryReason(Payment payment) {
+        return jdbc.queryForObject("SELECT reason FROM payment_status_histories WHERE payment_id = ? ORDER BY id DESC LIMIT 1",
+                String.class, payment.getId());
+    }
+
     public void cleanUp() {
         for (var payment : created) {
             jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(payment.getReservationId()));
