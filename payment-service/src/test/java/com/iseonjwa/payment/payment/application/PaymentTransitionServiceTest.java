@@ -58,8 +58,8 @@ class PaymentTransitionServiceTest {
         assertNull(approved.getNextCheckAt(), "종결 상태는 재확인 대상이 아니다");
         var history = histories.findByPaymentId(payment.getId());
         assertEquals(1, history.size());
-        assertEquals(PaymentStatus.REQUESTED, history.get(0).getFromStatus());
-        assertEquals(PaymentStatus.APPROVED, history.get(0).getToStatus());
+        assertEquals("REQUESTED", history.get(0).getFromStatus());
+        assertEquals("APPROVED", history.get(0).getToStatus());
         assertEquals("SYSTEM", history.get(0).getActor());
     }
 
