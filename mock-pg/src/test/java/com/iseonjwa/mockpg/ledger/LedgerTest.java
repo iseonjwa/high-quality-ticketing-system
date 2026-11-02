@@ -15,6 +15,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
@@ -48,6 +49,7 @@ class LedgerTest {
 
             ledger.approve(orderId, () -> {
                 seen[0] = ledger.approve(orderId, LedgerTest::notCalled);
+                assertInstanceOf(InFlight.class, ledger.find(orderId).orElseThrow());
                 return approvedOf(orderId);
             });
 
@@ -153,13 +155,40 @@ class LedgerTest {
 
     /**
      * INV-8: 망취소가 CANCELED를 응답했다면 그 주문은 이후 APPROVED가 될 수 없다. 승인과 망취소를 실제 스레드로 경합시킨다.
+     * 짝수 회차는 망취소가 반드시 처리 중 구간에 끼어들게 강제하고, 홀수 회차는 자유 경합으로 둔다.
      */
     @Test
     void 승인과_망취소가_동시에_와도_망취소를_받은_주문은_승인되지_않는다() throws Exception {
         var races = new ArrayList<Race>();
+        var forcedInterleaves = new AtomicInteger();
         try (var executor = Executors.newFixedThreadPool(8)) {
             for (int i = 0; i < 1_000; i++) {
                 var id = "race-" + i;
+                if (i % 2 == 0) {
+                    // 회차마다 두 태스크만 서로 기다리므로, 회차를 끝낸 뒤 다음 회차를 내서 풀이 막히지 않게 한다
+                    var inFlightMarked = new CountDownLatch(1);
+                    var cancelDone = new CountDownLatch(1);
+                    var approval = executor.submit(() -> ledger.approve(id, () -> {
+                        inFlightMarked.countDown();
+                        awaitOrFail(cancelDone, "망취소 완료");
+                        return approvedOf(id);
+                    }));
+                    var cancel = executor.submit(() -> {
+                        try {
+                            awaitOrFail(inFlightMarked, "처리 중 표시");
+                            return ledger.cancel(id);
+                        } finally {
+                            cancelDone.countDown();
+                        }
+                    });
+                    var canceled = cancel.get(10, TimeUnit.SECONDS);
+                    var approved = approval.get(10, TimeUnit.SECONDS);
+                    assertInstanceOf(InFlight.class, canceled, id);
+                    assertInstanceOf(Approved.class, approved, id);
+                    assertInstanceOf(Approved.class, ledger.find(id).orElseThrow(), id);
+                    forcedInterleaves.incrementAndGet();
+                    continue;
+                }
                 var start = new CountDownLatch(1);
                 var approval = executor.submit(() -> {
                     start.await();
@@ -178,22 +207,36 @@ class LedgerTest {
             }
         }
 
-        var canceledFirst = new AtomicInteger();
+        var canceledCount = new AtomicInteger();
+        var inFlightCount = new AtomicInteger();
+        var approvedCount = new AtomicInteger();
         for (var race : races) {
             var canceled = race.cancel().get();
             var approved = race.approval().get();
             var finalState = ledger.find(race.orderId()).orElseThrow();
             if (canceled instanceof Canceled) {
-                canceledFirst.incrementAndGet();
+                canceledCount.incrementAndGet();
                 assertEquals(Canceled.INSTANCE, finalState, race.orderId());
                 assertEquals(Canceled.INSTANCE, approved, race.orderId());
             } else {
                 // 망취소가 처리 중이나 승인을 봤다면 승인이 확정된다
+                if (canceled instanceof InFlight) inFlightCount.incrementAndGet();
+                else approvedCount.incrementAndGet();
                 assertTrue(canceled instanceof InFlight || canceled instanceof Approved, race.orderId());
                 assertInstanceOf(Approved.class, finalState, race.orderId());
             }
         }
-        System.out.printf("경합 1,000회 중 망취소가 먼저 이긴 주문 %d건%n", canceledFirst.get());
+        System.out.printf("망취소 결과: 강제 교차 %d건(모두 InFlight), 자유 경합 Canceled %d건 / InFlight %d건 / Approved %d건%n",
+                forcedInterleaves.get(), canceledCount.get(), inFlightCount.get(), approvedCount.get());
+    }
+
+    private static void awaitOrFail(CountDownLatch latch, String what) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) fail("시간 초과: " + what);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("대기 중 인터럽트: " + what);
+        }
     }
 
     private record Race(String orderId, Future<OrderState> approval, Future<OrderState> cancel) {
