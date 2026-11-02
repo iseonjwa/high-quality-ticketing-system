@@ -40,4 +40,9 @@ public class JpaScheduleRepository implements ScheduleRepository {
     public List<Schedule> findByConcertIdWithVenue(Long concertId) {
         return springDataScheduleRepository.findByConcertIdWithVenue(concertId);
     }
+
+    @Override
+    public List<Schedule> findOpenBy(Instant until, Instant now) {
+        return springDataScheduleRepository.findOpenBy(until, now);
+    }
 }

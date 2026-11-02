@@ -25,4 +25,7 @@ interface SpringDataScheduleRepository extends JpaRepository<Schedule, Long> {
     // join fetch로 공연장을 한 쿼리에 같이 읽는다. 회차마다 공연장을 따로 조회하는 N+1을 막는다
     @Query("select s from Schedule s join fetch s.venue where s.concert.id = :concertId order by s.startsAt asc")
     List<Schedule> findByConcertIdWithVenue(@Param("concertId") Long concertId);
+
+    @Query("select s from Schedule s where s.openAt <= :until and s.startsAt > :now order by s.openAt asc")
+    List<Schedule> findOpenBy(@Param("until") Instant until, @Param("now") Instant now);
 }
