@@ -18,6 +18,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-02 | 토스페이먼츠 테스트 연동을 위해 미리 준비해 둘 것은 무엇인가 | [qna/2026-11-02-toss-payments-test-setup.md](qna/2026-11-02-toss-payments-test-setup.md) |
 | 2026-11-02 | Gateway는 왜 만료된 Access 토큰에 TOKEN_EXPIRED가 아니라 UNAUTHORIZED를 주는가 (보안상 숨긴 것인가) | [qna/2026-11-02-gateway-expired-token-error-code.md](qna/2026-11-02-gateway-expired-token-error-code.md) |
 | 2026-11-02 | GitHub Actions 워크플로를 특정 폴더가 바뀔 때만 돌리면 필수 검사와 어떻게 부딪히나 | [qna/2026-11-02-required-checks-and-paths-filter.md](qna/2026-11-02-required-checks-and-paths-filter.md) |
 | 2026-11-02 | 앞단에 가상 대기실을 두면 서버에 만든 대기열 설계는 의미가 없어지는가 | [qna/2026-11-02-waiting-room-vs-server-queue.md](qna/2026-11-02-waiting-room-vs-server-queue.md) |
