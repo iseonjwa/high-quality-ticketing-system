@@ -22,5 +22,8 @@ public interface ScheduleSeatRepository {
     // 추첨 배정 계산(D9). 회차의 LOTTERY 좌석을 ID 오름차순으로, 옆자리 판정에 필요한 구역·열·번호와 함께 돌려준다
     List<LotterySeatRow> findLotterySeats(Long scheduleId);
 
+    // 추첨 배정(D10). 회차의 LOTTERY 좌석 중 AVAILABLE인 것만. 배정 워커가 당첨자 좌석을 고를 때 쓴다
+    List<LotterySeatRow> findAvailableLotterySeats(Long scheduleId);
+
     record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
 }

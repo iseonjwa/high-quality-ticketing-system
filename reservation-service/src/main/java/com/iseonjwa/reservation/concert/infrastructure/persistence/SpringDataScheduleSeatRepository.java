@@ -69,4 +69,13 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
             ORDER BY ss.id
             """)
     List<Object[]> findLotterySeatRows(@Param("scheduleId") Long scheduleId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT ss.id, ss.section, vs.row_no, vs.seat_no
+            FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id
+            WHERE ss.schedule_id = :scheduleId AND ss.grade = 'LOTTERY' AND ss.status = 'AVAILABLE'
+              AND ss.deleted_at IS NULL
+            ORDER BY ss.id
+            """)
+    List<Object[]> findAvailableLotterySeatRows(@Param("scheduleId") Long scheduleId);
 }
