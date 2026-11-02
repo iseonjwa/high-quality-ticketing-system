@@ -11,8 +11,9 @@ import java.util.List;
 
 /**
  * 장애 주입 설정 API. 운영형 모드만 있으므로 test·loadtest에서 연다. local·prod에서는 빈이 없어 404다(mock-pg.md 5절).
+ * {@code prod}가 함께 켜지면 {@link ProfileGuard}가 기동을 막지만, 빈 조건에도 {@code !prod}를 두어 한 번 더 막는다.
  */
-@Profile({"test", "loadtest"})
+@Profile("(test | loadtest) & !prod")
 @RestController
 @RequestMapping("/mock-pg/faults")
 class FaultController {

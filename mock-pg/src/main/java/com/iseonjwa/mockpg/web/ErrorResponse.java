@@ -10,5 +10,7 @@ public record ErrorResponse(String code) {
     public static final ErrorResponse ORDER_CANCELED = new ErrorResponse("ORDER_CANCELED");
     // 같은 주문의 승인이 처리 중이다. 어댑터는 처리 중(Unknown)으로 본다
     public static final ErrorResponse REQUEST_IN_PROGRESS = new ErrorResponse("REQUEST_IN_PROGRESS");
+    // 장애 주입 SERVER_ERROR. 어댑터는 PG 오류(Unknown)로 본다
+    public static final ErrorResponse SERVER_ERROR = new ErrorResponse("SERVER_ERROR");
     public static final ErrorResponse INVALID_REQUEST = new ErrorResponse("INVALID_REQUEST");
 }

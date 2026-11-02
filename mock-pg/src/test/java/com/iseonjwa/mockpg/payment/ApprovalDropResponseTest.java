@@ -2,7 +2,7 @@ package com.iseonjwa.mockpg.payment;
 
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
-import com.iseonjwa.mockpg.fault.FaultRule;
+import com.iseonjwa.mockpg.fault.FaultRules;
 import com.iseonjwa.mockpg.fault.FaultTarget;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -42,12 +42,12 @@ class ApprovalDropResponseTest {
 
     @AfterEach
     void clearFaults() {
-        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.NONE, null));
+        faults.apply(FaultRules.off(FaultTarget.APPROVE));
     }
 
     @Test
     void 응답_유실을_걸면_승인_요청에_한_바이트도_보내지_않고_연결을_닫는다() throws IOException {
-        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
+        faults.apply(FaultRules.of(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
 
         // 시한 안에 -1이면 상태 줄도 받지 못한 채 서버가 연결을 닫은 것이다. 시한이 지나면 SocketTimeoutException으로 실패한다
         assertEquals(-1, sendRawApproval(UUID.randomUUID().toString()), "응답 바이트를 받았다");
@@ -56,7 +56,7 @@ class ApprovalDropResponseTest {
     @Test
     void 응답을_잃은_승인도_저장은_끝나서_조회하면_승인이다() throws Exception {
         var orderId = UUID.randomUUID().toString();
-        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
+        faults.apply(FaultRules.of(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
         assertEquals(-1, sendRawApproval(orderId), "응답 바이트를 받았다");
 
         var found = get("/mock-pg/payments/" + orderId);
@@ -67,7 +67,7 @@ class ApprovalDropResponseTest {
 
     @Test
     void 횟수를_다_쓴_응답_유실은_다음_승인에_적용되지_않는다() throws Exception {
-        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
+        faults.apply(FaultRules.of(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
         sendRawApproval(UUID.randomUUID().toString());
 
         assertTrue(sendRawApproval(UUID.randomUUID().toString()) != -1, "두 번째 승인도 응답을 잃었다");
@@ -75,7 +75,7 @@ class ApprovalDropResponseTest {
 
     @Test
     void 형식이_틀린_요청은_장애_횟수를_쓰지_않아_다음_승인이_응답을_잃는다() throws Exception {
-        faults.apply(new FaultRule(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
+        faults.apply(FaultRules.of(FaultTarget.APPROVE, FaultMode.DROP_RESPONSE, 1));
         var invalid = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mock-pg/payments"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"amount\":50000,\"currency\":\"KRW\"}")).build();
