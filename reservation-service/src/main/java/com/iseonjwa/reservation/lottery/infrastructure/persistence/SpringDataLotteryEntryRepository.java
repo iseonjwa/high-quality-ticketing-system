@@ -106,4 +106,30 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
               AND e.payment_attempts < :maxAttempts AND now() < l.draw_at + interval '30 minutes'
             """)
     int releaseForRetry(@Param("reservationId") Long reservationId, @Param("maxAttempts") int maxAttempts);
+
+    @Query(nativeQuery = true, value = """
+            SELECT coalesce(sum(quantity), 0) FROM lottery_entries
+            WHERE lottery_id = :lotteryId AND status IN ('WON', 'PAID')
+            """)
+    int sumTakenSeats(@Param("lotteryId") Long lotteryId);
+
+    @Query("select e.id, e.quantity from LotteryEntry e where e.lotteryId = :lotteryId and e.status = 'WAITLISTED'"
+            + " order by e.drawRank, e.id")
+    List<Object[]> findWaitlistRows(@Param("lotteryId") Long lotteryId);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE lottery_entries SET status = 'WON', updated_at = now()
+            WHERE id IN (:entryIds) AND status = 'WAITLISTED'
+            """)
+    int promoteToWon(@Param("entryIds") List<Long> entryIds);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE lottery_entries e SET status = 'LOST', updated_at = now()
+            FROM lotteries l
+            WHERE e.lottery_id = l.id AND l.status = 'DRAWN' AND l.draw_at + interval '30 minutes' <= now()
+              AND e.status = 'WAITLISTED'
+            """)
+    int closeExpiredWaitlists();
 }

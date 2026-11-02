@@ -45,6 +45,16 @@ public class JpaLotteryRepository implements LotteryRepository {
     }
 
     @Override
+    public List<Long> findSuccessionOpenIds() {
+        return springDataLotteryRepository.findSuccessionOpenIds();
+    }
+
+    @Override
+    public Optional<Integer> lockForSuccession(Long id) {
+        return springDataLotteryRepository.lockForSuccession(id).stream().findFirst();
+    }
+
+    @Override
     public boolean markDrawn(Long id) {
         springDataLotteryRepository.setLocalLockTimeout();
         return springDataLotteryRepository.markDrawn(id) == 1;

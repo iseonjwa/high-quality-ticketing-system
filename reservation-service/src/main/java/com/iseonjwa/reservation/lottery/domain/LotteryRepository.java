@@ -26,4 +26,14 @@ public interface LotteryRepository {
      * @return 바꿨으면 true. 이미 추첨했거나 아직 시각 전이면 false
      */
     boolean markDrawn(Long id);
+
+    // 승계 마감(추첨 후 30분) 전인 DRAWN 추첨 ID
+    List<Long> findSuccessionOpenIds();
+
+    /**
+     * 승계할 추첨 행에 잠금을 건다. 다른 워커가 잡고 있거나 승계 마감이 지났으면 비어 있다(D13 추첨 행 잠금으로 직렬화).
+     *
+     * @return 추첨 좌석 수. 부르는 쪽 트랜잭션이 끝날 때까지 잠금이 유지된다
+     */
+    Optional<Integer> lockForSuccession(Long id);
 }

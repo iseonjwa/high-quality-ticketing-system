@@ -68,4 +68,16 @@ public interface LotteryEntryRepository {
     boolean releaseForRetry(Long reservationId, int maxAttempts);
 
     record UnassignedWinner(long entryId, long lotteryId, long scheduleId, long userId, int quantity) {}
+
+    // 당첨(WON)·결제 완료(PAID) 매수 합. 승계할 남은 좌석 계산에 쓴다
+    int sumTakenSeats(Long lotteryId);
+
+    // 아직 WAITLISTED인 응모를 순위 순으로
+    List<DrawEntrant> findWaitlist(Long lotteryId);
+
+    // 고른 예비자를 WON으로 바꾼다. WAITLISTED일 때만 바꾸고 바꾼 수를 돌려준다
+    int promoteToWon(List<Long> entryIds);
+
+    // 승계 마감이 지난 DRAWN 추첨의 남은 예비자를 LOST로 바꾸고 바꾼 수를 돌려준다(D14)
+    int closeExpiredWaitlists();
 }

@@ -101,4 +101,26 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     public boolean releaseForRetry(Long reservationId, int maxAttempts) {
         return springDataLotteryEntryRepository.releaseForRetry(reservationId, maxAttempts) == 1;
     }
+
+    @Override
+    public int sumTakenSeats(Long lotteryId) {
+        return springDataLotteryEntryRepository.sumTakenSeats(lotteryId);
+    }
+
+    @Override
+    public List<DrawEntrant> findWaitlist(Long lotteryId) {
+        return springDataLotteryEntryRepository.findWaitlistRows(lotteryId).stream()
+                .map(row -> new DrawEntrant((Long) row[0], ((Number) row[1]).intValue()))
+                .toList();
+    }
+
+    @Override
+    public int promoteToWon(List<Long> entryIds) {
+        return entryIds.isEmpty() ? 0 : springDataLotteryEntryRepository.promoteToWon(entryIds);
+    }
+
+    @Override
+    public int closeExpiredWaitlists() {
+        return springDataLotteryEntryRepository.closeExpiredWaitlists();
+    }
 }
