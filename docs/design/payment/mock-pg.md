@@ -266,8 +266,8 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 | 0 | ISE-101 스파이크 | `mock-pg`에 승인 엔드포인트의 최소 구현 + Valve `DROP_RESPONSE` + `bootJar` 프로세스로 띄우는 테스트 기반 | 처음 보는 주문의 조회는 `NotFound`, 응답 유실은 `CONNECTION_LOST`, 원시 소켓 0바이트. **완료(2026-11-02, PR #178)**, 6절 "스파이크 결과" |
 | 1 | ISE-127 | 원장 상태 머신(2~4절)과 승인·조회·망취소 | 승인·조회·망취소·늦은 승인 방지·망취소 409를 실제 mock-pg로 검증. 진행 중 |
 | 2 | ISE-128 | 호출 계수·멱등 헤더 기록과 원장 조회(주문·요약, `inFlightCount`) | 이관 '같은 주문 승인 1회'(`approveCalls`)·'멱등 헤더' 통과, 409 응답도 계수에 들어감, 처리 중 승인이 `inFlightCount`에 잡힘, `local`·`prod`에서 원장 조회 API가 열리지 않음 |
-| 3 | ISE-129 | 승인·조회·망취소 운영형 장애 주입 확장(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭)과 프로필 제한 | 5절 모드×호출 적용 표대로 적용, `local`·`prod`에서 `/faults`가 없음, `loadtest`에서 변조형 모드 거절, `prod`와 `loadtest`를 함께 켜면 기동 실패 |
-| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과 |
+| 3 | ISE-129 | 승인·조회·망취소 운영형 장애 주입 확장(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭)과 프로필 제한 | 5절 모드×호출 적용 표대로 적용, `local`·`prod`에서 `/faults`가 없음, `test`·`loadtest`에서 운영형 설정 가능, `prod`와 `loadtest`를 함께 켜면 기동 실패 |
+| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절 |
 | 5 | ISE-132 | 환불·환불 조회·환불 멱등(8절) | 같은 `refundId` 동시 환불에서 `refundedTotal`이 한 번만 늚, 이관 '다른 결제의 환불 응답'·'같은 환불 1회' 통과, 장애 주입이 필요 없는 공통 환불 테스트 2개(환불 성공, 조회 NotFound 뒤 재호출) 통과 |
 | 6 | ISE-133 | 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`), 주문 목록 원장 조회, 환불 원장 조회, `reset`(9절), 환불 `@Tag` 제외 해제 | 공통 계약 23개 전체와 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김 |
 
