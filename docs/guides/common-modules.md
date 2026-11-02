@@ -66,12 +66,14 @@ EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·t
 
 - **쓰기**: `OutboxWriter.write(topic, key, eventType, payload)`는 업무 변경과 같은 트랜잭션 안에서만 부를 수 있다(없으면 예외). 공통 봉투(`EventEnvelope`)를 만들어 `outbox_events` 행으로 쓰고, 상태 변경이 실제로 일어났을 때만 호출한다. 이벤트 페이로드와 발행기는 서비스가 만든다(예: 결제의 `PaymentResultPublisher`).
 - **저장소는 JDBC**: 엔티티 없이 `JdbcTemplate`으로 쓰므로 서비스가 `@EntityScan`을 바꿀 필요가 없고, JPA 트랜잭션과 같은 연결을 쓴다. 테이블은 서비스 Flyway가 만든다(스키마는 [결제 데이터 모델](../design/payment/data-model.md) 6·7절). `ddl-auto: validate`는 이 테이블을 검증하지 않으므로 서비스가 마이그레이션 테스트로 확인한다.
-- **릴레이**: 같은 키의 앞선 PENDING이 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하고, 프로듀서의 `max.block.ms + delivery.timeout.ms`(결제는 2초 + 10초)는 `send-timeout` 안에 들어와야 한다. 어긋나면 기동이 실패한다. 프로듀서 설정(`spring.kafka.producer.properties`)은 쓰는 서비스가 정한다.
+- **릴레이**: 같은 키의 앞선 PENDING·FAILED가 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하고, 프로듀서의 `max.block.ms + delivery.timeout.ms`(결제는 2초 + 10초)는 `send-timeout` 안에 들어와야 한다. 어긋나면 기동이 실패한다. 프로듀서 설정(`spring.kafka.producer.properties`)은 쓰는 서비스가 정한다.
+- **재시도와 FAILED**: 일시 오류는 횟수로 포기하지 않고 계속 재시도한다. 실패 기록은 `attempts`를 올리고 `next_attempt_at = 지금 + min(500ms × 2^(k-1), 60s)`의 50~100%(equal jitter)로 정하며 임대를 바로 푼다. 영구 오류(`SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 원인 사슬에 있을 때)만 `FAILED`로 바꾸고 ERROR 로그(`event=OUTBOX_FAILED`)를 남긴다. 그 밖의 예외는 모두 일시 오류다. `FAILED`는 같은 키의 뒤 행을 막고, 복구는 Ops `outbox requeue`(ISE-42)다.
+- **실행기**: `OutboxRelayScheduler`가 단일 스레드 실행기(`outbox-relay`)를 `SmartLifecycle`로 소유한다. `@Scheduled`와 `@EnableScheduling`을 쓰지 않으므로, 쓰는 서비스가 다른 `@Scheduled`를 쓰려면 자기 설정에서 `@EnableScheduling`을 켠다. `TaskScheduler`·`ScheduledExecutorService` 빈은 만들지 않는다(Boot 기본 스케줄러가 빠진다). `relay-enabled=false`면 실행기를 만들지 않는다.
 - **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
 - **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).
 - **전제**: 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서와 커밋 순서가 같다는 전제에 기댄다.
 
-표준 DDL(서비스 Flyway에 복사한다. 정본은 [결제 데이터 모델](../design/payment/data-model.md) 6·7절과 `payment-service`의 V1·V2):
+표준 DDL(서비스 Flyway에 복사한다. 정본은 [결제 데이터 모델](../design/payment/data-model.md) 6·7절과 `payment-service`의 V1·V2·V5):
 
 ```sql
 CREATE TABLE outbox_events (
@@ -86,6 +88,7 @@ CREATE TABLE outbox_events (
 CREATE INDEX idx_outbox_events_pending_next_attempt ON outbox_events (next_attempt_at, id) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_events_pending_message_key ON outbox_events (message_key, id) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_events_pending_id ON outbox_events (id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_events_failed_message_key ON outbox_events (message_key, id) WHERE status = 'FAILED';
 CREATE TABLE processed_events (
     event_id UUID NOT NULL, consumer_group VARCHAR(100) NOT NULL, processed_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (event_id, consumer_group));
