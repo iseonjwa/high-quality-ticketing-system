@@ -8,6 +8,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  jackson:
+    deserialization:
+      # 오타 필드(예: orderID)를 조용히 무시하면 주문 한정 규칙이 전역 규칙이 되어 배경 호출이 횟수를 가져간다
+      fail-on-unknown-properties: true
 ---
 spring:
   config:

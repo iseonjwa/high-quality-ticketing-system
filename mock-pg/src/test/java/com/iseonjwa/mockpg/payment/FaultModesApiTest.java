@@ -225,6 +225,21 @@ class FaultModesApiTest {
         }
 
         @Test
+        void 장애_설정의_모르는_필드는_400이고_규칙을_바꾸지_않는다() throws Exception {
+            var body = "{\"target\":\"APPROVE\",\"mode\":\"SERVER_ERROR\",\"count\":1,\"orderID\":\"x\"}";
+
+            assertResponse(400, "{\"code\":\"INVALID_REQUEST\"}", post("/mock-pg/faults", body));
+            assertEquals(200, approve(orderId).statusCode());
+        }
+
+        @Test
+        void 승인_본문의_모르는_필드는_400이다() throws Exception {
+            var body = "{\"orderId\":\"" + orderId + "\",\"amount\":50000,\"currency\":\"KRW\",\"memo\":\"x\"}";
+
+            assertResponse(400, "{\"code\":\"INVALID_REQUEST\"}", post("/mock-pg/payments", body));
+        }
+
+        @Test
         void 설정한_규칙은_조회에_그대로_보인다() throws Exception {
             var body = "{\"target\":\"CANCEL\",\"mode\":\"DELAY\",\"delayMs\":300,\"count\":2,\"orderId\":\"o-1\"}";
 
