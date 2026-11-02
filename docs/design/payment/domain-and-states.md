@@ -81,6 +81,7 @@ NEEDS_MANUAL_CHECK ──Ops refund resolve(PG 근거)──▶ REFUNDED | FAILE
 | 대상 | 저장 위치 | 값 |
 |---|---|---|
 | 결제 거절 | `payments.decline_code` | 우리 `DeclineReason`(PG 사유 매핑, 못 하면 `OTHER`), `NOT_SENT`(망취소 뒤 미전송), `TOKEN_EXPIRED`(PG 호출 전 만료) |
+| 결제 불확실(`UNKNOWN`) | 이력 `reason` | PG 결과를 모르는 원인 `UnknownCause`(`TIMEOUT`, `CONNECTION_LOST`, `PG_ERROR`, `PROCESSING`, `CLIENT_ERROR`), `RECOVERY_PERMIT_DENIED`(재확인 중 늦은 승인 방지 허가를 못 얻음) |
 | 결제 확인 필요 | 이력 `reason` | `PG_UNRESOLVED`(재조회 소진), `PG_AMOUNT_MISMATCH` |
 | 환불을 시작한 이유 | `refunds.reason` | `EXPIRED_AFTER_APPROVAL`, `CANCELED`, `DUPLICATE_APPROVAL`, `NOT_CONFIRMABLE`([0027](../../decisions/0027-reservation-payment-event-contract.md)), `PG_AMOUNT_MISMATCH`(Ops) |
 | 환불 확인 필요 | 이력 `reason` | `REFUND_REJECTED`, `REFUND_UNRESOLVED`, `REFUND_AMOUNT_MISMATCH`, `STATE_CONFLICT` |

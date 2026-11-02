@@ -181,6 +181,29 @@ class Resilience4jPgGroupTest {
     }
 
     @Test
+    void 복구_그룹은_허가만_먼저_얻고_호출한_쪽이_정산한다() {
+        var recovery = new Resilience4jPgRecoveryGate(group(1));
+
+        var permit = recovery.tryAcquire().orElseThrow();
+        assertTrue(recovery.tryAcquire().isEmpty(), "자리가 하나라 두 번째 허가는 없다");
+
+        permit.callStarted();
+        permit.settle(new PgClient.NotFound());
+
+        assertEquals(1, recovery.bulkhead().getMetrics().getAvailableConcurrentCalls());
+        assertTrue(recovery.tryAcquire().isPresent());
+    }
+
+    @Test
+    void 복구_그룹의_CB가_열리면_허가를_얻지_못한다() {
+        var recovery = new Resilience4jPgRecoveryGate(group(2));
+        recovery.circuitBreaker().transitionToOpenState();
+
+        assertTrue(recovery.tryAcquire().isEmpty());
+        assertEquals(2, recovery.bulkhead().getMetrics().getAvailableConcurrentCalls());
+    }
+
+    @Test
     void 신규_승인_그룹이_포화되거나_열려도_복구_그룹은_영향을_받지_않는다() {
         var approve = new Resilience4jPgApprovalGate(group(1));
         var recovery = new Resilience4jPgRecoveryGate(group(2));

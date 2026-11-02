@@ -111,17 +111,23 @@ public class PaymentTx {
         return outcomeAfterTransition(payment, command, changed);
     }
 
-    // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했다. 같은 PG 거래로 이미 승인된 것이면 정상 경합이고, 그렇지 않으면
-    // 돈은 승인됐는데 우리 기록에 PG 거래가 남지 않는다.
-    // TODO: 이 경합의 복구 규칙은 재확인 스케줄러(ISE-38) 설계에서 정한다. 지금은 로그로만 남긴다
+    // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했고 TX2가 0행이 됐다. 0행이면 후속 쓰기를 하지 않는다는 규칙은 바꾸지 않는다.
+    // 재확인이 REQUESTED를 UNKNOWN으로 바꾼 경우는 재확인이 다음 간격에 PG를 조회해 APPROVED로 확정하므로 승인이 사라지지 않는다.
+    // 같은 승인이 이미 APPROVED로 기록됐으면 정상 경합이다. DECLINED는 PG가 늦은 승인 방지(Prevented)를 약속한 뒤에만 들어가고
+    // 그 뒤 도착한 승인은 PG가 ORDER_CANCELED로 거절하므로 여기까지 오지 않는다. 그 밖의 상태(다른 거래로 승인, 거절, 확인 필요)면
+    // 우리 기록과 PG가 어긋난 것이라 ERROR로 알린다(INV-8)
     private void warnIfApprovalNotRecorded(Payment payment, PgClient.Approved result) {
         var current = payments.findById(payment.getId()).orElseThrow();
         var recordedSameApproval = current.getStatus() == PaymentStatus.APPROVED
                 && result.paymentRef().value().equals(current.getPgTxId());
-        if (!recordedSameApproval) {
-            log.error("event=PG_APPROVED_NOT_RECORDED paymentId={} pgTxId={} pgAmount={} currentStatus={}",
-                    payment.getId(), result.paymentRef().value(), result.amount(), current.getStatus());
+        if (recordedSameApproval) return;
+        if (current.getStatus() == PaymentStatus.UNKNOWN) {
+            log.warn("event=PG_APPROVED_RECHECK_PENDING paymentId={} pgTxId={} nextCheckAt={}", payment.getId(),
+                    result.paymentRef().value(), current.getNextCheckAt());
+            return;
         }
+        log.error("event=PG_APPROVED_NOT_RECORDED paymentId={} pgTxId={} pgAmount={} currentStatus={}",
+                payment.getId(), result.paymentRef().value(), result.amount(), current.getStatus());
     }
 
     // 전이가 실제로 일어났을 때만 응답을 저장한다. 0행이면 다른 경로가 먼저 바꾼 것이라 현재 상태로 답한다(INV-5)

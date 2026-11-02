@@ -61,6 +61,10 @@ public final class LocalApps {
         if (Set.of("reservation-service", "payment-service").contains(app.name())) {
             supply(result, values, "PAYMENT_TOKEN_SECRET");
         }
+        // 입장 토큰은 Reservation이 발급하고 Gateway가 검증한다. 두 앱에만 키를 준다(docs/design/queue/contracts.md 1절)
+        if (Set.of("reservation-service", "gateway").contains(app.name())) {
+            supply(result, values, "ENTRY_TOKEN_SECRET");
+        }
         if (app.name().equals("user-service")) supply(result, values, "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD");
         return result;
     }
