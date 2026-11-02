@@ -3,12 +3,14 @@ package com.iseonjwa.mockpg.payment;
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultRules;
 import com.iseonjwa.mockpg.fault.FaultTarget;
+import org.apache.tomcat.util.threads.VirtualThreadExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.tomcat.TomcatWebServer;
+import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.net.URI;
@@ -21,11 +23,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 장애 지연이 요청 스레드를 붙잡아도 다른 요청이 막히지 않도록 가상 스레드로 도는지 확인한다(mock-pg.md 5절).
+ * 긴 장애 지연이 요청 처리 스레드를 붙잡아도 다른 요청이 막히지 않도록, 요청 처리 실행기가 가상 스레드인지 확인한다(mock-pg.md 5절).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -40,7 +43,7 @@ class LongDelayConcurrencyTest {
     FaultInjector faults;
 
     @Autowired
-    Environment environment;
+    ServletWebServerApplicationContext context;
 
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -50,12 +53,16 @@ class LongDelayConcurrencyTest {
     }
 
     @Test
-    void 가상_스레드_설정이_켜져_있다() {
-        assertEquals(Boolean.TRUE, environment.getProperty("spring.threads.virtual.enabled", Boolean.class));
+    void Tomcat_요청_처리_실행기가_가상_스레드_실행기다() {
+        var webServer = assertInstanceOf(TomcatWebServer.class, context.getWebServer());
+
+        var executor = webServer.getTomcat().getConnector().getProtocolHandler().getExecutor();
+
+        assertInstanceOf(VirtualThreadExecutor.class, executor, String.valueOf(executor));
     }
 
     @Test
-    void 지연을_건_승인_여러_건이_순서대로_기다리지_않고_지연_시간_안팎에_함께_끝난다() throws Exception {
+    void 지연을_건_승인이_진행_중이어도_다른_요청들이_함께_처리된다() throws Exception {
         faults.apply(FaultRules.delay(FaultTarget.APPROVE, DELAY_MILLIS, null));
         var startedAt = System.nanoTime();
         var responses = new ArrayList<CompletableFuture<HttpResponse<String>>>();
