@@ -58,3 +58,23 @@ SELECT status, event_type, message_key FROM outbox_events WHERE event_type IN ('
 - 응모 `PAID`, 예매 `CONFIRMED`·티켓 발권.
 - 결제 거절 → 응모 `FAILED` → 예비자 승계 → 새 예매·새 자동결제.
 - 승계 마감(추첨 후 30분) 뒤 종결 → `lotteries.status = DONE`, 남은 추첨석이 S석으로 일반 판매에.
+
+## 7. 실행 기록
+
+### 2026-11-02 로컬 compose(dev `5071f3b`, ISE-89까지)
+- 방법: 위 절차를 스크립트로 실행했다(응모자 3명, 그중 1명은 빌링키 미등록, 추첨석 3, 예비 2, 응모 1분·추첨 5초 뒤).
+- 결과
+
+| 확인 | 결과 |
+|---|---|
+| 설정·응모 | 201, 응모 3건 `ENTERED` |
+| 추첨·배정 | 3명 모두 `WON`, 순위 1·2·3, 예매 3건 `HELD`·`LOTTERY` |
+| 예매 outbox | `BillingPaymentRequested` 3건 `SENT`(재시도 0) |
+| 결제 | 빌링키 있는 2명 `BILLING`·`APPROVED`, 없는 1명 `DECLINED`·`BILLING_KEY_MISSING` |
+| 결제 outbox | `PaymentApproved` 2건, `PaymentDeclined` 1건 `SENT` |
+| 빌링키 저장 | 암호문 92자, 원문(`bk-`)이 DB에 없음 |
+| 공개 조회(로그인 없이) | 401. ISE-152(#241) 머지 전이라 예상대로다 |
+
+- 겪은 것: 스택을 막 띄운 직후 첫 로그인이 503이었다. 서비스가 healthy여도 Gateway가 Eureka에서 등록 정보를 받기까지 시간이 걸린다. 수십 초 뒤 다시 실행하면 된다.
+- 확인하지 못한 것: 응모 `PAID`·예매 `CONFIRMED`(ISE-73·150 뒤), 허가 대기 백프레셔(Mock PG 지연 주입 필요).
+
