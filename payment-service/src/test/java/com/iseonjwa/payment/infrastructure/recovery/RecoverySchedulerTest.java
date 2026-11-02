@@ -1,10 +1,12 @@
-package com.iseonjwa.payment.payment.infrastructure.recheck;
+package com.iseonjwa.payment.infrastructure.recovery;
 
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -18,18 +20,22 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class PaymentRecheckSchedulerTest {
+class RecoverySchedulerTest {
     private final PaymentRecheckService recheck = mock(PaymentRecheckService.class);
 
-    private PaymentRecheckScheduler scheduler(int maxPerTick) {
-        return new PaymentRecheckScheduler(recheck, new PaymentRecheckProperties(true, Duration.ofMillis(10), maxPerTick));
+    private RecoveryJob job(int maxPerTick) {
+        return new RecoveryJob("recheck", Duration.ofMillis(10), maxPerTick, recheck::recheckNext);
+    }
+
+    private RecoveryScheduler scheduler(int maxPerTick) {
+        return new RecoveryScheduler(List.of(job(maxPerTick)));
     }
 
     @Test
     void 한_주기에_최대_건수까지만_처리한다() {
         when(recheck.recheckNext()).thenReturn(true);
 
-        assertEquals(3, scheduler(3).tick());
+        assertEquals(3, scheduler(3).tick(job(3)));
 
         verify(recheck, times(3)).recheckNext();
     }
@@ -38,7 +44,7 @@ class PaymentRecheckSchedulerTest {
     void 처리할_건이_없거나_허가가_없으면_주기를_끝낸다() {
         when(recheck.recheckNext()).thenReturn(true, true, false);
 
-        assertEquals(2, scheduler(20).tick());
+        assertEquals(2, scheduler(20).tick(job(20)));
 
         verify(recheck, times(3)).recheckNext();
     }
@@ -102,20 +108,72 @@ class PaymentRecheckSchedulerTest {
     }
 
     @Test
-    void enabled가_false면_스케줄러를_만들지_않는다() {
-        new ApplicationContextRunner()
-                .withBean(PaymentRecheckService.class, () -> recheck)
-                .withUserConfiguration(PaymentRecheckScheduler.class)
-                .withPropertyValues("payment.recheck.enabled=false")
-                .run(context -> assertEquals(0, context.getBeansOfType(PaymentRecheckScheduler.class).size()));
+    void 두_작업이_등록되면_둘_다_recovery_스레드에서_돈다() throws Exception {
+        var names = new ConcurrentHashMap<String, String>();
+        var bothRan = new CountDownLatch(2);
+        var scheduler = new RecoveryScheduler(List.of(
+                new RecoveryJob("recheck", Duration.ofMillis(10), 20, () -> record(names, "recheck", bothRan)),
+                new RecoveryJob("refund", Duration.ofMillis(10), 20, () -> record(names, "refund", bothRan))));
+
+        scheduler.start();
+        try {
+            assertTrue(bothRan.await(5, TimeUnit.SECONDS), "두 작업이 모두 돌지 않았다: " + names);
+        } finally {
+            scheduler.stop();
+        }
+
+        assertTrue(names.get("recheck").startsWith("recovery-"), names.get("recheck"));
+        assertTrue(names.get("refund").startsWith("recovery-"), names.get("refund"));
     }
 
     @Test
-    void enabled를_주지_않으면_스케줄러가_시작된다() {
-        new ApplicationContextRunner()
+    void 한_작업이_예외를_던져도_다른_작업은_계속_돈다() throws Exception {
+        var otherRuns = new CountDownLatch(3);
+        var scheduler = new RecoveryScheduler(List.of(
+                new RecoveryJob("recheck", Duration.ofMillis(10), 20, () -> {
+                    throw new IllegalStateException("일시 장애");
+                }),
+                new RecoveryJob("refund", Duration.ofMillis(10), 20, () -> {
+                    otherRuns.countDown();
+                    return false;
+                })));
+
+        scheduler.start();
+        try {
+            assertTrue(otherRuns.await(5, TimeUnit.SECONDS), "다른 작업이 이어지지 않았다");
+        } finally {
+            scheduler.stop();
+        }
+    }
+
+    private static boolean record(ConcurrentHashMap<String, String> names, String job, CountDownLatch latch) {
+        if (names.putIfAbsent(job, Thread.currentThread().getName()) == null) latch.countDown();
+        return false;
+    }
+
+    private ApplicationContextRunner contextRunner() {
+        return new ApplicationContextRunner()
                 .withBean(PaymentRecheckService.class, () -> recheck)
-                .withUserConfiguration(PaymentRecheckScheduler.class)
+                .withUserConfiguration(RecoveryConfiguration.class);
+    }
+
+    @Test
+    void 모든_작업이_꺼져_있으면_스케줄러를_만들지_않는다() {
+        contextRunner()
+                .withPropertyValues("payment.recheck.enabled=false")
+                .run(context -> {
+                    assertEquals(0, context.getBeansOfType(RecoveryJob.class).size());
+                    assertEquals(0, context.getBeansOfType(RecoveryScheduler.class).size());
+                });
+    }
+
+    @Test
+    void enabled를_주지_않으면_재확인_작업이_등록되고_스케줄러가_시작된다() {
+        contextRunner()
                 .withPropertyValues("payment.recheck.interval=10s")
-                .run(context -> assertTrue(context.getBean(PaymentRecheckScheduler.class).isRunning()));
+                .run(context -> {
+                    assertEquals(1, context.getBeansOfType(RecoveryJob.class).size());
+                    assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+                });
     }
 }
