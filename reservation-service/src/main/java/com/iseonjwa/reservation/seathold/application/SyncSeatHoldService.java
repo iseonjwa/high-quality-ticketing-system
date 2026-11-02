@@ -18,6 +18,7 @@ import com.iseonjwa.reservation.reservation.domain.repository.ReservationSeatRep
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationStatusHistoryRepository;
 import com.iseonjwa.reservation.reservation.domain.repository.UserScheduleQuotaRepository;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
+import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,9 @@ import java.util.List;
  *
  * <p>TODO: 아래는 MVP 기준선이다(ADR 0035). M4 동시성 트러블슈팅 이슈에서 문제를 재현한 뒤 바꾼다.
  * 좌석 ID 오름차순 {@code FOR UPDATE}와 {@code lock_timeout}(TS-1), 매수 한도의 조건부 UPDATE 직렬화(TS-2),
- * 같은 멱등키 동시 요청의 제약 위반 재조회(TS-3). 같은 멱등키 사전 조회와 재응답은 ISE-12에서 붙인다.
+ * 같은 멱등키 동시 요청의 제약 위반 재조회(TS-3). 사전 조회는 첫 요청이 커밋된 뒤의 재요청만 잡는다. 첫 트랜잭션이
+ * 끝나기 전에 같은 키가 또 오면 조회가 비어 선점 경로로 들어가고, 좌석 행 잠금을 기다린 뒤 갱신 0행이 되어
+ * 자기 좌석인데도 409 SEAT_ALREADY_HELD를 받는다(contracts.md 3-2 ⑥).
  */
 @Service
 public class SyncSeatHoldService {
@@ -73,6 +76,10 @@ public class SyncSeatHoldService {
     @Transactional
     public SeatHoldResult hold(HoldSeatsCommand command) {
         var seatIds = sortedDistinctSeatIds(command.seatIds());
+        var previous = seatHoldRequests.findById(command.requestId());
+        if (previous.isPresent()) {
+            return replay(previous.get(), command, seatIds);
+        }
         var schedule = inventory.findSchedule(command.scheduleId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (seatIds.size() > schedule.getMaxPerUser()) {
@@ -88,11 +95,48 @@ public class SyncSeatHoldService {
         seatHoldRequests.save(SeatHoldRequest.held(command.requestId(), command.userId(), schedule.getId(), seatIds,
                 reservation.getId()));
 
-        var token = paymentTokenIssuer.issue(command.userId(), reservation.getId(),
+        return result(reservation, seatIds, issueToken(reservation));
+    }
+
+    // 같은 멱등키 재요청(contracts.md 3절). 좌석·매수를 다시 건드리지 않고 첫 요청이 만든 예매로 응답한다.
+    // 회차·판매 기간 검사보다 먼저 와서, 그사이 판매가 끝났거나 회차가 지워져도 이미 잡은 선점 결과를 돌려준다
+    private SeatHoldResult replay(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
+        if (!previous.getUserId().equals(command.userId())
+                || !previous.getScheduleId().equals(command.scheduleId())
+                || !previous.getSeatIds().equals(seatIds)) {
+            throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
+        }
+        // 동기형은 성공한 선점만 행을 남기므로 HELD가 아니거나 예매가 없으면 데이터가 깨진 것이다
+        if (previous.getStatus() != SeatHoldRequestStatus.HELD) {
+            throw new IllegalStateException("동기형 선점 요청이 HELD가 아닙니다: " + previous.getRequestId());
+        }
+        var reservation = reservations.findById(previous.getReservationId())
+                .orElseThrow(() -> new IllegalStateException("선점 요청의 예매가 없습니다: " + previous.getRequestId()));
+
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+            return result(reservation, seatIds, null);
+        }
+        // Note: 만료 스케줄러가 돌기 전이면 기한이 지나도 HELD로 남아 있어서 상태만 보지 않고 시각도 본다
+        if (reservation.getStatus() == ReservationStatus.HELD && clock.instant()
+                .isBefore(reservation.getHoldExpiresAt().minus(PaymentTokenIssuer.EXPIRY_MARGIN))) {
+            return result(reservation, seatIds, issueToken(reservation));
+        }
+        throw new BusinessException(SeatHoldErrorCode.RESERVATION_NOT_PAYABLE);
+    }
+
+    // 재요청에도 새로 서명한다. exp는 선점 만료에서 계산해 첫 토큰과 같고 jti만 다르다(결제 토큰 폐기 목록 없음)
+    private PaymentTokenIssuer.IssuedPaymentToken issueToken(Reservation reservation) {
+        return paymentTokenIssuer.issue(reservation.getUserId(), reservation.getId(),
                 reservation.getTotalAmount().toBigDecimal().longValueExact(), reservation.getHoldExpiresAt());
-        return new SeatHoldResult(command.requestId(), reservation.getId(), reservation.getReservationNo(),
-                schedule.getId(), seatIds, reservation.getStatus(), reservation.getHoldExpiresAt(),
-                reservation.getTotalAmount(), token.token(), token.expiresAt());
+    }
+
+    // 결제 확정된 예매는 토큰을 주지 않는다
+    private static SeatHoldResult result(Reservation reservation, List<Long> seatIds,
+            PaymentTokenIssuer.IssuedPaymentToken token) {
+        return new SeatHoldResult(reservation.getRequestId(), reservation.getId(), reservation.getReservationNo(),
+                reservation.getScheduleId(), seatIds, reservation.getStatus(), reservation.getHoldExpiresAt(),
+                reservation.getTotalAmount(), token == null ? null : token.token(),
+                token == null ? null : token.expiresAt());
     }
 
     // 정렬한 목록을 응답·seat_hold_requests.seat_ids·멱등 본문 비교의 기준으로 같이 쓴다(contracts.md 1절)

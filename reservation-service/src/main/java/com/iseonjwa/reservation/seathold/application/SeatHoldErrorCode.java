@@ -10,7 +10,9 @@ public enum SeatHoldErrorCode implements ErrorCode {
     SEAT_COUNT_MISMATCH(400, "선택한 좌석 수나 좌석이 올바르지 않습니다"),
     SALE_NOT_OPEN(409, "판매 중인 회차가 아닙니다"),
     PURCHASE_LIMIT_EXCEEDED(409, "회차당 구매 가능 매수를 넘었습니다"),
-    SEAT_ALREADY_HELD(409, "이미 선택된 좌석입니다");
+    SEAT_ALREADY_HELD(409, "이미 선택된 좌석입니다"),
+    // 같은 멱등키 재요청인데 첫 선점이 이미 닫혔거나 결제 토큰을 줄 수 있는 시각이 지났다(contracts.md 3-2 ④)
+    RESERVATION_NOT_PAYABLE(409, "결제할 수 없는 예매입니다");
 
     private final int status;
     private final String message;
