@@ -7,13 +7,15 @@ import {
   Loader2Icon,
 } from 'lucide-react'
 
-// 설계 4절: 한 줄, 3초. 다크 모드를 만들지 않으므로 next-themes 없이 라이트로 고정한다.
+// 설계 4절: 한 줄, 3초. 샘플(.toast)처럼 gray-900 바탕·흰 글자로 화면 아래 가운데에 띄운다.
+// 다크 모드를 만들지 않으므로 next-themes 없이 테마를 고정한다.
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="light"
       className="toaster group"
       duration={3000}
+      position="bottom-center"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -23,9 +25,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
+          '--normal-bg': 'var(--gray-900)',
+          '--normal-text': '#ffffff',
+          '--normal-border': 'var(--gray-900)',
           '--border-radius': 'var(--radius-md)',
         } as React.CSSProperties
       }

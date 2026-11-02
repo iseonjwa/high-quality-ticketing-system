@@ -1,18 +1,19 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // 설계 4절: 바탕 -50, 글자·아이콘 -600(경고는 글자 -700). 색에만 기대지 않도록 변형마다 아이콘이 다르다.
+// 테두리는 샘플(.alert-warning #FFD8A8, .alert-danger #F8C4CA) 값이다. 샘플에 없는 정보·성공은 글자색을 옅게 쓴다.
 const alertVariants = cva(
-  'relative flex w-full items-start gap-3 rounded-md px-4 py-3 text-left type-body-sm',
+  'relative flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left type-body-sm',
   {
     variants: {
       variant: {
-        info: 'bg-info-50 text-info-600',
-        success: 'bg-success-50 text-success-600',
-        warning: 'bg-warning-50 text-warning-700',
-        danger: 'bg-danger-50 text-danger-600',
+        info: 'border-info-600/20 bg-info-50 text-info-600',
+        success: 'border-success-600/20 bg-success-50 text-success-600',
+        warning: 'border-[#ffd8a8] bg-warning-50 text-warning-700',
+        danger: 'border-[#f8c4ca] bg-danger-50 text-danger-600',
       },
     },
     defaultVariants: { variant: 'info' },

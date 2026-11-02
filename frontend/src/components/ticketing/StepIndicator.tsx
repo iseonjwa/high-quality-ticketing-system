@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { BOOKING_STEPS } from '@/components/ticketing/bookingSteps'
 
 interface StepIndicatorProps {

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { Slot } from 'radix-ui'
 
 // 설계 4절·샘플: 알약 모양. 예매 중에만 앞에 점이 붙는다. 공연 상태 배지(예매 중·오픈 예정·매진·추첨). 등급 배지(VIP·R·S·A)는 티켓팅 컴포넌트 지시에서 더한다.

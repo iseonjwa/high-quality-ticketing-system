@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { gradeColor } from '@/components/ticketing/grade'
 
 // 색만으로 등급을 구분하지 않도록 등급 글자를 함께 쓴다(design-system.md 2-1).
