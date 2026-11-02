@@ -44,7 +44,7 @@ src/
 
 ## CI
 
-`.github/workflows/frontend.yml`이 PR과 main·dev push마다 돈다. `frontend/`(또는 이 워크플로, `script/ci-changed-areas.sh`)가 바뀌었으면 `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돌고, 아니면 단계를 건너뛰고 성공으로 끝난다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다.
+`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다.
 
 ## 의존성
 
