@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 26건, 일지 5일 |
-| [kangmin](kangmin/README.md) | 개별 기록 39건, 일지 8일 |
+| [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | 추첨 마일스톤: 팀 문서대로 M4에 둔 배치를 거부, 필수 기능으로 올려 기본 M2·통합 테스트 M3·측정·개선 M4(문서까지 확정) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-02-lottery-must-milestone.md) |
 | 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA 11-3대로 고침(ISE-131) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-gateway-token-expired-code.md) |
 | 2026-11-02 | 프론트 Refresh 토큰은 탭 단위 `sessionStorage`, Access 토큰은 메모리(ADR 0040 4절) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-refresh-token-session-storage.md) |
 | 2026-11-02 | 프론트 디자인 시스템 확정: 이선좌 워드마크, 인디고 주 색, 좌석 상태 규칙(409 뒤 빠진 좌석만 풀기, 좌석 바뀌면 새 멱등키) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-design-system-sample-accepted.md) |
