@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  * Mock PG 원장 한 세대. 주문 상태와 승인 거래 색인을 메모리에만 둔다(mock-pg.md 2절). 초기화는 이 객체를 비우지 않고
  * {@link LedgerHolder}가 새 객체로 바꾼다.
  *
- * <p>Note: 주문 하나의 상태는 {@code orders.compute}로만 바꾼다. {@code ConcurrentHashMap}은 키가 속한 bin 단위로
+ * <p>Note: 주문 하나의 상태는 {@code orders}의 compute 계열 연산으로만 바꾼다. {@code ConcurrentHashMap}은 키가 속한 bin 단위로
  * 잠그므로 전역 락과 달리 서로 다른 주문이 거의 막히지 않는다.
  */
 public final class Ledger {
@@ -34,7 +34,7 @@ public final class Ledger {
     public OrderState approve(String orderId, Supplier<? extends Decided> decision) {
         var attempt = InFlight.newAttempt();
         var current = orders.compute(orderId, (id, existing) -> existing == null ? attempt : existing);
-        if (!attempt.equals(current)) return current;
+        if (current != attempt) return current;
 
         var settled = false;
         try {
@@ -68,8 +68,8 @@ public final class Ledger {
     // 직후 환불이 그 결제를 찾지 못하는 틈이 생긴다
     private void settle(String orderId, InFlight attempt, Decided result) {
         orders.compute(orderId, (id, current) -> {
-            if (!attempt.equals(current)) {
-                throw new IllegalStateException("다른 시도가 처리 중인 주문을 바꿨다 orderId=" + id);
+            if (current != attempt) {
+                throw new IllegalStateException("현재 값이 이 승인 시도가 아니다 orderId=" + id);
             }
             if (result instanceof Approved approved) paymentsByTx.put(approved.pgTxId(), approved);
             return result;
@@ -77,6 +77,6 @@ public final class Ledger {
     }
 
     private void abandon(String orderId, InFlight attempt) {
-        orders.computeIfPresent(orderId, (id, current) -> attempt.equals(current) ? null : current);
+        orders.computeIfPresent(orderId, (id, current) -> current == attempt ? null : current);
     }
 }

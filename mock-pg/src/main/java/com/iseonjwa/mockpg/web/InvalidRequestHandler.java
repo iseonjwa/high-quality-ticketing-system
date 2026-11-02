@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 형식이 틀린 요청 본문(JSON 오류, 필수 값 누락, 0 이하 금액)에 Boot 기본 400 대신 프로토콜의 오류 본문으로 답한다(mock-pg.md 11절).
+ * 형식이 틀린 요청 본문(JSON 오류, 필수 값 누락, 0 이하 금액)에 Boot 기본 400 대신 프로토콜의 오류 본문으로 답한다(mock-pg.md 11절). 모든 컨트롤러(장애 주입 설정 포함)에 적용된다.
  */
 @RestControllerAdvice
 class InvalidRequestHandler {

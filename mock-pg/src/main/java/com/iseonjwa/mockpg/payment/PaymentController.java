@@ -26,7 +26,7 @@ class PaymentController {
     ResponseEntity<?> approve(@RequestBody ApproveRequest request, HttpServletRequest servletRequest) {
         var approval = payments.approve(request);
         if (approval.dropsResponse()) {
-            // Note: 저장을 끝낸 뒤 응답만 잃는다. ResponseEntity를 돌려주면 메시지 컨버터가 상태 줄과 헤더를
+            // Note: 원장 처리를 끝낸 뒤 응답만 잃는다. 새 주문이면 결과를 저장한 뒤다. ResponseEntity를 돌려주면 메시지 컨버터가 상태 줄과 헤더를
             // flush해 이미 클라이언트로 나가므로, null을 돌려줘 아무것도 쓰지 않고 Valve가 연결을 닫게 한다
             ResponseDrop.request(servletRequest);
             return null;

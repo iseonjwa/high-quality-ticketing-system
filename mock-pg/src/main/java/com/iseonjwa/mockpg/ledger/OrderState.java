@@ -3,7 +3,6 @@ package com.iseonjwa.mockpg.ledger;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * 원장에 저장되는 주문 하나의 상태(mock-pg.md 4절). 주문이 없으면 원장에 항목이 없다.
@@ -16,11 +15,16 @@ import java.util.UUID;
 public sealed interface OrderState permits OrderState.InFlight, OrderState.Decided, OrderState.Canceled {
 
     /**
-     * 승인을 처리하는 중이다. 시도마다 새 식별자를 가져서, 확정과 되돌리기는 자기 시도일 때만 한다.
+     * 승인을 처리하는 중이다. 시도마다 새 객체이고 같은 시도인지는 객체 동일성으로 판단한다. 확정과 되돌리기는 자기 시도일 때만 한다.
+     *
+     * <p>Note: 필드와 equals/hashCode가 없다. 시도마다 UUID(SecureRandom)를 만들지 않으려는 것이다.
      */
-    record InFlight(UUID attemptId) implements OrderState {
+    final class InFlight implements OrderState {
+        private InFlight() {
+        }
+
         static InFlight newAttempt() {
-            return new InFlight(UUID.randomUUID());
+            return new InFlight();
         }
     }
 

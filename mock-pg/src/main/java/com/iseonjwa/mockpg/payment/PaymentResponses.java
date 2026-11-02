@@ -24,10 +24,10 @@ final class PaymentResponses {
     static ResponseEntity<?> approval(OrderState state) {
         return switch (state) {
             // 같은 주문의 다른 시도가 처리 중이다. 토스가 처리 중인 같은 키 요청에 409를 준다고 알려진 동작을 닮게 했다(7절 #3)
-            case InFlight inFlight -> status(HttpStatus.CONFLICT, ErrorResponse.REQUEST_IN_PROGRESS);
+            case InFlight inFlight -> error(HttpStatus.CONFLICT, ErrorResponse.REQUEST_IN_PROGRESS);
             case Approved approved -> ResponseEntity.ok(ApprovedBody.of(approved));
             case Declined declined -> ResponseEntity.ok(DeclinedBody.of(declined));
-            case Canceled canceled -> status(HttpStatus.CONFLICT, ErrorResponse.ORDER_CANCELED);
+            case Canceled canceled -> error(HttpStatus.CONFLICT, ErrorResponse.ORDER_CANCELED);
         };
     }
 
@@ -58,10 +58,10 @@ final class PaymentResponses {
     }
 
     private static ResponseEntity<?> notFound() {
-        return status(HttpStatus.NOT_FOUND, ErrorResponse.NOT_FOUND);
+        return error(HttpStatus.NOT_FOUND, ErrorResponse.NOT_FOUND);
     }
 
-    private static ResponseEntity<?> status(HttpStatus status, ErrorResponse body) {
+    private static ResponseEntity<?> error(HttpStatus status, ErrorResponse body) {
         return ResponseEntity.status(status).body(body);
     }
 
