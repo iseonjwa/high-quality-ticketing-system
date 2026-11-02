@@ -203,7 +203,7 @@ describe('401 재발급', () => {
     expect(refreshRequests).toHaveLength(1)
   })
 
-  it('재발급이 4xx로 실패하면 세션을 지우고 401을 던진다. 다시 시도하지 않는다', async () => {
+  it('재발급이 4xx로 실패하면 세션을 만료로 지우고 401을 던진다. 다시 시도하지 않는다', async () => {
     await signInAsDemo()
     expireMockAccessTokens()
     // 다른 기기에서 로그인해 Refresh 토큰이 바뀐 상황
@@ -214,7 +214,11 @@ describe('401 재발급', () => {
 
     expect(error.code).toBe('TOKEN_REVOKED')
     expect(meRequests).toHaveLength(1)
-    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken: null })
+    expect(sessionStore.getState()).toEqual({
+      accessToken: null,
+      refreshToken: null,
+      expired: true,
+    })
   })
 
   it('재발급이 503이면 Refresh 토큰을 지우지 않는다(Redis 장애 중에는 토큰이 아직 유효할 수 있다)', async () => {
@@ -236,7 +240,7 @@ describe('401 재발급', () => {
     await signInAsDemo()
     const refreshToken = sessionStore.getState().refreshToken
     await simulateReload()
-    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken })
+    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken, expired: false })
     const meRequests = recordRequests('/api/v1/users/me')
     const refreshRequests = recordRequests('/api/v1/auth/refresh')
 
@@ -261,7 +265,42 @@ describe('401 재발급', () => {
     expect(error.status).toBe(401)
     expect(meRequests).toHaveLength(2)
     expect(refreshRequests).toHaveLength(1)
-    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken: null })
+    expect(sessionStore.getState()).toEqual({
+      accessToken: null,
+      refreshToken: null,
+      expired: true,
+    })
+  })
+
+  it('재시도를 기다리는 사이 로그아웃하면 늦게 온 401로 만료 표시를 세우지 않는다', async () => {
+    await signInAsDemo()
+    let meCalls = 0
+    let retryStarted: () => void = () => {}
+    const retryInFlight = new Promise<void>((resolve) => {
+      retryStarted = resolve
+    })
+    mockServer.use(
+      http.get('/api/v1/users/me', async () => {
+        meCalls += 1
+        if (meCalls === 2) {
+          retryStarted()
+          await delay(30)
+        }
+        return fail(401, 'UNAUTHORIZED', '유효한 인증 토큰이 필요합니다')
+      }),
+    )
+
+    const pendingMe = captureError(getMe())
+    await retryInFlight
+    await logout()
+    const error = await pendingMe
+
+    expect(error.status).toBe(401)
+    expect(sessionStore.getState()).toEqual({
+      accessToken: null,
+      refreshToken: null,
+      expired: false,
+    })
   })
 
   it('재발급을 기다리는 사이 로그아웃하면 늦게 온 재발급 결과로 세션을 되살리지 않는다', async () => {
@@ -286,7 +325,12 @@ describe('401 재발급', () => {
     const error = await pendingMe
 
     expect(error.status).toBe(401)
-    expect(sessionStore.getState()).toEqual({ accessToken: null, refreshToken: null })
+    // 사용자가 나간 것이라 만료로 표시하지 않는다(로그인 화면에 "로그인이 끝났어요"를 보이지 않는다)
+    expect(sessionStore.getState()).toEqual({
+      accessToken: null,
+      refreshToken: null,
+      expired: false,
+    })
   })
 
   it('재발급을 기다리는 사이 다시 로그인하면 늦게 실패한 재발급이 새 세션을 지우지 않는다', async () => {
