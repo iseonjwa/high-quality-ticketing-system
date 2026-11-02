@@ -58,6 +58,9 @@ class LotteryAssignmentTest {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("DELETE FROM outbox_events WHERE event_type = 'BillingPaymentRequested'"
+                + " AND (payload -> 'payload' ->> 'lotteryEntryId')::bigint IN"
+                + " (SELECT id FROM lottery_entries WHERE lottery_id = ?)", lotteryId);
         jdbc.update("DELETE FROM lottery_entries WHERE lottery_id = ?", lotteryId);
         jdbc.update("DELETE FROM lotteries WHERE schedule_id = ?", scheduleId);
         String reservationsOfSchedule = "(SELECT id FROM reservations WHERE schedule_id = ?)";
@@ -88,6 +91,19 @@ class LotteryAssignmentTest {
         assertEquals(List.of(3, 4), jdbc.queryForList("SELECT vs.seat_no FROM reservation_seats rs"
                 + " JOIN schedule_seats ss ON ss.id = rs.schedule_seat_id JOIN venue_seats vs ON vs.id = ss.venue_seat_id"
                 + " WHERE rs.reservation_id = ? ORDER BY vs.seat_no", Integer.class, reservationId));
+
+        // ISE-92 완료 기준: 당첨 예매 1건당 자동결제 요청 1건이 같은 트랜잭션의 outbox에 남는다
+        var requests = billingRequests(entryId);
+        assertEquals(1, requests.size());
+        var request = requests.getFirst();
+        assertEquals("payment.command", request.get("topic"));
+        assertEquals(String.valueOf(reservationId), request.get("message_key"));
+        assertEquals("PENDING", request.get("status"));
+        assertEquals(String.valueOf(reservationId), request.get("reservation_id"));
+        assertEquals("7101", request.get("user_id"));
+        assertEquals(jdbc.queryForObject("SELECT total_amount FROM reservations WHERE id = ?", Long.class,
+                reservationId).toString(), request.get("amount"));
+        assertEquals("KRW", request.get("currency"));
     }
 
     // 완료 기준: 워커 중 종료 → 1건만 롤백, 다음 주기가 이어받음
@@ -103,6 +119,7 @@ class LotteryAssignmentTest {
         assertNull(entry(first).get("reservation_id"));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM reservations WHERE schedule_id = ?", Integer.class,
                 scheduleId));
+        assertEquals(0, billingRequests(first).size());
 
         assertEquals(first, assignmentService.assignNext().orElseThrow());
         assertEquals(second, assignmentService.assignNext().orElseThrow());
@@ -121,6 +138,7 @@ class LotteryAssignmentTest {
         assertEquals(entryId, rejected.entryId());
         assertEquals("FAILED", entry(entryId).get("status"));
         assertEquals("NO_SEAT", entry(entryId).get("fail_reason"));
+        assertEquals(0, billingRequests(entryId).size());
     }
 
     // 당첨 예매도 회차 매수 한도를 거친다. 거절된 배정의 매수·좌석 변경은 롤백된다
@@ -134,6 +152,7 @@ class LotteryAssignmentTest {
         assignmentService.markRejected(rejected.entryId(), rejected.reason());
 
         assertEquals("PURCHASE_LIMIT_EXCEEDED", entry(entryId).get("fail_reason"));
+        assertEquals(0, billingRequests(entryId).size());
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM schedule_seats WHERE schedule_id = ?"
                 + " AND status = 'HELD'", Integer.class, scheduleId));
     }
@@ -175,6 +194,9 @@ class LotteryAssignmentTest {
         Long secondReservation = reservationOf(entryId);
         assertNotEquals(firstReservation, secondReservation);
         assertEquals(2, ((Number) entry(entryId).get("payment_attempts")).intValue());
+        // 재시도는 새 예매라 결제 요청도 새 키(reservationId)로 한 건 더 나간다
+        assertEquals(List.of(String.valueOf(firstReservation), String.valueOf(secondReservation)),
+                billingRequests(entryId).stream().map(row -> (String) row.get("message_key")).sorted().toList());
 
         resultHandler.onFailed(secondReservation, "NOT_SENT");
         assertEquals("FAILED", entry(entryId).get("status"));
@@ -217,6 +239,14 @@ class LotteryAssignmentTest {
         return jdbc.queryForObject("INSERT INTO lottery_entries (lottery_id, request_id, user_id, quantity, status,"
                 + " draw_rank, created_at, updated_at) VALUES (?, gen_random_uuid(), ?, ?, 'WON', ?, now(), now())"
                 + " RETURNING id", Long.class, lotteryId, userId, quantity, drawRank);
+    }
+
+    private List<Map<String, Object>> billingRequests(Long entryId) {
+        return jdbc.queryForList("SELECT topic, message_key, status, payload -> 'payload' ->> 'reservationId' AS reservation_id,"
+                + " payload -> 'payload' ->> 'userId' AS user_id, payload -> 'payload' ->> 'amount' AS amount,"
+                + " payload -> 'payload' ->> 'currency' AS currency FROM outbox_events"
+                + " WHERE event_type = 'BillingPaymentRequested' AND payload -> 'payload' ->> 'lotteryEntryId' = ?",
+                String.valueOf(entryId));
     }
 
     private Map<String, Object> entry(Long entryId) {
