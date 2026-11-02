@@ -234,6 +234,57 @@ class PaymentMigrationTest {
                 Integer.class, paymentId));
     }
 
+    @Test
+    void DLQ_제약과_인덱스가_카탈로그에_존재한다() {
+        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'dead_letters'::regclass");
+        assertTrue(constraints.containsAll(List.of(
+                "uq_dead_letters_event_key", "chk_dead_letters_status", "chk_dead_letters_resolution",
+                "chk_dead_letters_resolved")), constraints.toString());
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'dead_letters'");
+        assertTrue(indexes.contains("idx_dead_letters_open_created_at"), indexes.toString());
+    }
+
+    @Test
+    void 같은_event_key를_두_번_저장할_수_없다() {
+        insertDeadLetter("key-1", "OPEN", "NULL");
+        assertViolation("uq_dead_letters_event_key", () -> insertDeadLetter("key-1", "OPEN", "NULL"));
+    }
+
+    @Test
+    void 해결_방식_없이_RESOLVED로_저장할_수_없다() {
+        assertViolation("chk_dead_letters_resolved", () -> insertDeadLetter("key-2", "RESOLVED", "NULL"));
+    }
+
+    @Test
+    void 정해진_값이_아닌_DLQ_상태를_거절한다() {
+        assertViolation("chk_dead_letters_status", () -> insertDeadLetter("key-3", "CLOSED", "NULL"));
+    }
+
+    @Test
+    void 정해진_값이_아닌_해결_방식을_거절한다() {
+        assertViolation("chk_dead_letters_resolution", () -> insertDeadLetter("key-4", "RESOLVED", "'IGNORED'"));
+    }
+
+    @Test
+    void 해결_방식이_있으면_RESOLVED로_저장한다() {
+        insertDeadLetter("key-5", "RESOLVED", "'NO_OBLIGATION'");
+        assertEquals("NO_OBLIGATION", jdbc.queryForObject(
+                "SELECT resolution FROM dead_letters WHERE event_key = 'key-5'", String.class));
+    }
+
+    @Test
+    void 존재하지_않는_환불을_DLQ에_연결할_수_없다() {
+        assertViolation("dead_letters_refund_id_fkey", () -> jdbc.update("""
+                INSERT INTO dead_letters (event_key, payload_raw, reason, status, resolution, refund_id, created_at)
+                VALUES ('key-6', 'raw', 'r', 'RESOLVED', 'DUPLICATE', 999999999, now())"""));
+    }
+
+    private void insertDeadLetter(String eventKey, String status, String resolution) {
+        jdbc.update("""
+                INSERT INTO dead_letters (event_key, payload_raw, reason, status, resolution, created_at)
+                VALUES (?, 'raw', 'reason', '%s', %s, now())""".formatted(status, resolution), eventKey);
+    }
+
     private long approvedPaymentId(long reservationId) {
         approvedPayment(reservationId, "pg-tx-" + reservationId);
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
