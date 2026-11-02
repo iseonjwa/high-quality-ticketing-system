@@ -41,12 +41,12 @@
 |---|---|---|---|
 | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 201 | 같은 트랜잭션에서 `source_grade` 좌석 `seatCount`개를 `LOTTERY`로 바꾼다(D9). 본문: `sourceGrade`, `seatCount`, `maxPerEntry`, `entryStartAt`, `entryEndAt`, `drawAt`, `waitlistCount`. 응답: `lotteryId`, `scheduleId`, `status`, 설정값 7개, `warnings`(예: `DRAW_AT_OUTSIDE_LOW_TRAFFIC_WINDOW`). 409: `LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
 | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 200 | 추가 제안(D9). 응모 시작 전이고 일반 오픈(`open_at`) 전만. 보낸 필드만 고친다: `sourceGrade`, `seatCount`, `waitlistCount`, `maxPerEntry`, 일정. 응답은 설정과 같다. 409: `LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
-| POST `/api/v1/lotteries/{lotteryId}/entries` | 인증, `Idempotency-Key` | 201(D3 A안), SA는 202 | 본문: `quantity`. 대기열·입장 토큰을 거치지 않는다 |
-| DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | 추가 제안(D5). 마감 전만. 취소 뒤 재응모는 409 |
-| GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | `status`, `drawRank`(예비 번호), `reservationId`, `failReason`. 알림(F7) 전까지 결과 안내의 기본 경로다. 결제 상태가 미확정(NMC)이면 "결제 확인 중", 선점 만료 뒤 늦은 승인이면 "환불 예정"을 담는다(D14) |
-| GET `/api/v1/lotteries/{lotteryId}` | 공개 | 200 | 추가 제안(D7). `status`, 응모·추첨 일정, 좌석 수, 응모 규칙(1~2매, 연석 미보장, 재응모 불가). 확장 때 `seedHash`, DRAWN 이후 `seed` |
+| POST `/api/v1/lotteries/{lotteryId}/entries` | 인증, `Idempotency-Key` | 201(D3 A안), SA는 202 | 본문: `quantity`(1~2, 추첨의 `maxPerEntry` 초과는 400). 대기열·입장 토큰을 거치지 않는다. 같은 멱등키 재요청은 처음 응모를 그대로, 내용이 다르면 409 `IDEMPOTENCY_KEY_REUSED` |
+| DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | 추가 제안(D5). 마감 전만(뒤면 409 `LOTTERY_NOT_OPEN`). 이미 취소했으면 같은 결과를 돌려준다. 취소 뒤 재응모는 409 |
+| GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | `status`, `drawRank`(예비 번호), `reservationId`, `failReason`. 알림(F7) 전까지 결과 안내의 기본 경로다. 결제 상태가 미확정(NMC)이면 "결제 확인 중", 선점 만료 뒤 늦은 승인이면 "환불 예정"을 담는다(D14). 이 두 안내는 결제 결과 처리기(ISE-90) 때 붙인다 |
+| GET `/api/v1/lotteries/{lotteryId}` | 공개 | 200 | 추가 제안(D7). `status`, 응모·추첨 일정, 좌석 수, 응모 규칙 `rules`(`minPerEntry`, `maxPerEntry`, `adjacentSeatsGuaranteed`, `reentryAllowed`, `billingKeyRequired`). 확장 때 `seedHash`, DRAWN 이후 `seed`. 서비스는 로그인 없이 응답하지만 Gateway `AccessPolicy`는 아직 이 경로를 USER로 본다(11/2 확인, 공개 경로 추가는 Gateway 담당과 협의) |
 
-응모 INSERT는 기간을 SQL 안에서 확인한다. 예: `INSERT ... SELECT ... FROM lotteries WHERE id = ? AND status = 'OPEN' AND now() >= entry_start_at AND now() < entry_end_at`. 0행이면 `LOTTERY_NOT_OPEN`, 유니크 위반이면 `LOTTERY_ALREADY_ENTERED`다. 마감 판정이 DB 시각 하나라 서버마다 시계가 달라도 어긋나지 않는다.
+응모 INSERT는 기간을 SQL 안에서 확인한다. 예: `INSERT ... SELECT ... FROM lotteries WHERE id = ? AND status = 'OPEN' AND now() >= entry_start_at AND now() < entry_end_at`. 0행이면 `LOTTERY_NOT_OPEN`, 유니크 위반이면 `LOTTERY_ALREADY_ENTERED`다. 마감 판정이 DB 시각 하나라 서버마다 시계가 달라도 어긋나지 않는다. 유니크 위반은 `ON CONFLICT DO NOTHING`으로 0행으로 받고 같은 트랜잭션에서 이유를 다시 읽는다(제약 위반 예외는 PostgreSQL 트랜잭션을 중단시킨다). 취소도 같은 방식의 조건부 UPDATE다. 운영자 설정·수정(ISE-85)은 앱 시계로 판정한다. 마감 직전 경합이 없는 관리 기능이라 둘을 맞추지 않았다(11/2).
 
 ## 3. 이벤트
 
