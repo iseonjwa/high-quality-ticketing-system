@@ -1,6 +1,7 @@
 package com.iseonjwa.mockpg.payment;
 
 import com.iseonjwa.mockpg.fault.FaultInjector;
+import com.iseonjwa.mockpg.fault.Fault;
 import com.iseonjwa.mockpg.fault.FaultMode;
 import com.iseonjwa.mockpg.fault.FaultTarget;
 import com.iseonjwa.mockpg.ledger.LedgerHolder;
@@ -29,7 +30,7 @@ class PaymentService {
      * 승인한다. 장애 설정은 형식 검증을 통과한 요청에서만 한 번 읽는다. 잘못된 요청이 장애 횟수를 쓰지 않게 하려는 것이다.
      */
     Approval approve(ApproveRequest request) {
-        var fault = faults.claim(FaultTarget.APPROVE);
+        var fault = faults.claim(FaultTarget.APPROVE, request.orderId());
         var state = ledgers.current().approve(request.orderId(), () -> approved(request));
         return new Approval(state, fault);
     }
@@ -47,9 +48,9 @@ class PaymentService {
                 Instant.now());
     }
 
-    record Approval(OrderState state, FaultMode fault) {
+    record Approval(OrderState state, Fault fault) {
         boolean dropsResponse() {
-            return fault == FaultMode.DROP_RESPONSE;
+            return fault.is(FaultMode.DROP_RESPONSE);
         }
     }
 }
