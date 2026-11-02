@@ -68,4 +68,37 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     public int markRemainingLost(Long lotteryId) {
         return springDataLotteryEntryRepository.markRemainingLost(lotteryId);
     }
+
+    @Override
+    public Optional<UnassignedWinner> lockNextUnassignedWinner() {
+        return springDataLotteryEntryRepository.lockNextUnassignedWinner().stream().findFirst()
+                .map(row -> new UnassignedWinner(((Number) row[0]).longValue(), ((Number) row[1]).longValue(),
+                        ((Number) row[2]).longValue(), ((Number) row[3]).longValue(),
+                        ((Number) row[4]).intValue()));
+    }
+
+    @Override
+    public boolean linkReservation(Long entryId, Long reservationId) {
+        return springDataLotteryEntryRepository.linkReservation(entryId, reservationId) == 1;
+    }
+
+    @Override
+    public boolean markAssignmentFailed(Long entryId, String reason) {
+        return springDataLotteryEntryRepository.markAssignmentFailed(entryId, reason) == 1;
+    }
+
+    @Override
+    public boolean markPaid(Long reservationId) {
+        return springDataLotteryEntryRepository.markPaid(reservationId) == 1;
+    }
+
+    @Override
+    public boolean markFailed(Long reservationId, String reason) {
+        return springDataLotteryEntryRepository.markFailed(reservationId, reason) == 1;
+    }
+
+    @Override
+    public boolean releaseForRetry(Long reservationId, int maxAttempts) {
+        return springDataLotteryEntryRepository.releaseForRetry(reservationId, maxAttempts) == 1;
+    }
 }
