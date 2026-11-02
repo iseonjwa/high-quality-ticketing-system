@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
+import com.iseonjwa.payment.pg.application.PgUnavailableException;
 import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -85,6 +86,20 @@ class PaymentCommandErrorHandlersTest {
         assertNull(sent.partition());
         assertEquals(KEY, sent.key());
         assertEquals(RAW_VALUE, sent.value());
+    }
+
+    // ISE-89 백프레셔: 자동결제 허가 거절은 재시도 횟수(3회)를 넘어도 DLQ로 보내지 않고 같은 레코드를 계속 다시 읽는다
+    @Test
+    void 허가_거절은_횟수_제한_없이_다시_읽고_DLQ로_보내지_않는다() {
+        var handler = PaymentCommandErrorHandlers.create(kafka, new FixedBackOff(1, 3));
+        var permitRejected = failure(new PgUnavailableException("pg-approve 허가 거절"));
+
+        for (int attempt = 1; attempt <= 10; attempt++) {
+            assertRetryPending(() -> handler.handleRemaining(permitRejected, List.of(record), consumer, container));
+        }
+
+        verify(kafka, never()).send(any(ProducerRecord.class));
+        verify(consumer, times(10)).seek(new TopicPartition("payment.command", 3), 42L);
     }
 
     @Test

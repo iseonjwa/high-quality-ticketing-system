@@ -52,7 +52,7 @@
 
 | 이벤트 | 토픽 | 발행 | 변경 |
 |---|---|---|---|
-| `BillingPaymentRequested` | SA 그대로 `payment.command`(D6 기준선). 전용 토픽은 시나리오 2 뒤 개선 후보 | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3(`reservationId`, `userId`, `amount`, `lotteryEntryId`)에 `currency`(KRW)를 더했다(11/2 ISE-92, 결제 계약이 금액·통화를 함께 대조, SA 10-4 필드 추가 허용). 키는 `reservationId`. 결제 쪽 `payment.command` 리스너가 `eventType`으로 나눠 받기 전(ISE-89)에는 DLQ로 간다 |
+| `BillingPaymentRequested` | SA 그대로 `payment.command`(D6 기준선). 전용 토픽은 시나리오 2 뒤 개선 후보 | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3(`reservationId`, `userId`, `amount`, `lotteryEntryId`)에 `currency`(KRW)를 더했다(11/2 ISE-92, 결제 계약이 금액·통화를 함께 대조, SA 10-4 필드 추가 허용). 키는 `reservationId`. 결제 쪽 `payment.command` 리스너가 `eventType`으로 나눠 자동결제 서비스로 보낸다(11/2 ISE-89). `pg-approve` 허가를 못 얻으면 DLQ로 보내지 않고 1초 간격으로 계속 다시 읽는다(백프레셔) |
 | `PaymentApproved`·`PaymentDeclined` | `payment.result` | Payment | 변경 없음. 소비자가 `source`로 분기(D11) |
 | `BillingKeyRegistered`·`BillingKeyRevoked` | 미정 | Payment | D4 2단계에서 추가. 필드 `userId`, `cardLast4` |
 | `LotteryEntryRequested` | `lottery.entry` | — | D3 A안이면 쓰지 않는다 |
