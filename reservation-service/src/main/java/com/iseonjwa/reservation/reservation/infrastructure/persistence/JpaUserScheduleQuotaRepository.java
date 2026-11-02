@@ -25,4 +25,9 @@ public class JpaUserScheduleQuotaRepository implements UserScheduleQuotaReposito
     public void addHeldCount(UserScheduleQuotaId id, int quantity, Instant now, Long actorId) {
         repository.addHeldCount(id.userId(), id.scheduleId(), quantity, now, actorId);
     }
+
+    @Override
+    public int subtractHeldCount(UserScheduleQuotaId id, int quantity, Instant now, Long actorId) {
+        return repository.subtractHeldCount(id.userId(), id.scheduleId(), quantity, now, actorId);
+    }
 }
