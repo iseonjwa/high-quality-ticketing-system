@@ -123,6 +123,6 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
   - Notion 결정 기록 #7은 고치지 않는다. 프론트 결정은 이 ADR과 `docs/design/frontend/`를 따른다(`AGENTS.md` 대전제 4)
 - 후속 작업 (Linear ISE-104 하위 이슈):
   - ISE-107(완료): 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules`·`frontend/dist` 추가, 5절 버전 기록
-  - ISE-108: `.github/workflows/build.yml`에 `paths` 필터를 넣어 화면만 바뀐 PR에 Java 빌드가 돌지 않게 함. 프론트 빌드·테스트 워크플로 추가
+  - ISE-108(완료): 프론트 워크플로(`frontend.yml`)는 `frontend/`가 바뀐 PR·push에서만 뜬다(`paths` 필터, 필수 검사 아님). `build.yml`은 필수 검사라 항상 돌고 `frontend/`만 바뀐 PR에서 Java 단계만 건너뛴다(`script/ci-changed-areas.sh`)
   - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩도 함께 고친다. 배포 담당(ISE-6)도 안준현이라 이 이슈 안에서 처리하고, 팀원 로컬 기동이 바뀌는 compose 변경은 PR 본문과 팀 공지로 알린다
   - ISE-110: Refresh 토큰 보관 위치를 정해 이 문서 4절에 추가

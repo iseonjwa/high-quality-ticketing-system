@@ -42,6 +42,10 @@ src/
 - shadcn/ui 컴포넌트는 `npx shadcn@4.23.0 add <이름>`으로 더한다. 설정은 `components.json`(Radix 기반)에 있다.
 - 테스트 파일은 대상 옆에 `*.test.tsx`로 둔다.
 
+## CI
+
+`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다.
+
 ## 의존성
 
 `.npmrc`의 `save-exact=true`로 `package.json`에 정확한 버전을 적는다. 버전과 고른 이유는 ADR 0040 "버전" 절에 있다. 올릴 때는 그 표도 함께 고친다.
