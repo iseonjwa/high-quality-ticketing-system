@@ -22,6 +22,11 @@ public class JpaScheduleRepository implements ScheduleRepository {
     }
 
     @Override
+    public Optional<Schedule> findById(Long id) {
+        return springDataScheduleRepository.findById(id);
+    }
+
+    @Override
     public Optional<Schedule> findByIdForUpdate(Long id) {
         return springDataScheduleRepository.findByIdForUpdate(id);
     }
