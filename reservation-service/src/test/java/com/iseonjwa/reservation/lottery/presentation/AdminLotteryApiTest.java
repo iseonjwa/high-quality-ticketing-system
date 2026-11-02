@@ -206,6 +206,131 @@ class AdminLotteryApiTest {
         assertTrue(seatIdsOf("LOTTERY").isEmpty());
     }
 
+    // --- 수정(PATCH) ---
+
+    @Test
+    void 좌석_수를_늘리면_다음_ID의_좌석을_더_뗀다() throws Exception {
+        Long lotteryId = createLottery(1);
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"seatCount\": 3}");
+
+        assertEquals(200, response.status());
+        assertEquals(3, response.json().get("data").get("seatCount").asInt());
+        assertEquals(sSeatIds, seatIdsOf("LOTTERY"));
+    }
+
+    // 남는 추첨석이 ID 순으로 이어지도록 ID가 큰 것부터 되돌린다(옆자리 배정에 유리, D9)
+    @Test
+    void 좌석_수를_줄이면_ID가_큰_좌석부터_원래_등급으로_되돌린다() throws Exception {
+        Long lotteryId = createLottery(3);
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"seatCount\": 1}");
+
+        assertEquals(200, response.status());
+        assertEquals(List.of(sSeatIds.get(0)), seatIdsOf("LOTTERY"));
+        assertEquals(List.of(sSeatIds.get(1), sSeatIds.get(2)), seatIdsOf("S"));
+    }
+
+    @Test
+    void 원래_등급을_바꾸면_모두_되돌린_뒤_새_등급에서_뗀다() throws Exception {
+        Long lotteryId = createLottery(2);
+        Long vipSeatId = seatIdsOf("VIP").get(0);
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"sourceGrade\": \"VIP\", \"seatCount\": 1}");
+
+        assertEquals(200, response.status());
+        assertEquals("VIP", response.json().get("data").get("sourceGrade").asString());
+        assertEquals(List.of(vipSeatId), seatIdsOf("LOTTERY"));
+        assertEquals(sSeatIds, seatIdsOf("S"));
+    }
+
+    @Test
+    void 늘릴_좌석이_모자라면_409이고_추첨과_좌석이_그대로다() throws Exception {
+        Long lotteryId = createLottery(1);
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"seatCount\": 4}");
+
+        assertEquals(409, response.status());
+        assertEquals("LOTTERY_SEATS_NOT_ENOUGH", response.json().get("code").asString());
+        assertEquals(List.of(sSeatIds.get(0)), seatIdsOf("LOTTERY"));
+        assertEquals(1, jdbc.queryForObject("SELECT seat_count FROM lotteries WHERE id = ?", Integer.class,
+                lotteryId));
+    }
+
+    @Test
+    void 일정과_예비자_수와_1인_매수만_고치면_좌석은_그대로다() throws Exception {
+        Long lotteryId = createLottery(2);
+        var newDrawAt = drawAtSeoul(LocalTime.of(3, 30));
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", """
+                {"waitlistCount": 5, "maxPerEntry": 1, "drawAt": "%s"}""".formatted(newDrawAt));
+
+        assertEquals(200, response.status());
+        var data = response.json().get("data");
+        assertEquals(5, data.get("waitlistCount").asInt());
+        assertEquals(1, data.get("maxPerEntry").asInt());
+        assertEquals(newDrawAt, Instant.parse(data.get("drawAt").asString()));
+        assertEquals(List.of(sSeatIds.get(0), sSeatIds.get(1)), seatIdsOf("LOTTERY"));
+    }
+
+    // 응모 시작 시각을 미래로 미루는 요청이라도 이미 시작한 응모는 고칠 수 없다
+    @Test
+    void 응모가_이미_시작한_추첨은_409이고_고치지_않는다() throws Exception {
+        Long lotteryId = createLottery(1);
+        jdbc.update("UPDATE lotteries SET entry_start_at = now() - interval '1 hour' WHERE id = ?", lotteryId);
+
+        var response = patch(lotteryId, ADMIN_ID, "ADMIN", """
+                {"seatCount": 2, "entryStartAt": "%s"}""".formatted(entryStart()));
+
+        assertEquals(409, response.status());
+        assertEquals("LOTTERY_SETUP_CLOSED", response.json().get("code").asString());
+        assertEquals(List.of(sSeatIds.get(0)), seatIdsOf("LOTTERY"));
+    }
+
+    @Test
+    void 합친_값의_관계가_틀리거나_범위_밖이면_400이다() throws Exception {
+        Long lotteryId = createLottery(1);
+
+        var endAfterDraw = patch(lotteryId, ADMIN_ID, "ADMIN", """
+                {"entryEndAt": "%s"}""".formatted(drawAtSeoul(LocalTime.of(4, 0)).plusSeconds(1)));
+        var zeroSeats = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"seatCount\": 0}");
+        var toLottery = patch(lotteryId, ADMIN_ID, "ADMIN", "{\"sourceGrade\": \"LOTTERY\"}");
+
+        assertEquals(400, endAfterDraw.status());
+        assertEquals(400, zeroSeats.status());
+        assertEquals(400, toLottery.status());
+        assertEquals(List.of(sSeatIds.get(0)), seatIdsOf("LOTTERY"));
+    }
+
+    @Test
+    void 없는_추첨은_404이고_일반_사용자는_403이다() throws Exception {
+        Long lotteryId = createLottery(1);
+
+        var missing = patch(Long.MAX_VALUE, ADMIN_ID, "ADMIN", "{\"seatCount\": 2}");
+        var user = patch(lotteryId, 1L, "USER", "{\"seatCount\": 2}");
+
+        assertEquals(404, missing.status());
+        assertEquals(403, user.status());
+        assertEquals(List.of(sSeatIds.get(0)), seatIdsOf("LOTTERY"));
+    }
+
+    private Long createLottery(int seatCount) throws Exception {
+        var response = post(scheduleId, ADMIN_ID, "ADMIN", body("S", seatCount, drawAtSeoul(LocalTime.of(4, 0))));
+        assertEquals(201, response.status());
+        return response.json().get("data").get("lotteryId").asLong();
+    }
+
+    private Response patch(Long lotteryId, Long userId, String role, String body) throws Exception {
+        var uri = URI.create("http://127.0.0.1:" + port + "/api/v1/admin/lotteries/" + lotteryId);
+        var request = HttpRequest.newBuilder(uri)
+                .header("Content-Type", "application/json")
+                .header("X-User-Id", Long.toString(userId))
+                .header("X-User-Role", role)
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(body));
+        var response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        return new Response(response.statusCode(), response.body());
+    }
+
     private Long insertSchedule(String openAtSql) {
         Long id = jdbc.queryForObject("INSERT INTO schedules (concert_id, venue_id, starts_at, open_at, version,"
                 + " created_at, updated_at) VALUES (?, ?, now() + interval '30 day', " + openAtSql + ", 0,"

@@ -5,12 +5,14 @@ import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.common.web.RequireRole;
 import com.iseonjwa.reservation.lottery.application.LotteryAdminService;
 import com.iseonjwa.reservation.lottery.presentation.dto.request.LotteryCreateRequest;
-import com.iseonjwa.reservation.lottery.presentation.dto.response.LotteryCreateResponse;
+import com.iseonjwa.reservation.lottery.presentation.dto.request.LotteryUpdateRequest;
+import com.iseonjwa.reservation.lottery.presentation.dto.response.LotteryResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,11 +28,20 @@ public class AdminLotteryController {
 
     // 추첨 설정. 같은 트랜잭션에서 추첨석을 LOTTERY 등급으로 뗀다
     @PostMapping("/api/v1/admin/schedules/{scheduleId}/lotteries")
-    public ResponseEntity<SuccessResponse<LotteryCreateResponse>> createLottery(
+    public ResponseEntity<SuccessResponse<LotteryResponse>> createLottery(
             @PathVariable Long scheduleId, @Valid @RequestBody LotteryCreateRequest request) {
         var result = lotteryAdminService.create(request.toCommand(scheduleId));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SuccessResponse.of(201, "추첨을 설정했습니다",
-                        LotteryCreateResponse.from(result), MDC.get("traceId")));
+                        LotteryResponse.from(result), MDC.get("traceId")));
+    }
+
+    // 추첨 설정 수정. 일반 오픈·응모 시작 전만 받고, 좌석 수·등급이 바뀌면 추첨석도 함께 고친다
+    @PatchMapping("/api/v1/admin/lotteries/{lotteryId}")
+    public ResponseEntity<SuccessResponse<LotteryResponse>> updateLottery(
+            @PathVariable Long lotteryId, @Valid @RequestBody LotteryUpdateRequest request) {
+        var result = lotteryAdminService.update(request.toCommand(lotteryId));
+        return ResponseEntity.ok(SuccessResponse.of(200, "추첨 설정을 고쳤습니다",
+                LotteryResponse.from(result), MDC.get("traceId")));
     }
 }

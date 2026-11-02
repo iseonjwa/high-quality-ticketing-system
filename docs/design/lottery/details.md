@@ -39,8 +39,8 @@
 
 | 메서드·경로 | 권한 | 응답 | 비고 |
 |---|---|---|---|
-| POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 201 | 같은 트랜잭션에서 `source_grade` 좌석 `seatCount`개를 `LOTTERY`로 바꾼다(D9). 본문: `sourceGrade`, `seatCount`, `maxPerEntry`, `entryStartAt`, `entryEndAt`, `drawAt`, `waitlistCount`. 응답: `lotteryId`, `scheduleId`, `sourceGrade`, `seatCount`, `status`, `warnings`(예: `DRAW_AT_OUTSIDE_LOW_TRAFFIC_WINDOW`). 409: `LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
-| PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 200 | 추가 제안(D9). 응모 시작 전이고 일반 오픈(`open_at`) 전만. `sourceGrade`, `seatCount`, 일정 수정 |
+| POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 201 | 같은 트랜잭션에서 `source_grade` 좌석 `seatCount`개를 `LOTTERY`로 바꾼다(D9). 본문: `sourceGrade`, `seatCount`, `maxPerEntry`, `entryStartAt`, `entryEndAt`, `drawAt`, `waitlistCount`. 응답: `lotteryId`, `scheduleId`, `status`, 설정값 7개, `warnings`(예: `DRAW_AT_OUTSIDE_LOW_TRAFFIC_WINDOW`). 409: `LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
+| PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 200 | 추가 제안(D9). 응모 시작 전이고 일반 오픈(`open_at`) 전만. 보낸 필드만 고친다: `sourceGrade`, `seatCount`, `waitlistCount`, `maxPerEntry`, 일정. 응답은 설정과 같다. 409: `LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH` |
 | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증, `Idempotency-Key` | 201(D3 A안), SA는 202 | 본문: `quantity`. 대기열·입장 토큰을 거치지 않는다 |
 | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | 추가 제안(D5). 마감 전만. 취소 뒤 재응모는 409 |
 | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 200 | `status`, `drawRank`(예비 번호), `reservationId`, `failReason`. 알림(F7) 전까지 결과 안내의 기본 경로다. 결제 상태가 미확정(NMC)이면 "결제 확인 중", 선점 만료 뒤 늦은 승인이면 "환불 예정"을 담는다(D14) |

@@ -91,6 +91,24 @@ public class Lottery extends BaseEntity {
         return lottery;
     }
 
+    /**
+     * 추첨 설정을 고친다(D9). 시드와 회차는 바꾸지 않는다.
+     *
+     * @throws BusinessException 지금 설정이나 새 설정의 응모 시작·일반 오픈이 지났으면 {@code LOTTERY_SETUP_CLOSED}
+     */
+    public void update(LotterySettings settings, ScheduleTimes schedule, Instant now) {
+        // 이미 시작한 응모는 새 시작 시각을 미래로 미뤄도 고치지 못하게 지금 값으로 먼저 확인한다
+        requireBeforeSetupDeadline(schedule.openAt(), entryStartAt, now);
+        settings.validate(schedule);
+        requireBeforeSetupDeadline(schedule.openAt(), settings.entryStartAt(), now);
+        apply(settings);
+    }
+
+    public LotterySettings settings() {
+        return new LotterySettings(sourceGrade, seatCount, waitlistCount, maxPerEntry, entryStartAt, entryEndAt,
+                drawAt);
+    }
+
     // 순위 계산 입력이라 바깥에서 배열을 바꾸지 못하게 복사본을 준다
     public byte[] getSeed() {
         return seed.clone();

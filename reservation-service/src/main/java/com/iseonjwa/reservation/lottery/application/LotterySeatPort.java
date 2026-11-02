@@ -14,4 +14,11 @@ public interface LotterySeatPort {
      * @return 실제로 바꾼 좌석 수. {@code seatCount}보다 작으면 호출한 쪽이 트랜잭션을 되돌려야 한다
      */
     int convertToLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
+
+    /**
+     * {@code LOTTERY} 좌석을 ID 내림차순으로 최대 {@code seatCount}개 골라 {@code sourceGrade}로 되돌린다(D9 수정).
+     *
+     * @return 실제로 되돌린 좌석 수
+     */
+    int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
 }
