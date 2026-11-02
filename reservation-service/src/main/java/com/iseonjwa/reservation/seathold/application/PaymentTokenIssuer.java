@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.seathold.application;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -10,6 +11,9 @@ import java.time.Instant;
  * (docs/design/reservation/contracts.md 5-3절 4번).
  */
 public interface PaymentTokenIssuer {
+    // 멱등 재요청에 토큰을 줄 수 있는지도 이 값으로 판단한다. 발급 규칙과 판단 기준이 어긋나지 않게 포트에 둔다
+    Duration EXPIRY_MARGIN = Duration.ofSeconds(10);
+
     IssuedPaymentToken issue(Long userId, Long reservationId, long amount, Instant holdExpiresAt);
 
     record IssuedPaymentToken(String token, Instant expiresAt) {}

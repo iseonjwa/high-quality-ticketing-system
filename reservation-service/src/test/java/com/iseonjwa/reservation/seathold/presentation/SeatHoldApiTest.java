@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// 동기형 좌석 일괄 선점 API를 실제 HTTP와 PostgreSQL로 확인한다(ISE-11, contracts.md 1·2-1·4절)
+// 동기형 좌석 일괄 선점 API를 실제 HTTP와 PostgreSQL로 확인한다(ISE-11·ISE-12, contracts.md 1·2-1·3·4절)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
@@ -182,6 +182,117 @@ class SeatHoldApiTest {
         assertEquals(List.of("AVAILABLE", "AVAILABLE", "AVAILABLE"), seatStatuses());
         assertEquals(0, heldCount(USER));
         assertNoTrace(key);
+    }
+
+    @Test
+    void 같은_키와_본문으로_다시_보내면_좌석을_다시_잡지_않고_같은_예매로_201이다() throws Exception {
+        var key = UUID.randomUUID().toString();
+        var first = hold(USER, key, scheduleId, List.of(seatIds.get(0), seatIds.get(1))).json().get("data");
+
+        // 순서만 다른 좌석 목록은 같은 본문이다
+        var response = hold(USER, key, scheduleId, List.of(seatIds.get(1), seatIds.get(0)));
+
+        assertEquals(201, response.status(), response.json().toString());
+        var data = response.json().get("data");
+        assertEquals(10, data.size(), data.toString());
+        for (var field : List.of("requestId", "reservationId", "reservationNo", "scheduleId", "seatIds", "status",
+                "holdExpiresAt", "totalAmount", "paymentTokenExpiresAt")) {
+            assertEquals(first.get(field), data.get(field), field);
+        }
+        var jwt = paymentTokenDecoder().decode(data.get("paymentToken").asString());
+        assertEquals(data.get("reservationId").asLong(), ((Number) jwt.getClaim("reservationId")).longValue());
+        assertEquals(List.of("HELD", "HELD", "AVAILABLE"), seatStatuses());
+        assertEquals(2, heldCount(USER));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM reservations WHERE user_id = ? AND schedule_id = ?",
+                Integer.class, USER, scheduleId));
+    }
+
+    @Test
+    void 판매가_끝난_뒤에_다시_보내도_이미_잡은_선점으로_201이다() throws Exception {
+        var key = UUID.randomUUID().toString();
+        assertEquals(201, hold(USER, key, scheduleId, List.of(seatIds.get(0))).status());
+        jdbc.update("UPDATE schedules SET starts_at = now() - interval '1 second' WHERE id = ?", scheduleId);
+
+        var response = hold(USER, key, scheduleId, List.of(seatIds.get(0)));
+
+        assertEquals(201, response.status(), response.json().toString());
+        assertEquals("HELD", response.json().get("data").get("status").asString());
+    }
+
+    @Test
+    void 같은_키로_좌석_회차_사용자가_다르면_409_IDEMPOTENCY_KEY_REUSED이고_아무것도_바꾸지_않는다() throws Exception {
+        var key = UUID.randomUUID().toString();
+        assertEquals(201, hold(USER, key, scheduleId, List.of(seatIds.get(0))).status());
+        var otherSchedule = createSchedule("now() - interval '1 minute'", "now() + interval '1 day'");
+        var otherSeats = createSeats(otherSchedule, 1);
+
+        assertFailure(hold(USER, key, scheduleId, List.of(seatIds.get(1))), 409, "IDEMPOTENCY_KEY_REUSED");
+        assertFailure(hold(USER, key, scheduleId, List.of(seatIds.get(0), seatIds.get(1))),
+                409, "IDEMPOTENCY_KEY_REUSED");
+        assertFailure(hold(USER, key, otherSchedule, otherSeats), 409, "IDEMPOTENCY_KEY_REUSED");
+        assertFailure(hold(USER + 1, key, scheduleId, List.of(seatIds.get(0))), 409, "IDEMPOTENCY_KEY_REUSED");
+        assertEquals(List.of("HELD", "AVAILABLE", "AVAILABLE"), seatStatuses());
+        assertEquals(1, heldCount(USER));
+        assertEquals(0, heldCount(USER + 1));
+    }
+
+    @Test
+    void 결제가_확정된_예매로_다시_보내면_201_CONFIRMED이고_결제_토큰은_주지_않는다() throws Exception {
+        var key = UUID.randomUUID();
+        var first = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0))).json().get("data");
+        jdbc.update("UPDATE reservations SET status = 'CONFIRMED' WHERE request_id = ?", key);
+
+        var response = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0)));
+
+        assertEquals(201, response.status(), response.json().toString());
+        var data = response.json().get("data");
+        assertEquals(10, data.size(), data.toString());
+        assertEquals(first.get("reservationId"), data.get("reservationId"));
+        assertEquals("CONFIRMED", data.get("status").asString());
+        assertTrue(data.get("paymentToken").isNull(), data.toString());
+        assertTrue(data.get("paymentTokenExpiresAt").isNull(), data.toString());
+    }
+
+    @Test
+    void 만료_해제_취소된_예매로_다시_보내면_409_RESERVATION_NOT_PAYABLE이다() throws Exception {
+        var key = UUID.randomUUID();
+        assertEquals(201, hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0))).status());
+
+        for (var status : List.of("EXPIRED", "RELEASED", "CANCELED")) {
+            jdbc.update("UPDATE reservations SET status = ? WHERE request_id = ?", status, key);
+            assertFailure(hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0))),
+                    409, "RESERVATION_NOT_PAYABLE");
+        }
+    }
+
+    // 만료 스케줄러가 아직 돌지 않아 HELD로 남은 예매도 시각으로 거절한다
+    @Test
+    void 결제_토큰_만료_시각이_지난_HELD_예매로_다시_보내면_409_RESERVATION_NOT_PAYABLE이다() throws Exception {
+        var key = UUID.randomUUID();
+        assertEquals(201, hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0))).status());
+        jdbc.update("UPDATE reservations SET hold_expires_at = now() + interval '5 second' WHERE request_id = ?", key);
+
+        assertFailure(hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0))), 409, "RESERVATION_NOT_PAYABLE");
+    }
+
+    // 동기형 실패는 행을 남기지 않으므로 같은 키 재요청이 새 선점으로 처리된다(contracts.md 3-2 ⑤)
+    @Test
+    void 실패한_키도_좌석이_풀린_뒤_같은_키로_다시_선점할_수_있다() throws Exception {
+        var other = hold(USER + 1, UUID.randomUUID().toString(), scheduleId, List.of(seatIds.get(1)));
+        var key = UUID.randomUUID().toString();
+        var requested = List.of(seatIds.get(0), seatIds.get(1));
+        assertFailure(hold(USER, key, scheduleId, requested), 409, "SEAT_ALREADY_HELD");
+        // 다른 사용자의 선점이 만료돼 좌석이 돌아온 상태를 만든다
+        var otherReservation = other.json().get("data").get("reservationId").asLong();
+        jdbc.update("UPDATE reservations SET status = 'EXPIRED' WHERE id = ?", otherReservation);
+        jdbc.update("UPDATE reservation_seats SET status = 'RELEASED' WHERE reservation_id = ?", otherReservation);
+        jdbc.update("UPDATE schedule_seats SET status = 'AVAILABLE' WHERE id = ?", seatIds.get(1));
+
+        var response = hold(USER, key, scheduleId, requested);
+
+        assertEquals(201, response.status(), response.json().toString());
+        assertEquals(List.of("HELD", "HELD", "AVAILABLE"), seatStatuses());
+        assertEquals(2, heldCount(USER));
     }
 
     @Test

@@ -34,6 +34,9 @@ queue:
   poll-min: 3s
   poll-max: 10s
   poll-jitter-ratio: 0.2
+entry-token:
+  # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다
+  secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
 payment:
   token:
     # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)

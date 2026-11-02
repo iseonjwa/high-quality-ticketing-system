@@ -26,8 +26,10 @@ SA MASTER v3.3 11-5절의 선점 API(`POST /api/v1/reservations`) 응답 초안�
    - **기존 행이 없는 경우**: 한 트랜잭션 안에서 매수 한도 조건부 UPDATE(D1) → 회차 좌석 오름차순 조건부 UPDATE → `reservations`·`reservation_seats`·이력·`seat_hold_requests(HELD)` 저장을 수행한다. 매수 한도 초과나 좌석 경합으로 실패하면 **트랜잭션 전체를 롤백**해 실패한 `seat_hold_requests` 행을 남기지 않는다(오픈 정각 이선좌 폭주 시 불필요한 DB INSERT 부하 방지).
    - **기존 행이 있는 경우 (멱등 재요청)**:
      - 요청 사용자(`X-User-Id`), `scheduleId`, 오름차순 정렬한 `seatIds`를 기존 `seat_hold_requests` 행의 `(user_id, schedule_id, seat_ids)`와 비교한다. 하나라도 다르면 **`409 IDEMPOTENCY_KEY_REUSED`**를 반환한다.
-     - 모두 같고 연결된 예매가 `HELD`(또는 `CONFIRMED`)이면 좌석 잠금을 다시 시도하지 않고 기존 예매 정보와 결제 토큰으로 **`201 Created`**를 그대로 반환한다. (단, `now >= hold_expires_at - 10초`이거나 이미 `CONFIRMED`면 `paymentToken`과 `paymentTokenExpiresAt`은 `null`로 내려 만료된 토큰 사용을 막는다.)
-     - 모두 같지만 연결된 예매가 이미 `EXPIRED`·`RELEASED`·`CANCELED`로 닫혔으면 더 이상 그 선점으로 결제할 수 없으므로 **`409 RESERVATION_NOT_PAYABLE`**을 반환한다.
+     - 모두 같고 연결된 예매가 `HELD`이며 `now < hold_expires_at - 10초`이면 좌석 잠금을 다시 시도하지 않고 기존 예매 정보와 새로 서명한 결제 토큰으로 **`201 Created`**를 반환한다.
+     - 모두 같고 이미 `CONFIRMED`면 **`201 Created`**(`status: "CONFIRMED"`)를 반환하되 `paymentToken`과 `paymentTokenExpiresAt`은 `null`로 내린다.
+     - 모두 같지만 연결된 예매가 이미 `EXPIRED`·`RELEASED`·`CANCELED`로 닫혔거나, `HELD`라도 `now >= hold_expires_at - 10초`라 결제 토큰을 줄 수 없으면 **`409 RESERVATION_NOT_PAYABLE`**을 반환한다. 만료 스케줄러가 돌기 전이라 기한이 지난 예매가 `HELD`로 남아 있을 수 있어 상태와 시각을 함께 본다.
+     - 2026-11-02 변경(ISE-12): 초안은 `now >= hold_expires_at - 10초`인 `HELD`에 `201` + 토큰 `null`을 주도록 적었으나 `contracts.md` 3-2 ④와 어긋났다. 결제할 수 없는 선점을 `201`로 주면 프론트엔드가 "성공인데 토큰 없음" 분기를 따로 둬야 해서 `409`로 맞췄다. 버튼 연타 재요청은 만료까지 5분 가까이 남은 상태라 이 변경과 무관하게 `201`을 받는다.
 3. **동시 중복 요청(따닥)의 PK/Unique 충돌 처리**:
    - 같은 키의 두 요청이 동시에 진입해 한쪽이 `seat_hold_requests.request_id` 또는 `reservations.request_id` 유니크 제약 위반(`DataIntegrityViolationException`)을 만나면 `500` 에러를 내지 않고, 롤백 후 별도 읽기 트랜잭션에서 방금 커밋된 기존 행을 다시 읽어 위 2번의 기존 행 규칙대로 `201 Created`(또는 본문 불일치 시 `409 IDEMPOTENCY_KEY_REUSED`)를 반환한다.
 4. **접수형(M4) 멱등 재요청 규칙**:

@@ -5,6 +5,9 @@ import com.iseonjwa.reservation.concert.domain.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -21,5 +24,15 @@ public class JpaScheduleRepository implements ScheduleRepository {
     @Override
     public Optional<Schedule> findByIdForUpdate(Long id) {
         return springDataScheduleRepository.findByIdForUpdate(id);
+    }
+
+    @Override
+    public List<Schedule> findUpcomingByConcertIds(Collection<Long> concertIds, Instant now) {
+        return springDataScheduleRepository.findUpcomingByConcertIds(concertIds, now);
+    }
+
+    @Override
+    public List<Schedule> findByConcertIdWithVenue(Long concertId) {
+        return springDataScheduleRepository.findByConcertIdWithVenue(concertId);
     }
 }

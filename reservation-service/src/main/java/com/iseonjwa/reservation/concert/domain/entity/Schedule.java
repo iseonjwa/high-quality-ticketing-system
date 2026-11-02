@@ -85,4 +85,15 @@ public class Schedule extends BaseEntity {
         schedule.holdMinutes = holdMinutes.shortValue();
         return schedule;
     }
+
+    // 주어진 시각 기준 판매 상태. 오픈 시각 정각부터 판매 중이고, 공연 시작 정각부터 마감이다
+    public SaleStatus saleStatusAt(Instant now) {
+        if (now.isBefore(openAt)) {
+            return SaleStatus.BEFORE_OPEN;
+        }
+        if (now.isBefore(startsAt)) {
+            return SaleStatus.ON_SALE;
+        }
+        return SaleStatus.CLOSED;
+    }
 }

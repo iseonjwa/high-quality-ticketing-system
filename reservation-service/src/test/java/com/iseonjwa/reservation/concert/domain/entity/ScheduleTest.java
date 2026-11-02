@@ -61,4 +61,14 @@ class ScheduleTest {
         assertThrows(BusinessException.class,
                 () -> ScheduleSeat.create(schedule, otherVenueSeat, Money.of(165_000)));
     }
+
+    @Test
+    void 판매_상태는_오픈_정각부터_판매중이고_공연_시작_정각부터_마감이다() {
+        var schedule = Schedule.create(concert, venue, STARTS_AT, OPEN_AT, 4, 5);
+
+        assertEquals(SaleStatus.BEFORE_OPEN, schedule.saleStatusAt(OPEN_AT.minusSeconds(1)));
+        assertEquals(SaleStatus.ON_SALE, schedule.saleStatusAt(OPEN_AT));
+        assertEquals(SaleStatus.ON_SALE, schedule.saleStatusAt(STARTS_AT.minusSeconds(1)));
+        assertEquals(SaleStatus.CLOSED, schedule.saleStatusAt(STARTS_AT));
+    }
 }

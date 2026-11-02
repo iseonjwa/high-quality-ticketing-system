@@ -3,6 +3,15 @@ spring:
     name: mock-pg
   profiles:
     default: local
+  # 장애 주입 DELAY(최대 60초)가 플랫폼 스레드(Tomcat 기본 200)를 붙잡아, loadtest에서 지연이 걸리지 않은 요청과
+  # 장애 해제 요청까지 막는 것을 막는다. 지연은 원장 잠금(compute) 밖에서 자므로 캐리어 고정이 없다
+  threads:
+    virtual:
+      enabled: true
+  jackson:
+    deserialization:
+      # 오타 필드(예: orderID)를 조용히 무시하면 주문 한정 규칙이 전역 규칙이 되어 배경 호출이 횟수를 가져간다
+      fail-on-unknown-properties: true
 ---
 spring:
   config:

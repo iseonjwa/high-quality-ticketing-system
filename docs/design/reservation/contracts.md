@@ -146,7 +146,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | **③ 첫 요청이 `HELD`로 성공했고 그사이 결제까지 완료(`CONFIRMED`)됨** | **`201 Created`** (`status: "CONFIRMED"`, `paymentToken: null`, `paymentTokenExpiresAt: null`) | `POST`는 `202 Accepted`, `GET /requests/{id}`는 `200 OK` |
 | **④ 첫 요청이 `HELD`로 성공했으나 재요청 시점에 이미 만료·해제·취소(`EXPIRED`·`RELEASED`·`CANCELED`)됨, 또는 `now >= holdExpiresAt - 10초`** | 더 이상 그 선점으로 결제할 수 없으므로 **`409 RESERVATION_NOT_PAYABLE`** (새 좌석 선택·새 멱등키 유도) | `POST`는 `202 Accepted`, `GET /requests/{id}`는 예매의 현재 상태 반영 |
 | **⑤ 첫 요청이 `409`(`SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED`)로 실패한 뒤 같은 키로 재요청** | 첫 요청 실패 시 트랜잭션이 전체 롤백되어 `seat_hold_requests` 행이 없으므로 새로 선점을 시도한다(여전히 팔린 좌석이면 동일하게 `409`) | 소비자가 `seat_hold_requests(REJECTED)`를 커밋했으므로 `POST`는 `202 Accepted`, `GET /requests/{id}`는 `200 OK (status: REJECTED, reasonCode)` |
-| **⑥ 첫 요청이 아직 처리 중인데 연타(따닥)로 동시에 두 번째 요청 도착** | 한쪽이 PK/Unique 제약 위반을 만나면 `500` 대신 롤백 후 커밋된 첫 요청 결과를 재조회해 ①~④ 규칙으로 응답 | `seat_hold_requests`가 `REQUESTED` 상태이므로 **`202 Accepted` + `Location`** 반환 |
+| **⑥ 첫 요청이 아직 처리 중인데 연타(따닥)로 동시에 두 번째 요청 도착** | 한쪽이 PK/Unique 제약 위반을 만나면 `500` 대신 롤백 후 커밋된 첫 요청 결과를 재조회해 ①~④ 규칙으로 응답. M2 기준선(ISE-12)은 사전 조회만 해서 두 번째 요청이 좌석 행 잠금을 기다린 뒤 `409 SEAT_ALREADY_HELD`를 받을 것으로 본다(구조상 추정, 미재현). M4 TS-3에서 재현 후 고친다([ADR 0035](../../decisions/0035-defer-seathold-concurrency-and-reconciliation-to-m4.md)) | `seat_hold_requests`가 `REQUESTED` 상태이므로 **`202 Accepted` + `Location`** 반환 |
 
 ---
 

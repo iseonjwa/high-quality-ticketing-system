@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +30,6 @@ public class JwtPaymentTokenIssuer implements PaymentTokenIssuer {
     static final String AUDIENCE_VALUE = "payment-service";
     static final String RESERVATION_ID = "reservationId";
     static final String AMOUNT = "amount";
-    static final Duration EXPIRY_MARGIN = Duration.ofSeconds(10);
 
     private static final int SECRET_LENGTH = 64;
     private static final Pattern LOWERCASE_HEX = Pattern.compile("[0-9a-f]+");

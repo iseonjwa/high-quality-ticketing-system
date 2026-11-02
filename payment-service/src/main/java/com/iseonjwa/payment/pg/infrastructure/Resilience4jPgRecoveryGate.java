@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.pg.application.PgPermit;
 import com.iseonjwa.payment.pg.application.PgRecoveryGate;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -16,8 +17,13 @@ public class Resilience4jPgRecoveryGate implements PgRecoveryGate {
     }
 
     @Override
+    public Optional<PgPermit> tryAcquire() {
+        return group.tryAcquire();
+    }
+
+    @Override
     public <R> Optional<R> execute(Supplier<R> call) {
-        var permit = group.tryAcquire();
+        var permit = tryAcquire();
         if (permit.isEmpty()) return Optional.empty();
         // close()가 아직 정산하지 않았으면 반환한다. 어떤 경로로 끝나도 허가가 새지 않는다
         try (var held = permit.get()) {

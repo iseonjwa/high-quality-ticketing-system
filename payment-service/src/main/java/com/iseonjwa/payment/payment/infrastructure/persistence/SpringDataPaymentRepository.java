@@ -17,6 +17,34 @@ interface SpringDataPaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findByIdAndUserId(Long id, Long userId);
 
+    // 재확인 대상 한 건을 잠근다. 다른 워커가 잠근 행은 기다리지 않고 건너뛴다(events-and-reliability.md 6절)
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM payments
+            WHERE status IN ('REQUESTED', 'UNKNOWN') AND next_check_at <= :now
+            ORDER BY next_check_at
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """)
+    Optional<Payment> findDueForRecheckForUpdate(@Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE payments
+            SET next_check_at = :leaseUntil, unknown_retry_count = unknown_retry_count + 1, updated_at = :now,
+                updated_by = NULL
+            WHERE id = :id AND status = :status AND next_check_at <= :now
+            """)
+    int claimRecheck(@Param("id") Long id, @Param("status") String status, @Param("leaseUntil") Instant leaseUntil,
+            @Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE payments
+            SET next_check_at = :nextCheckAt, updated_at = :now, updated_by = NULL
+            WHERE id = :id AND status = 'UNKNOWN'
+            """)
+    int rescheduleCheck(@Param("id") Long id, @Param("nextCheckAt") Instant nextCheckAt, @Param("now") Instant now);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(nativeQuery = true, value = """
             UPDATE payments
