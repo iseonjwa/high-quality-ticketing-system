@@ -98,6 +98,8 @@ CREATE TRIGGER payment_status_histories_no_truncate BEFORE TRUNCATE ON payment_s
 | pg_refund_ref | VARCHAR(200) | | **신규.** PG가 준 환불 거래 식별자 |
 | refunded_at | TIMESTAMPTZ | | |
 
+- 감사 컬럼: `created_at`·`created_by`·`updated_at`·`updated_by`·`deleted_at`·`deleted_by`를 `payments`와 같게 둔다(`BaseEntity`). 환불은 논리 삭제를 쓰지 않아 `deleted_*`는 항상 NULL이다. 원자적 `INSERT … SELECT`는 `created_at`·`updated_at`만 채우고 `created_by`는 NULL이다(소비자에는 요청 사용자가 없다).
+- 제약 이름: `uq_refunds_payment_id`, `uq_refunds_pg_refund_id`, `chk_refunds_amount`·`chk_refunds_reason`·`chk_refunds_source`·`chk_refunds_status`·`chk_refunds_check_schedule`·`chk_refunds_refunded`. 인덱스 이름은 `idx_refunds_next_check_at`, `idx_refunds_unsettled_created_at`다. 마이그레이션은 `V3__refunds.sql`이다.
 - CHECK: `status NOT IN ('REQUESTED','UNKNOWN') OR next_check_at IS NOT NULL`, `status <> 'REFUNDED' OR refunded_at IS NOT NULL`.
 - 인덱스: `INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN')`, `INDEX(status, created_at) WHERE status IN ('REQUESTED','UNKNOWN','NEEDS_MANUAL_CHECK')`.
 - 생성은 결제 상태를 조건으로 한 원자적 쓰기다(E13, INV-2·INV-3).
