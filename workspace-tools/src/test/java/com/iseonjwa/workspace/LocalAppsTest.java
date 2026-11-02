@@ -54,6 +54,15 @@ class LocalAppsTest {
     }
 
     @Test
+    void 입장_토큰_키는_발급하는_예매_서비스와_검증하는_Gateway에만_전달한다() {
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
+            var needsKey = Set.of("reservation-service", "gateway").contains(app.name());
+            assertEquals(needsKey, environment.containsKey("ENTRY_TOKEN_SECRET"), app.name());
+        }
+    }
+
+    @Test
     void 필수_값이_없으면_값을_노출하지_않고_거절한다() {
         var values = values();
         values.put("DB_PASSWORD", "");
