@@ -26,6 +26,18 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
                 priceOf(prices, SeatGrade.VIP), priceOf(prices, SeatGrade.R), priceOf(prices, SeatGrade.S), actorId);
     }
 
+    @Override
+    public int convertToLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId) {
+        return springDataScheduleSeatRepository.updateGradeToLottery(scheduleId, sourceGrade.name(), seatCount,
+                actorId);
+    }
+
+    @Override
+    public int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId) {
+        return springDataScheduleSeatRepository.updateGradeFromLottery(scheduleId, sourceGrade.name(), seatCount,
+                actorId);
+    }
+
     // 공연장에 없는 등급은 해당 좌석 행이 없어 쓰이지 않는다. SQL에 null을 넘기지 않으려고 0을 넣는다
     private static BigDecimal priceOf(Map<SeatGrade, Money> prices, SeatGrade grade) {
         return prices.getOrDefault(grade, Money.ZERO).toBigDecimal();

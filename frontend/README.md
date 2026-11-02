@@ -59,6 +59,9 @@ src/
   app/routes.tsx  경로 목록. 테스트도 같은 목록으로 라우터를 만든다
   pages/          화면 단위 컴포넌트
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
+  components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)
+  components/layout/  공통 레이아웃(헤더·토스트, AppLayout)과 경로 에러 화면
+  pages/DesignSystemPage.tsx  `npm run dev`에서 `/_design`으로 여는 컴포넌트 확인 화면(운영 빌드에는 없다)
   lib/            공통 함수
   api/            API 클라이언트(client.ts)와 도메인별 요청 함수·응답 스키마, 에러 문구 표
   auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts)

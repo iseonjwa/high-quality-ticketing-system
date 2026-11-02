@@ -28,4 +28,36 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
     int insertFromVenueSeats(@Param("scheduleId") Long scheduleId, @Param("venueId") Long venueId,
                              @Param("vipPrice") BigDecimal vipPrice, @Param("rPrice") BigDecimal rPrice,
                              @Param("sPrice") BigDecimal sPrice, @Param("actorId") Long actorId);
+
+    // Note: 고를 좌석에 FOR UPDATE를 걸어, 같은 좌석을 선점하는 트랜잭션과 엇갈려도 이미 HELD가 된 좌석은 바꾸지 않는다.
+    // 선점이 먼저 끝나면 다시 읽은 행이 AVAILABLE이 아니어서 빠지고, 바꾼 수가 모자라면 호출한 쪽이 되돌린다.
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE schedule_seats
+            SET grade = 'LOTTERY', updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
+            WHERE id IN (
+                SELECT id FROM schedule_seats
+                WHERE schedule_id = :scheduleId AND grade = :sourceGrade
+                  AND status = 'AVAILABLE' AND deleted_at IS NULL
+                ORDER BY id
+                LIMIT :seatCount
+                FOR UPDATE)
+            """)
+    int updateGradeToLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
+                             @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
+
+    // ID가 큰 추첨석부터 되돌려, 남는 추첨석이 ID 순으로 이어지게 한다(옆자리 배정에 유리, D9)
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE schedule_seats
+            SET grade = :sourceGrade, updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
+            WHERE id IN (
+                SELECT id FROM schedule_seats
+                WHERE schedule_id = :scheduleId AND grade = 'LOTTERY' AND deleted_at IS NULL
+                ORDER BY id DESC
+                LIMIT :seatCount
+                FOR UPDATE)
+            """)
+    int updateGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
+                               @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
 }

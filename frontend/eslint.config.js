@@ -21,6 +21,17 @@ export default defineConfig([
     },
   },
   {
+    // 클래스 합치기는 type-* 글자 토큰을 아는 src/lib/utils.ts의 cn만 쓴다.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/utils.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'cn', message: "type-* 글자 토큰을 아는 '@/lib/utils'의 cn을 쓴다" }] },
+      ],
+    },
+  },
+  {
     // shadcn/ui 컴포넌트는 컴포넌트와 스타일 변형(buttonVariants 등)을 한 파일에서 함께 내보낸다.
     files: ['src/components/ui/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
