@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.concert.domain.repository;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.global.vo.Money;
 
+import java.util.List;
 import java.util.Map;
 
 public interface ScheduleSeatRepository {
@@ -17,4 +18,9 @@ public interface ScheduleSeatRepository {
 
     // 추첨 수정(D9). LOTTERY 좌석을 ID 내림차순으로 최대 seatCount개 sourceGrade로 되돌리고, 되돌린 수를 돌려준다
     int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
+
+    // 추첨 배정 계산(D9). 회차의 LOTTERY 좌석을 ID 오름차순으로, 옆자리 판정에 필요한 구역·열·번호와 함께 돌려준다
+    List<LotterySeatRow> findLotterySeats(Long scheduleId);
+
+    record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
 }

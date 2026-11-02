@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @Repository
@@ -36,6 +37,14 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     public int revertFromLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId) {
         return springDataScheduleSeatRepository.updateGradeFromLottery(scheduleId, sourceGrade.name(), seatCount,
                 actorId);
+    }
+
+    @Override
+    public List<LotterySeatRow> findLotterySeats(Long scheduleId) {
+        return springDataScheduleSeatRepository.findLotterySeatRows(scheduleId).stream()
+                .map(row -> new LotterySeatRow(((Number) row[0]).longValue(), (String) row[1],
+                        ((Number) row[2]).intValue(), ((Number) row[3]).intValue()))
+                .toList();
     }
 
     // 공연장에 없는 등급은 해당 좌석 행이 없어 쓰이지 않는다. SQL에 null을 넘기지 않으려고 0을 넣는다
