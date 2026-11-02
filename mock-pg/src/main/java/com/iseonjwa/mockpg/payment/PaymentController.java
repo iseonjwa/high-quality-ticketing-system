@@ -1,6 +1,11 @@
 package com.iseonjwa.mockpg.payment;
 
+import com.iseonjwa.mockpg.fault.FaultInjector;
+import com.iseonjwa.mockpg.fault.FaultMode;
+import com.iseonjwa.mockpg.fault.FaultTarget;
 import com.iseonjwa.mockpg.web.ErrorResponse;
+import com.iseonjwa.mockpg.web.ResponseDrop;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,14 +24,23 @@ import java.math.BigDecimal;
 @RequestMapping("/mock-pg/payments")
 class PaymentController {
     private final PaymentLedger ledger;
+    private final FaultInjector faults;
 
-    PaymentController(PaymentLedger ledger) {
+    PaymentController(PaymentLedger ledger, FaultInjector faults) {
         this.ledger = ledger;
+        this.faults = faults;
     }
 
     @PostMapping
-    ResponseEntity<ApprovalResponse> approve(@RequestBody ApproveRequest request) {
+    ResponseEntity<ApprovalResponse> approve(@RequestBody ApproveRequest request, HttpServletRequest servletRequest) {
+        var fault = faults.claim(FaultTarget.APPROVE);
         var payment = ledger.approve(request.orderId(), request.amount(), request.currency());
+        if (fault == FaultMode.DROP_RESPONSE) {
+            // Note: 저장을 끝낸 뒤 응답만 잃는다. ResponseEntity를 돌려주면 메시지 컨버터가 상태 줄과 헤더를
+            // flush해 이미 클라이언트로 나가므로, null을 돌려줘 아무것도 쓰지 않고 Valve가 연결을 닫게 한다
+            ResponseDrop.request(servletRequest);
+            return null;
+        }
         return ResponseEntity.ok(ApprovalResponse.of(payment));
     }
 
