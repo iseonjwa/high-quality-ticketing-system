@@ -10,7 +10,9 @@ import com.iseonjwa.common.response.ErrorCode;
 public enum LotteryErrorCode implements ErrorCode {
     LOTTERY_ALREADY_EXISTS(409, "이미 추첨을 설정한 회차입니다"),
     LOTTERY_SETUP_CLOSED(409, "일반 예매 오픈이나 응모 시작이 지나 추첨을 설정할 수 없습니다"),
-    LOTTERY_SEATS_NOT_ENOUGH(409, "추첨석으로 뗄 수 있는 좌석이 모자랍니다");
+    LOTTERY_SEATS_NOT_ENOUGH(409, "추첨석으로 뗄 수 있는 좌석이 모자랍니다"),
+    LOTTERY_NOT_OPEN(409, "응모 기간이 아닙니다"),
+    LOTTERY_ALREADY_ENTERED(409, "이미 응모한 추첨입니다. 취소한 뒤에도 다시 응모할 수 없습니다");
 
     private final int status;
     private final String message;

@@ -6,4 +6,9 @@ package com.iseonjwa.mockpg.web;
  */
 public record ErrorResponse(String code) {
     public static final ErrorResponse NOT_FOUND = new ErrorResponse("NOT_FOUND");
+    // 망취소된 주문의 승인. 어댑터는 이 코드만 거절(NOT_SENT)로 본다
+    public static final ErrorResponse ORDER_CANCELED = new ErrorResponse("ORDER_CANCELED");
+    // 같은 주문의 승인이 처리 중이다. 어댑터는 처리 중(Unknown)으로 본다
+    public static final ErrorResponse REQUEST_IN_PROGRESS = new ErrorResponse("REQUEST_IN_PROGRESS");
+    public static final ErrorResponse INVALID_REQUEST = new ErrorResponse("INVALID_REQUEST");
 }
