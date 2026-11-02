@@ -7,9 +7,8 @@ import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -19,21 +18,31 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class RecheckFixtures {
     public static final BigDecimal AMOUNT = BigDecimal.valueOf(50000);
-    private static final AtomicLong RESERVATION_IDS = new AtomicLong(7_000_000);
+    // 이 범위의 예약 ID는 재확인 테스트만 쓴다(다른 API 테스트의 범위와 겹치지 않는다)
+    private static final long FIRST_RESERVATION = 8_700_000;
+    private static final long LAST_RESERVATION = 8_799_999;
+    private static final AtomicLong RESERVATION_IDS = new AtomicLong(FIRST_RESERVATION);
 
     private final PaymentRepository payments;
     private final JdbcTemplate jdbc;
-    private final List<Payment> created = new ArrayList<>();
 
     public RecheckFixtures(PaymentRepository payments, JdbcTemplate jdbc) {
         this.payments = payments;
         this.jdbc = jdbc;
     }
 
-    /** 다른 테스트가 커밋해 둔 재확인 대상을 하루 뒤로 미룬다. 이 테스트의 후보만 남기려는 것이다. */
-    public void parkOtherDuePayments() {
-        jdbc.update("UPDATE payments SET next_check_at = now() + interval '1 day' "
-                + "WHERE status IN ('REQUESTED', 'UNKNOWN') AND next_check_at <= now()");
+    /**
+     * 재확인 대상(REQUESTED·UNKNOWN)을 모두 먼 미래로 미룬다. 이 테스트가 만들 행만 후보가 되게 하려는 것이다.
+     * 테스트 도중 차례가 되는 다른 행이 끼어들지 않도록 조건 없이 전부 미루고, 행은 그 뒤에 만든다.
+     */
+    public void parkAllRecheckCandidates() {
+        jdbc.update("UPDATE payments SET next_check_at = now() + interval '1 year' WHERE status IN ('REQUESTED', 'UNKNOWN')");
+    }
+
+    /** 지정한 결제만 빼고 재확인 대상을 모두 먼 미래로 미룬다. */
+    public void parkAllExcept(long paymentId) {
+        jdbc.update("UPDATE payments SET next_check_at = now() + interval '1 year' "
+                + "WHERE status IN ('REQUESTED', 'UNKNOWN') AND id <> ?", paymentId);
     }
 
     /** 재확인 차례가 지난 결제를 만든다. {@code retryCount}는 이미 PG를 부른 횟수다. */
@@ -46,8 +55,7 @@ public final class RecheckFixtures {
         var saved = payments.save(Payment.request("PAY-R" + reservationId, reservationId, 1L, AMOUNT,
                 PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
         jdbc.update("UPDATE payments SET status = ?, unknown_retry_count = ?, next_check_at = ? WHERE id = ?",
-                status.name(), retryCount, java.sql.Timestamp.from(nextCheckAt), saved.getId());
-        created.add(saved);
+                status.name(), retryCount, Timestamp.from(nextCheckAt), saved.getId());
         return payments.findById(saved.getId()).orElseThrow();
     }
 
@@ -75,12 +83,11 @@ public final class RecheckFixtures {
                 String.class, payment.getId());
     }
 
+    /** 이 범위의 결제와 딸린 이력·Outbox를 지운다. 테스트 시작 전과 끝에 부른다(다른 API 테스트와 같은 관례). */
     public void cleanUp() {
-        for (var payment : created) {
-            jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(payment.getReservationId()));
-            jdbc.update("DELETE FROM payment_status_histories WHERE payment_id = ?", payment.getId());
-            jdbc.update("DELETE FROM payments WHERE id = ?", payment.getId());
-        }
-        created.clear();
+        jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^87[0-9]{5}$'");
+        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN "
+                + "(SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)", FIRST_RESERVATION, LAST_RESERVATION);
+        jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }
 }

@@ -50,6 +50,7 @@ class PaymentTxApprovalRaceTest {
     @BeforeEach
     void setUp() {
         fixtures = new RecheckFixtures(payments, jdbc);
+        fixtures.cleanUp();
         logs.start();
         logger.addAppender(logs);
     }

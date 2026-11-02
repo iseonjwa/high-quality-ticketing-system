@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -82,7 +83,7 @@ class PaymentRecheckSchedulerTest {
 
     @Test
     void 시작하면_recovery_스레드에서_돌고_멈추면_종료한다() throws Exception {
-        var threadName = new java.util.concurrent.atomic.AtomicReference<String>();
+        var threadName = new AtomicReference<String>();
         var ran = new CountDownLatch(1);
         when(recheck.recheckNext()).thenAnswer(invocation -> {
             threadName.set(Thread.currentThread().getName());

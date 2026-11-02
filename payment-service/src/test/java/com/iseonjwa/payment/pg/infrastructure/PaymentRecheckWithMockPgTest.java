@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
+import com.iseonjwa.payment.payment.domain.PaymentRepository;
+import com.iseonjwa.payment.support.RecheckFixtures;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,10 @@ class PaymentRecheckWithMockPgTest {
     PaymentRecheckService recheck;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    PaymentRepository payments;
+
+    private RecheckFixtures fixtures;
 
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -60,9 +66,8 @@ class PaymentRecheckWithMockPgTest {
     }
 
     @BeforeEach
-    void parkOtherDuePayments() {
-        jdbc.update("UPDATE payments SET next_check_at = now() + interval '1 day' "
-                + "WHERE status IN ('REQUESTED', 'UNKNOWN') AND next_check_at <= now()");
+    void setUp() {
+        fixtures = new RecheckFixtures(payments, jdbc);
     }
 
     @AfterEach
@@ -89,6 +94,7 @@ class PaymentRecheckWithMockPgTest {
 
         // 첫 재확인은 10초 뒤다. 기다리지 않고 차례가 된 것으로 만든다
         jdbc.update("UPDATE payments SET next_check_at = now() - interval '1 second' WHERE reservation_id = ?", reservation);
+        fixtures.parkAllExcept(paymentId(reservation));
         assertTrue(recheck.recheckNext());
 
         assertEquals("APPROVED", status(reservation));
@@ -97,6 +103,10 @@ class PaymentRecheckWithMockPgTest {
                 "SELECT event_type FROM outbox_events WHERE message_key = ?", String.class, String.valueOf(reservation)));
         assertEquals(1, jdbc.queryForObject("SELECT unknown_retry_count FROM payments WHERE reservation_id = ?",
                 Integer.class, reservation));
+    }
+
+    private long paymentId(long reservation) {
+        return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservation);
     }
 
     private String status(long reservation) {

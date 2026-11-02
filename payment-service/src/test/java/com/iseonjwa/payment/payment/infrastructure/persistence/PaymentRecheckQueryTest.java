@@ -39,7 +39,8 @@ class PaymentRecheckQueryTest {
     @BeforeEach
     void setUp() {
         fixtures = new RecheckFixtures(payments, jdbc);
-        fixtures.parkOtherDuePayments();
+        fixtures.cleanUp();
+        fixtures.parkAllRecheckCandidates();
     }
 
     @AfterEach

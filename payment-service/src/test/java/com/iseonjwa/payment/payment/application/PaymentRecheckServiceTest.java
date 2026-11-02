@@ -21,6 +21,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -49,6 +51,9 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
 class PaymentRecheckServiceTest {
+    // 복구 그룹의 동시 호출 한도(payment.pg.protection.recovery.max-concurrent-calls 기본값)
+    private static final int MAX_PERMITS = 2;
+
     @Autowired
     PaymentRecheckService recheck;
     @Autowired
@@ -69,11 +74,14 @@ class PaymentRecheckServiceTest {
         reset(pg, payments);
         recoveryGate.circuitBreaker().reset();
         fixtures = new RecheckFixtures(payments, jdbc);
-        fixtures.parkOtherDuePayments();
+        fixtures.cleanUp();
+        fixtures.parkAllRecheckCandidates();
     }
 
     @AfterEach
     void tearDown() {
+        // 어떤 경로로 끝나도 허가가 새지 않아야 한다(0018)
+        assertEquals(MAX_PERMITS, recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "복구 허가가 새고 있다");
         recoveryGate.circuitBreaker().reset();
         fixtures.cleanUp();
     }
@@ -334,6 +342,20 @@ class PaymentRecheckServiceTest {
         assertAbout(Duration.ofSeconds(10), rescheduled.getNextCheckAt());
         assertEquals("RECOVERY_PERMIT_DENIED", fixtures.lastHistoryReason(payment));
         verify(pg, never()).preventLateApproval(any());
+    }
+
+    @Test
+    void PG_조회는_트랜잭션_밖에서_한다() {
+        var payment = fixtures.due(PaymentStatus.REQUESTED, 0);
+        when(pg.findPayment(orderOf(payment))).thenAnswer(invocation -> {
+            // 트랜잭션 안이면 PG가 느릴 때 DB 연결을 붙잡는다(7절). 실패하면 AssertionError가 재확인을 거쳐 테스트로 전파된다
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive(), "PG 조회가 트랜잭션 안에서 불렸다");
+            return approved(AMOUNT);
+        });
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.APPROVED, fixtures.reload(payment).getStatus());
     }
 
     @Test
