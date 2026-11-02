@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-01 | .env를 지우고 다시 만들면 DB 비밀번호는 어떻게 되고, 로컬 데이터가 필요 없으면 괜찮은가 | [qna/2026-11-01-regenerate-env-db-password.md](qna/2026-11-01-regenerate-env-db-password.md) |
 | 2026-11-01 | CI 실패는 무엇이고, PR의 CI 자동 수정은 무엇을 하나 | [qna/2026-11-01-ci-failure-and-auto-fix.md](qna/2026-11-01-ci-failure-and-auto-fix.md) |
 | 2026-11-01 | 추첨에서 매수 때문에 건너뛴 2매 응모자는 예비자가 되나, 탈락하나 | [qna/2026-11-01-lottery-skipped-entrant-waitlist.md](qna/2026-11-01-lottery-skipped-entrant-waitlist.md) |
 | 2026-10-31 | 앞 PR을 스쿼시 머지한 뒤 그 위에 쌓은 브랜치는 왜 강제 푸시가 필요하고, 다른 방법은 무엇인가 | [qna/2026-10-31-stacked-branch-after-squash.md](qna/2026-10-31-stacked-branch-after-squash.md) |
