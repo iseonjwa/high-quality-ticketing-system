@@ -5,6 +5,9 @@ import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.PgPaymentRef;
+import com.iseonjwa.payment.pg.application.PgRefundId;
+import com.iseonjwa.payment.pg.application.RefundCommand;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +19,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,6 +34,9 @@ class MockPgServerContractTest {
     // Note: 응답 유실이 연결이 끊겨서가 아니라 읽기 시한이 지나서 CONNECTION_LOST가 되는 경우를 걸러내려고
     // 경과 시간을 이 값과 비교한다. 첫 호출의 클라이언트 준비 시간이 끼어도 넉넉하게 1초로 둔다
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
+
+    private static final BigDecimal AMOUNT = BigDecimal.valueOf(50000);
+    private static final String KRW = "KRW";
 
     private static MockPgProcess server;
     private static PgClient client;
@@ -110,11 +117,58 @@ class MockPgServerContractTest {
         assertEquals(DeclineReason.NOT_SENT, declined.reason());
     }
 
+    @Test
+    void 환불하면_PG가_처리한_금액과_통화를_돌려준다() {
+        var approved = approve();
+
+        var refunded = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, newRefund())));
+
+        assertTrue(refunded.matches(AMOUNT, KRW));
+    }
+
+    @Test
+    void 환불_조회가_NotFound이면_같은_환불_식별자로_다시_보내도_한_번만_환불된다() {
+        var approved = approve();
+        var refundId = newRefund();
+        assertInstanceOf(PgClient.NotFound.class, client.findRefund(refundId, approved.paymentRef()));
+
+        var first = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, refundId)));
+        var second = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, refundId)));
+
+        assertFalse(first.refundRef().isBlank());
+        assertEquals(first.refundRef(), second.refundRef());
+    }
+
+    // 이관: MockPgAdapterContractTest(가짜 서버)에서 옮겼다(mock-pg.md 1절)
+    @Test
+    void 다른_결제의_환불_응답은_환불_완료로_받지_않는다() {
+        var approved = approve();
+        var refundId = newRefund();
+        client.refund(refundCommand(approved, refundId));
+
+        var result = client.findRefund(refundId, new PgPaymentRef("pg-other"));
+
+        assertEquals(new PgClient.Unknown(UnknownCause.PG_ERROR), result);
+    }
+
+    private PgClient.Approved approve() {
+        return assertInstanceOf(PgClient.Approved.class, client.approve(approveCommand(newOrder())));
+    }
+
+    private static PgRefundId newRefund() {
+        return new PgRefundId(UUID.randomUUID());
+    }
+
+    private static RefundCommand refundCommand(PgClient.Approved approved, PgRefundId refundId) {
+        return new RefundCommand(approved.paymentRef(), refundId, AMOUNT, KRW, "CANCELED",
+                PgIdempotencyKey.ofRefund(refundId));
+    }
+
     private static PgOrderId newOrder() {
         return new PgOrderId(UUID.randomUUID());
     }
 
     private static ApproveCommand approveCommand(PgOrderId order) {
-        return new ApproveCommand(order, BigDecimal.valueOf(50000), "KRW", PgIdempotencyKey.ofApproval(order), null);
+        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), null);
     }
 }
