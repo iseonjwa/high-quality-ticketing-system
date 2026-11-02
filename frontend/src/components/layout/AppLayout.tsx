@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
+import { resetUserQueries } from '@/api/queryClient'
 import { paths } from '@/app/paths'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
@@ -21,7 +22,8 @@ export function AppLayout() {
   const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
 
-  // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과가 남지 않게 캐시를 비운다.
+  // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과는 비우고 공개 조회(공연 목록)는 둔다.
+  // clear()는 처음 화면에 붙은 공연 목록까지 캐시와 끊고, 전부 초기화하면 목록이 스켈레톤으로 깜빡인다.
   // 진행 중에는 처리 중으로 둬 두 번 눌러도 요청과 토스트가 한 번만 나가게 한다.
   // Note: 홈으로 먼저 옮긴 뒤 세션을 지운다. 로그인이 필요한 화면에서 세션부터 지우면 그 화면이 로그인 화면으로
   // 보내고(RequireAuth) 다시 홈으로 가서, 뒤로 가기에 로그인 화면이 남는다.
@@ -33,7 +35,7 @@ export function AppLayout() {
     try {
       await navigate(paths.home)
       await logout()
-      queryClient.clear()
+      void resetUserQueries(queryClient)
       toast('로그아웃했어요')
     } finally {
       setLoggingOut(false)
