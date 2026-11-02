@@ -69,6 +69,7 @@ public final class RefundWorkerFixtures {
         Instant nextCheckAt = Instant.now().minusSeconds(5);
         Instant pgRequestedAt = null;
         String pgTxId = null;
+        UUID pgOrderId = UUID.randomUUID();
 
         public Spec paymentStatus(String value) { this.paymentStatus = value; return this; }
         public Spec pgApprovedAmount(long value) { this.pgApprovedAmount = value; return this; }
@@ -79,11 +80,28 @@ public final class RefundWorkerFixtures {
         public Spec pgRequestedAt(Instant value) { this.pgRequestedAt = value; return this; }
         /** 실제 Mock PG가 발급한 거래 식별자를 쓸 때 지정한다. 없으면 임의 값이다. */
         public Spec pgTxId(String value) { this.pgTxId = value; return this; }
+        /** 실제 Mock PG에 승인을 요청할 때 쓴 주문 ID. 결제의 pg_order_id가 된다. */
+        public Spec pgOrderId(UUID value) { this.pgOrderId = value; return this; }
     }
 
     public record Created(long paymentId, long reservationId, long refundId, UUID pgRefundId, String pgTxId) {}
 
     public Created create(Spec spec) {
+        var payment = payment(spec);
+        var pgRefundId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, attempt, next_check_at,
+                                     pg_requested_at, refunded_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'EVENT', ?, ?, ?, ?, ?, now(), now())""",
+                payment.paymentId(), pgRefundId, spec.pgApprovedAmount, spec.reason, spec.refundStatus, spec.attempt,
+                Timestamp.from(spec.nextCheckAt), spec.pgRequestedAt == null ? null : Timestamp.from(spec.pgRequestedAt),
+                "REFUNDED".equals(spec.refundStatus) ? Timestamp.from(Instant.now()) : null);
+        var refundId = jdbc.queryForObject("SELECT id FROM refunds WHERE payment_id = ?", Long.class, payment.paymentId());
+        return new Created(payment.paymentId(), payment.reservationId(), refundId, pgRefundId, payment.pgTxId());
+    }
+
+    /** 환불 행 없이 결제만 만든다. 환불은 {@code RefundRequested} 처리로 만들 때 쓴다. */
+    public Created payment(Spec spec) {
         var reservationId = ids.incrementAndGet();
         var pgTxId = spec.pgTxId != null ? spec.pgTxId : "pg-tx-" + reservationId;
         // 금액 불일치 환불의 결제(NEEDS_MANUAL_CHECK)는 PG 승인 금액이 결제 금액과 다르다
@@ -91,19 +109,10 @@ public final class RefundWorkerFixtures {
                 INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
                                      pg_tx_id, pg_approved_amount, approved_at, refunded_at, created_at, updated_at)
                 VALUES (?, ?, 42, ?, 'CARD', ?, ?, ?, ?, now(), ?, now(), now())""",
-                "PAY-W" + reservationId, reservationId, AMOUNT, spec.paymentStatus, UUID.randomUUID(), pgTxId,
+                "PAY-W" + reservationId, reservationId, AMOUNT, spec.paymentStatus, spec.pgOrderId, pgTxId,
                 spec.pgApprovedAmount, "REFUNDED".equals(spec.paymentStatus) ? Timestamp.from(Instant.now()) : null);
         var paymentId = jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
-        var pgRefundId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, attempt, next_check_at,
-                                     pg_requested_at, refunded_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'EVENT', ?, ?, ?, ?, ?, now(), now())""",
-                paymentId, pgRefundId, spec.pgApprovedAmount, spec.reason, spec.refundStatus, spec.attempt,
-                Timestamp.from(spec.nextCheckAt), spec.pgRequestedAt == null ? null : Timestamp.from(spec.pgRequestedAt),
-                "REFUNDED".equals(spec.refundStatus) ? Timestamp.from(Instant.now()) : null);
-        var refundId = jdbc.queryForObject("SELECT id FROM refunds WHERE payment_id = ?", Long.class, paymentId);
-        return new Created(paymentId, reservationId, refundId, pgRefundId, pgTxId);
+        return new Created(paymentId, reservationId, 0, null, pgTxId);
     }
 
     public Created due() {
@@ -135,6 +144,16 @@ public final class RefundWorkerFixtures {
 
     public String paymentStatus(Created created) {
         return jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class, created.paymentId());
+    }
+
+    public int refundCount(Created created) {
+        return jdbc.queryForObject("SELECT count(*) FROM refunds WHERE payment_id = ?", Integer.class, created.paymentId());
+    }
+
+    public Created withRefund(Created payment) {
+        var row = jdbc.queryForMap("SELECT id, pg_refund_id FROM refunds WHERE payment_id = ?", payment.paymentId());
+        return new Created(payment.paymentId(), payment.reservationId(), ((Number) row.get("id")).longValue(),
+                (UUID) row.get("pg_refund_id"), payment.pgTxId());
     }
 
     public int outboxCount(Created created) {
