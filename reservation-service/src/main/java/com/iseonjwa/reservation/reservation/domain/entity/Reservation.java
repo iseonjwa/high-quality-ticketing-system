@@ -89,6 +89,17 @@ public class Reservation extends BaseEntity {
     // 총액은 클라이언트 값이 아니라 선점한 좌석의 가격 합으로 서버가 계산한다
     public static Reservation hold(String reservationNo, UUID requestId, Long userId, Long scheduleId,
             List<Money> seatPrices, Instant holdExpiresAt) {
+        return hold(reservationNo, requestId, userId, scheduleId, seatPrices, holdExpiresAt, ReservationSource.GENERAL);
+    }
+
+    // 추첨 당첨 예매(D10). 선점·결제·만료는 일반 예매와 같은 원장으로 다루고 출처만 LOTTERY로 남긴다
+    public static Reservation holdForLottery(String reservationNo, UUID requestId, Long userId, Long scheduleId,
+            List<Money> seatPrices, Instant holdExpiresAt) {
+        return hold(reservationNo, requestId, userId, scheduleId, seatPrices, holdExpiresAt, ReservationSource.LOTTERY);
+    }
+
+    private static Reservation hold(String reservationNo, UUID requestId, Long userId, Long scheduleId,
+            List<Money> seatPrices, Instant holdExpiresAt, ReservationSource source) {
         if (seatPrices.isEmpty()) {
             throw new IllegalArgumentException("선점할 좌석이 없습니다");
         }
@@ -97,6 +108,6 @@ public class Reservation extends BaseEntity {
             totalAmount = totalAmount.plus(price);
         }
         return new Reservation(reservationNo, requestId, userId, scheduleId, seatPrices.size(), totalAmount,
-                holdExpiresAt, ReservationSource.GENERAL);
+                holdExpiresAt, source);
     }
 }

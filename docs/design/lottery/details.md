@@ -74,6 +74,7 @@
 | 종결 | 1분 | `DRAWN`이고 미종결 WON이 없음 | 한 트랜잭션: DRAWN → DONE, 그 회차 `LOTTERY` 좌석을 상태와 상관없이 `source_grade`로 되돌림(D9) |
 
 기존 코드에 붙는 훅 두 곳(예매 흐름 담당과 합의):
+- 11/2 상태(ISE-88): 시스템 선점(`SystemHoldPort` → `SystemSeatHoldService`, 선점 30분, `source = LOTTERY`, 일반 선점과 같은 잠금 순서·매수 한도)과 처리기 인터페이스 `LotteryPaymentResultHandler`를 만들었다. 아래 두 훅은 붙일 소비자·만료 스케줄러가 아직 없어(ISE-73·74, ISE-8) 그 코드가 생길 때 연결한다.
 - `payment.result` 소비자: `source = LOTTERY`면 lottery 처리기 호출(D11).
 - 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12).
 - 우리 책임 실패의 재시도는 응모 행의 `reservation_id`를 비워 배정 워커에 다시 맡기는 방식이다(D12 `WON → WON`). 응모 행은 현재 예매만 가리키므로, 이전 예매는 `reservations`(source LOTTERY, 같은 사용자)와 예매 상태 이력에서 찾는다.

@@ -61,4 +61,26 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
                 .setParameter("ids", seatIds)
                 .executeUpdate();
     }
+
+    // 일반 선점과 같은 조건부 UPDATE에서 등급 조건만 반대로 둔다. 추첨석이 아닌 좌석이 섞이면 갱신 행 수가 모자란다
+    @Override
+    public int holdAvailableLotterySeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {
+        em.flush();
+        return em.createQuery("""
+                        UPDATE ScheduleSeat s
+                           SET s.status = :held, s.updatedAt = :now, s.updatedBy = :actorId
+                         WHERE s.schedule.id = :scheduleId
+                           AND s.id IN :ids
+                           AND s.status = :available
+                           AND s.grade = :lottery
+                        """)
+                .setParameter("held", ScheduleSeatStatus.HELD)
+                .setParameter("lottery", SeatGrade.LOTTERY)
+                .setParameter("available", ScheduleSeatStatus.AVAILABLE)
+                .setParameter("now", now)
+                .setParameter("actorId", actorId)
+                .setParameter("scheduleId", scheduleId)
+                .setParameter("ids", seatIds)
+                .executeUpdate();
+    }
 }
