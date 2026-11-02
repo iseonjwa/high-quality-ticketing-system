@@ -15,7 +15,7 @@ tags: [jwt, gateway, spring-security, error-contract, rfc6750]
 (ISE-110 API 클라이언트를 만들다가, SA 11-3에는 만료 코드 `TOKEN_EXPIRED`가 있는데 실제 Gateway는 만료에도 `UNAUTHORIZED`를 준다는 것을 확인했다.)
 
 ## 짧은 답
-- 보안 때문에 정한 것이 아니다. Gateway 필터가 디코더의 모든 실패를 `catch` 하나로 잡아 401 `UNAUTHORIZED`로 응답하게 짜여 있고, 만료를 따로 가르는 분기가 없을 뿐이다.
+- 보안 때문에 정한 것이 아니다(질문 당시). Gateway 필터가 디코더의 모든 실패를 `catch` 하나로 잡아 401 `UNAUTHORIZED`로 응답하게 짜여 있고, 만료를 따로 가르는 분기가 없을 뿐이다.
 - 이 차이는 10/27 통합 리뷰가 이미 "수정 후보"로 적었고, 팀 결정 문서의 수정 체크리스트에도 있지만 아직 닫히지 않았다. user-service의 `UserErrorCode.TOKEN_EXPIRED`는 정의만 있고 쓰는 곳이 없다.
 - 만료를 알려 줘도 보안상 잃는 것은 거의 없다. 만료 시각(`exp`)은 토큰 안에 평문으로 들어 있어 토큰을 가진 사람은 이미 읽을 수 있다. 또 서명 검사를 통과한 토큰만 만료 판정까지 가므로 위조 토큰에 "만료"가 나가지 않는다.
 - 반대로 하나로 묶는 것도 표준적인 방식이다. RFC 6750은 만료·폐기·형식 오류를 모두 `invalid_token` 하나로 묶는다. 그래서 클라이언트는 코드보다 "401이면 재발급"으로 판단하는 편이 견고하다.
@@ -58,7 +58,7 @@ try {
 |---|---|---|
 | 클라이언트 동작 | 401이면 재발급을 시도한다. 위조 토큰도 재발급을 한 번 시도하지만, Refresh 토큰이 없거나 거절되면 로그인 화면으로 간다 | 만료일 때만 재발급하고 나머지는 바로 로그인 화면으로 보낼 수 있다. 왕복 한 번을 아낀다 |
 | 정보 노출 | 가장 적다 | 서명이 맞았다는 사실만 더 드러난다. 실질 위험은 낮다 |
-| 운영·관측 | 만료와 위조 시도가 같은 숫자로 섞인다 | 로그·지표에서 나뉜다. 위조 시도가 갑자기 늘어나는 것을 따로 볼 수 있다 |
+| 운영·관측 | 만료와 위조 시도가 같은 숫자로 섞인다 | 응답 코드를 로그·지표에 남기면 나눠 볼 수 있다. 위조 시도가 갑자기 늘어나는 것을 따로 본다 |
 | 계약 | SA 11-3과 어긋난다 | SA 11-3과 맞는다 |
 
 관측 이득만 원하면 응답은 하나로 두고 서버 로그에만 이유(만료·서명·종류)를 남기는 절충도 있다.
@@ -76,8 +76,8 @@ RFC 6750(OAuth 2.0 Bearer Token) 3.1절은 401 응답의 `WWW-Authenticate` 헤�
 - 검증기 구성: `common/src/main/java/com/iseonjwa/common/auth/TokenDecoders.java`
 - 계약: `docs/core/SA MASTER.md` 11-3(`UNAUTHORIZED` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` 401)
 - 이미 알려진 차이: `docs/sa-review/2026-10-27-branch-integration/auth-review.md` "신뢰 경계와 남은 결함·한계" 표의 수정 후보("만료 JWT도 일반 UNAUTHORIZED로 응답하며 SA의 TOKEN_EXPIRED 구분을 잃는다"), `team-decisions.md` 수정 체크리스트 첫 항목(미완료). 리뷰의 "J"는 통합 전 Junhyun 브랜치이고, 지금 Gateway 필터가 그 브랜치에서 왔다(통합 커밋 `bc4e15a` 뒤로 바뀌지 않았다)
-- 프론트(ISE-110)는 코드가 아니라 401이면 재발급한다. 나중에 Gateway가 `TOKEN_EXPIRED`를 주도록 바뀌어도 프론트는 고칠 것이 없다. 디자인 시스템 6절의 "로그인 만료 401 `TOKEN_EXPIRED`" 표기는 실제 동작에 맞춰 고쳤다
-- 남은 결정: Gateway를 SA대로 고칠지, SA를 RFC 6750처럼 "401은 하나, 설명으로 구분"으로 바꿀지. 어느 쪽이든 리뷰 체크리스트 항목을 닫아야 한다
+- 프론트(ISE-110)는 코드가 아니라 401이면 재발급한다. Gateway가 `TOKEN_EXPIRED`를 주도록 바뀌어도 프론트는 고칠 것이 없다
+- 결정(2026-11-02): SA를 바꾸지 않고 Gateway를 SA대로 고쳤다(ISE-131). 위 5절 방식대로 `TokenDecoders`가 만료 실패에 `token_expired` 오류 코드를 붙이고(`isExpired`), Gateway 필터가 그때만 401 `TOKEN_EXPIRED`를 준다. 서명이 틀린 만료 토큰은 계속 `UNAUTHORIZED`인 것을 테스트로 고정했다. 판단 기록: [Gateway 만료 응답 코드](../../../ai-judgments/junhyun/2026-11-02-gateway-token-expired-code.md)
 
 ## 면접 포인트
 - **만료된 토큰에는 어떤 응답을 주나?** 401을 주고 재발급을 유도한다. RFC 6750은 `invalid_token` 하나로 묶고 설명으로 구분한다. 만료를 따로 알려 줘도 `exp`는 토큰에 평문으로 있고 서명을 먼저 검증하므로 보안 손실이 거의 없다. 반면 로그인 실패 사유는 사용자 열거 때문에 묶는다.
