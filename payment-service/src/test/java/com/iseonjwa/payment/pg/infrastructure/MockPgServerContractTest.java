@@ -151,6 +151,27 @@ class MockPgServerContractTest {
         assertEquals(new PgClient.Unknown(UnknownCause.PG_ERROR), result);
     }
 
+    // 빌링키 발급과 자동결제(ISE-96). 자동결제는 승인과 같은 주문 원장을 쓰고, 발급하지 않은 빌링키는 거절한다
+    @Test
+    void 빌링키를_발급받아_자동결제하면_승인되고_조회도_된다() {
+        var issued = assertInstanceOf(PgClient.BillingKeyIssued.class, client.issueBillingKey("auth-1", "customer-1"));
+        var order = newOrder();
+
+        var approved = assertInstanceOf(PgClient.Approved.class,
+                client.approveBilling(approveCommand(order), issued.billingKey()));
+
+        assertEquals("4242", issued.cardLast4());
+        assertEquals(0, AMOUNT.compareTo(approved.amount()));
+        assertInstanceOf(PgClient.Approved.class, client.findPayment(order));
+    }
+
+    @Test
+    void 인증_값이_거절되면_BillingKeyRejected이고_모르는_빌링키_자동결제는_BILLING_KEY_MISSING이다() {
+        assertEquals(new PgClient.BillingKeyRejected(), client.issueBillingKey("REJECT-auth", "customer-1"));
+        assertEquals(new PgClient.Declined(DeclineReason.BILLING_KEY_MISSING),
+                client.approveBilling(approveCommand(newOrder()), "bk-never-issued"));
+    }
+
     private PgClient.Approved approve() {
         return assertInstanceOf(PgClient.Approved.class, client.approve(approveCommand(newOrder())));
     }

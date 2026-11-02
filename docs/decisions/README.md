@@ -45,3 +45,4 @@
 | 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
 | 0040 | [프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다](0040-frontend-react-spa-in-monorepo.md) | 채택 (프론트 담당 결정, Notion 결정 #7을 저장소 기록으로 대체. 연결은 nginx 중계) | 2026-11-02 |
 | 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
+| 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |

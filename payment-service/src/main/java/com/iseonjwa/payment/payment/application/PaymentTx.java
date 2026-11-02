@@ -81,19 +81,7 @@ public class PaymentTx {
      */
     @Transactional
     public PaymentOutcome settleApproved(Payment payment, ApprovePaymentCommand command, PgClient.Approved result) {
-        boolean changed;
-        if (result.matches(payment.getAmount(), payment.getCurrency())) {
-            changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
-                    result.amount(), result.approvedAt(), StatusActor.SYSTEM);
-        } else {
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다. 그 전까지는 로그가 유일한 신호다(INV-3, N16)
-            log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
-                    payment.getAmount(), result.amount(), result.paymentRef().value());
-            changed = transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED,
-                    result.paymentRef().value(), result.amount(), result.approvedAt(), StatusActor.SYSTEM);
-        }
-        if (!changed) warnIfApprovalNotRecorded(payment, result);
-        return outcomeAfterTransition(payment, command, changed);
+        return outcomeAfterTransition(payment, command, applyApproved(payment, result));
     }
 
     /** TX2(거절). PG 호출 전 토큰 만료로 닫는 경우({@code TOKEN_EXPIRED})도 같은 경로다. */
@@ -106,9 +94,57 @@ public class PaymentTx {
     /** TX2(결과 불확실). 재확인 스케줄러가 이어받도록 {@code UNKNOWN}으로 두고 202로 응답한다. */
     @Transactional
     public PaymentOutcome settleUnknown(Payment payment, ApprovePaymentCommand command, UnknownCause cause) {
-        var changed = transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED,
+        return outcomeAfterTransition(payment, command, applyUnknown(payment, cause));
+    }
+
+    /**
+     * 자동결제 TX1(추첨, ISE-96): {@code method = BILLING} 결제를 {@code REQUESTED}로 저장한다. 사용자 멱등 키가 없어 멱등 기록은
+     * 남기지 않고, 같은 예매의 중복 요청은 {@code UNIQUE(reservation_id)} 위반으로 막는다(0026). 호출한 쪽이 다시 읽는다.
+     */
+    @Transactional
+    public Payment createBillingRequested(BillingPaymentCommand command) {
+        return payments.save(Payment.request(paymentNos.next(), command.reservationId(), command.userId(),
+                command.amount(), PaymentMethod.BILLING, UUID.randomUUID(), clock.instant()));
+    }
+
+    /** 자동결제 TX2. 승인 API와 같은 전이·이력·Outbox를 쓰고 멱등 응답만 저장하지 않는다. */
+    @Transactional
+    public Payment settleBillingApproved(Payment payment, PgClient.Approved result) {
+        applyApproved(payment, result);
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    @Transactional
+    public Payment settleBillingDeclined(Payment payment, DeclineReason reason) {
+        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM);
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    @Transactional
+    public Payment settleBillingUnknown(Payment payment, UnknownCause cause) {
+        applyUnknown(payment, cause);
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    private boolean applyApproved(Payment payment, PgClient.Approved result) {
+        boolean changed;
+        if (result.matches(payment.getAmount(), payment.getCurrency())) {
+            changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
+                    result.amount(), result.approvedAt(), StatusActor.SYSTEM);
+        } else {
+            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다. 그 전까지는 로그가 유일한 신호다(INV-3, N16)
+            log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
+                    payment.getAmount(), result.amount(), result.paymentRef().value());
+            changed = transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED,
+                    result.paymentRef().value(), result.amount(), result.approvedAt(), StatusActor.SYSTEM);
+        }
+        if (!changed) warnIfApprovalNotRecorded(payment, result);
+        return changed;
+    }
+
+    private boolean applyUnknown(Payment payment, UnknownCause cause) {
+        return transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED,
                 clock.instant().plus(FIRST_RECHECK_DELAY), cause.name(), StatusActor.SYSTEM);
-        return outcomeAfterTransition(payment, command, changed);
     }
 
     // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했고 TX2가 0행이 됐다. 0행이면 후속 쓰기를 하지 않는다는 규칙은 바꾸지 않는다.
