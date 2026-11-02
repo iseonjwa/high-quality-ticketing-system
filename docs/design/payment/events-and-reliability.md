@@ -79,9 +79,9 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 
 두 작업은 복구 실행기(7절)에서 돌고 PG 호출은 `pg-recovery` 그룹을 쓴다([pg-integration.md](pg-integration.md) 5절). 한 건의 처리 순서는 같다.
 
-1. 후보를 `next_check_at <= now()` 순으로 `FOR UPDATE SKIP LOCKED`, 배치 20건`[가정]`으로 고른다.
-2. `pg-recovery` 허가를 먼저 얻는다. 못 얻으면(CB OPEN·Bulkhead 초과) claim하지 않고 다음 주기로 넘긴다. 이때는 시도 횟수를 세지 않는다.
-3. claim: 조건부 UPDATE로 `next_check_at = now() + 30초`(임대), 시도 횟수 + 1. 1행일 때만 계속한다.
+1. 한 주기(기본 1초 간격)에 최대 20건`[가정]`을 한 건씩 처리한다. 한 건은 한 트랜잭션에서 후보 하나를 `next_check_at <= now()` 순으로 `FOR UPDATE SKIP LOCKED`로 잠근다. 처리할 건이 없거나 허가를 못 얻으면 그 주기를 끝낸다.
+2. 잠근 직후 `pg-recovery` 허가를 얻는다(`PgRecoveryGate.tryAcquire`). 못 얻으면(CB OPEN·Bulkhead 초과) 아무것도 바꾸지 않고 트랜잭션을 끝내 claim하지 않고 다음 주기로 넘긴다. 이때는 시도 횟수를 세지 않는다.
+3. claim: 같은 트랜잭션에서 조건부 UPDATE로 `next_check_at = now() + 30초`(임대), 시도 횟수 + 1. 1행일 때만 커밋하고 계속한다.
 4. 트랜잭션 밖에서 PG를 부르고, 결과를 조건부 UPDATE로 반영한다(2절).
 
 결제 재확인(`REQUESTED`는 TX1이 `next_check_at`을 저장 + 10초로 채워 10초 뒤 대상이 된다):
@@ -117,6 +117,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 | `housekeeping` | 정리(10분`[가정]`), Gauge 갱신(15초), 대사(5분`[가정]`) | 1 | 1 |
 | Kafka 리스너 | `payment.command`, `payment.command.dlq` | 각 1 | 2 |
 
+- `recovery`는 Spring `TaskScheduler` 빈이 아니라 재확인 컴포넌트가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. `TaskScheduler` 빈을 만들면 Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외는 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈춘다). 설정은 `payment.recheck.{enabled,interval,max-per-tick}`다.
 - 각 작업은 끝날 때 `payment_job_last_success_timestamp{job}`을 갱신하고, 실패는 `payment_job_failures_total{job}`으로 센다. 정체 알림이 이 값을 본다.
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.
