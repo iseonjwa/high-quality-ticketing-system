@@ -39,13 +39,21 @@ export function fail(
   return HttpResponse.json(body, { status, headers: extra.headers })
 }
 
-// Gateway 역할: Access 토큰을 확인한다. 만료·모르는 토큰은 401 UNAUTHORIZED다(TOKEN_EXPIRED가 아니다).
+// Gateway 역할: Access 토큰을 확인한다. 만료는 TOKEN_EXPIRED, 로그아웃된 토큰은 TOKEN_REVOKED,
+// 그 밖(없음·모르는 토큰)은 UNAUTHORIZED다. Gateway처럼 만료를 블랙리스트보다 먼저 본다.
 export function requireUser(request: Request): MockUser {
   const authorization = request.headers.get('Authorization')
   if (authorization === null || !authorization.startsWith('Bearer ')) {
     throw fail(401, 'UNAUTHORIZED', '인증이 필요합니다')
   }
-  const userId = mockDb.accessTokens.get(authorization.slice('Bearer '.length))
+  const token = authorization.slice('Bearer '.length)
+  if (mockDb.expiredAccessTokens.has(token)) {
+    throw fail(401, 'TOKEN_EXPIRED', '토큰이 만료됐습니다')
+  }
+  if (mockDb.revokedAccessTokens.has(token)) {
+    throw fail(401, 'TOKEN_REVOKED', '로그아웃된 토큰입니다')
+  }
+  const userId = mockDb.accessTokens.get(token)
   const user = mockDb.users.find((candidate) => candidate.userId === userId)
   if (user === undefined) {
     throw fail(401, 'UNAUTHORIZED', '유효한 인증 토큰이 필요합니다')

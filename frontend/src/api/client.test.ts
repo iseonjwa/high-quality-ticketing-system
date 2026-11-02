@@ -149,6 +149,20 @@ describe('401 재발급', () => {
     expect(sessionStore.getState().refreshToken).not.toBe(oldRefreshToken)
   })
 
+  it.each(['TOKEN_EXPIRED', 'UNAUTHORIZED', 'TOKEN_REVOKED'])(
+    '401 %s도 코드와 상관없이 재발급하고 다시 보낸다',
+    async (code) => {
+      await signInAsDemo()
+      mockServer.use(http.get('/api/v1/users/me', () => fail(401, code, '거절'), { once: true }))
+      const refreshRequests = recordRequests('/api/v1/auth/refresh')
+
+      const me = await getMe()
+
+      expect(me.userId).toBe(42)
+      expect(refreshRequests).toHaveLength(1)
+    },
+  )
+
   it('동시에 401을 받은 요청들은 재발급을 한 번만 부르고 모두 성공한다', async () => {
     await signInAsDemo()
     expireMockAccessTokens()
