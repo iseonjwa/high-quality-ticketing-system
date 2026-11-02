@@ -1,5 +1,6 @@
 package com.iseonjwa.mockpg.payment;
 
+import com.iseonjwa.mockpg.billing.BillingKeyStore;
 import com.iseonjwa.mockpg.fault.Fault;
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
@@ -22,13 +23,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 class PaymentService {
     private static final String DECLINE_CODE = "CARD_DECLINED";
+    private static final String BILLING_KEY_DECLINE_CODE = "BILLING_KEY_INVALID";
 
     private final LedgerHolder ledgers;
     private final FaultInjector faults;
+    private final BillingKeyStore billingKeys;
 
-    PaymentService(LedgerHolder ledgers, FaultInjector faults) {
+    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeyStore billingKeys) {
         this.ledgers = ledgers;
         this.faults = faults;
+        this.billingKeys = billingKeys;
     }
 
     Outcome approve(ApproveRequest request) {
@@ -68,8 +72,12 @@ class PaymentService {
         return fault.is(FaultMode.PROCESSING) || fault.is(FaultMode.SERVER_ERROR);
     }
 
-    private static OrderState.Decided decide(ApproveRequest request, Fault fault) {
+    private OrderState.Decided decide(ApproveRequest request, Fault fault) {
         if (fault.is(FaultMode.DECLINE)) return new Declined(DECLINE_CODE);
+        // 발급하지 않은 빌링키로 온 자동결제는 거절한다
+        if (request.billingKey() != null && !billingKeys.contains(request.billingKey())) {
+            return new Declined(BILLING_KEY_DECLINE_CODE);
+        }
         return new Approved(request.orderId(), "pg-" + UUID.randomUUID(), request.amount(), request.currency(),
                 Instant.now());
     }

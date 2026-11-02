@@ -12,6 +12,8 @@ public enum DeclineReason {
     CARD_DECLINED,
     // 한도 부족
     INSUFFICIENT_LIMIT,
+    // 자동결제할 활성 빌링키가 없거나 PG가 빌링키를 거절함(추첨 D4·D12: 당첨자 책임이라 승계)
+    BILLING_KEY_MISSING,
     // 매핑할 수 없는 PG 사유
     OTHER
 }

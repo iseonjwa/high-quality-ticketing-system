@@ -1,6 +1,6 @@
 # 결제 API
 
-승인과 조회 두 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`)은 M4에서 설계한다. 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
+승인과 조회 두 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`, 본문 `authKey`, 201, 응답은 `billingKeyId`·`cardLast4`·`status`)과 해지(`DELETE /api/v1/payments/billing-keys/me`, 200)는 11/2 ISE-96에서 추가했다. PG 인증 거절은 400 `BILLING_KEY_REJECTED`, PG 결과를 모르면 503 `PG_UNAVAILABLE`이다. 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
 
 ## 1. 결제 승인 `POST /api/v1/payments`
 

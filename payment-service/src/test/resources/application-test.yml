@@ -46,3 +46,6 @@ payment:
   token:
     # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
     secret: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+  billing-key:
+    # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다(ADR 0042)
+    secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100

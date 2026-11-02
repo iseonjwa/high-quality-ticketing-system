@@ -62,6 +62,8 @@ class LocalEnvironmentTest {
         assertFalse(result.get("PAYMENT_TOKEN_SECRET").equals(result.get("JWT_ACCESS_SECRET")), "서명 키는 분리해야 한다");
         assertTrue(result.get("ENTRY_TOKEN_SECRET").length() >= 32);
         assertFalse(result.get("ENTRY_TOKEN_SECRET").equals(result.get("PAYMENT_TOKEN_SECRET")), "서명 키는 분리해야 한다");
+        assertTrue(result.get("BILLING_KEY_SECRET").matches("[0-9a-f]{64}"), "빌링키 암호화 키는 소문자 16진수 64자다");
+        assertFalse(result.get("BILLING_KEY_SECRET").equals(result.get("PAYMENT_TOKEN_SECRET")), "키는 용도별로 분리해야 한다");
     }
 
     @Test

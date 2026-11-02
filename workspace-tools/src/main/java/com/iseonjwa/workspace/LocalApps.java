@@ -65,6 +65,8 @@ public final class LocalApps {
         if (Set.of("reservation-service", "gateway").contains(app.name())) {
             supply(result, values, "ENTRY_TOKEN_SECRET");
         }
+        // 빌링키 암호화 키는 Payment만 쓴다(ADR 0042)
+        if (app.name().equals("payment-service")) supply(result, values, "BILLING_KEY_SECRET");
         if (app.name().equals("user-service")) supply(result, values, "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD");
         return result;
     }

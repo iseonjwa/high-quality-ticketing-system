@@ -58,7 +58,19 @@ public class MockPgAdapter implements PgClient {
     public ApproveResult approve(ApproveCommand command) {
         var body = Map.of("orderId", command.orderId().value().toString(), "amount", command.amount(),
                 "currency", command.currency());
-        return this.<ApproveResult>call("approve", () -> post("/mock-pg/payments", command.idempotencyKey().value(), body),
+        return postApproval("approve", command, body);
+    }
+
+    // Mock PG는 같은 승인 엔드포인트에 빌링키를 더해 받는다. 주문번호 원장을 같이 써서 조회·망취소가 그대로 동작한다
+    @Override
+    public ApproveResult approveBilling(ApproveCommand command, String billingKey) {
+        var body = Map.of("orderId", command.orderId().value().toString(), "amount", command.amount(),
+                "currency", command.currency(), "billingKey", billingKey);
+        return postApproval("approveBilling", command, body);
+    }
+
+    private ApproveResult postApproval(String operation, ApproveCommand command, Map<String, ?> body) {
+        return this.<ApproveResult>call(operation, () -> post("/mock-pg/payments", command.idempotencyKey().value(), body),
                 response -> {
                     if (response.status() == 409) {
                         // 망취소된 주문만 거절이다. 다른 409는 처리 중 충돌일 수 있어 승인될 수 있다
@@ -66,6 +78,21 @@ public class MockPgAdapter implements PgClient {
                         return new Unknown(UnknownCause.PROCESSING);
                     }
                     return toApproveResult(paymentResult(response));
+                }, Unknown::new);
+    }
+
+    @Override
+    public BillingKeyResult issueBillingKey(String authKey, String customerKey) {
+        var body = Map.of("authKey", authKey, "customerKey", customerKey);
+        return this.<BillingKeyResult>call("issueBillingKey", () -> post("/mock-pg/billing-keys", null, body),
+                response -> {
+                    if (response.status() == 400 || response.status() == 422) return new BillingKeyRejected();
+                    if (response.status() != 200) return unexpected(response, UnknownCause.PG_ERROR);
+                    var node = response.json();
+                    var billingKey = text(node, "billingKey");
+                    var cardLast4 = text(node, "cardLast4");
+                    if (billingKey == null) return unexpected(response, UnknownCause.PG_ERROR);
+                    return new BillingKeyIssued(billingKey, cardLast4);
                 }, Unknown::new);
     }
 
@@ -260,6 +287,7 @@ public class MockPgAdapter implements PgClient {
         return switch (code) {
             case "CARD_DECLINED" -> DeclineReason.CARD_DECLINED;
             case "INSUFFICIENT_LIMIT" -> DeclineReason.INSUFFICIENT_LIMIT;
+            case "BILLING_KEY_INVALID" -> DeclineReason.BILLING_KEY_MISSING;
             default -> DeclineReason.OTHER;
         };
     }

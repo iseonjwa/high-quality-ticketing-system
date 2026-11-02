@@ -210,8 +210,11 @@ append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 - `UNIQUE(rule, reservation_id, payment_id) WHERE status = 'OPEN'`(NULL은 0으로 바꾼 식 인덱스): 같은 불일치는 행 하나로 이어 본다.
 - `INDEX(status, rule) WHERE status = 'OPEN'`(Gauge).
 
-## 11. billing_keys (M4)
-SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개). 암호화 키 관리는 M4에서 설계한다.
+## 11. billing_keys (11/2 M2로 당겨 구현, ISE-96)
+SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개, 부분 유니크 `uq_billing_keys_user_active`). 마이그레이션 `V5__billing_keys.sql`, 감사 컬럼은 `BaseEntity` 6개.
+- 암호화: AES-256-GCM, 키 `BILLING_KEY_SECRET`(ADR 0042). 저장 값은 Base64(IV ‖ 암호문 ‖ 태그).
+- 다시 등록하면 같은 트랜잭션에서 기존 ACTIVE를 REVOKED로 바꾸고 새 ACTIVE를 넣는다. 해지(`DELETE …/billing-keys/me`)도 REVOKED다.
+- 자동결제 결제 행은 `method = BILLING`이고 멱등 기록을 남기지 않는다. 같은 예매 중복은 `UNIQUE(reservation_id)`가 막는다(0026). 활성 빌링키가 없거나 PG가 빌링키를 거절하면 `decline_code = BILLING_KEY_MISSING`이다.
 
 ## 12. 보관
 `payments`·`refunds`·`payment_status_histories`·`manual_action_logs`·`dead_letters`·`reconciliation_mismatches`는 자동 삭제하지 않는다(결제 기록 5년 보관, SA 12-1). 정리 대상은 `outbox_events`·`processed_events`·`idempotency_records`뿐이다([events-and-reliability.md](events-and-reliability.md) 8절).
