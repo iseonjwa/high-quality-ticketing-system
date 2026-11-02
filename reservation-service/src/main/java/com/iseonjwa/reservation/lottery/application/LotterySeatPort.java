@@ -27,4 +27,7 @@ public interface LotterySeatPort {
 
     // 회차의 추첨석 전체를 ID 오름차순으로 읽는다. 추첨 배정 계산(SeatAllocator)에 넘긴다
     List<LotterySeat> findLotterySeats(Long scheduleId);
+
+    // 아직 잡히지 않은(AVAILABLE) 추첨석만. 배정 워커가 당첨자 좌석을 고를 때 쓴다
+    List<LotterySeat> findAvailableLotterySeats(Long scheduleId);
 }

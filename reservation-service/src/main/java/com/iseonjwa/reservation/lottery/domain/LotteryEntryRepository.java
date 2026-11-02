@@ -40,4 +40,32 @@ public interface LotteryEntryRepository {
      * @param drawRank 전체 응모 중 순위(1부터). 예비자는 이 값의 오름차순으로 승계한다
      */
     record DrawResult(long entryId, LotteryEntryStatus status, int drawRank) {}
+
+    /**
+     * 아직 예매가 없는 당첨 응모 하나를 순위 순으로 집어 행 잠금을 건다. 다른 워커가 잡은 행은 건너뛴다(SKIP LOCKED, D10).
+     * 부르는 쪽 트랜잭션이 끝날 때까지 잠금이 유지된다.
+     */
+    Optional<UnassignedWinner> lockNextUnassignedWinner();
+
+    // 당첨 응모에 예매를 연결하고 결제 시도 횟수를 1 올린다. WON이고 아직 예매가 없을 때만 바꾼다
+    boolean linkReservation(Long entryId, Long reservationId);
+
+    // 예매를 만들 수 없는 당첨(매수 한도 초과, 남은 자리 없음)을 FAILED로 바꾼다. WON이고 예매가 없을 때만
+    boolean markAssignmentFailed(Long entryId, String reason);
+
+    // 결제 확정. 이 예매에 연결된 WON 응모만 PAID로 바꾼다
+    boolean markPaid(Long reservationId);
+
+    // 결제 실패·만료. 이 예매에 연결된 WON 응모만 FAILED로 바꾼다
+    boolean markFailed(Long reservationId, String reason);
+
+    /**
+     * 우리 책임 실패(NOT_SENT) 재시도(D12). 시도가 {@code maxAttempts}보다 적고 승계 마감 전이면 예매 연결만 비운다.
+     * 그러면 배정 워커가 새 예매로 다시 시도한다(WON → WON).
+     *
+     * @return 재시도로 돌렸으면 true. 횟수나 시각 조건을 넘었으면 false
+     */
+    boolean releaseForRetry(Long reservationId, int maxAttempts);
+
+    record UnassignedWinner(long entryId, long lotteryId, long scheduleId, long userId, int quantity) {}
 }

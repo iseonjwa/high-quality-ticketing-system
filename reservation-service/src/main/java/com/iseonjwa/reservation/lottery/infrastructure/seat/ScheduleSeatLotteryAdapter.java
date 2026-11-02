@@ -29,7 +29,16 @@ public class ScheduleSeatLotteryAdapter implements LotterySeatPort {
 
     @Override
     public List<LotterySeat> findLotterySeats(Long scheduleId) {
-        return scheduleSeatRepository.findLotterySeats(scheduleId).stream()
+        return toSeats(scheduleSeatRepository.findLotterySeats(scheduleId));
+    }
+
+    @Override
+    public List<LotterySeat> findAvailableLotterySeats(Long scheduleId) {
+        return toSeats(scheduleSeatRepository.findAvailableLotterySeats(scheduleId));
+    }
+
+    private static List<LotterySeat> toSeats(List<ScheduleSeatRepository.LotterySeatRow> rows) {
+        return rows.stream()
                 .map(row -> new LotterySeat(row.seatId(), row.section(), row.rowNo(), row.seatNo()))
                 .toList();
     }

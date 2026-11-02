@@ -41,7 +41,16 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
 
     @Override
     public List<LotterySeatRow> findLotterySeats(Long scheduleId) {
-        return springDataScheduleSeatRepository.findLotterySeatRows(scheduleId).stream()
+        return toRows(springDataScheduleSeatRepository.findLotterySeatRows(scheduleId));
+    }
+
+    @Override
+    public List<LotterySeatRow> findAvailableLotterySeats(Long scheduleId) {
+        return toRows(springDataScheduleSeatRepository.findAvailableLotterySeatRows(scheduleId));
+    }
+
+    private static List<LotterySeatRow> toRows(List<Object[]> rows) {
+        return rows.stream()
                 .map(row -> new LotterySeatRow(((Number) row[0]).longValue(), (String) row[1],
                         ((Number) row[2]).intValue(), ((Number) row[3]).intValue()))
                 .toList();
