@@ -10,8 +10,17 @@ public final class WorkspaceTool {
         if (args.length == 0) throw new IllegalArgumentException("실행할 작업을 지정하세요");
         var root = WorkspacePaths.root();
         switch (args[0]) {
-            case "init-env" -> System.out.println(LocalEnvironment.initialize(root.resolve(".env"))
-                    ? "개인 개발용 .env 생성 (POSIX면 0600, 값은 출력하지 않음)" : ".env가 있어 기존 값을 유지한다");
+            case "init-env" -> {
+                var path = root.resolve(".env");
+                if (LocalEnvironment.initialize(path)) {
+                    System.out.println("개인 개발용 .env 생성 (POSIX면 0600, 값은 출력하지 않음)");
+                } else {
+                    var added = LocalEnvironment.fillMissing(path);
+                    System.out.println(added.isEmpty()
+                            ? ".env가 있어 기존 값을 유지한다"
+                            : "기존 값은 유지하고 빠진 키를 추가했다(값은 출력하지 않음): " + String.join(", ", added));
+                }
+            }
             case "check-ports" -> {
                 PortExposure.check(root);
                 System.out.println("포트 공개 검사 통과: 기본 Compose와 local override의 공개 규칙을 확인했다");

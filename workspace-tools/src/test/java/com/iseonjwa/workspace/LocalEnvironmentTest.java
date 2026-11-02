@@ -72,6 +72,40 @@ class LocalEnvironmentTest {
         assertEquals("DB_PASSWORD=test-only-original\n", Files.readString(path));
     }
 
+    @Test
+    void 빠진_키만_추가하고_기존_값은_그대로_둔다() throws Exception {
+        var path = directory.resolve(".env");
+        Files.writeString(path, "DB_PASSWORD=test-only-original\n");
+
+        var added = LocalEnvironment.fillMissing(path);
+
+        assertTrue(added.contains("ENTRY_TOKEN_SECRET"));
+        assertFalse(added.contains("DB_PASSWORD"));
+        var content = Files.readString(path);
+        assertTrue(content.startsWith("DB_PASSWORD=test-only-original\n"));
+        assertTrue(content.lines().anyMatch(line -> line.matches("ENTRY_TOKEN_SECRET=[0-9a-f]{64}")));
+    }
+
+    @Test
+    void 모든_키가_있으면_파일을_바꾸지_않는다() throws Exception {
+        var path = directory.resolve(".env");
+        assertTrue(LocalEnvironment.initialize(path));
+        var before = Files.readString(path);
+
+        assertTrue(LocalEnvironment.fillMissing(path).isEmpty());
+        assertEquals(before, Files.readString(path));
+    }
+
+    @Test
+    void 마지막_줄에_줄바꿈이_없어도_이어_붙이지_않는다() throws Exception {
+        var path = directory.resolve(".env");
+        Files.writeString(path, "DB_PASSWORD=test-only-original");
+
+        LocalEnvironment.fillMissing(path);
+
+        assertTrue(Files.readString(path).startsWith("DB_PASSWORD=test-only-original\n"));
+    }
+
     private Map<String, String> values(String content, Map<String, String> overrides) throws Exception {
         var path = directory.resolve(".env");
         Files.writeString(path, content);
