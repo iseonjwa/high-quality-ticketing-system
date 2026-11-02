@@ -1,4 +1,5 @@
 <!-- 제목은 type(scope): 요약. 예: docs(agents): 판단 기록을 사람별 폴더로 분리 -->
+<!-- 오른쪽에서 담당자(작성자)·라벨(Linear 이슈와 같게)·마일스톤(Linear 이슈와 같게)을 지정한다. 기준은 docs/guides/git-workflow.md 6절 -->
 
 ## 상황 (Situation)
 <!-- 왜 필요한가. SA MASTER 절, 결정 기록(ADR), Notion 링크 -->
