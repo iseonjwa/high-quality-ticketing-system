@@ -8,6 +8,7 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | 좌석·매수 반환 위치를 먼저 합의하자는 AI 권고 대신 만료 스케줄러(ISE-13)를 먼저 구현하고 논의 항목을 문서로 남김 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-02-hold-expiry-implement-first.md) |
 | 2026-10-30 | **ISE-11 구현이 다른 담당 모듈에 걸친 부분을 contract 이슈로 알리고 유지하자는 AI 권고를 거부하고 선점 모듈 안으로 격리** | Claude Code | 거부 | 예 | 아님 | [기록](2026-10-30-seathold-isolate-other-owners.md) |
 | 2026-10-30 | 포트폴리오 트러블슈팅 서사 확보를 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 MVP 이후 고도화(M4)로 분리 (ADR 0035) | Antigravity (Gemini) | 수용 | 예 | 후보 | [기록](2026-10-30-mvp-and-troubleshooting-scope-split.md) |
 | 2026-10-30 | 트래픽 집중 지점 격리와 향후 스케일업을 위해 좌석 선점(seathold)을 별도 도메인 모듈로 분리하되 단방향 의존 규칙 수용 (ADR 0034) | Antigravity (Gemini) | 부분 수용 | 예 | 후보 | [기록](2026-10-30-seathold-module-separation.md) |
