@@ -13,7 +13,7 @@ CREATE TABLE lotteries (
     entry_start_at TIMESTAMPTZ NOT NULL,
     entry_end_at TIMESTAMPTZ NOT NULL,
     draw_at TIMESTAMPTZ NOT NULL,
-    -- 순위 계산 SHA-256(seed ‖ entryId)의 시드(D7). 설정 때 SecureRandom 32바이트로 채우고 바꾸지 않는다(ADR 0040)
+    -- 순위 계산 SHA-256(seed ‖ entryId)의 시드(D7). 설정 때 SecureRandom 32바이트로 채우고 바꾸지 않는다(ADR 0041)
     seed BYTEA NOT NULL,
     status VARCHAR(10) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,

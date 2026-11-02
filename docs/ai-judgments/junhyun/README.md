@@ -8,6 +8,11 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | 좌석 선택 샘플과 디자인 시스템 초안(이선좌 워드마크, 인디고, 검정+체크 선택 좌석)을 그대로 확정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-design-system-sample-accepted.md) |
+| 2026-11-02 | "Notion보다 저장소 기록 우선"을 개인 전역 지침에 넣은 AI 처리를 바로잡아 팀 규칙(`AGENTS.md` 대전제 4)으로 올림 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-docs-first-as-team-rule.md) |
+| 2026-11-02 | 프론트 결정을 Notion 결정 기록에 반영하자는 제안 대신 저장소 docs에 기록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-records-in-docs-over-notion.md) |
+| 2026-11-02 | 프론트·Gateway 연결: BFF 대신 nginx 중계(A), 실서비스 구조(BFF·앞단 대기실)는 학습 기록으로 남기고 백엔드 집중 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-frontend-relay-over-bff.md) |
+| 2026-11-02 | 프론트를 팀 결정 #7(정적 HTML·JS) 대신 저장소 안 `frontend/`의 React SPA로 전환, 추천 스택 채택, 화면 범위는 전부 계획에 넣고 단계적 구현 (ADR 0040) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-frontend-react-spa.md) |
 | 2026-10-30 | Mock PG 설계 Opus 리뷰 지적 전부 반영, 계약 테스트는 bootJar 별도 프로세스, 처리 중 승인 재요청은 409, compose 프로필은 팀 확인 대기 | Claude Code, Opus 리뷰 | 수용 | 예 | 후보 | [기록](2026-10-30-mock-pg-design-review.md) |
 | 2026-10-28 | Outbox·처리 이력 코드를 payment-service에 둔 AI 판단을 되돌려 common 모듈로 옮기기로 함 | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-10-28-outbox-code-location.md) |
 | 2026-10-27 | 결제 상세 설계 빈틈 11개 결정과 Opus 검토 반영(10/28 갱신: 예매당 결제 하나, 환불 자동 복구, Ops 명령, 대사, 불변 조건) | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-27-payment-design-gaps.md) |
@@ -34,6 +39,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-02 | [daily/2026-11-02.md](daily/2026-11-02.md) |
 | 2026-10-30 | [daily/2026-10-30.md](daily/2026-10-30.md) |
 | 2026-10-28 | [daily/2026-10-28.md](daily/2026-10-28.md) |
 | 2026-10-26 | [daily/2026-10-26.md](daily/2026-10-26.md) |

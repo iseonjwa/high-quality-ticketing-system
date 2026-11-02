@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이선좌 · 좌석 선택 (디자인 시스템 샘플)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* ── 1. 토큰: docs/design/frontend/design-system.md 2절과 같은 값이다 ── */
+:root {
+  --gray-0:#FFFFFF; --gray-25:#FBFBFD; --gray-50:#F4F5F8; --gray-100:#E9EBF0; --gray-200:#D7DAE2;
+  --gray-300:#B9BDC9; --gray-400:#8D92A3; --gray-500:#676C7E; --gray-600:#4D5263; --gray-700:#373B4A;
+  --gray-800:#232631; --gray-900:#14161E;
+
+  --primary-50:#EEF0FF; --primary-100:#DDE1FF; --primary-300:#A9B0FF; --primary-500:#5B5BF0;
+  --primary-600:#3B3BD4; --primary-700:#2F2FAE;
+
+  --success-50:#E8F6EE; --success-600:#1E7F4F;
+  --warning-50:#FFF4E5; --warning-500:#F59F00; --warning-700:#9A5200;
+  --danger-50:#FDECEE; --danger-600:#D12B3A;
+  --info-50:#EAF2FD; --info-600:#1F6FD1;
+
+  --seat-vip:#C2255C; --seat-r:#D9480F; --seat-s:#2B8A3E; --seat-a:#1971C2;
+  --seat-selected:var(--gray-900); --seat-unavailable:var(--gray-200);
+  --seat-lottery-line:#6E6EF0; --seat-lottery-a:var(--primary-100); --seat-lottery-b:var(--primary-50);
+
+  --bg-page:var(--gray-25); --bg-surface:var(--gray-0); --bg-subtle:var(--gray-50);
+  --text-strong:var(--gray-900); --text-default:var(--gray-700); --text-muted:var(--gray-500); --text-disabled:var(--gray-400);
+  --border-default:var(--gray-100); --border-strong:var(--gray-200);
+  --focus-ring:var(--primary-600);
+
+  --font-sans:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
+  --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
+
+  --radius-sm:6px; --radius-md:10px; --radius-lg:14px; --radius-pill:999px;
+
+  --shadow-sm:0 1px 2px rgba(20,22,30,.06);
+  --shadow-md:0 4px 12px rgba(20,22,30,.08);
+  --shadow-lg:0 12px 32px rgba(20,22,30,.18);
+
+  --dur-fast:120ms; --dur-base:200ms; --ease-out:cubic-bezier(.2,.8,.2,1);
+}
+
+/* ── 2. 기본 ── */
+*,*::before,*::after { box-sizing:border-box; }
+html,body { margin:0; }
+body { font-family:var(--font-sans); background:var(--bg-page); color:var(--text-default); font-size:16px; line-height:24px; -webkit-font-smoothing:antialiased; word-break:keep-all; overflow-wrap:anywhere; }
+h1,h2,h3,p { margin:0; }
+button { font:inherit; }
+.num { font-variant-numeric:tabular-nums; }
+.muted { color:var(--text-muted); }
+.t-title   { font-size:24px; line-height:32px; font-weight:700; color:var(--text-strong); letter-spacing:-0.01em; }
+.t-heading { font-size:18px; line-height:26px; font-weight:600; color:var(--text-strong); }
+.t-body-sm { font-size:14px; line-height:20px; }
+.t-caption { font-size:12px; line-height:16px; font-weight:500; }
+:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+/* ── 3. 컴포넌트 ── */
+.card { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); }
+
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2); height:44px; padding:0 var(--space-5);
+  border-radius:var(--radius-md); border:1px solid transparent; font-weight:600; font-size:15px; cursor:pointer;
+  transition:background var(--dur-fast) var(--ease-out), color var(--dur-fast); }
+.btn-lg { height:52px; font-size:16px; width:100%; }
+.btn-primary { background:var(--primary-600); color:#fff; }
+.btn-primary:hover:not(:disabled) { background:var(--primary-700); }
+.btn-primary:disabled { background:var(--gray-200); color:var(--text-disabled); cursor:not-allowed; }
+.btn-ghost { background:transparent; color:var(--text-default); border-color:var(--border-strong); }
+.btn-ghost:hover:not(:disabled) { background:var(--bg-subtle); }
+.btn-ghost:disabled { color:var(--text-disabled); cursor:not-allowed; }
+.btn-block { width:100%; }
+.spinner { width:18px; height:18px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border-radius:var(--radius-pill); font-size:12px; font-weight:600; }
+.badge-open { background:var(--success-50); color:var(--success-600); }
+.badge-open::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+.chip-timer { display:inline-flex; align-items:center; gap:var(--space-2); height:32px; padding:0 var(--space-3); border-radius:var(--radius-pill);
+  background:var(--bg-subtle); color:var(--text-default); font-size:14px; }
+.chip-timer b { color:var(--text-strong); font-weight:700; }
+.chip-timer .dot { width:8px; height:8px; border-radius:50%; background:var(--success-600); }
+.chip-timer.is-warning { background:var(--warning-50); color:var(--warning-700); }
+.chip-timer.is-warning b { color:var(--warning-700); }
+.chip-timer.is-warning .dot { background:var(--warning-500); animation:pulse 1s ease-in-out infinite; }
+.chip-timer.is-danger { background:var(--danger-50); color:var(--danger-600); }
+.chip-timer.is-danger b { color:var(--danger-600); }
+.chip-timer.is-danger .dot { background:var(--danger-600); }
+@keyframes pulse { 50% { opacity:.3; } }
+
+.alert { display:grid; grid-template-columns:20px 1fr auto; gap:var(--space-3); align-items:start; padding:var(--space-4); border-radius:var(--radius-md); border:1px solid; margin-bottom:var(--space-4); }
+.alert-icon { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:800; color:#fff; margin-top:2px; }
+.alert-title { font-weight:700; font-size:15px; line-height:22px; }
+.alert-body { font-size:14px; line-height:20px; margin-top:2px; }
+.alert-warning { background:var(--warning-50); border-color:#FFD8A8; color:var(--warning-700); }
+.alert-warning .alert-icon { background:var(--warning-500); }
+.alert-danger { background:var(--danger-50); border-color:#F8C4CA; color:var(--danger-600); }
+.alert-danger .alert-icon { background:var(--danger-600); }
+.alert .btn { height:36px; padding:0 var(--space-3); font-size:14px; }
+
+.toast-region { position:fixed; left:50%; bottom:var(--space-8); transform:translateX(-50%); display:grid; gap:var(--space-2); z-index:30; }
+.toast { background:var(--gray-900); color:#fff; padding:var(--space-3) var(--space-5); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); font-size:14px; line-height:20px; animation:toast-in var(--dur-base) var(--ease-out); max-width:420px; }
+@keyframes toast-in { from { opacity:0; transform:translateY(8px); } }
+
+/* ── 4. 레이아웃 ── */
+.topbar { background:var(--bg-surface); border-bottom:1px solid var(--border-default); position:sticky; top:0; z-index:10; }
+.topbar-inner { max-width:1200px; margin:0 auto; height:64px; padding:0 var(--space-6); display:flex; align-items:center; gap:var(--space-8); }
+.brand { display:inline-flex; align-items:center; gap:var(--space-2); font-weight:800; font-size:20px; color:var(--text-strong); text-decoration:none; letter-spacing:-0.02em; }
+.brand-mark { width:24px; height:24px; border-radius:7px 7px 4px 4px; background:var(--primary-600); position:relative; }
+.brand-mark::after { content:""; position:absolute; left:5px; right:5px; bottom:5px; height:5px; border-radius:2px; background:#fff; }
+.steps { list-style:none; margin:0 auto; padding:0; display:flex; gap:var(--space-2); align-items:center; }
+.step { display:flex; align-items:center; gap:var(--space-2); font-size:14px; color:var(--text-muted); }
+.step + .step::before { content:""; width:24px; height:1px; background:var(--border-strong); margin-right:var(--space-2); }
+.step-dot { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--bg-subtle); color:var(--text-muted); }
+.step.done .step-dot { background:var(--primary-50); color:var(--primary-600); }
+.step.current { color:var(--text-strong); font-weight:600; }
+.step.current .step-dot { background:var(--primary-600); color:#fff; }
+.topbar-right { display:flex; align-items:center; gap:var(--space-4); font-size:14px; }
+
+.page { max-width:1200px; margin:0 auto; padding:var(--space-6); display:grid; grid-template-columns:minmax(0,1fr); gap:var(--space-5); }
+.concert { display:flex; align-items:center; gap:var(--space-5); padding:var(--space-5); }
+.poster { width:56px; height:72px; border-radius:var(--radius-sm); background:linear-gradient(150deg, var(--primary-700), var(--seat-vip)); flex:none; }
+.concert-meta { display:flex; gap:var(--space-4); margin-top:var(--space-1); }
+.concert-meta span + span::before { content:"·"; margin-right:var(--space-4); color:var(--gray-300); }
+.layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:var(--space-5); align-items:start; }
+@media (max-width: 960px) { .layout { grid-template-columns:minmax(0,1fr); } .steps { display:none; } .summary { position:static; } }
+@media (max-width: 640px) { .page { padding:var(--space-4); } .topbar-inner { padding:0 var(--space-4); gap:var(--space-4); } .map-card, .summary { padding:var(--space-4); } .concert { padding:var(--space-4); } .t-title { font-size:20px; line-height:28px; } }
+
+/* ── 5. 좌석 배치도 ── */
+.map-card { padding:var(--space-6); }
+.map-head { display:flex; justify-content:space-between; align-items:flex-end; gap:var(--space-4); margin-bottom:var(--space-5); }
+.qty { display:inline-flex; padding:4px; gap:4px; background:var(--bg-subtle); border-radius:var(--radius-md); }
+.qty button { min-width:56px; height:36px; border:0; border-radius:var(--radius-sm); background:transparent; color:var(--text-muted); font-weight:600; cursor:pointer; }
+.qty button[aria-checked="true"] { background:var(--bg-surface); color:var(--text-strong); box-shadow:var(--shadow-sm); }
+.qty-help { text-align:right; margin-top:var(--space-1); }
+
+.stage { margin:0 auto var(--space-6); width:60%; height:36px; border-radius:0 0 40px 40px; background:var(--gray-800); color:#fff;
+  display:grid; place-items:center; font-size:13px; font-weight:600; letter-spacing:.3em; }
+.seat-map { display:grid; gap:var(--space-5); justify-content:center; overflow-x:auto; padding:4px; }
+@media (max-width: 640px) { .seat-map { justify-content:start; } .map-head { flex-direction:column; align-items:stretch; } .qty-help { text-align:left; } }
+.tier-label { display:flex; align-items:center; gap:var(--space-2); font-size:13px; margin-bottom:var(--space-2); }
+.grade-chip { display:inline-grid; place-items:center; min-width:36px; height:20px; padding:0 6px; border-radius:var(--radius-sm); background:var(--c); color:#fff; font-size:11px; font-weight:800; }
+.tier-label .price { font-weight:600; color:var(--text-strong); }
+.blocks { display:flex; gap:var(--space-8); }
+.block-name { font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px; }
+.seat-row { display:flex; align-items:center; gap:4px; margin-bottom:4px; }
+.row-no { width:14px; font-size:10px; color:var(--text-disabled); text-align:right; margin-right:2px; }
+
+.seat { width:18px; height:18px; padding:0; border:0; border-radius:5px 5px 3px 3px; background:var(--c); cursor:pointer; position:relative;
+  transition:transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast); }
+.seat:hover:not(:disabled) { transform:scale(1.18); box-shadow:var(--shadow-md); z-index:1; }
+.seat[aria-pressed="true"] { background:var(--seat-selected); box-shadow:0 0 0 2px var(--bg-surface), 0 0 0 4px var(--primary-500); }
+.seat[aria-pressed="true"]::after { content:""; position:absolute; inset:2px; background:#fff;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+          mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+.seat.is-unavailable { background:var(--seat-unavailable); cursor:not-allowed; }
+.seat.is-lottery { background:repeating-linear-gradient(135deg, var(--seat-lottery-a) 0 3px, var(--seat-lottery-b) 3px 6px); box-shadow:inset 0 0 0 1px var(--seat-lottery-line); cursor:not-allowed; }
+.seat.just-taken { animation:taken 1.6s var(--ease-out); }
+@keyframes taken { 0%,40% { box-shadow:0 0 0 2px var(--bg-surface), 0 0 0 4px var(--danger-600); background:var(--danger-600); } 100% { box-shadow:none; } }
+.seat-map.is-locked .seat { pointer-events:none; opacity:.45; }
+
+.legend { list-style:none; padding:var(--space-4) 0 0; margin:var(--space-6) 0 0; border-top:1px solid var(--border-default); display:flex; flex-wrap:wrap; gap:var(--space-3) var(--space-5); font-size:13px; }
+.legend li { display:flex; align-items:center; gap:var(--space-2); }
+.legend .seat { pointer-events:none; }
+
+/* ── 6. 요약 패널 ── */
+.summary { padding:var(--space-6); position:sticky; top:88px; display:grid; gap:var(--space-4); }
+.summary-head { display:flex; justify-content:space-between; align-items:baseline; }
+.count { font-size:14px; color:var(--text-muted); }
+.count b { color:var(--text-strong); }
+.selected-list { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-2); }
+.selected-item { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:var(--space-3); padding:var(--space-3); border-radius:var(--radius-md); background:var(--bg-subtle); font-size:14px; }
+.selected-item .remove { border:0; background:none; color:var(--text-muted); cursor:pointer; font-size:13px; padding:4px; border-radius:var(--radius-sm); }
+.selected-item .remove:hover { color:var(--text-strong); background:var(--gray-100); }
+.empty { padding:var(--space-6) var(--space-4); border:1px dashed var(--border-strong); border-radius:var(--radius-md); text-align:center; font-size:14px; color:var(--text-muted); }
+.total { display:flex; justify-content:space-between; align-items:baseline; margin:0; padding-top:var(--space-4); border-top:1px solid var(--border-default); }
+.total dt { font-size:14px; color:var(--text-muted); }
+.total dd { margin:0; font-size:22px; font-weight:800; color:var(--text-strong); }
+.hint { font-size:13px; line-height:19px; color:var(--text-muted); }
+.pending { display:grid; grid-template-columns:auto 1fr; gap:var(--space-3); align-items:start; padding:var(--space-4); border-radius:var(--radius-md); background:var(--info-50); color:var(--info-600); }
+.pending .spinner { margin-top:2px; }
+.pending b { display:block; font-size:15px; }
+.pending span { font-size:13px; line-height:19px; }
+
+/* ── 7. 모달 ── */
+.modal-backdrop { position:fixed; inset:0; background:rgba(20,22,30,.45); display:grid; place-items:center; z-index:40; padding:var(--space-6); }
+.modal-backdrop[hidden] { display:none; }
+.modal { width:min(420px, 100%); background:var(--bg-surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:var(--space-8) var(--space-6) var(--space-6); display:grid; gap:var(--space-4); animation:toast-in var(--dur-base) var(--ease-out); }
+.modal-check { width:48px; height:48px; border-radius:50%; background:var(--success-50); color:var(--success-600); display:grid; place-items:center; font-size:24px; font-weight:800; margin:0 auto; }
+.modal h2 { text-align:center; }
+.modal .lead { text-align:center; font-size:14px; color:var(--text-muted); margin-top:calc(var(--space-2) * -1); }
+.modal .chip-timer { justify-self:center; }
+
+/* ── 8. 샘플 전용 조작 (실제 화면에는 없다) ── */
+.demo { position:fixed; right:var(--space-4); bottom:var(--space-4); width:240px; padding:var(--space-4); background:#fff; border:1.5px dashed var(--gray-300); border-radius:var(--radius-md); font-size:13px; line-height:18px; z-index:20; box-shadow:var(--shadow-md); }
+.demo-title { font-weight:700; color:var(--text-strong); cursor:pointer; }
+.demo[open] .demo-title { margin-bottom:var(--space-2); }
+.demo-title span { font-weight:500; color:var(--text-muted); }
+.demo fieldset { border:0; margin:0 0 var(--space-3); padding:0; display:grid; gap:6px; }
+.demo legend { color:var(--text-muted); margin-bottom:4px; }
+.demo .btn { height:32px; font-size:13px; padding:0 var(--space-3); }
+.demo-actions { display:flex; gap:var(--space-2); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" aria-label="이선좌 홈"><span class="brand-mark" aria-hidden="true"></span>이선좌</a>
+    <ol class="steps" aria-label="예매 단계">
+      <li class="step done"><span class="step-dot" aria-hidden="true">✓</span>대기열</li>
+      <li class="step current" aria-current="step"><span class="step-dot">2</span>좌석 선택</li>
+      <li class="step"><span class="step-dot">3</span>결제</li>
+      <li class="step"><span class="step-dot">4</span>완료</li>
+    </ol>
+    <div class="topbar-right">
+      <div class="chip-timer" id="entryChip" role="timer" aria-label="입장 유효 시간">
+        <span class="dot" aria-hidden="true"></span>입장 유효 <b class="num" id="entryValue">09:58</b>
+      </div>
+      <span>예린 님</span>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <section class="card concert" aria-label="공연 정보">
+    <div class="poster" aria-hidden="true"></div>
+    <div>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px;">
+        <h1 class="t-title">노을섬 단독 콘서트 〈새벽의 좌석〉</h1>
+        <span class="badge badge-open">예매 중</span>
+      </div>
+      <p class="concert-meta t-body-sm muted"><span class="num">2026.11.20 (금) 20:00</span><span>한강 아트홀</span><span>1회차</span></p>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section class="card map-card" aria-labelledby="mapTitle">
+      <div class="map-head">
+        <div>
+          <h2 class="t-heading" id="mapTitle">좌석 선택</h2>
+          <p class="t-body-sm muted">매수를 먼저 고르고, 그 수만큼 좌석을 눌러 주세요.</p>
+        </div>
+        <div>
+          <div class="qty" role="radiogroup" aria-label="매수" id="qty"></div>
+          <p class="qty-help t-caption muted">회차당 최대 4매</p>
+        </div>
+      </div>
+
+      <div id="alertSlot" aria-live="assertive"></div>
+      <div class="stage" aria-hidden="true">무대</div>
+      <div class="seat-map" id="seatMap"></div>
+
+      <ul class="legend" aria-label="좌석 범례">
+        <li><span class="seat" style="--c:var(--seat-vip)"></span>VIP <span class="num muted">165,000원</span></li>
+        <li><span class="seat" style="--c:var(--seat-r)"></span>R <span class="num muted">143,000원</span></li>
+        <li><span class="seat" style="--c:var(--seat-s)"></span>S <span class="num muted">121,000원</span></li>
+        <li><span class="seat" style="--c:var(--seat-a)"></span>A <span class="num muted">99,000원</span></li>
+        <li><span class="seat" aria-pressed="true"></span>선택한 좌석</li>
+        <li><span class="seat is-unavailable"></span>선택할 수 없음</li>
+        <li><span class="seat is-lottery"></span>추첨석</li>
+      </ul>
+    </section>
+
+    <aside class="card summary" aria-labelledby="summaryTitle">
+      <div class="summary-head">
+        <h2 class="t-heading" id="summaryTitle">선택한 좌석</h2>
+        <span class="count num" id="count"></span>
+      </div>
+      <ul class="selected-list" id="selectedList"></ul>
+      <div class="empty" id="emptySelected">아직 고른 좌석이 없어요</div>
+      <dl class="total"><dt>합계</dt><dd class="num" id="total">0원</dd></dl>
+      <div id="actionSlot">
+        <button class="btn btn-primary btn-lg" id="submitBtn" disabled>선택 완료</button>
+      </div>
+      <button class="btn btn-ghost btn-block" id="clearBtn">다시 고르기</button>
+      <p class="hint">선택 완료를 누르면 5분 동안 좌석이 유지돼요. 그 안에 결제해 주세요.</p>
+    </aside>
+  </div>
+</main>
+
+<div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-check" aria-hidden="true">✓</div>
+    <h2 class="t-title" id="modalTitle">좌석을 잡았어요</h2>
+    <p class="lead">아래 시간 안에 결제하면 예매가 확정돼요.</p>
+    <ul class="selected-list" id="modalList"></ul>
+    <div class="chip-timer is-warning" role="timer" aria-label="결제 가능 시간"><span class="dot" aria-hidden="true"></span>결제 가능 <b class="num" id="holdValue">04:50</b></div>
+    <button class="btn btn-primary btn-lg" id="payBtn">결제하러 가기</button>
+    <p class="hint" style="text-align:center">결제하지 않으면 좌석은 자동으로 풀려요.</p>
+  </div>
+</div>
+
+<details class="demo" open aria-label="샘플 전용 조작">
+  <summary class="demo-title">샘플 전용 조작 <span>(실제 화면에 없음)</span></summary>
+  <fieldset>
+    <legend>선택 완료를 누르면</legend>
+    <label><input type="radio" name="outcome" value="held" checked> 선점 성공 (201)</label>
+    <label><input type="radio" name="outcome" value="conflict"> 이선좌 (409)</label>
+    <label><input type="radio" name="outcome" value="accepted"> 접수형 처리 중 (202)</label>
+  </fieldset>
+  <div class="demo-actions">
+    <button class="btn btn-ghost" id="expireBtn">입장 만료</button>
+    <button class="btn btn-ghost" id="resetBtn">처음으로</button>
+  </div>
+</details>
+
+<script>
+// 샘플용 데이터. 실제 화면은 GET /api/v1/schedules/{id}/seats 응답(available만 있음)을 그린다.
+const GRADES = {
+  VIP: { price:165000, color:'var(--seat-vip)', soldRate:0.72 },
+  R:   { price:143000, color:'var(--seat-r)',   soldRate:0.55 },
+  S:   { price:121000, color:'var(--seat-s)',   soldRate:0.38 },
+  A:   { price:99000,  color:'var(--seat-a)',   soldRate:0.22 },
+};
+const TIERS = [
+  { grade:'VIP', blocks:['A1','A2'], rows:4 },
+  { grade:'R',   blocks:['B1','B2'], rows:4 },
+  { grade:'S',   blocks:['C1','C2'], rows:4, lotteryRows:[3,4] }, // 추첨석은 S 등급에서 뗀다(ADR 0037)
+  { grade:'A',   blocks:['D1','D2'], rows:3 },
+];
+const COLS = 12, MAX_QTY = 4;
+const won = n => n.toLocaleString('ko-KR') + '원';
+const mmss = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+function mulberry32(a){ return () => { a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+let seats, state;
+function initData(){
+  const rand = mulberry32(20261120);
+  seats = new Map();
+  for (const tier of TIERS) for (const block of tier.blocks) for (let r=1; r<=tier.rows; r++) for (let n=1; n<=COLS; n++) {
+    const id = `${block}-${r}-${n}`;
+    const lottery = tier.lotteryRows?.includes(r) ?? false;
+    seats.set(id, { id, grade:tier.grade, block, row:r, no:n, lottery, available: !lottery && rand() > GRADES[tier.grade].soldRate });
+  }
+  state = { qty:2, selected:[], busy:false, locked:false, entryLeft:598, holdLeft:290 };
+}
+
+const $ = id => document.getElementById(id);
+const label = s => `${s.grade}석 ${s.block}구역 ${s.row}열 ${s.no}번`;
+
+function renderQty(){
+  $('qty').innerHTML = '';
+  for (let q=1; q<=MAX_QTY; q++){
+    const b = document.createElement('button');
+    b.type='button'; b.setAttribute('role','radio'); b.setAttribute('aria-checked', String(q===state.qty));
+    b.textContent = `${q}매`; b.onclick = () => setQty(q);
+    $('qty').append(b);
+  }
+}
+
+function renderMap(){
+  const map = $('seatMap'); map.innerHTML='';
+  map.classList.toggle('is-locked', state.locked);
+  for (const tier of TIERS){
+    const g = GRADES[tier.grade];
+    const left = [...seats.values()].filter(s => s.grade===tier.grade && s.available).length;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="tier-label"><span class="grade-chip" style="--c:${g.color}">${tier.grade}</span><span class="price num">${won(g.price)}</span><span class="muted num">남은 ${left}석</span>${tier.lotteryRows ? '<span class="muted">· 일부 추첨석</span>' : ''}</div>`;
+    const blocks = document.createElement('div'); blocks.className='blocks';
+    for (const block of tier.blocks){
+      const el = document.createElement('div');
+      el.setAttribute('role','group'); el.setAttribute('aria-label', `${block}구역`);
+      el.innerHTML = `<div class="block-name">${block}구역</div>`;
+      for (let r=1; r<=tier.rows; r++){
+        const row = document.createElement('div'); row.className='seat-row';
+        row.innerHTML = `<span class="row-no num" aria-hidden="true">${r}</span>`;
+        for (let n=1; n<=COLS; n++) row.append(seatButton(seats.get(`${block}-${r}-${n}`)));
+        el.append(row);
+      }
+      blocks.append(el);
+    }
+    wrap.append(blocks); map.append(wrap);
+  }
+}
+
+function seatButton(s){
+  const b = document.createElement('button');
+  b.type='button'; b.className='seat'; b.dataset.id=s.id; b.style.setProperty('--c', GRADES[s.grade].color);
+  const picked = state.selected.includes(s.id);
+  if (s.lottery){ b.classList.add('is-lottery'); b.disabled=true; b.setAttribute('aria-label', `${label(s)}, 추첨석이라 일반 예매로 고를 수 없음`); }
+  else if (!s.available){ b.classList.add('is-unavailable'); b.disabled=true; b.setAttribute('aria-label', `${label(s)}, 선택할 수 없음`); }
+  else { b.setAttribute('aria-pressed', String(picked)); b.setAttribute('aria-label', `${label(s)}, ${won(GRADES[s.grade].price)}`); b.onclick = () => toggleSeat(s.id); }
+  b.title = s.lottery ? '추첨석' : `${s.block}구역 ${s.row}열 ${s.no}번`;
+  return b;
+}
+
+function renderSummary(){
+  const list = $('selectedList'); list.innerHTML='';
+  for (const id of state.selected){
+    const s = seats.get(id);
+    const li = document.createElement('li'); li.className='selected-item';
+    li.innerHTML = `<span class="grade-chip" style="--c:${GRADES[s.grade].color}">${s.grade}</span><span>${s.block}구역 <b class="num">${s.row}열 ${s.no}번</b></span>`;
+    const rm = document.createElement('button'); rm.className='remove'; rm.textContent='해제'; rm.setAttribute('aria-label', `${label(s)} 해제`);
+    rm.onclick = () => toggleSeat(id); rm.disabled = state.busy || state.locked;
+    li.append(rm); list.append(li);
+  }
+  $('emptySelected').hidden = state.selected.length > 0;
+  $('count').innerHTML = `<b>${state.selected.length}</b> / ${state.qty}매`;
+  $('total').textContent = won(state.selected.reduce((sum,id) => sum + GRADES[seats.get(id).grade].price, 0));
+  if (!state.busy) {
+    const btn = $('submitBtn');
+    btn.disabled = state.locked || state.selected.length !== state.qty;
+    btn.textContent = state.selected.length === state.qty ? `${state.qty}매 선택 완료` : `${state.qty - state.selected.length}석 더 골라 주세요`;
+  }
+  $('clearBtn').disabled = state.busy || state.locked || state.selected.length === 0;
+}
+
+function render(){ renderQty(); renderMap(); renderSummary(); }
+
+function toggleSeat(id){
+  if (state.busy || state.locked) return;
+  const i = state.selected.indexOf(id);
+  if (i >= 0) state.selected.splice(i,1);
+  else if (state.selected.length >= state.qty) { toast(`${state.qty}매를 모두 골랐어요. 바꾸려면 고른 좌석을 먼저 해제해 주세요.`); return; }
+  else state.selected.push(id);
+  clearAlert(); renderMap(); renderSummary();
+  document.querySelector(`.seat[data-id="${id}"]`)?.focus();
+}
+
+function setQty(q){
+  if (state.busy || state.locked) return;
+  if (state.selected.length > q){ state.selected = state.selected.slice(0,q); toast('매수를 줄여 마지막에 고른 좌석을 해제했어요.'); }
+  state.qty = q; render();
+}
+
+function toast(msg){
+  const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+  $('toastRegion').append(t); setTimeout(() => t.remove(), 3200);
+}
+
+function showAlert(kind, title, body, actionText, action){
+  $('alertSlot').innerHTML = `<div class="alert alert-${kind}" role="alert"><span class="alert-icon" aria-hidden="true">!</span><div><p class="alert-title">${title}</p><p class="alert-body">${body}</p></div>${actionText ? `<button class="btn btn-ghost" id="alertAction">${actionText}</button>` : ''}</div>`;
+  if (actionText) $('alertAction').onclick = action;
+}
+function clearAlert(){ $('alertSlot').innerHTML=''; }
+
+function setBusy(on, text){
+  state.busy = on;
+  $('actionSlot').innerHTML = on
+    ? `<button class="btn btn-primary btn-lg" disabled aria-busy="true"><span class="spinner" aria-hidden="true"></span>${text}</button>`
+    : `<button class="btn btn-primary btn-lg" id="submitBtn" disabled>선택 완료</button>`;
+  if (!on) $('submitBtn').onclick = submit;
+  renderSummary();
+}
+
+// 선택 완료: 실제 화면은 POST /schedules/{id}/reservations 에 Idempotency-Key·X-Entry-Token을 붙인다.
+function submit(){
+  const outcome = document.querySelector('input[name="outcome"]:checked').value;
+  setBusy(true, '좌석 확인 중');
+  setTimeout(() => {
+    if (outcome === 'held') { setBusy(false); openModal(); }
+    else if (outcome === 'conflict') { setBusy(false); onConflict(); }
+    else onAccepted();
+  }, 700);
+}
+
+// 409 SEAT_ALREADY_HELD는 어느 좌석인지 알려 주지 않는다. 좌석을 다시 조회해 선택할 수 없게 된 것만 푼다.
+function onConflict(){
+  const lost = state.selected[0];
+  seats.get(lost).available = false;
+  state.selected = state.selected.filter(id => id !== lost);
+  renderMap(); renderSummary();
+  document.querySelector(`.seat[data-id="${lost}"]`)?.classList.add('just-taken');
+  const s = seats.get(lost);
+  showAlert('warning', '이미 선택된 좌석입니다',
+    `고른 좌석 중 ${s.block}구역 ${s.row}열 ${s.no}번이 방금 다른 분께 선택됐어요. 남은 좌석은 그대로 두었으니 1석만 다시 골라 주세요. 대기 순서는 그대로예요.`,
+    '확인', clearAlert);
+}
+
+// 202 접수형: "처리 중"을 보이고 nextPollAfterSeconds 뒤 접수 결과를 조회한다.
+function onAccepted(){
+  state.busy = true;
+  $('actionSlot').innerHTML = `<div class="pending" role="status"><span class="spinner" aria-hidden="true"></span><div><b>좌석을 확인하고 있어요</b><span>접수 번호 <span class="num">c0a8-0501</span> · 보통 2초 안에 끝나요. 이 화면을 닫지 말아 주세요.</span></div></div>`;
+  renderSummary();
+  setTimeout(() => { setBusy(false); openModal(); }, 2200);
+}
+
+function openModal(){
+  $('modalList').innerHTML = state.selected.map(id => { const s = seats.get(id);
+    return `<li class="selected-item" style="grid-template-columns:auto 1fr auto"><span class="grade-chip" style="--c:${GRADES[s.grade].color}">${s.grade}</span><span>${s.block}구역 <b class="num">${s.row}열 ${s.no}번</b></span><span class="num">${won(GRADES[s.grade].price)}</span></li>`; }).join('');
+  state.holdLeft = 290; $('holdValue').textContent = mmss(state.holdLeft);
+  $('modal').hidden = false; $('payBtn').focus();
+}
+$('payBtn').onclick = () => { $('modal').hidden = true; toast('샘플은 여기까지예요. 결제 화면은 ISE-116에서 만들어요.'); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').hidden) $('modal').hidden = true; });
+
+function expireEntry(){
+  state.entryLeft = 0; state.locked = true; state.selected = [];
+  $('entryChip').className = 'chip-timer is-danger'; $('entryValue').textContent = '00:00';
+  render();
+  showAlert('danger', '입장 시간이 끝났어요', '보안을 위해 입장 후 일정 시간이 지나면 좌석을 고를 수 없어요. 대기열에 다시 서 주세요.', '대기열로 돌아가기', () => toast('샘플: 대기열 화면(ISE-114)으로 이동해요.'));
+}
+
+setInterval(() => {
+  if (!state.locked && state.entryLeft > 0){
+    state.entryLeft--; $('entryValue').textContent = mmss(state.entryLeft);
+    $('entryChip').className = 'chip-timer' + (state.entryLeft <= 60 ? ' is-warning' : '');
+    if (state.entryLeft === 0) expireEntry();
+  }
+  if (!$('modal').hidden && state.holdLeft > 0){ state.holdLeft--; $('holdValue').textContent = mmss(state.holdLeft); }
+}, 1000);
+
+$('clearBtn').onclick = () => { state.selected = []; clearAlert(); render(); };
+$('expireBtn').onclick = expireEntry;
+$('resetBtn').onclick = () => { initData(); clearAlert(); $('modal').hidden = true; $('entryChip').className='chip-timer'; setBusy(false); render(); };
+$('submitBtn').onclick = submit;
+
+// 스크린숏·리뷰용: #demo=selected | conflict | pending | held | expired 로 상태를 바로 연다.
+initData(); render();
+if (innerWidth < 640) document.querySelector(".demo").open = false;
+const demo = new URLSearchParams(location.hash.slice(1)).get('demo');
+if (demo) {
+  const pick = [...seats.values()].filter(s => s.available && s.grade === 'VIP').slice(0,2).map(s => s.id);
+  state.selected = pick; render();
+  if (demo === 'conflict') onConflict();
+  if (demo === 'pending') onAccepted();
+  if (demo === 'held') openModal();
+  if (demo === 'expired') expireEntry();
+}
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@
 | `grade` → `source_grade` | VARCHAR(10) | NOT NULL | 추첨석을 떼어 온 등급(기본 S). 종결 때 되돌릴 등급(D9) |
 | 제약 교체 | | `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)` | 회차당 추첨 1개(D2, D9) |
 
-- `seed`(`BYTEA`, 32바이트, ADR 0040)는 설정 때 `SecureRandom`으로 채우고 설정 뒤 바꾸지 못하게 막는다(D7). 공개하지 않는다. 시드 약속을 확장할 때 `seed_hash CHAR(64)`를 더하고 응모 시작 전에 공개한다.
+- `seed`(`BYTEA`, 32바이트, ADR 0041)는 설정 때 `SecureRandom`으로 채우고 설정 뒤 바꾸지 못하게 막는다(D7). 공개하지 않는다. 시드 약속을 확장할 때 `seed_hash CHAR(64)`를 더하고 응모 시작 전에 공개한다.
 - 설정 검증: `entry_start_at < entry_end_at <= draw_at`, `draw_at + 60분 <= starts_at`(종결 상한 D14, 11/2 추가), `source_grade`의 AVAILABLE 좌석이 `seat_count` 이상, `source_grade <> 'LOTTERY'`.
 - 설정 시점: 설정·수정 모두 `now() < LEAST(open_at, entry_start_at)`. 어기면 409(D9 후속).
 - 설정 경고: `draw_at`이 저트래픽 시간대(예: 03:00~05:00 `[가정]`) 밖이면 응답에 경고를 담는다. 막지는 않는다(D10 운영 정책).

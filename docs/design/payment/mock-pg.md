@@ -2,7 +2,7 @@
 
 `mock-pg` 모듈에 만들 모의 PG 서버의 설계다. 응답 모양은 [pg-integration.md](pg-integration.md) 6절 "Mock PG 프로토콜"이 정본이고, 이 문서는 그 표가 정하지 않은 내부 구조(원장, 원자성, 장애 주입, 프로필 제한)와 구현 순서를 정한다. 근거는 SA 6-6·11-4·11-5, S-28·S-29([sa-change-requests.md](sa-change-requests.md)), INV-1·INV-2·INV-8([invariants.md](invariants.md)), ADR 0023이다.
 
-상태: 제안(2026-10-30 Opus 리뷰와 사용자 결정 4건 반영). 구현은 시작하지 않았다. 사용자가 이 개정본을 확인하면 10절의 첫 단계(스파이크)부터 시작한다. 결정 내용은 7절에 있다.
+상태: 구현 중. 2026-10-30 Opus 리뷰와 사용자 결정 4건을 반영한 개정본이고, 결정 내용은 7절에 있다. 10절의 단계 0(스파이크, ISE-101)을 2026-11-02에 끝냈고 결과는 6절 "스파이크 결과"에 적었다. 다음은 PR 1(ISE-102)이다.
 
 ## 1. 완료 기준
 
@@ -168,10 +168,11 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 **클라이언트 쪽 분류는 이미 증명됐다.** `FakeMockPgServer`가 `exchange.close()`로 0바이트를 보낸 채 끊을 때 어댑터는 `CONNECTION_LOST`로 분류하고 해당 테스트가 통과한다. POST가 0바이트로 끊기면 `IOException`이 나고, `DefaultRestClient`가 이를 `ResourceAccessException`으로 감싸고, 응답 시간 초과가 아니면 `CONNECTION_LOST`가 된다. 서버가 같은 상태(0바이트 뒤 종료)를 만들면 된다.
 
 **1안(채택): Tomcat Valve에서 연결을 즉시 닫는다.**
-- 컨트롤러는 결과를 저장한 뒤 응답 본문을 쓰지 않고 요청 속성만 세운다(`ResponseEntity`를 반환하면 Spring 메시지 컨버터가 본문을 쓰고 flush해서 이미 커밋된다).
+- 컨트롤러는 결과를 저장한 뒤 요청 속성을 세우고 `null`을 돌려줘 아무것도 쓰지 않는다. `ResponseEntity`를 돌려주면 `HttpEntityMethodProcessor`가 본문이 없어도 헤더를 flush해서 응답이 커밋된다(Spring Framework 7.0.10 소스로 확인).
 - Valve는 `getNext().invoke()`가 끝난 뒤 속성이 있으면 `response.getCoyoteResponse().action(ActionCode.CLOSE_NOW, null)`을 부른다. Valve는 `org.apache.catalina.connector.Request/Response`를 직접 받는다. `RequestFacade`·`ResponseFacade`는 내부 객체의 공개 getter가 없어서 필터로는 리플렉션이 필요하다.
-- Spring Boot의 Tomcat 설정에서 컨텍스트 Valve를 추가한다(리뷰가 Boot 4.1.2에 `addContextValves`가 있음을 확인).
-- Tomcat 소스를 읽은 추론으로는 `CLOSE_NOW`가 이후 쓰기를 막고 flush를 건너뛰어 헤더가 소켓 버퍼에서 버려진다. **실행으로 확인하지 않았다.** 아래 스파이크에서 확인한다.
+- Valve는 `WebServerFactoryCustomizer<TomcatServletWebServerFactory>`에서 `addContextValves`로 등록한다(Boot 4의 패키지는 `org.springframework.boot.tomcat.servlet`).
+- `CLOSE_NOW` 뒤에도 Tomcat은 응답을 마무리하며 상태 줄과 헤더를 소켓 쓰기 버퍼에 쓴다. 그 버퍼를 flush하지 않고 연결을 닫으므로 바이트가 나가지 않는다(Tomcat 11.0.27 소스로 확인, 아래 스파이크 결과로 실행 확인).
+- 0바이트는 클라이언트가 `Expect: 100-continue`를 보내지 않을 때만 성립한다. 보내면 Tomcat이 중간 응답 `100`을 먼저 내보낸다. 어댑터의 JDK `HttpClient`는 이 헤더를 기본으로 보내지 않는다.
 - `DELAY`는 응답을 커밋하기 전에 걸어야 한다. 헤더를 보낸 뒤 지연하면 `TIMEOUT`이 아니라 `CONNECTION_LOST`가 된다.
 
 **대안(2안): 본문을 쓰다 예외를 던진다.** `ErrorReportValve`가 커밋 뒤의 오류에서 `CLOSE_NOW`를 건다. 동작은 하지만 상태 줄과 헤더가 이미 나가서 요구("한 바이트도")와 어긋나고, 매번 ERROR 스택 로그가 남는다. 1안이 막힐 때만 쓴다.
@@ -183,6 +184,26 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 - 계약 테스트: 경과 시간이 어댑터의 읽기 시한보다 짧은지 단정한다(시한이 지나서 통과하는 경우를 걸러낸다).
 
 저장은 응답 단계보다 앞서 끝난다. 저장 → 응답 유실 순서를 바꾸지 않는다.
+
+### 스파이크 결과 (2026-11-02, ISE-101)
+
+1안이 계획대로 동작한다. 2안으로 바꾸지 않는다.
+
+| 확인 | 결과 | 근거(명령) |
+|---|---|---|
+| 0바이트 + 연결 종료 | 원시 소켓의 첫 `read()`가 `-1`이다 | `mock-pg`의 `ApprovalDropResponseTest`(`./gradlew :mock-pg:test`) |
+| 확인이 `CLOSE_NOW`에 달려 있는가 | Valve의 `CLOSE_NOW` 한 줄을 빼면 위 테스트가 실패한다 | 같은 명령을 변이한 코드로 1회 실행(커밋하지 않음) |
+| 저장 → 유실 순서 | 응답을 잃은 같은 주문의 조회가 `APPROVED`다 | 위 테스트, 아래 계약 테스트 |
+| 어댑터 분류 | `CONNECTION_LOST`이고 읽기 시한(1초)보다 짧게 끝난다. 1회 측정 49ms | `payment-service`의 `MockPgServerContractTest`(`./gradlew :payment-service:test --tests '*MockPgServerContractTest'`) |
+| 응답 커밋 여부 | Valve가 "이미 커밋" 경고를 남기지 않았다 | 위 테스트의 mock-pg 로그 |
+
+테스트 기반:
+- `payment-service`의 `MockPgProcess`가 `bootJar`를 별도 JVM으로 띄운다. 빈 포트를 골라 `--server.port`로 넘기고 `/actuator/health`가 200이 될 때까지 기다린다. 기동은 두 번 측정해 1.2초, 1.4초였다.
+- 포트를 고른 뒤 자식이 바인드하기 전에 다른 프로세스가 가져가면 기동이 실패한다. 로그에 `already in use`가 있으면 새 포트로 최대 3번 띄운다. 기동이 실패하면 로그 마지막 40줄을 예외 메시지에 싣는다. CI는 `build` 폴더를 남기지 않기 때문이다.
+- Gradle `test`가 `:mock-pg:bootJar`에 의존하고 jar 경로를 `mockPg.jar` 시스템 속성으로 넘긴다. IDE에서 Gradle 없이 돌리면 저장소의 `mock-pg/build/libs/app.jar`를 쓰므로 mock-pg를 고친 뒤에는 jar를 다시 만들어야 한다.
+- `test` 프로필 설정(`application-test.yml`)은 `bootJar`에 들어가야 별도 프로세스에서도 쓰이므로 `main` 리소스에 둔다. 설정 서버 클라이언트가 클래스패스에 있어 `spring.cloud.config.enabled: false`도 함께 끈다. 가져오기만 끄면 `No spring.config.import property has been defined`로 기동이 실패한다(이 줄을 빼고 `:mock-pg:test`를 돌려 확인).
+
+남은 확인: `CLOSE_NOW`는 Tomcat 내부 응답 상태를 500으로 바꾸지만 Micrometer `http.server.requests`가 유실 요청을 몇으로 기록하는지는 미확인이다. `loadtest`에서 mock-pg 쪽 지표를 볼 때 확인한다.
 
 ## 7. 결정 기록
 
@@ -235,7 +256,7 @@ PR 1에 미지수가 둘 몰려 있다. 응답 유실 방식(6절)과 실제 앱
 
 | 단계 | 범위 | 완료 확인 |
 |---|---|---|
-| 0 스파이크 | `mock-pg`에 승인 엔드포인트의 최소 구현 + Valve `DROP_RESPONSE` + `bootJar` 프로세스로 띄우는 테스트 기반(`mock-pg/application-test.yml`에서 Eureka·설정 서버 가져오기를 끈다) | "처음 보는 주문의 조회는 `NotFound`"와 "응답이 유실되면 `CONNECTION_LOST`" 두 계약 테스트 통과, 원시 소켓 테스트로 0바이트 확인. 막히면 6절을 이 문서에 다시 적는다 |
+| 0 스파이크 | `mock-pg`에 승인 엔드포인트의 최소 구현 + Valve `DROP_RESPONSE` + `bootJar` 프로세스로 띄우는 테스트 기반(`mock-pg/application-test.yml`에서 Eureka·설정 서버 가져오기를 끈다) | "처음 보는 주문의 조회는 `NotFound`"와 "응답이 유실되면 `CONNECTION_LOST`" 두 계약 테스트 통과, 원시 소켓 테스트로 0바이트 확인. 막히면 6절을 이 문서에 다시 적는다. **완료(2026-11-02)**, 6절 "스파이크 결과" |
 | 1 | 원장·상태 머신(2~4절), 승인·조회·망취소, 승인 쪽 장애 주입(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭, 프로필 제한), `inFlightCount`, `PgScenario` 구현 | 승인·조회·망취소·멱등·늦은 승인 방지 시나리오와 "그 밖의 409" 이관 테스트. 환불 시나리오는 제외 표시 |
 | 2 | 환불·환불 조회·환불 멱등(8절), `REFUND`·`REFUND_LOOKUP` 주입, 원장 조회·초기화(9절) | 공통 23개 전체 + 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김 |
 

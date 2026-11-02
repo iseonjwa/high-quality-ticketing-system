@@ -1,0 +1,42 @@
+# frontend/가 바뀐 PR과 main·dev push에서만 포맷·린트·테스트·빌드를 검사한다.
+# Note: paths 필터로 뜨는 워크플로라 필수 검사로 지정하지 않는다. 필수로 지정하면 프론트를 바꾸지 않은
+# PR에서는 이 검사가 보고되지 않아 머지가 막힌다. 프론트가 깨진 PR은 빨간 체크로 보이고 작성자가 보고 머지한다.
+name: frontend
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 의존성 설치
+        run: npm ci
+      - name: 포맷 검사
+        run: npm run format:check
+      - name: 린트
+        run: npm run lint
+      - name: 테스트
+        run: npm test
+      - name: 빌드
+        run: npm run build

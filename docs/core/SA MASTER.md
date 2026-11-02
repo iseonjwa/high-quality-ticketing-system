@@ -16,7 +16,7 @@
 
 | # | 변경 | 위치 | 근거 |
 | --- | --- | --- | --- |
-| 1 | `lotteries.seed`를 `BIGINT`에서 `BYTEA NOT NULL, CHECK(32바이트)`로 바꿈. 순위 계산(`DrawRanker`, ISE-84)이 32바이트 시드를 쓴다 | 12-3, ERD 그림 3 | ADR 0040 |
+| 1 | `lotteries.seed`를 `BIGINT`에서 `BYTEA NOT NULL, CHECK(32바이트)`로 바꿈. 순위 계산(`DrawRanker`, ISE-84)이 32바이트 시드를 쓴다 | 12-3, ERD 그림 3 | ADR 0041 |
 | 2 | 추첨 설정·수정 에러 코드 3개(`LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH`)와 설정 응답 `warnings` 추가. 설정 검증에 `draw_at + 60분 <= starts_at` 추가 | 11-3, 11-4 | D9·D10·D14 |
 
 ### 10/31 바뀐 점 (추첨 담당)
@@ -1327,7 +1327,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | waitlist_count | INT | NOT NULL | 예비자 수 |
 | max_per_entry | SMALLINT | NOT NULL, CHECK (1–2) |  |
 | entry_start_at · entry_end_at · draw_at | TIMESTAMPTZ | NOT NULL |  |
-| seed | BYTEA | NOT NULL, CHECK (32바이트) | 추첨 재현용. 설정 때 `SecureRandom` 32바이트로 채우고 바꾸지 않는다(ADR 0040) |
+| seed | BYTEA | NOT NULL, CHECK (32바이트) | 추첨 재현용. 설정 때 `SecureRandom` 32바이트로 채우고 바꾸지 않는다(ADR 0041) |
 | status | VARCHAR(10) | NOT NULL, CHECK (OPEN·CLOSED·DRAWN·DONE) | 재실행 방지 |
 |  |  | UNIQUE(schedule_id) | 회차당 추첨 1개 |
 

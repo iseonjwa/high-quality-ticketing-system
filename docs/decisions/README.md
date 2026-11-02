@@ -43,4 +43,5 @@
 | 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
 | 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
 | 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
-| 0040 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0040-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
+| 0040 | [프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다](0040-frontend-react-spa-in-monorepo.md) | 채택 (프론트 담당 결정, Notion 결정 #7을 저장소 기록으로 대체. 연결은 nginx 중계) | 2026-11-02 |
+| 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
