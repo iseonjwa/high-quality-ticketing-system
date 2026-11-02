@@ -25,6 +25,7 @@ public class LotteryAssignmentService {
     private final LotteryEntryRepository lotteryEntryRepository;
     private final LotterySeatPort lotterySeatPort;
     private final SystemHoldPort systemHoldPort;
+    private final BillingPaymentRequestPublisher billingPaymentRequestPublisher;
 
     /**
      * 당첨자 한 명을 배정한다. 이 트랜잭션이 롤백되면 응모는 그대로 WON·예매 없음으로 남아 다음 주기가 다시 집는다.
@@ -32,8 +33,8 @@ public class LotteryAssignmentService {
      * @return 배정을 시도한 응모 ID. 배정할 당첨자가 없으면 비어 있다
      * @throws AssignmentRejected 매수 한도 초과·남은 자리 없음처럼 다시 해도 안 되는 거절. 부른 쪽이 FAILED로 기록한다
      */
-    // Note: 예매 생성(시스템 선점)과 응모 연결을 한 트랜잭션에 둔다. 나눠 커밋하면 예매만 남고 연결이 빠진 채 워커가
-    // 죽을 수 있다. 시스템 선점은 MANDATORY라 이 트랜잭션 밖에서는 불리지 않는다(ISE-88)
+    // Note: 예매 생성(시스템 선점), 응모 연결, 자동결제 요청(outbox)을 한 트랜잭션에 둔다. 나눠 커밋하면 예매만 남고
+    // 연결이나 결제 요청이 빠진 채 워커가 죽을 수 있다. 시스템 선점은 MANDATORY라 이 트랜잭션 밖에서는 불리지 않는다(ISE-88)
     @Transactional
     public Optional<Long> assignNext() {
         var next = lotteryEntryRepository.lockNextUnassignedWinner();
@@ -47,7 +48,8 @@ public class LotteryAssignmentService {
             if (!lotteryEntryRepository.linkReservation(winner.entryId(), hold.reservationId())) {
                 throw new IllegalStateException("잠근 당첨 응모에 예매를 연결하지 못했다: " + winner.entryId());
             }
-            // TODO(ISE-92): 같은 트랜잭션에서 자동결제 요청(BillingPaymentRequested)을 outbox에 남긴다
+            billingPaymentRequestPublisher.publish(hold.reservationId(), winner.userId(), hold.totalAmount(),
+                    winner.entryId());
         } catch (BusinessException exception) {
             throw new AssignmentRejected(winner.entryId(), exception.getErrorCode().code());
         }
