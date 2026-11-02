@@ -260,6 +260,11 @@
   .seat[data-flashing] {
     animation: seat-taken 1.6s var(--ease-out);
   }
+  /* 샘플 .seat-map.is-locked: 입장 만료 뒤 좌석표 잠금 */
+  [data-slot='seat-map'][data-locked] .seat {
+    opacity: 0.45;
+    pointer-events: none;
+  }
 }
 
 @keyframes seat-taken {
@@ -281,5 +286,11 @@
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+  /* 깜빡임 대신 1.6초 동안 위험색 고리를 고정으로 보여 어느 좌석이 겹쳤는지 구분을 남긴다 */
+  .seat[data-flashing] {
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--danger-600);
   }
 }

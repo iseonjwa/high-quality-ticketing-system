@@ -15,6 +15,8 @@ export interface SeatMapProps {
   onLimitReached?: () => void
   justTakenSeatIds?: number[]
   lotterySeatIds?: number[]
+  // 입장 시간이 끝나면 좌석표를 잠근다(설계 7절 "0이면 좌석표 잠금"). 모든 좌석을 누를 수 없고 흐리게 보인다
+  locked?: boolean
 }
 
 interface Cell {
@@ -43,6 +45,7 @@ function isEnabled(cell: Cell): boolean {
 }
 
 // 같은 구역 안에서 화살표 방향의 다음 좌석. 위아래는 번호가 가장 가까운 좌석으로 간다.
+// 구역 사이는 Tab으로 움직인다. 구역이 줄바꿈되며 놓여 화살표로 넘을 2차원 이웃을 정하기 어렵다.
 function findNext(cells: Cell[], from: Cell, direction: Direction): Cell | undefined {
   const sameSection = cells.filter((c) => c.sectionIndex === from.sectionIndex && isEnabled(c))
   if (direction === 'left' || direction === 'right') {
@@ -85,8 +88,10 @@ export function SeatMap({
   onLimitReached,
   justTakenSeatIds = [],
   lotterySeatIds = [],
+  locked = false,
 }: SeatMapProps) {
-  const [activeSeatId, setActiveSeatId] = useState<number | null>(null)
+  // 구역마다 마지막으로 초점이 간 좌석
+  const [activeSeatBySection, setActiveSeatBySection] = useState<Record<number, number>>({})
   const buttons = useRef(new Map<number, HTMLButtonElement>())
 
   const cells: Cell[] = sections.flatMap((section, sectionIndex) =>
@@ -112,18 +117,35 @@ export function SeatMap({
   )
   const cellById = new Map(cells.map((c) => [c.seatId, c]))
 
-  // Tab 정지점은 좌석표 전체에서 하나다(roving tabindex). 마지막으로 초점이 간 좌석, 없으면 첫 선택 좌석, 없으면 첫 선택 가능 좌석.
-  const activeCell = activeSeatId === null ? undefined : cellById.get(activeSeatId)
-  const tabStopId = (
-    activeCell && isEnabled(activeCell)
-      ? activeCell
-      : (cells.find((c) => c.state === 'selected') ?? cells.find(isEnabled))
-  )?.seatId
+  // Note: Tab 정지점은 구역마다 하나다(roving tabindex). Tab으로 구역을 옮기고 화살표로 구역 안을 움직인다.
+  // 좌석표 전체에 하나만 두면 화살표가 구역을 넘지 못해 키보드로는 첫 구역 좌석밖에 고를 수 없다.
+  // 정지점은 그 구역에서 마지막으로 초점이 간 좌석, 없으면 첫 선택 좌석, 없으면 첫 선택 가능 좌석이다.
+  const tabStopIds = new Set<number>()
+  if (!locked) {
+    sections.forEach((_, sectionIndex) => {
+      const inSection = cells.filter((c) => c.sectionIndex === sectionIndex)
+      const active = cellById.get(activeSeatBySection[sectionIndex] ?? -1)
+      const stop =
+        active && isEnabled(active)
+          ? active
+          : (inSection.find((c) => c.state === 'selected') ?? inSection.find(isEnabled))
+      if (stop) {
+        tabStopIds.add(stop.seatId)
+      }
+    })
+  }
+
+  // 409 뒤 화면이 선택 목록에서 아직 빼지 않은 좌석처럼, 고를 수 없게 된 좌석은 한도에 세지 않는다.
+  // 세면 해제도 못 하고 새로 고르지도 못하는 상태가 된다.
+  const selectableSelectedCount = cells.filter((c) => c.state === 'selected').length
 
   function toggle(seatId: number) {
+    if (locked) {
+      return
+    }
     if (selectedSeatIds.includes(seatId)) {
       onChange(selectedSeatIds.filter((id) => id !== seatId))
-    } else if (selectedSeatIds.length >= maxSelectable) {
+    } else if (selectableSelectedCount >= maxSelectable) {
       onLimitReached?.()
     } else {
       onChange([...selectedSeatIds, seatId])
@@ -145,7 +167,7 @@ export function SeatMap({
   const stageWidth = 'min(60%, 480px)'
 
   return (
-    <div data-slot="seat-map">
+    <div data-slot="seat-map" data-locked={locked ? '' : undefined}>
       <div
         className="mx-auto mb-6 grid h-9 place-items-center rounded-b-[40px] bg-gray-800 text-[13px] font-semibold tracking-[0.3em] text-white"
         style={{ width: stageWidth }}
@@ -207,10 +229,17 @@ export function SeatMap({
                         number={seat.number}
                         state={cell.state}
                         justTaken={cell.justTaken}
-                        tabIndex={seat.seatId === tabStopId ? 0 : -1}
+                        tabIndex={tabStopIds.has(seat.seatId) ? 0 : -1}
+                        {...(locked ? { disabled: true } : {})}
                         style={{ gridRow: rows.indexOf(seat.row) + 1, gridColumn: seat.number + 1 }}
                         onToggle={() => toggle(seat.seatId)}
-                        onFocus={() => setActiveSeatId(seat.seatId)}
+                        onFocus={() =>
+                          setActiveSeatBySection((current) =>
+                            current[sectionIndex] === seat.seatId
+                              ? current
+                              : { ...current, [sectionIndex]: seat.seatId },
+                          )
+                        }
                         onKeyDown={(event) => handleKeyDown(event, cell)}
                       />
                     )

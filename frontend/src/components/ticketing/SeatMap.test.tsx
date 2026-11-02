@@ -98,12 +98,28 @@ describe('SeatMap', () => {
     expect(onChange).toHaveBeenCalledWith([3])
   })
 
-  it('Tab 정지점은 하나이고 처음에는 첫 선택 가능 좌석이다', () => {
+  it('Tab 정지점은 구역마다 하나이고 처음에는 구역의 첫 선택 가능 좌석이다', () => {
     render(<Harness />)
 
     const stops = screen.getAllByRole('button').filter((b) => b.getAttribute('tabindex') === '0')
-    expect(stops).toHaveLength(1)
+    expect(stops).toHaveLength(2)
     expect(stops[0]).toHaveAccessibleName(/A구역 1열 1번/)
+    expect(stops[1]).toHaveAccessibleName(/B구역 1열 1번/)
+  })
+
+  it('Tab으로 모든 구역의 좌석에 닿는다', async () => {
+    render(
+      <>
+        <button type="button">앞</button>
+        <Harness />
+      </>,
+    )
+    screen.getByRole('button', { name: '앞' }).focus()
+
+    await userEvent.tab()
+    expect(seat(/A구역 1열 1번/)).toHaveFocus()
+    await userEvent.tab()
+    expect(seat(/B구역 1열 1번/)).toHaveFocus()
   })
 
   it('선택한 좌석이 있으면 그 좌석이 Tab 정지점이다', () => {
@@ -132,13 +148,73 @@ describe('SeatMap', () => {
     expect(seat(/A구역 1열 1번/)).toHaveFocus()
   })
 
-  it('구역을 넘어 움직이지 않는다', async () => {
+  it('화살표는 구역 안에서만 움직인다(구역 사이는 Tab)', async () => {
     render(<Harness />)
     seat(/A구역 2열 3번/).focus()
 
     await userEvent.keyboard('{ArrowRight}{ArrowDown}')
 
     expect(seat(/A구역 2열 3번/)).toHaveFocus()
+  })
+
+  it('구역에서 마지막으로 간 좌석이 그 구역의 Tab 정지점이 되고, 그 좌석이 비활성이 되면 다른 좌석으로 옮긴다', async () => {
+    const { rerender } = render(
+      <SeatMap sections={SECTIONS} selectedSeatIds={[]} maxSelectable={2} onChange={() => {}} />,
+    )
+    seat(/A구역 1열 1번/).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(seat(/A구역 2열 1번/)).toHaveAttribute('tabindex', '0')
+    expect(seat(/A구역 1열 1번/)).toHaveAttribute('tabindex', '-1')
+
+    // 다시 조회했더니 그 좌석이 팔렸다
+    const resold = SECTIONS.map((section) => ({
+      ...section,
+      seats: section.seats.map((s) => (s.seatId === 4 ? { ...s, available: false } : s)),
+    }))
+    rerender(
+      <SeatMap sections={resold} selectedSeatIds={[]} maxSelectable={2} onChange={() => {}} />,
+    )
+
+    expect(seat(/A구역 1열 1번/)).toHaveAttribute('tabindex', '0')
+  })
+
+  it('고를 수 없게 된 좌석이 선택 목록에 남아 있어도 한도에 세지 않는다', async () => {
+    const onChange = vi.fn()
+    // 1번은 409로 방금 남에게 넘어갔지만 화면이 아직 선택 목록에서 빼지 않았다
+    render(
+      <SeatMap
+        sections={SECTIONS}
+        selectedSeatIds={[1, 3]}
+        justTakenSeatIds={[1]}
+        maxSelectable={2}
+        onChange={onChange}
+      />,
+    )
+
+    await userEvent.click(seat(/A구역 2열 1번/))
+
+    expect(onChange).toHaveBeenCalledWith([1, 3, 4])
+  })
+
+  it('잠그면 모든 좌석을 누를 수 없고 Tab 정지점도 없다', async () => {
+    const onChange = vi.fn()
+    render(
+      <SeatMap
+        sections={SECTIONS}
+        selectedSeatIds={[5]}
+        maxSelectable={2}
+        onChange={onChange}
+        locked
+      />,
+    )
+
+    const seats = screen
+      .getAllByRole('button')
+      .filter((b) => b.getAttribute('data-slot') === 'seat')
+    expect(seats.every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    expect(seats.some((b) => b.getAttribute('tabindex') === '0')).toBe(false)
+    await userEvent.click(seat(/A구역 1열 1번/))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('방금 선택됨 좌석과 추첨석은 고를 수 없다', () => {

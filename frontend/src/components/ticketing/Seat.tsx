@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ComponentProps } from 'react'
 import { Check } from 'lucide-react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { gradeColor } from '@/components/ticketing/grade'
 import { formatWon } from '@/lib/format'
 

@@ -82,4 +82,19 @@ describe('Seat', () => {
     expect(seat).not.toHaveAttribute('data-flashing')
     expect(seat).toHaveAttribute('data-state', 'unavailable')
   })
+
+  it('justTaken이 꺼졌다 다시 켜지면 깜빡임을 다시 시작한다', () => {
+    vi.useFakeTimers()
+    const { rerender } = render(<Seat {...BASE} justTaken />)
+    const seat = screen.getByRole('button')
+    act(() => {
+      vi.advanceTimersByTime(1700)
+    })
+    expect(seat).not.toHaveAttribute('data-flashing')
+
+    rerender(<Seat {...BASE} justTaken={false} />)
+    rerender(<Seat {...BASE} justTaken />)
+
+    expect(seat).toHaveAttribute('data-flashing')
+  })
 })
