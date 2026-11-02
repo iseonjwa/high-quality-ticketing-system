@@ -212,7 +212,7 @@ public class PaymentRecheckService {
     private void logClientError(Claim claim, Object result) {
         if (result instanceof PgClient.Unknown unknown && unknown.cause() == UnknownCause.CLIENT_ERROR) {
             // 요청이 PG에 거절됐다. CB에는 세지 않지만 우리 쪽 설정·코드 문제일 수 있어 알린다(INV-8)
-            log.error("PG가 결제 조회를 거절했다(CLIENT_ERROR) paymentId={}", claim.paymentId());
+            log.error("PG가 재확인 요청을 거절했다(CLIENT_ERROR) paymentId={}", claim.paymentId());
         }
     }
 

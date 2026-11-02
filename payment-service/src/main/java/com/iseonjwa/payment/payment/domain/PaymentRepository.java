@@ -33,7 +33,8 @@ public interface PaymentRepository {
 
     /**
      * 재확인을 맡는다(임대). 현재 상태가 {@code status}일 때만 {@code next_check_at}을 임대 만료 시각으로 미루고
-     * 시도 횟수를 1 올린다. 차례({@code next_check_at <= now})가 아니면 바꾸지 않아, 행 잠금 없이도 조건부 갱신으로 동작한다. 임대 동안 다른 워커가 같은 결제를 집지 않고, 워커가 죽어도 임대가 끝나면 다시 대상이 된다.
+     * 시도 횟수를 1 올린다. 차례({@code next_check_at <= now})가 아니면 바꾸지 않으므로 행 잠금 없이도 두 워커가 같은
+     * 결제를 함께 맡지 못한다. 워커가 죽어도 임대가 끝나면 다시 대상이 된다.
      */
     boolean claimRecheck(Long id, PaymentStatus status, Instant leaseUntil, Instant now);
 

@@ -114,7 +114,8 @@ public class PaymentTx {
     // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했고 TX2가 0행이 됐다. 0행이면 후속 쓰기를 하지 않는다는 규칙은 바꾸지 않는다.
     // 재확인이 REQUESTED를 UNKNOWN으로 바꾼 경우는 재확인이 다음 간격에 PG를 조회해 APPROVED로 확정하므로 승인이 사라지지 않는다.
     // 같은 승인이 이미 APPROVED로 기록됐으면 정상 경합이다. DECLINED는 PG가 늦은 승인 방지(Prevented)를 약속한 뒤에만 들어가고
-    // 그 뒤 도착한 승인은 PG가 ORDER_CANCELED로 거절하므로 여기까지 오지 않는다. 그 밖의 상태라면 PG가 계약을 어긴 것이다(INV-8)
+    // 그 뒤 도착한 승인은 PG가 ORDER_CANCELED로 거절하므로 여기까지 오지 않는다. 그 밖의 상태(다른 거래로 승인, 거절, 확인 필요)면
+    // 우리 기록과 PG가 어긋난 것이라 ERROR로 알린다(INV-8)
     private void warnIfApprovalNotRecorded(Payment payment, PgClient.Approved result) {
         var current = payments.findById(payment.getId()).orElseThrow();
         var recordedSameApproval = current.getStatus() == PaymentStatus.APPROVED
