@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | 좌석·매수 반환 위치를 먼저 합의하자는 AI 권고 대신 만료 스케줄러(ISE-13)를 먼저 구현하고 논의 항목을 문서로 남김 | kwonwoo | Claude Code | 부분 수용 | 아님 | [기록](kwonwoo/2026-11-02-hold-expiry-implement-first.md) |
 | 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA 11-3대로 고침(ISE-131) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-gateway-token-expired-code.md) |
 | 2026-11-02 | 프론트 Refresh 토큰은 탭 단위 `sessionStorage`, Access 토큰은 메모리(ADR 0040 4절) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-refresh-token-session-storage.md) |
 | 2026-11-02 | 프론트 디자인 시스템 확정: 이선좌 워드마크, 인디고 주 색, 좌석 상태 규칙(409 뒤 빠진 좌석만 풀기, 좌석 바뀌면 새 멱등키) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-design-system-sample-accepted.md) |
