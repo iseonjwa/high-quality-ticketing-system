@@ -12,12 +12,12 @@
 |---|---|---|
 | 코드 위치 | 이 저장소의 `frontend/` | API 계약과 화면을 한 PR로 고치고, 배포가 compose 하나로 끝난다 |
 | 스택 | React SPA (Vite + TypeScript) | 디자인 시스템에 컴포넌트가 필요하고 화면이 늘었다. Notion 결정 #7(정적 HTML·JS)의 바꿀 조건을 근거로 바꿨다 |
-| 함께 쓸 도구 | React Router, TanStack Query, 직접 쓴 `fetch` 래퍼, React Hook Form + Zod, Tailwind CSS + shadcn/ui, MSW, Vitest + Testing Library + Playwright, ESLint + Prettier, npm. Zustand는 필요할 때만 | 칸마다 이유와 대안은 ADR 0040 3절 |
+| 함께 쓸 도구 | React Router, TanStack Query, 직접 쓴 `fetch` 래퍼, React Hook Form + Zod, Tailwind CSS + shadcn/ui, MSW, Vitest + Testing Library + Playwright, ESLint + Prettier, npm. Zustand는 화면 사이에서 나누는 값(로그인 토큰)에만 | 칸마다 이유와 대안은 ADR 0040 3절 |
 | Spring Boot 내장 | 하지 않는다 | 토큰을 브라우저가 들고 다니는 구조라 서버 템플릿이 할 일이 없고, JVM이 늘거나 Gateway 재빌드에 화면이 묶인다 |
 | 실행 | 별도 nginx 컨테이너 | Node로 빌드한 정적 파일을 nginx가 내준다. 다른 팀원은 Node 없이 compose를 띄운다 |
 | API 연결 | nginx가 `/api/`를 `gateway:8080`으로 중계 | 브라우저는 한 출처만 본다. Gateway·백엔드 계약은 바뀌지 않는다 |
 | CORS | 넣지 않는다 | 같은 출처라 필요 없다. 로컬은 Vite `server.proxy`가 같은 역할을 한다 |
-| 토큰 | Access는 JS 메모리, 입장 토큰은 `sessionStorage`(계약대로). Refresh 위치는 인증 화면 설계 때 정한다 | 현재 계약 그대로 쓴다 |
+| 토큰 | Access는 JS 메모리, Refresh와 입장 토큰은 탭 단위 `sessionStorage` | 새로고침에도 로그인이 유지되고, 서버가 사용자당 Refresh 토큰 하나를 재발급마다 바꾸는 구조와 맞는다(ADR 0040 4절, ISE-110) |
 
 ## 구조
 
@@ -62,6 +62,23 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 선후 관계: ISE-107이 기반 이슈(108~111)를 막고, 화면 이슈는 ISE-110·111 뒤에 시작한다. 디자인 시스템 구현(111)은 설계(106) 뒤다.
 
 화면이 따를 규칙의 정본은 SA 11장과 각 계약 문서다: [대기열](../queue/contracts.md) 2절, [예매](../reservation/contracts.md), [결제 API](../payment/api.md).
+
+## API 클라이언트 규칙 (ISE-110)
+
+화면은 `fetch`를 직접 부르지 않고 `frontend/src/api/`의 함수를 쓴다. 아래 규칙은 그 안에 한 번만 구현돼 있다.
+
+| 규칙 | 동작 | 화면이 할 일 |
+|---|---|---|
+| 공통 응답 | 성공은 `data`만 돌려주고, 실패는 `ApiError`(`status`·`code`·`fieldErrors`·`traceId`)로 던진다. 성공 `data`는 Zod 스키마로 검증해 계약이 어긋나면 `RESPONSE_SCHEMA_MISMATCH`로 멈춘다 | 안내 문구는 `describeError(error)`로 얻는다(design-system.md 6절 표를 코드로 옮긴 것) |
+| 401 | Gateway는 만료된 Access 토큰에 `UNAUTHORIZED`를 준다(`TOKEN_EXPIRED`가 아니다). 그래서 코드가 아니라 401이면 재발급을 한 번 하고 같은 요청을 다시 보낸다. 동시에 받은 401은 재발급 하나를 함께 기다린다 | 재발급도 실패하면 세션이 지워진다. 로그인 여부(`useIsSignedIn`)를 보고 로그인 화면으로 보내고, 돌아올 경로를 남긴다. `logout()`은 서버 요청이 실패해도 던지지 않으므로 끝나면 바로 로그인 화면으로 보내고 `queryClient.clear()`로 이전 사용자의 조회 결과를 지운다 |
+| 멱등키 | 선점·결제 함수는 `Idempotency-Key`를 인자로 받는다. 401 뒤 재시도는 같은 키와 같은 본문(복사해 둔 값)을 쓴다 | 의도마다 `newIdempotencyKey()`로 하나 만든다. `isOutcomeUnknown(error)`(응답 없음·504)면 실패로 보이지 말고 같은 키와 같은 본문으로 다시 보내거나 결과를 조회한다. 고른 좌석이 바뀌거나 예매 조회로 결제 토큰을 다시 받았으면 새 키로 보낸다(결제 토큰 원문도 본문 비교에 들어간다) |
+| 입장 토큰 | `issueEntryToken`이 회차별로 저장하고, 좌석 조회·선점이 `X-Entry-Token`으로 붙인다. 저장한 토큰이 없으면 요청 없이 403 `ENTRY_TOKEN_INVALID`, 서버가 403을 주면 그 요청이 보낸 토큰만 지운다. 브라우저 시계로는 지우지 않는다(시계가 빠르면 대기열과 좌석 화면을 끝없이 오간다) | 대기열 진입 전에 `readEntryToken(scheduleId)`가 있고 `isEntryTokenFresh`면 대기열을 건너뛴다(서버 시각으로 보정한 now를 넘기면 더 정확하다). 403이면 대기열로 보낸다 |
+| 조회 재시도 | TanStack Query 기본값: 연결 실패와 5xx만 두 번까지, `Retry-After`가 있으면 그 초에 0~+20%를 더해 기다린다 | 변경 요청은 자동 재시도하지 않는다. 결제 202·504의 "확인 중" 처리는 결제 화면(ISE-116)이 한다 |
+| 목 | `npm run dev:mock`이면 MSW가 계약대로 응답한다. 주소에 `?mock=seat-conflict,payment-unknown`처럼 실패 시나리오를 고른다 | 시나리오 목록은 `frontend/README.md` |
+
+- 결제 `APPROVED`는 예매 확정이 아니다. 결과 화면은 `getReservation`이 `CONFIRMED`가 될 때까지 다시 조회한다(목도 승인 직후 한 번은 `HELD`를 준다).
+- 접수형 선점(202 `REQUESTED`)은 M4 고도화 모드라 응답 스키마에 아직 없다. ISE-120에서 더한다.
+- 목 핸들러는 일반 예매 흐름(SA 2-4)만 있다. 취소·추첨·운영자 API는 그 화면 이슈에서 더한다.
 
 ## 팀원이 알아 둘 것
 
