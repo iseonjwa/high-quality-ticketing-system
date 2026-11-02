@@ -29,4 +29,19 @@ class PaymentCommandKafkaConfiguration {
                 PaymentCommandErrorHandlers.create(kafkaTemplate, PaymentCommandErrorHandlers.productionBackOff()));
         return factory;
     }
+
+    /**
+     * {@code payment.command.dlq} 전용 컨테이너 팩토리. {@link #paymentCommandListenerFactory}와 같은 방식으로 공통 설정을
+     * 먼저 적용하고 ack-mode RECORD, 동시성 1로 고정한다. 오류 처리기는 DLQ 규칙(복구기 없이 무제한 백오프)이다.
+     */
+    @Bean(PaymentCommandDlqListener.CONTAINER_FACTORY)
+    ConcurrentKafkaListenerContainerFactory<Object, Object> paymentCommandDlqListenerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory) {
+        var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
+        configurer.configure(factory, consumerFactory);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.setConcurrency(1);
+        factory.setCommonErrorHandler(PaymentCommandDlqErrorHandlers.create(PaymentCommandDlqErrorHandlers.productionBackOff()));
+        return factory;
+    }
 }

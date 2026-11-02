@@ -24,10 +24,13 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 // Note: 테스트 프로필은 listener.auto-startup=false라 브로커 없이 컨텍스트가 뜬다. 컨테이너는 만들어지지만 시작하지 않는다.
@@ -73,6 +76,47 @@ class PaymentCommandContainerWiringTest {
     @Test
     void 오류_처리기를_전역_CommonErrorHandler_빈으로_등록하지_않는다() {
         assertTrue(context.getBeansOfType(CommonErrorHandler.class).isEmpty());
+    }
+
+    @Test
+    void DLQ_리스너는_전용_팩토리의_ack_mode_RECORD_컨테이너로_등록된다() {
+        var container = dlqContainer();
+
+        assertEquals(ContainerProperties.AckMode.RECORD, container.getContainerProperties().getAckMode());
+        assertEquals("payment.command-dlq", container.getGroupId());
+        assertEquals(List.of("payment.command.dlq"), List.of(container.getContainerProperties().getTopics()));
+        assertEquals(false, container.isAutoStartup());
+        assertTrue(context.containsBean("paymentCommandDlqListenerFactory"));
+    }
+
+    @Test
+    void DLQ_컨테이너의_오류_처리기는_payment_command_컨테이너의_것과_다르다() {
+        var dlqHandler = ((AbstractMessageListenerContainer<?, ?>) dlqContainer()).getCommonErrorHandler();
+        var commandHandler = ((AbstractMessageListenerContainer<?, ?>) paymentCommandContainer()).getCommonErrorHandler();
+
+        assertNotNull(dlqHandler);
+        assertNotSame(commandHandler, dlqHandler);
+    }
+
+    @Test
+    void DLQ_컨테이너의_오류_처리기는_복구기가_없어_다른_토픽으로_보내지_않고_재시도_대기한다() {
+        CommonErrorHandler handler = ((AbstractMessageListenerContainer<?, ?>) dlqContainer()).getCommonErrorHandler();
+        var record = new ConsumerRecord<Object, Object>("payment.command.dlq", 0, 5L, "8800002", "raw");
+
+        // 내용 오류 예외여도 DLQ 처리기는 건너뛰거나 보내지 않고 같은 레코드를 다시 처리해야 한다
+        var thrown = assertThrows(RuntimeException.class, () -> handler.handleRemaining(
+                new ListenerExecutionFailedException("failed", new NonRetryableMessageException("검증 실패")),
+                List.of(record), mock(Consumer.class), mock(MessageListenerContainer.class)));
+
+        assertEquals("RecordInRetryException", thrown.getClass().getSimpleName());
+        verify(kafkaTemplate, never()).send(any(ProducerRecord.class));
+    }
+
+    private MessageListenerContainer dlqContainer() {
+        return registry.getAllListenerContainers().stream()
+                .filter(c -> "payment.command-dlq".equals(c.getGroupId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("payment.command-dlq 컨테이너가 없다"));
     }
 
     private MessageListenerContainer paymentCommandContainer() {
