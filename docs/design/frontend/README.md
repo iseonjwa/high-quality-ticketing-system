@@ -40,7 +40,7 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 | | ISE-106 | 디자인 시스템 설계(토큰·컴포넌트 목록·화면 상태) | — |
 | | ISE-107 | Vite·React·TypeScript 스캐폴딩, 도구 설정, 버전 고정 | — |
 | | ISE-108 | 프론트 CI 워크플로, Java 빌드 `paths` 필터 | — |
-| | ISE-109 | nginx 컨테이너(중계·SPA 폴백), compose 서비스, 포트 검사. `contract` 이슈 필요 | — |
+| | ISE-109 | nginx 컨테이너(중계·SPA 폴백), compose 서비스, 포트 검사, 보안그룹·배포 바인딩 | — |
 | | ISE-110 | API 클라이언트·인증 처리(재발급·멱등키·입장 토큰), MSW 목 기반 | — |
 | | ISE-111 | 디자인 시스템 토큰과 기본 컴포넌트 | — |
 | 1. 일반 예매 (SA 2-4 시연) | ISE-112 | 로그인·회원가입·비밀번호 변경 | 있음 |
@@ -67,7 +67,7 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 
 - Notion 「SA 기획·설계 결정 기록」 #7은 "정적 HTML·JS"로 남아 있다. 프론트 결정은 이 문서와 ADR 0040을 따른다. 저장소 기록과 Notion이 어긋나면 저장소 기록을 따른다(`AGENTS.md` 대전제 4).
 - Gateway와 백엔드 API 계약은 바뀌지 않는다. CORS 설정도 넣지 않는다.
-- compose에 frontend 서비스가 추가되면 공개 포트가 바뀐다. 보안그룹(SA 9-2), 배포 바인딩, `checkPortExposure` 공개 목록 변경은 그때 `contract` 이슈로 알린다.
+- compose에 frontend 서비스가 추가되면 공개 포트가 바뀐다. 보안그룹(SA 9-2), 배포 바인딩, `checkPortExposure` 공개 목록은 ISE-109에서 함께 고친다(배포 담당도 안준현, ISE-6). 로컬 `docker compose up`에 frontend 빌드가 더해지는 점은 그 PR과 팀 공지로 알린다.
 
 ## 관련 기록
 

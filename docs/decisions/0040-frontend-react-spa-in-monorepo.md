@@ -104,5 +104,5 @@ React 말고 다른 프레임워크는 아래 이유로 고르지 않았다.
 - 후속 작업 (Linear ISE-104 하위 이슈):
   - ISE-107: 스캐폴딩, 루트 `.dockerignore`에 `frontend/node_modules` 추가, 버전 고정 후 이 문서에 추가
   - ISE-108: `.github/workflows/build.yml`에 `paths` 필터를 넣어 화면만 바뀐 PR에 Java 빌드가 돌지 않게 함. 프론트 빌드·테스트 워크플로 추가
-  - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩 변경을 배포 담당에게 `contract` 이슈로 알림(배포 담당 미정, ISE-6)
+  - ISE-109: compose에 frontend 서비스 추가, `checkPortExposure`의 공개 서비스 목록에 frontend 추가(`docs/guides/workspace.md` 포트 규칙). 외부 공개 포트가 바뀌므로 SA 9-2 보안그룹 규칙표와 배포 바인딩도 함께 고친다. 배포 담당(ISE-6)도 안준현이라 이 이슈 안에서 처리하고, 팀원 로컬 기동이 바뀌는 compose 변경은 PR 본문과 팀 공지로 알린다
   - ISE-110: Refresh 토큰 보관 위치를 정해 이 문서 4절에 추가
