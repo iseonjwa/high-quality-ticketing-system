@@ -91,6 +91,17 @@ public class PaymentTransitionService {
         return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_UNRESOLVED", actor, now);
     }
 
+    // 환불 워커가 환불 전이와 같은 트랜잭션에서 부른다. refundedAt은 PG가 환불한 시각이다.
+    @Transactional
+    public boolean markRefunded(Long paymentId, PaymentStatus from, Instant refundedAt, StatusActor actor) {
+        from.requireTransitionTo(PaymentStatus.REFUNDED);
+        var now = clock.instant();
+        var changed = payments.markRefunded(paymentId, from, refundedAt, now);
+        if (!recordIfChanged(changed, paymentId, from, PaymentStatus.REFUNDED, null, actor, now)) return false;
+        resultPublisher.publishRefunded(payments.findById(paymentId).orElseThrow(), refundedAt);
+        return true;
+    }
+
     private boolean recordIfChanged(boolean changed, Long paymentId, PaymentStatus from, PaymentStatus to,
             String reason, StatusActor actor, Instant now) {
         if (!changed) {
