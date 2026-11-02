@@ -46,16 +46,19 @@ public class SeatHoldExpiryService {
     private final ReservationStatusHistoryRepository histories;
     private final UserScheduleQuotaRepository quotas;
     private final SeatHoldInventoryRepository inventory;
+    private final LotteryHoldExpiryHook lotteryHook;
     private final Clock clock;
 
     public SeatHoldExpiryService(ReservationRepository reservations, ReservationSeatRepository reservationSeats,
             ReservationStatusHistoryRepository histories, UserScheduleQuotaRepository quotas,
-            SeatHoldInventoryRepository inventory, @Qualifier("commonAuditingClock") Clock clock) {
+            SeatHoldInventoryRepository inventory, LotteryHoldExpiryHook lotteryHook,
+            @Qualifier("commonAuditingClock") Clock clock) {
         this.reservations = reservations;
         this.reservationSeats = reservationSeats;
         this.histories = histories;
         this.quotas = quotas;
         this.inventory = inventory;
+        this.lotteryHook = lotteryHook;
         this.clock = clock;
     }
 
@@ -66,10 +69,19 @@ public class SeatHoldExpiryService {
 
     /**
      * 예매 한 건을 만료한다. 이미 다른 상태로 바뀌었거나 아직 기한 전이면 아무것도 하지 않고 false를 돌려준다.
+     * 추첨 당첨 예매는 첫 만료 때 선점을 한 번 연장하고 false를 돌려준다(D12).
      */
     @Transactional
     public boolean expire(Long reservationId) {
         var now = clock.instant();
+        // Note: 추첨 예매가 HELD인 채 기한을 넘겼다면 결제 결과를 받지 못한 것이다(결과가 오면 HELD가 아니다).
+        // outbox·Kafka·결제 장애일 수 있어 당첨자를 바로 떨어뜨리지 않고 같은 예매로 한 번 더 기다린다(D12)
+        var lotteryLimit = lotteryHook.extensionLimit(reservationId);
+        if (lotteryLimit.isPresent()
+                && reservations.extendLotteryHoldOnce(reservationId, now, lotteryLimit.get(), SYSTEM_ACTOR) == 1) {
+            log.info("추첨 예매 선점 1회 연장: reservationId={}", reservationId);
+            return false;
+        }
         if (reservations.expireHeld(reservationId, now, SYSTEM_ACTOR) == 0) {
             return false;
         }
@@ -80,7 +92,9 @@ public class SeatHoldExpiryService {
         releaseQuota(reservation, now);
         histories.save(ReservationStatusHistory.of(reservationId, ReservationStatus.HELD, ReservationStatus.EXPIRED,
                 EXPIRED_REASON, now));
-        // TODO(ISE-88): source = LOTTERY 예매면 추첨 만료 훅(onExpired)을 같은 트랜잭션에서 호출한다
+        if (lotteryLimit.isPresent()) {
+            lotteryHook.onExpired(reservationId);
+        }
         return true;
     }
 

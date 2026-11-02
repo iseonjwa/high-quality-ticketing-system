@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -138,4 +139,10 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
                            WHERE lottery_id = :lotteryId AND status IN ('WON', 'WAITLISTED'))
             """)
     boolean hasUnsettled(@Param("lotteryId") Long lotteryId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT l.draw_at FROM lottery_entries e JOIN lotteries l ON l.id = e.lottery_id
+            WHERE e.reservation_id = :reservationId AND e.status = 'WON'
+            """)
+    List<Instant> findWonDrawAtByReservationId(@Param("reservationId") Long reservationId);
 }
