@@ -8,6 +8,8 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA대로 고치는 안(1안) 선택, SA를 단일 401로 바꾸는 안은 고르지 않음 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-gateway-token-expired-code.md) |
+| 2026-11-02 | 프론트 Refresh 토큰을 탭 단위 `sessionStorage`에 두는 제안(ADR 0040 4절) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-refresh-token-session-storage.md) |
 | 2026-11-02 | 좌석 선택 샘플과 디자인 시스템 초안(이선좌 워드마크, 인디고, 검정+체크 선택 좌석)을 그대로 확정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-design-system-sample-accepted.md) |
 | 2026-11-02 | "Notion보다 저장소 기록 우선"을 개인 전역 지침에 넣은 AI 처리를 바로잡아 팀 규칙(`AGENTS.md` 대전제 4)으로 올림 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-docs-first-as-team-rule.md) |
 | 2026-11-02 | 프론트 결정을 Notion 결정 기록에 반영하자는 제안 대신 저장소 docs에 기록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-records-in-docs-over-notion.md) |

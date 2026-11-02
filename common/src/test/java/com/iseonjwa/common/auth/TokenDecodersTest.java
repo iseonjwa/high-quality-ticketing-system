@@ -15,7 +15,9 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TokenDecodersTest {
     private static final String SECRET = "test-access-secret-that-is-at-least-32-bytes-long";
@@ -34,6 +36,33 @@ class TokenDecodersTest {
         var token = token(SECRET, ISSUER, "iseonjwa-api", "access", "USER", -120);
 
         assertThrows(JwtException.class, () -> accessDecoder.decode(token));
+    }
+
+    @Test
+    void 만료_실패는_만료로_구분한다() {
+        var token = token(SECRET, ISSUER, "iseonjwa-api", "access", "USER", -120);
+
+        var exception = assertThrows(JwtException.class, () -> accessDecoder.decode(token));
+
+        assertTrue(TokenDecoders.isExpired(exception));
+    }
+
+    @Test
+    void 서명이_틀린_만료_토큰은_만료로_보지_않는다() {
+        var token = token(SECRET + "other", ISSUER, "iseonjwa-api", "access", "USER", -120);
+
+        var exception = assertThrows(JwtException.class, () -> accessDecoder.decode(token));
+
+        assertFalse(TokenDecoders.isExpired(exception));
+    }
+
+    @Test
+    void 만료가_아닌_검증_실패는_만료로_보지_않는다() {
+        var token = token(SECRET, "other", "iseonjwa-api", "access", "USER", 1800);
+
+        var exception = assertThrows(JwtException.class, () -> accessDecoder.decode(token));
+
+        assertFalse(TokenDecoders.isExpired(exception));
     }
 
     @Test

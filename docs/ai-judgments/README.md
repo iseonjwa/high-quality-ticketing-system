@@ -31,7 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 24건, 일지 5일 |
+| [junhyun](junhyun/README.md) | 개별 기록 26건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 39건, 일지 7일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
@@ -42,6 +42,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA 11-3대로 고침(ISE-131) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-gateway-token-expired-code.md) |
+| 2026-11-02 | 프론트 Refresh 토큰은 탭 단위 `sessionStorage`, Access 토큰은 메모리(ADR 0040 4절) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-refresh-token-session-storage.md) |
 | 2026-11-02 | 프론트 디자인 시스템 확정: 이선좌 워드마크, 인디고 주 색, 좌석 상태 규칙(409 뒤 빠진 좌석만 풀기, 좌석 바뀌면 새 멱등키) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-design-system-sample-accepted.md) |
 | 2026-11-02 | **팀 규칙 변경: 결정·논의·학습 기록은 Notion보다 저장소 `docs/`에 먼저 남기고, 어긋나면 저장소 기록을 따른다(`AGENTS.md` 대전제 4). AI가 개인 전역 지침에 넣은 것을 바로잡음** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-docs-first-as-team-rule.md) |
 | 2026-11-02 | 프론트 결정은 Notion 결정 기록 #7을 고치지 않고 저장소 docs(ADR 0040, `docs/design/frontend/`)에 기록 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-records-in-docs-over-notion.md) |
