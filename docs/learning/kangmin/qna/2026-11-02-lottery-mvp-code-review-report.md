@@ -37,7 +37,7 @@ tags: [lottery, transaction, locking, idempotency, postgresql, spring, gateway, 
    │                                        └ 처리기를 부르는 소비자·만료 연결: ISE-143 (M3)
 승계 워커(1초) WAITLISTED → WON ─── ISE-93 (#211) 빈 자리만큼 예비자 승격 → 다시 배정 워커
 승계 마감(10초) WAITLISTED → LOST ─ ISE-93 추첨 후 30분
-종결 DRAWN → DONE, 추첨석 반환 ──── ISE-91 (진행 중)
+종결(1분) DRAWN → DONE, 추첨석 반환 ISE-91 (#224)
 ```
 
 일반 예매 쪽에서 오늘 함께 한 것: Gateway 입장 토큰 필터 ISE-58 (#208). 좌석 조회·선점 앞에서 대기열을 거쳤는지 확인한다.
@@ -419,6 +419,74 @@ public int succeed(Long lotteryId) {
 
 ---
 
+## 8-1. ISE-91 · PR #224 — 종결 스케줄러와 추첨석 반환
+
+### 8-1-1. 무엇을 만들었나
+- `LotteryFinishService.finish`: 끝난 추첨을 `DRAWN → DONE`으로 바꾸고, 같은 트랜잭션에서 그 회차의 `LOTTERY` 좌석을 상태(AVAILABLE·HELD·SOLD)와 상관없이 `source_grade`로 되돌린다(D9·D14).
+- `LotteryFinishScheduler`(1분): 후보마다 `finish`를 부르고, 실패해도 다음 추첨은 계속한다. 지표 `lottery.seats.remaining`(전체 남은 추첨석 수)을 1분마다 갱신한다.
+- concert 저장소 `revertAllFromLottery`·`countAllLotterySeats`, lottery 저장소 `findFinishDueIds`·`lockForFinish`·`markDone`·`hasUnsettled`, 포트 `LotterySeatPort`에 같은 이름의 메서드 2개.
+
+### 8-1-2. 코드
+```java
+@Transactional
+public Optional<Integer> finish(Long lotteryId) {
+    var lottery = lotteryRepository.lockForFinish(lotteryId);            // ① 추첨 행 FOR UPDATE SKIP LOCKED
+    if (lottery.isEmpty() || lotteryEntryRepository.hasUnsettled(lotteryId)) {  // ② 잠금 뒤 새 문장으로 재확인
+        return Optional.empty();
+    }
+    lotteryRepository.markDone(lotteryId);                               // ③ DRAWN일 때만 DONE
+    return Optional.of(lotterySeatPort.revertAllFromLottery(              // ④ 같은 트랜잭션에서 반환
+            lottery.get().getScheduleId(), lottery.get().getSourceGrade(), null));
+}
+```
+```sql
+-- ④ 상태 조건 없이 등급만 되돌린다
+UPDATE schedule_seats SET grade = :sourceGrade, updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
+WHERE schedule_id = :scheduleId AND grade = 'LOTTERY' AND deleted_at IS NULL
+```
+- ① 승계 워커(8장)와 **같은 추첨 행 잠금**을 쓴다. 승계가 진행 중이면 종결은 건너뛰고 다음 주기에 다시 본다. 반대로 종결이 잡고 있으면 승계가 건너뛴다. 그래서 "남은 좌석 계산 → 예비자 승격"과 "좌석 반환"이 엇갈리지 않는다.
+- ② **잠금 뒤 다시 확인하는 이유**: 후보 목록(`findFinishDueIds`)은 잠금 없이 고른다. 고른 뒤 잠금을 얻기 전에 승계가 커밋됐을 수 있다. PostgreSQL 기본 격리 수준 READ COMMITTED는 **문장마다 새 스냅샷**을 쓰므로, 잠금을 얻은 뒤 새 문장(`hasUnsettled`)으로 물으면 그 사이 커밋된 WON도 보인다. 후보 조회 결과만 믿으면 이 경합을 놓친다.
+- ③④ 한 트랜잭션이라 "DONE인데 좌석이 아직 LOTTERY"인 상태가 생기지 않는다. 롤백되면 DONE과 반환이 함께 취소된다(테스트로 확인). `actorId`는 시스템 작업이라 `null`이다.
+
+### 8-1-3. 판단: 종결 조건에 WAITLISTED를 더했다
+| 선택지 | 결과 |
+|---|---|
+| A. 이슈 문구대로 "미종결 WON이 없음" | 당첨이 모두 실패하고 승계 전이면 바로 종결된다. 이후 예비자가 WON이 돼도 좌석이 이미 S석으로 돌아가 배정이 `NO_SEAT`로 실패한다 |
+| B. WON·WAITLISTED가 모두 없음(선택) | 승계될 수 있는 예비자가 있으면 기다린다. 승계 마감(추첨 후 30분) 뒤에는 예비자가 LOST가 되므로 종결 상한 T+60분(D14)은 그대로다 |
+
+감수한 점: 좌석이 이미 모두 팔려(PAID) 승계할 자리가 없어도, 예비자가 남아 있으면 승계 마감까지 최대 30분 종결이 늦어진다. 남은 추첨석이 없으니 일반 판매에 손해는 없다. 설계 문서 `details.md` 4절 종결 행과 Linear 이슈 범위에 반영했다.
+
+### 8-1-4. HELD·SOLD 추첨석도 되돌리는 이유(D9)
+- SOLD: 팔린 추첨석은 `reservations.source = 'LOTTERY'`로 구분되므로 좌석 등급이 S로 바뀌어도 기록은 남는다.
+- HELD: 결제 실패한 예매의 좌석이 아직 풀리지 않았을 수 있다. 등급만 S로 바꿔 두면, 나중에 예매 흐름이 좌석을 AVAILABLE로 풀 때 바로 일반 판매에 나온다. AVAILABLE만 되돌리면 이 좌석은 영원히 LOTTERY로 남는다.
+
+### 8-1-5. 지표 설계
+`lottery.seats.remaining`은 모든 회차의 남은 추첨석 수다. 진행 중인 추첨이 없는데 0이 아니면 반환이 빠졌다는 신호다(`details.md` 5절 "종결 반환 누락").
+- 왜 Prometheus 수집 때마다 DB를 세지 않고 스케줄러가 1분마다 값을 넣나: 수집 주기(15초)마다 좌석 테이블을 세면 부하를 통제하기 어렵다. 종결 주기와 같은 1분이면 충분하다.
+- 왜 "DONE 추첨 회차의 남은 추첨석"이 아니라 전체 수인가: 그렇게 세려면 좌석 테이블과 추첨 테이블을 조인해야 하는데, 모듈 경계(lottery 쿼리는 lottery 테이블만, 좌석은 concert 저장소만)를 넘는다. 전체 수로 단순하게 두었다.
+
+### 8-1-6. 테스트가 증명하는 것
+| 테스트(`LotteryFinishTest`) | 증명 |
+|---|---|
+| 끝나지 않은 응모가 없으면 DONE, 추첨석 모두 원래 등급 | AVAILABLE·HELD·SOLD 추첨석 4개가 S로, 좌석 상태는 그대로, 일반 좌석은 영향 없음, 두 번째 호출은 빈 결과(멱등) |
+| 결제가 끝나지 않은 당첨이 남아 있으면 종결하지 않음 | 완료 기준 2 |
+| 승계될 수 있는 예비자가 남아 있으면 종결하지 않음 | 8-1-3 판단 |
+| 다른 워커가 추첨 행을 잡고 있으면 건너뜀 | 잠금 공유. 잠금을 기다리지 않고 빈 결과, 풀린 뒤 종결 |
+| 종결 트랜잭션이 롤백되면 DONE과 반환이 함께 취소 | 완료 기준 1(같은 트랜잭션) |
+
+변이 테스트: `hasUnsettled` 확인 삭제 → WON·WAITLISTED 테스트 2개 실패, 조건에서 WAITLISTED 제외 → 예비자 테스트 1개 실패. reservation-service 전체 202개 통과.
+
+### 8-1-7. 리뷰 의견
+- 남은 위험: 종결 뒤 늦게 도착한 결제 결과(예: 만료 뒤 승인)는 응모 상태를 바꾸지 못한다(`WHERE status='WON'`). 환불은 예매 흐름의 `RefundRequested` 경로가 맡는다(ISE-143에서 E2E 확인).
+- 후보 조회 `findFinishDueIds`는 1분마다 DRAWN 추첨 수만큼 `NOT EXISTS`를 돈다. 동시에 DRAWN인 추첨은 몇 개뿐이라 문제없다고 보았다(측정 안 함).
+
+### 8-1-8. 예상 질문
+- "종결과 승계가 동시에 돌면?" → 같은 추첨 행을 `FOR UPDATE SKIP LOCKED`로 잡으므로 한쪽만 진행하고 다른 쪽은 다음 주기로 미룬다.
+- "후보를 고를 때 조건을 확인했는데 왜 또 확인하나?" → 후보 조회는 잠금 없이 하므로 그 뒤 승계가 커밋될 수 있다. READ COMMITTED는 문장마다 새 스냅샷이라 잠금 뒤 새 문장으로 확인하면 최신 상태를 본다.
+- "팔린 좌석까지 등급을 바꿔도 되나?" → 등급은 판매 구분용이고 판매 기록은 예매의 `source`가 가진다. 바꿔야 종결 뒤 풀리는 좌석이 일반 판매로 돌아간다.
+
+---
+
 ## 9. ISE-141 · PR #216, ISE-144 — 이슈·PR 메타데이터 규칙과 일괄 정리, 추첨 마일스톤 재배치
 
 - GitHub 마일스톤 M1~M4를 Linear와 같은 이름·기간으로 만들고, 팀 전체 PR·이슈 185건의 담당자·라벨·마일스톤 빈칸을 Linear 기준으로 채웠다(덮어쓰지 않음).
@@ -477,6 +545,7 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 | 결제 결과가 두 번 오면? | "연결된 WON만" 바꾸는 조건부 UPDATE라 두 번째는 0행 |
 | NOT_SENT를 같은 예매로 재결제하지 않는 이유? | 결제는 예매당 1건(ADR 0026), 새 예매로 1회만 재시도(ADR 0038) |
 | 승계가 좌석 수를 넘지 않는 근거는? | 추첨 행 잠금으로 계산·승격을 직렬화, 다른 워커는 건너뜀 |
+| 종결 전에 좌석을 돌려주지 않는다는 근거는? | 추첨 행 잠금 뒤 새 문장으로 WON·WAITLISTED가 없음을 확인하고, DONE과 반환을 한 트랜잭션에서 한다 |
 | 시스템 선점을 트랜잭션 밖에서 부르면? | `MANDATORY`라 즉시 예외, 예매만 남는 일을 막음 |
 | Gateway가 입장 토큰의 회차를 어떻게 아나? | `PathPattern.matchAndExtract`로 경로 `{scheduleId}`를 꺼내 claim과 비교 |
 | 낙첨에 순위를 저장하지 않는 이유? | 쓰기 수만 건을 줄여 추첨 트랜잭션을 짧게(D8). 필요하면 시드로 재계산 가능 |
@@ -489,7 +558,6 @@ PR B를 PR A의 브랜치 위에서 만들었는데 A가 squash로 머지되면,
 |---|---|
 | 결제 결과 소비자·만료 스케줄러 연결, 추첨 E2E, D14 안내, Gateway 공개 경로 | ISE-143 (M3) |
 | 자동결제 요청 발행(outbox), 빌링키 자동결제 | ISE-92·96·89 (M2) |
-| 종결과 추첨석 반환 | ISE-91 (M2, 진행 중) |
 | 측정 시나리오 1·2·3, 지표 대시보드 | ISE-94 (M4) |
 | 좌석 전환 중 선점 겹침, 매수 한도 동시성(TS-2) | M4 동시성 트러블슈팅 |
 | 추첨 시간 0.5초/4.5초 두 갈래 원인 | 미확인, 배포 환경에서 재측정 |
