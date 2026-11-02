@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import { expireSession, sessionStore } from '@/auth/session'
 import { DEMO_USER, TEMPORARY_PASSWORD_USER } from '@/mocks/db'
@@ -136,48 +136,6 @@ describe('LoginPage', () => {
     const { router } = renderRoutes(routes, '/login')
 
     expect(router.state.location.pathname).toBe('/')
-  })
-
-  describe('개발 서버 전용 빠른 로그인', () => {
-    afterEach(() => {
-      vi.unstubAllEnvs()
-    })
-
-    it('계정 설정이 없으면 버튼을 보이지 않는다', () => {
-      renderRoutes(routes, '/login')
-
-      expect(
-        screen.queryByRole('group', { name: '개발 서버 전용 빠른 로그인' }),
-      ).not.toBeInTheDocument()
-    })
-
-    it('관리자 버튼을 누르면 칸에 계정을 채워 로그인하고 돌아갈 곳으로 간다', async () => {
-      vi.stubEnv('VITE_QUICK_LOGIN_USER_EMAIL', DEMO_USER.email)
-      vi.stubEnv('VITE_QUICK_LOGIN_USER_PASSWORD', DEMO_USER.password)
-      vi.stubEnv('VITE_QUICK_LOGIN_ADMIN_EMAIL', 'admin@iseonjwa.dev')
-      vi.stubEnv('VITE_QUICK_LOGIN_ADMIN_PASSWORD', 'password1234')
-      const { router } = renderRoutes(routes, '/me')
-
-      const quickLogin = within(screen.getByRole('group', { name: '개발 서버 전용 빠른 로그인' }))
-      expect(quickLogin.getByRole('button', { name: '일반 사용자로 로그인' })).toBeInTheDocument()
-      await userEvent.click(quickLogin.getByRole('button', { name: '관리자로 로그인' }))
-
-      expect(await screen.findByText('admin@iseonjwa.dev')).toBeInTheDocument()
-      // 닉네임과 회원 구분이 모두 "운영자"다
-      expect(screen.getAllByText('운영자', { selector: 'dd' })).toHaveLength(2)
-      expect(router.state.location.pathname).toBe('/me')
-    })
-
-    it('빠른 로그인도 실패하면 직접 입력했을 때와 같은 안내를 보인다', async () => {
-      vi.stubEnv('VITE_QUICK_LOGIN_USER_EMAIL', DEMO_USER.email)
-      vi.stubEnv('VITE_QUICK_LOGIN_USER_PASSWORD', 'not-the-password')
-      renderRoutes(routes, '/login')
-
-      await userEvent.click(screen.getByRole('button', { name: '일반 사용자로 로그인' }))
-
-      expect(await screen.findByText('이메일 또는 비밀번호를 확인해 주세요')).toBeInTheDocument()
-      expect(screen.getByLabelText('이메일')).toHaveValue(DEMO_USER.email)
-    })
   })
 
   it('회원가입 링크는 돌아갈 곳을 이어 넘긴다', async () => {

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { isApiError } from '@/api/apiError'
@@ -9,7 +9,6 @@ import { describeError, ERROR_NOTICES } from '@/api/errorMessages'
 import { paths } from '@/app/paths'
 import { loginSchema, MAX_LOGIN_FAILURES, type LoginValues } from '@/auth/formSchemas'
 import { readAuthState, returnPathOf, type AuthNavigationState } from '@/auth/navigation'
-import { quickLoginAccounts, type QuickLoginAccount } from '@/auth/quickLogin'
 import { useIsSessionExpired, useIsSignedIn } from '@/auth/session'
 import { applyFieldErrors } from '@/components/form/applyFieldErrors'
 import { PasswordField } from '@/components/form/PasswordField'
@@ -34,10 +33,6 @@ export function LoginPage() {
     defaultValues: { email: authState.email ?? '', password: '' },
   })
   const { errors, isSubmitting, submitCount } = form.formState
-  // DEV를 여기서도 직접 검사해야 운영 빌드에서 아래 버튼 묶음이 통째로 빠진다
-  const quickAccounts = import.meta.env.DEV ? quickLoginAccounts() : []
-  const quickLoginLabelId = useId()
-  const [quickRole, setQuickRole] = useState<QuickLoginAccount['role'] | null>(null)
 
   // Note: 로그인에 성공하면 토큰이 저장되면서 이 화면이 다시 그려지고 여기서 돌아갈 경로로 보낸다.
   // 성공 처리에서 따로 이동하지 않아 이동이 한 번만 일어난다. 이미 로그인한 채로 들어와도 같은 길이다.
@@ -78,22 +73,6 @@ export function LoginPage() {
       if (!applyFieldErrors(error, form.setError, ['email', 'password'])) {
         setFormError(error)
       }
-    }
-  }
-
-  // 빠른 로그인은 칸에 계정을 채운 뒤 같은 로그인 처리를 탄다. 무엇으로 로그인하는지 칸에 보이고,
-  // 잠금·임시 비밀번호 같은 실패도 직접 입력했을 때와 같게 안내한다.
-  async function handleQuickLogin(account: QuickLoginAccount) {
-    if (isSubmitting) {
-      return
-    }
-    setQuickRole(account.role)
-    setFailedOnce(false)
-    form.reset({ email: account.email, password: account.password })
-    try {
-      await form.handleSubmit(handleLogin)()
-    } finally {
-      setQuickRole(null)
     }
   }
 
@@ -147,38 +126,10 @@ export function LoginPage() {
           }
           {...form.register('password')}
         />
-        <Button
-          type="submit"
-          size="lg"
-          className="mt-1 w-full"
-          loading={isSubmitting && quickRole === null}
-        >
+        <Button type="submit" size="lg" className="mt-1 w-full" loading={isSubmitting}>
           로그인
         </Button>
       </form>
-      {import.meta.env.DEV && quickAccounts.length > 0 ? (
-        <div role="group" aria-labelledby={quickLoginLabelId} className="mt-6 grid gap-3">
-          <div className="flex items-center gap-3 type-caption text-gray-400">
-            <span aria-hidden="true" className="h-px flex-1 bg-gray-100" />
-            <span id={quickLoginLabelId}>개발 서버 전용 빠른 로그인</span>
-            <span aria-hidden="true" className="h-px flex-1 bg-gray-100" />
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {quickAccounts.map((account) => (
-              <Button
-                key={account.role}
-                type="button"
-                variant="outline"
-                size="sm"
-                loading={quickRole === account.role}
-                onClick={() => void handleQuickLogin(account)}
-              >
-                {account.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </AuthCard>
   )
 }
