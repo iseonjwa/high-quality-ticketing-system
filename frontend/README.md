@@ -21,7 +21,7 @@ npm run dev      # http://localhost:5173
 npm run dev:mock   # MSW가 계약 문서대로 응답한다
 ```
 
-- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호). 공연 7, 판매 중 회차 31, 오픈 전 회차 32가 있다.
+- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
 - 임시 비밀번호 계정: `temp@iseonjwa.dev` / `TempPass2345`. 로그인하면 비밀번호 변경 화면으로 간다. 어느 계정이든 비밀번호를 5번 틀리면 잠긴다(새로고침하면 목 상태와 함께 풀린다).
 - 실패 화면은 주소에 `?mock=`로 고른다. 쉼표로 여러 개를 고를 수 있고 탭을 닫을 때까지 유지된다. `?mock=`(빈 값)이면 기본으로 돌아간다.
 

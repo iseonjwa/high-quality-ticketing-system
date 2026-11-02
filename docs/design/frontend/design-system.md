@@ -211,7 +211,7 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 
 | 시간 | 근거 | 표시 |
 |---|---|---|
-| 오픈 카운트다운 | 공연 상세 `serverTime`으로 브라우저 시계 차이를 보정. 차이는 응답을 받은 순간 기준이다(`createServerClock(serverTime, dataUpdatedAt)`) | 공연 상세 |
+| 오픈 카운트다운 | 공연 상세 `serverTime`으로 브라우저 시계 차이를 보정. 차이는 응답을 받은 순간 기준이다(`createServerClock(serverTime, dataUpdatedAt)`). 회차 판매 상태도 같은 시계로 다시 정해 0이 되는 순간 [예매하기]가 켜진다(ISE-113) | 공연 상세 |
 | 입장 유효 시간 | 입장 토큰 10분(SA 9-4), `entryTokenExpiresAt` | 상단 시간 칩. 60초 이하 경고, 0이면 위험 + 좌석표 잠금 |
 | 결제 가능 시간 | 선점 5분이지만 결제 토큰은 10초 먼저 끝난다(SA 7-3). 표시는 `paymentTokenExpiresAt` 기준 4분 50초 | 좌석 확보 모달, 결제 화면 |
 
