@@ -23,6 +23,7 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 
 - 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호). 공연 7, 판매 중 회차 31, 오픈 전 회차 32가 있다.
 - 임시 비밀번호 계정: `temp@iseonjwa.dev` / `TempPass2345`. 로그인하면 비밀번호 변경 화면으로 간다. 어느 계정이든 비밀번호를 5번 틀리면 잠긴다(새로고침하면 목 상태와 함께 풀린다).
+- 로그인 화면 아래 "개발 서버 전용 빠른 로그인"의 일반 사용자·관리자 버튼은 위 데모·운영자 계정으로 바로 로그인한다.
 - 실패 화면은 주소에 `?mock=`로 고른다. 쉼표로 여러 개를 고를 수 있고 탭을 닫을 때까지 유지된다. `?mock=`(빈 값)이면 기본으로 돌아간다.
 
 | 시나리오 | 동작 |
@@ -39,6 +40,21 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 - 목 상태는 페이지 메모리에 있어 새로고침하면 처음으로 돌아간다. 로그인은 Refresh 토큰으로 이어진다(브라우저 목 모드에서만 처음 보는 Refresh 토큰을 받아 준다. 테스트는 서버처럼 거절한다).
 - 목이 응답하는 간격(대기열 1초, 결제 확인 2초)은 실제 서버(순번 기반, 10초)보다 짧다. 화면은 응답에 담긴 간격을 그대로 쓴다.
 - 운영 빌드에는 목 코드와 워커 파일이 들어가지 않는다(`import.meta.env.MODE === 'mock'`일 때만 불러온다).
+
+### 개발 서버 전용 빠른 로그인
+
+로그인 화면 아래에 일반 사용자·관리자로 한 번에 로그인하는 버튼이 있다. 개발 서버(`npm run dev`, `npm run dev:mock`)에서만 보이고 운영 빌드에는 버튼과 계정이 들어가지 않는다. 배포한 화면은 누구나 열 수 있어 관리자 비밀번호를 번들에 넣지 않기 위해서다.
+
+- `npm run dev:mock`: 목 계정을 그대로 쓴다. 설정할 것이 없다.
+- `npm run dev`(실제 백엔드): `frontend/.env.local`에 계정을 적는다. 이 파일은 git에 올라가지 않는다(루트 `.gitignore`의 `.env.*`). 이메일과 비밀번호를 다 적은 계정만 버튼으로 보인다.
+
+```bash
+# frontend/.env.local
+VITE_QUICK_LOGIN_USER_EMAIL=me@iseonjwa.dev        # 가입 화면에서 한 번 만들어 둔 계정
+VITE_QUICK_LOGIN_USER_PASSWORD=...
+VITE_QUICK_LOGIN_ADMIN_EMAIL=admin@iseonjwa.local  # 루트 .env의 ADMIN_EMAIL
+VITE_QUICK_LOGIN_ADMIN_PASSWORD=...                # 루트 .env의 ADMIN_PASSWORD
+```
 
 ## 명령
 
