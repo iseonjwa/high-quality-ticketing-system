@@ -11,7 +11,12 @@ describe('formatWon', () => {
 describe('formatRemaining', () => {
   it('1시간 미만은 분:초', () => {
     expect(formatRemaining(270_000)).toBe('04:30')
-    expect(formatRemaining(59_999)).toBe('00:59')
+  })
+
+  it('초는 올림이라 1초 미만 남으면 00:01, 정확히 0이어야 00:00이다', () => {
+    expect(formatRemaining(59_001)).toBe('01:00')
+    expect(formatRemaining(59_000)).toBe('00:59')
+    expect(formatRemaining(1)).toBe('00:01')
   })
 
   it('1시간 이상은 시:분:초', () => {

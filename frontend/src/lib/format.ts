@@ -13,9 +13,15 @@ export function formatWon(amount: number): string {
   return `${numberFormat.format(amount)}원`
 }
 
+// Note: 남은 시간은 올림으로 센다. 내림이면 0.9초 남았을 때 이미 "00:00"이 보이는데 만료 처리(onExpire)는
+// 아직 일어나지 않아, 화면은 끝났는데 버튼은 그대로인 순간이 최대 1초 생긴다. 올림이면 "00:00"과 만료가 같은 순간이다.
+function ceilSeconds(millis: number): number {
+  return Math.max(0, Math.ceil(millis / SECOND))
+}
+
 // 남은 시간. 1시간 미만 "04:30", 이상 "1:04:30", 음수는 "00:00".
 export function formatRemaining(millis: number): string {
-  const total = Math.max(0, Math.floor(millis / SECOND))
+  const total = ceilSeconds(millis)
   const hours = Math.floor(total / HOUR)
   const minutes = Math.floor((total % HOUR) / MINUTE)
   const seconds = total % MINUTE
@@ -24,7 +30,7 @@ export function formatRemaining(millis: number): string {
 
 // 오픈까지 남은 시간. 하루 이상 "2일 03:04:05", 미만 "03:04:05".
 export function formatCountdown(millis: number): string {
-  const total = Math.max(0, Math.floor(millis / SECOND))
+  const total = ceilSeconds(millis)
   const days = Math.floor(total / DAY)
   const hours = Math.floor((total % DAY) / HOUR)
   const minutes = Math.floor((total % HOUR) / MINUTE)

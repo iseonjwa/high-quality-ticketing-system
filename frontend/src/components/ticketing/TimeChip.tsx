@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 import { formatRemaining } from '@/lib/format'
 import { useNow, type ServerClock } from '@/lib/serverClock'
 
@@ -34,8 +34,9 @@ interface TimeChipProps {
 }
 
 // 입장 유효 시간·결제 가능 시간처럼 끝나는 시각이 정해진 시간을 보인다(design-system.md 7절).
+// 1초보다 짧은 주기로 다시 계산해 "00:00"과 만료 처리 사이의 지연을 줄인다.
 export function TimeChip({ label, expiresAt, clock, onExpire }: TimeChipProps) {
-  const now = useNow(1000, clock)
+  const now = useNow(250, clock)
   const remaining = new Date(expiresAt).getTime() - now
   const level = timeChipLevel(remaining)
   const expired = remaining <= 0
@@ -44,15 +45,14 @@ export function TimeChip({ label, expiresAt, clock, onExpire }: TimeChipProps) {
   useEffect(() => {
     onExpireRef.current = onExpire
   })
-  const firedRef = useRef(false)
+  // 만료 시각이 바뀌면(재발급 등) 다시 부를 수 있게 기록을 만료 시각 단위로 둔다(Countdown과 같은 이유)
+  const firedForRef = useRef<string | null>(null)
   useEffect(() => {
-    if (expired && !firedRef.current) {
-      firedRef.current = true
+    if (expired && firedForRef.current !== expiresAt) {
+      firedForRef.current = expiresAt
       onExpireRef.current?.()
-    } else if (!expired) {
-      firedRef.current = false
     }
-  }, [expired])
+  }, [expired, expiresAt])
 
   const classes = LEVEL_CLASSES[level]
   return (

@@ -8,6 +8,7 @@ import { Countdown } from '@/components/ticketing/Countdown'
 import { EmptyState } from '@/components/ticketing/EmptyState'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { PendingStatus } from '@/components/ticketing/PendingStatus'
+import { QuantitySelector } from '@/components/ticketing/QuantitySelector'
 import { QueuePosition } from '@/components/ticketing/QueuePosition'
 import { SeatMap } from '@/components/ticketing/SeatMap'
 import { StepIndicator } from '@/components/ticketing/StepIndicator'
@@ -35,7 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { createServerClock } from '@/lib/serverClock'
 
 // 개발 서버에서만 붙는 확인 화면(`/_design`)이다. 운영 빌드에는 들어가지 않는다.
 
@@ -59,6 +60,8 @@ const JUST_TAKEN_SEAT_IDS = [1008]
 // 만료 시각을 고정해 세 상태를 동시에 본다. 새로고침하면 다시 시작한다.
 const NOW = Date.now()
 const iso = (offsetMillis: number) => new Date(NOW + offsetMillis).toISOString()
+// 실제 화면은 공연 상세 응답의 serverTime과 dataUpdatedAt으로 만든다. 확인 화면은 브라우저 시각을 서버 시각으로 둔다
+const galleryClock = createServerClock(iso(0), NOW)
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -76,7 +79,7 @@ function Row({ children }: { children: ReactNode }) {
 }
 
 export function DesignSystemPage() {
-  const [quantity, setQuantity] = useState('2')
+  const [quantity, setQuantity] = useState(2)
   const [selectedSeatIds, setSelectedSeatIds] = useState<number[]>([])
   const [showAlert, setShowAlert] = useState(true)
 
@@ -137,18 +140,7 @@ export function DesignSystemPage() {
             </SelectContent>
           </Select>
         </div>
-        <ToggleGroup
-          type="single"
-          value={quantity}
-          onValueChange={(value) => value && setQuantity(value)}
-          aria-label="매수"
-        >
-          {['1', '2', '3', '4'].map((value) => (
-            <ToggleGroupItem key={value} value={value}>
-              {value}매
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <QuantitySelector value={quantity} max={4} onChange={setQuantity} />
       </Section>
 
       <Section title="배지">
@@ -229,7 +221,7 @@ export function DesignSystemPage() {
           <TimeChip label="경고" expiresAt={iso(45_000)} />
           <TimeChip label="만료" expiresAt={iso(-1000)} />
         </Row>
-        <Countdown targetAt={iso(2 * 86_400_000 + 3_845_000)} serverTime={iso(0)} />
+        <Countdown targetAt={iso(2 * 86_400_000 + 3_845_000)} clock={galleryClock} />
         <QueuePosition position={15234} estimatedWaitSeconds={300} initialPosition={20000} />
         <PendingStatus
           title="결제를 확인하고 있어요"

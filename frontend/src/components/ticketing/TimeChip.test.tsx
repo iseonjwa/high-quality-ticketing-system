@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TimeChip } from '@/components/ticketing/TimeChip'
 
@@ -57,5 +58,40 @@ describe('TimeChip', () => {
 
     expect(screen.getByRole('timer')).toHaveAttribute('data-level', 'danger')
     expect(onExpire).toHaveBeenCalledTimes(1)
+  })
+
+  it('StrictMode에서도 onExpire를 한 번만 부른다', () => {
+    const onExpire = vi.fn()
+    render(
+      <StrictMode>
+        <TimeChip label="입장 유효 시간" expiresAt="2026-11-02T11:59:00Z" onExpire={onExpire} />
+      </StrictMode>,
+    )
+
+    expect(onExpire).toHaveBeenCalledTimes(1)
+  })
+
+  it('남은 시간은 올림이라 처음 5분짜리는 05:00으로 시작한다', () => {
+    render(<TimeChip label="결제 가능 시간" expiresAt="2026-11-02T12:05:00Z" />)
+
+    advance(250)
+
+    expect(screen.getByRole('timer')).toHaveTextContent('05:00')
+  })
+
+  it('만료 시각이 바뀌면(재발급) 다시 만료될 때 onExpire를 또 부른다', () => {
+    const onExpire = vi.fn()
+    const { rerender } = render(
+      <TimeChip label="입장 유효 시간" expiresAt="2026-11-02T11:59:00Z" onExpire={onExpire} />,
+    )
+    expect(onExpire).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <TimeChip label="입장 유효 시간" expiresAt="2026-11-02T12:00:01Z" onExpire={onExpire} />,
+    )
+    expect(screen.getByRole('timer')).toHaveAttribute('data-level', 'warning')
+    advance(1250)
+
+    expect(onExpire).toHaveBeenCalledTimes(2)
   })
 })
