@@ -489,13 +489,15 @@ $ ops dead-letter resolve --operator=alice --dead-letter-id=432
 
 RC-8은 누락된 이벤트를 보충해 Outbox 행(같은 `event_type`·`message_key`·`payload.paymentId`)이 생기면 다음 대사에서 `RESOLVED`가 된다. 보충하지 않고 불일치만 닫는 명령은 MVP에 없어서 보충하기 전에는 알림이 계속 울린다.
 
-구현 상태(ISE-167): RC-7·RC-8만 동작한다. RC-1~RC-6은 예매 서비스 내부 조회 API로 대조하므로 ISE-168에서 더한다. 그때까지 위 표의 RC-1~RC-6 행은 절차만 있고 불일치가 기록되지 않는다.
+구현 상태(ISE-168): RC-7·RC-8은 결제 DB만으로 항상 동작한다. RC-1~RC-6은 예매 서비스 내부 조회 API(ISE-75)가 생겨야 쓸 수 있어 `payment.reconciliation.reservation.enabled`(기본 `false`)를 켠 환경에서만 동작한다. 꺼져 있으면 위 표의 RC-1~RC-6 행은 절차만 있고 불일치가 기록되지 않는다.
+
+예매 조회가 실패하는 회차에는 RC-1~RC-6이 기록도 닫기도 없이 실패하고 기존 `OPEN` 행은 그대로 남는다. 404와 시한 초과도 "예매 없음"이 아니라 조회 실패다. 로그에 `대사 규칙 실패 rule=RC-n`과 `예매 조회가 이미 실패했다`가 같은 회차에 이어 나오고, 원인 예외(`ReservationLookupException`의 응답 코드 또는 호출 실패)가 첫 규칙(RC-1) 로그에 있다.
 
 ## 7. 작업 정체·DB 연결 대기
 
 1. `payment_job_last_success_timestamp`로 멈춘 작업을 찾고 실행기 스레드 덤프·로그를 본다.
 2. 정리 작업은 `pg_try_advisory_lock` 점유(다른 인스턴스), 배치 실패 로그, 테이블 크기를 본다. 멱등이라 원인을 고친 뒤 다음 주기에 이어진다.
-3. 대사 정체는 예매 내부 API 응답을 본다.
+3. 대사 정체(`payment_job_last_success_timestamp{job="reconciliation"}`)는 `payment_job_failures_total{job="reconciliation"}`이 오르는지와 로그의 `대사 규칙 실패`를 먼저 본다. RC-1~RC-6이 함께 실패하면 예매 내부 조회 API 문제다. RC-1 로그의 원인 예외로 응답 코드(404면 경로나 배포 상태, 500이면 예매 서비스 오류)나 시한 초과·연결 실패를 가리고, Eureka의 `reservation-service` 등록과 응답 시간을 본다. 예매 API가 아직 없는 환경이면 `payment.reconciliation.reservation.enabled`를 `false`로 되돌린다(RC-7·RC-8은 계속 돈다). RC-7·RC-8만 실패하면 결제 DB 쪽(잠금, 문장 시한)을 본다.
 4. Hikari 연결 대기 초과는 풀 크기(SA 9-4의 20), 오래 걸리는 트랜잭션, 배경 작업의 연결 점유를 본다.
 
 ## 8. 긴급 PG 콘솔 환불 (예외 절차)
