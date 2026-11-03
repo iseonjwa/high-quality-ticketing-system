@@ -112,7 +112,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
   const openAtId = `open-at-${schedule.scheduleId}`
 
   return (
-    <Card className="gap-4 px-5 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="gap-4 px-5 @min-[40rem]:flex-row @min-[40rem]:items-center @min-[40rem]:justify-between">
       <div className="grid min-w-0 gap-2">
         <div>
           <SaleStatusBadge status={status} />
@@ -125,7 +125,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
         </p>
       </div>
 
-      <div className="grid shrink-0 gap-2 sm:min-w-[200px] sm:justify-items-end sm:text-right">
+      <div className="grid shrink-0 gap-2 @min-[40rem]:min-w-[200px] @min-[40rem]:justify-items-end @min-[40rem]:text-right">
         {status === 'BEFORE_OPEN' ? (
           <>
             <span className="type-caption text-gray-500">오픈까지</span>
@@ -135,7 +135,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
               className="type-title"
               onComplete={() => setOpenedWhileViewing(true)}
             />
-            <Button disabled className="w-full sm:w-auto" aria-describedby={openAtId}>
+            <Button disabled className="w-full @min-[40rem]:w-auto" aria-describedby={openAtId}>
               예매하기
             </Button>
             <span id={openAtId} className="type-caption tabular-nums text-gray-500">
@@ -143,7 +143,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
             </span>
           </>
         ) : status === 'ON_SALE' ? (
-          <Button asChild className="w-full sm:w-auto">
+          <Button asChild className="w-full @min-[40rem]:w-auto">
             <Link to={queuePath(schedule.scheduleId)}>예매하기</Link>
           </Button>
         ) : (

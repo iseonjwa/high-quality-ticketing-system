@@ -13,7 +13,7 @@ interface AuthCardProps {
 // 로그인·회원가입·비밀번호 변경이 함께 쓰는 틀. 입력 칸이 길게 늘어나지 않도록 폭을 400px로 묶는다.
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
   return (
-    <main className="mx-auto flex w-full max-w-[400px] flex-col gap-5 py-4 sm:py-10">
+    <main className="mx-auto flex w-full max-w-[400px] flex-col gap-5 py-4 @min-[40rem]:py-10">
       <Card className="gap-6 py-7">
         <CardHeader className="gap-1.5">
           <h1 className="type-title text-gray-900">{title}</h1>

@@ -22,7 +22,7 @@ const RequestLogPanel = lazy(() =>
   import('@/demo/RequestLogPanel').then((module) => ({ default: module.RequestLogPanel })),
 )
 
-// 헤더가 좁을 때(header의 @container 기준 28rem 미만) 메뉴 버튼 여백
+// 앱 화면이 좁을 때(@container 기준 28rem 미만) 메뉴 버튼 여백
 const COMPACT_MENU = '@max-md:px-3'
 
 export function AppLayout() {
@@ -59,12 +59,14 @@ export function AppLayout() {
     : { from: toReturnPath(location) }
 
   // 시연 모드 요청 로그 패널은 오른쪽에 고정되고, 그 너비(--demo-panel-width)만큼 앱 화면을 비켜 준다.
-  // 패널이 없으면 변수가 없어 여백도 0이다
+  // 패널이 없으면 변수가 없어 여백도 0이다.
+  // Note: 앱 화면 안의 반응형은 화면 폭(sm:·md:)이 아니라 이 요소의 너비(@container, 패널을 뺀 앱 화면)로 정한다.
+  // 화면 폭은 패널이 앱 화면을 좁힌 것을 몰라서, 창 절반에 패널을 띄우면 좁은 앱 화면에 넓은 배치가 그려진다.
+  // 대화상자처럼 화면 전체에 뜨는 것은 화면 폭 그대로 둔다
   return (
-    <div className="min-h-svh pr-(--demo-panel-width)">
-      {/* 여백과 메뉴 크기는 화면이 아니라 헤더 너비로 정한다. 시연 패널이 앱 화면을 좁혀도 워드마크가 줄바꿈되지 않는다.
-          메뉴 셋은 좁을 때(28rem 미만) 버튼 여백을 줄여 360px 휴대폰에도 한 줄로 들어간다 */}
-      <header className="@container sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
+    <div className="@container min-h-svh pr-(--demo-panel-width)">
+      {/* 메뉴 셋은 앱 화면이 좁을 때(28rem 미만) 버튼 여백을 줄여 360px 휴대폰에도 한 줄로 들어간다 */}
+      <header className="sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 @min-[40rem]:px-6">
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
@@ -108,7 +110,7 @@ export function AppLayout() {
           </nav>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 @min-[40rem]:px-6">
         <Outlet />
       </div>
       <Toaster />
