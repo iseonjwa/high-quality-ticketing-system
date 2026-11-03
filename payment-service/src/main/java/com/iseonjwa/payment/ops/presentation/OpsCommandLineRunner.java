@@ -32,6 +32,8 @@ public class OpsCommandLineRunner implements ApplicationRunner, ExitCodeGenerato
     public void run(ApplicationArguments applicationArguments) {
         var options = new LinkedHashMap<String, List<String>>();
         for (var name : applicationArguments.getOptionNames()) {
+            // Note: --spring.profiles.active=처럼 점이 들어간 인자는 Spring 설정이다. Ops 옵션 이름에는 점이 없다
+            if (name.contains(".")) continue;
             options.put(name, applicationArguments.getOptionValues(name));
         }
         var arguments = new OpsArguments(applicationArguments.getNonOptionArgs(), options);
