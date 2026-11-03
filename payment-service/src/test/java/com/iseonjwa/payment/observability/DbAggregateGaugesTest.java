@@ -56,6 +56,7 @@ class DbAggregateGaugesTest {
         jdbc.update("DELETE FROM dead_letters");
         jdbc.update("DELETE FROM refunds");
         AppendOnlyCleanup.deleteAllHistories(jdbc);
+        AppendOnlyCleanup.deleteAllManualActionLogs(jdbc);
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM payments");
@@ -160,6 +161,31 @@ class DbAggregateGaugesTest {
     }
 
     @Test
+    void Ops_명령은_감사_기록의_명령과_결과별_누적_건수로_센다() {
+        manualActionLog("outbox requeue", "APPLIED");
+        manualActionLog("outbox requeue", "APPLIED");
+        manualActionLog("outbox requeue", "REJECTED");
+        manualActionLog("payment resolve", "REJECTED");
+
+        gauges.refresh();
+
+        assertEquals(2, opsValue("outbox requeue", "APPLIED"));
+        assertEquals(1, opsValue("outbox requeue", "REJECTED"));
+        assertEquals(1, opsValue("payment resolve", "REJECTED"));
+    }
+
+    @Test
+    void Ops_Gauge는_Prometheus에서_payment_ops_actions_이름과_라벨로_나온다() {
+        manualActionLog("outbox requeue", "APPLIED");
+        var prometheus = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        new DbAggregateGauges(prometheus, jdbc, Clock.fixed(NOW, ZoneOffset.UTC)).refresh();
+
+        var scrape = prometheus.scrape();
+
+        assertTrue(scrape.contains("payment_ops_actions{command=\"outbox requeue\",result=\"APPLIED\"} 1.0"), scrape);
+    }
+
+    @Test
     void 해결돼도_한_번_본_토픽은_0으로_남는다() {
         deadLetter("payment.command", "OPEN", 1000);
         gauges.refresh();
@@ -215,6 +241,18 @@ class DbAggregateGaugesTest {
 
     private static double value(MeterRegistry registry, String name) {
         return registry.get(name).gauge().value();
+    }
+
+    private double opsValue(String command, String result) {
+        return meters.get("payment.ops.actions").tag("command", command).tag("result", result).gauge().value();
+    }
+
+    private void manualActionLog(String command, String result) {
+        jdbc.update("""
+                INSERT INTO manual_action_logs (command, target_type, target_id, result, plan_hash, operator, reason,
+                                                performed_at)
+                VALUES (?, 'OUTBOX', 1, ?, repeat('a', 64), 'alice', 'test', now())
+                """, command, result);
     }
 
     private double topicValue(String name, String topic) {

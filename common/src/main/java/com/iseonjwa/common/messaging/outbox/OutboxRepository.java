@@ -105,6 +105,22 @@ public class OutboxRepository {
     }
 
     /**
+     * FAILED 행을 PENDING으로 되돌려 릴레이가 다시 집게 한다(Ops {@code outbox requeue}, ADR 0028). {@code attempts}와
+     * {@code last_error}는 그대로 두어 어떤 오류로 멈췄는지 남기고, 바로 집히도록 {@code next_attempt_at}을 지금으로 하고 임대를 비운다.
+     *
+     * <p>Note: 상태 조건({@code status = 'FAILED'})이 이 메서드의 안전장치다. SENT 행을 되돌리면 이미 나간 이벤트가 다시 나가고,
+     * PENDING 행은 릴레이가 쥐고 있을 수 있다. 같은 키에 앞선 FAILED가 더 있으면 되돌려도 그 행이 먼저 풀려야 나간다.
+     *
+     * @return 행이 FAILED여서 실제로 바뀌었는지
+     */
+    public boolean requeueFailed(long id, Instant now) {
+        return jdbc.update("""
+                UPDATE outbox_events SET status = 'PENDING', next_attempt_at = ?, claimed_until = NULL
+                WHERE id = ? AND status = 'FAILED'
+                """, Timestamp.from(now), id) == 1;
+    }
+
+    /**
      * 이번 실행에서 보내지 못한 행의 임대를 바로 푼다. 임대가 끝나길 기다리지 않고 다음 실행이 집게 한다.
      *
      * <p>Note: 내가 건 임대(leaseUntil)인 행만 푼다. 실행이 길어져 임대가 끝난 뒤 다른 릴레이가 다시 집었다면

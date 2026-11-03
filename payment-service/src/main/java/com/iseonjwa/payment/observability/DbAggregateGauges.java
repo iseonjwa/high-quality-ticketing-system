@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,10 +69,18 @@ public class DbAggregateGauges {
             GROUP BY source_topic
             """;
 
+    // Ops JVM은 잠깐 떴다 사라져 Prometheus가 수집하지 못한다. 그래서 명령 결과를 카운터가 아니라 감사 테이블의 누적 건수로 보인다
+    private static final String OPS_ACTIONS = """
+            SELECT command, result, count(*) AS action_count
+            FROM manual_action_logs
+            GROUP BY command, result
+            """;
+
     private final JdbcTemplate jdbc;
     private final Clock clock;
     private final MultiGauge deadLetterCount;
     private final MultiGauge deadLetterOldest;
+    private final MultiGauge opsActions;
     private final Map<String, Boolean> knownTopics = new ConcurrentHashMap<>();
     private volatile Snapshot snapshot = Snapshot.EMPTY;
 
@@ -99,6 +108,8 @@ public class DbAggregateGauges {
                 .description("OPEN dead_letters 건수(원본 토픽별)").register(registry);
         this.deadLetterOldest = MultiGauge.builder("dead.letter.open.oldest.seconds")
                 .description("OPEN dead_letters의 최고령(초, 원본 토픽별)").register(registry);
+        this.opsActions = MultiGauge.builder("payment.ops.actions")
+                .description("Ops 명령 --apply 시도의 누적 건수(manual_action_logs, 명령·결과별)").register(registry);
     }
 
     /**
@@ -121,12 +132,28 @@ public class DbAggregateGauges {
                     new TopicStat(rs.getLong("open_count"), age(rs, "oldest", now)));
         });
 
+        var actions = new ArrayList<OpsAction>();
+        jdbc.query(OPS_ACTIONS, rs -> {
+            actions.add(new OpsAction(rs.getString("command"), rs.getString("result"), rs.getLong("action_count")));
+        });
+
         // 쿼리가 모두 성공한 뒤에만 바꾼다
         snapshot = new Snapshot(payments.requestedOldest, payments.unknownCount, payments.unknownOldest,
                 payments.manualCount, payments.manualOldest, refunds.pendingCount, refunds.pendingOldest,
                 refunds.manualCount, refunds.manualOldest, outbox.pendingOldest, outbox.failedCount,
                 outbox.retryingCount);
         publishTopics(topics);
+        publishOpsActions(actions);
+    }
+
+    // 감사 테이블은 지우지 않으므로 한 번 나온 (명령, 결과)는 사라지지 않는다. 그래서 0으로 유지하는 처리는 두지 않는다
+    private void publishOpsActions(List<OpsAction> actions) {
+        var rows = new ArrayList<MultiGauge.Row<?>>();
+        for (var action : actions) {
+            rows.add(MultiGauge.Row.of(Tags.of("command", action.command, "result", action.result), action.count,
+                    Long::doubleValue));
+        }
+        opsActions.register(rows, true);
     }
 
     private void publishTopics(Map<String, TopicStat> open) {
@@ -153,6 +180,8 @@ public class DbAggregateGauges {
         if (base == null) return 0;
         return Math.max(0, Duration.between(base.toInstant(), now).toMillis() / 1000.0);
     }
+
+    private record OpsAction(String command, String result, long count) {}
 
     private record Payments(double requestedOldest, long unknownCount, double unknownOldest, long manualCount,
             double manualOldest) {}
