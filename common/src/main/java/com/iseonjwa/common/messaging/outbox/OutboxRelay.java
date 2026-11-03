@@ -22,7 +22,10 @@ import java.util.concurrent.TimeoutException;
  * 보내는 일이 없다. 한 실행에서 같은 키의 행은 하나뿐이라 한꺼번에 보내도
  * 순서가 유지된다. SENT·실패 기록에서 DB 예외가 나면 실행이 중단된다. DB 장애 중에 계속 보내면 중복만 늘기 때문이다.
  *
- * <p>TODO: 지수 백오프·FAILED·정리·실행기 분리는 ISE-40에서 더한다. 지금은 실패하면 임대가 끝난 뒤 다시 시도한다.
+ * <p>실패는 둘로 나눈다. 일시 오류는 지수 백오프({@link OutboxBackoff})로 다음 시도 시각을 미루며 계속 재시도하고,
+ * 영구 오류({@link OutboxFailureClassifier})만 FAILED로 바꿔 멈춘다.
+ *
+ * <p>TODO: SENT 정리는 ISE-146이다.
  */
 public class OutboxRelay {
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
@@ -34,13 +37,20 @@ public class OutboxRelay {
     private final OutboxEventSender sender;
     private final Clock clock;
     private final OutboxProperties properties;
+    private final OutboxBackoff backoff;
 
     public OutboxRelay(OutboxRepository repository, OutboxEventSender sender, Clock clock,
             OutboxProperties properties) {
+        this(repository, sender, clock, properties, OutboxBackoff.withRandomJitter());
+    }
+
+    public OutboxRelay(OutboxRepository repository, OutboxEventSender sender, Clock clock,
+            OutboxProperties properties, OutboxBackoff backoff) {
         this.repository = repository;
         this.sender = sender;
         this.clock = clock;
         this.properties = properties;
+        this.backoff = backoff;
     }
 
     public int batchSize() {
@@ -107,10 +117,20 @@ public class OutboxRelay {
     }
 
     private void fail(OutboxMessage message, Throwable cause) {
-        log.warn("Outbox 발행 실패 eventId={} topic={}", message.eventId(), message.topic(), cause);
         var root = rootCause(cause);
-        var description = root.getMessage() != null ? root.getMessage() : root.getClass().getName();
-        repository.recordFailure(message.id(), truncate(description));
+        var description = truncate(root.getMessage() != null ? root.getMessage() : root.getClass().getName());
+        if (OutboxFailureClassifier.isPermanent(cause)) {
+            if (repository.markFailed(message.id(), description)) {
+                // 값 원문(페이로드, 예외 메시지)은 남기지 않는다. 예외 종류만 적고 상세는 last_error 컬럼에 있다
+                log.error("event=OUTBOX_FAILED eventId={} topic={} messageKey={} cause={}", message.eventId(),
+                        message.topic(), message.messageKey(), root.getClass().getName());
+                // TODO(ISE-41): outbox_failed_total 증가, FAILED 건수 알림
+            }
+            return;
+        }
+        log.warn("Outbox 발행 실패 eventId={} topic={}", message.eventId(), message.topic(), cause);
+        var failures = Math.min(message.attempts() + 1, OutboxRepository.ATTEMPTS_MAX);
+        repository.recordFailure(message.id(), description, clock.instant().plus(backoff.delay(failures)));
     }
 
     // Spring Kafka는 원인을 "Failed to send"로 감싼다. 기록에는 실제 원인을 남긴다

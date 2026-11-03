@@ -10,6 +10,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | `V2__outbox_claim_index.sql` | `outbox_events`의 릴레이용 부분 인덱스 `(id) WHERE status = 'PENDING'`(ISE-24 리뷰, 아래 6절) | M2 |
 | `V3__refunds.sql` | `refunds`(ISE-136) | M3 |
 | `V4__dead_letters.sql` | `dead_letters`(ISE-138) | M3 |
+| `V5__outbox_failed_key_index.sql` | `outbox_events`의 `(message_key, id) WHERE status = 'FAILED'` 부분 인덱스(ISE-145, 릴레이가 같은 키의 앞선 `FAILED`를 찾을 때) | M3 |
 | (이후 M3 이슈) | `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
 | (M4) | `billing_keys` | M4 |
 
@@ -145,13 +146,13 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | topic · message_key · event_type | VARCHAR(100) | NOT NULL | |
 | payload | JSONB | NOT NULL | `EventEnvelope` 전체 |
 | status | VARCHAR(10) | NOT NULL, CHECK (PENDING·SENT·FAILED) | |
-| attempts | SMALLINT | NOT NULL, DEFAULT 0 | 모니터링용, 재시도 한계 아님 |
+| attempts | SMALLINT | NOT NULL, DEFAULT 0 | 모니터링용, 재시도 한계 아님. 상한(32767)에서 멈춘다 |
 | next_attempt_at | TIMESTAMPTZ | NOT NULL | **신규.** 백오프 다음 시각 |
 | claimed_until | TIMESTAMPTZ | | **신규.** 릴레이 임대 만료(30초`[가정]`). 릴레이 전송 시한(`send-timeout` 12초)의 2배 이상이고, 전송 시한은 프로듀서 `max.block.ms + delivery.timeout.ms` 이상이다(기동 때 검증) |
 | last_error | VARCHAR(500) | | **신규** |
 | created_at · sent_at | TIMESTAMPTZ | | |
 
-인덱스: `INDEX(next_attempt_at, id) WHERE status = 'PENDING'`(재시도 대기), `INDEX(id) WHERE status = 'PENDING'`(릴레이가 id 순으로 집을 때. 없으면 SENT가 쌓일수록 기본키를 훑어 느려진다, V2), `INDEX(message_key, id) WHERE status = 'PENDING'`(같은 키 순서 확인), `INDEX(sent_at) WHERE status = 'SENT'`(정리), `INDEX(created_at)`(대사 RC-8의 최근 24시간 범위).
+인덱스: `INDEX(next_attempt_at, id) WHERE status = 'PENDING'`(재시도 대기), `INDEX(id) WHERE status = 'PENDING'`(릴레이가 id 순으로 집을 때. 없으면 SENT가 쌓일수록 기본키를 훑어 느려진다, V2), `INDEX(message_key, id) WHERE status = 'PENDING'`·`INDEX(message_key, id) WHERE status = 'FAILED'`(같은 키 순서 확인. 상태별로 나눠야 각각 부분 인덱스를 탄다, V5), `INDEX(sent_at) WHERE status = 'SENT'`(정리), `INDEX(created_at)`(대사 RC-8의 최근 24시간 범위).
 
 ## 7. processed_events
 `PK(event_id, consumer_group)`, `processed_at NOT NULL`. 보존 14일, 정리 인덱스 `INDEX(processed_at)`.
