@@ -122,6 +122,7 @@ FT-3 재시작, FT-4 DB 일시 장애, FT-5 환불 중단을 구현했다. ISE-1
 |---|---|
 | `Ft3RestartScenarioTest` | FT-3 (a)~(f) |
 | `Ft4DbOutageScenarioTest` | FT-4 (a)~(d). 테스트 설정에서만 `DataSource`를 감싸는 스위치를 둔다 |
+| `Ft4DbFreezeScenarioTest` | FT-4 (e)~(g). 테스트 DB 앞의 `FreezableTcpProxy`가 연결을 닫지 않고 전달만 멈춘다. 소켓·문장 시한은 `config-repo/payment-service.yml`에서 읽어 이 테스트에만 적용한다 |
 | `Ft5RefundInterruptionScenarioTest` | FT-5 (a)~(d). Ops 명령은 4-eyes 절차대로 부른다 |
 | `Ft6AmountMismatchScenarioTest` | FT-6 금액 불일치 → NMC → Ops `payment resolve` → 환불 |
 | `ScenarioOps` | `refund retry`·`refund resolve`·`payment resolve`를 `OpsRunner`로 부르는 도우미. dry-run 출력에서 계획 해시를 읽어 적용한다 |
@@ -130,8 +131,8 @@ FT-3 재시작, FT-4 DB 일시 장애, FT-5 환불 중단을 구현했다. ISE-1
 
 - FT-3은 "재시작 직후의 DB·PG 상태"를 만들고 복구 경로를 돌린다. 상태는 운영 코드를 실제로 실행하다 `ProcessCrash`(`Error`)로 끊어서 만든다. 운영 코드는 `RuntimeException`만 PG 결과 모름으로 다루고 `Error`는 통과시키므로 끊긴 뒤 단계(TX2, 결과 반영, 임대 해제)는 실행되지 않는다. 컨트롤러 예외 처리기가 이 `Error`를 500 응답으로 바꾸지만, 실제로 죽었다면 클라이언트는 응답을 받지 못하므로 테스트는 그 응답을 쓰지 않는다.
 - 실제 프로세스를 강제 종료하는 확인은 테스트로 하지 않는다. compose에서 `payment-service`를 `kill -9`로 죽였다가 다시 띄워 메인이 수동으로 확인한다. 테스트가 보장하는 것은 "그 순간의 DB·PG 상태에서 복구 경로가 맞다"까지다.
-- compose 확인(2026-11-03): `docker pause`로 결제 Postgres를 얼린 채 승인을 보냈다. 테스트의 DB 스위치(새 연결을 거절)와 달리 연결이 거절되지 않고 쿼리가 멈췄다. 그래서 N5의 503이 아니라 Gateway 시한(3초)을 넘긴 504가 났다. DB가 풀린 뒤 처리가 이어져 결제 1건이 `APPROVED`가 됐고, 같은 키 재시도는 200으로 같은 결과를 받았다(N29 경로, 결제·이력·Outbox 각 1건). 커넥션 풀 대기 시한은 빈 연결이 없을 때만 걸리고 빌린 연결의 쿼리에는 시한이 없어서다. 소켓·문장 시한은 ISE-163에서 정한다. 컨테이너를 `kill -9`로 죽이는 확인은 compose Mock PG의 장애 주입이 닫혀 있어(local 프로필) PG 호출 도중을 만들 수 없어 하지 않았다.
-- FT-4의 스위치는 `getConnection` 시점만 막는다. Hikari 풀에서 이미 빌려 간 연결은 영향을 받지 않으므로, 트랜잭션이 시작되기 전의 장애만 만든다. 진행 중이던 쿼리가 끊기는 경우는 `postgres-payment`를 실제로 멈추는 수동 확인이 맡는다.
+- compose 확인(2026-11-03): `docker pause`로 결제 Postgres를 얼린 채 승인을 보냈다. 테스트의 DB 스위치(새 연결을 거절)와 달리 연결이 거절되지 않고 쿼리가 멈췄다. 그래서 N5의 503이 아니라 Gateway 시한(3초)을 넘긴 504가 났다. DB가 풀린 뒤 처리가 이어져 결제 1건이 `APPROVED`가 됐고, 같은 키 재시도는 200으로 같은 결과를 받았다(N29 경로, 결제·이력·Outbox 각 1건). 커넥션 풀 대기 시한은 빈 연결이 없을 때만 걸리고 빌린 연결의 쿼리에는 시한이 없어서다. 이 문제는 ISE-163에서 소켓 시한 2초와 문장 시한 1.5초로 막았다([events-and-reliability.md](events-and-reliability.md) 7절). 컨테이너를 `kill -9`로 죽이는 확인은 compose Mock PG의 장애 주입이 닫혀 있어(local 프로필) PG 호출 도중을 만들 수 없어 하지 않았다.
+- FT-4 (a)~(d)의 스위치는 `getConnection` 시점만 막는다. Hikari 풀에서 이미 빌려 간 연결은 영향을 받지 않으므로, 트랜잭션이 시작되기 전의 장애만 만든다. 진행 중이던 쿼리가 멈추는 경우는 (e)~(g)의 멈춤 프록시가 맡는다. 프록시는 연결을 닫지 않고 양방향 전달만 멈추므로 `docker pause`와 같은 모양이다. 실제 컨테이너로 확인하는 일은 compose 수동 확인이 맡는다.
 - FT-4의 장애 시작 지점은 타이밍에 기대지 않고 호출 경계의 훅으로 정했다. (a)는 승인 허가를 얻은 직후, (b)·(d)는 PG 승인·환불이 끝난 직후, (c)는 호출 전이다. (b)를 Mock PG 지연과 별도 스레드로 만드는 방식은 쓰지 않았다.
 - FT-5 (c)는 거절 뒤 조회 결과를 `PgClient` 스파이로 정한다. Mock PG는 거절한 환불을 저장하지 않아 그 환불 ID를 조회하면 항상 `NotFound`이므로, 실제 Mock PG만으로는 `refund resolve --close-failed`의 종결 분기에 닿지 못한다. 환불 거절 자체는 실제 Mock PG가 낸다. 실제 Mock PG 그대로의 결과는 (d)가 확인한다.
 - V3는 환불 `FAILED`를 정상 종결로 본다. `FAILED`는 운영자가 PG로는 환불할 수 없음을 확인하고 외부 조치로 넘긴 종결이고, 결제는 `APPROVED`로 남으며 환불 행이 있어 대사 RC-2의 대상도 아니다([domain-and-states.md](domain-and-states.md) 2절). 검증기 규칙은 바꾸지 않았다.
@@ -156,6 +157,14 @@ FT-4 결과(모두 V1~V3 통과):
 | (b) TX2 | PG 승인 직후 스위치 켬 | 202 `REQUESTED`, 결제 `REQUESTED`·`pg_tx_id` 없음, PG `APPROVED`. 스위치를 끄고 재확인 → `APPROVED`, `approveCalls` 1, `PaymentApproved` 1건 |
 | (c) `payment.command` 소비 중 | 스위치 켠 채 리스너 1회, DLQ 처리기 2회 | 세 호출 모두 DB 오류 예외(내용 문제가 아님), 아무것도 남지 않음. 끄고 DLQ 처리기 → 환불 `REQUESTED` 1건, `dead_letters` `AUTO_PERSISTED` 1건 → 워커 → `REFUNDED`(N7·N8) |
 | (d) 환불 결과 기록 중 | PG 환불 직후 스위치 켬 | 워커가 DB 오류로 중단, 환불 `REQUESTED`·임대 중, PG `refundCount` 1. 임대 만료 뒤 `findRefund` → `REFUNDED`, `refundCalls` 1 |
+
+FT-4 (e)~(g) 결과(모두 V1~V3 통과, 경과 시간은 한 번 실행한 값이다):
+
+| 시나리오 | 주입 | 최종 상태 |
+|---|---|---|
+| (e) TX1 멈춤 | 허가 획득 직후 프록시 `freeze()` | 503 `SERVICE_UNAVAILABLE`, 경과 2.3초(Gateway 시한 3초 안). `thaw()` 뒤 결제 행·멱등 기록 없음, 허가 반환, PG 승인 호출 0. 같은 키·같은 토큰으로 다시 호출하면 200 `APPROVED`, `approveCalls` 1 |
+| (f) TX2 멈춤 | PG 승인 직후 프록시 `freeze()` | 202 `REQUESTED`, 경과 2.0초(멈추지 않고 돌아옴). `thaw()` 뒤 재확인 → `APPROVED`, `approveCalls` 1, `PaymentApproved` 1건 |
+| (g) 문장 시한 | 같은 `DataSource`로 `SELECT pg_sleep(3)` | SQLState `57014`로 실패, 경과 1.5초(문장 시한 근처). 이어서 `SELECT 1`이 같은 풀에서 성공 |
 
 (b)의 응답은 `UNKNOWN`이 아니라 `REQUESTED`다. TX2가 롤백돼 상태를 `UNKNOWN`으로 바꾸지 못하고, 202 응답은 메모리의 `REQUESTED` 결제로 만든다(`PaymentApprovalService.settle`).
 
