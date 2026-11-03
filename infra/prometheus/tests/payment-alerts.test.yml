@@ -53,6 +53,47 @@ tests:
               summary: "처리하지 못한 DLQ 메시지가 1건 있다(dead_letters OPEN, topic=payment.command)"
               runbook: "docs/design/payment/manual-recovery.md 3절"
 
+  # 대사 불일치는 규칙마다 따로 울린다. 0이면 조용하고, 다른 서비스의 같은 이름 지표는 보지 않는다
+  - interval: 15s
+    input_series:
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7"}'
+        values: '0 0 1 1 0'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-8"}'
+        values: '0 0 0 3 3'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-1"}'
+        values: '0 0 0 0 0'
+      - series: 'reconciliation_mismatch_open{application="other-service", rule="RC-7"}'
+        values: '9 9 9 9 9'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts: []
+      - eval_time: 30s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 1건 있다(규칙 RC-7, OPEN)"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+      - eval_time: 45s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 1건 있다(규칙 RC-7, OPEN)"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+          - exp_labels: {application: payment-service, rule: RC-8, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 3건 있다(규칙 RC-8, OPEN)"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+      - eval_time: 60s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-8, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 3건 있다(규칙 RC-8, OPEN)"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+
   # 카운터 알림은 5분 안에 늘어난 적이 있으면 울리고, 늘지 않은 채 5분이 지나면 풀린다
   - interval: 1m
     input_series:
@@ -241,6 +282,32 @@ tests:
             exp_annotations:
               summary: "Outbox 릴레이가 1분 넘게 한 바퀴도 돌지 못했다(마지막 성공 뒤 2m 0s)"
               runbook: "docs/design/payment/manual-recovery.md 4절"
+
+  # 대사 작업은 마지막 성공 뒤 15분(900초)을 넘겨야 울린다. 정확히 900초는 울리지 않는다
+  - interval: 5m
+    input_series:
+      - series: 'payment_job_last_success_timestamp{application="payment-service", job="reconciliation"}'
+        values: '0x4'
+      # 다른 서비스의 같은 이름 지표는 보지 않는다
+      - series: 'payment_job_last_success_timestamp{application="other-service", job="reconciliation"}'
+        values: '0x4'
+      # 계속 성공하는 작업은 울리지 않는다
+      - series: 'payment_job_last_success_timestamp{application="payment-service", job="recheck"}'
+        values: '0 300 600 900 1200'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PaymentJobStalled
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: PaymentJobStalled
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PaymentJobStalled
+        exp_alerts:
+          - exp_labels: {application: payment-service, job: reconciliation, service: payment, urgency: threshold, severity: warning}
+            exp_annotations:
+              summary: "결제 배경 작업 reconciliation이 기준 시간 넘게 성공하지 못했다(마지막 성공 뒤 20m 0s)"
+              runbook: "docs/design/payment/manual-recovery.md 7절"
 
   # Circuit Breaker는 열린 상태 시계열이 1이면 울린다
   - interval: 1m

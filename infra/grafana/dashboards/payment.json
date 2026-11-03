@@ -590,13 +590,74 @@
       }
     },
     {
+      "id": 31,
+      "type": "stat",
+      "title": "대사 불일치 OPEN(규칙별)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (rule) (reconciliation_mismatch_open{application=\"payment-service\"})",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{rule}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
       "id": 12,
       "type": "row",
       "title": "2. 승인 흐름",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 15,
         "w": 24,
         "h": 1
       },
@@ -612,7 +673,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 16,
         "w": 8,
         "h": 8
       },
@@ -657,7 +718,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 12,
+        "y": 16,
         "w": 8,
         "h": 8
       },
@@ -720,7 +781,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 12,
+        "y": 16,
         "w": 8,
         "h": 8
       },
@@ -765,7 +826,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 24,
         "w": 8,
         "h": 8
       },
@@ -810,7 +871,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 20,
+        "y": 24,
         "w": 8,
         "h": 8
       },
@@ -865,7 +926,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 20,
+        "y": 24,
         "w": 8,
         "h": 8
       },
@@ -907,7 +968,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 32,
         "w": 24,
         "h": 1
       },
@@ -923,7 +984,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 33,
         "w": 8,
         "h": 8
       },
@@ -969,7 +1030,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 29,
+        "y": 33,
         "w": 8,
         "h": 8
       },
@@ -1023,7 +1084,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 29,
+        "y": 33,
         "w": 8,
         "h": 8
       },
@@ -1083,7 +1144,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 41,
         "w": 24,
         "h": 1
       },
@@ -1099,7 +1160,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 42,
         "w": 8,
         "h": 8
       },
@@ -1163,7 +1224,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 38,
+        "y": 42,
         "w": 8,
         "h": 8
       },
@@ -1217,7 +1278,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 38,
+        "y": 42,
         "w": 8,
         "h": 8
       },
@@ -1269,7 +1330,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 50,
         "w": 24,
         "h": 1
       },
@@ -1285,7 +1346,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 51,
         "w": 8,
         "h": 8
       },
@@ -1340,7 +1401,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 47,
+        "y": 51,
         "w": 8,
         "h": 8
       },
@@ -1395,7 +1456,7 @@
       "description": "manual_action_logs의 명령·결과별 누적 건수(gauge-refresh가 15초마다 집계). Ops JVM은 잠깐 떴다 사라지므로 Counter 대신 DB 집계다",
       "gridPos": {
         "x": 16,
-        "y": 47,
+        "y": 51,
         "w": 8,
         "h": 8
       },

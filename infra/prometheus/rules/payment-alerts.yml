@@ -2,7 +2,8 @@
 # - urgency=immediate: 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태. 건수가 0보다 크면 바로 울린다.
 # - urgency=threshold: 자동 복구가 진행 중이지만 늦어지는 상태. 최고령·정체 시간이 기준을 넘으면 울린다.
 # 복구 절차는 runbook 주석의 docs/design/payment/manual-recovery.md 절을 따른다.
-# 대사 불일치(reconciliation_mismatch_open)는 ISE-43에서 더한다.
+# 대사 불일치(reconciliation_mismatch_open{rule})는 규칙마다 시계열이 하나이고, 0보다 크면 즉시 울린다(ISE-167). 대사 작업의 정체는
+# PaymentJobStalled의 job="reconciliation"이 본다.
 #
 # Note: DB 집계 Gauge(*_count, *_oldest_seconds)는 결제 서비스의 gauge-refresh 작업이 15초마다 갱신한 값이다. 갱신이 멈추면 값이
 # 굳으므로 PaymentJobStalled(gauge-refresh 1분)가 함께 봐야 한다. 결제 서비스가 내려가면 시계열이 사라져 건수 알림도 풀린다.
@@ -54,6 +55,13 @@ groups:
         annotations:
           summary: "영구 오류로 멈춘 Outbox 이벤트가 {{ $value }}건 있다(FAILED). 같은 키의 뒤 이벤트도 멈춘다"
           runbook: "docs/design/payment/manual-recovery.md 4절"
+      # Note: rule 라벨(RC-1~RC-8)마다 알림이 따로 선다. RC-7·RC-8은 결제 DB만으로, RC-1~RC-6은 예매 서비스 조회로 판단한다
+      - alert: PaymentReconciliationMismatch
+        expr: reconciliation_mismatch_open{application="payment-service"} > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: "결제·예매 대사 불일치가 {{ $value }}건 있다(규칙 {{ $labels.rule }}, OPEN)"
+          runbook: "docs/design/payment/manual-recovery.md 6절"
 
   - name: payment-threshold
     rules:
@@ -127,6 +135,7 @@ groups:
         expr: |
           (time() - payment_job_last_success_timestamp{application="payment-service", job="gauge-refresh"}) > 60
           or (time() - payment_job_last_success_timestamp{application="payment-service", job=~"recheck|refund-worker"}) > 120
+          or (time() - payment_job_last_success_timestamp{application="payment-service", job="reconciliation"}) > 900
           or (time() - payment_job_last_success_timestamp{application="payment-service", job=~".+-cleanup"}) > 3600
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
