@@ -1,7 +1,7 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.payment.application.BillingPaymentCommand;
-import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;

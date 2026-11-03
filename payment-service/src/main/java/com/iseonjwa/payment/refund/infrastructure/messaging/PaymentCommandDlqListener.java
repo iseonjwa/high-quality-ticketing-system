@@ -1,8 +1,9 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
+import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.refund.application.DeadLetterInput;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
-import com.iseonjwa.payment.refund.application.NonRetryableMessageException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * {@code payment.command.dlq}를 구독해 DLQ로 온 환불 요청을 {@code dead_letters}에 남기고 자동 복구 경로로 되돌린다.
  * 내용 문제로는 예외를 던지지 않는다. 예외는 DB·인프라 오류뿐이고, 그때는 오프셋을 올리지 않고 다시 처리한다
- * ({@link PaymentCommandDlqErrorHandlers}).
+ * ({@link ConsumerErrorHandlers#retryForever()}).
  *
  * <p>Note: 원본 위치는 Spring Kafka가 DLQ 레코드에 붙인 {@code kafka_dlt-original-*} 헤더에서 읽는다. 토픽은 UTF-8 바이트,
  * 파티션은 4바이트 int, 오프셋은 8바이트 long이다. 헤더가 없거나 길이가 맞지 않으면(Kafka-UI로 직접 넣은 메시지 등)

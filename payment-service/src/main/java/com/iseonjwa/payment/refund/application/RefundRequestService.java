@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventService;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistory;
