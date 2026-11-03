@@ -46,6 +46,9 @@ payment:
     gauge-refresh:
       # 테스트는 DbAggregateGauges.refresh()를 직접 부른다. 작업이 돌면 테스트가 넣은 행을 먼저 집계한다
       enabled: false
+  ops:
+    # 테스트용 허용 목록이다. 실제 목록은 config-repo/payment-service.yml에 있다
+    operators: [alice, bob, carol]
   pg:
     provider: mock
     mock:
