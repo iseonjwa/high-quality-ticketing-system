@@ -1,6 +1,6 @@
 # 수동 복구 절차
 
-알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letters`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). `inspect`와 `outbox requeue`는 구현했고(ISE-158) 로컬 테스트 DB에서 jar를 `ops` 프로필로 실행해 확인했다. EC2의 compose 환경에서는 실행해 확인하지 않았다. `payment resolve`·`refund resolve`(ISE-159), `refund retry`·`dead-letter resolve`(ISE-160)는 구현 전이다.
+알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letters`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). `inspect`와 `outbox requeue`는 구현했고(ISE-158) 로컬 테스트 DB에서 jar를 `ops` 프로필로 실행해 확인했다. `payment resolve`와 `refund resolve`도 구현했다(ISE-159). 이 두 명령은 실제 PostgreSQL과 가짜 `PgClient`를 쓰는 통합 테스트로 확인했고, jar를 `ops` 프로필로 띄우거나 EC2의 compose 환경에서 실제 PG(Mock PG 포함)에 붙여 실행해 확인하지는 않았다. `refund retry`·`dead-letter resolve`(ISE-160)는 구현 전이다.
 
 ## 1. 원칙과 Ops 명령
 
@@ -17,7 +17,7 @@
 docker compose run --rm --no-deps -e SPRING_PROFILES_ACTIVE=local,ops payment-service ops <명령> [--옵션=값 ...]
 ```
 
-- 인자 형식은 `ops <명령> [--옵션=값 ...]`이다. 명령은 한 단어(`inspect`)나 두 단어(`outbox requeue`)다. 옵션 이름은 Spring 설정 키와 겹치지 않게 `operator`, `approver`, `apply`, `confirm`, `reason`, `payment-id`, `refund-id`, `reservation-id`, `outbox-id`, `with-pg`로 둔다. 모르는 옵션은 오타를 막으려고 거부한다.
+- 인자 형식은 `ops <명령> [--옵션=값 ...]`이다. 명령은 한 단어(`inspect`)나 두 단어(`outbox requeue`)다. 옵션 이름은 Spring 설정 키와 겹치지 않게 `operator`, `approver`, `apply`, `confirm`, `reason`, `payment-id`, `refund-id`, `reservation-id`, `outbox-id`, `with-pg`, `external-ref`, `close-failed`로 둔다. 모르는 옵션은 오타를 막으려고 거부한다.
 - `--no-deps`는 이미 떠 있는 config-server·postgres-payment를 쓰고 의존 서비스를 새로 띄우지 않는다는 뜻이다. 설정 서버가 떠 있어야 허용 목록을 받는다.
 - 종료 코드: `0` 성공(dry-run 계획 출력 또는 적용), `2` 거부(통제 위반·근거 불일치·해시 불일치·조건부 UPDATE 0행·대상 없음), `1` 오류(사용법 오류·예외).
 - 결과는 사람이 읽는 평문이고 `== ops <명령> ==` 줄 아래에 나온다. Spring 기동 로그도 같은 표준 출력에 섞여 나온다(로그 설정은 바꾸지 않았다).
@@ -86,9 +86,9 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 | 명령 | 대상 | 하는 일 | PG | 4-eyes |
 |---|---|---|---|---|
 | `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letters`, Ops 기록, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조(구현, 대사 불일치는 ISE-43에서 연결) | 조회(선택) | 아니오 |
-| `payment resolve` | 결제 `NEEDS_MANUAL_CHECK` | PG 근거로 `APPROVED`(승인, 금액 일치), `DECLINED`(거절, 또는 미발견 + 늦은 승인 방지 성공), 환불 시작(승인, 금액 불일치) 중 하나 | 조회, 늦은 승인 방지 | 예 |
+| `payment resolve` | 결제 `NEEDS_MANUAL_CHECK` | PG 근거로 `APPROVED`(승인, 금액 일치), `DECLINED`(거절, 또는 미발견 + 늦은 승인 방지 성공), 환불 시작(승인, 금액 불일치) 중 하나. 2.1절(구현) | 조회, 늦은 승인 방지(적용 때만) | 예 |
 | `refund retry` | 환불 `NEEDS_MANUAL_CHECK` | 원인이 풀린 뒤 `REQUESTED`로 되돌려 자동 환불 워커가 이어받게 함(워커는 조회부터 한다) | 조회 | 예 |
-| `refund resolve` | 환불 `NEEDS_MANUAL_CHECK` | PG가 환불 완료면 `REFUNDED`. PG가 거절이고 `--close-failed --external-ref`가 있으면 `FAILED` | 조회 | 예 |
+| `refund resolve` | 환불 `NEEDS_MANUAL_CHECK` | PG가 환불 완료(금액 일치)면 `REFUNDED`. PG가 거절이고 `--close-failed --external-ref`가 있으면 `FAILED`. 2.2절(구현) | 조회 | 예 |
 | `outbox requeue` | Outbox `FAILED` | 원인을 고친 뒤 `PENDING`으로 되돌림(구현) | 없음 | 아니오 |
 | `dead-letter resolve` | `dead_letters` `OPEN` | `--replay`: 원인을 고친 뒤 DLQ 처리기와 같은 검증·영속화를 다시 실행. `--no-obligation`: 환불 의무가 없음을 확인하고 닫음 | 없음 | 예 |
 
@@ -98,7 +98,7 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 |---|---|---|---|---|
 | `payment resolve` → 승인 | 결제 NMC → `APPROVED` | `PaymentApproved` | 결제 | APPLIED + PG 근거 |
 | `payment resolve` → 거절 | 결제 NMC → `DECLINED` | `PaymentDeclined` | 결제 | 같음 |
-| `payment resolve` → 환불 시작 | 환불 `REQUESTED` 생성(`reason=PG_AMOUNT_MISMATCH`, 금액 = PG 승인 금액) | 없음(환불 완료 때 `PaymentRefunded`) | 환불 | 같음 |
+| `payment resolve` → 환불 시작 | 환불 `REQUESTED` 생성(`reason=PG_AMOUNT_MISMATCH`, 금액 = PG 승인 금액). 결제는 `NEEDS_MANUAL_CHECK`로 두되 PG 거래 식별자·승인 금액이 비어 있으면 채운다(환불 워커가 환불할 수 있게) | 없음(환불 완료 때 `PaymentRefunded`) | 환불 | 같음 |
 | `refund retry` | 환불 NMC → `REQUESTED` | 없음 | 환불 | 같음 |
 | `refund resolve` → 완료 | 환불 NMC → `REFUNDED`, 결제 → `REFUNDED` | `PaymentRefunded` | 환불·결제 | 같음 |
 | `refund resolve` → 종결 | 환불 NMC → `FAILED` | 없음 | 환불 | APPLIED + 외부 조치 참조 |
@@ -111,16 +111,198 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 ## 2. NEEDS_MANUAL_CHECK (결제·환불, 금액 불일치 포함)
 
 1. `inspect --with-pg`로 대상과 PG 상태를 본다. 결제는 `pg_order_id`, 환불은 `pg_refund_id`와 `pg_tx_id`로 조회된다.
-2. 결제 NMC는 `payment resolve`를 dry-run으로 실행해 PG 근거와 계획을 확인한 뒤 승인자와 함께 apply한다.
+2. 결제 NMC는 `payment resolve`를 dry-run으로 실행해 PG 근거와 계획을 확인한 뒤 승인자와 함께 apply한다(2.1절).
    - `APPROVED`가 되면 `PaymentApproved`가 나간다. 이 시점에 예매는 대개 만료돼 있으므로 Reservation이 `RefundRequested`를 보내고 자동 환불로 이어진다(0027).
    - 금액 불일치(`PG_AMOUNT_MISMATCH`)는 예매를 확정하지 않고 PG 승인 금액 전액을 환불한다.
    - PG가 아직 불확실(`Unknown`)이면 명령은 거부되고 상태는 그대로다. PG 장애가 풀린 뒤 다시 한다.
-3. 환불 NMC는 사유로 나눈다.
-   - `REFUND_UNRESOLVED`(PG 장기 장애), `STATE_CONFLICT`: 원인이 풀렸으면 `refund retry`.
-   - `REFUND_REJECTED`: PG가 거절한 이유를 확인한다. 고칠 수 있으면 고치고 `refund retry`. PG로 환불할 수 없으면 고객 계좌 환불 같은 외부 조치를 하고 `refund resolve --close-failed --external-ref <조치 참조>`.
+3. 환불 NMC는 사유로 나눈다(2.2절).
+   - `REFUND_UNRESOLVED`(PG 장기 장애), `STATE_CONFLICT`: 원인이 풀렸으면 `refund retry`(ISE-160, 구현 전).
+   - `REFUND_REJECTED`: PG가 거절한 이유를 확인한다. 고칠 수 있으면 고치고 `refund retry`. PG로 환불할 수 없으면 고객 계좌 환불 같은 외부 조치를 하고 `refund resolve --close-failed --external-ref=<조치 참조>`.
    - 이미 PG에서 환불돼 있으면 `refund resolve`로 `REFUNDED` 반영.
-   - `REFUND_AMOUNT_MISMATCH`: PG의 실제 환불 금액을 확인하고 담당자와 원인을 찾은 뒤 위 중 하나로 처리한다.
+   - `REFUND_AMOUNT_MISMATCH`: PG의 실제 환불 금액을 확인하고 담당자와 원인을 찾는다. PG가 우리 환불 금액과 다른 금액으로 환불 완료를 알리면 `refund resolve`는 거부한다. 이 경우를 종결하는 절차는 아직 없다(후속 과제, 2.2절).
 4. 처리 뒤 다음 대사에서 해당 예매의 불일치가 없어졌는지 확인한다.
+
+### 2.1 payment resolve (구현, ISE-159)
+
+```bash
+ops payment resolve --operator=<나> --payment-id=<결제 ID>                       # dry-run
+ops payment resolve --operator=<나> --approver=<승인자> --payment-id=<결제 ID> \
+    --apply --confirm=<계획 해시> --reason=<메모>
+```
+
+대상은 결제 `NEEDS_MANUAL_CHECK`뿐이고 다른 상태면 거부한다. 이미 환불 행이 있는 결제도 거부한다(환불은 `refund resolve`로 다룬다). 운영자는 목표 상태를 고르지 않는다. dry-run과 적용 둘 다 `findPayment(orderId)`로 PG를 다시 조회하고, 그 결과가 전이를 정한다. 계획 해시에는 PG 근거 요약(결과 종류, 금액, 통화, PG 거래 식별자)이 들어가서, 그사이 PG 결과가 바뀌면 해시가 달라져 거부된다.
+
+| PG 결과 | 계획 |
+|---|---|
+| `Approved`, 금액·통화 일치 | 결제 → `APPROVED` + `PaymentApproved` |
+| `Approved`, 불일치 | 환불 `REQUESTED` 생성(`reason=PG_AMOUNT_MISMATCH`, 금액 = PG 승인 금액). 결제는 NMC로 둔다. 환불 워커가 끝내면 결제가 `REFUNDED`가 된다. 이미 환불 행이 있으면 거부 |
+| `Declined` | 결제 → `DECLINED` + `PaymentDeclined` |
+| `NotFound` | 적용 때 늦은 승인 방지를 시도한다는 계획이다. dry-run은 `preventLateApproval`을 부르지 않는다(PG에 흔적을 남기기 때문). 적용 때 다시 `NotFound`면 `preventLateApproval`을 부른다. `Prevented`면 `DECLINED(NOT_SENT)` + `PaymentDeclined`, `AlreadyApproved`면 위 `Approved` 줄과 같게 금액을 대조한다 |
+| `Unknown`·예외 | 거부(종료 코드 2, 상태 유지) |
+
+- 결제에 이미 PG 거래 식별자(`pg_tx_id`)가 있는데 PG 결과의 식별자와 다르면 거부한다. 같은 이유로 PG 승인 통화가 결제 통화와 다르면(환불 금액을 정할 수 없다) 거부하고, 결제에 PG 승인 기록이 있는데 PG는 `Declined`·`NotFound`라고 하면 모순이라 거부한다.
+- 금액 불일치 환불을 시작할 때 결제에 `pg_tx_id`·`pg_approved_amount`가 비어 있으면(재조회를 소진해 NMC가 된 결제) PG 값으로 채운다. 비어 있으면 환불 워커가 `STATE_CONFLICT`로 멈추고 `PaymentRefunded`의 금액도 비기 때문이다. 이미 값이 있고 PG와 다르면 거부한다.
+- PG 근거는 `manual_action_logs.pg_evidence`에 요약만 남는다. 카드 정보와 비밀값은 넣지 않는다. `NotFound` 적용은 늦은 승인 방지의 결과까지 담은 근거(`lateApproval`)와 실제로 일어난 전이를 감사에 남긴다.
+- 같은 명령을 두 번 적용하면 두 번째는 NMC가 아니라서 거부되고 이벤트는 한 건이다.
+
+승인·금액 일치(로컬 테스트 DB와 가짜 PG로 통합 테스트와 같은 구성에서 얻은 출력, 종료 코드 0). 같은 인자를 다시 실행하면 `거부: NEEDS_MANUAL_CHECK인 결제만 처리합니다. 현재 상태는 APPROVED입니다`와 종료 코드 2, `REJECTED`가 남는다:
+
+```text
+$ ops payment resolve --operator=alice --payment-id=970
+== ops payment resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: PAYMENT 970
+현재 상태: status=NEEDS_MANUAL_CHECK amount=50000 KRW pgOrderId=d308f509-489d-47c1-b1eb-60895321efaf pgTxId=- pgApprovedAmount=- refund=none
+PG 근거: {"lookup":"Approved","pgTxId":"pg-tx-demo1","amount":"50000","currency":"KRW"}
+바뀔 전이: NEEDS_MANUAL_CHECK -> APPROVED
+발행할 이벤트: PaymentApproved
+PG 승인 금액 50000 KRW이(가) 결제 금액과 같다
+승인 시점에 예매가 이미 만료됐다면 Reservation이 RefundRequested를 보내 자동 환불로 이어진다(ADR 0027)
+계획 해시: 4d66891315aaf237b7d3e12415f6730ded0e4efe85336ddaf5d612b582e7e211
+적용하려면 같은 인자에 --apply --confirm=4d668913...82e7e211 --reason=<메모> --approver=<승인자>를 붙인다
+(종료 코드 0)
+```
+
+```text
+$ ops payment resolve --operator=alice --approver=bob --payment-id=970 --apply --confirm=4d668913...82e7e211 --reason=PG에서 승인 확인
+== ops payment resolve ==
+적용했다: PAYMENT 970
+전이: NEEDS_MANUAL_CHECK -> APPROVED
+발행한 이벤트: PaymentApproved
+계획 해시: 4d66891315aaf237b7d3e12415f6730ded0e4efe85336ddaf5d612b582e7e211
+감사 기록: APPLIED (실행자 alice, 승인자 bob)
+(종료 코드 0)
+```
+
+승인·금액 불일치(dry-run. 적용하면 환불 `REQUESTED`가 생기고 이벤트는 나가지 않는다)와 미발견(dry-run. 이 단계에서는 늦은 승인 방지를 부르지 않는다):
+
+```text
+$ ops payment resolve --operator=alice --payment-id=971
+== ops payment resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: PAYMENT 971
+현재 상태: status=NEEDS_MANUAL_CHECK amount=50000 KRW pgOrderId=942b0637-795b-4ff6-beef-d5736aa1a2ff pgTxId=- pgApprovedAmount=- refund=none
+PG 근거: {"lookup":"Approved","pgTxId":"pg-tx-demo2","amount":"49000","currency":"KRW"}
+바뀔 전이: 환불 REQUESTED 생성(reason=PG_AMOUNT_MISMATCH, 금액 49000), 결제 NEEDS_MANUAL_CHECK 유지
+발행할 이벤트: 없음
+PG 승인 금액 49000 KRW이(가) 결제 금액 50000과 다르다(INV-3). 예매를 확정하지 않는다
+결제는 NEEDS_MANUAL_CHECK로 둔다. 환불 워커가 PG 환불을 끝내면 결제가 REFUNDED가 되고 그때 PaymentRefunded가 나간다
+계획 해시: c6e3d747d592e15c283e7d89f6222e602ebe1c76035886047db9ede62cddc64c
+적용하려면 같은 인자에 --apply --confirm=c6e3d747...2cddc64c --reason=<메모> --approver=<승인자>를 붙인다
+(종료 코드 0)
+```
+
+```text
+$ ops payment resolve --operator=alice --payment-id=972
+== ops payment resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: PAYMENT 972
+현재 상태: status=NEEDS_MANUAL_CHECK amount=50000 KRW pgOrderId=3a065910-d6c2-40be-a6a8-13d3c4e18563 pgTxId=- pgApprovedAmount=- refund=none
+PG 근거: {"lookup":"NotFound"}
+바뀔 전이: NEEDS_MANUAL_CHECK -> DECLINED(NOT_SENT) 시도(적용 때 늦은 승인 방지. 이미 승인됐으면 APPROVED 또는 환불 시작)
+발행할 이벤트: PaymentDeclined(방지에 성공하면)
+PG가 주문을 찾지 못했다. 적용 때 다시 조회해 여전히 없으면 늦은 승인 방지를 부른다(dry-run은 PG에 흔적을 남기므로 부르지 않았다)
+방지에 성공하면 DECLINED(NOT_SENT). PG가 이미 승인했다고 하면 금액을 대조해 APPROVED 또는 환불 시작으로 바뀐다
+계획 해시: 3ad1dc6e7a02009da13f732b6702c96deab0019d508d89532320a3cbc87ada4b
+적용하려면 같은 인자에 --apply --confirm=3ad1dc6e...c87ada4b --reason=<메모> --approver=<승인자>를 붙인다
+(종료 코드 0)
+```
+
+### 2.2 refund resolve (구현, ISE-159)
+
+```bash
+ops refund resolve --operator=<나> --refund-id=<환불 ID> [--external-ref=<참조>] [--close-failed]   # dry-run
+ops refund resolve --operator=<나> --approver=<승인자> --refund-id=<환불 ID> [같은 옵션] \
+    --apply --confirm=<계획 해시> --reason=<메모>
+```
+
+대상은 환불 `NEEDS_MANUAL_CHECK`뿐이다. 계획은 `findRefund(pg_refund_id, paymentRef)`로 PG를 다시 조회한 결과가 정한다. 결제의 `pg_tx_id`가 없으면 조회할 수 없어 거부한다. `--external-ref`와 `--close-failed`는 계획 해시에 들어가므로 dry-run과 같은 값으로 적용해야 한다.
+
+| PG 결과 | 계획 |
+|---|---|
+| `Refunded`, 금액·통화 일치 | 환불 → `REFUNDED`, 결제 → `REFUNDED`(출발 상태는 환불 워커와 같은 규칙: 금액 불일치 환불은 NMC, 그 밖은 `APPROVED`), `PaymentRefunded`. `--external-ref`가 있으면 감사에 남긴다(콘솔 조치 기록) |
+| `Refunded`, 불일치 | 거부. 실제 환불 금액이 다른 경우의 종결은 설계에 없다(후속 과제) |
+| `RefundRejected` | `--close-failed`와 `--external-ref`가 함께 있으면 환불 → `FAILED`(이벤트 없음, 결제 상태 유지). 둘 중 하나라도 없으면 거부하고 안내 문구를 출력한다 |
+| `NotFound` | 거부. 안내: PG에 환불 기록이 없다. 원인이 풀렸으면 `refund retry`(ISE-160) |
+| `Unknown`·예외 | 거부 |
+
+- `--close-failed`를 `Refunded`나 `NotFound`에 쓰면 거부한다.
+- 환불 완료에 결제를 옮길 수 없으면(결제가 환불 워커의 출발 상태가 아니다. `STATE_CONFLICT`로 NMC가 된 환불) 적용 전에 거부한다. 환불만 `REFUNDED`로 남는 모순을 만들지 않으려는 것이다.
+- 이 명령은 `PgClient.refund`를 부르지 않는다(0028 결정 4).
+- 환불 완료 전이(환불 → 이력 → 결제 + 이벤트)는 환불 워커와 같은 코드(`RefundSettlementService`)를 쓴다.
+
+환불 완료(콘솔 환불 뒤 PG 조회로 확인한 경우. 같은 구성에서 얻은 출력):
+
+```text
+$ ops refund resolve --operator=alice --refund-id=375 --external-ref=TOSS-CONSOLE-9
+== ops refund resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: REFUND 375
+현재 상태: refundStatus=NEEDS_MANUAL_CHECK amount=50000 KRW reason=CANCELED pgRefundId=d9b3d38e-c91f-43b4-a468-b74b165336e7 attempt=0 paymentStatus=APPROVED pgTxId=pg-tx-9100004 closeFailed=false externalRef=TOSS-CONSOLE-9
+PG 근거: {"lookup":"Refunded","refundRef":"console-cancel-1","amount":"50000","currency":"KRW"}
+바뀔 전이: 환불 NEEDS_MANUAL_CHECK -> REFUNDED, 결제 APPROVED -> REFUNDED
+발행할 이벤트: PaymentRefunded
+외부 조치 참조(감사 기록에만 남는다): TOSS-CONSOLE-9
+계획 해시: 980478e7497900a337f00287d58070f977ed6eac645e293919788dc862c77567
+적용하려면 같은 인자에 --apply --confirm=980478e7...62c77567 --reason=<메모> --approver=<승인자>를 붙인다
+(종료 코드 0)
+```
+
+```text
+$ ops refund resolve --operator=alice --approver=bob --refund-id=375 --external-ref=TOSS-CONSOLE-9 --apply --confirm=980478e7...62c77567 --reason=콘솔 환불 뒤 PG 조회로 확인
+== ops refund resolve ==
+적용했다: REFUND 375
+전이: 환불 NEEDS_MANUAL_CHECK -> REFUNDED, 결제 APPROVED -> REFUNDED
+발행한 이벤트: PaymentRefunded
+계획 해시: 980478e7497900a337f00287d58070f977ed6eac645e293919788dc862c77567
+감사 기록: APPLIED (실행자 alice, 승인자 bob)
+(종료 코드 0)
+```
+
+PG가 거절한 환불: 플래그 없이 실행하면 안내와 함께 거부되고, `--close-failed --external-ref`를 더하면 `FAILED`로 닫는 계획이 나온다:
+
+```text
+$ ops refund resolve --operator=alice --refund-id=376
+== ops refund resolve ==
+거부: PG가 환불을 거절했습니다(NOT_REFUNDABLE). 고칠 수 있으면 고친 뒤 refund retry(ISE-160)를 쓴다. PG로 환불할 수 없어 외부 조치(고객 계좌 환불 등)를 했다면 --close-failed와 --external-ref=<조치 참조>를 함께 지정한다
+(종료 코드 2)
+```
+
+```text
+$ ops refund resolve --operator=alice --refund-id=376 --close-failed --external-ref=BANK-TRANSFER-77
+== ops refund resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: REFUND 376
+현재 상태: refundStatus=NEEDS_MANUAL_CHECK amount=50000 KRW reason=CANCELED pgRefundId=7913f94c-3364-4f65-8b4a-5fc9cc5dab08 attempt=0 paymentStatus=APPROVED pgTxId=pg-tx-9100005 closeFailed=true externalRef=BANK-TRANSFER-77
+PG 근거: {"lookup":"RefundRejected","reason":"NOT_REFUNDABLE"}
+바뀔 전이: 환불 NEEDS_MANUAL_CHECK -> FAILED (결제 상태 유지)
+발행할 이벤트: 없음
+PG가 환불을 거절했다. 고객 환불은 외부 조치(BANK-TRANSFER-77)로 끝났음을 기록한다
+결제 상태는 APPROVED 그대로이고 이벤트는 나가지 않는다
+계획 해시: 935d5eb608494472b78645b16ea1664b277fefdbf9b8f8e27e7d73f2882d94c0
+적용하려면 같은 인자에 --apply --confirm=935d5eb6...882d94c0 --reason=<메모> --approver=<승인자>를 붙인다
+(종료 코드 0)
+```
+
+```text
+$ ops refund resolve --operator=alice --approver=bob --refund-id=376 --close-failed --external-ref=BANK-TRANSFER-77 --apply --confirm=935d5eb6...882d94c0 --reason=고객 계좌로 직접 환불함
+== ops refund resolve ==
+적용했다: REFUND 376
+전이: 환불 NEEDS_MANUAL_CHECK -> FAILED (결제 상태 유지)
+발행한 이벤트: 없음
+계획 해시: 935d5eb608494472b78645b16ea1664b277fefdbf9b8f8e27e7d73f2882d94c0
+감사 기록: APPLIED (실행자 alice, 승인자 bob)
+(종료 코드 0)
+```
+
+PG에 환불 기록이 없을 때(종료 코드 2, 상태 유지):
+
+```text
+$ ops refund resolve --operator=alice --refund-id=377
+== ops refund resolve ==
+거부: PG에 환불 기록이 없습니다. 원인이 풀렸으면 refund retry(ISE-160)를 쓴다. PG 콘솔에서 직접 환불했더라도 이 명령은 우리 pg_refund_id로만 조회하므로 확인하지 못한다(manual-recovery.md 8절)
+(종료 코드 2)
+```
 
 ## 3. dead_letters OPEN·DLQ 처리기 실패
 
@@ -176,9 +358,11 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 
 1. 콘솔 환불 전에 `inspect --with-pg`로 PG에 환불 기록이 없음을 확인한다.
 2. 콘솔에서 전액 환불하고 PG 화면의 거래·취소 식별자를 기록한다.
-3. `refund resolve`를 실행한다. 명령은 PG API로 환불 완료를 다시 확인한 뒤에만 `REFUNDED`와 `PaymentRefunded`를 반영하고, 콘솔 환불 사실을 `external_ref`로 남긴다.
+3. `refund resolve --external-ref=<콘솔 거래·취소 식별자>`를 실행한다. 명령은 PG API로 환불 완료를 다시 확인한 뒤에만 `REFUNDED`와 `PaymentRefunded`를 반영하고, 콘솔 환불 사실을 `external_ref`로 남긴다(2.2절).
 4. PG API로 확인할 수 없으면 명령은 거부되고 환불은 `NEEDS_MANUAL_CHECK`로 남는다. API가 복구된 뒤 3단계를 다시 한다.
 5. 콘솔 환불 뒤에는 `refund retry`를 쓰지 않는다.
+
+**현재 한계(ISE-159).** 콘솔 직접 환불은 우리 `pg_refund_id` 없이 일어난다. 지금 PG 포트의 `findRefund(pg_refund_id, paymentRef)`는 우리 환불 ID로만 조회하므로 콘솔 환불을 확인하지 못한다. 그래서 콘솔 환불 뒤에 3단계를 실행하면 `NotFound`로 거부되고 환불은 `NEEDS_MANUAL_CHECK`로 남는다(위 4단계, 0028 결정 11의 "PG API로 확인할 수 없으면 거부"와 같다). 이 절차는 PG가 `pg_refund_id`로 조회되는 환불(Mock PG, 또는 API로 시작했으나 응답이 유실된 환불)에서는 끝까지 동작하지만, 진짜 콘솔 환불은 아직 반영할 수 없다. 콘솔 환불을 확인하는 PG 조회는 토스 어댑터를 만드는 M4 때 다시 본다.
 
 ## 9. 결제 토큰 키 유출
 1. 새 `PAYMENT_TOKEN_SECRET`(32바이트 난수의 16진수 64자)을 만들어 Reservation과 Payment에만 주입한다([0025](../../decisions/0025-payment-token-secret-injection.md)).

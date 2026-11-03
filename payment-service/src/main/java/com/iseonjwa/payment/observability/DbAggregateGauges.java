@@ -26,7 +26,9 @@ import java.util.function.ToDoubleFunction;
  * <p>Note: 나이는 갱신 시각의 시계에서 기준 시각을 뺀 초다. 해당 행이 없으면 0이다. 기준 시각은 돈이 확정되지 않은 채 머문 시간을
  * 보려는 상태({@code REQUESTED}·{@code UNKNOWN}·환불 대기·Outbox {@code PENDING}·{@code dead_letters OPEN})는 {@code created_at},
  * 수동 확인으로 들어간 뒤의 시간을 보려는 {@code NEEDS_MANUAL_CHECK}는 {@code updated_at}이다. NMC 행은 그 뒤 코드가 고치지
- * 않아 {@code updated_at}이 들어간 시각 그대로다(Ops 명령이 NMC 행을 제자리에서 고치게 되면 이 전제를 다시 확인한다).
+ * 않아 {@code updated_at}이 들어간 시각 그대로다. 예외는 Ops {@code payment resolve}가 금액 불일치 환불을 시작할 때다. 그때 NMC
+ * 결제에 PG 거래 정보를 채우며 {@code updated_at}이 바뀌어, 그 결제의 나이는 환불을 시작한 시각부터 다시 센다(운영자가 손을 댄
+ * 뒤라 장기 미해결 경고를 다시 세는 것이 맞다고 봤다).
  *
  * <p>Note: 갱신이 실패하면(DB 오류) 스냅숏을 바꾸지 않고 예외를 그대로 던진다. 이전 값이 남고 작업 실패 지표가 오른다. 모든 쿼리를
  * 읽은 뒤에 한꺼번에 바꾸므로 일부 테이블만 새 값이 되는 일은 없다. 토픽별 {@code dead_letters}는 한 번 본 토픽을 0으로 계속

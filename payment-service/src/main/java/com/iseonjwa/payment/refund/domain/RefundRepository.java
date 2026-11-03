@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,15 @@ public interface RefundRepository {
      */
     int createForApprovedPayment(Long paymentId, Long reservationId, UUID pgRefundId, RefundReason reason,
             RefundSource source, UUID sourceEventId, Instant now);
+
+    /**
+     * 결제가 {@code NEEDS_MANUAL_CHECK}일 때만 금액 불일치 환불({@code reason=PG_AMOUNT_MISMATCH}, {@code source=OPS})을
+     * {@code REQUESTED}로 만든다. 금액은 호출한 쪽이 넘긴 PG 승인 금액이다. 결제의 {@code amount}와 다르기 때문에
+     * {@link #createForApprovedPayment}처럼 결제 행에서 복사하지 않는다. 결제당 환불이 이미 있으면 만들지 않는다.
+     *
+     * @return 만들었으면 1, 만들지 않았으면 0
+     */
+    int createForAmountMismatch(Long paymentId, UUID pgRefundId, BigDecimal pgApprovedAmount, Instant now);
 
     Optional<Refund> findByPaymentId(Long paymentId);
 
@@ -46,6 +56,9 @@ public interface RefundRepository {
 
     /** UNKNOWN 환불의 다음 확인 시각만 바꾼다. 다른 경로가 이미 상태를 바꿨으면 아무것도 하지 않고 false다. */
     boolean reschedule(Long id, Instant nextCheckAt, Instant now);
+
+    /** 운영자가 외부 조치로 끝났음을 확인해 환불을 {@code FAILED}로 닫는다. {@code next_check_at}은 비운다. */
+    boolean markFailed(Long id, RefundStatus from, Instant now);
 
     /** 자동 경로로 끝내지 못해 운영자 확인으로 넘긴다. 이력의 사유는 호출한 쪽이 남긴다. */
     boolean markNeedsManualCheck(Long id, RefundStatus from, Instant now);

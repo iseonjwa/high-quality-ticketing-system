@@ -170,21 +170,23 @@ public class OpsRunner {
         }
 
         var context = new OpsApplyContext(attempt.operator, attempt.approver, clock.instant());
+        OpsPlan applied;
         try {
-            transaction.executeWithoutResult(status -> {
-                command.apply(plan, context);
-                audit.insert(new ManualActionLog(command.name(), plan.target().type(), plan.target().id(),
-                        plan.fromStatus(), plan.toStatus(), ManualActionResult.APPLIED, planHash, plan.pgEvidence(),
-                        plan.externalRef(), truncate(attempt.operator, ID_MAX_LENGTH),
+            applied = transaction.execute(status -> {
+                var done = command.apply(plan, context);
+                audit.insert(new ManualActionLog(command.name(), done.target().type(), done.target().id(),
+                        done.fromStatus(), done.toStatus(), ManualActionResult.APPLIED, planHash, done.pgEvidence(),
+                        done.externalRef(), truncate(attempt.operator, ID_MAX_LENGTH),
                         attempt.approver == null ? null : truncate(attempt.approver, ID_MAX_LENGTH),
                         truncate(attempt.memo, REASON_MAX_LENGTH), context.now()));
+                return done;
             });
         } catch (OpsRejection rejection) {
             return reject(attempt, rejection.getMessage(), planHash, out);
         }
-        out.println("적용했다: " + plan.target());
-        out.println("전이: " + plan.transition());
-        out.println("발행한 이벤트: " + (plan.events().isEmpty() ? "없음" : String.join(", ", plan.events())));
+        out.println("적용했다: " + applied.target());
+        out.println("전이: " + applied.transition());
+        out.println("발행한 이벤트: " + (applied.events().isEmpty() ? "없음" : String.join(", ", applied.events())));
         out.println("계획 해시: " + planHash);
         out.println("감사 기록: APPLIED (실행자 " + attempt.operator
                 + (attempt.approver == null ? "" : ", 승인자 " + attempt.approver) + ")");

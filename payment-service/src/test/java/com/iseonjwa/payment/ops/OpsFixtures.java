@@ -31,6 +31,20 @@ final class OpsFixtures {
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
     }
 
+    /**
+     * 운영자 확인 상태의 결제(금액 50000)를 만들고 id를 돌려준다. PG 정보가 없으면(재조회 소진으로 넘어온 결제) 둘 다 null을
+     * 넘기고, 있으면(금액 불일치로 넘어온 결제) PG 거래 식별자와 승인 금액을 넘긴다.
+     */
+    long needsManualCheckPayment(long reservationId, String pgTxId, Integer pgApprovedAmount) {
+        jdbc.update("""
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_tx_id,
+                                     pg_approved_amount, approved_at, created_at, updated_at)
+                VALUES (?, ?, 7, 50000, 'CARD', 'NEEDS_MANUAL_CHECK', ?, ?, ?, ?, now(), now())
+                """, "PAY-O" + reservationId, reservationId, UUID.randomUUID(), pgTxId, pgApprovedAmount,
+                pgTxId == null ? null : java.sql.Timestamp.from(java.time.Instant.now()));
+        return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
+    }
+
     void history(long paymentId, String targetType, String from, String to, String actor) {
         jdbc.update("""
                 INSERT INTO payment_status_histories (payment_id, target_type, from_status, to_status, actor, created_at)
@@ -39,14 +53,18 @@ final class OpsFixtures {
     }
 
     long refund(long paymentId, String status) {
+        return refund(paymentId, status, "CANCELED", 50000);
+    }
+
+    long refund(long paymentId, String status, String reason, int amount) {
         var refunded = status.equals("REFUNDED");
         var scheduled = status.equals("REQUESTED") || status.equals("UNKNOWN");
         return jdbc.queryForObject("""
                 INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, next_check_at, refunded_at,
                                     created_at, updated_at)
-                VALUES (?, ?, 50000, 'CANCELED', 'EVENT', ?, %s, %s, now(), now()) RETURNING id
+                VALUES (?, ?, ?, ?, 'EVENT', ?, %s, %s, now(), now()) RETURNING id
                 """.formatted(scheduled ? "now()" : "NULL", refunded ? "now()" : "NULL"), Long.class, paymentId,
-                UUID.randomUUID(), status);
+                UUID.randomUUID(), amount, reason, status);
     }
 
     long outbox(String key, String eventType, String status, int attempts, String lastError) {

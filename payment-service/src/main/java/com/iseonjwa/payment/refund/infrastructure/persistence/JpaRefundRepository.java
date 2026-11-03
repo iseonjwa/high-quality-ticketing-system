@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +27,11 @@ public class JpaRefundRepository implements RefundRepository {
             RefundSource source, UUID sourceEventId, Instant now) {
         return repository.createForApprovedPayment(paymentId, reservationId, pgRefundId, reason.name(), source.name(),
                 sourceEventId, now);
+    }
+
+    @Override
+    public int createForAmountMismatch(Long paymentId, UUID pgRefundId, BigDecimal pgApprovedAmount, Instant now) {
+        return repository.createForAmountMismatch(paymentId, pgRefundId, pgApprovedAmount, now);
     }
 
     @Override
@@ -68,5 +74,11 @@ public class JpaRefundRepository implements RefundRepository {
     @Transactional
     public boolean markNeedsManualCheck(Long id, RefundStatus from, Instant now) {
         return repository.markNeedsManualCheck(id, from.name(), now) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean markFailed(Long id, RefundStatus from, Instant now) {
+        return repository.markFailed(id, from.name(), now) == 1;
     }
 }

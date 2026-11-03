@@ -81,9 +81,10 @@ public class OutboxRequeueCommand implements OpsCommand {
     }
 
     @Override
-    public void apply(OpsPlan plan, OpsApplyContext context) {
+    public OpsPlan apply(OpsPlan plan, OpsApplyContext context) {
         if (!outbox.requeueFailed(plan.target().id(), context.now())) {
             throw new OpsRejection("조건부 UPDATE가 0행입니다. 그 사이 FAILED가 아니게 되었습니다");
         }
+        return plan;
     }
 }

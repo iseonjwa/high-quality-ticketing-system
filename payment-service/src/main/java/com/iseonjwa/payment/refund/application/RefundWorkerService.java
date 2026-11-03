@@ -3,7 +3,6 @@ package com.iseonjwa.payment.refund.application;
 import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.observability.PgOperation;
 import com.iseonjwa.payment.observability.TransitionOperation;
-import com.iseonjwa.payment.payment.application.PaymentTransitionService;
 import com.iseonjwa.payment.payment.application.RecheckSchedule;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
@@ -58,7 +57,7 @@ public class RefundWorkerService {
     private final RefundRepository refunds;
     private final PaymentRepository payments;
     private final PaymentStatusHistoryRepository histories;
-    private final PaymentTransitionService transitions;
+    private final RefundSettlementService settlement;
     private final PgRecoveryGate recoveryGate;
     private final PgClient pg;
     private final PaymentMetrics metrics;
@@ -66,12 +65,12 @@ public class RefundWorkerService {
     private final Clock clock;
 
     public RefundWorkerService(RefundRepository refunds, PaymentRepository payments,
-            PaymentStatusHistoryRepository histories, PaymentTransitionService transitions, PgRecoveryGate recoveryGate,
+            PaymentStatusHistoryRepository histories, RefundSettlementService settlement, PgRecoveryGate recoveryGate,
             PgClient pg, PaymentMetrics metrics, TransactionTemplate transactionTemplate, @Qualifier("commonAuditingClock") Clock clock) {
         this.refunds = refunds;
         this.payments = payments;
         this.histories = histories;
-        this.transitions = transitions;
+        this.settlement = settlement;
         this.recoveryGate = recoveryGate;
         this.pg = pg;
         this.metrics = metrics;
@@ -125,7 +124,7 @@ public class RefundWorkerService {
         // 임대하면 엔티티가 영속성 컨텍스트에서 분리되므로 필요한 값을 먼저 읽는다
         var refund = candidate.get();
         var payment = payments.findById(refund.getPaymentId()).orElseThrow();
-        if (payment.getStatus() != paymentStatusBeforeRefund(refund.getReason()) || payment.getPgTxId() == null) {
+        if (payment.getStatus() != RefundSettlementService.paymentStatusBeforeRefund(refund.getReason()) || payment.getPgTxId() == null) {
             // PG를 부르기 전에 결제가 환불할 수 없는 상태다. 환불 완료를 반영할 수 없으므로 부르지 않고 운영자에게 넘긴다
             log.error("event=REFUND_STATE_CONFLICT refundId={} paymentId={} paymentStatus={}", refund.getId(),
                     payment.getId(), payment.getStatus());
@@ -143,11 +142,6 @@ public class RefundWorkerService {
     private static void closeIfHeld(AtomicReference<PgPermit> heldPermit) {
         var held = heldPermit.get();
         if (held != null) held.close();
-    }
-
-    // 환불 완료가 결제를 옮기기 전의 상태. 금액 불일치 환불(Ops 명령이 시작)만 운영자 확인 상태의 결제를 환불한다
-    private static PaymentStatus paymentStatusBeforeRefund(RefundReason reason) {
-        return reason == RefundReason.PG_AMOUNT_MISMATCH ? PaymentStatus.NEEDS_MANUAL_CHECK : PaymentStatus.APPROVED;
     }
 
     private void resolve(Claim claim) {
@@ -242,20 +236,17 @@ public class RefundWorkerService {
         }
     }
 
-    // 환불 → 결제 순으로 한 트랜잭션에서 바꾼다. 환불이 0행이면 다른 경로가 먼저 바꾼 것이라 더 쓰지 않는다
+    // 환불 → 결제 순으로 한 트랜잭션에서 바꾼다(RefundSettlementService). 환불이 0행이면 다른 경로가 먼저 바꾼 것이라 더 쓰지 않는다
     private void complete(Claim claim, PgClient.Refunded refunded) {
-        var now = clock.instant();
-        if (!refunds.markRefunded(claim.refundId(), claim.status(), refunded.refundRef(), refunded.refundedAt(), now)) {
-            metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
-            return;
-        }
-        histories.save(PaymentStatusHistory.ofRefund(claim.paymentId(), claim.status(), RefundStatus.REFUNDED, null,
-                StatusActor.SYSTEM, now));
-        if (!transitions.markRefunded(claim.paymentId(), paymentStatusBeforeRefund(claim.reason()),
-                refunded.refundedAt(), StatusActor.SYSTEM)) {
-            metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
-            // 예외로 이 트랜잭션을 롤백한다. 환불만 REFUNDED로 남으면 돈은 돌아갔는데 결제는 환불되지 않은 모순이 된다
-            throw new StateConflictException();
+        switch (settlement.complete(claim.refundId(), claim.paymentId(), claim.status(), claim.reason(),
+                refunded.refundRef(), refunded.refundedAt(), StatusActor.SYSTEM)) {
+            case COMPLETED -> { }
+            case REFUND_CHANGED -> metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
+            case PAYMENT_NOT_REFUNDABLE -> {
+                metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
+                // 예외로 이 트랜잭션을 롤백한다. 환불만 REFUNDED로 남으면 돈은 돌아갔는데 결제는 환불되지 않은 모순이 된다
+                throw new StateConflictException();
+            }
         }
     }
 
