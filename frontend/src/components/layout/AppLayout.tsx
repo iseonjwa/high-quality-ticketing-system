@@ -14,6 +14,10 @@ import {
   type AuthNavigationState,
 } from '@/auth/navigation'
 import { useIsSignedIn } from '@/auth/session'
+import { cn } from '@/lib/utils'
+
+// 헤더가 좁을 때(header의 @container 기준 28rem 미만) 메뉴 버튼 여백
+const COMPACT_MENU = '@max-md:px-3'
 
 export function AppLayout() {
   const isSignedIn = useIsSignedIn()
@@ -49,8 +53,10 @@ export function AppLayout() {
 
   return (
     <div className="min-h-svh">
-      <header className="sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
+      {/* 여백과 메뉴 크기는 화면이 아니라 헤더 너비로 정한다. 시연 패널이 앱 화면을 좁혀도 워드마크가 줄바꿈되지 않는다.
+          메뉴 셋은 좁을 때(28rem 미만) 버튼 여백을 줄여 360px 휴대폰에도 한 줄로 들어간다 */}
+      <header className="@container sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 @min-[40rem]:px-6">
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
             to={paths.home}
@@ -74,12 +80,17 @@ export function AppLayout() {
                 <SignedInLink to={paths.me} disabled={loggingOut}>
                   내 정보
                 </SignedInLink>
-                <Button variant="ghost" loading={loggingOut} onClick={() => void handleLogout()}>
+                <Button
+                  variant="ghost"
+                  className={COMPACT_MENU}
+                  loading={loggingOut}
+                  onClick={() => void handleLogout()}
+                >
                   로그아웃
                 </Button>
               </>
             ) : (
-              <Button asChild variant="ghost">
+              <Button asChild variant="ghost" className={COMPACT_MENU}>
                 <Link to={paths.login} state={loginState}>
                   로그인
                 </Link>
@@ -111,7 +122,7 @@ function SignedInLink({
     <Button
       asChild
       variant="ghost"
-      className={disabled ? 'pointer-events-none text-gray-400' : undefined}
+      className={cn(COMPACT_MENU, disabled && 'pointer-events-none text-gray-400')}
     >
       <Link
         to={to}
