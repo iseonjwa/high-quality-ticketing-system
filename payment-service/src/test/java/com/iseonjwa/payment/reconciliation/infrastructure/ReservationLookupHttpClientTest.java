@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 예매 조회 HTTP 어댑터가 가짜 서버(contracts.md의 가정 형태)의 응답을 해석하는 방식. 200이 아닌 응답은 404도 모두 조회
+ * 예매 조회 HTTP 어댑터가 가짜 서버(contracts.md 5절, #283 기준 형태)의 응답을 해석하는 방식. 200이 아닌 응답은 404도 모두 조회
  * 실패이고, 없는 ID는 200 응답에서 빠진 것만 "예매 없음"이다.
  */
 class ReservationLookupHttpClientTest {
@@ -39,6 +39,7 @@ class ReservationLookupHttpClientTest {
     void setUp() {
         server = new FakeReservationServer();
         client = create(server.baseUrl());
+        server.setPageSize(2);
     }
 
     @AfterEach
@@ -47,7 +48,7 @@ class ReservationLookupHttpClientTest {
     }
 
     private static ReservationLookupHttpClient create(String url) {
-        return ReservationLookupHttpClient.create(url, Duration.ofSeconds(1), Duration.ofMillis(300), 2, null);
+        return ReservationLookupHttpClient.create(url, Duration.ofSeconds(1), Duration.ofMillis(300), null);
     }
 
     @Test
@@ -78,11 +79,13 @@ class ReservationLookupHttpClientTest {
         var first = client.findChanges(AT.minusSeconds(60), AT, null);
         var second = client.findChanges(AT.minusSeconds(60), AT, first.nextCursor());
 
-        assertEquals(2, first.items().size(), "쪽 크기는 설정값(2)이다");
+        assertEquals(2, first.items().size(), "쪽 크기는 서버가 고정한 값(2)이다");
         assertTrue(first.nextCursor() != null);
         assertEquals(1, second.items().size());
         assertNull(second.nextCursor(), "마지막 쪽은 커서가 없다");
         assertEquals(AT.minusSeconds(60).toString(), server.changeRequests().get(0).get("from"));
+        assertTrue(server.changeRequests().stream().noneMatch(request -> request.containsKey("size")), "size는 보내지 않는다");
+        assertEquals("2", server.changeRequests().get(1).get("cursor"), "받은 커서를 그대로 넘긴다");
     }
 
     @Test
@@ -129,6 +132,14 @@ class ReservationLookupHttpClientTest {
     }
 
     @Test
+    void 소수부가_0인_금액은_정수로_읽는다() {
+        server.put(reservation(1, 10, ReservationStatus.CONFIRMED, 110000, 7L, AT));
+        server.answerWithZeroScaleAmounts();
+
+        assertEquals(110000, client.findByIds(List.of(1L)).get(0).totalAmount());
+    }
+
+    @Test
     void 서비스_ID는_로드밸런서가_찾은_인스턴스로_바뀐다() {
         server.put(reservation(1, 10, ReservationStatus.CONFIRMED, 50000, 7L, AT));
         LoadBalancerClient balancer = new LoadBalancerClient() {
@@ -168,7 +179,7 @@ class ReservationLookupHttpClientTest {
         };
         var resolver = new LoadBalancerInterceptor(balancer, new LoadBalancerRequestFactory(balancer));
         var viaServiceId = ReservationLookupHttpClient.create("http://reservation-service", Duration.ofSeconds(1),
-                Duration.ofMillis(500), 100, resolver);
+                Duration.ofMillis(500), resolver);
 
         assertEquals(1, viaServiceId.findByIds(List.of(1L)).size());
     }
