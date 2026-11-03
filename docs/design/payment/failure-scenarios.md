@@ -66,7 +66,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 |---|---|---|
 | V1 결제 승인 중복 없음 | 결제 DB `reservation_id`별 행 수, Mock PG 원장의 주문별 승인 호출 수(`approveCalls`), PG 승인 주문 집합과 `pg_tx_id`가 있는 결제 집합 | 예매당 결제 ≤ 1, 주문당 승인 호출 ≤ 1, PG에만 있는 승인 0 |
 | V2 환불 중복 없음 | `payment_id`별 환불 행 수, Mock PG 원장의 결제별 환불 수·금액 | 결제당 환불 ≤ 1, PG 환불 합계 ≤ 승인 금액 |
-| V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
+| V3 결제↔예매 최종 정합 | 강제 대사 한 회차 뒤 이 시나리오 범위의 RC-7·RC-8 `OPEN` 0, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
 
 Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28, [mock-pg.md](mock-pg.md) 9절). 배경 작업(재확인 스케줄러, 환불 워커)이 PG를 함께 부르므로 장애 주입은 `orderId`·`refundId`로 대상을 지정한다.
 
@@ -93,7 +93,7 @@ Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하
 
 - 기다림은 시계를 앞으로 당겨 없앤다. 시나리오의 재확인·환불·Outbox 다음 시도 시각과 임대 만료를 과거로 당긴다(기존 통합 테스트와 같은 방식이고 운영 시계 빈은 바꾸지 않는다). `sleep`을 쓰지 않는다.
 - 장애는 `orderId`·`refundId`로 한정해 건다. 승인의 주문 ID는 TX1이 정하므로 `PgClient` 스파이로 승인 호출 직전에 그 주문의 장애를 건다. 환불은 환불 행의 `pg_refund_id`를 읽어 건다.
-- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조(RC-1~RC-6)는 ISE-168이 맡는다. 결제 DB만으로 보는 RC-7·RC-8은 이 검증기에 붙이지 않고 `ReconciliationScenarioTest`가 같은 시나리오 기반 위에서 승인·환불·응답 유실 복구·재시작 뒤 거절 흐름 끝에 불일치가 0인지 확인한다(검증기 단독 테스트 `ScenarioInvariantsTest`가 결제를 이력 없이 직접 넣어 붙이면 RC-7로 실패한다). Gauge는 DB 전체를 세므로 "0보다 크다"는 하한 확인이다.
+- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조(RC-1~RC-6)는 ISE-168이 맡는다. 결제 DB만으로 보는 RC-7·RC-8은 `assertHolds()`가 강제 대사 한 회차(기준 시각을 허용 지연 10분 뒤로 줌)를 돌린 뒤 이 시나리오 예매 ID 범위의 `OPEN` 불일치가 0인지 확인한다(`v3Reconciliation()`). `ScenarioInvariantsTest`의 위반 없음 고정 데이터는 승인 이력과 `PaymentApproved` Outbox 행을 운영 코드(`PaymentStatusHistory.of`, `PaymentResultPublisher`)로 같은 트랜잭션에 써서 운영과 같은 모양으로 둔다. `ReconciliationScenarioTest`는 같은 기반 위에서 승인·환불·응답 유실 복구·재시작 뒤 거절 흐름과 N30을 따로 확인한다.
 - V1의 "PG에만 있는 승인 0"은 PG가 승인한 모든 주문에 같은 `pg_tx_id`의 결제가 있어야 한다. 결제가 아직 결과를 모르는 미해결(`UNKNOWN`·NMC이고 `pg_tx_id` 없음)이면 예외로 둔다.
 
 FT-1 (a)~(c)와 FT-2 결과(모두 V1~V3 통과):
