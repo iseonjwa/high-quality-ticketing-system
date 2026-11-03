@@ -26,7 +26,7 @@ import java.util.UUID;
  *   <li>V3(결제 쪽): 모든 결제가 정상 종결이거나 명시적 미해결이고, 미해결이면 해당 Gauge가 0보다 크다.</li>
  * </ul>
  *
- * <p>Note: V3는 결제 쪽만 본다. 결제↔예매 상태 대조와 대사(RC-1~8)는 ISE-43이 맡는다. 이 검증기에는 예매 쪽 확인이 없다.
+ * <p>Note: V3는 결제 쪽만 본다. 결제↔예매 상태 대조와 대사 중 RC-7·RC-8은 `ReconciliationScenarioTest`가, 예매와 대조하는 RC-1~RC-6은 ISE-168이 맡는다. 이 검증기에는 예매 쪽 확인이 없다.
  *
  * <p>Note: "명시적 미해결"은 {@code UNKNOWN}·{@code NEEDS_MANUAL_CHECK} 결제, 대기({@code REQUESTED}·{@code UNKNOWN})·
  * {@code NEEDS_MANUAL_CHECK} 환불, {@code OPEN} {@code dead_letters}다. {@code REQUESTED} 결제는 재확인이 집어 가야 하므로

@@ -48,7 +48,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N27 | Kafka-UI로 메시지 발행 시도 | READONLY로 거부 | 9 | 0020, S-24 | S |
 | N28 | `RefundRequested` 교차 검증 실패(결제 없음, 예매·사용자·금액 불일치, 미지정 사유) | 재시도 없이 DLQ, `dead_letters` `OPEN`, PG 호출 0회, 즉시 알림 | 3, 4, 9 | 0020 | I |
 | N29 | Gateway 504 뒤 같은 키 재시도 | 서버 처리 계속, PG 승인 1회, 재시도는 결과 응답 | 1 | 0018 | S |
-| N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림 | 6, 7 | 0028, 0029 | I |
+| N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림. 테스트: `ReconciliationScenarioTest`(직접 SQL → L 뒤 RC-7 `OPEN`·Gauge 1 → 이력과 맞추면 `RESOLVED`·Gauge 0), `ReconciliationServiceTest`(환불 쪽 어긋남, RC-8) | 6, 7 | 0028, 0029 | I |
 | N31 | 긴급 콘솔 환불 뒤 `refund resolve` | PG API로 환불 확인되면 `REFUNDED` + `PaymentRefunded` + `external_ref`. 확인 불가면 거부·NMC 유지. 한계: 콘솔 환불은 우리 `pg_refund_id` 없이 일어나 지금의 `findRefund`로는 확인되지 않으므로 `NotFound`로 거부되고 NMC로 남는다(토스 어댑터 M4 때 콘솔 환불 확인용 조회를 다시 본다). 구현: `RefundResolveCommand`, 테스트: `RefundResolveTest`(PG가 환불을 확인하는 경우와 `NotFound` 거부) | 2, 7 | 0028 | I |
 | N32 | Ops 명령 통제 | 승인자 없음·실행자와 같음·허용 목록 밖·계획 해시 불일치는 거부(REJECTED 기록) | 7, 9 | 0028 | U, I |
 
@@ -93,7 +93,7 @@ Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하
 
 - 기다림은 시계를 앞으로 당겨 없앤다. 시나리오의 재확인·환불·Outbox 다음 시도 시각과 임대 만료를 과거로 당긴다(기존 통합 테스트와 같은 방식이고 운영 시계 빈은 바꾸지 않는다). `sleep`을 쓰지 않는다.
 - 장애는 `orderId`·`refundId`로 한정해 건다. 승인의 주문 ID는 TX1이 정하므로 `PgClient` 스파이로 승인 호출 직전에 그 주문의 장애를 건다. 환불은 환불 행의 `pg_refund_id`를 읽어 건다.
-- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조와 대사(RC-1~8)는 ISE-43이 맡고 이 검증기에는 없다. Gauge는 DB 전체를 세므로 "0보다 크다"는 하한 확인이다.
+- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조(RC-1~RC-6)는 ISE-168이 맡는다. 결제 DB만으로 보는 RC-7·RC-8은 이 검증기에 붙이지 않고 `ReconciliationScenarioTest`가 같은 시나리오 기반 위에서 승인·환불·응답 유실 복구·재시작 뒤 거절 흐름 끝에 불일치가 0인지 확인한다(검증기 단독 테스트 `ScenarioInvariantsTest`가 결제를 이력 없이 직접 넣어 붙이면 RC-7로 실패한다). Gauge는 DB 전체를 세므로 "0보다 크다"는 하한 확인이다.
 - V1의 "PG에만 있는 승인 0"은 PG가 승인한 모든 주문에 같은 `pg_tx_id`의 결제가 있어야 한다. 결제가 아직 결과를 모르는 미해결(`UNKNOWN`·NMC이고 `pg_tx_id` 없음)이면 예외로 둔다.
 
 FT-1 (a)~(c)와 FT-2 결과(모두 V1~V3 통과):
