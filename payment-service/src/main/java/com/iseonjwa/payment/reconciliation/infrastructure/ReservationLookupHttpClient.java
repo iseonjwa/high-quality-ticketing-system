@@ -44,7 +44,7 @@ public class ReservationLookupHttpClient implements ReservationLookup {
     }
 
     /** @param instanceResolver 서비스 ID를 인스턴스 주소로 바꾸는 인터셉터. 주소가 이미 정해져 있으면 null */
-    static ReservationLookupHttpClient create(String baseUrl, Duration connectTimeout, Duration readTimeout,
+    public static ReservationLookupHttpClient create(String baseUrl, Duration connectTimeout, Duration readTimeout,
             int pageSize, ClientHttpRequestInterceptor instanceResolver) {
         var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(connectTimeout).build());
         factory.setReadTimeout(readTimeout);
