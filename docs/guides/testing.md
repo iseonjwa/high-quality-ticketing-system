@@ -76,6 +76,16 @@ dotenv는 Java에서도 Compose의 해석 결과를 사용한다. 파일 생성�
 전체 JVM 모드는 워크스페이스 가이드에 따라 Compose 앱 포트를 비우고 Prometheus를 JVM 모드로 준비한 뒤 `./gradlew verifyJvm --no-daemon`으로 실행한다.
 이 태스크는 앱 JAR 7개를 준비하고, Java가 시작한 JVM의 실제 소켓과 HTTP·Eureka 등록 주소·연동을 검증한다. 검사 후 소유한 JVM을 종료한다. 실제 소켓 확인에는 기존과 같이 `lsof`를 사용한다.
 
+## 결제 장애 시나리오 테스트
+
+`payment-service`의 `scenario` 패키지가 실제 Mock PG 프로세스와 테스트 PostgreSQL로 결제 장애 시나리오(FT-1·FT-2)와 검증기 V1~V3를 돌린다([failure-scenarios.md](../design/payment/failure-scenarios.md) 4절). Mock PG 실행 파일(`:mock-pg:bootJar`)이 필요하고 Gradle 실행은 이를 먼저 만든다. Gradle 없이 IDE에서 돌리기 전에는 `./gradlew :mock-pg:bootJar`를 실행한다.
+
+```bash
+./gradlew :payment-service:test --tests 'com.iseonjwa.payment.scenario.*' --no-daemon
+```
+
+시나리오 클래스는 `ScenarioTestBase`를 상속해 설정을 더하지 않는다. 컨텍스트는 클래스가 끝나면 닫아 테스트 DB 연결 한도(100)를 지킨다. 새 시나리오 클래스를 더할 때도 컨텍스트 설정을 바꾸지 않는다.
+
 ## 결과 확인
 
 - 모듈 테스트: `모듈/build/reports/tests/test/index.html`.
