@@ -21,7 +21,7 @@ import java.util.concurrent.Executors;
 
 /**
  * 예매 서비스의 대사용 내부 조회 API(contracts.md, ISE-75 확정 전 가정)를 흉내 내는 테스트용 가짜 서버다. 예매와 변경 목록을 정하고,
- * 응답 코드·지연·읽을 수 없는 값을 걸 수 있다. 실제 예매 서비스는 아직 없다. 장애 설정은 {@link #reset()}까지 계속 적용된다.
+ * 응답 코드·지연·읽을 수 없는 값을 걸 수 있다. 응답은 #283처럼 공통 응답({@code status, message, data, traceId})으로 감싸고, 변경 목록의 쪽 크기는 서버가 고정하며(기본 100, 테스트에서 {@link #setPageSize}) {@code size} 파라미터는 무시한다. 커서는 숫자다. 장애 설정은 {@link #reset()}까지 계속 적용된다.
  */
 public class FakeReservationServer implements AutoCloseable {
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -37,6 +37,8 @@ public class FakeReservationServer implements AutoCloseable {
     private volatile int forcedStatus;
     private volatile long delayMillis;
     private volatile boolean fractionalAmounts;
+    private volatile boolean zeroScaleAmounts;
+    private volatile int pageSize = 100;
     private volatile boolean endlessEmptyChangePages;
 
     public FakeReservationServer() {
@@ -106,6 +108,16 @@ public class FakeReservationServer implements AutoCloseable {
         fractionalAmounts = true;
     }
 
+    /** 금액을 {@code 110000.00}처럼 소수부가 0인 소수로 내린다(예매 쪽 BigDecimal 직렬화). */
+    public void answerWithZeroScaleAmounts() {
+        zeroScaleAmounts = true;
+    }
+
+    /** 서버가 고정한 변경 목록 한 쪽의 크기. 요청의 size는 무시한다. */
+    public void setPageSize(int pageSize) {
+        this.pageSize = pageSize;
+    }
+
     /** 변경 목록이 항상 빈 쪽에 새 커서를 붙여 돌려준다. */
     public void answerChangesWithEndlessEmptyPages() {
         endlessEmptyChangePages = true;
@@ -121,6 +133,8 @@ public class FakeReservationServer implements AutoCloseable {
         forcedStatus = 0;
         delayMillis = 0;
         fractionalAmounts = false;
+        zeroScaleAmounts = false;
+        pageSize = 100;
     }
 
     /** 묶음 조회 호출 하나하나의 ID 수. */
@@ -169,24 +183,34 @@ public class FakeReservationServer implements AutoCloseable {
             // 없는 ID는 items에서 빠진다
             if (reservation != null) items.add(item(reservation));
         }
-        return JSON.writeValueAsString(Map.of("items", items));
+        return wrap(items);
     }
 
     private String changesBody(Map<String, String> query) {
         if (endlessEmptyChangePages) {
             var body = new LinkedHashMap<String, Object>();
             body.put("items", List.of());
-            body.put("nextCursor", "c" + System.nanoTime());
-            return JSON.writeValueAsString(body);
+            body.put("nextCursor", System.nanoTime());
+            return wrap(body);
         }
-        var size = Integer.parseInt(query.getOrDefault("size", "100"));
+        var size = pageSize;
         var from = query.containsKey("cursor") ? Integer.parseInt(query.get("cursor")) : 0;
         var to = Math.min(from + size, changes.size());
         var items = new ArrayList<Map<String, Object>>();
         for (var i = from; i < to; i++) items.add(item(changes.get(i)));
         var body = new LinkedHashMap<String, Object>();
         body.put("items", items);
-        body.put("nextCursor", to < changes.size() ? String.valueOf(to) : null);
+        body.put("nextCursor", to < changes.size() ? (Object) (long) to : null);
+        return wrap(body);
+    }
+
+    // 공통 응답으로 감싼다
+    private static String wrap(Object data) {
+        var body = new LinkedHashMap<String, Object>();
+        body.put("status", 200);
+        body.put("message", "대사용 예매를 조회했습니다");
+        body.put("data", data);
+        body.put("traceId", null);
         return JSON.writeValueAsString(body);
     }
 
@@ -197,6 +221,7 @@ public class FakeReservationServer implements AutoCloseable {
         item.put("status", corruptedStatus.getOrDefault(reservation.reservationId(), reservation.status().name()));
         // 삼항식에 long과 double을 섞으면 항상 double이 되므로 Object로 나눠 넣는다
         if (fractionalAmounts) item.put("totalAmount", reservation.totalAmount() + 0.5);
+        else if (zeroScaleAmounts) item.put("totalAmount", new java.math.BigDecimal(reservation.totalAmount()).setScale(2));
         else item.put("totalAmount", reservation.totalAmount());
         item.put("paymentId", reservation.paymentId());
         item.put("holdExpiresAt", reservation.holdExpiresAt() == null ? null : reservation.holdExpiresAt().toString());

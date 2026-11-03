@@ -33,8 +33,7 @@ public class FakeReservationConfiguration {
     @Bean
     @Primary
     ReservationLookup fakeServerReservationLookup() {
-        var real = ReservationLookupHttpClient.create(SERVER.baseUrl(), Duration.ofSeconds(1), Duration.ofMillis(300), 100,
-                null);
+        var real = ReservationLookupHttpClient.create(SERVER.baseUrl(), Duration.ofSeconds(1), Duration.ofMillis(300), null);
         return new ReservationLookup() {
             @Override
             public List<ReservationSnapshot> findByIds(Collection<Long> ids) {
