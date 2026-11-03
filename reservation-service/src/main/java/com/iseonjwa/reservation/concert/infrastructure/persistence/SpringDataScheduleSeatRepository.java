@@ -13,6 +13,12 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
 
     boolean existsByScheduleId(Long scheduleId);
 
+    // join fetch로 공연장 좌석을 한 쿼리에 같이 읽는다. 좌석마다 공연장 좌석을 따로 조회하는 N+1을 막는다.
+    // ScheduleSeat에는 @SQLRestriction이 없어서 지운 좌석은 조건으로 거른다
+    @Query("select ss from ScheduleSeat ss join fetch ss.venueSeat vs where ss.schedule.id = :scheduleId"
+            + " and ss.deletedAt is null order by ss.section asc, vs.rowNo asc, vs.seatNo asc")
+    List<ScheduleSeat> findByScheduleIdWithVenueSeat(@Param("scheduleId") Long scheduleId);
+
     // Note: 15,000석을 엔티티로 하나씩 save하면 INSERT가 15,000번 나간다.
     // DB 안에서 venue_seats를 읽어 바로 넣는 INSERT ... SELECT 한 문장으로 만든다.
     // JPA 감사 리스너를 거치지 않으므로 created_at·created_by를 직접 채운다.

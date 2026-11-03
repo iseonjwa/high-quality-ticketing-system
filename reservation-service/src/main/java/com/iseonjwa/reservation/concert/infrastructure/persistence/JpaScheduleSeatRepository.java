@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.concert.infrastructure.persistence;
 
+import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
 import com.iseonjwa.reservation.global.vo.Money;
@@ -19,6 +20,11 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     @Override
     public boolean existsByScheduleId(Long scheduleId) {
         return springDataScheduleSeatRepository.existsByScheduleId(scheduleId);
+    }
+
+    @Override
+    public List<ScheduleSeat> findByScheduleIdWithVenueSeat(Long scheduleId) {
+        return springDataScheduleSeatRepository.findByScheduleIdWithVenueSeat(scheduleId);
     }
 
     @Override
