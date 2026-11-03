@@ -46,3 +46,4 @@
 | 0040 | [프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다](0040-frontend-react-spa-in-monorepo.md) | 채택 (프론트 담당 결정, Notion 결정 #7을 저장소 기록으로 대체. 연결은 nginx 중계) | 2026-11-02 |
 | 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
 | 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |
+| 0043 | [Kafka 소비자·스케줄러 같은 입구는 presentation 계층에 둔다](0043-inbound-adapters-in-presentation.md) | 채택 (11/3 팀 회의, 이동은 ISE-166) | 2026-11-03 |

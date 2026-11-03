@@ -1807,7 +1807,7 @@ UPDATE schedule_seats SET status = 'HELD', updated_at = now()
 
 ## 13. 패키지 구조 (4계층)
 
-결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈).
+결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈). 그중 "구독은 인프라 계층"은 2026-11-03 회의에서 [ADR 0043](../decisions/0043-inbound-adapters-in-presentation.md)으로 바꿨다: Kafka 소비자·스케줄러 같은 입구는 presentation에 둔다(Notion 결정 기록 #22의 해당 부분을 대체).
 
 ```
 high-quality-ticketing-system/
@@ -1829,19 +1829,19 @@ high-quality-ticketing-system/
       │  ├─ domain/           Concert, Schedule, ScheduleSeat, 저장소 인터페이스
       │  └─ infrastructure/   JPA 저장소 구현
       ├─ queue/               presentation · application · domain · infrastructure(Redis)
-      ├─ reservation/         … infrastructure/messaging (PaymentResultConsumer, SeatHoldConsumer)
+      ├─ reservation/         … presentation/messaging (PaymentResultConsumer, SeatHoldConsumer)
       ├─ lottery/
       └─ global/              보안 헤더 해석, 설정
 ```
 
 | 계층 | 담는 것 | 의존 |
 | --- | --- | --- |
-| presentation | 컨트롤러, 요청·응답 DTO, 입력 검증 | → application |
+| presentation | 밖에서 들어오는 입구: 컨트롤러(HTTP), Kafka 소비자(`presentation/messaging`), 스케줄러(`presentation/scheduling`). 요청·응답·메시지 DTO, 입력 검증 | → application |
 | application | 유스케이스, 트랜잭션 경계, 다른 모듈 호출 | → domain |
 | domain | 엔티티와 규칙 (상태 전이, 금액 계산, 매수 한도), 저장소 인터페이스 | 아무것도 의존하지 않음 (JPA 애너테이션만 예외) |
-| infrastructure | JPA 구현, Redis, Kafka Producer·Consumer, PG 클라이언트 | → domain 인터페이스 구현 |
+| infrastructure | 밖으로 나가는 구현: JPA, Redis, Kafka Producer·Outbox 릴레이, PG 클라이언트, 캐시 | → domain 인터페이스 구현 |
 - 엔티티를 응답으로 바로 내보내지 않는다(DTO 분리).
-- 발행: 도메인 이벤트 → 인프라의 Outbox 저장. 구독: 인프라 Consumer → application 서비스 호출. Kafka 코드는 domain·application에 들어가지 않는다.
+- 발행: 도메인 이벤트 → 인프라의 Outbox 저장. 구독: presentation의 Consumer가 메시지를 파싱해 application 서비스를 한 번 호출한다. 스케줄러도 같다. Kafka 코드는 domain·application에 들어가지 않는다([ADR 0043](../decisions/0043-inbound-adapters-in-presentation.md)).
 - 서비스 모듈끼리 직접 의존 금지, `common`에는 형식·유틸만 둔다.
 - 공통 모듈은 2026-10-27 통합 회의에서 하나로 정했다([ADR 0013](../decisions/0013-single-common-module.md)). 웹·JPA·Kafka 라이브러리는 `compileOnly`로 두고 쓰는 서비스가 직접 선언하며, 설정은 서비스가 `@Import`로 가져온다. Gateway가 이 라이브러리를 받지 않는지는 `GatewayClasspathTest`가 확인한다.
 - 패키지 이름은 `com.iseonjwa`다(2026-10-27 통합 회의, U12 해소).
