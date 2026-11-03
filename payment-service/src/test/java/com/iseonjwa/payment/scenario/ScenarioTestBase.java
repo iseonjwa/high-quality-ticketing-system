@@ -69,8 +69,6 @@ import static org.mockito.Mockito.when;
 // Note: Mock PG 주소와 빈 대체가 달라 다른 테스트와 컨텍스트를 나눠 쓰지 못한다. 클래스가 끝나면 컨텍스트를 닫아 연결을 돌려준다
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 abstract class ScenarioTestBase {
-    // 시나리오 클래스의 @Order 값. 다른 통합 테스트보다 먼저 돌려 테스트 DB 연결을 확보한다(src/test/resources/junit-platform.properties)
-    static final int RUN_FIRST = -100;
     static final long USER = 71L;
     static final long AMOUNT = 50000L;
     // 이 범위의 예매 ID는 시나리오 테스트만 쓴다
