@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,19 @@ interface SpringDataRefundRepository extends JpaRepository<Refund, Long> {
     int createForApprovedPayment(@Param("paymentId") Long paymentId, @Param("reservationId") Long reservationId,
             @Param("pgRefundId") UUID pgRefundId, @Param("reason") String reason, @Param("source") String source,
             @Param("sourceEventId") UUID sourceEventId, @Param("now") Instant now);
+
+    // 금액 불일치 환불: 금액은 결제의 amount가 아니라 호출한 쪽이 넘긴 PG 승인 금액이다. 결제는 NEEDS_MANUAL_CHECK여야 한다
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, next_check_at, created_at,
+                                 updated_at)
+            SELECT p.id, :pgRefundId, :pgApprovedAmount, 'PG_AMOUNT_MISMATCH', 'OPS', 'REQUESTED', :now, :now, :now
+              FROM payments p
+             WHERE p.id = :paymentId AND p.status = 'NEEDS_MANUAL_CHECK'
+            ON CONFLICT (payment_id) DO NOTHING
+            """)
+    int createForAmountMismatch(@Param("paymentId") Long paymentId, @Param("pgRefundId") UUID pgRefundId,
+            @Param("pgApprovedAmount") BigDecimal pgApprovedAmount, @Param("now") Instant now);
 
     // 환불 워커의 대상 한 건을 잠근다. 조건은 idx_refunds_next_check_at 부분 인덱스와 같다. 다른 워커가 잠근 행은 건너뛴다
     @Query(nativeQuery = true, value = """

@@ -3,6 +3,7 @@ package com.iseonjwa.payment.refund.application;
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventService;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
+import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistory;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistoryRepository;
 import com.iseonjwa.payment.payment.domain.StatusActor;
@@ -13,7 +14,9 @@ import com.iseonjwa.payment.refund.domain.RefundStatus;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -116,6 +119,35 @@ public class RefundRequestService {
         var status = payments.findById(payload.paymentId()).map(payment -> payment.getStatus().name()).orElse("없음");
         return new RefundCreation.NotApproved(
                 "환불을 시작할 수 없는 결제 상태입니다: paymentId=" + payload.paymentId() + ", status=" + status);
+    }
+
+    /**
+     * Ops {@code payment resolve}가 PG 승인 금액이 결제 금액과 다른 {@code NEEDS_MANUAL_CHECK} 결제의 환불을 시작한다.
+     * 결제는 {@code NEEDS_MANUAL_CHECK}로 두고, 환불 워커가 PG 환불을 끝내면 결제가 {@code REFUNDED}가 된다(워커의
+     * {@code paymentStatusBeforeRefund}). 호출한 쪽의 트랜잭션에 참여하며 PG는 부르지 않는다.
+     *
+     * <p>Note: 워커가 환불할 수 있도록 결제에 PG 거래 식별자와 승인 금액을 남긴다. 재확인이 금액 불일치로 넘긴 결제는 이미
+     * 값이 있지만, 재조회를 소진해 넘어온 결제는 비어 있어 비워 둔 채로는 워커가 {@code STATE_CONFLICT}로 멈추고
+     * {@code PaymentRefunded}의 금액도 비게 된다. {@code COALESCE}라 이미 있는 값은 바꾸지 않는다(그 값이 PG와 다른 건은
+     * 호출한 쪽이 계획 단계에서 거부한다). 결제의 상태 전이가 아니므로 결제 이력은 쓰지 않고 환불 생성 이력에 사유를 남긴다.
+     */
+    public RefundCreation createForAmountMismatch(Long paymentId, String pgTxId, BigDecimal pgApprovedAmount,
+            Instant pgApprovedAt, StatusActor actor) {
+        var now = clock.instant();
+        var existing = refunds.findByPaymentId(paymentId);
+        if (existing.isPresent()) {
+            return new RefundCreation.Duplicate(existing.get().getId());
+        }
+        if (!payments.markNeedsManualCheck(paymentId, PaymentStatus.NEEDS_MANUAL_CHECK, pgTxId, pgApprovedAmount,
+                pgApprovedAt, now)) {
+            return new RefundCreation.NotApproved("환불을 시작할 수 없는 결제 상태입니다: paymentId=" + paymentId);
+        }
+        if (refunds.createForAmountMismatch(paymentId, UUID.randomUUID(), pgApprovedAmount, now) != 1) {
+            return new RefundCreation.NotApproved("금액 불일치 환불을 만들지 못했습니다: paymentId=" + paymentId);
+        }
+        histories.save(PaymentStatusHistory.ofRefund(paymentId, null, RefundStatus.REQUESTED,
+                RefundReason.PG_AMOUNT_MISMATCH.name(), actor, now));
+        return new RefundCreation.Created(refunds.findByPaymentId(paymentId).orElseThrow().getId());
     }
 
     private static RefundRequestVerification.Invalid mismatch(String field, Object payment, Object event) {

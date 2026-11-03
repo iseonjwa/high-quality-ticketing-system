@@ -30,6 +30,10 @@ public interface OpsCommand {
     /**
      * 계획을 적용한다. 호출한 쪽({@link OpsRunner})이 연 트랜잭션 안에서 실행하며, 감사 APPLIED 기록도 같은
      * 트랜잭션에 쓴다. 조건부 UPDATE가 1행이 아니면 {@link OpsRejection}을 던져 롤백한다.
+     *
+     * @return 실제로 적용한 계획. 대개 받은 계획 그대로다. 적용해 봐야 전이가 정해지는 명령(결제 resolve의 늦은 승인
+     *         방지)은 실제 전이와 PG 근거를 담은 계획을 돌려주고, 실행기는 그것을 감사 기록과 출력에 쓴다. 계획 해시는
+     *         dry-run이 보인 원래 계획으로 비교하므로 바뀌지 않는다
      */
-    void apply(OpsPlan plan, OpsApplyContext context);
+    OpsPlan apply(OpsPlan plan, OpsApplyContext context);
 }

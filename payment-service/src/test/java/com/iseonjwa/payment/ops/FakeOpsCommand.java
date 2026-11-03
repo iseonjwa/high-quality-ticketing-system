@@ -65,12 +65,13 @@ final class FakeOpsCommand implements OpsCommand {
     }
 
     @Override
-    public void apply(OpsPlan plan, OpsApplyContext context) {
+    public OpsPlan apply(OpsPlan plan, OpsApplyContext context) {
         jdbc.update("INSERT INTO processed_events (event_id, consumer_group, processed_at) VALUES (?, 'ops-test', now())",
                 marker);
         if (failAfterWrite || !state.get().equals(plan.fromStatus())) {
             throw new OpsRejection("조건부 UPDATE가 0행입니다");
         }
         state.set("B");
+        return plan;
     }
 }

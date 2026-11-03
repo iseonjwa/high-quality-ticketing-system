@@ -8,6 +8,6 @@ public sealed interface RefundCreation {
     /** 결제당 환불이 이미 있다(정상 중복). */
     record Duplicate(Long refundId) implements RefundCreation {}
 
-    /** 결제가 {@code APPROVED}가 아니고 환불 행도 없어 환불을 시작할 수 없다. */
+    /** 결제가 환불을 시작할 수 있는 상태가 아니고(이벤트 경로는 {@code APPROVED}, 금액 불일치 경로는 {@code NEEDS_MANUAL_CHECK}) 환불 행도 없다. */
     record NotApproved(String message) implements RefundCreation {}
 }
