@@ -8,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PollPolicyTest {
 
-    // 순서: admitPerSecond, entryTokenTtl, pollMin, pollMax, pollJitterRatio
+    // 순서: admitPerSecond, entryTokenTtl, pollMin, pollMax, pollJitterRatio, cleanupLimit, keyRetentionAfterStart
     private final PollPolicy pollPolicy = new PollPolicy(new QueueProperties(
-            50, Duration.ofMinutes(10), Duration.ofSeconds(3), Duration.ofSeconds(10), 0.2));
+            50, Duration.ofMinutes(10), Duration.ofSeconds(3), Duration.ofSeconds(10), 0.2, 500, Duration.ofHours(1)));
 
     @Test
     void 예상_대기_시간은_초당_입장_수로_나눠_올림한다() {
