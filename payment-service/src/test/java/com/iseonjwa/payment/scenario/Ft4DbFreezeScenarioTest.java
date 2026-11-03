@@ -37,8 +37,8 @@ import static org.mockito.Mockito.reset;
  * 연결을 닫지 않고 전달만 멈춘다. 이미 빌린 연결의 쿼리가 시한 없이 기다리지 않고 소켓 시한 안에 끊겨 PG 호출 전 구간이 Gateway
  * 시한(3초) 안에 503으로 끝나는지 확인한다. 장애 시작 지점은 {@link Ft4DbOutageScenarioTest}처럼 호출 경계의 훅으로 정한다.
  *
- * <p>Note: 소켓·문장 시한은 {@code config-repo/payment-service.yml}의 값을 그대로 읽어 이 테스트에만 적용한다. 운영 값과 같음을
- * 보장하고, 시한이 없는 다른 테스트의 데이터소스는 바꾸지 않는다.
+ * <p>Note: 연결 대기·생존 검사·소켓·문장 시한은 {@code config-repo/payment-service.yml}의 값을 그대로 읽어 이 테스트에만
+ * 적용한다. 운영 값과 같음을 보장하고, 시한이 없는 다른 테스트의 데이터소스는 바꾸지 않는다.
  *
  * <p>Note: 프록시가 멈춘 동안에는 테스트의 {@code jdbc}도 같은 경로라 멈춘다. 상태 조회는 {@code thaw()} 뒤에 한다.
  */
@@ -46,15 +46,21 @@ class Ft4DbFreezeScenarioTest extends ScenarioTestBase {
     private static final Duration GATEWAY_DEADLINE = Duration.ofSeconds(3);
     private static final Pattern HOST_PORT = Pattern.compile("//([^/:?]+)(?::(\\d+))?");
     private static final FreezableTcpProxy PROXY = startProxy();
-    private static final String SOCKET_TIMEOUT_KEY = "spring.datasource.hikari.data-source-properties.socketTimeout";
-    private static final String OPTIONS_KEY = "spring.datasource.hikari.data-source-properties.options";
+    // 연결을 빌릴 때의 대기·생존 검사 시한과, 빌린 연결의 소켓·문장 시한. 넷 다 운영 값을 써야 멈춘 DB에서의 경과가 운영과 같다
+    private static final List<String> TIMEOUT_KEYS = List.of(
+            "spring.datasource.hikari.connection-timeout",
+            "spring.datasource.hikari.validation-timeout",
+            "spring.datasource.hikari.data-source-properties.socketTimeout",
+            "spring.datasource.hikari.data-source-properties.options");
+    // Hikari는 이 시간보다 오래 쉰 연결을 빌려줄 때 생존 검사를 한다(HikariPool의 aliveBypassWindowMs, 기본 500ms)
+    private static final Duration ALIVE_BYPASS_WINDOW = Duration.ofMillis(500);
 
     @DynamicPropertySource
     static void throughProxyWithProductionTimeouts(DynamicPropertyRegistry registry) throws IOException {
         registry.add("spring.datasource.url", () -> HOST_PORT.matcher(testDbUrl()).replaceFirst("//127.0.0.1:" + PROXY.port()));
         var config = new YamlPropertySourceLoader().load("payment-service", new FileSystemResource("../config-repo/payment-service.yml"))
                 .get(0);
-        for (var key : List.of(SOCKET_TIMEOUT_KEY, OPTIONS_KEY)) {
+        for (var key : TIMEOUT_KEYS) {
             var value = config.getProperty(key);
             assertNotNull(value, key + "가 config-repo/payment-service.yml에 없다");
             registry.add(key, () -> String.valueOf(value));
@@ -122,6 +128,43 @@ class Ft4DbFreezeScenarioTest extends ScenarioTestBase {
         assertEquals(1, PG.ledger().payment(pgOrderId(reservation).toString()).orElseThrow().approveCalls());
         recoverUntilIdle();
         assertEquals(List.of("PaymentApproved"), outboxEventTypes(reservation));
+        invariants().assertHolds();
+    }
+
+    @Test
+    void h_쉬던_연결을_빌릴_때_DB가_멈춰_있으면_생존_검사가_시한_안에_끝나_503이고_풀린_뒤_같은_키로_다시_하면_성공한다() throws Exception {
+        var reservation = newReservation();
+        var key = UUID.randomUUID();
+        var paymentToken = token(USER, reservation, AMOUNT).build();
+        // 허가를 얻은 뒤 연결이 생존 검사 대상이 될 만큼 쉬게 한 다음 DB를 멈춘다. TX1이 연결을 빌릴 때 Hikari가 검사를 한다.
+        // 검사 시한이 기본값(5초)이면 이 경로만으로 Gateway 3초를 넘긴다
+        doAnswer(invocation -> {
+            var permit = invocation.callRealMethod();
+            Thread.sleep(ALIVE_BYPASS_WINDOW.plusMillis(100).toMillis());
+            PROXY.freeze();
+            return permit;
+        }).when(approvalGateSpy).acquire();
+
+        var started = System.nanoTime();
+        var failed = approve(reservation, key, paymentToken);
+        var elapsed = Duration.ofNanos(System.nanoTime() - started);
+        PROXY.thaw();
+
+        assertEquals(503, failed.status(), String.valueOf(failed.body()));
+        assertEquals("SERVICE_UNAVAILABLE", failed.body().get("code").asString());
+        assertTrue(elapsed.compareTo(GATEWAY_DEADLINE) < 0, "Gateway 시한 안에 끝나야 한다: " + elapsed);
+        assertEquals(0, paymentCount(reservation), "TX1을 시작하지 못해 결제 행이 없다");
+        assertEquals(0, PG.ledger().summary().approvedCount(), "PG 호출 전이다");
+        var bulkhead = approvalGateSpy.bulkhead();
+        assertEquals(bulkhead.getBulkheadConfig().getMaxConcurrentCalls(), bulkhead.getMetrics().getAvailableConcurrentCalls(),
+                "허가를 돌려줬다");
+
+        reset(approvalGateSpy);
+        var retried = approve(reservation, key, paymentToken);
+
+        assertEquals(200, retried.status(), String.valueOf(retried.body()));
+        assertEquals("APPROVED", retried.paymentStatus());
+        assertEquals(1, paymentCount(reservation));
         invariants().assertHolds();
     }
 
