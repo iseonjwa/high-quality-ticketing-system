@@ -14,6 +14,9 @@ services:
       retries: 30
   postgres-payment:
     image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    # 결제 테스트는 설정이 다른 SpringBootTest 컨텍스트가 여럿이고 Spring이 컨텍스트를 캐시해 각자 커넥션 풀을 쥔다.
+    # 기본 한도(100)에서는 장애 시나리오 테스트(ISE-161)를 더하자 too many clients가 났다. 테스트 DB만 한도를 올린다
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_DB: payment_test
       POSTGRES_USER: test

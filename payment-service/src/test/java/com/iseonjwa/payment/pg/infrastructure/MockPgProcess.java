@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * IDE에서 Gradle 없이 실행하면 저장소의 {@code mock-pg/build/libs/app.jar}를 쓰므로, mock-pg를 고친 뒤에는 jar를
  * 다시 만들어야 한다.
  */
-final class MockPgProcess implements AutoCloseable {
+public final class MockPgProcess implements AutoCloseable {
     private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(60);
     private static final Duration POLL_INTERVAL = Duration.ofMillis(200);
     // 응답하지 않는 서버에 붙어도 기동 대기와 장애 설정이 끝나게 한다. JDK HttpClient는 기본 요청 시한이 없다
@@ -51,7 +51,7 @@ final class MockPgProcess implements AutoCloseable {
         Runtime.getRuntime().addShutdownHook(killOnExit);
     }
 
-    static MockPgProcess start() {
+    public static MockPgProcess start() {
         var root = repositoryRoot();
         var jar = System.getProperty(JAR_PROPERTY) != null
                 ? Path.of(System.getProperty(JAR_PROPERTY))
@@ -76,24 +76,34 @@ final class MockPgProcess implements AutoCloseable {
         }
     }
 
-    String baseUrl() {
+    public String baseUrl() {
         return baseUrl;
     }
 
     /** 이 서버의 원장 조회 클라이언트(mock-pg.md 9절). */
-    MockPgLedgerClient ledger() {
+    public MockPgLedgerClient ledger() {
         return ledger;
     }
 
     /**
      * 장애 주입 설정을 바꾼다(mock-pg.md 5절의 POST /mock-pg/faults). {@code count}가 null이면 해제할 때까지 유지한다.
      */
-    void applyFault(String target, String mode, Integer count) {
+    public void applyFault(String target, String mode, Integer count) {
         postFault("{\"target\":\"%s\",\"mode\":\"%s\",\"count\":%s}".formatted(target, mode, count));
     }
 
+    /**
+     * 장애를 {@code orderId}(승인 계열 호출) 또는 {@code refundId}(환불 계열 호출)를 대상으로 한 요청에만 건다. 배경 호출이 다른
+     * 주문의 요청으로 {@code count}를 가져가지 않게 하려는 것이다. 종류에 맞지 않는 쪽은 null로 둔다(둘 다 주면 서버가 400이다).
+     */
+    public void applyFault(String target, String mode, Integer count, String orderId, String refundId) {
+        var scope = (orderId == null ? "" : ",\"orderId\":\"%s\"".formatted(orderId))
+                + (refundId == null ? "" : ",\"refundId\":\"%s\"".formatted(refundId));
+        postFault("{\"target\":\"%s\",\"mode\":\"%s\",\"count\":%s%s}".formatted(target, mode, count, scope));
+    }
+
     /** 지연 장애를 건다. {@code count}가 null이면 해제할 때까지 유지한다. */
-    void applyDelay(String target, long delayMs, Integer count) {
+    public void applyDelay(String target, long delayMs, Integer count) {
         postFault("{\"target\":\"%s\",\"mode\":\"DELAY\",\"delayMs\":%d,\"count\":%s}"
                 .formatted(target, delayMs, count));
     }

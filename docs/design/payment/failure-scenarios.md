@@ -79,3 +79,37 @@ Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하
 | FT-5 | 환불 중단 | (a) 환불 중 `pg-recovery` CB OPEN: 시도 횟수 불변, 복구 뒤 완료. (b) 장기 장애: 9회 뒤 NMC, 알림, `refund retry`로 완료. (c) PG 거절: NMC, `refund resolve --close-failed`는 외부 조치 참조가 있어야만 적용. (d) 긴급 콘솔 환불 예외 절차 | N20, N25, N31 |
 
 각 FT는 끝에 V1~V3를 모두 실행하고, 하나라도 어긋나면 실패로 본다. 실제 실행 결과(명령, 주입 방법, V1~V3 출력)는 구현 PR 본문에 남긴다.
+
+### 구현(ISE-161, ISE-44 분할 1/2)
+
+검증 기반(V1~V3)과 FT-1·FT-2를 구현했다. FT-3~5는 ISE-162다. 테스트는 `payment-service/src/test/java/com/iseonjwa/payment/scenario/`에 있다.
+
+| 클래스 | 역할 |
+|---|---|
+| `ScenarioTestBase` | 공통 기반. 실제 Mock PG 프로세스(test 프로필)와 테스트 PostgreSQL을 쓰고 Kafka 리스너·배경 실행기는 끈다. 시나리오마다 Mock PG `reset`과 시나리오 데이터 정리로 시작한다. 복구는 `recoverUntilIdle()`이 재확인·환불 워커·Outbox 릴레이를 할 일이 없을 때까지(상한 40바퀴) 직접 부른다 |
+| `ScenarioInvariants` | 검증기 V1~V3. 위반 항목을 모아 한 번에 실패시킨다 |
+| `ScenarioInvariantsTest` | 검증기 자체 테스트. 일부러 만든 위반 데이터로 V1·V2·V3가 각각 실패하는지 본다 |
+| `Ft1DuplicateScenarioTest`, `Ft2PgResponseLossScenarioTest` | FT-1, FT-2 |
+
+- 기다림은 시계를 앞으로 당겨 없앤다. 시나리오의 재확인·환불·Outbox 다음 시도 시각과 임대 만료를 과거로 당긴다(기존 통합 테스트와 같은 방식이고 운영 시계 빈은 바꾸지 않는다). `sleep`을 쓰지 않는다.
+- 장애는 `orderId`·`refundId`로 한정해 건다. 승인의 주문 ID는 TX1이 정하므로 `PgClient` 스파이로 승인 호출 직전에 그 주문의 장애를 건다. 환불은 환불 행의 `pg_refund_id`를 읽어 건다.
+- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조와 대사(RC-1~8)는 ISE-43이 맡고 이 검증기에는 없다. Gauge는 DB 전체를 세므로 "0보다 크다"는 하한 확인이다.
+- V1의 "PG에만 있는 승인 0"은 PG가 승인한 모든 주문에 같은 `pg_tx_id`의 결제가 있어야 한다. 결제가 아직 결과를 모르는 미해결(`UNKNOWN`·NMC이고 `pg_tx_id` 없음)이면 예외로 둔다.
+
+FT-1 (a)~(c)와 FT-2 결과(모두 V1~V3 통과):
+
+| 시나리오 | 주입 | 최종 상태 |
+|---|---|---|
+| FT-1 (a) 같은 키 3회·새 키 2회 | 없음 | 결제 1건 `APPROVED`, `approveCalls` 1, 모든 응답이 같은 `paymentId`(200), `PaymentApproved` 1건 |
+| FT-1 (a) 같은 예매로 6건 동시(같은 키·새 키 섞음) | 없음 | 응답 200·202만(500 없음), 결제 1건, `approveCalls` 1 |
+| FT-1 (b) `RefundRequested` 3중 발행 + 같은 DLQ 메시지 2회 | 없음 | 환불 행 1건, `dead_letters` `DUPLICATE`, PG `refundCount` 1·`refundCalls` 1, `REFUNDED` |
+| FT-1 (b) DLQ가 먼저 도착한 뒤 원본 2회 재전달 | 없음 | `dead_letters` `AUTO_PERSISTED`, 환불 행 1건, PG `refundCount` 1 |
+| FT-1 (c) Outbox 전송 확인 전 중단 | 첫 전송 뒤 릴레이 중단(기록용 sender) | 임대 중에는 다시 집히지 않고, 임대 만료 뒤 같은 `eventId`로 다시 전송, `SENT` 1행 |
+| FT-2 (a) 승인 응답 유실 | APPROVE `DROP_RESPONSE`, `orderId` 한정 | 202 `UNKNOWN` → 재확인 → `APPROVED`, `approveCalls` 1, `PaymentApproved` 1건 |
+| FT-2 (b) 환불 응답 유실 | REFUND `DROP_RESPONSE`, `refundId` 한정 | 환불 `UNKNOWN` → `findRefund` → `REFUNDED`, `refundCount` 1, `refundCalls` 1 |
+| FT-2 (c) 환불이 PG에 닿지 않음 | REFUND `SERVER_ERROR`, `refundId` 한정 | `UNKNOWN` → `NotFound` → 같은 `pg_refund_id`로 재호출 → `REFUNDED`, `refundCount` 1, 원장 환불 ID가 처음 것과 같음, `refundCalls` 2 |
+| FT-2 (d) 승인이 PG에 닿지 않음 | APPROVE `SERVER_ERROR`, `orderId` 한정 | `UNKNOWN` → `NotFound` → 늦은 승인 방지 → `DECLINED(NOT_SENT)`, `PaymentDeclined` 1건. 같은 주문의 늦은 승인은 PG가 받지 않고 원장 `CANCELED`, 승인 0건 |
+
+- FT-2 (d)의 V1~V3는 승인 호출이 1회인 상태에서 실행한다. 이어서 거는 늦은 승인 시도는 `approveCalls`를 늘리므로 그 뒤에는 검증기를 돌리지 않는다.
+- FT-1 (d) `processed_events` 정리 뒤 재전달은 `RedeliveryAfterRetentionCleanupTest`(ISE-146)가 이미 다룬다. 중복으로 만들지 않았다.
+- FT-1 (a)의 `PaymentApproved` 같은 `eventId` 재수신을 거르는 것은 소비자(예매)의 `processed_events`다. 결제 쪽은 같은 `eventId`로 다시 나가는 것까지만 확인한다(c).
