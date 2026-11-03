@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.reconciliation.presentation.scheduling;
 
 import com.iseonjwa.payment.infrastructure.housekeeping.HousekeepingConfiguration;
+import com.iseonjwa.payment.infrastructure.housekeeping.HousekeepingProperties;
 import com.iseonjwa.payment.infrastructure.job.BackgroundJob;
 import com.iseonjwa.payment.reconciliation.application.ReconciliationProperties;
 import com.iseonjwa.payment.reconciliation.application.ReconciliationService;
@@ -24,6 +25,25 @@ import java.time.Clock;
 @EnableConfigurationProperties(ReconciliationProperties.class)
 public class ReconciliationJobConfiguration {
     public static final String JOB_NAME = "reconciliation";
+
+    /**
+     * 기동 때 {@code event-window + allowed-lag < SENT Outbox 보관 기간}을 검증한다. 보관 정리가 대사 판단 범위 안의 Outbox를
+     * 지우면 정상 전이가 이벤트 누락으로 보인다. 보관 기간은 {@code payment.housekeeping.outbox-sent-retention}이다.
+     */
+    @Bean
+    ReconciliationRetentionGuard reconciliationRetentionGuard(ReconciliationProperties reconciliation,
+            HousekeepingProperties housekeeping) {
+        var reach = reconciliation.eventWindow().plus(reconciliation.allowedLag());
+        if (reach.compareTo(housekeeping.outboxSentRetention()) >= 0) {
+            throw new IllegalArgumentException("payment.reconciliation.event-window(" + reconciliation.eventWindow()
+                    + ") + allowed-lag(" + reconciliation.allowedLag() + ")은 payment.housekeeping.outbox-sent-retention("
+                    + housekeeping.outboxSentRetention() + ")보다 짧아야 합니다");
+        }
+        return new ReconciliationRetentionGuard();
+    }
+
+    /** 검증을 통과했다는 표지 빈. */
+    static final class ReconciliationRetentionGuard {}
 
     @Bean
     @Qualifier(HousekeepingConfiguration.QUALIFIER)

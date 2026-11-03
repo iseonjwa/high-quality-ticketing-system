@@ -372,6 +372,16 @@ class PaymentMigrationTest {
     }
 
     @Test
+    void RC8이_쓰는_Outbox_예매_키_인덱스와_이력_시각_부분_인덱스가_존재한다() {
+        assertTrue(names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox_events'")
+                .contains("idx_outbox_events_message_key"));
+        var historyIndex = jdbc.queryForObject(
+                "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_payment_status_histories_payment_created'",
+                String.class);
+        assertTrue(historyIndex.contains("(created_at)") && historyIndex.contains("target_type"), historyIndex);
+    }
+
+    @Test
     void 같은_불일치의_OPEN_행은_둘일_수_없다_대상이_없는_쪽은_0으로_비교한다() {
         insertMismatch("RC-1", 7L, 8L, "OPEN");
         assertViolation("uq_reconciliation_mismatches_open", () -> insertMismatch("RC-1", 7L, 8L, "OPEN"));

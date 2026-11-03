@@ -29,3 +29,11 @@ CREATE INDEX idx_reconciliation_mismatches_open ON reconciliation_mismatches (st
 -- inspect가 결제·예매별로 찾는 인덱스
 CREATE INDEX idx_reconciliation_mismatches_payment ON reconciliation_mismatches (payment_id, id);
 CREATE INDEX idx_reconciliation_mismatches_reservation ON reconciliation_mismatches (reservation_id, id);
+
+-- RC-8(ConfirmedEventRule)이 쓰는 인덱스 둘.
+-- 확정 전이에 대응하는 Outbox 행을 예매 키로 찾는다. 기존 message_key 인덱스는 PENDING·FAILED 부분 인덱스뿐이라 SENT 행은
+-- 전체를 읽어야 했다. 상태 조건이 없는 Ops inspect의 message_key 조회도 이 인덱스를 쓴다
+CREATE INDEX idx_outbox_events_message_key ON outbox_events (message_key);
+-- 기간 안의 결제 전이 이력만 시각 범위로 읽는다(환불 이력 제외)
+CREATE INDEX idx_payment_status_histories_payment_created ON payment_status_histories (created_at)
+    WHERE target_type = 'PAYMENT';

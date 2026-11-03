@@ -236,10 +236,33 @@ class ReconciliationServiceTest {
         service.runOnce(AFTER_LAG);
         assertEquals(1, open("RC-8", approved));
 
-        fixtures.outbox(reservationOf(approved), approved, "PaymentApproved", CREATED);
+        // 사람이 runbook대로 한참 뒤에 보충한 행도 대응으로 인정한다(전이보다 2시간 뒤)
+        fixtures.outbox(reservationOf(approved), approved, "PaymentApproved", CREATED.plus(Duration.ofHours(2)));
         service.runOnce(AFTER_LAG.plus(Duration.ofMinutes(5)));
 
         assertEquals("RESOLVED", row(approved).get("status"));
+    }
+
+    @Test
+    void RC8_OPEN_행을_다시_판단할_때_처음_발견_전에_정리된_예전_전이는_누락으로_보지_않는다() {
+        // D0에 정상 승인됐고 그 Outbox 행은 보관 정리로 지워졌다. D10에 환불 전이의 이벤트가 빠졌다
+        var d10 = CREATED.plus(Duration.ofDays(10));
+        var payment = fixtures.payment(fixtures.newReservation(), "REFUNDED", d10);
+        fixtures.paymentHistory(payment, "REQUESTED", "APPROVED", CREATED);
+        fixtures.paymentHistory(payment, "APPROVED", "REFUNDED", d10);
+
+        service.runOnce(d10.plus(Duration.ofMinutes(11)));
+        service.runOnce(d10.plus(Duration.ofMinutes(16)));
+
+        assertEquals(1, open("RC-8", payment));
+        var detail = jdbc.queryForObject("SELECT detail::text FROM reconciliation_mismatches WHERE payment_id = ?",
+                String.class, payment);
+        assertTrue(detail.contains("REFUNDED") && !detail.contains("\"APPROVED\""), "새 전이만 누락이다: " + detail);
+
+        fixtures.outbox(reservationOf(payment), payment, "PaymentRefunded", d10.plus(Duration.ofHours(3)));
+        service.runOnce(d10.plus(Duration.ofMinutes(21)));
+
+        assertEquals("RESOLVED", row(payment).get("status"), "예전 전이의 Outbox가 없어도 새 이벤트를 보충하면 닫힌다");
     }
 
     @Test
