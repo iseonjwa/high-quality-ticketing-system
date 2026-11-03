@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
+import com.iseonjwa.payment.refund.application.RefundRequestedMessage;
+import com.iseonjwa.payment.refund.application.RefundRequestedParser;
 import com.iseonjwa.payment.refund.application.RefundRequestedPayload;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
@@ -19,7 +21,7 @@ import java.util.UUID;
  * 설정에 따라 조용히 변환될 수 있다.
  */
 @Component
-class RefundRequestedMessageParser {
+class RefundRequestedMessageParser implements RefundRequestedParser {
     static final String EVENT_TYPE = "RefundRequested";
     static final int VERSION = 1;
     static final String PRODUCER = "reservation-service";
@@ -30,7 +32,8 @@ class RefundRequestedMessageParser {
         this.mapper = mapper;
     }
 
-    RefundRequestedMessage parse(String value) {
+    @Override
+    public RefundRequestedMessage parse(String value) {
         var root = read(value);
         if (!EVENT_TYPE.equals(text(root, "eventType"))) {
             throw invalid("eventType이 " + EVENT_TYPE + "가 아닙니다");

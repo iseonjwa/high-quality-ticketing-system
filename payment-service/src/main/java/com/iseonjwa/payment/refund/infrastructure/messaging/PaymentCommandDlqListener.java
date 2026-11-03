@@ -5,6 +5,7 @@ import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
 import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.refund.application.DeadLetterInput;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
+import com.iseonjwa.payment.refund.application.RefundRequestedMessage;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;

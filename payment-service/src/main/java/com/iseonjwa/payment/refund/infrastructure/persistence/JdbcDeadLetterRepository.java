@@ -63,6 +63,11 @@ public class JdbcDeadLetterRepository implements DeadLetterRepository {
     }
 
     @Override
+    public Optional<DeadLetter> findById(Long id) {
+        return jdbc.query("SELECT * FROM dead_letters WHERE id = ?", MAPPER, id).stream().findFirst();
+    }
+
+    @Override
     public Optional<DeadLetter> findByEventKey(String eventKey) {
         return jdbc.query("SELECT * FROM dead_letters WHERE event_key = ?", MAPPER, eventKey).stream().findFirst();
     }

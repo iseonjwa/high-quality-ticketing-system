@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.payment.payment.domain.StatusActor;
 import com.iseonjwa.payment.refund.domain.RefundReason;
 import com.iseonjwa.payment.refund.domain.RefundSource;
 import com.iseonjwa.payment.support.RefundFixtures;
@@ -83,7 +84,7 @@ class RefundRequestResultTest {
         var eventId = UUID.randomUUID();
 
         var result = transaction.execute(status ->
-                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, eventId));
+                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, eventId, StatusActor.SYSTEM));
 
         var created = assertInstanceOf(RefundCreation.Created.class, result);
         var refund = jdbc.queryForMap("SELECT * FROM refunds WHERE payment_id = ?", payment.paymentId());
@@ -97,11 +98,11 @@ class RefundRequestResultTest {
     void 환불이_이미_있으면_Duplicate이고_결제가_REFUNDED여도_같다() {
         var payment = fixtures.payment("APPROVED");
         var first = transaction.execute(status ->
-                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.EVENT, UUID.randomUUID()));
+                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.EVENT, UUID.randomUUID(), StatusActor.SYSTEM));
         jdbc.update("UPDATE payments SET status = 'REFUNDED', refunded_at = now() WHERE id = ?", payment.paymentId());
 
         var second = transaction.execute(status ->
-                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, UUID.randomUUID()));
+                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, UUID.randomUUID(), StatusActor.SYSTEM));
 
         var duplicate = assertInstanceOf(RefundCreation.Duplicate.class, second);
         assertEquals(((RefundCreation.Created) first).refundId(), duplicate.refundId());
@@ -114,7 +115,7 @@ class RefundRequestResultTest {
         var payment = fixtures.payment("REQUESTED");
 
         var result = transaction.execute(status ->
-                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, UUID.randomUUID()));
+                service.create(payload(payment, p -> p), RefundReason.CANCELED, RefundSource.DLQ, UUID.randomUUID(), StatusActor.SYSTEM));
 
         assertInstanceOf(RefundCreation.NotApproved.class, result);
         assertEquals(0, fixtures.refundCount(payment.paymentId()));

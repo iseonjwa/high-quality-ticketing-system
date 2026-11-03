@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.refund.application;
 
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
+import com.iseonjwa.payment.payment.domain.StatusActor;
 import com.iseonjwa.payment.refund.domain.DeadLetterRepository;
 import com.iseonjwa.payment.refund.domain.DeadLetterResolution;
 import com.iseonjwa.payment.refund.domain.NewDeadLetter;
@@ -81,20 +82,16 @@ public class DeadLetterService {
             if (eventId != null) processedEvents.markProcessed(eventId, CONSUMER_GROUP, now);
 
             if (payload == null) return open(id.get(), unparsableReason);
-            return switch (refundRequests.verify(payload)) {
-                case RefundRequestVerification.Invalid invalid -> open(id.get(), invalid.message());
-                case RefundRequestVerification.Valid valid ->
-                        switch (refundRequests.create(payload, valid.reason(), RefundSource.DLQ, eventId)) {
-                            case RefundCreation.Created created -> {
-                                deadLetters.resolve(id.get(), DeadLetterResolution.AUTO_PERSISTED, created.refundId(), now);
-                                yield Optional.<String>empty();
-                            }
-                            case RefundCreation.Duplicate duplicate -> {
-                                deadLetters.resolve(id.get(), DeadLetterResolution.DUPLICATE, duplicate.refundId(), now);
-                                yield Optional.<String>empty();
-                            }
-                            case RefundCreation.NotApproved notApproved -> open(id.get(), notApproved.message());
-                        };
+            return switch (refundRequests.settle(payload, RefundSource.DLQ, eventId, StatusActor.SYSTEM)) {
+                case RefundRequestOutcome.Rejected rejected -> open(id.get(), rejected.message());
+                case RefundRequestOutcome.Created created -> {
+                    deadLetters.resolve(id.get(), DeadLetterResolution.AUTO_PERSISTED, created.refundId(), now);
+                    yield Optional.<String>empty();
+                }
+                case RefundRequestOutcome.Duplicate duplicate -> {
+                    deadLetters.resolve(id.get(), DeadLetterResolution.DUPLICATE, duplicate.refundId(), now);
+                    yield Optional.<String>empty();
+                }
             };
         });
         // 커밋된 뒤에 알린다. 커밋이 실패하면 OPEN 기록도 남지 않으므로 알림이 거짓이 되지 않게 한다

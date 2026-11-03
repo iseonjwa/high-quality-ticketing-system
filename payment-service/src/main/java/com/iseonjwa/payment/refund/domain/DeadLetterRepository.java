@@ -20,6 +20,8 @@ public interface DeadLetterRepository {
     /** {@code OPEN} 행을 {@code RESOLVED}로 닫는다. 이미 닫혔으면 아무것도 하지 않고 false다. */
     boolean resolve(Long id, DeadLetterResolution resolution, Long refundId, Instant now);
 
+    Optional<DeadLetter> findById(Long id);
+
     Optional<DeadLetter> findByEventKey(String eventKey);
 
     long countOpen();

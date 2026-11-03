@@ -62,7 +62,7 @@ public class RefundRequestService {
         switch (verify(payload)) {
             case RefundRequestVerification.Invalid invalid -> throw new NonRetryableMessageException(invalid.message());
             case RefundRequestVerification.Valid valid -> {
-                if (create(payload, valid.reason(), RefundSource.EVENT, eventId) instanceof RefundCreation.NotApproved notApproved) {
+                if (create(payload, valid.reason(), RefundSource.EVENT, eventId, StatusActor.SYSTEM) instanceof RefundCreation.NotApproved notApproved) {
                     throw new NonRetryableMessageException(notApproved.message());
                 }
             }
@@ -97,17 +97,34 @@ public class RefundRequestService {
     }
 
     /**
+     * 검증({@link #verify})과 생성({@link #create})을 이어서 한 결과. DLQ 처리기와 Ops {@code dead-letter resolve --replay}가
+     * 같은 경로로 환불을 만들도록 한곳에 둔다. 호출한 쪽의 트랜잭션에 참여하며 내용 문제를 예외로 던지지 않는다.
+     */
+    public RefundRequestOutcome settle(RefundRequestedPayload payload, RefundSource source, UUID eventId, StatusActor actor) {
+        return switch (verify(payload)) {
+            case RefundRequestVerification.Invalid invalid -> new RefundRequestOutcome.Rejected(invalid.message());
+            case RefundRequestVerification.Valid valid ->
+                    switch (create(payload, valid.reason(), source, eventId, actor)) {
+                        case RefundCreation.Created created -> new RefundRequestOutcome.Created(created.refundId());
+                        case RefundCreation.Duplicate duplicate -> new RefundRequestOutcome.Duplicate(duplicate.refundId());
+                        case RefundCreation.NotApproved notApproved -> new RefundRequestOutcome.Rejected(notApproved.message());
+                    };
+        };
+    }
+
+    /**
      * 검증을 통과한 요청으로 환불을 원자적으로 만든다. 호출한 쪽의 트랜잭션에 참여하며 예외로 내용 문제를 알리지 않는다.
      * {@code payload}는 {@link #verify}를 통과한 것이어야 한다(결제와 예매 ID가 맞다).
      */
-    public RefundCreation create(RefundRequestedPayload payload, RefundReason reason, RefundSource source, UUID eventId) {
+    public RefundCreation create(RefundRequestedPayload payload, RefundReason reason, RefundSource source, UUID eventId,
+            StatusActor actor) {
         var now = clock.instant();
         var created = refunds.createForApprovedPayment(payload.paymentId(), payload.reservationId(), UUID.randomUUID(),
                 reason, source, eventId, now);
         if (created == 1) {
             // 실제로 만들었을 때만 이력을 쓴다(domain-and-states.md 4절 1번)
             histories.save(PaymentStatusHistory.ofRefund(payload.paymentId(), null, RefundStatus.REQUESTED, reason.name(),
-                    StatusActor.SYSTEM, now));
+                    actor, now));
             return new RefundCreation.Created(refunds.findByPaymentId(payload.paymentId()).orElseThrow().getId());
         }
         // Note: 0행이면 결제 상태를 보기 전에 환불 행부터 다시 읽는다. 이미 환불돼 결제가 REFUNDED여도 환불 행이 있으면
