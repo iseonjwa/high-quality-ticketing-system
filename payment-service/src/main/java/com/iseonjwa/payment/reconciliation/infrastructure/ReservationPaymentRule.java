@@ -26,7 +26,8 @@ import java.util.stream.Stream;
  * 결제에서 출발해 예매와 대조하는 규칙(RC-1·2·3·5·6)의 공통 뼈대. 결제·예매 모두 키는 {@code (예매 ID, 결제 ID)}다.
  *
  * <p>준비(트랜잭션 밖)는 회차 문맥의 예매 스냅숏을 받아 오는 것이 전부이고, 판단(잠금을 잡은 트랜잭션 안)은 결제 DB를 다시 읽어
- * 스냅숏과 비교한다. 대상은 기간 안에 갱신된 결제와 이 규칙의 {@code OPEN} 행이 가리키는 결제다. 규칙마다 달라지는 것은
+ * 스냅숏과 비교한다. 대상은 기간 안에 갱신된 결제, 이 규칙의 {@code OPEN} 행이 가리키는 결제, 그리고 예매가 변경 목록에 나온
+ * 결제다(결제는 오래됐는데 예매가 최근 취소된 경우). 규칙마다 달라지는 것은
  * 대상을 좁히는 SQL 조건({@link #paymentCondition})과 불일치 판정({@link #mismatch})뿐이다.
  *
  * <p>Note: 허용 지연은 결제·환불·예매 중 가장 늦은 갱신 시각 기준이다. 예매가 없으면(스냅숏에서 빠짐) 결제·환불 시각만 쓴다.
@@ -40,7 +41,7 @@ abstract class ReservationPaymentRule implements ReconciliationRule {
                    r.amount AS refund_amount, r.status AS refund_status, r.updated_at AS refund_updated_at
             FROM payments p LEFT JOIN refunds r ON r.payment_id = p.id
             WHERE %s
-              AND (p.updated_at >= ? OR r.updated_at >= ?
+              AND (p.updated_at >= ? OR r.updated_at >= ? OR p.reservation_id = ANY(?)
                    OR EXISTS (SELECT 1 FROM reconciliation_mismatches m
                               WHERE m.rule = ? AND m.status = 'OPEN' AND m.payment_id = p.id))
             ORDER BY p.id
@@ -77,7 +78,14 @@ abstract class ReservationPaymentRule implements ReconciliationRule {
         var judgedUntil = now.minus(policy.allowedLag());
         var found = new ArrayList<Finding>();
         var undecided = new HashSet<MismatchKey>();
-        jdbc.query(CANDIDATES.formatted(paymentCondition()), rs -> {
+        // 결제가 오래됐어도 예매가 최근에 바뀌었으면(변경 목록에 나왔으면) 대상이다
+        var changed = view.changes().stream().map(ReservationSnapshot::reservationId).distinct().toArray(Long[]::new);
+        jdbc.query(CANDIDATES.formatted(paymentCondition()), statement -> {
+            statement.setTimestamp(1, since);
+            statement.setTimestamp(2, since);
+            statement.setArray(3, statement.getConnection().createArrayOf("bigint", changed));
+            statement.setString(4, code.code());
+        }, rs -> {
             var payment = PaymentRow.read(rs);
             var key = new MismatchKey(payment.reservationId(), payment.id());
             if (!view.wasRequested(payment.reservationId())) {
@@ -90,7 +98,7 @@ abstract class ReservationPaymentRule implements ReconciliationRule {
                 return;
             }
             mismatch(payment, reservation).ifPresent(reason -> found.add(new Finding(key, detail(reason, payment, reservation))));
-        }, since, since, code.code());
+        });
         return new Evaluation(found, undecided);
     }
 

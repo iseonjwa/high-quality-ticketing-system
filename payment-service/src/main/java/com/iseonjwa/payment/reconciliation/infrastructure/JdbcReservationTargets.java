@@ -10,7 +10,7 @@ import java.util.Set;
 
 /**
  * 예매 서비스에 물어볼 예매 ID. 기간 안에 갱신된(환불 갱신 포함) {@code APPROVED}·{@code REFUNDED} 결제의 예매와, RC-1~RC-6의
- * {@code OPEN} 행이 가리키는 예매의 합집합이다. RC-1~RC-6 규칙이 고르는 결제의 예매는 모두 여기에 든다.
+ * {@code OPEN} 행이 가리키는 예매의 합집합이다. 변경 목록에 나온 예매의 결제는 변경 목록 스냅숏이 이미 있어 여기서 묻지 않는다(로더가 합친다).
  */
 class JdbcReservationTargets implements ReservationTargets {
     private static final String TARGETS = """

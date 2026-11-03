@@ -37,6 +37,7 @@ public class FakeReservationServer implements AutoCloseable {
     private volatile int forcedStatus;
     private volatile long delayMillis;
     private volatile boolean fractionalAmounts;
+    private volatile boolean endlessEmptyChangePages;
 
     public FakeReservationServer() {
         try {
@@ -105,7 +106,13 @@ public class FakeReservationServer implements AutoCloseable {
         fractionalAmounts = true;
     }
 
+    /** 변경 목록이 항상 빈 쪽에 새 커서를 붙여 돌려준다. */
+    public void answerChangesWithEndlessEmptyPages() {
+        endlessEmptyChangePages = true;
+    }
+
     public void reset() {
+        endlessEmptyChangePages = false;
         reservations.clear();
         corruptedStatus.clear();
         changes.clear();
@@ -166,6 +173,12 @@ public class FakeReservationServer implements AutoCloseable {
     }
 
     private String changesBody(Map<String, String> query) {
+        if (endlessEmptyChangePages) {
+            var body = new LinkedHashMap<String, Object>();
+            body.put("items", List.of());
+            body.put("nextCursor", "c" + System.nanoTime());
+            return JSON.writeValueAsString(body);
+        }
         var size = Integer.parseInt(query.getOrDefault("size", "100"));
         var from = query.containsKey("cursor") ? Integer.parseInt(query.get("cursor")) : 0;
         var to = Math.min(from + size, changes.size());

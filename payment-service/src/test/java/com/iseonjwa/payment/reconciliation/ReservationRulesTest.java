@@ -335,6 +335,49 @@ class ReservationRulesTest {
         assertEquals(1, open("RC-6", payment.id));
     }
 
+    @Test
+    void RC5_RC6_REFUNDED_결제의_예매_금액과_사용자_불일치는_잡지_않는다() {
+        var payment = payment("REFUNDED", AMOUNT, USER);
+        fixtures.refund(payment.id, "REFUNDED", CREATED);
+        reservation(payment.reservation, ReservationStatus.CANCELED, AMOUNT + 10000, payment.id, USER + 1, EARLIER);
+
+        service.runOnce(AFTER_LAG);
+
+        assertEquals(0, open("RC-5", payment.id) + open("RC-6", payment.id));
+    }
+
+    @Test
+    void 열린_RC5_RC6은_결제가_환불되면_다음_회차에_RESOLVED로_닫힌다() {
+        var payment = approved(AMOUNT, USER);
+        reservation(payment.reservation, ReservationStatus.CONFIRMED, AMOUNT + 10000, payment.id, USER + 1, EARLIER);
+        service.runOnce(AFTER_LAG);
+        assertEquals(1, open("RC-5", payment.id));
+        assertEquals(1, open("RC-6", payment.id));
+
+        // 운영자가 확인한 뒤 환불해 결제가 REFUNDED가 된다
+        jdbc.update("UPDATE payments SET status = 'REFUNDED', updated_at = ? WHERE id = ?", Timestamp.from(CREATED), payment.id);
+        fixtures.refund(payment.id, "REFUNDED", CREATED);
+        reservation(payment.reservation, ReservationStatus.CANCELED, AMOUNT + 10000, payment.id, USER + 1, EARLIER);
+        service.runOnce(AFTER_LAG.plus(Duration.ofMinutes(5)));
+
+        assertEquals(0, open("RC-5", payment.id) + open("RC-6", payment.id));
+        assertEquals(2, count("SELECT count(*) FROM reconciliation_mismatches WHERE payment_id = ? AND rule IN ('RC-5', 'RC-6') "
+                + "AND status = 'RESOLVED'", payment.id));
+    }
+
+    @Test
+    void RC5_둘째_분기_환불_금액_불일치는_REFUNDED에서_계속_잡는다() {
+        var payment = payment("REFUNDED", AMOUNT, USER);
+        fixtures.refund(payment.id, "REFUNDED", CREATED);
+        jdbc.update("UPDATE refunds SET amount = 40000 WHERE payment_id = ?", payment.id);
+        reservation(payment.reservation, ReservationStatus.CANCELED, AMOUNT, payment.id, USER, EARLIER);
+        service.runOnce(AFTER_LAG);
+        assertEquals(1, open("RC-5", payment.id));
+
+        service.runOnce(AFTER_LAG.plus(Duration.ofMinutes(5)));
+        assertEquals(1, open("RC-5", payment.id), "환불 금액이 그대로면 계속 열려 있다");
+    }
+
     // ----- 예매 조회 실패
 
     @ParameterizedTest
@@ -360,7 +403,9 @@ class ReservationRulesTest {
         assertEquals(lastSeenBefore, jdbc.queryForObject("SELECT last_seen_at FROM reconciliation_mismatches WHERE rule = 'RC-2' "
                 + "AND payment_id = ?", Timestamp.class, existing.id), "기록도 갱신하지 않는다");
         assertEquals(0, open("RC-2", fresh.id), "조회 실패(404 포함)를 예매 없음으로 읽지 않는다");
-        assertEquals(1, server.byIdBatchSizes().size(), "실패한 뒤 규칙마다 다시 부르지 않는다");
+        // 변경 목록을 먼저 읽는다. 404·500·시한 초과는 거기서 끝나고 알 수 없는 상태는 묶음 조회에서 실패한다
+        assertEquals(1, server.changeRequests().size(), "실패한 뒤 규칙마다 다시 부르지 않는다");
+        assertTrue(server.byIdBatchSizes().size() <= 1, "묶음 조회도 다시 부르지 않는다");
 
         // 조회가 돌아오면 다음 회차에 닫는다
         server.reset();
@@ -386,6 +431,74 @@ class ReservationRulesTest {
         };
 
         abstract void apply(FakeReservationServer server, long reservationId);
+    }
+
+    // ----- 변경 목록으로 대상 보강, 대량 누락, 커서
+
+    @Test
+    void RC2_결제가_7일보다_오래됐어도_예매가_최근_취소됐으면_변경_목록으로_찾는다() {
+        var reservationId = fixtures.newReservation();
+        var old = fixtures.payment(reservationId, "APPROVED", CREATED.minus(Duration.ofDays(21)));
+        // 같은 회차에 기간 안의 정상 결제도 있다. 묶음 조회에는 이 결제의 예매만 오른다
+        var recent = approved(AMOUNT, USER);
+        reservation(recent.reservation, ReservationStatus.CONFIRMED, AMOUNT, recent.id, USER, EARLIER);
+        reservation(reservationId, ReservationStatus.CANCELED, AMOUNT, null, USER, CREATED);
+        server.setChanges(List.of(server.snapshot(reservationId)));
+
+        service.runOnce(AFTER_LAG);
+
+        assertEquals(1, open("RC-2", old));
+        assertEquals(List.of(1), server.byIdBatchSizes(), "변경 목록에 나온 예매는 묶음 조회로 다시 묻지 않는다");
+    }
+
+    @Test
+    void 변경_목록에_없는_오래된_결제는_대상이_아니다() {
+        var reservationId = fixtures.newReservation();
+        var old = fixtures.payment(reservationId, "APPROVED", CREATED.minus(Duration.ofDays(21)));
+        reservation(reservationId, ReservationStatus.CANCELED, AMOUNT, null, USER, CREATED.minus(Duration.ofDays(20)));
+
+        service.runOnce(AFTER_LAG);
+
+        assertEquals(0, open("RC-2", old));
+        assertEquals(List.of(), server.byIdBatchSizes());
+    }
+
+    @Test
+    void 묶음_응답이_통째로_비면_예매_없음으로_기록하지_않고_조회_실패로_본다() {
+        var existing = approved(AMOUNT, USER);
+        reservation(existing.reservation, ReservationStatus.EXPIRED, AMOUNT, null, USER, EARLIER);
+        service.runOnce(AFTER_LAG);
+        assertEquals(1, open("RC-2", existing.id));
+
+        // 예매 서비스가 200으로 빈 items를 돌려주는 이상: 이번에는 3건을 물었는데 하나도 오지 않는다
+        server.reset();
+        var b = approved(AMOUNT, USER);
+        var c = approved(AMOUNT, USER);
+
+        assertThrows(ReconciliationFailedException.class, () -> service.runOnce(AFTER_LAG.plus(Duration.ofMinutes(5))));
+
+        assertEquals(1, open("RC-2", existing.id), "열린 행을 닫지 않는다");
+        assertEquals(0, open("RC-2", b.id) + open("RC-2", c.id), "대량 누락을 예매 없음으로 기록하지 않는다");
+    }
+
+    @Test
+    void 한_건만_빠진_예매_없음은_그대로_RC2로_잡힌다() {
+        var present = approved(AMOUNT, USER);
+        reservation(present.reservation, ReservationStatus.CONFIRMED, AMOUNT, present.id, USER, EARLIER);
+        var missing = approved(AMOUNT, USER);
+
+        service.runOnce(AFTER_LAG);
+
+        assertEquals(1, open("RC-2", missing.id));
+    }
+
+    @Test
+    void 변경_목록이_빈_쪽에_새_커서를_계속_줘도_회차가_끝난다() {
+        server.answerChangesWithEndlessEmptyPages();
+
+        service.runOnce(AFTER_LAG);
+
+        assertEquals(1, server.changeRequests().size());
     }
 
     // ----- 회차당 호출 수, 준비 뒤에 생긴 대상
