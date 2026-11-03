@@ -14,6 +14,21 @@ import java.util.UUID;
 interface SpringDataReservationRepository extends JpaRepository<Reservation, Long> {
     Optional<Reservation> findByRequestId(UUID requestId);
 
+    List<Reservation> findByIdInOrderByIdAsc(List<Long> ids);
+
+    @Query(nativeQuery = true, value = """
+            SELECT *
+              FROM reservations
+             WHERE status IN ('CONFIRMED', 'CANCELED')
+               AND updated_at >= :from
+               AND updated_at < :to
+               AND id > :cursor
+             ORDER BY id
+             LIMIT :limit
+            """)
+    List<Reservation> findSettledChanges(@Param("from") Instant from, @Param("to") Instant to,
+            @Param("cursor") long cursor, @Param("limit") int limit);
+
     // idx_reservations_status_hold_expires_at(status, hold_expires_at)를 탄다
     @Query(nativeQuery = true, value = """
             SELECT id

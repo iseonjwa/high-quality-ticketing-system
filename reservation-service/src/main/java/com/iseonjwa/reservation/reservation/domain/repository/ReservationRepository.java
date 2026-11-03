@@ -14,6 +14,12 @@ public interface ReservationRepository {
 
     Optional<Reservation> findByRequestId(UUID requestId);
 
+    // 대사(ADR 0029): ID 목록의 예매를 ID 순으로 돌려준다. 없는 ID는 빠진다
+    List<Reservation> findAllByIds(List<Long> ids);
+
+    // 대사(ADR 0029): updated_at이 [from, to)이고 CONFIRMED·CANCELED인 예매를 cursor 다음 ID부터 limit건까지 ID 순으로 돌려준다
+    List<Reservation> findSettledChanges(Instant from, Instant to, long cursor, int limit);
+
     // 선점 기한(hold_expires_at)이 now 이전인 HELD 예매 ID를 기한이 이른 순으로 limit건까지 돌려준다
     List<Long> findExpiredHeldIds(Instant now, int limit);
 
