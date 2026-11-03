@@ -2,6 +2,7 @@ import { Check, Copy, ExternalLink, PanelRightClose, PanelRightOpen, Trash2, X }
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -35,6 +36,11 @@ const PANEL_WIDTH_VARIABLE = '--demo-panel-width'
 
 const PANEL_LABEL = '요청 로그 (시연 모드)'
 
+// Note: 링크마다 새 탭(_blank)을 열면 나란히 띄운 앱 창이 가려진다. 이름 붙인 창은 처음 한 번만 새 탭을 열고
+// 다음부터 그 탭을 다시 쓴다. 발표자가 그 탭을 옆 창으로 옮겨 두면 앱 창은 그대로다.
+// noopener를 붙이면 이름으로 다시 찾지 못해서 붙이지 않는다. 여는 곳은 팀이 띄운 Grafana(SSH 터널)다
+const GRAFANA_WINDOW = 'iseonjwa-grafana'
+
 interface DragState {
   startX: number
   startWidth: number
@@ -49,8 +55,8 @@ export function RequestLogPanel() {
   const collapsed = useDemoPanelCollapsed()
   const storedWidth = useDemoPanelWidth()
   const viewportWidth = useViewportWidth()
+  // 경계를 끄는 동안의 너비. 손을 떼면 저장값으로 돌아간다
   const [dragWidth, setDragWidth] = useState<number | null>(null)
-  const drag = useRef<DragState | null>(null)
   const panelId = useId()
   const toggleButtonRef = useRef<HTMLButtonElement>(null)
   const focusToggleAfterChange = useRef(false)
@@ -62,7 +68,8 @@ export function RequestLogPanel() {
   const dragging = dragWidth !== null
   const hidden = viewportWidth < PANEL_VISIBLE_MIN_VIEWPORT
 
-  useEffect(() => {
+  // 패널 너비와 앱 화면 여백이 한 프레임이라도 어긋나 보이지 않게 그리기 전에 바꾼다
+  useLayoutEffect(() => {
     if (hidden) {
       return
     }
@@ -105,58 +112,6 @@ export function RequestLogPanel() {
     toast('시연 모드를 껐어요. 주소 끝에 ?demo=on을 붙이면 다시 켜져요')
   }
 
-  function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
-      return
-    }
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { startX: event.clientX, startWidth: width, width }
-    setDragWidth(width)
-  }
-
-  // 누른 자리에서 왼쪽으로 옮긴 만큼 넓힌다. 경계의 어느 점을 잡았든 잡은 자리가 포인터를 따라간다
-  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
-    const state = drag.current
-    if (state === null) {
-      return
-    }
-    state.width = clampPanelWidth(state.startWidth + state.startX - event.clientX, viewportWidth)
-    setDragWidth(state.width)
-  }
-
-  // 끄는 동안은 저장하지 않고 손을 뗄 때 한 번 저장한다(sessionStorage 쓰기를 줄인다).
-  // Note: 마지막 너비는 ref에서 읽는다. pointermove 갱신이 그려지기 전에 pointerup이 올 수 있다
-  function finishDrag() {
-    const state = drag.current
-    if (state === null) {
-      return
-    }
-    drag.current = null
-    setDemoPanelWidth(state.width)
-    setDragWidth(null)
-  }
-
-  // WAI-ARIA 창 분할 막대 방식: 값은 패널 너비다. 왼쪽 화살표가 경계를 왼쪽으로 옮겨 패널을 넓힌다
-  function handleSeparatorKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      changeCollapsed(true)
-      return
-    }
-    const next = {
-      ArrowLeft: width + KEYBOARD_STEP,
-      ArrowRight: width - KEYBOARD_STEP,
-      Home: PANEL_MIN_WIDTH,
-      End: maxWidth,
-    }[event.key]
-    if (next === undefined) {
-      return
-    }
-    event.preventDefault()
-    setDemoPanelWidth(clampPanelWidth(next, viewportWidth))
-  }
-
   if (hidden) {
     return null
   }
@@ -193,35 +148,15 @@ export function RequestLogPanel() {
       className="fixed inset-y-0 right-0 z-20 flex flex-col border-l border-gray-200 bg-gray-25"
       style={{ width }}
     >
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="요청 로그 너비"
-        aria-controls={panelId}
-        aria-valuenow={width}
-        aria-valuemin={PANEL_MIN_WIDTH}
-        aria-valuemax={maxWidth}
-        tabIndex={0}
-        title="끌어서 너비를 바꿔요. 두 번 누르면 기본 너비로 돌아가요"
-        className="group absolute inset-y-0 left-0 z-10 w-3 -translate-x-1/2 cursor-col-resize touch-none outline-none"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
-        onLostPointerCapture={finishDrag}
-        onDoubleClick={() => setDemoPanelWidth(DEMO_PANEL_DEFAULT_WIDTH)}
-        onKeyDown={handleSeparatorKeyDown}
-      >
-        <span
-          aria-hidden="true"
-          className={cn(
-            'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors duration-(--dur-fast)',
-            dragging
-              ? 'bg-primary-500'
-              : 'bg-transparent group-hover:bg-primary-300 group-focus-visible:bg-primary-500',
-          )}
-        />
-      </div>
+      <PanelResizeHandle
+        panelId={panelId}
+        width={width}
+        maxWidth={maxWidth}
+        viewportWidth={viewportWidth}
+        dragging={dragging}
+        onPreview={setDragWidth}
+        onCollapse={() => changeCollapsed(true)}
+      />
 
       {/* 앱 헤더와 높이를 맞춰 아래 경계선이 한 줄로 이어지게 한다 */}
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-100 bg-gray-0 pr-2 pl-4">
@@ -268,7 +203,7 @@ export function RequestLogPanel() {
       </div>
 
       <p className="shrink-0 px-4 pt-3 pb-2 type-caption text-gray-500">
-        traceId를 누르면 Grafana에서 그 요청의 서비스별 로그가 새 탭으로 열려요
+        traceId를 누르면 Grafana 탭에 그 요청의 로그가 열려요. 그 탭을 옆 창에 두면 거기서 바뀌어요
       </p>
 
       {entries.length === 0 ? (
@@ -281,6 +216,125 @@ export function RequestLogPanel() {
         </ol>
       )}
     </aside>
+  )
+}
+
+interface PanelResizeHandleProps {
+  panelId: string
+  width: number
+  maxWidth: number
+  viewportWidth: number
+  dragging: boolean
+  // 끄는 동안의 너비를 알린다. 끝나면 null
+  onPreview: (width: number | null) => void
+  onCollapse: () => void
+}
+
+// 패널 왼쪽 경계(WAI-ARIA 창 분할 막대). 값은 패널 너비이고, 왼쪽 화살표가 경계를 왼쪽으로 옮겨 패널을 넓힌다
+function PanelResizeHandle({
+  panelId,
+  width,
+  maxWidth,
+  viewportWidth,
+  dragging,
+  onPreview,
+  onCollapse,
+}: PanelResizeHandleProps) {
+  const drag = useRef<DragState | null>(null)
+
+  // 끄는 중에 경계가 사라지면(휴대폰 너비로 줄이거나 Enter로 접음) 손 뗌 이벤트를 받지 못한다.
+  // 끌던 너비는 저장하지 않고 버려서 커서·글자 선택 막기와 임시 너비가 남지 않게 한다
+  useEffect(() => {
+    const state = drag
+    return () => {
+      if (state.current !== null) {
+        state.current = null
+        onPreview(null)
+      }
+    }
+  }, [onPreview])
+
+  function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) {
+      return
+    }
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { startX: event.clientX, startWidth: width, width }
+    onPreview(width)
+  }
+
+  // 누른 자리에서 왼쪽으로 옮긴 만큼 넓힌다. 경계의 어느 점을 잡았든 잡은 자리가 포인터를 따라간다
+  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const state = drag.current
+    if (state === null) {
+      return
+    }
+    state.width = clampPanelWidth(state.startWidth + state.startX - event.clientX, viewportWidth)
+    onPreview(state.width)
+  }
+
+  // 끄는 동안은 저장하지 않고 손을 뗄 때 한 번 저장한다(sessionStorage 쓰기를 줄인다).
+  // Note: 마지막 너비는 ref에서 읽는다. pointermove 갱신이 그려지기 전에 pointerup이 올 수 있다
+  function finishDrag() {
+    const state = drag.current
+    if (state === null) {
+      return
+    }
+    drag.current = null
+    setDemoPanelWidth(state.width)
+    onPreview(null)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      onCollapse()
+      return
+    }
+    const next = {
+      ArrowLeft: width + KEYBOARD_STEP,
+      ArrowRight: width - KEYBOARD_STEP,
+      Home: PANEL_MIN_WIDTH,
+      End: maxWidth,
+    }[event.key]
+    if (next === undefined) {
+      return
+    }
+    event.preventDefault()
+    setDemoPanelWidth(clampPanelWidth(next, viewportWidth))
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="요청 로그 너비"
+      aria-controls={panelId}
+      aria-valuenow={width}
+      aria-valuemin={PANEL_MIN_WIDTH}
+      aria-valuemax={maxWidth}
+      tabIndex={0}
+      title="끌어서 너비를 바꿔요. 두 번 누르면 기본 너비로 돌아가요"
+      className="group absolute inset-y-0 left-0 z-10 w-3 -translate-x-1/2 cursor-col-resize touch-none outline-none"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
+      onDoubleClick={() => setDemoPanelWidth(DEMO_PANEL_DEFAULT_WIDTH)}
+      onKeyDown={handleKeyDown}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors duration-(--dur-fast)',
+          dragging
+            ? 'bg-primary-500'
+            : 'bg-transparent group-hover:bg-primary-300 group-focus-visible:bg-primary-500',
+        )}
+      />
+    </div>
   )
 }
 
@@ -317,13 +371,12 @@ function RequestLogItem({ entry, latest }: { entry: RequestLogEntry; latest: boo
         ) : (
           <a
             href={dashboardUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            target={GRAFANA_WINDOW}
             className="inline-flex min-w-0 items-center gap-1 rounded-sm font-mono text-[12px] leading-4 text-primary-700 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="break-all">{entry.traceId}</span>
             <ExternalLink aria-hidden="true" className="size-3 shrink-0" />
-            <span className="sr-only">, Grafana 요청 로그를 새 탭으로 열기</span>
+            <span className="sr-only">, Grafana 요청 로그 열기</span>
           </a>
         )}
         {entry.traceId !== null && <CopyButton value={entry.traceId} />}

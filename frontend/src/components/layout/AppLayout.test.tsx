@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
@@ -136,6 +136,10 @@ describe('AppLayout 시연 모드', () => {
     renderRoutes(routes, '/')
 
     expect(await screen.findByRole('heading', { level: 1, name: '공연' })).toBeInTheDocument()
+    // 켜져 있었다면 패널 모듈을 받은 뒤 그려진다. 같은 모듈을 기다린 뒤 확인해 시점에 기대지 않는다
+    await act(async () => {
+      await import('@/demo/RequestLogPanel')
+    })
     expect(screen.queryByRole('complementary', { name: '요청 로그 (시연 모드)' })).toBeNull()
   })
 

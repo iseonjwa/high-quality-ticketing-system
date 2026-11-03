@@ -31,6 +31,10 @@ export function requestLogDashboardUrl(
   } catch {
     return null
   }
+  // `localhost:3000`처럼 scheme을 빼고 적으면 `localhost:`가 scheme으로 읽혀 경로를 붙일 수 없다
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return null
+  }
 
   // 기준 주소에 하위 경로(`/grafana/`)가 있어도 그 아래로 붙인다.
   url.pathname = `${url.pathname.replace(/\/+$/, '')}/d/${REQUEST_LOG_DASHBOARD_UID}`

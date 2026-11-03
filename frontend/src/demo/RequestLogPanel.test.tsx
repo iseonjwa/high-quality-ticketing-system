@@ -84,16 +84,19 @@ describe('RequestLogPanel 목록', () => {
     expect(items[2]).toHaveTextContent('200')
   })
 
-  it('traceId는 Grafana 요청 로그를 새 탭으로 여는 링크다', () => {
+  it('traceId는 Grafana 요청 로그를 이름 붙인 한 창으로 여는 링크다', () => {
     recordRequest(entry())
+    recordRequest(entry({ traceId: 'a'.repeat(32) }))
     render(<RequestLogPanel />)
 
     const link = screen.getByRole('link', {
-      name: new RegExp(`${TRACE_ID}.*Grafana 요청 로그를 새 탭으로 열기`),
+      name: new RegExp(`${TRACE_ID}.*Grafana 요청 로그 열기`),
     })
     expect(link).toHaveAttribute('href', requestLogDashboardUrl(TRACE_ID, entry().startedAt)!)
-    expect(link).toHaveAttribute('target', '_blank')
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    // 링크마다 새 탭을 열지 않고 같은 Grafana 탭을 다시 쓴다(나란히 띄운 앱 창을 가리지 않게)
+    const targets = screen.getAllByRole('link').map((each) => each.getAttribute('target'))
+    expect(new Set(targets)).toEqual(new Set(['iseonjwa-grafana']))
+    expect(link).not.toHaveAttribute('rel')
   })
 
   it('16진수가 아닌 traceId는 링크 없이 글자만 보인다', () => {
@@ -246,6 +249,71 @@ describe('RequestLogPanel 화면 배치', () => {
     unmount()
 
     expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('')
+  })
+})
+
+describe('RequestLogPanel 화면 너비 변화', () => {
+  function resizeViewport(width: number) {
+    setViewportWidth(width)
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+  }
+
+  it('창을 휴대폰 너비로 줄이면 패널과 너비 변수가 사라지고 넓히면 돌아온다', () => {
+    render(<RequestLogPanel />)
+    expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('380px')
+
+    resizeViewport(600)
+
+    expect(screen.queryByRole('complementary', { name: PANEL_NAME })).not.toBeInTheDocument()
+    expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('')
+
+    resizeViewport(1440)
+
+    expect(screen.getByRole('complementary', { name: PANEL_NAME })).toBeInTheDocument()
+    expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('380px')
+  })
+
+  // 640px과 639px에서는 너비가 둘 다 최소 280px이라, 너비가 아니라 숨김 여부만 바뀐다
+  it('640px에서는 보이고 639px로 줄이면 너비가 같아도 너비 변수를 지운다', () => {
+    setViewportWidth(640)
+    render(<RequestLogPanel />)
+    expect(separator()).toHaveAttribute('aria-valuenow', '280')
+    expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('280px')
+
+    resizeViewport(639)
+
+    expect(screen.queryByRole('complementary', { name: PANEL_NAME })).not.toBeInTheDocument()
+    expect(root.style.getPropertyValue(WIDTH_VARIABLE)).toBe('')
+  })
+
+  it('끄는 중에 패널이 사라지면 끌던 너비를 버리고 커서·글자 선택 막기를 푼다', () => {
+    render(<RequestLogPanel />)
+    fireEvent.pointerDown(separator(), { button: 0, clientX: 1000, pointerId: 1 })
+    fireEvent.pointerMove(separator(), { clientX: 900, pointerId: 1 })
+    expect(root.style.cursor).toBe('col-resize')
+
+    resizeViewport(600)
+    resizeViewport(1440)
+
+    expect(separator()).toHaveAttribute('aria-valuenow', '380')
+    expect(storedWidth()).toBe(380)
+    expect(root.style.cursor).toBe('')
+    expect(root.style.userSelect).toBe('')
+  })
+
+  it('끄는 중에 Enter로 접었다 펼치면 저장된 너비로 돌아온다', async () => {
+    const user = userEvent.setup()
+    render(<RequestLogPanel />)
+    fireEvent.pointerDown(separator(), { button: 0, clientX: 1000, pointerId: 1 })
+    fireEvent.pointerMove(separator(), { clientX: 900, pointerId: 1 })
+
+    fireEvent.keyDown(separator(), { key: 'Enter' })
+    await user.click(screen.getByRole('button', { name: '요청 로그 펼치기' }))
+
+    expect(separator()).toHaveAttribute('aria-valuenow', '380')
+    expect(root.style.cursor).toBe('')
   })
 })
 
