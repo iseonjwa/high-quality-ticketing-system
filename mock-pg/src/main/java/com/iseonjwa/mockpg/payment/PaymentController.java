@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,6 +22,8 @@ import java.util.function.Function;
 @RestController
 @RequestMapping("/mock-pg/payments")
 class PaymentController {
+    private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+
     private final PaymentService payments;
 
     PaymentController(PaymentService payments) {
@@ -28,8 +31,10 @@ class PaymentController {
     }
 
     @PostMapping
-    ResponseEntity<?> approve(@RequestBody ApproveRequest request, HttpServletRequest servletRequest) {
-        return respond(payments.approve(request), servletRequest,
+    ResponseEntity<?> approve(@RequestBody ApproveRequest request,
+                              @RequestHeader(value = IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+                              HttpServletRequest servletRequest) {
+        return respond(payments.approve(request, idempotencyKey), servletRequest,
                 state -> PaymentResponses.approval(state.orElseThrow()));
     }
 

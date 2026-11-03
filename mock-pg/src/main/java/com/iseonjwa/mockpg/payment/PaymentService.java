@@ -6,6 +6,7 @@ import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
 import com.iseonjwa.mockpg.fault.FaultTarget;
 import com.iseonjwa.mockpg.ledger.LedgerHolder;
+import com.iseonjwa.mockpg.ledger.OrderCall;
 import com.iseonjwa.mockpg.ledger.OrderState;
 import com.iseonjwa.mockpg.ledger.OrderState.Approved;
 import com.iseonjwa.mockpg.ledger.OrderState.Declined;
@@ -35,14 +36,20 @@ class PaymentService {
         this.billingKeys = billingKeys;
     }
 
-    Outcome approve(ApproveRequest request) {
+    Outcome approve(ApproveRequest request, String idempotencyKey) {
+        // Note: 요청 하나는 처음 얻은 원장만 끝까지 쓴다. 지연 중 reset이 와도 계수가 새 원장에 섞이지 않는다
+        var ledger = ledgers.current();
         var fault = faults.claim(FaultTarget.APPROVE, request.orderId());
-        if (skipsLedger(fault)) return Outcome.withoutLedger(fault);
+        if (skipsLedger(fault)) {
+            // 장애 주입으로 원장 상태에 닿지 않아도 호출은 센다. 500을 받고 다시 승인을 호출하는 INV-1 위반을 잡으려는 것이다
+            ledger.countCall(OrderCall.APPROVE, request.orderId(), idempotencyKey);
+            return Outcome.withoutLedger(fault);
+        }
 
         // Note: 새 주문이면 결정 안에서 기다려 지연 동안 원장이 IN_FLIGHT로 남는다.
         // 이미 상태가 있는 주문은 결정을 부르지 않으므로 응답 직전에 기다린다
         var decisionRan = new AtomicBoolean();
-        var state = ledgers.current().approve(request.orderId(), () -> {
+        var state = ledger.approve(request.orderId(), idempotencyKey, () -> {
             decisionRan.set(true);
             delay(fault);
             return decide(request, fault);
@@ -52,19 +59,27 @@ class PaymentService {
     }
 
     Outcome cancel(String orderId) {
+        var ledger = ledgers.current();
         var fault = faults.claim(FaultTarget.CANCEL, orderId);
-        if (skipsLedger(fault)) return Outcome.withoutLedger(fault);
+        if (skipsLedger(fault)) {
+            ledger.countCall(OrderCall.CANCEL, orderId, null);
+            return Outcome.withoutLedger(fault);
+        }
 
         delay(fault);
-        return Outcome.of(fault, ledgers.current().cancel(orderId));
+        return Outcome.of(fault, ledger.cancel(orderId));
     }
 
     Outcome find(String orderId) {
+        var ledger = ledgers.current();
         var fault = faults.claim(FaultTarget.PAYMENT_LOOKUP, orderId);
-        if (skipsLedger(fault)) return Outcome.withoutLedger(fault);
+        if (skipsLedger(fault)) {
+            ledger.countCall(OrderCall.LOOKUP, orderId, null);
+            return Outcome.withoutLedger(fault);
+        }
 
         delay(fault);
-        return new Outcome(fault, ledgers.current().find(orderId));
+        return new Outcome(fault, ledger.lookup(orderId));
     }
 
     // Note: PROCESSING과 SERVER_ERROR는 원장을 건드리지 않는다. 처리 중이라는 응답이나 오류만 주고 상태는 그대로다
