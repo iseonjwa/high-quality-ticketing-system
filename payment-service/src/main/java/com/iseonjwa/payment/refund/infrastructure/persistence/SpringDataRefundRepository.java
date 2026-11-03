@@ -97,4 +97,12 @@ interface SpringDataRefundRepository extends JpaRepository<Refund, Long> {
             WHERE id = :id AND status = :from
             """)
     int markNeedsManualCheck(@Param("id") Long id, @Param("from") String from, @Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE refunds
+            SET status = 'FAILED', next_check_at = NULL, updated_at = :now, updated_by = NULL
+            WHERE id = :id AND status = :from
+            """)
+    int markFailed(@Param("id") Long id, @Param("from") String from, @Param("now") Instant now);
 }

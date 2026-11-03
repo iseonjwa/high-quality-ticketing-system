@@ -57,6 +57,9 @@ public interface RefundRepository {
     /** UNKNOWN 환불의 다음 확인 시각만 바꾼다. 다른 경로가 이미 상태를 바꿨으면 아무것도 하지 않고 false다. */
     boolean reschedule(Long id, Instant nextCheckAt, Instant now);
 
+    /** 운영자가 외부 조치로 끝났음을 확인해 환불을 {@code FAILED}로 닫는다. {@code next_check_at}은 비운다. */
+    boolean markFailed(Long id, RefundStatus from, Instant now);
+
     /** 자동 경로로 끝내지 못해 운영자 확인으로 넘긴다. 이력의 사유는 호출한 쪽이 남긴다. */
     boolean markNeedsManualCheck(Long id, RefundStatus from, Instant now);
 }

@@ -75,4 +75,10 @@ public class JpaRefundRepository implements RefundRepository {
     public boolean markNeedsManualCheck(Long id, RefundStatus from, Instant now) {
         return repository.markNeedsManualCheck(id, from.name(), now) == 1;
     }
+
+    @Override
+    @Transactional
+    public boolean markFailed(Long id, RefundStatus from, Instant now) {
+        return repository.markFailed(id, from.name(), now) == 1;
+    }
 }

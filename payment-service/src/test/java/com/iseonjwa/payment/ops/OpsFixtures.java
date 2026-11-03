@@ -53,14 +53,18 @@ final class OpsFixtures {
     }
 
     long refund(long paymentId, String status) {
+        return refund(paymentId, status, "CANCELED", 50000);
+    }
+
+    long refund(long paymentId, String status, String reason, int amount) {
         var refunded = status.equals("REFUNDED");
         var scheduled = status.equals("REQUESTED") || status.equals("UNKNOWN");
         return jdbc.queryForObject("""
                 INSERT INTO refunds (payment_id, pg_refund_id, amount, reason, source, status, next_check_at, refunded_at,
                                     created_at, updated_at)
-                VALUES (?, ?, 50000, 'CANCELED', 'EVENT', ?, %s, %s, now(), now()) RETURNING id
+                VALUES (?, ?, ?, ?, 'EVENT', ?, %s, %s, now(), now()) RETURNING id
                 """.formatted(scheduled ? "now()" : "NULL", refunded ? "now()" : "NULL"), Long.class, paymentId,
-                UUID.randomUUID(), status);
+                UUID.randomUUID(), amount, reason, status);
     }
 
     long outbox(String key, String eventType, String status, int attempts, String lastError) {
