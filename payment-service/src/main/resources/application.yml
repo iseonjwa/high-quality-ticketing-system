@@ -43,6 +43,8 @@ payment:
     enabled: false
   housekeeping:
     enabled: false
+  reconciliation:
+    enabled: false
   metrics:
     gauge-refresh:
       enabled: false

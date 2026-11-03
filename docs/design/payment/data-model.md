@@ -1,6 +1,6 @@
 # 결제 데이터 모델
 
-payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33), V3·V4는 환불과 DLQ 이슈에서 구현했다(ISE-136·138), V8은 감사 테이블과 append-only 트리거다(ISE-158). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
+payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33), V3·V4는 환불과 DLQ 이슈에서 구현했다(ISE-136·138), V8은 감사 테이블과 append-only 트리거다(ISE-158), V9는 대사 불일치 테이블이다(ISE-167). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
 
 ## 1. 마이그레이션 순서
 
@@ -14,7 +14,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | `V6__outbox_failed_key_index.sql` | `outbox_events`의 `(message_key, id) WHERE status = 'FAILED'` 부분 인덱스(ISE-145, 릴레이가 같은 키의 앞선 `FAILED`를 찾을 때). 처음에 `V5`로 만들었으나 같은 날 먼저 머지된 `V5__billing_keys.sql`과 버전이 겹쳐 `V6`으로 옮겼다(ISE-155) | M3 |
 | `V7__idempotency_expires_index.sql` | `idempotency_records(expires_at)` 인덱스(ISE-146, 만료 기록 정리가 오래된 순으로 읽을 때) | M3 |
 | `V8__manual_action_logs.sql` | `manual_action_logs`(9절), `reject_modification()`, `payment_status_histories`·`manual_action_logs`의 `BEFORE UPDATE OR DELETE`(행)·`BEFORE TRUNCATE`(문장) 트리거(ISE-158). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
-| (이후 M3 이슈) | `reconciliation_mismatches`(ISE-43) | M3 |
+| `V9__reconciliation_mismatches.sql` | `reconciliation_mismatches`(10절)와 부분 유니크·`OPEN` 인덱스, `inspect`용 인덱스 둘, RC-8용 인덱스 둘(`outbox_events(message_key)`, `payment_status_histories(created_at)` 부분)(ISE-167). RC-1~RC-8 모두 CHECK에 있고 구현한 규칙은 RC-7·RC-8이다(RC-1~RC-6은 ISE-168) | M3 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).
 
@@ -217,6 +217,8 @@ append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 
 - `UNIQUE(rule, reservation_id, payment_id) WHERE status = 'OPEN'`(NULL은 0으로 바꾼 식 인덱스): 같은 불일치는 행 하나로 이어 본다.
 - `INDEX(status, rule) WHERE status = 'OPEN'`(Gauge).
+
+구현(ISE-167): 제약 이름은 `chk_reconciliation_mismatches_rule`·`_status`·`_resolved`(`RESOLVED`이면 `resolved_at`이 있고 `OPEN`이면 없다)이고, 유니크 인덱스는 `uq_reconciliation_mismatches_open (rule, COALESCE(reservation_id, 0), COALESCE(payment_id, 0)) WHERE status = 'OPEN'`다. 기록은 `INSERT … ON CONFLICT (…식…) WHERE status = 'OPEN' DO UPDATE`가 같은 키의 `OPEN` 행을 이어 갱신한다. `idx_reconciliation_mismatches_payment`·`_reservation`은 Ops `inspect`가 결제·예매 ID로 찾는 인덱스다. V9는 RC-8용으로 `idx_outbox_events_message_key (message_key)`(일반 인덱스, 기존 `message_key` 인덱스는 `PENDING`·`FAILED` 부분 인덱스뿐이었다. Ops `inspect`의 상태 조건 없는 `message_key` 조회도 쓴다)와 `idx_payment_status_histories_payment_created (created_at) WHERE target_type = 'PAYMENT'`를 함께 만든다. 닫힌 행은 같은 키로 여러 개 남을 수 있다(다시 어긋나면 새 `OPEN` 행). 키는 RC-7·RC-8에서 결제 하나다(`reservation_id`는 결제의 예매, `payment_id`는 결제). 마이그레이션 테스트가 제약·인덱스를 카탈로그로 확인한다.
 
 ## 11. billing_keys (11/2 M2로 당겨 구현, ISE-96)
 SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개, 부분 유니크 `uq_billing_keys_user_active`). 마이그레이션 `V5__billing_keys.sql`, 감사 컬럼은 `BaseEntity` 6개.

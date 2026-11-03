@@ -361,6 +361,77 @@ class PaymentMigrationTest {
                 manualActionLogSql().replace("'APPLIED'", "'DONE'"), "alice", null, "a".repeat(64)));
     }
 
+    @Test
+    void 대사_불일치의_제약과_인덱스가_카탈로그에_존재한다() {
+        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'reconciliation_mismatches'::regclass");
+        assertTrue(constraints.containsAll(List.of("chk_reconciliation_mismatches_rule",
+                "chk_reconciliation_mismatches_status", "chk_reconciliation_mismatches_resolved")), constraints.toString());
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'reconciliation_mismatches'");
+        assertTrue(indexes.containsAll(List.of("uq_reconciliation_mismatches_open", "idx_reconciliation_mismatches_open",
+                "idx_reconciliation_mismatches_payment", "idx_reconciliation_mismatches_reservation")), indexes.toString());
+    }
+
+    @Test
+    void RC8이_쓰는_Outbox_예매_키_인덱스와_이력_시각_부분_인덱스가_존재한다() {
+        assertTrue(names("SELECT indexname FROM pg_indexes WHERE tablename = 'outbox_events'")
+                .contains("idx_outbox_events_message_key"));
+        var historyIndex = jdbc.queryForObject(
+                "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_payment_status_histories_payment_created'",
+                String.class);
+        assertTrue(historyIndex.contains("(created_at)") && historyIndex.contains("target_type"), historyIndex);
+    }
+
+    @Test
+    void 같은_불일치의_OPEN_행은_둘일_수_없다_대상이_없는_쪽은_0으로_비교한다() {
+        insertMismatch("RC-1", 7L, 8L, "OPEN");
+        assertViolation("uq_reconciliation_mismatches_open", () -> insertMismatch("RC-1", 7L, 8L, "OPEN"));
+    }
+
+    @Test
+    void 결제가_없는_불일치도_예매가_같으면_OPEN_행은_하나다() {
+        insertMismatch("RC-2", 9L, null, "OPEN");
+        assertViolation("uq_reconciliation_mismatches_open", () -> insertMismatch("RC-2", 9L, null, "OPEN"));
+    }
+
+    @Test
+    void 닫힌_불일치는_같은_키로_여러_행을_둘_수_있다() {
+        insertMismatch("RC-3", 5L, 6L, "RESOLVED");
+        insertMismatch("RC-3", 5L, 6L, "RESOLVED");
+        insertMismatch("RC-3", 5L, 6L, "OPEN");
+    }
+
+    @Test
+    void 정해진_값이_아닌_대사_규칙을_거절한다() {
+        assertViolation("chk_reconciliation_mismatches_rule", () -> insertMismatch("RC-9", 1L, 1L, "OPEN"));
+    }
+
+    @Test
+    void 정해진_값이_아닌_대사_상태를_거절한다() {
+        assertViolation("chk_reconciliation_mismatches_status", () -> insertMismatch("RC-1", 1L, 1L, "CLOSED"));
+    }
+
+    @Test
+    void RESOLVED는_닫은_시각이_있어야_한다() {
+        assertViolation("chk_reconciliation_mismatches_resolved", () -> jdbc.update("""
+                INSERT INTO reconciliation_mismatches (rule, detail, status, first_detected_at, last_seen_at)
+                VALUES ('RC-1', '{}'::jsonb, 'RESOLVED', now(), now())"""));
+    }
+
+    @Test
+    void OPEN은_닫은_시각이_없어야_한다() {
+        assertViolation("chk_reconciliation_mismatches_resolved", () -> jdbc.update("""
+                INSERT INTO reconciliation_mismatches (rule, detail, status, first_detected_at, last_seen_at, resolved_at)
+                VALUES ('RC-1', '{}'::jsonb, 'OPEN', now(), now(), now())"""));
+    }
+
+    private void insertMismatch(String rule, Long reservationId, Long paymentId, String status) {
+        jdbc.update("""
+                INSERT INTO reconciliation_mismatches (rule, reservation_id, payment_id, detail, status, first_detected_at,
+                                                       last_seen_at, resolved_at)
+                VALUES (?, ?, ?, '{}'::jsonb, ?, now(), now(), CASE WHEN ? = 'RESOLVED' THEN now() END)""",
+                rule, reservationId, paymentId, status, status);
+    }
+
     private void insertHistory(long paymentId) {
         jdbc.update("""
                 INSERT INTO payment_status_histories (payment_id, target_type, from_status, to_status, actor, created_at)

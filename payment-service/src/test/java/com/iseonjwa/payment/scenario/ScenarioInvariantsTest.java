@@ -7,9 +7,19 @@ import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
 import com.iseonjwa.payment.pg.application.RefundCommand;
+import com.iseonjwa.payment.payment.application.PaymentResultPublisher;
+import com.iseonjwa.payment.payment.domain.PaymentRepository;
+import com.iseonjwa.payment.payment.domain.PaymentStatus;
+import com.iseonjwa.payment.payment.domain.PaymentStatusHistory;
+import com.iseonjwa.payment.payment.domain.PaymentStatusHistoryRepository;
+import com.iseonjwa.payment.payment.domain.StatusActor;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,7 +41,8 @@ class ScenarioInvariantsTest extends ScenarioTestBase {
     void 위반이_없으면_V1_V2_V3_모두_통과한다() {
         var reservation = newReservation();
         var approved = pgApprove(UUID.randomUUID());
-        insertPayment(reservation, "APPROVED", approved.orderId, approved.pgTxId);
+        var paymentId = insertPayment(reservation, "APPROVED", approved.orderId, approved.pgTxId);
+        recordApprovalAsProduction(paymentId);
 
         invariants().assertHolds();
     }
@@ -135,6 +146,29 @@ class ScenarioInvariantsTest extends ScenarioTestBase {
     }
 
     // ----- 데이터 -----
+
+    @Autowired
+    PaymentRepository payments;
+    @Autowired
+    PaymentStatusHistoryRepository histories;
+    @Autowired
+    PaymentResultPublisher resultPublisher;
+    @Autowired
+    PlatformTransactionManager transactionManager;
+
+    /**
+     * 승인 확정이 운영에서 남기는 이력과 Outbox 행을 같은 트랜잭션으로 쓴다({@code PaymentTransitionService.approve}와 같은
+     * 순서). 이력은 {@code PaymentStatusHistory.of}, Outbox는 {@code PaymentResultPublisher}를 그대로 불러 봉투 모양을
+     * 운영과 같게 둔다. 직접 짠 JSON이 운영 봉투와 다르면 RC-8 대응을 잘못 통과시킬 수 있어서다.
+     */
+    private void recordApprovalAsProduction(long paymentId) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            var payment = payments.findById(paymentId).orElseThrow();
+            histories.save(PaymentStatusHistory.of(paymentId, PaymentStatus.REQUESTED, PaymentStatus.APPROVED, null,
+                    StatusActor.SYSTEM, Instant.now()));
+            resultPublisher.publishApproved(payment, Instant.now());
+        });
+    }
 
     private record PgApproval(UUID orderId, String pgTxId) {
     }

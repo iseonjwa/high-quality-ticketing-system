@@ -10,6 +10,7 @@ import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.infrastructure.MockPgProcess;
 import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgApprovalGate;
 import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgRecoveryGate;
+import com.iseonjwa.payment.reconciliation.application.ReconciliationService;
 import com.iseonjwa.payment.refund.application.RefundWorkerService;
 import com.iseonjwa.payment.refund.presentation.messaging.PaymentCommandDlqListener;
 import com.iseonjwa.payment.refund.presentation.messaging.PaymentCommandListener;
@@ -100,6 +101,8 @@ abstract class ScenarioTestBase {
     OutboxRelay relay;
     @Autowired
     DbAggregateGauges gauges;
+    @Autowired
+    ReconciliationService reconciliation;
     @Autowired
     MeterRegistry meters;
     @Autowired
@@ -216,7 +219,7 @@ abstract class ScenarioTestBase {
 
     /** 이 시나리오의 검증기(V1~V3). 시나리오 끝에서 {@code assertHolds()}를 부른다. */
     ScenarioInvariants invariants() {
-        return new ScenarioInvariants(jdbc, PG.ledger(), gauges, meters, FIRST_RESERVATION, LAST_RESERVATION,
+        return new ScenarioInvariants(jdbc, PG.ledger(), gauges, meters, reconciliation, FIRST_RESERVATION, LAST_RESERVATION,
                 DLQ_PARTITION);
     }
 
@@ -386,6 +389,8 @@ abstract class ScenarioTestBase {
     void cleanUpScenarioData() {
         var inRange = "(SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)";
         jdbc.update("DELETE FROM dead_letters WHERE source_partition = ?", DLQ_PARTITION);
+        jdbc.update("DELETE FROM reconciliation_mismatches WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION,
+                LAST_RESERVATION);
         for (var eventId : eventIds) {
             jdbc.update("DELETE FROM processed_events WHERE event_id = ?", eventId);
         }

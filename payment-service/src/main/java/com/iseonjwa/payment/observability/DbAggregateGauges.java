@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.observability;
 
+import com.iseonjwa.payment.reconciliation.domain.RuleCode;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
@@ -71,6 +72,14 @@ public class DbAggregateGauges {
             GROUP BY source_topic
             """;
 
+    // 규칙별 OPEN 불일치 건수. 해당 규칙의 OPEN 행이 없으면 행이 없으므로 8개 규칙을 0으로 채워 보인다
+    private static final String RECONCILIATION_OPEN = """
+            SELECT rule, count(*) AS open_count
+            FROM reconciliation_mismatches
+            WHERE status = 'OPEN'
+            GROUP BY rule
+            """;
+
     // Ops JVM은 잠깐 떴다 사라져 Prometheus가 수집하지 못한다. 그래서 명령 결과를 카운터가 아니라 감사 테이블의 누적 건수로 보인다
     private static final String OPS_ACTIONS = """
             SELECT command, result, count(*) AS action_count
@@ -83,6 +92,7 @@ public class DbAggregateGauges {
     private final MultiGauge deadLetterCount;
     private final MultiGauge deadLetterOldest;
     private final MultiGauge opsActions;
+    private final MultiGauge reconciliationOpen;
     private final Map<String, Boolean> knownTopics = new ConcurrentHashMap<>();
     private volatile Snapshot snapshot = Snapshot.EMPTY;
 
@@ -112,6 +122,10 @@ public class DbAggregateGauges {
                 .description("OPEN dead_letters의 최고령(초, 원본 토픽별)").register(registry);
         this.opsActions = MultiGauge.builder("payment.ops.actions")
                 .description("Ops 명령 --apply 시도의 누적 건수(manual_action_logs, 명령·결과별)").register(registry);
+        this.reconciliationOpen = MultiGauge.builder("reconciliation.mismatch.open")
+                .description("OPEN 대사 불일치 건수(규칙별). 0보다 크면 즉시 알림이다").register(registry);
+        // 첫 갱신 전에도 8개 규칙의 시계열이 0으로 있어야 알림 규칙이 시계열 없음과 0을 구분한다
+        publishReconciliation(Map.of());
     }
 
     /**
@@ -134,6 +148,11 @@ public class DbAggregateGauges {
                     new TopicStat(rs.getLong("open_count"), age(rs, "oldest", now)));
         });
 
+        var reconciliation = new TreeMap<String, Long>();
+        jdbc.query(RECONCILIATION_OPEN, rs -> {
+            reconciliation.put(rs.getString("rule"), rs.getLong("open_count"));
+        });
+
         var actions = new ArrayList<OpsAction>();
         jdbc.query(OPS_ACTIONS, rs -> {
             actions.add(new OpsAction(rs.getString("command"), rs.getString("result"), rs.getLong("action_count")));
@@ -146,6 +165,15 @@ public class DbAggregateGauges {
                 outbox.retryingCount);
         publishTopics(topics);
         publishOpsActions(actions);
+        publishReconciliation(reconciliation);
+    }
+
+    private void publishReconciliation(Map<String, Long> open) {
+        var rows = new ArrayList<MultiGauge.Row<?>>();
+        for (var rule : RuleCode.codes()) {
+            rows.add(MultiGauge.Row.of(Tags.of("rule", rule), open.getOrDefault(rule, 0L), Long::doubleValue));
+        }
+        reconciliationOpen.register(rows, true);
     }
 
     // 감사 테이블은 지우지 않으므로 한 번 나온 (명령, 결과)는 사라지지 않는다. 그래서 0으로 유지하는 처리는 두지 않는다

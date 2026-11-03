@@ -49,7 +49,7 @@ $ ops inspect --operator=alice --payment-id=27
   id=4 상태=PENDING 시도=0 이벤트=PaymentRefunded 토픽=payment.result 다음 시도=2026-11-03T02:14:10.917894Z 오류=-
 [dead_letters] 0건
 [Ops 기록] 0건
-[대사 불일치] 아직 조회하지 않는다(대사 테이블 없음, ISE-43)
+[대사 불일치] 0건(OPEN과 최근 7일 안에 닫힌 RESOLVED)
 ```
 
 `outbox requeue` dry-run:
@@ -85,7 +85,7 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 
 | 명령 | 대상 | 하는 일 | PG | 4-eyes |
 |---|---|---|---|---|
-| `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letters`, Ops 기록, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조(구현, 대사 불일치는 ISE-43에서 연결) | 조회(선택) | 아니오 |
+| `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letters`, Ops 기록, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조(구현). 대사 불일치는 이 결제나 예매에 걸린 `OPEN`과 최근 7일 안에 닫힌 `RESOLVED`를 규칙·상태·처음 발견·마지막 확인·상세와 함께 보인다(ISE-167) | 조회(선택) | 아니오 |
 | `payment resolve` | 결제 `NEEDS_MANUAL_CHECK` | PG 근거로 `APPROVED`(승인, 금액 일치), `DECLINED`(거절, 또는 미발견 + 늦은 승인 방지 성공), 환불 시작(승인, 금액 불일치) 중 하나. 2.1절(구현) | 조회, 늦은 승인 방지(적용 때만) | 예 |
 | `refund retry` | 환불 `NEEDS_MANUAL_CHECK` | PG가 `NotFound`·`RefundRejected`이고 원인이 풀린 뒤 `REQUESTED`로 되돌려 자동 환불 워커가 이어받게 함(워커는 조회부터 한다). 2.3절(구현) | 조회 | 예 |
 | `refund resolve` | 환불 `NEEDS_MANUAL_CHECK` | PG가 환불 완료(금액 일치)면 `REFUNDED`. PG가 거절이고 `--close-failed --external-ref`가 있으면 `FAILED`. 2.2절(구현) | 조회 | 예 |
@@ -485,7 +485,11 @@ $ ops dead-letter resolve --operator=alice --dead-letter-id=432
 | RC-5 금액, RC-6 사용자 불일치 | 결제·예매·토큰 발급 기록 | 원인 확인 뒤 담당자와 처리 |
 | RC-7 상태·이력 불일치, RC-8 이벤트 누락 | 직접 SQL 실행 흔적, 배포 이력 | 원인 확인. 누락 이벤트는 해당 전이의 Ops 명령 절차로 보충하는 방법을 담당자와 정한다 |
 
-대사는 데이터를 고치지 않는다. 다음 대사에서 일치하면 불일치가 `RESOLVED`가 된다.
+대사는 데이터를 고치지 않는다. 다음 대사에서 일치하면 불일치가 `RESOLVED`가 된다. 결제·예매 ID로 `inspect`를 하면 관련 불일치가 `[대사 불일치]` 구역에 나오고, `detail`에 어긋난 상태 쌍(RC-7은 `payment`·`refund`의 현재 상태와 마지막 이력 상태, RC-8은 빠진 이벤트와 전이 시각)이 들어 있다.
+
+RC-8은 누락된 이벤트를 보충해 Outbox 행(같은 `event_type`·`message_key`·`payload.paymentId`)이 생기면 다음 대사에서 `RESOLVED`가 된다. 보충하지 않고 불일치만 닫는 명령은 MVP에 없어서 보충하기 전에는 알림이 계속 울린다.
+
+구현 상태(ISE-167): RC-7·RC-8만 동작한다. RC-1~RC-6은 예매 서비스 내부 조회 API로 대조하므로 ISE-168에서 더한다. 그때까지 위 표의 RC-1~RC-6 행은 절차만 있고 불일치가 기록되지 않는다.
 
 ## 7. 작업 정체·DB 연결 대기
 

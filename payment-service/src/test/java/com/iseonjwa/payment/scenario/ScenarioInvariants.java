@@ -2,12 +2,14 @@ package com.iseonjwa.payment.scenario;
 
 import com.iseonjwa.payment.observability.DbAggregateGauges;
 import com.iseonjwa.payment.pg.infrastructure.MockPgLedgerClient;
+import com.iseonjwa.payment.reconciliation.application.ReconciliationService;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,7 +28,7 @@ import java.util.UUID;
  *   <li>V3(결제 쪽): 모든 결제가 정상 종결이거나 명시적 미해결이고, 미해결이면 해당 Gauge가 0보다 크다.</li>
  * </ul>
  *
- * <p>Note: V3는 결제 쪽만 본다. 결제↔예매 상태 대조와 대사(RC-1~8)는 ISE-43이 맡는다. 이 검증기에는 예매 쪽 확인이 없다.
+ * <p>Note: V3는 결제 쪽만 본다. 결제↔예매 상태 대조와 대사 중 RC-7·RC-8은 `ReconciliationScenarioTest`가, 예매와 대조하는 RC-1~RC-6은 ISE-168이 맡는다. 이 검증기에는 예매 쪽 확인이 없다.
  *
  * <p>Note: "명시적 미해결"은 {@code UNKNOWN}·{@code NEEDS_MANUAL_CHECK} 결제, 대기({@code REQUESTED}·{@code UNKNOWN})·
  * {@code NEEDS_MANUAL_CHECK} 환불, {@code OPEN} {@code dead_letters}다. {@code REQUESTED} 결제는 재확인이 집어 가야 하므로
@@ -42,16 +44,18 @@ final class ScenarioInvariants {
     private final MockPgLedgerClient ledger;
     private final DbAggregateGauges gauges;
     private final MeterRegistry meters;
+    private final ReconciliationService reconciliation;
     private final long firstReservation;
     private final long lastReservation;
     private final long deadLetterPartition;
 
     ScenarioInvariants(JdbcTemplate jdbc, MockPgLedgerClient ledger, DbAggregateGauges gauges, MeterRegistry meters,
-            long firstReservation, long lastReservation, long deadLetterPartition) {
+            ReconciliationService reconciliation, long firstReservation, long lastReservation, long deadLetterPartition) {
         this.jdbc = jdbc;
         this.ledger = ledger;
         this.gauges = gauges;
         this.meters = meters;
+        this.reconciliation = reconciliation;
         this.firstReservation = firstReservation;
         this.lastReservation = lastReservation;
         this.deadLetterPartition = deadLetterPartition;
@@ -65,6 +69,7 @@ final class ScenarioInvariants {
         all.addAll(prefixed("V1", v1()));
         all.addAll(prefixed("V2", v2()));
         all.addAll(prefixed("V3", v3()));
+        all.addAll(prefixed("V3", v3Reconciliation()));
         if (!all.isEmpty()) {
             throw new AssertionError("장애 시나리오 불변 조건 위반 " + all.size() + "건:\n - " + String.join("\n - ", all));
         }
@@ -178,6 +183,23 @@ final class ScenarioInvariants {
                 var value = gaugeValue(name);
                 if (!(value > 0)) violations.add("명시적 미해결이 있는데 Gauge " + name + "가 " + value + "이다(0보다 커야 한다)");
             }
+        }
+        return violations;
+    }
+
+    /**
+     * V3(대사, ISE-167) 강제 대사 한 회차를 돌린 뒤 이 시나리오의 결제에 RC-7·RC-8 {@code OPEN} 불일치가 없어야 한다. 기준 시각을
+     * 허용 지연(10분)보다 뒤로 줘서 시나리오가 방금 쓴 행도 판단 대상이 되게 한다(sleep 없이). 예매 서비스와 대조하는
+     * RC-1~RC-6은 ISE-168에서 더한다.
+     */
+    List<String> v3Reconciliation() {
+        reconciliation.runOnce(Instant.now().plus(Duration.ofMinutes(11)));
+        var violations = new ArrayList<String>();
+        for (var mismatch : jdbc.queryForList("""
+                SELECT rule, payment_id, detail::text AS detail FROM reconciliation_mismatches
+                WHERE status = 'OPEN' AND reservation_id BETWEEN ? AND ? ORDER BY id""", firstReservation, lastReservation)) {
+            violations.add("대사 불일치 " + mismatch.get("rule") + " OPEN 결제 " + mismatch.get("payment_id") + " "
+                    + mismatch.get("detail"));
         }
         return violations;
     }
