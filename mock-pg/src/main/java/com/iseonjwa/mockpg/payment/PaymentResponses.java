@@ -1,13 +1,12 @@
 package com.iseonjwa.mockpg.payment;
 
-import com.iseonjwa.mockpg.fault.Fault;
-import com.iseonjwa.mockpg.fault.FaultMode;
 import com.iseonjwa.mockpg.ledger.OrderState;
 import com.iseonjwa.mockpg.ledger.OrderState.Approved;
 import com.iseonjwa.mockpg.ledger.OrderState.Canceled;
 import com.iseonjwa.mockpg.ledger.OrderState.Declined;
 import com.iseonjwa.mockpg.ledger.OrderState.InFlight;
 import com.iseonjwa.mockpg.web.ErrorResponse;
+import com.iseonjwa.mockpg.web.FaultResponses;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -16,21 +15,12 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * 장애와 원장 상태를 Mock PG 프로토콜 응답으로 바꾼다. {@link #fault}가 5절 모드 표의 응답이고, 나머지 세 메서드가
- * 4절 상태 표의 승인·망취소·조회 열이다.
+ * 원장 상태를 Mock PG 프로토콜 응답으로 바꾼다. 세 메서드가 4절 상태 표의 승인·망취소·조회 열이다.
+ * 장애가 직접 만드는 응답은 {@link FaultResponses}다.
  * 어댑터는 본문의 status·code로 결과를 분류하므로 본문은 서버가 항상 직접 만든다(11절).
  */
 final class PaymentResponses {
     private PaymentResponses() {
-    }
-
-    /**
-     * 원장을 건드리지 않고 장애가 직접 만드는 응답. 해당하는 장애가 아니면 비어 있다.
-     */
-    static Optional<ResponseEntity<?>> fault(Fault fault) {
-        if (fault.is(FaultMode.PROCESSING)) return Optional.of(processing());
-        if (fault.is(FaultMode.SERVER_ERROR)) return Optional.of(error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorResponse.SERVER_ERROR));
-        return Optional.empty();
     }
 
     static ResponseEntity<?> approval(OrderState state) {
@@ -66,7 +56,7 @@ final class PaymentResponses {
     }
 
     private static ResponseEntity<?> processing() {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(StatusBody.PROCESSING);
+        return FaultResponses.processing();
     }
 
     private static ResponseEntity<?> notFound() {
@@ -92,6 +82,5 @@ final class PaymentResponses {
 
     record StatusBody(String status) {
         static final StatusBody CANCELED = new StatusBody("CANCELED");
-        static final StatusBody PROCESSING = new StatusBody("PROCESSING");
     }
 }

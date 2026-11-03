@@ -19,7 +19,7 @@ public class LedgerHolder {
     }
 
     /**
-     * 원장을 새 세대로 바꾼다. 테스트 사이 격리에 쓴다. HTTP로 여는 {@code POST /mock-pg/reset}은 ISE-133에서 더한다.
+     * 원장을 새 세대로 바꾼다. 테스트 사이 격리에 쓴다. HTTP로는 {@code POST /mock-pg/reset}이 장애 설정 초기화와 함께 부른다.
      */
     public void reset() {
         current.set(new Ledger());

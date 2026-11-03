@@ -8,15 +8,25 @@ public final class FaultRules {
     }
 
     public static FaultRule of(FaultTarget target, FaultMode mode, Integer count) {
-        return new FaultRule(target, mode, null, null, count, null);
+        return rule(target, mode, null, null, count, null);
     }
 
     public static FaultRule delay(FaultTarget target, long delayMs, Integer count) {
-        return new FaultRule(target, FaultMode.DELAY, delayMs, null, count, null);
+        return rule(target, FaultMode.DELAY, delayMs, null, count, null);
     }
 
     public static FaultRule forOrder(FaultTarget target, FaultMode mode, Integer count, String orderId) {
-        return new FaultRule(target, mode, null, null, count, orderId);
+        return rule(target, mode, null, null, count, orderId);
+    }
+
+    public static FaultRule forRefund(FaultTarget target, FaultMode mode, Integer count, String refundId) {
+        return new FaultRule(target, mode, null, null, count, null, refundId);
+    }
+
+    /** 주문 한정 규칙을 만든다(환불 식별자 없음). */
+    public static FaultRule rule(FaultTarget target, FaultMode mode, Long delayMs, Double rate, Integer count,
+            String orderId) {
+        return new FaultRule(target, mode, delayMs, rate, count, orderId, null);
     }
 
     public static FaultRule off(FaultTarget target) {

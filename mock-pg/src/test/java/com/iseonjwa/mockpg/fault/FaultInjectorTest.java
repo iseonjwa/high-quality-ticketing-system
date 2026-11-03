@@ -49,6 +49,28 @@ class FaultInjectorTest {
     }
 
     @Test
+    void 환불이_다른_요청은_적용받지_않고_횟수도_쓰지_않는다() {
+        faults.apply(FaultRules.forRefund(FaultTarget.REFUND, FaultMode.SERVER_ERROR, 1, "r-1"));
+
+        assertEquals(Fault.NONE, faults.claim(FaultTarget.REFUND, "r-2"));
+        assertEquals(FaultMode.SERVER_ERROR, faults.claim(FaultTarget.REFUND, "r-1").mode());
+        assertEquals(Fault.NONE, faults.claim(FaultTarget.REFUND, "r-1"));
+    }
+
+    @Test
+    void 초기화하면_모든_호출_종류의_설정이_해제된다() {
+        for (var target : FaultTarget.values()) {
+            faults.apply(FaultRules.of(target, FaultMode.PROCESSING, null));
+        }
+
+        faults.reset();
+
+        for (var target : FaultTarget.values()) {
+            assertEquals(Fault.NONE, faults.claim(target, "id"), target.name());
+        }
+    }
+
+    @Test
     void 주문이_다른_요청은_적용받지_않고_횟수도_쓰지_않는다() {
         faults.apply(FaultRules.forOrder(APPROVE, FaultMode.PROCESSING, 1, "o-1"));
 
@@ -59,7 +81,7 @@ class FaultInjectorTest {
 
     @Test
     void 확률이_0이면_적용하지_않고_횟수도_쓰지_않는다() {
-        faults.apply(new FaultRule(APPROVE, FaultMode.PROCESSING, null, 0.0, 1, null));
+        faults.apply(FaultRules.rule(APPROVE, FaultMode.PROCESSING, null, 0.0, 1, null));
 
         for (int i = 0; i < 100; i++) {
             assertEquals(Fault.NONE, faults.claim(APPROVE, "o-1"));
@@ -69,7 +91,7 @@ class FaultInjectorTest {
 
     @Test
     void 확률이_1이면_항상_적용한다() {
-        faults.apply(new FaultRule(APPROVE, FaultMode.PROCESSING, null, 1.0, null, null));
+        faults.apply(FaultRules.rule(APPROVE, FaultMode.PROCESSING, null, 1.0, null, null));
 
         for (int i = 0; i < 100; i++) {
             assertEquals(FaultMode.PROCESSING, faults.claim(APPROVE, "o-1").mode());

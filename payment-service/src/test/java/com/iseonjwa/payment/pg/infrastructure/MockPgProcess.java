@@ -39,11 +39,13 @@ final class MockPgProcess implements AutoCloseable {
     private final String baseUrl;
     private final Thread killOnExit;
     private final HttpClient http = HttpClient.newHttpClient();
+    private final MockPgLedgerClient ledger;
 
     private MockPgProcess(Process process, Path log, String baseUrl) {
         this.process = process;
         this.log = log;
         this.baseUrl = baseUrl;
+        this.ledger = new MockPgLedgerClient(baseUrl);
         // 테스트 JVM이 @AfterAll 없이 끝나도 자식 JVM이 포트를 잡은 채 남지 않게 한다
         this.killOnExit = new Thread(process::destroyForcibly);
         Runtime.getRuntime().addShutdownHook(killOnExit);
@@ -78,11 +80,25 @@ final class MockPgProcess implements AutoCloseable {
         return baseUrl;
     }
 
+    /** 이 서버의 원장 조회 클라이언트(mock-pg.md 9절). */
+    MockPgLedgerClient ledger() {
+        return ledger;
+    }
+
     /**
      * 장애 주입 설정을 바꾼다(mock-pg.md 5절의 POST /mock-pg/faults). {@code count}가 null이면 해제할 때까지 유지한다.
      */
     void applyFault(String target, String mode, Integer count) {
-        var json = "{\"target\":\"%s\",\"mode\":\"%s\",\"count\":%s}".formatted(target, mode, count);
+        postFault("{\"target\":\"%s\",\"mode\":\"%s\",\"count\":%s}".formatted(target, mode, count));
+    }
+
+    /** 지연 장애를 건다. {@code count}가 null이면 해제할 때까지 유지한다. */
+    void applyDelay(String target, long delayMs, Integer count) {
+        postFault("{\"target\":\"%s\",\"mode\":\"DELAY\",\"delayMs\":%d,\"count\":%s}"
+                .formatted(target, delayMs, count));
+    }
+
+    private void postFault(String json) {
         var request = HttpRequest.newBuilder(URI.create(baseUrl + "/mock-pg/faults"))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")

@@ -1,6 +1,7 @@
 package com.iseonjwa.mockpg.payment;
 
 import com.iseonjwa.mockpg.ledger.OrderState;
+import com.iseonjwa.mockpg.web.FaultResponses;
 import com.iseonjwa.mockpg.web.ResponseDrop;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,6 +23,8 @@ import java.util.function.Function;
 @RestController
 @RequestMapping("/mock-pg/payments")
 class PaymentController {
+    private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+
     private final PaymentService payments;
 
     PaymentController(PaymentService payments) {
@@ -28,8 +32,10 @@ class PaymentController {
     }
 
     @PostMapping
-    ResponseEntity<?> approve(@RequestBody ApproveRequest request, HttpServletRequest servletRequest) {
-        return respond(payments.approve(request), servletRequest,
+    ResponseEntity<?> approve(@RequestBody ApproveRequest request,
+                              @RequestHeader(value = IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+                              HttpServletRequest servletRequest) {
+        return respond(payments.approve(request, idempotencyKey), servletRequest,
                 state -> PaymentResponses.approval(state.orElseThrow()));
     }
 
@@ -46,7 +52,7 @@ class PaymentController {
 
     private ResponseEntity<?> respond(PaymentService.Outcome outcome, HttpServletRequest servletRequest,
                                       Function<Optional<OrderState>, ResponseEntity<?>> ledgerResponse) {
-        var faultResponse = PaymentResponses.fault(outcome.fault());
+        var faultResponse = FaultResponses.of(outcome.fault());
         if (faultResponse.isPresent()) return faultResponse.get();
         if (outcome.dropsResponse()) {
             // Note: 원장 처리를 끝낸 뒤 응답만 잃는다. 새 주문이면 결과를 저장한 뒤고, 망취소면 반영한 뒤다.
