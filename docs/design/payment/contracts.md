@@ -129,5 +129,21 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 | 5 | `payment.result` 소비자가 `PaymentApproved`의 `currency`·`approvedAt`을 쓴다 | 그대로 |
 | 6 | 만료 뒤·확정 불가 승인에 `RefundRequested`를 `payment.command`로 발행한다(필드: `reservationId`, `paymentId`, `userId`, `amount`, `currency`, `reason`) | 그대로(M3에서 Payment가 소비) |
 | 7 | 소비 실패 DLQ 처리와 이상 격리 위치는 Reservation이 정한다 | 그대로 |
+| 8 | 대사용 읽기 전용 내부 조회 API 두 개(5절). 응답 형태, 200이 아닌 응답은 모두 조회 실패, 없는 ID는 `items`에서 빠짐 | 5절 그대로(ISE-75에서 확정) |
 
 확정되면 이 문서의 상태를 "확정"으로 바꾸고 SA의 7-3과 10-3에 claim 이름(S-15)과 `currency`(S-18)를 반영한다. 변경 요청 목록은 [sa-change-requests.md](sa-change-requests.md)에 있다.
+
+## 5. 계약 ⑤ 대사용 예매 조회 (Payment → Reservation, ISE-75 확정 전 가정)
+
+[0029](../../decisions/0029-payment-reservation-reconciliation.md)의 대사가 부르는 Reservation의 읽기 전용 내부 API다. **아래 형태는 ISE-75(반효승)가 확정하기 전의 가정이다.** 결제 쪽은 이 형태로 어댑터(`ReservationLookupHttpClient`)와 가짜 서버 테스트를 만들었고, 예매 쪽 응답이 다르면 어댑터를 맞춘다. 그 전에는 `payment.reconciliation.reservation.enabled`가 `false`라 호출하지 않는다.
+
+| API | 응답 |
+|---|---|
+| `GET /internal/reconciliation/reservations?ids=1,2,3` | `{"items":[{"reservationId","userId","status","totalAmount","paymentId","holdExpiresAt","updatedAt"}]}`. `ids`는 최대 100건. 예매 서비스에 없는 ID는 `items`에서 빠진다(= 예매 없음) |
+| `GET /internal/reconciliation/reservations/changes?from=&to=&cursor=&size=100` | `{"items":[...], "nextCursor":"..."|null}`. `[from, to)` 안에 `CONFIRMED`·`CANCELED`로 바뀐 예매이고 항목은 현재 상태다. 첫 쪽은 `cursor`가 없다. 커서는 키셋 방식이고 마지막 쪽은 `nextCursor: null`이다. 변경 목록은 RC-4의 출발점이자 결제가 7일보다 오래됐어도 예매가 최근 바뀐 경우(RC-2 등)를 결제 쪽 대상에 더하는 데 쓴다 |
+
+- 필드: `status`는 `HELD`·`CONFIRMED`·`EXPIRED`·`RELEASED`·`CANCELED`, `totalAmount`는 원 단위 정수, 시각은 `Z`(또는 오프셋)가 붙은 ISO-8601이어야 한다(결제 쪽이 `OffsetDateTime.parse`로 읽는다). `updatedAt`은 마지막 상태 전이 시각이다. `paymentId`는 확정 전이면 `null`이다. 개인정보는 없다.
+- `ids` 상한(100건)을 넘으면 400으로 답하고 잘라서 응답하지 않는다. 잘린 응답은 결제 쪽에서 "예매 없음"으로 보이기 때문이다.
+- 인증 헤더는 없다. 내부망 신뢰이고 Gateway가 `/internal/**`를 외부에서 막는다([0008](../../decisions/0008-internal-trust-and-auth-design.md)). Eureka 서비스 ID는 `reservation-service`이고 결제 쪽은 연결 1초·읽기 2초`[가정]`로 부른다.
+- **실패 해석**: 200이 아닌 응답은 404를 포함해 모두 "조회 실패"다. 시한 초과, 연결 실패, 알 수 없는 `status`, 정수가 아닌 금액도 실패다. 404를 "예매 없음"으로 읽지 않는다. 경로가 틀리거나 API가 아직 없을 때 모든 승인 결제가 RC-2(환불 의무 미등록)로 기록되기 때문이다. "예매 없음"은 200 응답의 `items`에서 빠진 ID만 뜻한다. 조회가 실패한 회차에는 RC-1~RC-6이 기록도 닫기도 하지 않고 실패하고 다음 회차에 다시 한다.
+- **대량 누락**: 결제는 예매가 발급한 토큰으로만 생기므로 정상이면 "예매 없음"은 거의 없다. 200 응답이라도 한 묶음에서 2건 이상 물었는데 하나도 오지 않았거나, 회차 전체에서 빠진 예매가 5건 이상이고 물은 수의 10%를 넘으면 결제 쪽이 조회 실패로 본다(설정 `payment.reconciliation.reservation.missing-batch-min-size`·`missing-min-count`·`missing-max-ratio`, `[가정]`). 변경 목록은 빈 쪽이면 끝내고 최대 쪽 수(`max-change-pages`, 1,000`[가정]`)를 넘으면 실패로 본다.

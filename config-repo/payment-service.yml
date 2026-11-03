@@ -74,3 +74,8 @@ payment:
     provider: mock
     mock:
       base-url: ${MOCK_PG_URL:http://localhost:8090}
+  reconciliation:
+    reservation:
+      # 예매 내부 조회 API(ISE-75)가 생기면 켠다. API가 없는 채로 켜면 회차마다 RC-1~RC-6이 실패해 대사 정체 알림이 울린다.
+      # 켜면 RC-7·RC-8은 그대로 돌고 RC-1~RC-6이 더해진다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
+      enabled: false

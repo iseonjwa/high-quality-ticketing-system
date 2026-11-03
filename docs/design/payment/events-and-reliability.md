@@ -219,7 +219,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 
 ### 구현 (ISE-167: 기반과 RC-7·RC-8)
 
-규칙 중 결제 DB만으로 판단하는 RC-7·RC-8과 기록·Gauge·알림·`inspect` 기반을 구현했다. 예매 서비스 내부 조회 API로 대조하는 RC-1~RC-6은 ISE-168에서 더한다. 규칙은 `ReconciliationRule` 인터페이스 구현 빈이고, 빈을 더하면 `ReconciliationService`가 저절로 돌린다.
+규칙 중 결제 DB만으로 판단하는 RC-7·RC-8과 기록·Gauge·알림·`inspect` 기반을 구현했다. 예매 서비스 내부 조회 API로 대조하는 RC-1~RC-6은 ISE-168에서 더했고 아래 "구현 (ISE-168)"에 적었다. 규칙은 `ReconciliationRule` 인터페이스 구현 빈이고, 빈을 더하면 `ReconciliationService`가 저절로 돌린다.
 
 - **위치**: `reconciliation` 패키지. 규칙·기록 저장소 인터페이스는 `domain`, 한 회차 실행(`ReconciliationService`)과 규칙별 한 트랜잭션 기록(`ReconciliationRecorder`)은 `application`, JDBC 저장소와 RC-7·RC-8 SQL은 `infrastructure`, 작업 등록(`ReconciliationJobConfiguration`)은 입구 어댑터라 `presentation/scheduling`이다([0043](../../decisions/0043-inbound-adapters-in-presentation.md)).
 - **작업과 설정**: 작업 이름 `reconciliation`, `housekeeping` 실행기. `payment.reconciliation.{enabled, interval, allowed-lag, window, event-window}`(기본 true, 5분, 10분, 7일, 24시간`[가정]`). 테스트 프로필과 ops 프로필은 작업을 끈다. 테스트는 `ReconciliationService.runOnce(now)`를 직접 부르고, 기준 시각을 인자로 받아 `sleep` 없이 허용 지연을 넘긴다.
@@ -229,7 +229,25 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 - **RC-7**: 결제의 현재 `status`가 `target_type='PAYMENT'` 마지막 이력의 `to_status`와 다르거나, 환불의 현재 `status`가 `target_type='REFUND'` 마지막 이력의 `to_status`와 다르다. 대상은 최근 7일 안에 갱신된 결제(환불 갱신 포함)이고, 마지막 이력은 `DISTINCT ON` 하나로 구한다(결제마다 조회하지 않는다). 키는 결제 하나이고 결제·환불 어긋남은 `detail`의 `payment`·`refund`에 함께 담는다. 결제는 생성 때 이력을 쓰지 않으므로 결제 이력이 없으면 `REQUESTED`를 기대 상태로 본다. ADR 0029 결정 3은 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK` 결제를 대사에서 뺐지만 RC-7은 이들도 본다. 결제 DB 안의 이력 일관성 검사라 결제 쪽 지표와 겹쳐도 오탐이 없기 때문이다.
 - **RC-8**: 최근 24시간 `target_type='PAYMENT'` 이력의 확정 전이(→ `APPROVED`·`DECLINED`·`REFUNDED`)마다 Outbox 행(`PaymentApproved`·`PaymentDeclined`·`PaymentRefunded`)이 있어야 한다. 행은 `message_key`(예매 ID), `event_type`, 봉투 안 `payload.paymentId`로 찾는다. 모든 확정 전이는 `PaymentTransitionService`가 이력과 Outbox를 같은 트랜잭션에 쓰고, 승인 API·재확인·환불 워커·Ops `payment resolve`·`refund resolve`가 모두 이 서비스를 거친다. 이벤트를 쓰지 않는 정상 확정 전이는 없어서 규칙에서 뺀 전이가 없다. 키는 결제 하나이고 빠진 전이들은 `detail.missingEvents`에 모은다. 판단 대상은 기간(24시간) 안의 확정 전이와, 이 규칙의 `OPEN` 행이 가리키는 결제의 전이 중 "그 행이 처음 발견됐을 때 판단 범위(기간 + 허용 지연)에 있던 전이와 그 뒤의 전이"(`h.created_at >= first_detected_at - (event-window + allowed-lag)`)다. 보관 정리가 `SENT` Outbox를 지운 뒤에도 정상이던 예전 전이를 누락으로 다시 보지 않기 위해서다. 대응하는 Outbox 행은 `created_at >= 전이 시각 - 1시간`이기만 하면 인정하고 상한은 두지 않는다(사람이 runbook대로 한참 뒤에 보충한 행도 닫는다). 쿼리는 창 가지(`idx_payment_status_histories_payment_created`)와 `OPEN` 가지(결제 ID)의 `UNION`이고, 대응 확인은 `idx_outbox_events_message_key`로 예매 키를 찾는다. 기동 때 `event-window + allowed-lag < payment.housekeeping.outbox-sent-retention`(기본 7일)을 검증하고 어긋나면 기동에 실패한다.
 - **한계**:
-  - `housekeeping` 실행기는 스레드가 하나라 대사 한 회차가 길어지면 같은 실행기의 `gauge-refresh`(15초)와 정리 작업이 그만큼 밀린다. 그러면 `gauge-refresh` 정체 알림(1분)이 먼저 울릴 수 있다. RC-1~RC-6이 붙으면 예매 서비스 호출 시한으로 회차를 묶는다.
+  - `housekeeping` 실행기는 스레드가 하나라 대사 한 회차가 길어지면 같은 실행기의 `gauge-refresh`(15초)와 정리 작업이 그만큼 밀린다. 그러면 `gauge-refresh` 정체 알림(1분)이 먼저 울릴 수 있다. RC-1~RC-6은 예매 서비스 호출마다 시한(읽기 2초)을 두어 회차를 묶는다. 다만 대상 예매가 많으면 호출 수(대상 수 / 100 + 변경 목록 쪽 수)만큼 길어지므로 7일 안 대상 규모가 커지면 호출 수를 본다.
   - RC-7은 `updated_at`을 건드리지 않고 상태만 바꾼 직접 SQL을 기간 밖의 오래된 결제에서는 찾지 못한다(이미 `OPEN`이면 계속 다시 판단한다). 매 회차 `payments`·`refunds`·`payment_status_histories`를 훑는다. 18만 건 기준 0.25~0.4초(Opus 리뷰 측정, 부하 없음)다. 문장 시한 1.5초에 가까워지면 `payments(updated_at)`·`refunds(updated_at)` 인덱스와 `UNION` 분리, 또는 대사 트랜잭션에 `SET LOCAL statement_timeout`과 `Connection.setNetworkTimeout`을 함께 거는 방법을 쓴다(문장 시한만 늘리면 소켓 시한 2초가 먼저 끊는다). 결제 쓰기 경로에 인덱스를 더하는 비용 때문에 이번에는 더하지 않았다.
   - RC-8의 Outbox 대응 시각은 하한만 둔다. 이미 `OPEN`인 RC-8은 보충 이벤트가 생기면 다음 회차에 `RESOLVED`가 되고, 보충하지 않고 닫는 명령은 MVP에 없다(알림이 계속 울린다).
   - 규칙마다 `pg_try_advisory_xact_lock(167000 + 규칙 순번)`을 트랜잭션 첫 문장에서 잡는다(정리 작업 키 146001~146003과 겹치지 않는다). 다른 인스턴스가 쥐고 있으면 그 규칙은 기록도 닫기도 없이 건너뛰고(결과에 `skipped`) 다음 회차에 다시 한다. 판단과 `OPEN` 키 조회가 같은 잠금 아래라 서로 다른 스냅숏을 보지 않는다. 유니크 인덱스와 `ON CONFLICT`는 잠금이 뚫려도 중복 행을 막는 두 번째 방어다.
+
+### 구현 (ISE-168: 예매 내부 조회와 RC-1~RC-6)
+
+예매 서비스의 읽기 전용 내부 조회 API([contracts.md](contracts.md) 5절, ISE-75 확정 전 가정 형태)로 결제와 예매를 대조하는 RC-1~RC-6을 더했다. 규칙 판정은 ADR 0029 규칙표를 그대로 따른다. 키는 `(예매 ID, 결제 ID)`이고, `detail`에는 `reason`과 양쪽 상태·금액·사용자 ID·시각을 담으며 개인정보는 담지 않는다.
+
+- **준비와 판단 두 단계**: `ReconciliationRule`에 준비(`prepare`)를 더했다. 서비스가 규칙마다 준비(트랜잭션 밖) → 판단·기록(기존처럼 잠금 + 한 트랜잭션) 순서로 부른다. 준비는 예매 API를 부르는 단계라 DB 연결과 advisory 잠금을 쥐지 않는다(7절 원칙). 판단 단계는 결제 DB를 다시 읽어 준비한 스냅숏과 비교하고 원격 호출을 하지 않는다. 준비가 실패하면 그 규칙은 기록도 닫기도 없이 실패하고 `OPEN` 행은 그대로 남는다. RC-7·RC-8은 준비가 비어 있다(기본 메서드).
+- **회차당 한 번 조회**: 서비스가 회차 시작에 `ReconciliationRound`(기준 시각, 정책, 스냅숏 로더)를 만들어 모든 규칙의 준비에 넘긴다. 스냅숏(`ReservationView`)은 처음 요구될 때 `ReservationViewLoader`가 한 번 가져와 RC-1~RC-6이 나눠 쓴다. 대상 예매 ID는 7일 안에 갱신된 `APPROVED`·`REFUNDED` 결제(환불 갱신 포함)와 RC-1~RC-6 `OPEN` 행의 예매이고, 묶음 조회로 100건씩 묻는다. 변경 목록(RC-4의 출발점이자 RC-2 등 결제 쪽 대상 보강)은 먼저 커서로 읽어 묶음 조회 결과와 같은 저장소에 합치고, 묶음 조회에서는 변경 목록에 이미 나온 예매를 뺀다. 조회가 실패하면 회차 문맥이 실패를 기억해 같은 회차의 나머지 규칙이 다시 부르지 않는다(규칙마다 시한을 기다리지 않는다).
+- **판단 대상**: 결제 쪽 규칙(RC-1·2·3·5·6)은 각 규칙 조건에 맞는 7일 안 결제, 그 규칙의 `OPEN` 행 결제, 예매가 변경 목록에 나온 결제(결제는 오래됐는데 예매가 최근 취소된 경우)다. RC-4는 변경 목록의 `CONFIRMED` 예매와 RC-4 `OPEN` 행의 예매(묶음 조회로 다시 확인)다. 준비 때 예매 ID를 묻지 않은 결제(준비 뒤에 생긴 대상)와 허용 지연 안의 대상은 판단을 미루고 `OPEN`을 닫지 않는다.
+- **RC-5·RC-6 범위**: RC-5의 예매 금액 비교와 RC-6은 `APPROVED` 결제만 본다(양쪽 값이 바뀌지 않아 `REFUNDED`까지 보면 환불해도 닫히지 않는다, ADR 0029 개정 2026-11-03). RC-5의 환불 금액 ≠ `pg_approved_amount` 비교는 `REFUNDED`를 본다.
+- **허용 지연 기준**: 결제·환불·예매 중 가장 늦은 갱신 시각이다. 예매가 없으면(묶음 응답에서 빠짐) 결제·환불 시각만 쓴다.
+- **RC-2의 예매 없음**: 묶음 응답에서 빠진 ID만 뜻한다. 404와 시한 초과는 조회 실패이고 예매 없음이 아니다.
+- **켜고 끄기**: `payment.reconciliation.reservation.{enabled, base-url, connect-timeout, read-timeout, batch-size, page-size}`(기본 `false`, `http://reservation-service`, 1초, 2초, 100, 100`[가정]`) 외에 `load-balanced`(기본 `true`, `false`면 LoadBalancer 없이 `base-url`로 바로 부름)와 대량 누락 기준 `missing-batch-min-size`(2)·`missing-min-count`(5)·`missing-max-ratio`(0.1), 변경 목록 쪽 수 상한 `max-change-pages`(1,000)`[가정]`. `enabled`가 `false`면 RC-1~RC-6 규칙·조회 어댑터·로더 빈을 만들지 않아 RC-7·RC-8만 돈다. 테스트 프로필과 `config-repo/payment-service.yml`은 `false`다. 예매 내부 조회 API(ISE-75)가 생기면 켠다. 켜 둔 채 API가 없으면 회차마다 RC-1~RC-6이 실패해 대사 정체 알림이 울린다.
+- **HTTP 클라이언트**: 이 어댑터만의 `RestClient`를 직접 만들고 Spring Cloud LoadBalancer 인터셉터를 그 클라이언트에만 붙인다. 앱 전역 `RestClient.Builder` 빈을 만들거나 `@LoadBalanced`로 바꾸지 않아 PG 어댑터 등 다른 HTTP 호출은 영향이 없다.
+- **한계**:
+  - 스냅숏은 판단 기준 시각 이후에 찍힌다. 그 사이 예매가 바뀌면 L을 넘긴 실제 불일치가 다음 회차에 닫힐 수 있다. 반대로 스냅숏 뒤에 바뀐 예매는 한 회차 동안 잘못 `OPEN`으로 기록될 수 있고 다음 회차에 닫힌다. `reconciliation_mismatch_open` 알림에는 `for`가 없어 그 한 회차 동안 즉시 울릴 수 있다.
+  - 대상 예매가 많으면 한 회차의 호출 수가 늘어 `housekeeping` 실행기를 오래 쥔다. 부분 결과로 판단하면 못 받은 예매가 "예매 없음"(RC-2)으로 보이므로 호출 하나라도 실패하면 회차 전체의 예매 규칙을 실패시킨다. 200 응답이라도 대량으로 빠졌으면(한 묶음이 통째로 비었거나 회차 전체 누락이 5건 이상이고 10% 초과) 같은 이유로 조회 실패로 본다. 변경 목록은 빈 쪽이면 끝내고 최대 쪽 수(1,000)를 넘으면 실패로 본다.
+  - 인스턴스마다 회차가 전량을 각자 부르고(규칙 잠금은 준비 뒤 판단 때 잡는다), 실행기 스레드가 하나라 예매 호출이 길어지면 같은 실행기의 작업이 밀린다. 이번에는 바꾸지 않았다. 배포는 결제 서비스 한 대이고, 커지면 회차 잠금을 준비 전에 잡거나 전용 실행기로 옮긴다.
+  - 실제 예매 서비스와는 붙여 보지 못했다. 가짜 서버(JDK `HttpServer`)로 응답 해석, 실패 처리, 호출 수, 트랜잭션 밖 호출을 확인했다.
