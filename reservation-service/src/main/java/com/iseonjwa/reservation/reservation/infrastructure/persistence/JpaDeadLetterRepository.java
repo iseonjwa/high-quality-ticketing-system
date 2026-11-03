@@ -11,14 +11,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class JpaDeadLetterRepository implements DeadLetterRepository {
     private final SpringDataDeadLetterRepository repository;
 
-    // Note: 같은 DLQ 메시지가 다시 와도 예외 없이 건너뛰려고 JPA save 대신 ON CONFLICT DO NOTHING으로 넣는다
+    // Note: 같은 DLQ 메시지가 다시 와도 예외 없이 건너뛰려고 JPA save 대신 ON CONFLICT로 넣는다
     @Override
     @Transactional
-    public boolean saveIfAbsent(DeadLetter deadLetter) {
-        return repository.insertIfAbsent(deadLetter.getSourceTopic(), deadLetter.getSourcePartition(),
+    public boolean saveOpenIfAbsent(DeadLetter deadLetter) {
+        return repository.insertOpenIfAbsent(deadLetter.getSourceTopic(), deadLetter.getSourcePartition(),
                 deadLetter.getSourceOffset(), deadLetter.getMessageKey(), deadLetter.getEventKey(),
                 deadLetter.getEventId(), deadLetter.getPayloadRaw(), deadLetter.getReason(),
-                deadLetter.getStatus().name(), deadLetter.getResolution(), deadLetter.getCreatedAt(),
+                deadLetter.getCreatedAt()) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean saveResolved(DeadLetter deadLetter) {
+        return repository.insertOrResolve(deadLetter.getSourceTopic(), deadLetter.getSourcePartition(),
+                deadLetter.getSourceOffset(), deadLetter.getMessageKey(), deadLetter.getEventKey(),
+                deadLetter.getEventId(), deadLetter.getPayloadRaw(), deadLetter.getResolution(),
                 deadLetter.getResolvedAt()) == 1;
     }
 }
