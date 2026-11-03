@@ -9,6 +9,8 @@ dependencies {
     // 정산"하는 흐름을 표현하지 못해 Spring 통합 모듈 없이 코어를 직접 쓴다
     implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
     implementation 'io.github.resilience4j:resilience4j-bulkhead'
+    // Note: 버전은 resilience4j-bom(spring-cloud-dependencies)이 관리한다. CB·Bulkhead 지표는 이 모듈의 Tagged*Metrics를 쓴다
+    implementation 'io.github.resilience4j:resilience4j-micrometer'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -16,6 +18,8 @@ dependencies {
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
+    // 지표 이름 테스트가 PrometheusMeterRegistry.scrape()를 쓴다(운영 classpath에는 runtimeOnly로 이미 있다)
+    testImplementation 'io.micrometer:micrometer-registry-prometheus'
 }
 
 // Note: 결제 통합 테스트는 compose.test.yml의 PostgreSQL(payment_test)을 쓴다.

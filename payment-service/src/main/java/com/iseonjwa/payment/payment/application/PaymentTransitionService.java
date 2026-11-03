@@ -105,7 +105,8 @@ public class PaymentTransitionService {
     private boolean recordIfChanged(boolean changed, Long paymentId, PaymentStatus from, PaymentStatus to,
             String reason, StatusActor actor, Instant now) {
         if (!changed) {
-            // TODO: payment_transition_conflict_total 지표를 올린다(ISE-41)
+            // Note: 충돌 지표(payment.transition.conflict)는 여기서 올리지 않는다. 경로(operation) 라벨은 호출한 유스케이스
+            // (TX2, 재확인, 환불 워커)만 알고, 반환값 false를 받은 그쪽이 센다
             return false;
         }
         histories.save(PaymentStatusHistory.of(paymentId, from, to, reason, actor, now));

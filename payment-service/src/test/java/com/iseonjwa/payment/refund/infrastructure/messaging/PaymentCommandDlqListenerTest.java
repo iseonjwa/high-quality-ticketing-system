@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
 import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
@@ -59,6 +61,10 @@ class PaymentCommandDlqListenerTest {
 
     @Autowired
     PaymentCommandDlqListener listener;
+    @Autowired
+    PaymentMetrics metrics;
+    @Autowired
+    MeterRegistry meters;
     @Autowired
     RefundRequestService refundRequests;
     @Autowired
@@ -291,17 +297,21 @@ class PaymentCommandDlqListenerTest {
         doThrow(new DataAccessResourceFailureException("DB 연결 실패")).doCallRealMethod()
                 .when(failing).create(any(), any(), any(), any());
         var flaky = new PaymentCommandDlqListener(parser(), new DeadLetterService(deadLetters, failing, processedEvents,
-                transaction, clock));
+                transaction, clock), metrics);
         var record = withOrigin(message(eventId, payment, 50000), 7, 100);
+
+        var failuresBefore = handlerFailures();
 
         assertThrows(DataAccessResourceFailureException.class, () -> flaky.onMessage(record));
 
+        assertEquals(failuresBefore + 1, handlerFailures(), "예외로 끝난 처리는 처리기 실패로 센다");
         assertEquals(0, deadLetterCount(eventId));
         assertEquals(0, fixtures.refundCount(payment.paymentId()));
         assertEquals(0, processedInDlqGroup(eventId));
 
         flaky.onMessage(record);
 
+        assertEquals(failuresBefore + 1, handlerFailures(), "성공한 재처리는 실패로 세지 않는다");
         assertEquals(DeadLetterResolution.AUTO_PERSISTED, deadLetters.findByEventKey(eventId.toString()).orElseThrow().resolution());
         assertEquals(1, fixtures.refundCount(payment.paymentId()));
         assertEquals(1, processedInDlqGroup(eventId));
@@ -313,7 +323,7 @@ class PaymentCommandDlqListenerTest {
         var eventId = newEventId();
         var failing = new ResolveFailsOnce(deadLetters);
         var flaky = new PaymentCommandDlqListener(parser(), new DeadLetterService(failing, refundRequests, processedEvents,
-                transaction, clock));
+                transaction, clock), metrics);
         var record = withOrigin(message(eventId, payment, 50000), 7, 100);
 
         assertThrows(DataAccessResourceFailureException.class, () -> flaky.onMessage(record));
@@ -443,5 +453,10 @@ class PaymentCommandDlqListenerTest {
         var marker = "\"reservationId\":";
         var at = value.indexOf(marker);
         return at < 0 ? null : value.substring(at + marker.length()).split("[,}]")[0];
+    }
+
+    private double handlerFailures() {
+        return meters.get("payment.dlq.handler.failures").tag("topic", PaymentCommandDlqListener.TOPIC).counter()
+                .count();
     }
 }
