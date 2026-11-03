@@ -1,6 +1,6 @@
 # 0029. 결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다
 
-- 상태: 제안 (반효승 협의 필요, SA 변경 요청 필요. 서비스 경계 해법은 AI 제안이라 사용자 확인 필요)
+- 상태: 제안 (반효승 협의 필요, SA 변경 요청 필요. 서비스 경계 해법은 AI 제안이라 사용자 확인 필요. 2026-11-03 개정)
 - 날짜: 2026-10-28
 - 결정자: 안준현(M3에 최소 대사, 상태·금액·환불 여부 대조, 허용 지연 초과 탐지, MVP는 자동 수정 없이 기록과 Grafana 알림은 사용자 결정)
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
@@ -20,7 +20,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 1. **주체는 Payment**: 돈의 원장이 Payment라 가장 심각한 불일치(돈은 받았는데 티켓도 환불 의무도 없음)를 Payment가 책임진다. 대사 작업은 `payment-service`의 `housekeeping` 실행기에서 5분`[가정]`마다 돈다.
 2. **경계 해법은 예매 서비스의 읽기 전용 내부 조회 API**: Reservation이 대사용 조회 API를 제공하고 Payment가 호출한다.
    - `GET /internal/reconciliation/reservations?ids=…`(최대 100건): 예매별 `reservationId, userId, status, totalAmount, paymentId, holdExpiresAt, updatedAt`
-   - `GET /internal/reconciliation/reservations/changes?from=…&to=…&cursor=…`: 기간 안에 `CONFIRMED`·`CANCELED`가 된 예매(결제 쪽에서 출발하면 찾지 못하는 RC-4용)
+   - `GET /internal/reconciliation/reservations/changes?from=…&to=…&cursor=…`: 기간 안에 `CONFIRMED`·`CANCELED`가 된 예매(결제 쪽에서 출발하면 찾지 못하는 RC-4용. 구현 메모(ISE-168): 결제 쪽 대상 보강에도 쓴다)
    - Gateway가 `/internal/**`를 외부에서 막는다(0008 A1). 서비스 간 신뢰는 SA 7-2·0008의 내부망 모델을 따른다. 응답에는 ID·상태·금액·시각만 넣고 이메일 같은 개인정보는 넣지 않는다.
    - Payment는 Eureka로 찾아 호출하고 타임아웃 2초`[가정]`, 실패하면 이번 대사를 실패로 기록한다(재시도는 다음 주기).
 3. **대상 범위**: 최근 7일`[가정]` 안에 갱신된 결제와, 같은 기간의 예매 변경 목록이다. `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK` 결제는 결제 쪽 지표가 맡으므로 대사에서 뺀다.
@@ -32,8 +32,8 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
    | RC-2 | 결제 `APPROVED`, 환불 행 없음, 예매 `EXPIRED`·`RELEASED`·`CANCELED` 또는 예매 없음 | 환불 의무가 등록되지 않음(가장 심각) |
    | RC-3 | 결제 `REFUNDED`, 예매 `CONFIRMED`이고 `payment_id`가 이 결제 | 환불됐는데 확정 유지 |
    | RC-4 | 예매 `CONFIRMED`인데 `payment_id` 결제가 없거나, `APPROVED`가 아니거나(`REFUNDED`는 RC-3), 그 결제의 `reservation_id`가 다름 | 승인 없는 확정 |
-   | RC-5 | 결제 `APPROVED`·`REFUNDED`에서 `amount` ≠ 예매 `total_amount`, 또는 `REFUNDED` 환불 금액 ≠ `pg_approved_amount` | 금액 불일치 |
-   | RC-6 | 결제 `user_id` ≠ 예매 `user_id` | 사용자 불일치 |
+   | RC-5 | 결제 `APPROVED`에서 `amount` ≠ 예매 `total_amount`, 또는 `REFUNDED` 결제의 환불 금액 ≠ `pg_approved_amount` | 금액 불일치 |
+   | RC-6 | 결제 `APPROVED`에서 `user_id` ≠ 예매 `user_id` | 사용자 불일치 |
    | RC-7 | 결제·환불의 현재 상태 ≠ 이력(`target_type`별)의 마지막 `to_status` | 이력 없는 상태 변경(직접 SQL 등) |
    | RC-8 | 최근 24시간 이력의 확정 전이(→ `APPROVED`·`DECLINED`·`REFUNDED`)에 대응하는 Outbox 행이 없음 | 이벤트 없는 확정 |
 
@@ -63,6 +63,10 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 - 0020의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
 - 테스트: N23, N30, FT-1~FT-5의 V3(테스트 프로필은 L을 5초로 줄이고 대사를 강제 실행).
 - 구현 메모(2026-11-03, ISE-167): 테스트는 프로필로 L을 줄이는 대신 `runOnce(now)`에 기준 시각을 넣는다.
+
+## 개정 이력
+
+- 2026-11-03: RC-5의 예매 금액 비교와 RC-6을 `APPROVED` 결제로 한정했다(원안은 `APPROVED`·`REFUNDED`). 결정자는 안준현(사용자 결정), 계기는 ISE-168 Opus 리뷰다. 이유: 비교하는 값(결제 `amount`·`user_id`, 예매 `total_amount`·`user_id`)은 양쪽 모두 바뀌지 않는다. `REFUNDED`까지 보면 한 번 잡힌 불일치가 환불로 처리해도 닫히지 않고, 닫는 명령도 없어 즉시 알림이 영원히 울린다. `APPROVED`만 보면 운영자가 확인한 뒤 환불할 때 결제가 `REFUNDED`가 되어 다음 대사에서 `RESOLVED`가 된다. `REFUNDED` 결제의 환불 금액 ≠ `pg_approved_amount` 비교는 환불이 끝난 뒤에 생기는 불일치라 그대로 둔다.
 
 ## 면접에서 설명할 한 줄
 
