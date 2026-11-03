@@ -109,6 +109,48 @@ class InspectQueryTest {
     }
 
     @Test
+    void 결제와_예매에_걸린_대사_불일치를_OPEN과_최근_RESOLVED만_보인다() {
+        var reservation = OpsFixtures.nextReservation();
+        var paymentId = fixtures.approvedPayment(reservation);
+        var otherReservation = OpsFixtures.nextReservation();
+        var otherPaymentId = fixtures.approvedPayment(otherReservation);
+        mismatch("RC-7", reservation, paymentId, "OPEN", null, "{\"payment\":{\"currentStatus\":\"REFUNDED\"}}");
+        mismatch("RC-8", reservation, paymentId, "RESOLVED", "now() - interval '1 day'", "{}");
+        mismatch("RC-8", reservation, paymentId, "RESOLVED", "now() - interval '30 days'", "{}");
+        // 결제가 없는 예매 쪽 불일치(RC-2)도 예매 ID로 보인다
+        mismatch("RC-2", reservation, null, "OPEN", null, "{}");
+        mismatch("RC-7", otherReservation, otherPaymentId, "OPEN", null, "{}");
+
+        var byPayment = String.join("\n", inspect.report(args("payment-id=" + paymentId)));
+        var byReservation = String.join("\n", inspect.report(args("reservation-id=" + reservation)));
+
+        for (var output : List.of(byPayment, byReservation)) {
+            assertTrue(output.contains("[대사 불일치] 3건"), output);
+            assertTrue(output.contains("RC-7 OPEN") && output.contains("currentStatus"), output);
+            assertTrue(output.contains("RC-8 RESOLVED") && output.contains("RC-2 OPEN"), output);
+            // 30일 전에 닫힌 RESOLVED와 다른 결제의 불일치는 빠져 3건이다
+        }
+    }
+
+    @Test
+    void 대사_불일치가_없으면_0건이다() {
+        var paymentId = fixtures.approvedPayment(OpsFixtures.nextReservation());
+
+        var output = String.join("\n", inspect.report(args("payment-id=" + paymentId)));
+
+        assertTrue(output.contains("[대사 불일치] 0건"), output);
+    }
+
+    private void mismatch(String rule, long reservationId, Long paymentId, String status, String resolvedAt,
+            String detail) {
+        jdbc.update("""
+                INSERT INTO reconciliation_mismatches (rule, reservation_id, payment_id, detail, status, first_detected_at,
+                                                       last_seen_at, resolved_at)
+                VALUES (?, ?, ?, CAST(? AS jsonb), ?, now() - interval '2 days', now() - interval '2 days', %s)"""
+                .formatted(resolvedAt == null ? "NULL" : resolvedAt), rule, reservationId, paymentId, detail, status);
+    }
+
+    @Test
     void 대상이_없으면_거부한다() {
         assertThrows(OpsRejection.class, () -> inspect.report(args("payment-id=999999999")));
         assertThrows(OpsRejection.class, () -> inspect.report(args("refund-id=999999999")));

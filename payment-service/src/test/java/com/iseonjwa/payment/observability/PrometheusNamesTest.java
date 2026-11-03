@@ -33,7 +33,7 @@ class PrometheusNamesTest {
             "payment_requested_oldest_seconds", "payment_unknown_count", "payment_unknown_oldest_seconds",
             "payment_manual_check_count", "payment_manual_check_oldest_seconds", "refund_pending_count",
             "refund_pending_oldest_seconds", "refund_manual_check_count", "refund_manual_check_oldest_seconds",
-            "outbox_pending_oldest_seconds", "outbox_failed_count", "outbox_retrying_count",
+            "outbox_pending_oldest_seconds", "outbox_failed_count", "outbox_retrying_count", "reconciliation_mismatch_open",
             "resilience4j_circuitbreaker_state", "resilience4j_bulkhead_available_concurrent_calls");
 
     @Test

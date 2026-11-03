@@ -8,6 +8,10 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-03-deploy-observability-loadtest-design.md) |
+| 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
+| 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-11-03-reconciliation-rc5-rc6-approved-only.md) |
+| 2026-11-03 | herdr 작업자 패널 입력창의 Claude Code 추천 입력을 사용자 판단으로 읽은 AI 해석을 바로잡음 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-03-worker-pane-suggestion-not-user-input.md) |
 | 2026-11-02 | 공연 화면에 없는 필드를 백엔드에 먼저 요청하자는 제안 대신 백엔드 구현 그대로 쓰고 빈 곳은 나중에 고칠 것으로 기록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-frontend-follows-backend-as-is.md) |
 | 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA대로 고치는 안(1안) 선택, SA를 단일 401로 바꾸는 안은 고르지 않음 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-gateway-token-expired-code.md) |
 | 2026-11-02 | 프론트 Refresh 토큰을 탭 단위 `sessionStorage`에 두는 제안(ADR 0040 4절) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-refresh-token-session-storage.md) |

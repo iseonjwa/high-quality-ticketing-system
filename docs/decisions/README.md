@@ -47,3 +47,6 @@
 | 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
 | 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |
 | 0043 | [Kafka 소비자·스케줄러 같은 입구는 presentation 계층에 둔다](0043-inbound-adapters-in-presentation.md) | 채택 (11/3 팀 회의, 이동은 ISE-166) | 2026-11-03 |
+| 0044 | [배포는 GitHub Actions가 이미지를 GHCR에 올리고, 별도 EC2의 Jenkins가 main 머지 때 배포 EC2에 반영한다](0044-deploy-actions-ghcr-jenkins.md) | 제안 (팀 공유 필요, AWS 계정·인스턴스 크기 미정) | 2026-11-03 |
+| 0045 | [로그는 Grafana Alloy로 모아 Loki에 두고 요청마다 한 줄을 남기며, Prometheus 알림은 Alertmanager로 팀 슬랙에 보낸다](0045-logs-loki-alerts-slack.md) | 제안 (팀 공유 필요, 공통 요청 로그는 contract 이슈 ISE-182) | 2026-11-03 |
+| 0046 | [부하 측정은 k6를 같은 리전의 임시 EC2에서 돌리고, 오픈 피크 전체 시나리오와 공통 측정 기반을 함께 만든다](0046-load-test-k6.md) | 제안 (팀 공유 필요, ISE-25 분담 확인) | 2026-11-03 |

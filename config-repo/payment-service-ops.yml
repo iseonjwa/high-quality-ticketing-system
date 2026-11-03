@@ -1,0 +1,9 @@
+# Ops 명령 JVM(ops 프로필)의 DB 시한(ISE-163). 사람이 한 번 실행하는 명령이라 Gateway 시한과 상관없다. 부하 테스트 뒤 커진
+# 테이블을 inspect로 조회해도 끊기지 않게 결제 서비스 값(문장 1.5초, 소켓 2초)보다 길게 둔다.
+# Note: 로컬 application.yml의 ops 문서에 두면 설정 서버의 payment-service.yml 값이 이긴다. 그래서 프로필 파일에 둔다
+spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        socketTimeout: 30
+        options: "-c statement_timeout=15000"

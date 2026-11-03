@@ -35,6 +35,16 @@ public interface OpsInspectionRepository {
     List<ManualLogView> findManualActionLogs(List<Long> paymentIds, List<Long> refundIds, List<Long> outboxIds,
             List<Long> deadLetterIds);
 
+    /**
+     * 결제나 예매에 걸린 대사 불일치. {@code OPEN}은 모두, {@code RESOLVED}는 최근 {@code recentResolvedDays}일 안에 닫힌
+     * 것만 id 순으로 돌려준다. 둘 중 없는 쪽(null)은 조건에서 뺀다.
+     */
+    List<MismatchView> findMismatches(Long paymentId, Long reservationId, int recentResolvedDays);
+
+    record MismatchView(long id, String rule, Long reservationId, Long paymentId, String status, String detail,
+            Instant firstDetectedAt, Instant lastSeenAt, Instant resolvedAt) {
+    }
+
     record PaymentView(long id, String paymentNo, long reservationId, long userId, BigDecimal amount, String currency,
             String method, String status, UUID pgOrderId, String pgTxId, BigDecimal pgApprovedAmount,
             String declineCode, int unknownRetryCount, Instant nextCheckAt, Instant approvedAt, Instant refundedAt,

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,7 +43,7 @@ class OpsProfileConfigTest {
     void 설정_서버가_ops_문서의_키를_설정하지_않는다() throws IOException {
         var configured = new ArrayList<String>();
         for (var file : List.of("application.yml", "application-local.yml", "application-prod.yml",
-                "application-loadtest.yml", "payment-service.yml")) {
+                "application-loadtest.yml", "payment-service.yml", "payment-service-ops.yml")) {
             var resource = new FileSystemResource("../config-repo/" + file);
             assertTrue(resource.exists(), file);
             for (var source : load(resource)) {
@@ -53,6 +54,31 @@ class OpsProfileConfigTest {
         }
         // 설정 서버 값은 로컬 application.yml보다 우선한다. 같은 키가 있으면 ops 프로필에서 다시 켜질 수 있다
         assertEquals(List.of(), configured);
+    }
+
+    @Test
+    void ops_프로필의_DB_시한은_결제_서비스_값보다_길다() throws IOException {
+        // 결제 서비스의 시한(Gateway 3초 기준)이 사람이 실행하는 inspect의 큰 테이블 조회를 끊지 않게 한다(ISE-163)
+        var service = load(new FileSystemResource("../config-repo/payment-service.yml")).get(0);
+        var ops = load(new FileSystemResource("../config-repo/payment-service-ops.yml")).get(0);
+        var prefix = "spring.datasource.hikari.data-source-properties.";
+
+        assertTrue(seconds(ops, prefix + "socketTimeout") > seconds(service, prefix + "socketTimeout"));
+        assertTrue(statementTimeoutMillis(ops, prefix + "options") > statementTimeoutMillis(service, prefix + "options"));
+    }
+
+    private static int seconds(PropertySource<?> source, String key) {
+        var value = source.getProperty(key);
+        assertNotNull(value, key);
+        return Integer.parseInt(value.toString());
+    }
+
+    private static int statementTimeoutMillis(PropertySource<?> source, String key) {
+        var value = source.getProperty(key);
+        assertNotNull(value, key);
+        var matcher = Pattern.compile("statement_timeout=(\\d+)").matcher(value.toString());
+        assertTrue(matcher.find(), key + "=" + value);
+        return Integer.parseInt(matcher.group(1));
     }
 
     private PropertySource<?> opsDocument() throws IOException {
