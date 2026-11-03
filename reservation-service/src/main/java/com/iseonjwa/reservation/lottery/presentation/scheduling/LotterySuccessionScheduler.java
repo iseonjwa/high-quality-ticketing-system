@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.lottery.infrastructure.scheduler;
+package com.iseonjwa.reservation.lottery.presentation.scheduling;
 
 import com.iseonjwa.reservation.lottery.application.LotterySuccessionService;
 import lombok.extern.slf4j.Slf4j;

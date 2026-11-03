@@ -21,7 +21,7 @@
 | 역할 | 파일 |
 |---|---|
 | 만료 서비스 | `reservation-service/.../seathold/application/SeatHoldExpiryService.java` |
-| 스케줄러 | `reservation-service/.../seathold/infrastructure/scheduling/SeatHoldExpiryScheduler.java` |
+| 스케줄러 | `reservation-service/.../seathold/presentation/scheduling/SeatHoldExpiryScheduler.java` |
 | 예매·예매 좌석·매수 조건부 UPDATE | `reservation.domain.repository`의 `ReservationRepository`·`ReservationSeatRepository`·`UserScheduleQuotaRepository`(기존 선점 담당 코드에 메서드 추가) |
 | 회차 좌석 반환 | `seathold.domain.repository.SeatHoldInventoryRepository#releaseHeldSeats` |
 | 통합 테스트 | `reservation-service/src/test/.../seathold/application/SeatHoldExpiryTest.java` |

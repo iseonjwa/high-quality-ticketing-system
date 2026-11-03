@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.queue.infrastructure;
+package com.iseonjwa.reservation.queue.presentation.scheduling;
 
 import com.iseonjwa.reservation.queue.application.QueueAdmissionService;
 import lombok.RequiredArgsConstructor;

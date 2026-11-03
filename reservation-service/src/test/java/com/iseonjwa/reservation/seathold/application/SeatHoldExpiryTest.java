@@ -1,6 +1,6 @@
 package com.iseonjwa.reservation.seathold.application;
 
-import com.iseonjwa.reservation.seathold.infrastructure.scheduling.SeatHoldExpiryScheduler;
+import com.iseonjwa.reservation.seathold.presentation.scheduling.SeatHoldExpiryScheduler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

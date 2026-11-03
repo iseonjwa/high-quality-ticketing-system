@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.lottery.infrastructure.scheduler;
+package com.iseonjwa.reservation.lottery.presentation.scheduling;
 
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService.AssignmentError;
