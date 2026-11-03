@@ -105,4 +105,13 @@ interface SpringDataRefundRepository extends JpaRepository<Refund, Long> {
             WHERE id = :id AND status = :from
             """)
     int markFailed(@Param("id") Long id, @Param("from") String from, @Param("now") Instant now);
+
+    // pg_requested_at은 건드리지 않는다. 값이 있으면 워커가 findRefund부터 시작해 이중 환불 방어가 PG 멱등키 하나에만 기대지 않는다
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE refunds
+            SET status = 'REQUESTED', attempt = 0, next_check_at = :now, updated_at = :now, updated_by = NULL
+            WHERE id = :id AND status = :from
+            """)
+    int requeue(@Param("id") Long id, @Param("from") String from, @Param("now") Instant now);
 }

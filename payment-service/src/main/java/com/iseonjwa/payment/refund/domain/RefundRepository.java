@@ -62,4 +62,11 @@ public interface RefundRepository {
 
     /** 자동 경로로 끝내지 못해 운영자 확인으로 넘긴다. 이력의 사유는 호출한 쪽이 남긴다. */
     boolean markNeedsManualCheck(Long id, RefundStatus from, Instant now);
+
+    /**
+     * 운영자 확인({@code NEEDS_MANUAL_CHECK})에서 워커가 이어받도록 {@code REQUESTED}로 되돌린다. {@code attempt}는 0으로,
+     * {@code next_check_at}은 {@code now}로 바꾼다. {@code pg_refund_id}(PG 멱등키)와 {@code pg_requested_at}(처음 PG를 부른
+     * 시각)은 그대로 둔다. 이력은 호출한 쪽이 남긴다.
+     */
+    boolean requeue(Long id, RefundStatus from, Instant now);
 }
