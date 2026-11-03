@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.payment.observability.ApproveOutcome;
 import com.iseonjwa.payment.observability.TransitionOperation;
@@ -80,7 +81,7 @@ class PaymentApprovalMetricsTest {
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^89[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }

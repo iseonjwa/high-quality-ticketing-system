@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.messaging;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
@@ -90,7 +91,7 @@ class OutboxBrokerOutageApiTest {
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(RESERVATION));
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id = ?", RESERVATION);
     }

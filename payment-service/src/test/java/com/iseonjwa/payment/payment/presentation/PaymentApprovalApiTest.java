@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.application.PaymentTx;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
@@ -98,7 +99,7 @@ class PaymentApprovalApiTest {
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^81[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }

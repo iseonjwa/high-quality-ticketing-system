@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.messaging.outbox.OutboxWriter;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
@@ -46,7 +47,7 @@ class PaymentResultTransactionTest {
     @AfterEach
     void cleanUp() {
         jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(RESERVATION_ID));
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION_ID);
         jdbc.update("DELETE FROM payments WHERE reservation_id = ?", RESERVATION_ID);
     }

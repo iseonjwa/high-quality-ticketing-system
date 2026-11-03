@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.support.RecheckFixtures;
@@ -76,7 +77,7 @@ class PaymentRecheckWithMockPgTest {
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^86[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id >= ?", FIRST_RESERVATION);
     }

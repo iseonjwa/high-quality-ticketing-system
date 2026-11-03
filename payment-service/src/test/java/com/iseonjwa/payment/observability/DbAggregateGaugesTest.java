@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.observability;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
@@ -54,7 +55,7 @@ class DbAggregateGaugesTest {
     void setUp() {
         jdbc.update("DELETE FROM dead_letters");
         jdbc.update("DELETE FROM refunds");
-        jdbc.update("DELETE FROM payment_status_histories");
+        AppendOnlyCleanup.deleteAllHistories(jdbc);
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM payments");

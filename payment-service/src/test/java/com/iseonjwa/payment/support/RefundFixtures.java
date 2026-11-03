@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.support;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.UUID;
@@ -66,7 +67,7 @@ public final class RefundFixtures {
         }
         jdbc.update("DELETE FROM refunds WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN "
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN "
                 + "(SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)", FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }

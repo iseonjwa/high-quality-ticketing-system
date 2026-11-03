@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.support;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
@@ -86,7 +87,7 @@ public final class RecheckFixtures {
     /** 이 범위의 결제와 딸린 이력·Outbox를 지운다. 테스트 시작 전과 끝에 부른다(다른 API 테스트와 같은 관례). */
     public void cleanUp() {
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^87[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN "
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN "
                 + "(SELECT id FROM payments WHERE reservation_id BETWEEN ? AND ?)", FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }
