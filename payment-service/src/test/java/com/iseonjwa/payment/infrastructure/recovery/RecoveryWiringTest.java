@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.infrastructure.recovery;
 
+import com.iseonjwa.payment.infrastructure.job.BackgroundJob;
+import com.iseonjwa.payment.infrastructure.job.BackgroundJobScheduler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,10 +30,9 @@ class RecoveryWiringTest {
 
     @Test
     void 재확인과_환불_워커가_한_스케줄러에_등록되어_시작된다() {
-        var names = context.getBeansOfType(RecoveryJob.class).values().stream().map(RecoveryJob::name).sorted().toList();
+        var names = context.getBeansOfType(BackgroundJob.class).values().stream().map(BackgroundJob::name).sorted().toList();
 
         assertEquals(List.of("recheck", "refund-worker"), names);
-        assertEquals(1, context.getBeansOfType(RecoveryScheduler.class).size());
-        assertTrue(context.getBean(RecoveryScheduler.class).isRunning());
+        assertTrue(context.getBean("recoveryScheduler", BackgroundJobScheduler.class).isRunning());
     }
 }
