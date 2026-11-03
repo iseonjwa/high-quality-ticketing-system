@@ -39,6 +39,10 @@ public class ReconciliationService {
             try {
                 var result = recorder.reconcile(rule, now, properties.policy());
                 results.add(result);
+                if (result.skipped()) {
+                    log.info("대사 규칙 건너뜀(다른 인스턴스가 실행 중) rule={}", result.rule());
+                    continue;
+                }
                 log.info("대사 규칙 완료 rule={} found={} resolved={} undecided={}", result.rule(), result.found(),
                         result.resolved(), result.undecided());
             } catch (RuntimeException exception) {

@@ -26,6 +26,12 @@ class JdbcMismatchRepository implements MismatchRepository {
     }
 
     @Override
+    public boolean tryLock(RuleCode rule) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT pg_try_advisory_xact_lock(?)", Boolean.class,
+                MismatchRepository.lockKey(rule)));
+    }
+
+    @Override
     public Set<MismatchKey> findOpenKeys(RuleCode rule) {
         var keys = new HashSet<MismatchKey>();
         jdbc.query("SELECT reservation_id, payment_id FROM reconciliation_mismatches WHERE rule = ? AND status = 'OPEN'",
