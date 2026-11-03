@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long> {
@@ -78,6 +79,17 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
             """)
     int updateAllGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
                                   @Param("actorId") Long actorId);
+
+    // 결제 결과 반영(SA 8-3). HELD인 좌석만 바꾸므로 이미 다른 상태가 된 좌석은 건드리지 않는다.
+    // 소비자가 바꾼 행은 사람 감사자가 없어 updated_by를 비운다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE schedule_seats
+            SET status = :toStatus, updated_at = :now, updated_by = NULL
+            WHERE schedule_id = :scheduleId AND id IN (:seatIds) AND status = 'HELD'
+            """)
+    int updateHeldStatus(@Param("scheduleId") Long scheduleId, @Param("seatIds") List<Long> seatIds,
+                         @Param("toStatus") String toStatus, @Param("now") Instant now);
 
     @Query(nativeQuery = true, value = "SELECT count(*) FROM schedule_seats WHERE grade = 'LOTTERY' AND deleted_at IS NULL")
     long countAllLotterySeats();

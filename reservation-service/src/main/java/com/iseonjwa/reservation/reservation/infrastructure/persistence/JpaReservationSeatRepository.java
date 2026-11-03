@@ -47,6 +47,11 @@ public class JpaReservationSeatRepository implements ReservationSeatRepository {
         return repository.releaseHeld(reservationId, now, actorId);
     }
 
+    @Override
+    public int confirmHeld(Long reservationId, Instant now) {
+        return repository.confirmHeld(reservationId, now);
+    }
+
     // 다른 제약(FK 등) 위반은 좌석 경합이 아니라 버그이므로 그대로 올려 보낸다
     private static boolean violates(Throwable exception, String constraintName) {
         for (var cause = exception; cause != null; cause = cause.getCause()) {

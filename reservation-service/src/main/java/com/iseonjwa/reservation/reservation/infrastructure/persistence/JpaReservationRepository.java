@@ -43,6 +43,16 @@ public class JpaReservationRepository implements ReservationRepository {
     }
 
     @Override
+    public int confirmHeld(Long reservationId, Long paymentId, Instant now) {
+        return repository.confirmHeld(reservationId, paymentId, now);
+    }
+
+    @Override
+    public int releaseHeld(Long reservationId, Instant now) {
+        return repository.releaseHeld(reservationId, now);
+    }
+
+    @Override
     public int extendLotteryHoldOnce(Long reservationId, Instant now, Instant limit, Long actorId) {
         return repository.extendLotteryHoldOnce(reservationId, now, limit, actorId);
     }
