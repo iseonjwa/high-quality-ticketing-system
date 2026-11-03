@@ -62,6 +62,7 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 - `data-model.md`의 `reconciliation_mismatches`, `outbox_events`의 `INDEX(created_at)`, `payment_status_histories`의 `target_type`.
 - 0020의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
 - 테스트: N23, N30, FT-1~FT-5의 V3(테스트 프로필은 L을 5초로 줄이고 대사를 강제 실행).
+- 구현 메모(2026-11-03, ISE-167): 테스트는 프로필로 L을 줄이는 대신 `runOnce(now)`에 기준 시각을 넣는다.
 
 ## 면접에서 설명할 한 줄
 

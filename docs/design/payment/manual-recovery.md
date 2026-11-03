@@ -487,6 +487,8 @@ $ ops dead-letter resolve --operator=alice --dead-letter-id=432
 
 대사는 데이터를 고치지 않는다. 다음 대사에서 일치하면 불일치가 `RESOLVED`가 된다. 결제·예매 ID로 `inspect`를 하면 관련 불일치가 `[대사 불일치]` 구역에 나오고, `detail`에 어긋난 상태 쌍(RC-7은 `payment`·`refund`의 현재 상태와 마지막 이력 상태, RC-8은 빠진 이벤트와 전이 시각)이 들어 있다.
 
+RC-8은 누락된 이벤트를 보충해 Outbox 행(같은 `event_type`·`message_key`·`payload.paymentId`)이 생기면 다음 대사에서 `RESOLVED`가 된다. 보충하지 않고 불일치만 닫는 명령은 MVP에 없어서 보충하기 전에는 알림이 계속 울린다.
+
 구현 상태(ISE-167): RC-7·RC-8만 동작한다. RC-1~RC-6은 예매 서비스 내부 조회 API로 대조하므로 ISE-168에서 더한다. 그때까지 위 표의 RC-1~RC-6 행은 절차만 있고 불일치가 기록되지 않는다.
 
 ## 7. 작업 정체·DB 연결 대기
