@@ -52,7 +52,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - **나이 기준 시각**: 나이는 갱신 시각의 시계에서 기준 시각을 뺀 초이고 행이 없으면 0이다. `REQUESTED`·`UNKNOWN` 결제, 환불 대기, Outbox `PENDING`, `dead_letters OPEN`은 `created_at`(돈이 확정되지 않은 채 남은 시간), `NEEDS_MANUAL_CHECK` 결제·환불은 `updated_at`(수동 확인으로 들어간 시각)이다. NMC 행을 제자리에서 고치는 코드는 없다(모든 UPDATE가 `status = from` 조건이고 NMC는 도착 상태일 뿐이다). Ops 명령(ISE-42)이 NMC 행을 제자리에서 고치게 되면 `updated_at`의 의미를 다시 본다. 재시도 중 Outbox 건수는 `PENDING`이면서 `attempts > 0`이다.
 - **인덱스(EXPLAIN)**: 결제 `idx_payments_unsettled_created_at`, 환불 `idx_refunds_unsettled_created_at`, `dead_letters` `idx_dead_letters_open_created_at`을 탄다(결제 20만·Outbox SENT 30만 행 규모에서 Index Scan, 실행 0.02~0.04ms). Outbox는 조건을 `IN ('PENDING','FAILED')`로 쓰면 어느 부분 인덱스에도 맞지 않아 SENT가 쌓인 테이블 전체를 순차로 읽었다(12.7ms). `status = 'PENDING' OR status = 'FAILED'`로 쓰면 `idx_outbox_events_pending_id`와 `idx_outbox_events_failed_message_key`의 BitmapOr가 되어 두 상태의 행만 읽는다(0.06ms). 그래서 새 마이그레이션은 없다. `PENDING`이 크게 쌓이면(브로커 장애) 그만큼 행을 읽는다.
 - **Outbox 릴레이 지표**: common의 `OutboxMetrics`가 `outbox_relay_last_success_timestamp`, `outbox_relay_failures_total`, `outbox_events_failed_total`을 남긴다. Micrometer는 common에서 `compileOnly`고 `MeterRegistry` 빈이 없으면 지표 없이 동작한다. "마지막 성공"은 라운드 반복이 예외 없이 끝난 시각이다. Kafka가 죽어 전송이 실패해도 라운드는 정상으로 끝나므로 이 값은 계속 갱신된다. 즉 릴레이 스레드가 살아서 돌고 있다는 신호일 뿐이고, 브로커 장애와 발행 지연은 `outbox_pending_oldest_seconds`가 잡는다. 두 작업 지표의 마지막 성공 시각은 기동 시각으로 시작한다(첫 주기 전에 정체 알림이 울리지 않게 하고, 한 번도 성공하지 못한 작업은 기준 시간이 지나면 정체로 보이게 한다).
-- **미확인**: Grafana 패널과 알림 규칙(ISE-157), 실제 Prometheus 스크레이프 환경에서의 출력(테스트는 `scrape()` 문자열로 확인), 부하에서 `payment_approve_seconds_bucket`의 시계열 수와 메모리.
+- **미확인**: 부하에서 `payment_approve_seconds_bucket`의 시계열 수와 메모리.
 
 ## 2. 알림 (초기값은 가정, 부하 테스트와 복구 정책에 맞춰 조정)
 
@@ -77,6 +77,14 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - `NEEDS_MANUAL_CHECK` 장기 미해결 기준(30분·24시간)은 [0020](../../decisions/0020-payment-refund-dlq-manual-check.md)의 값이고, 이전 초안의 표에서 빠져 있던 것을 넣었다.
 - `REQUESTED` 60초 기준은 TX1이 `next_check_at`을 10초 뒤로 채우고 재확인이 그 시각에 집는다는 전제다. 넘으면 스케줄러 정지나 `next_check_at` 누락을 의심한다(CHECK 제약이 누락을 막는다).
 
+### 구현 메모 (ISE-157, 알림)
+- **위치**: Prometheus 규칙 파일 `infra/prometheus/rules/payment-alerts.yml`(그룹 `payment-immediate` 7개, `payment-threshold` 14개). compose가 `infra/prometheus/rules`를 `/etc/prometheus/rules`에 마운트하고 `infra/prometheus.yml`·`prometheus-local.yml`의 `rule_files`가 `*.yml`을 읽는다. Grafana 알림이 아니라 Prometheus 규칙을 고른 이유는 규칙을 파일로 리뷰하고 `promtool`로 단위 테스트할 수 있어서다. 알림 전송(Alertmanager·메신저)은 두지 않았다. 지금은 Prometheus `/alerts`와 대시보드 맨 위 표(`ALERTS{service="payment"}`)로 본다.
+- **라벨**: 모든 규칙에 `service=payment`, `urgency`(immediate·threshold), `severity`(critical·warning)를 붙인다. 경고와 심각 기준이 둘인 항목(NMC 장기 미해결, 환불 대기, Outbox 지연)은 같은 이름의 규칙 두 개로 두고 `severity`만 다르다. 주석 `runbook`에 `manual-recovery.md`의 절을 적는다.
+- **식의 선택**: 건수는 DB 집계 Gauge가 0보다 큰지, 금액 불일치·DLQ 처리기 실패·DB 연결 시간 초과는 Counter가 5분 안에 늘었는지(`increase(...[5m]) > 0`, 늘지 않은 채 5분이 지나면 풀린다)를 본다. 작업 정체는 `time() - 마지막 성공 시각`을 작업별 기준과 비교한다. 모든 식은 `application="payment-service"`로 좁혀 다른 서비스의 같은 이름 지표를 보지 않는다.
+- **DLQ 그룹 랙**: Spring Kafka가 내보내는 `kafka_consumer_fetch_manager_records_lag_max`의 `client_id`가 `consumer-<그룹>-<번호>`라 `consumer-payment\.command-dlq-.*`로 DLQ 그룹만 고른다. 랙 > 0이 5분 지속(`for: 5m`)이면 울린다(compose에서 실제 이름과 라벨을 확인했다).
+- **알아 둘 점**: DB 집계 Gauge는 15초 주기 값이라 갱신이 멈추면 값이 굳는다. 그래서 `gauge-refresh` 정체 알림(1분)이 함께 있다. 결제 서비스가 내려가면 시계열이 사라져 건수 알림도 풀린다(서비스 다운 알림은 범위 밖). 대사 불일치 규칙은 ISE-43에서 더한다.
+- **테스트**: `infra/prometheus/tests/payment-alerts.test.yml`이 규칙마다 입력 시계열을 주고 울리는 시각·라벨·문구를 확인한다(기준값 경계, 다른 서비스 지표 무시, 경고·심각 동시 발화, Counter 알림의 해제 포함). 실행은 `script/check-prometheus-rules.sh`(compose와 같은 Prometheus 이미지로 `promtool check rules`·`test rules`)이고, 규칙 파일이 바뀌는 PR에서 `prometheus-rules` 워크플로가 같은 스크립트를 돌린다. 테스트 파일을 `rules/`에 두면 Prometheus가 `*.yml` 패턴으로 테스트 파일까지 규칙으로 읽어 기동에 실패한다(compose에서 실제로 겪었다). 그래서 `tests/`에 따로 둔다.
+
 ## 3. 대시보드 구성 (1장)
 
 | 줄 | 패널 |
@@ -87,5 +95,14 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 4. 이벤트 | Outbox `PENDING` 최고령·`FAILED`, DLQ 랙, 전이 충돌 |
 | 5. 작업 | 작업별 마지막 성공 시각, Ops 명령 실행 수 |
 
+- **compose 확인(2026-11-03)**: ISE-156 이미지의 `/actuator/prometheus`에서 위 이름이 그대로 나왔다. 규칙 21개가 올라왔고, 로컬 데이터로 `RefundNeedsManualCheck`·`PaymentDeadLetterOpen`·`RefundManualCheckAging`(경고)이 firing이었다. Kafka 컨테이너를 멈춘 채 결제를 승인하자 5분 9초 뒤 `PaymentOutboxDelayed`(경고)가 firing이 됐고, Kafka를 다시 켜자 50초 뒤 풀렸다(Outbox 13회 재시도 뒤 `SENT`).
+
+### 구현 메모 (ISE-157, 대시보드)
+- 맨 위에 "지금 울리는 결제 알림" 표(`ALERTS{service="payment"}`)를 두고, 그 아래 위 표의 다섯 줄을 그대로 둔다. 1줄은 숫자 칸(stat)이라 한눈에 0인지 본다. 최고령 칸은 경고(노랑)·심각(빨강) 기준을 알림 규칙과 같게 칠한다.
+- 승인 지연 p50·p95·p99는 `payment_approve_seconds_bucket`의 `histogram_quantile`이다. PG 호출 지연은 작업별 평균(`_sum / _count`)이다(PG 호출 Timer는 히스토그램을 켜지 않았다).
+- 대사 불일치 칸(ISE-43)과 Ops 명령 실행 수(ISE-158)는 그 이슈에서 더한다. DLQ 랙은 알림만 두고 패널은 DLQ OPEN·처리기 실패로 대신한다.
+
 ## 4. 산출물 위치
-대시보드는 `infra/grafana/dashboards/`에 1장, 알림 규칙은 Grafana 또는 Prometheus 규칙 파일(`infra/`)에 둔다. 알림 설명에는 위 복구 절차 절을 링크한다. 분산 추적 보강과 추가 대시보드는 후속 개선이다.
+- 대시보드: `infra/grafana/dashboards/payment.json`(uid `iseonjwa-payment`, 제목 "결제"). Grafana 프로비저닝(`infra/grafana/provisioning/dashboards/default.yml`)이 기동 때 자동으로 올린다.
+- 알림 규칙: `infra/prometheus/rules/payment-alerts.yml`, 단위 테스트 `infra/prometheus/tests/payment-alerts.test.yml`, 실행 스크립트 `script/check-prometheus-rules.sh`
+- 알림의 `runbook` 주석이 위 2절 표의 복구 절차 절을 가리킨다. 분산 추적 보강과 추가 대시보드는 후속 개선이다.

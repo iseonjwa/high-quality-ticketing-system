@@ -131,7 +131,7 @@ public class OutboxRelay {
                 // 값 원문(페이로드, 예외 메시지)은 남기지 않는다. 예외 종류만 적고 상세는 last_error 컬럼에 있다
                 log.error("event=OUTBOX_FAILED eventId={} topic={} messageKey={} cause={}", message.eventId(),
                         message.topic(), message.messageKey(), root.getClass().getName());
-                // FAILED 건수 알림은 outbox.failed.count Gauge가 맡는다(TODO(ISE-157): 알림 규칙)
+                // FAILED 건수는 서비스의 DB 집계 Gauge(결제: outbox_failed_count)가 보고 알림 규칙(결제: PaymentOutboxFailed)이 울린다
                 metrics.eventFailed();
             }
             return;

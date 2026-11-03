@@ -190,7 +190,7 @@ public class PaymentRecheckService {
                     approvedAt, StatusActor.SYSTEM));
             return;
         }
-        // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3, N16)
+        // 즉시 알림은 PaymentPgAmountMismatch 규칙(infra/prometheus/rules/payment-alerts.yml)이 낸다(INV-3, N16)
         metrics.pgAmountMismatch(operation);
         log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", claim.paymentId(),
                 claim.amount(), pgAmount, paymentRef.value());
@@ -202,7 +202,7 @@ public class PaymentRecheckService {
     private void handleUnknown(Claim claim, String cause) {
         var delay = RecheckSchedule.delayAfter(claim.attempts());
         if (delay.isEmpty()) {
-            // TODO(ISE-157): payment_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
+            // 즉시 알림은 PaymentNeedsManualCheck 규칙이 낸다. 건수는 gauge-refresh가 센다
             log.error("event=PG_UNRESOLVED paymentId={} attempts={} lastCause={}", claim.paymentId(), claim.attempts(),
                     cause);
             recordConflict(transitions.markUnresolved(claim.paymentId(), claim.status(), StatusActor.SYSTEM));
