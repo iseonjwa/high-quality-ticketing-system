@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-reconciliation-rc5-rc6-approved-only.md) |
 | 2026-11-03 | 계층: Kafka 소비자·스케줄러를 infrastructure에 두자는 추천을 거부하고, 입구 어댑터를 presentation으로 모두 옮기기로 팀 회의에서 확정 | kangmin | Claude Code + Claude(대기열 담당) | **거부** | 후보 | [기록](kangmin/2026-11-03-inbound-adapters-to-presentation.md) |
 | 2026-11-02 | 추첨 마일스톤: 팀 문서대로 M4에 둔 배치를 거부, 필수 기능으로 올려 기본 M2·통합 테스트 M3·측정·개선 M4(문서까지 확정) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-02-lottery-must-milestone.md) |
 | 2026-11-02 | 프론트는 백엔드에 필드를 먼저 요청하지 않고 구현된 API만 쓰며, 빈 곳은 나중에 고칠 것으로 기록(ISE-113) | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-frontend-follows-backend-as-is.md) |
