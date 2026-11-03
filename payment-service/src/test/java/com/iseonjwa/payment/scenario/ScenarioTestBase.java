@@ -389,6 +389,10 @@ abstract class ScenarioTestBase {
         for (var eventId : eventIds) {
             jdbc.update("DELETE FROM processed_events WHERE event_id = ?", eventId);
         }
+        // Ops 명령의 감사 기록. 대상은 이 범위의 결제와 환불이다
+        AppendOnlyCleanup.deleteManualActionLogs(jdbc, "(target_type = 'PAYMENT' AND target_id IN " + inRange + ") "
+                + "OR (target_type = 'REFUND' AND target_id IN (SELECT id FROM refunds WHERE payment_id IN " + inRange + "))",
+                FIRST_RESERVATION, LAST_RESERVATION, FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key IN "
                 + "(SELECT reservation_id::text FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
