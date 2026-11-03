@@ -1,6 +1,6 @@
 # 0027. 예매 서비스는 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리한다
 
-- 상태: 제안 (반효승 협의 필요, SA 변경 요청 필요)
+- 상태: 채택 (2026-11-03 반효승 합의, ISE-73 구현)
 - 날짜: 2026-10-28
 - 결정자: 안준현(상태별 규칙은 사용자 결정. 사유 코드·필드 이름·격리 방식은 AI 정리). Reservation 소비자 계약이라 반효승 합의 전에는 확정이 아니다
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
@@ -81,7 +81,9 @@ Reservation의 `reservation.payment-result` 소비자는 이벤트의 `reservati
 
 ## 결과
 
-- 반효승과 협의한다. 합의 전까지 이 ADR은 제안이고, SA 변경 요청 S-1·S-17·S-18로 올린다.
+- 2026-11-03 반효승이 합의하고 ISE-73(`PaymentResultService`)으로 구현했다. SA 10-3에는 `RefundRequested.reason` 네 값이 반영돼 있다.
+- 이상 격리 저장 위치: 우선 별도 테이블 없이 `event=PAYMENT_RESULT_ANOMALY` 오류 로그로 남긴다. 상태는 바꾸지 않는다. 알림 지표와 저장 테이블이 필요해지면 다시 정한다.
+- 조건부 전이(`WHERE status = 'HELD'`)가 0행이면 처리 중에 상태가 바뀐 것이다. 예외로 트랜잭션을 되돌리고 Kafka 재시도(1·2·4초)에 맡겨, 다시 읽은 상태의 규칙을 적용한다.
 - Payment 쪽: `RefundRequested` 교차 검증(0020), 대사 RC-1~RC-4(0029).
 - 테스트(반효승 담당 코드): N2, N22. Payment 쪽 통합 시나리오: E8, FT-1의 V3.
 
