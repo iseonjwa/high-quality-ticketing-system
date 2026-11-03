@@ -99,7 +99,7 @@ public class DeadLetterService {
         });
         // 커밋된 뒤에 알린다. 커밋이 실패하면 OPEN 기록도 남지 않으므로 알림이 거짓이 되지 않게 한다
         if (openReason != null && openReason.isPresent()) {
-            // TODO: 즉시 알림 지표(dead_letters OPEN 건수·최고령)는 ISE-41에서 붙인다
+            // TODO(ISE-157): dead_letter_open_count > 0 알림을 연결한다. 건수와 최고령은 gauge-refresh가 센다
             log.error("event=DEAD_LETTER_OPEN eventKey={} reason={}", eventKey, openReason.get());
         }
     }

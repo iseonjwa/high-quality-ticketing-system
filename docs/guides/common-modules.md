@@ -103,7 +103,7 @@ class PaymentResultKafkaConfiguration {
 - Kafka-UI에서 `*.dlq` 토픽의 메시지와 `kafka_dlt-*` 헤더를 본다.
 - DLQ로 보낼 때마다 ERROR 로그 한 줄이 남는다: `event=MESSAGE_DEAD_LETTERED topic partition offset key dlqTopic cause`. 전송이 성공한 뒤에만 남고, 값 원문은 넣지 않는다.
 - 소비자 그룹 랙은 Kafka-UI로 본다. 랙이 늘면 재시도 중이거나 DLQ 전송이 막힌 것이다.
-- 대시보드·알림은 결제 ISE-41에서 만든다. 이 부품은 로그까지만 남긴다.
+- 대시보드·알림은 결제 ISE-157에서 만든다. 이 부품은 로그까지만 남긴다.
 
 ### Outbox와 처리 이력
 
@@ -114,6 +114,7 @@ class PaymentResultKafkaConfiguration {
 - **릴레이**: 같은 키의 앞선 PENDING·FAILED가 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하고, 프로듀서의 `max.block.ms + delivery.timeout.ms`(결제는 2초 + 10초)는 `send-timeout` 안에 들어와야 한다. 어긋나면 기동이 실패한다. 프로듀서 설정(`spring.kafka.producer.properties`)은 쓰는 서비스가 정한다.
 - **재시도와 FAILED**: 일시 오류는 횟수로 포기하지 않고 계속 재시도한다. 실패 기록은 `attempts`를 올리고 `next_attempt_at = 지금 + min(500ms × 2^(k-1), 60s)`의 50~100%(equal jitter)로 정하며 임대를 바로 푼다. 영구 오류(`SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 원인 사슬에 있을 때)만 `FAILED`로 바꾸고 ERROR 로그(`event=OUTBOX_FAILED`)를 남긴다. 그 밖의 예외는 모두 일시 오류다. `FAILED`는 같은 키의 뒤 행을 막고, 복구는 Ops `outbox requeue`(ISE-42)다.
 - **실행기**: `OutboxRelayScheduler`가 단일 스레드 실행기(`outbox-relay`)를 `SmartLifecycle`로 소유한다. `@Scheduled`와 `@EnableScheduling`을 쓰지 않으므로, 쓰는 서비스가 다른 `@Scheduled`를 쓰려면 자기 설정에서 `@EnableScheduling`을 켠다. `TaskScheduler`·`ScheduledExecutorService` 빈은 만들지 않는다(Boot 기본 스케줄러가 빠진다). `relay-enabled=false`면 실행기를 만들지 않는다.
+- **지표**: `OutboxRelayScheduler`는 라운드 반복이 예외 없이 끝나면 `outbox_relay_last_success_timestamp`(epoch 초)를 갱신하고, `Throwable`로 끝나면 `outbox_relay_failures_total`을 올린다. `OutboxRelay`는 행을 `FAILED`로 바꿀 때 `outbox_events_failed_total`을 올린다(`OutboxMetrics`, 라벨 없음). Micrometer는 `compileOnly`라 쓰는 서비스가 자기 의존성에 두고(actuator), `MeterRegistry` 빈이 없으면 `CommonOutboxConfiguration`이 지표 없이 만든다(`OutboxMetrics.disabled()`). Gateway 클래스패스 테스트는 그대로 통과한다. 주의: "마지막 성공"은 릴레이 스레드가 살아서 돈다는 신호일 뿐이다. Kafka가 죽어 전송이 실패해도 라운드는 정상으로 끝나므로 이 값은 계속 갱신된다. 브로커 장애와 발행 지연은 DB 집계(`PENDING` 최고령)로 본다. 서비스 구분은 이름이 아니라 공통 설정의 `application` 태그다. 이름과 해석은 [결제 관측 지표](../design/payment/observability.md)에 있다.
 - **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
 - **보관 정리**: `RetentionCleanup`(`messaging.retention`)이 `deleteSentOutbox(cutoff, batchSize)`(`SENT`이고 `sent_at < cutoff`만. `PENDING`·`FAILED`는 지우지 않는다)와 `deleteProcessedEvents(cutoff, batchSize)`를 준다. 호출 한 번이 배치 하나·트랜잭션 하나이고 지운 행 수를 돌려준다. **빈으로 자동 등록되지 않는다**(`CommonOutboxConfiguration`에 없다). 정리가 필요한 서비스가 `new RetentionCleanup(jdbc, transactionManager)`를 직접 빈으로 등록하고, 주기 실행(배치 반복, 사이 쉼, 상한)은 서비스의 작업 실행기에서 한다(결제의 `CleanupJobs`·`HousekeepingConfiguration`). 배치 트랜잭션 안에서 `pg_try_advisory_xact_lock`을 잡아 다른 인스턴스가 쥐고 있으면 0을 돌려주므로, 지운 수가 배치 크기보다 작으면 멈추면 된다. `outbox_events.sent_at`과 `processed_events.processed_at`에 인덱스가 있어야 한다(아래 DDL). 서비스 고유 테이블의 정리는 `deleteBatch(lockKey, sql, args...)`로 같은 방식을 쓰고, 잠금 키는 작업마다 달라야 한다. 쓰는 서비스는 보관 기간과 토픽 보관 기간을 비교하는 기동 검증을 직접 둔다(결제의 `HousekeepingProperties`).
 - **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).

@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.pg.application.PgClient;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -11,12 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PgConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(PgConfiguration.class);
+            .withUserConfiguration(PgConfiguration.class)
+            .withBean(PaymentMetrics.class, () -> new PaymentMetrics(new SimpleMeterRegistry()));
 
     @Test
-    void provider가_mock이면_MockPgAdapter를_PgClient로_등록한다() {
+    void provider가_mock이면_MockPgAdapter를_지표_데코레이터로_감싸_PgClient로_등록한다() {
         runner.withPropertyValues("payment.pg.provider=mock", "payment.pg.mock.base-url=http://127.0.0.1:8090")
-                .run(context -> assertInstanceOf(MockPgAdapter.class, context.getBean(PgClient.class)));
+                .run(context -> assertInstanceOf(MeteredPgClient.class, context.getBean(PgClient.class)));
     }
 
     @Test

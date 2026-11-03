@@ -1,5 +1,8 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import com.iseonjwa.payment.observability.PgOperation;
+import com.iseonjwa.payment.observability.TransitionOperation;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecord;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
@@ -36,16 +39,18 @@ public class PaymentTx {
     private final IdempotencyRecordRepository idempotency;
     private final PaymentTransitionService transitions;
     private final PaymentNoGenerator paymentNos;
+    private final PaymentMetrics metrics;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public PaymentTx(PaymentRepository payments, IdempotencyRecordRepository idempotency,
-            PaymentTransitionService transitions, PaymentNoGenerator paymentNos, ObjectMapper mapper,
+            PaymentTransitionService transitions, PaymentNoGenerator paymentNos, PaymentMetrics metrics, ObjectMapper mapper,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.payments = payments;
         this.idempotency = idempotency;
         this.transitions = transitions;
         this.paymentNos = paymentNos;
+        this.metrics = metrics;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -88,6 +93,7 @@ public class PaymentTx {
     @Transactional
     public PaymentOutcome settleDeclined(Payment payment, ApprovePaymentCommand command, DeclineReason reason) {
         var changed = transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM);
+        recordConflict(changed);
         return outcomeAfterTransition(payment, command, changed);
     }
 
@@ -116,7 +122,7 @@ public class PaymentTx {
 
     @Transactional
     public Payment settleBillingDeclined(Payment payment, DeclineReason reason) {
-        transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM);
+        recordConflict(transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM));
         return payments.findById(payment.getId()).orElseThrow();
     }
 
@@ -132,19 +138,28 @@ public class PaymentTx {
             changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
                     result.amount(), result.approvedAt(), StatusActor.SYSTEM);
         } else {
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다. 그 전까지는 로그가 유일한 신호다(INV-3, N16)
+            // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3, N16)
+            metrics.pgAmountMismatch(PgOperation.APPROVE);
             log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
                     payment.getAmount(), result.amount(), result.paymentRef().value());
             changed = transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED,
                     result.paymentRef().value(), result.amount(), result.approvedAt(), StatusActor.SYSTEM);
         }
+        recordConflict(changed);
         if (!changed) warnIfApprovalNotRecorded(payment, result);
         return changed;
     }
 
     private boolean applyUnknown(Payment payment, UnknownCause cause) {
-        return transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED,
+        var changed = transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED,
                 clock.instant().plus(FIRST_RECHECK_DELAY), cause.name(), StatusActor.SYSTEM);
+        recordConflict(changed);
+        return changed;
+    }
+
+    // 0행이면 다른 경로(재확인)가 먼저 상태를 바꾼 것이다. 정상 경합이므로 로그 없이 건수만 센다
+    private void recordConflict(boolean changed) {
+        if (!changed) metrics.transitionConflict(TransitionOperation.TX2);
     }
 
     // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했고 TX2가 0행이 됐다. 0행이면 후속 쓰기를 하지 않는다는 규칙은 바꾸지 않는다.

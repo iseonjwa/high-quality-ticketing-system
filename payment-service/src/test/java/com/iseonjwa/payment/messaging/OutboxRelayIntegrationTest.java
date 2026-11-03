@@ -3,6 +3,7 @@ package com.iseonjwa.payment.messaging;
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
 import com.iseonjwa.common.messaging.outbox.OutboxRelay;
 import com.iseonjwa.common.messaging.outbox.OutboxRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.apache.kafka.common.errors.SerializationException;
@@ -57,6 +58,8 @@ class OutboxRelayIntegrationTest {
     PlatformTransactionManager transactionManager;
     @MockitoBean
     OutboxEventSender sender;
+    @Autowired
+    MeterRegistry meters;
 
     @BeforeEach
     void clean() {
@@ -186,9 +189,12 @@ class OutboxRelayIntegrationTest {
         when(sender.send(any(), any(), any())).thenReturn(CompletableFuture.failedFuture(
                 new KafkaException("Failed to send", new RecordTooLargeException("레코드가 너무 크다"))));
 
+        var failedBefore = failedEvents();
+
         assertEquals(new OutboxRelay.Result(1, 0), relay.relayOnce());
 
         assertEquals("FAILED", status("100"));
+        assertEquals(failedBefore + 1, failedEvents(), "FAILED로 바꾼 이벤트를 센다");
         assertEquals("레코드가 너무 크다", jdbc.queryForObject("SELECT last_error FROM outbox_events WHERE message_key = '100'", String.class));
         assertNull(claimedUntil("100"));
         makeDue();
@@ -209,10 +215,12 @@ class OutboxRelayIntegrationTest {
     void 알_수_없는_예외는_일시_오류라_FAILED로_보내지_않는다() {
         add("100", "PaymentApproved");
         when(sender.send(any(), any(), any())).thenReturn(CompletableFuture.failedFuture(new IllegalStateException("알 수 없음")));
+        var failedBefore = failedEvents();
 
         relay.relayOnce();
 
         assertEquals("PENDING", status("100"));
+        assertEquals(failedBefore, failedEvents(), "일시 오류는 FAILED 수에 세지 않는다");
     }
 
     @Test
@@ -405,5 +413,9 @@ class OutboxRelayIntegrationTest {
         var tolerance = Duration.ofMillis(1);
         assertTrue(!actual.isBefore(min.minus(tolerance)) && !actual.isAfter(max.plus(tolerance)),
                 actual + "가 " + min + " ~ " + max + " 안에 있어야 한다");
+    }
+
+    private double failedEvents() {
+        return meters.get("outbox.events.failed").counter().count();
     }
 }

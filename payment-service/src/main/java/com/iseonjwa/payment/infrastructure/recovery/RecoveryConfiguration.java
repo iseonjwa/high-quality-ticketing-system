@@ -2,6 +2,7 @@ package com.iseonjwa.payment.infrastructure.recovery;
 
 import com.iseonjwa.payment.infrastructure.job.BackgroundJob;
 import com.iseonjwa.payment.infrastructure.job.BackgroundJobScheduler;
+import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.payment.application.PaymentRecheckService;
 import com.iseonjwa.payment.refund.application.RefundWorkerService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -10,6 +11,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Clock;
 
 /**
  * 복구 실행기({@code recovery}, 스레드 2개)에 올릴 작업을 등록한다(events-and-reliability.md 7절).
@@ -38,7 +41,8 @@ public class RecoveryConfiguration {
     }
 
     @Bean
-    BackgroundJobScheduler recoveryScheduler(@Qualifier(QUALIFIER) ObjectProvider<BackgroundJob> jobs) {
-        return new BackgroundJobScheduler("recovery", THREADS, jobs.orderedStream().toList());
+    BackgroundJobScheduler recoveryScheduler(@Qualifier(QUALIFIER) ObjectProvider<BackgroundJob> jobs,
+            PaymentMetrics metrics, @Qualifier("commonAuditingClock") Clock clock) {
+        return new BackgroundJobScheduler("recovery", THREADS, jobs.orderedStream().toList(), metrics, clock);
     }
 }

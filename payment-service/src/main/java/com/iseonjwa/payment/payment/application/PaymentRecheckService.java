@@ -1,5 +1,8 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import com.iseonjwa.payment.observability.PgOperation;
+import com.iseonjwa.payment.observability.TransitionOperation;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
@@ -42,16 +45,18 @@ public class PaymentRecheckService {
     private final PaymentTransitionService transitions;
     private final PgRecoveryGate recoveryGate;
     private final PgClient pg;
+    private final PaymentMetrics metrics;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public PaymentRecheckService(PaymentRepository payments, PaymentTransitionService transitions,
-            PgRecoveryGate recoveryGate, PgClient pg, TransactionTemplate transactionTemplate,
+            PgRecoveryGate recoveryGate, PgClient pg, PaymentMetrics metrics, TransactionTemplate transactionTemplate,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.payments = payments;
         this.transitions = transitions;
         this.recoveryGate = recoveryGate;
         this.pg = pg;
+        this.metrics = metrics;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
     }
@@ -120,10 +125,10 @@ public class PaymentRecheckService {
         permit.settle(result);
         logClientError(claim, result);
         switch (result) {
-            case PgClient.Approved approved -> confirm(claim, approved.paymentRef(), approved.amount(),
-                    approved.approvedAt(), approved.matches(claim.amount(), claim.currency()));
-            case PgClient.Declined declined ->
-                    transitions.decline(claim.paymentId(), claim.status(), declined.reason(), StatusActor.SYSTEM);
+            case PgClient.Approved approved -> confirm(claim, PgOperation.FIND_PAYMENT, approved.paymentRef(),
+                    approved.amount(), approved.approvedAt(), approved.matches(claim.amount(), claim.currency()));
+            case PgClient.Declined declined -> recordConflict(
+                    transitions.decline(claim.paymentId(), claim.status(), declined.reason(), StatusActor.SYSTEM));
             case PgClient.NotFound notFound -> preventLateApproval(claim);
             case PgClient.Unknown unknown -> handleUnknown(claim, unknown.cause().name());
         }
@@ -155,10 +160,11 @@ public class PaymentRecheckService {
             held.settle(result);
             logClientError(claim, result);
             switch (result) {
-                case PgClient.Prevented prevented ->
-                        transitions.decline(claim.paymentId(), claim.status(), DeclineReason.NOT_SENT, StatusActor.SYSTEM);
-                case PgClient.AlreadyApproved approved -> confirm(claim, approved.paymentRef(), approved.amount(),
-                        approved.approvedAt(), approved.matches(claim.amount(), claim.currency()));
+                case PgClient.Prevented prevented -> recordConflict(transitions.decline(claim.paymentId(),
+                        claim.status(), DeclineReason.NOT_SENT, StatusActor.SYSTEM));
+                case PgClient.AlreadyApproved approved -> confirm(claim, PgOperation.PREVENT_LATE_APPROVAL,
+                        approved.paymentRef(), approved.amount(), approved.approvedAt(),
+                        approved.matches(claim.amount(), claim.currency()));
                 case PgClient.Unknown unknown -> handleUnknown(claim, unknown.cause().name());
             }
         }
@@ -177,36 +183,43 @@ public class PaymentRecheckService {
     }
 
     // PG가 승인했다. 금액·통화가 결제와 같으면 승인, 다르면 운영자 확인으로 넘긴다(INV-3). 0행이면 다른 경로가 먼저 바꾼 것이다
-    private void confirm(Claim claim, PgPaymentRef paymentRef, BigDecimal pgAmount, Instant approvedAt,
-            boolean matches) {
+    private void confirm(Claim claim, PgOperation operation, PgPaymentRef paymentRef, BigDecimal pgAmount,
+            Instant approvedAt, boolean matches) {
         if (matches) {
-            transitions.approve(claim.paymentId(), claim.status(), paymentRef.value(), pgAmount, approvedAt,
-                    StatusActor.SYSTEM);
+            recordConflict(transitions.approve(claim.paymentId(), claim.status(), paymentRef.value(), pgAmount,
+                    approvedAt, StatusActor.SYSTEM));
             return;
         }
-        // TODO: 즉시 알림 지표는 ISE-41에서 붙인다. 그 전까지는 로그가 유일한 신호다(INV-3, N16)
+        // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3, N16)
+        metrics.pgAmountMismatch(operation);
         log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", claim.paymentId(),
                 claim.amount(), pgAmount, paymentRef.value());
-        transitions.markAmountMismatch(claim.paymentId(), claim.status(), paymentRef.value(), pgAmount, approvedAt,
-                StatusActor.SYSTEM);
+        recordConflict(transitions.markAmountMismatch(claim.paymentId(), claim.status(), paymentRef.value(), pgAmount,
+                approvedAt, StatusActor.SYSTEM));
     }
 
     // 결과를 모른다. 정해진 간격으로 다시 조회하고, 소진하면 운영자 확인으로 넘긴다(SA 9-4)
     private void handleUnknown(Claim claim, String cause) {
         var delay = RecheckSchedule.delayAfter(claim.attempts());
         if (delay.isEmpty()) {
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다
+            // TODO(ISE-157): payment_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
             log.error("event=PG_UNRESOLVED paymentId={} attempts={} lastCause={}", claim.paymentId(), claim.attempts(),
                     cause);
-            transitions.markUnresolved(claim.paymentId(), claim.status(), StatusActor.SYSTEM);
+            recordConflict(transitions.markUnresolved(claim.paymentId(), claim.status(), StatusActor.SYSTEM));
             return;
         }
         var nextCheckAt = clock.instant().plus(delay.get());
         if (claim.status() == PaymentStatus.REQUESTED) {
-            transitions.markUnknown(claim.paymentId(), PaymentStatus.REQUESTED, nextCheckAt, cause, StatusActor.SYSTEM);
+            recordConflict(transitions.markUnknown(claim.paymentId(), PaymentStatus.REQUESTED, nextCheckAt, cause,
+                    StatusActor.SYSTEM));
         } else {
             payments.rescheduleCheck(claim.paymentId(), nextCheckAt, clock.instant());
         }
+    }
+
+    // 0행이면 다른 경로가 먼저 상태를 바꾼 것이다. 정상 경합이므로 건수만 센다
+    private void recordConflict(boolean changed) {
+        if (!changed) metrics.transitionConflict(TransitionOperation.RECHECK);
     }
 
     private void logClientError(Claim claim, Object result) {

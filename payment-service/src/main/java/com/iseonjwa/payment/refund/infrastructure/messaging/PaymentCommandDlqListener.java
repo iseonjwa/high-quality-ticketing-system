@@ -2,6 +2,7 @@ package com.iseonjwa.payment.refund.infrastructure.messaging;
 
 import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
+import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.refund.application.DeadLetterInput;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -30,14 +31,27 @@ public class PaymentCommandDlqListener {
 
     private final RefundRequestedMessageParser parser;
     private final DeadLetterService service;
+    private final PaymentMetrics metrics;
 
-    PaymentCommandDlqListener(RefundRequestedMessageParser parser, DeadLetterService service) {
+    PaymentCommandDlqListener(RefundRequestedMessageParser parser, DeadLetterService service, PaymentMetrics metrics) {
         this.parser = parser;
         this.service = service;
+        this.metrics = metrics;
+        metrics.trackDlqHandler(TOPIC);
     }
 
     @KafkaListener(topics = TOPIC, groupId = GROUP, containerFactory = CONTAINER_FACTORY)
     public void onMessage(ConsumerRecord<String, String> record) {
+        try {
+            handle(record);
+        } catch (RuntimeException | Error exception) {
+            // Note: 예외는 그대로 다시 던진다. 오프셋을 올리지 않고 다시 처리하는 것은 에러 핸들러의 몫이고, 여기서는 건수만 센다
+            metrics.dlqHandlerFailure(TOPIC);
+            throw exception;
+        }
+    }
+
+    private void handle(ConsumerRecord<String, String> record) {
         var input = input(record);
         RefundRequestedMessage message;
         try {

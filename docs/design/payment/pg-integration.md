@@ -61,7 +61,7 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 - 결과를 모르는 `Unknown`(`TIMEOUT`·`CONNECTION_LOST`·`PG_ERROR`·`PROCESSING`)은 CB에 실패로 기록하고, 정상 거절과 `NotFound`는 성공으로 센다. `Unknown(CLIENT_ERROR)`(요청·인증을 거절한 4xx)는 셈하지 않고 허가만 반환한다. 분류는 `PgPermit.settle` 한 곳이 맡는다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md) 개정).
 - 허가 획득과 정산은 PG 호출 래퍼 한 곳에서 `try/finally`로 묶는다. 승인은 TX1 앞에서 얻고 TX1이 실패하면 호출 결과로 세지 않고 반환한다.
 - Ops 명령은 별도 프로세스라 같은 설정의 별도 Resilience4j 인스턴스를 쓴다.
-- 503 `PG_UNAVAILABLE`은 PG 장애만 뜻하지 않는다. 허가는 TX1부터 PG 호출 정산까지 Bulkhead 자리를 잡으므로 DB(TX1)가 느려도 자리가 차서 같은 503이 날 수 있다. 원인은 Bulkhead 가용 수와 TX1 지연을 함께 본다(ISE-41 지표).
+- 503 `PG_UNAVAILABLE`은 PG 장애만 뜻하지 않는다. 허가는 TX1부터 PG 호출 정산까지 Bulkhead 자리를 잡으므로 DB(TX1)가 느려도 자리가 차서 같은 503이 날 수 있다. 원인은 Bulkhead 가용 수(`resilience4j_bulkhead_available_concurrent_calls{name="pg-approve"}`)와 TX1 지연을 함께 본다(ISE-156 지표). 건수는 `payment_approve_seconds_count{outcome="unavailable"}`다.
 - 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate`다. `tryAcquire`는 허가만 얻고(못 얻으면 빈 값) 호출한 쪽이 `callStarted`·`settle`·`close`를 맡으며, `execute`는 그 위에서 허가·호출·정산을 한 번에 묶는다. 허가를 못 얻으면 호출하지 않고 시도 횟수를 세지 않는다. 재확인 스케줄러는 `tryAcquire`로 "허가 먼저, claim 나중"을 지킨다([events-and-reliability.md](events-and-reliability.md) 6절). 설정은 `payment.pg.protection.{approve,recovery}.*`다. 복구 그룹의 호출자 중 재확인 스케줄러는 ISE-38에서, 환불 워커는 ISE-137에서 붙였다.
 - PG 호출은 트랜잭션 밖이고 TX1 커밋 뒤에 한다.
 

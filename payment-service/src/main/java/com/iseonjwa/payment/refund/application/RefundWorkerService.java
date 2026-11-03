@@ -1,5 +1,8 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import com.iseonjwa.payment.observability.PgOperation;
+import com.iseonjwa.payment.observability.TransitionOperation;
 import com.iseonjwa.payment.payment.application.PaymentTransitionService;
 import com.iseonjwa.payment.payment.application.RecheckSchedule;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
@@ -58,18 +61,20 @@ public class RefundWorkerService {
     private final PaymentTransitionService transitions;
     private final PgRecoveryGate recoveryGate;
     private final PgClient pg;
+    private final PaymentMetrics metrics;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public RefundWorkerService(RefundRepository refunds, PaymentRepository payments,
             PaymentStatusHistoryRepository histories, PaymentTransitionService transitions, PgRecoveryGate recoveryGate,
-            PgClient pg, TransactionTemplate transactionTemplate, @Qualifier("commonAuditingClock") Clock clock) {
+            PgClient pg, PaymentMetrics metrics, TransactionTemplate transactionTemplate, @Qualifier("commonAuditingClock") Clock clock) {
         this.refunds = refunds;
         this.payments = payments;
         this.histories = histories;
         this.transitions = transitions;
         this.recoveryGate = recoveryGate;
         this.pg = pg;
+        this.metrics = metrics;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
     }
@@ -151,24 +156,24 @@ public class RefundWorkerService {
         if (claim.firstCall()) {
             var result = requestRefund(claim);
             permit.settle(result);
-            applyRefundResult(claim, result);
+            applyRefundResult(claim, PgOperation.REFUND, result);
             return;
         }
         var lookup = findRefund(claim);
         permit.settle(lookup);
         logClientError(claim, lookup);
         switch (lookup) {
-            case PgClient.Refunded refunded -> confirm(claim, refunded);
+            case PgClient.Refunded refunded -> confirm(claim, PgOperation.FIND_REFUND, refunded);
             case PgClient.RefundRejected rejected -> reject(claim, rejected);
             case PgClient.NotFound notFound -> requestAgain(claim);
             case PgClient.Unknown unknown -> handleUnknown(claim, unknown.cause().name());
         }
     }
 
-    private void applyRefundResult(Claim claim, PgClient.RefundResult result) {
+    private void applyRefundResult(Claim claim, PgOperation operation, PgClient.RefundResult result) {
         logClientError(claim, result);
         switch (result) {
-            case PgClient.Refunded refunded -> confirm(claim, refunded);
+            case PgClient.Refunded refunded -> confirm(claim, operation, refunded);
             case PgClient.RefundRejected rejected -> reject(claim, rejected);
             case PgClient.Unknown unknown -> handleUnknown(claim, unknown.cause().name());
         }
@@ -185,7 +190,7 @@ public class RefundWorkerService {
             held.callStarted();
             var result = requestRefund(claim);
             held.settle(result);
-            applyRefundResult(claim, result);
+            applyRefundResult(claim, PgOperation.REFUND, result);
         }
     }
 
@@ -217,9 +222,10 @@ public class RefundWorkerService {
     }
 
     // PG가 환불했다. 금액·통화가 환불과 같으면 확정하고, 다르면 운영자 확인으로 넘긴다(INV-3)
-    private void confirm(Claim claim, PgClient.Refunded refunded) {
+    private void confirm(Claim claim, PgOperation operation, PgClient.Refunded refunded) {
         if (!refunded.matches(claim.amount(), claim.currency())) {
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다
+            // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3)
+            metrics.pgAmountMismatch(operation);
             log.error("event=REFUND_AMOUNT_MISMATCH refundId={} paymentId={} expectedAmount={} pgAmount={}",
                     claim.refundId(), claim.paymentId(), claim.amount(), refunded.amount());
             markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), "REFUND_AMOUNT_MISMATCH");
@@ -229,7 +235,7 @@ public class RefundWorkerService {
             transactionTemplate.executeWithoutResult(status -> complete(claim, refunded));
         } catch (StateConflictException conflict) {
             // 결제가 환불할 수 없는 상태로 바뀌어 있었다. 환불 전이까지 롤백됐으므로 새 트랜잭션에서 운영자 확인으로 넘긴다
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다
+            // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
             log.error("event=REFUND_STATE_CONFLICT refundId={} paymentId={} pgRefundRef={}", claim.refundId(),
                     claim.paymentId(), refunded.refundRef());
             markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), STATE_CONFLICT);
@@ -240,13 +246,14 @@ public class RefundWorkerService {
     private void complete(Claim claim, PgClient.Refunded refunded) {
         var now = clock.instant();
         if (!refunds.markRefunded(claim.refundId(), claim.status(), refunded.refundRef(), refunded.refundedAt(), now)) {
-            // TODO: payment_transition_conflict_total 지표를 올린다(ISE-41)
+            metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
             return;
         }
         histories.save(PaymentStatusHistory.ofRefund(claim.paymentId(), claim.status(), RefundStatus.REFUNDED, null,
                 StatusActor.SYSTEM, now));
         if (!transitions.markRefunded(claim.paymentId(), paymentStatusBeforeRefund(claim.reason()),
                 refunded.refundedAt(), StatusActor.SYSTEM)) {
+            metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
             // 예외로 이 트랜잭션을 롤백한다. 환불만 REFUNDED로 남으면 돈은 돌아갔는데 결제는 환불되지 않은 모순이 된다
             throw new StateConflictException();
         }
@@ -254,7 +261,7 @@ public class RefundWorkerService {
 
     // PG가 환불할 수 없다고 명확히 거절했다. FAILED는 운영자가 확인한 뒤에만 쓴다(domain-and-states.md 2절)
     private void reject(Claim claim, PgClient.RefundRejected rejected) {
-        // TODO: 즉시 알림 지표는 ISE-41에서 붙인다
+        // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
         log.error("event=REFUND_REJECTED refundId={} paymentId={} rejectReason={}", claim.refundId(), claim.paymentId(),
                 rejected.reason());
         markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), "REFUND_REJECTED");
@@ -264,7 +271,7 @@ public class RefundWorkerService {
     private void handleUnknown(Claim claim, String cause) {
         var delay = RecheckSchedule.delayAfter(claim.attempts());
         if (delay.isEmpty()) {
-            // TODO: 즉시 알림 지표는 ISE-41에서 붙인다
+            // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
             log.error("event=REFUND_UNRESOLVED refundId={} paymentId={} attempts={} lastCause={}", claim.refundId(),
                     claim.paymentId(), claim.attempts(), cause);
             markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), "REFUND_UNRESOLVED");
@@ -274,7 +281,10 @@ public class RefundWorkerService {
         var nextCheckAt = now.plus(delay.get());
         if (claim.status() == RefundStatus.REQUESTED) {
             transactionTemplate.executeWithoutResult(status -> {
-                if (!refunds.markUnknown(claim.refundId(), nextCheckAt, now)) return;
+                if (!refunds.markUnknown(claim.refundId(), nextCheckAt, now)) {
+                    metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
+                    return;
+                }
                 histories.save(PaymentStatusHistory.ofRefund(claim.paymentId(), RefundStatus.REQUESTED,
                         RefundStatus.UNKNOWN, cause, StatusActor.SYSTEM, now));
             });
@@ -287,7 +297,10 @@ public class RefundWorkerService {
     private void markNeedsManualCheck(Long refundId, Long paymentId, RefundStatus from, String reason) {
         transactionTemplate.executeWithoutResult(status -> {
             var now = clock.instant();
-            if (!refunds.markNeedsManualCheck(refundId, from, now)) return;
+            if (!refunds.markNeedsManualCheck(refundId, from, now)) {
+                metrics.transitionConflict(TransitionOperation.REFUND_WORKER);
+                return;
+            }
             histories.save(PaymentStatusHistory.ofRefund(paymentId, from, RefundStatus.NEEDS_MANUAL_CHECK, reason,
                     StatusActor.SYSTEM, now));
         });

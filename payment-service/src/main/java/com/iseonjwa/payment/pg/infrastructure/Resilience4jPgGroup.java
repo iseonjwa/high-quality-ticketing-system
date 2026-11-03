@@ -3,8 +3,10 @@ package com.iseonjwa.payment.pg.infrastructure;
 import com.iseonjwa.payment.pg.application.PgPermit;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadConfig;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -23,8 +25,18 @@ final class Resilience4jPgGroup {
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
 
+    /** 레지스트리 없이 만든다. 지표에 연결하지 않는 테스트용이다. */
     Resilience4jPgGroup(String name, PgProtectionProperties.Group settings) {
-        this.circuitBreaker = CircuitBreaker.of(name, CircuitBreakerConfig.custom()
+        this(name, settings, CircuitBreakerRegistry.ofDefaults(), BulkheadRegistry.ofDefaults());
+    }
+
+    /**
+     * CB와 Bulkhead를 주어진 레지스트리에 등록해 만든다. Micrometer 지표({@code Tagged*Metrics})가 레지스트리를 보고
+     * 그룹 이름({@code pg-approve}, {@code pg-recovery})으로 지표를 만든다(ADR 0024 결정 3).
+     */
+    Resilience4jPgGroup(String name, PgProtectionProperties.Group settings, CircuitBreakerRegistry circuitBreakers,
+            BulkheadRegistry bulkheads) {
+        this.circuitBreaker = circuitBreakers.circuitBreaker(name, CircuitBreakerConfig.custom()
                 .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
                 .slidingWindowSize(settings.slidingWindowSize())
                 .minimumNumberOfCalls(settings.minimumNumberOfCalls())
@@ -33,7 +45,7 @@ final class Resilience4jPgGroup {
                 .permittedNumberOfCallsInHalfOpenState(settings.halfOpenPermittedCalls())
                 .build());
         // 기다리지 않는다. 포화면 바로 거절해야 요청 스레드가 PG 장애에 묶이지 않는다
-        this.bulkhead = Bulkhead.of(name, BulkheadConfig.custom()
+        this.bulkhead = bulkheads.bulkhead(name, BulkheadConfig.custom()
                 .maxConcurrentCalls(settings.maxConcurrentCalls())
                 .maxWaitDuration(Duration.ZERO)
                 .build());
