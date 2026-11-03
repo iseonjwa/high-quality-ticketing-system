@@ -169,6 +169,12 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 - `BackgroundJobScheduler`는 주기가 예외 없이 끝나면 `payment_job_last_success_timestamp{job}`을 갱신하고(0건을 처리한 주기도 성공이다), `Throwable`로 끝나면 `payment_job_failures_total{job}`을 올린다. `job` 값은 등록된 작업 이름이다(`recheck`, `refund-worker`, `outbox-cleanup`, `processed-events-cleanup`, `idempotency-cleanup`, `gauge-refresh`). Outbox 릴레이는 common의 전용 실행기라 `outbox_relay_last_success_timestamp`·`outbox_relay_failures_total`을 따로 남긴다. 정체 알림이 이 값을 본다. 릴레이의 마지막 성공은 라운드 반복이 예외 없이 끝난 시각이라 Kafka 장애로 전송이 실패해도 갱신된다(브로커 장애는 `outbox_pending_oldest_seconds`가 잡는다).
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.
+- DB 시한은 `config-repo/payment-service.yml`의 `spring.datasource.hikari.data-source-properties`에 둔다(ISE-163). `connection-timeout`은 풀에 빈 연결이 없을 때만 걸리고 이미 빌린 연결의 쿼리에는 시한이 없어서, DB가 응답 없이 멈추면 요청 스레드가 시한 없이 기다려 Gateway 504가 났다(2026-11-03 compose에서 `docker pause`로 확인). 값은 둘이고 맡는 장애가 다르다. 둘 다 Gateway 3초보다 짧다`[가정]`.
+  - `options: "-c statement_timeout=1500"`(문장 시한 1.5초): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState `57014`). 서버에서 일이 끝나므로 잠금을 쥔 채 도는 쿼리가 남지 않고 연결도 다시 쓸 수 있다.
+  - `socketTimeout: 2`(소켓 시한 2초): 서버가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 오지 못하는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다.
+  - 연결을 얻는 대기는 그대로 1초다. PG 호출 전 구간(TX1)은 연결 대기 1초나 쿼리 소켓 시한 2초 중 먼저 걸리는 쪽으로 끝나 503 `SERVICE_UNAVAILABLE`이 된다. TX2 구간은 기존대로 202이고 재확인이 확정한다.
+  - 배경 작업(재확인, 환불 워커, 정리 등)은 DB가 멈추면 그 주기만 실패한다. `payment_job_failures_total{job}`이 오르고 다음 주기에 다시 한다.
+  - 한계: Flyway도 같은 풀로 마이그레이션하므로 문장 시한 1.5초와 소켓 시한 2초가 마이그레이션 문장에도 걸린다. 큰 테이블을 바꾸는 오래 걸리는 마이그레이션이 생기면 시한을 걸지 않은 Flyway 전용 연결을 따로 둬야 한다.
 
 ## 8. 정리 작업 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
