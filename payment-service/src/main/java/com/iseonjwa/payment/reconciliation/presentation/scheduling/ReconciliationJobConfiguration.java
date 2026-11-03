@@ -19,7 +19,7 @@ import java.time.Clock;
  *
  * <p>Note: 같은 실행기(스레드 1개)에서 도는 {@code gauge-refresh}와 정리 작업은 한 회차가 끝나야 돈다. 대사 한 회차가
  * 길어지면 그만큼 Gauge 갱신이 밀리고, 그래서 {@code gauge-refresh} 정체 알림이 먼저 울릴 수 있다. 예매 서비스 호출이 붙는
- * RC-1~RC-6(ISE-168)에서는 호출 시한을 짧게 두어 한 회차를 묶는다.
+ * RC-1~RC-6(ISE-168)은 예매 서비스를 한 회차에 묶음 단위로 부르고 호출마다 시한(2초)을 둔다.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ReconciliationProperties.class)
