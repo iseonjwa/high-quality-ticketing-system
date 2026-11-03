@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -36,6 +37,8 @@ public class OutboxRelayScheduler implements SmartLifecycle {
     private final OutboxRelay relay;
     private final Duration interval;
     private final Duration stopWait;
+    private final OutboxMetrics metrics;
+    private final Clock clock;
     private ScheduledThreadPoolExecutor executor;
     private volatile boolean stopping;
 
@@ -44,12 +47,23 @@ public class OutboxRelayScheduler implements SmartLifecycle {
      * @param stopWait 종료할 때 진행 중인 실행을 기다리는 시간. 전송 시한보다 길어야 한다
      */
     public OutboxRelayScheduler(OutboxRelay relay, Duration interval, Duration stopWait) {
+        this(relay, interval, stopWait, OutboxMetrics.disabled(), Clock.systemUTC());
+    }
+
+    /**
+     * @param metrics 릴레이 주기의 마지막 성공 시각과 실패 수를 남기는 곳
+     * @param clock   마지막 성공 시각을 정하는 시계
+     */
+    public OutboxRelayScheduler(OutboxRelay relay, Duration interval, Duration stopWait, OutboxMetrics metrics,
+            Clock clock) {
         if (interval.isNegative() || interval.isZero()) {
             throw new IllegalArgumentException("messaging.outbox.interval은 0보다 커야 합니다");
         }
         this.relay = relay;
         this.interval = interval;
         this.stopWait = stopWait;
+        this.metrics = metrics;
+        this.clock = clock;
     }
 
     @Override
@@ -83,9 +97,11 @@ public class OutboxRelayScheduler implements SmartLifecycle {
     void runTick() {
         try {
             relayRounds();
-            // TODO(ISE-41): outbox_relay_last_success_timestamp 갱신
+            // Note: 전송이 실패해도 라운드는 정상으로 끝나므로 여기 도달한다. 이 시각은 릴레이가 돌고 있다는 신호일 뿐
+            // 브로커 장애는 알려 주지 않는다(OutboxMetrics 참고)
+            metrics.relaySucceeded(clock.instant());
         } catch (Throwable throwable) {
-            // TODO(ISE-41): outbox_relay_failures_total 증가
+            metrics.relayFailed();
             log.error("Outbox 릴레이 주기 실패, 다음 주기에 계속한다", throwable);
         }
     }

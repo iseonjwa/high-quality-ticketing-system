@@ -42,6 +42,10 @@ payment:
   housekeeping:
     # 테스트는 정리 쿼리를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 지운다
     enabled: false
+  metrics:
+    gauge-refresh:
+      # 테스트는 DbAggregateGauges.refresh()를 직접 부른다. 작업이 돌면 테스트가 넣은 행을 먼저 집계한다
+      enabled: false
   pg:
     provider: mock
     mock:

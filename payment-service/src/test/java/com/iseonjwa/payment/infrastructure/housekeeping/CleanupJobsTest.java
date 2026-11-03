@@ -1,8 +1,11 @@
 package com.iseonjwa.payment.infrastructure.housekeeping;
 
 import com.iseonjwa.payment.infrastructure.job.BackgroundJobScheduler;
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -66,6 +69,6 @@ class CleanupJobsTest {
     }
 
     private static BackgroundJobScheduler scheduler(com.iseonjwa.payment.infrastructure.job.BackgroundJob job) {
-        return new BackgroundJobScheduler("housekeeping", 1, List.of(job));
+        return new BackgroundJobScheduler("housekeeping", 1, List.of(job), new PaymentMetrics(new SimpleMeterRegistry()), Clock.systemUTC());
     }
 }

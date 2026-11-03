@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.infrastructure.housekeeping;
 
 import com.iseonjwa.common.messaging.retention.RetentionCleanup;
+import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.infrastructure.job.BackgroundJob;
 import com.iseonjwa.payment.infrastructure.job.BackgroundJobScheduler;
 import org.springframework.beans.factory.ObjectProvider;
@@ -66,7 +67,8 @@ public class HousekeepingConfiguration {
     }
 
     @Bean
-    BackgroundJobScheduler housekeepingScheduler(@Qualifier(QUALIFIER) ObjectProvider<BackgroundJob> jobs) {
-        return new BackgroundJobScheduler("housekeeping", THREADS, jobs.orderedStream().toList());
+    BackgroundJobScheduler housekeepingScheduler(@Qualifier(QUALIFIER) ObjectProvider<BackgroundJob> jobs,
+            PaymentMetrics metrics, @Qualifier("commonAuditingClock") Clock clock) {
+        return new BackgroundJobScheduler("housekeeping", THREADS, jobs.orderedStream().toList(), metrics, clock);
     }
 }

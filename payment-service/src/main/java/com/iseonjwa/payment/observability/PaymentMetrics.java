@@ -2,16 +2,19 @@ package com.iseonjwa.payment.observability;
 
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 결제 서비스의 지표 이름과 라벨을 한곳에 둔다(observability.md 1절, ADR 0024). 메서드는 라벨 값을 enum으로만 받아
@@ -32,6 +35,9 @@ public class PaymentMetrics {
     private final Map<PgOperation, Map<UnknownCause, Counter>> pgUnknown = new EnumMap<>(PgOperation.class);
     private final Map<TransitionOperation, Counter> transitionConflict = new EnumMap<>(TransitionOperation.class);
     private final Map<String, Counter> dlqHandlerFailures = new ConcurrentHashMap<>();
+    // 게이지는 약한 참조로 값을 읽으므로 값 객체를 여기서 붙들고 있어야 한다
+    private final Map<String, AtomicLong> jobLastSuccess = new ConcurrentHashMap<>();
+    private final Map<String, Counter> jobFailures = new ConcurrentHashMap<>();
 
     public PaymentMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -107,6 +113,37 @@ public class PaymentMetrics {
         return dlqHandlerFailures.computeIfAbsent(topic, key -> Counter.builder("payment.dlq.handler.failures")
                 .description("DLQ 처리기가 처리 중 예외로 끝난 수")
                 .tag("topic", key)
+                .register(registry));
+    }
+
+    /**
+     * 배경 작업을 등록한다. 마지막 성공 시각은 {@code startedAt}으로 시작한다. {@code job} 값은 등록된 고정 이름이다.
+     */
+    public void trackJob(String job, Instant startedAt) {
+        jobLastSuccess.computeIfAbsent(job, key -> {
+            var value = new AtomicLong(startedAt.getEpochSecond());
+            Gauge.builder("payment.job.last.success.timestamp", value, AtomicLong::get)
+                    .description("작업 주기가 예외 없이 끝난 마지막 시각(epoch 초)")
+                    .tag("job", key)
+                    .register(registry);
+            return value;
+        });
+        jobFailureCounter(job);
+    }
+
+    public void jobSucceeded(String job, Instant at) {
+        var value = jobLastSuccess.get(job);
+        if (value != null) value.set(at.getEpochSecond());
+    }
+
+    public void jobFailed(String job) {
+        jobFailureCounter(job).increment();
+    }
+
+    private Counter jobFailureCounter(String job) {
+        return jobFailures.computeIfAbsent(job, key -> Counter.builder("payment.job.failures")
+                .description("작업 주기가 예외로 끝난 수")
+                .tag("job", key)
                 .register(registry));
     }
 

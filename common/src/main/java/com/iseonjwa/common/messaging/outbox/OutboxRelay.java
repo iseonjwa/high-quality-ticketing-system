@@ -25,7 +25,7 @@ import java.util.concurrent.TimeoutException;
  * <p>실패는 둘로 나눈다. 일시 오류는 지수 백오프({@link OutboxBackoff})로 다음 시도 시각을 미루며 계속 재시도하고,
  * 영구 오류({@link OutboxFailureClassifier})만 FAILED로 바꿔 멈춘다.
  *
- * <p>TODO: SENT 정리는 ISE-146이다.
+ * <p>Note: FAILED로 바뀐 이벤트 수는 {@code outbox.events.failed}가 센다.
  */
 public class OutboxRelay {
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
@@ -38,6 +38,7 @@ public class OutboxRelay {
     private final Clock clock;
     private final OutboxProperties properties;
     private final OutboxBackoff backoff;
+    private final OutboxMetrics metrics;
 
     public OutboxRelay(OutboxRepository repository, OutboxEventSender sender, Clock clock,
             OutboxProperties properties) {
@@ -46,11 +47,17 @@ public class OutboxRelay {
 
     public OutboxRelay(OutboxRepository repository, OutboxEventSender sender, Clock clock,
             OutboxProperties properties, OutboxBackoff backoff) {
+        this(repository, sender, clock, properties, backoff, OutboxMetrics.disabled());
+    }
+
+    public OutboxRelay(OutboxRepository repository, OutboxEventSender sender, Clock clock,
+            OutboxProperties properties, OutboxBackoff backoff, OutboxMetrics metrics) {
         this.repository = repository;
         this.sender = sender;
         this.clock = clock;
         this.properties = properties;
         this.backoff = backoff;
+        this.metrics = metrics;
     }
 
     public int batchSize() {
@@ -124,7 +131,8 @@ public class OutboxRelay {
                 // 값 원문(페이로드, 예외 메시지)은 남기지 않는다. 예외 종류만 적고 상세는 last_error 컬럼에 있다
                 log.error("event=OUTBOX_FAILED eventId={} topic={} messageKey={} cause={}", message.eventId(),
                         message.topic(), message.messageKey(), root.getClass().getName());
-                // TODO(ISE-41): outbox_failed_total 증가, FAILED 건수 알림
+                // FAILED 건수 알림은 outbox.failed.count Gauge가 맡는다(TODO(ISE-157): 알림 규칙)
+                metrics.eventFailed();
             }
             return;
         }

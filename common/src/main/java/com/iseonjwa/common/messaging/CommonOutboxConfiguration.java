@@ -3,12 +3,16 @@ package com.iseonjwa.common.messaging;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventService;
 import com.iseonjwa.common.messaging.outbox.KafkaOutboxEventSender;
+import com.iseonjwa.common.messaging.outbox.OutboxBackoff;
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
+import com.iseonjwa.common.messaging.outbox.OutboxMetrics;
 import com.iseonjwa.common.messaging.outbox.OutboxProperties;
 import com.iseonjwa.common.messaging.outbox.OutboxRelay;
 import com.iseonjwa.common.messaging.outbox.OutboxRelayScheduler;
 import com.iseonjwa.common.messaging.outbox.OutboxRepository;
 import com.iseonjwa.common.messaging.outbox.OutboxWriter;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -60,10 +64,18 @@ public class CommonOutboxConfiguration {
         return KafkaOutboxEventSender.create(kafka, properties.sendTimeout());
     }
 
+    // MeterRegistry 빈이 없는 서비스는 지표 없이 동작한다
+    @Bean
+    OutboxMetrics outboxMetrics(ObjectProvider<MeterRegistry> registry,
+            @Qualifier("commonAuditingClock") Clock clock) {
+        var available = registry.getIfAvailable();
+        return available == null ? OutboxMetrics.disabled() : new OutboxMetrics(available, clock);
+    }
+
     @Bean
     OutboxRelay outboxRelay(OutboxRepository repository, OutboxEventSender sender,
-            @Qualifier("commonAuditingClock") Clock clock, OutboxProperties properties) {
-        return new OutboxRelay(repository, sender, clock, properties);
+            @Qualifier("commonAuditingClock") Clock clock, OutboxProperties properties, OutboxMetrics metrics) {
+        return new OutboxRelay(repository, sender, clock, properties, OutboxBackoff.withRandomJitter(), metrics);
     }
 
     // 릴레이 실행기는 릴레이를 켰을 때만 만든다. 종료 대기는 진행 중인 실행이 브로커 확인을 기다리는 최대 시간(전송 시한)보다 길게 잡는다
@@ -72,8 +84,10 @@ public class CommonOutboxConfiguration {
     static class RelaySchedulingConfiguration {
         @Bean
         OutboxRelayScheduler outboxRelayScheduler(OutboxRelay relay, OutboxProperties properties,
-                @Value("${messaging.outbox.interval:500ms}") Duration interval) {
-            return new OutboxRelayScheduler(relay, interval, properties.sendTimeout().plus(STOP_MARGIN));
+                @Value("${messaging.outbox.interval:500ms}") Duration interval, OutboxMetrics metrics,
+                @Qualifier("commonAuditingClock") Clock clock) {
+            return new OutboxRelayScheduler(relay, interval, properties.sendTimeout().plus(STOP_MARGIN), metrics,
+                    clock);
         }
     }
 

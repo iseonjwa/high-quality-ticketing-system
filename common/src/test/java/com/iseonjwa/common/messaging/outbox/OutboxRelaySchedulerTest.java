@@ -1,10 +1,12 @@
 package com.iseonjwa.common.messaging.outbox;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,6 +151,80 @@ class OutboxRelaySchedulerTest {
         scheduler.stop();
 
         assertFalse(scheduler.isRunning());
+    }
+
+    @Test
+    void 라운드가_예외_없이_끝나면_마지막_성공_시각을_갱신한다_전송이_실패해도_마찬가지다() {
+        var meters = new SimpleMeterRegistry();
+        var clock = new FixedTime(Instant.parse("2026-11-03T00:00:00Z"));
+        // 집은 행을 하나도 못 보냈다(브로커 장애). 라운드는 정상으로 끝난다
+        var relay = new StubRelay(call -> new OutboxRelay.Result(BATCH, 0));
+        scheduler = new OutboxRelayScheduler(relay, Duration.ofMillis(20), Duration.ofSeconds(5),
+                new OutboxMetrics(meters, clock), clock);
+        var started = clock.instant().getEpochSecond();
+        assertEquals(started, meters.get("outbox.relay.last.success.timestamp").gauge().value(), "기동 시각으로 시작한다");
+        clock.now = clock.now.plusSeconds(60);
+
+        scheduler.runTick();
+
+        assertEquals(started + 60, meters.get("outbox.relay.last.success.timestamp").gauge().value());
+        assertEquals(0, meters.get("outbox.relay.failures").counter().count());
+    }
+
+    @Test
+    void 라운드가_예외나_Error로_끝나면_실패_수만_올린다() {
+        var meters = new SimpleMeterRegistry();
+        var clock = new FixedTime(Instant.parse("2026-11-03T00:00:00Z"));
+        var relay = new StubRelay(call -> {
+            if (call == 1) throw new IllegalStateException("DB 장애");
+            throw new AssertionError("Error도 센다");
+        });
+        scheduler = new OutboxRelayScheduler(relay, Duration.ofMillis(20), Duration.ofSeconds(5),
+                new OutboxMetrics(meters, clock), clock);
+        var started = clock.instant().getEpochSecond();
+        clock.now = clock.now.plusSeconds(60);
+
+        scheduler.runTick();
+        scheduler.runTick();
+
+        assertEquals(2, meters.get("outbox.relay.failures").counter().count());
+        assertEquals(started, meters.get("outbox.relay.last.success.timestamp").gauge().value());
+    }
+
+    @Test
+    void 지표를_끄면_예외가_나도_기록_없이_다음_주기를_계속한다() {
+        var relay = new StubRelay(call -> {
+            throw new IllegalStateException("DB 장애");
+        });
+        scheduler = scheduler(relay);
+
+        scheduler.runTick();
+        scheduler.runTick();
+
+        assertEquals(2, relay.calls.get());
+    }
+
+    private static final class FixedTime extends Clock {
+        Instant now;
+
+        FixedTime(Instant now) {
+            this.now = now;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 
     private static OutboxRelayScheduler scheduler(OutboxRelay relay) {
