@@ -609,7 +609,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (rule) (reconciliation_mismatch_open{application=\"payment-service\"})",
+          "expr": "max by (rule) (reconciliation_mismatch_open{application=\"payment-service\"})",
           "refId": "A",
           "instant": true,
           "legendFormat": "{{rule}}"

@@ -94,6 +94,22 @@ tests:
               summary: "결제·예매 대사 불일치가 3건 있다(규칙 RC-8, OPEN)"
               runbook: "docs/design/payment/manual-recovery.md 6절"
 
+  # 인스턴스가 둘이고 같은 값을 내도(DB 집계 Gauge) 건수가 두 배가 되지 않는다
+  - interval: 15s
+    input_series:
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7", instance="a"}'
+        values: '2 2'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7", instance="b"}'
+        values: '2 2'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 2건 있다(규칙 RC-7, OPEN)"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+
   # 카운터 알림은 5분 안에 늘어난 적이 있으면 울리고, 늘지 않은 채 5분이 지나면 풀린다
   - interval: 1m
     input_series:

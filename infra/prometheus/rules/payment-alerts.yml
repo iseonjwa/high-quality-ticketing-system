@@ -55,9 +55,10 @@ groups:
         annotations:
           summary: "영구 오류로 멈춘 Outbox 이벤트가 {{ $value }}건 있다(FAILED). 같은 키의 뒤 이벤트도 멈춘다"
           runbook: "docs/design/payment/manual-recovery.md 4절"
-      # Note: rule 라벨(RC-1~RC-8)마다 알림이 따로 선다. RC-7·RC-8은 결제 DB만으로, RC-1~RC-6은 예매 서비스 조회로 판단한다
+      # Note: DB 집계 Gauge라 인스턴스마다 같은 값을 내므로 합(sum)이 아니라 max로 모은다(합치면 인스턴스 수만큼 부풀려진다).
+      # rule 라벨(RC-1~RC-8)마다 알림이 따로 선다. RC-7·RC-8은 결제 DB만으로, RC-1~RC-6은 예매 서비스 조회로 판단한다
       - alert: PaymentReconciliationMismatch
-        expr: reconciliation_mismatch_open{application="payment-service"} > 0
+        expr: max by (application, rule) (reconciliation_mismatch_open{application="payment-service"}) > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
           summary: "결제·예매 대사 불일치가 {{ $value }}건 있다(규칙 {{ $labels.rule }}, OPEN)"
