@@ -13,7 +13,6 @@ import java.time.Duration;
  * @param connectTimeout 연결 시한
  * @param readTimeout    읽기 시한(ADR 0029 결정 2의 2초)
  * @param batchSize      묶음 조회 한 번의 예매 ID 수(API 상한 100)
- * @param pageSize       변경 목록 한 쪽의 크기(API 상한 100)
  * @param loadBalanced   true면 {@code base-url}의 호스트를 Eureka 서비스 ID로 보고 LoadBalancer로 인스턴스를 찾는다.
  *                       false면 인터셉터를 붙이지 않고 {@code base-url}로 바로 부른다(직접 주소, 로컬 실행)
  * @param missingBatchMinSize 묶음 하나에서 이 수 이상 물었는데 하나도 오지 않으면 조회 실패로 본다
@@ -28,7 +27,6 @@ public record ReservationLookupProperties(
         @DefaultValue("1s") Duration connectTimeout,
         @DefaultValue("2s") Duration readTimeout,
         @DefaultValue("100") int batchSize,
-        @DefaultValue("100") int pageSize,
         @DefaultValue("true") boolean loadBalanced,
         @DefaultValue("2") int missingBatchMinSize,
         @DefaultValue("5") int missingMinCount,
@@ -40,7 +38,6 @@ public record ReservationLookupProperties(
         requirePositive(connectTimeout, "connect-timeout");
         requirePositive(readTimeout, "read-timeout");
         requireSize(batchSize, "batch-size");
-        requireSize(pageSize, "page-size");
         if (missingBatchMinSize < 1 || missingMinCount < 1 || maxChangePages < 1) {
             throw new IllegalArgumentException(
                     "payment.reconciliation.reservation.missing-batch-min-size, missing-min-count, max-change-pages는 1 이상이어야 합니다");

@@ -32,7 +32,7 @@ class ReservationReconciliationConfiguration {
         var client = loadBalancer.getIfAvailable();
         var resolver = client == null || !properties.loadBalanced() ? null : new LoadBalancerInterceptor(client, new LoadBalancerRequestFactory(client));
         return ReservationLookupHttpClient.create(properties.baseUrl(), properties.connectTimeout(),
-                properties.readTimeout(), properties.pageSize(), resolver);
+                properties.readTimeout(), resolver);
     }
 
     @Bean
