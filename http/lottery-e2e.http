@@ -1,0 +1,96 @@
+### 추첨 E2E(ISE-143) 요청 모음. 절차와 기대 결과는 docs/design/lottery/e2e-runbook.md를 따른다.
+### IntelliJ HTTP Client로 위에서부터 차례로 실행한다. 관리자 비밀번호는 http-client.private.env.json에 둔다(커밋 금지).
+
+### 1. 관리자 로그인
+POST {{gateway}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email": "{{adminEmail}}", "password": "{{adminPassword}}"}
+
+> {% client.global.set("adminToken", response.body.data.accessToken); %}
+
+### 2. 공연 생성
+POST {{gateway}}/api/v1/admin/concerts
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"title": "추첨 E2E 공연", "description": "ISE-143"}
+
+> {% client.global.set("concertId", response.body.data.concertId); %}
+
+### 3. 회차 생성(오픈 1일 뒤, 공연 2일 뒤)
+< {%
+    const now = Date.now();
+    request.variables.set("openAt", new Date(now + 24 * 3600e3).toISOString());
+    request.variables.set("startsAt", new Date(now + 48 * 3600e3).toISOString());
+%}
+POST {{gateway}}/api/v1/admin/concerts/{{concertId}}/schedules
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"venueId": {{venueId}}, "startsAt": "{{startsAt}}", "openAt": "{{openAt}}"}
+
+> {% client.global.set("scheduleId", response.body.data.scheduleId); %}
+
+### 4. 회차 좌석 생성
+POST {{gateway}}/api/v1/admin/schedules/{{scheduleId}}/seats
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"prices": [{"grade": "VIP", "price": 165000}, {"grade": "R", "price": 143000}, {"grade": "S", "price": 112000}]}
+
+### 5. 추첨 설정(응모 1분 뒤 시작, 3분 뒤 마감, 4분 뒤 추첨). S석 10석, 예비 5
+< {%
+    const now = Date.now();
+    request.variables.set("entryStartAt", new Date(now + 60e3).toISOString());
+    request.variables.set("entryEndAt", new Date(now + 180e3).toISOString());
+    request.variables.set("drawAt", new Date(now + 240e3).toISOString());
+%}
+POST {{gateway}}/api/v1/admin/schedules/{{scheduleId}}/lotteries
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"sourceGrade": "S", "seatCount": 10, "waitlistCount": 5, "maxPerEntry": 2,
+ "entryStartAt": "{{entryStartAt}}", "entryEndAt": "{{entryEndAt}}", "drawAt": "{{drawAt}}"}
+
+> {% client.global.set("lotteryId", response.body.data.lotteryId); %}
+
+### 6. 응모자 가입(이메일은 실행마다 바꾼다)
+< {% request.variables.set("userEmail", "e2e-" + Date.now() + "@iseonjwa.local"); %}
+POST {{gateway}}/api/v1/users
+Content-Type: application/json
+
+{"email": "{{userEmail}}", "password": "e2e-password-1", "nickname": "e2e"}
+
+> {% client.global.set("userEmail", request.variables.get("userEmail")); %}
+
+### 7. 응모자 로그인
+POST {{gateway}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email": "{{userEmail}}", "password": "e2e-password-1"}
+
+> {% client.global.set("userToken", response.body.data.accessToken); %}
+
+### 8. 빌링키 등록(Mock PG는 아무 authKey나 받는다. REJECT로 시작하면 거절)
+POST {{gateway}}/api/v1/payments/billing-keys
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"authKey": "auth-e2e"}
+
+### 9. 추첨 공개 조회(규칙 확인)
+GET {{gateway}}/api/v1/lotteries/{{lotteryId}}
+Authorization: Bearer {{userToken}}
+
+### 10. 응모(응모 시작 시각 뒤에 실행)
+POST {{gateway}}/api/v1/lotteries/{{lotteryId}}/entries
+Authorization: Bearer {{userToken}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{"quantity": 1}
+
+### 11. 내 결과(추첨 시각 + 10초 뒤). WON이면 reservationId가 생긴다
+GET {{gateway}}/api/v1/lotteries/{{lotteryId}}/entries/me
+Authorization: Bearer {{userToken}}

@@ -12,7 +12,7 @@
 
 페이로드 변경([SA 변경 요청](sa-change-requests.md) S-18, 0027): `PaymentApproved`·`PaymentRefunded`에 `currency`(`"KRW"`)를 더하고, `RefundRequested`에 `userId`·`amount`·`currency`를 더하며 `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE`을 추가한다. SA 10-4는 필드 추가만 허용하므로 `version`은 그대로 1이다.
 
-구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_events` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·정리·실행기 분리는 ISE-40이다. 발행 실패 시 지금은 임대(30초)가 끝나면 다시 시도한다. 한 번의 릴레이 실행은 전송 확인을 최대 전송 시한(12초)까지 기다리고(프로듀서의 `max.block.ms`·`delivery.timeout.ms`가 이 안에 들어오는지 기동 때 검증), 마감을 넘긴 행은 임대를 바로 푼다. 실제 소요는 시한에 `send` 호출이 막히는 시간(`max.block.ms`)과 후처리 쓰기가 더해진다.
+구현 위치(ISE-24): 일반 부품(Outbox 쓰기·릴레이·Kafka 전송, `processed_events` 처리 이력)은 `common`의 `com.iseonjwa.common.messaging.outbox`·`inbox` 패키지에 있고 서비스가 `CommonOutboxConfiguration`을 `@Import`한다([common-modules.md](../../guides/common-modules.md)). 결제 이벤트 페이로드와 발행기(`PaymentResultPublisher`)는 `Payment`에 의존하므로 `payment-service`에 둔다. 저장소는 JPA 엔티티 없이 `JdbcTemplate`으로 쓰며 JPA 트랜잭션의 같은 연결을 쓴다. ISE-24에는 임대·키별 순서·SENT 기록까지 넣었고, 지수 백오프·`FAILED`·전용 실행기는 ISE-145에서 넣었다(3절 구현 메모, 7절). SENT 정리는 ISE-146이다. 한 번의 릴레이 실행은 전송 확인을 최대 전송 시한(12초)까지 기다리고(프로듀서의 `max.block.ms`·`delivery.timeout.ms`가 이 안에 들어오는지 기동 때 검증), 마감을 넘긴 행은 임대를 바로 푼다. 실제 소요는 시한에 `send` 호출이 막히는 시간(`max.block.ms`)과 후처리 쓰기가 더해진다.
 
 ## 2. 공통 규칙: 실제로 바뀐 전이만 후속 쓰기를 한다
 
@@ -32,11 +32,20 @@
 1. 전용 실행기(7절)에서 500ms마다 `status='PENDING' AND next_attempt_at <= now()`이고 임대가 끝났으며 같은 `message_key`에 앞선 미발행 행이 없는 행을 `FOR UPDATE SKIP LOCKED`로 집어 `claimed_until = now() + 30초`로 갱신한다(트랜잭션은 이 갱신까지).
 2. 트랜잭션 밖에서 `acks=all`로 전송하고 브로커 확인을 기다린다. 프로듀서는 `delivery.timeout.ms=10000`, `request.timeout.ms=5000`, `linger.ms=0`(값은 `[가정]`)이고, 전송 대기는 `delivery.timeout.ms` + 2초까지다. 임대(30초)는 전송 시한의 2배 이상이어야 한다. 짧으면 전송이 아직 재시도 중인데 다른 실행이 같은 행을 다시 보내 순서가 뒤섞인 중복이 생긴다.
 3. 확인되면 `status='SENT'`, `sent_at`을 기록한다. 확인 전에 죽으면 임대가 끝난 뒤 다시 집힌다(중복 전송, 소비자가 멱등).
-4. 일시 오류는 `attempts + 1`, `next_attempt_at = now() + min(500ms × 2^attempts, 60s)`에 Jitter를 적용한다. 횟수로 포기하지 않는다.
-5. 영구 오류(직렬화 실패, 레코드 크기 초과, 잘못된 토픽)만 `FAILED` + `last_error`로 바꾸고 알림을 낸다.
+4. 일시 오류는 `attempts + 1`, `next_attempt_at = now() + 지연`, `claimed_until = NULL`로 기록한다. 지연은 equal jitter를 적용한 `min(500ms × 2^(k-1), 60s)`의 50~100%다(k는 실패 기록 뒤의 `attempts`). 횟수로 포기하지 않는다.
+5. 영구 오류(직렬화 실패, 레코드 크기 초과, 배치 크기 초과, 잘못된 토픽)만 `FAILED` + `last_error`로 바꾸고 알림을 낸다. 같은 키의 뒤 행은 `FAILED`가 풀릴 때까지 집지 않는다.
 6. `PENDING`·재시도 대기·`FAILED`는 자동 삭제하지 않는다.
 
 `SENT`는 Kafka 발행 성공만 뜻한다. Reservation 소비 실패와 `payment.result` DLQ 복구는 Reservation이 관리한다(반효승 통보 항목). 발행은 됐는데 Reservation이 반영하지 못한 건은 대사(10절)가 찾는다.
+
+### 구현 메모 (ISE-145)
+
+- 백오프는 `OutboxBackoff`(common)의 순수 함수다. k번째 실패 뒤 기본 지연은 `min(500ms × 2^(k-1), 60s)`이고, 지수는 7에서 멈춰 k가 아무리 커도 넘치지 않는다(8번째 실패부터 60초). Jitter는 equal jitter로, 기본 지연의 절반에 `[0, 절반]` 난수를 더한다. 그래서 다음 시도는 기본 지연의 50~100% 사이이고 60초를 넘지 않는다. 완전 무작위(full jitter)를 쓰지 않은 것은 0에 가까운 지연이 나와 장애 중인 브로커를 곧바로 다시 두드리기 때문이다. 난수원은 주입할 수 있다(테스트에서 고정).
+- 일시 오류 기록은 `attempts = LEAST(attempts + 1, 32767)`, `last_error`, `next_attempt_at`, `claimed_until = NULL`을 한 문장으로 쓴다(`WHERE status = 'PENDING'`). 임대를 바로 풀어 `next_attempt_at`이 재시도 간격을 정한다. 임대를 남기면 임대 만료(30초)가 사실상의 간격이 되어 백오프가 무의미하다. `attempts`는 `SMALLINT` 상한에서 멈추고 그 뒤에도 60초 간격으로 계속 재시도한다. 임대를 바로 풀어도 "전송이 아직 진행 중인데 다른 실행이 다시 보내는" 문제(임대를 전송 시한의 2배로 둔 이유)는 생기지 않는다. 실패를 기록하는 시점은 프로듀서가 그 레코드를 포기한 뒤이기 때문이다. 기동 검증이 `max.block.ms + delivery.timeout.ms`(2초 + 10초)를 릴레이 전송 시한(12초) 안에 두게 하므로, 시한 초과로 기록할 때는 프로듀서 쪽 전송도 이미 성공이나 실패로 끝나 있다.
+- 영구 오류는 `OutboxFailureClassifier` 한 곳에서 가른다. 원인 사슬을 끝까지 훑어(Spring Kafka가 감싼 `KafkaException` 포함) `org.apache.kafka.common.errors`의 `SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 하나라도 있으면 영구 오류다. 시한 초과, 브로커 불가, 알 수 없는 예외는 모두 일시 오류다. 모르는 예외를 `FAILED`로 보내면 정상 이벤트와 같은 키의 뒤 이벤트가 멈추기 때문이다.
+- 영구 오류는 ERROR 로그 `event=OUTBOX_FAILED eventId topic messageKey cause`(값 원문 없이 예외 종류만)를 남긴다. 알림과 `FAILED` 건수 지표는 ISE-41(코드에 `TODO(ISE-41)`로 자리만 둠), 복구는 Ops `outbox requeue`(ISE-42)다.
+- `FAILED`가 같은 키를 막는 것은 의도다. `claimNext`는 같은 `message_key`에 앞선 `PENDING` 또는 `FAILED` 행이 있으면 뒤 행을 집지 않는다. 앞선 이벤트를 건너뛰고 뒤 이벤트를 먼저 내보내면 순서가 뒤집히므로 Ops `outbox requeue` 전까지 그 키는 멈춰 있다. 조건은 `NOT EXISTS`를 `PENDING`용과 `FAILED`용으로 나눈다. `status <> 'SENT'` 하나로 합치면 상태별 부분 인덱스를 못 쓴다. `FAILED`용 인덱스는 `V5__outbox_failed_key_index.sql`이다.
+- 테스트 범위: 백오프·분류는 common 단위 테스트, 저장소 동작(일시 오류 기록의 범위·임대 해제, 다음 시도 전에는 집지 않음, `FAILED`와 키 막힘, 복구 뒤 `SENT`)은 PostgreSQL 통합 테스트(`OutboxRelayIntegrationTest`), Kafka 장애에서 승인 API가 200을 주고 Outbox가 쌓였다가 복구 뒤 `SENT`가 되는 흐름(N10)은 가짜 sender로 `OutboxBrokerOutageApiTest`에서 확인했다. 실제 Kafka 브로커를 내리는 장애 주입은 하지 않았다.
 
 ## 4. 소비 `payment.command` ([0020](../../decisions/0020-payment-refund-dlq-manual-check.md))
 
@@ -143,7 +152,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 
 ## 7. 실행기와 DB 연결
 
-Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 느려지면 Outbox 릴레이가 같이 멈추고, 승인 결과가 예매에 늦게 닿아 선점이 만료될 수 있다. 작업 성격별로 실행기를 나눈다.
+Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 느려지면 Outbox 릴레이가 같이 멈추고, 승인 결과가 예매에 늦게 닿아 선점이 만료될 수 있다. 작업 성격별로 실행기를 나누고, 결제는 `@Scheduled`를 쓰지 않는다.
 
 | 실행기 | 작업 | 스레드 | DB 연결 최대 |
 |---|---|---|---|
@@ -152,7 +161,9 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 | `housekeeping` | 정리(10분`[가정]`), Gauge 갱신(15초), 대사(5분`[가정]`) | 1 | 1 |
 | Kafka 리스너 | `payment.command`, `payment.command.dlq` | 각 1 | 2 |
 
-- `recovery`는 Spring `TaskScheduler` 빈이 아니라 `RecoveryScheduler`가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. 결제 재확인과 환불 워커가 이 실행기를 함께 쓴다. `TaskScheduler` 빈을 만들면(`ScheduledExecutorService` 빈도 같다. Boot 4.1.2의 `TaskSchedulingConfigurations`가 `@ConditionalOnMissingBean({TaskScheduler, ScheduledExecutorService})`라서 실행기를 빈으로 노출하면 같은 문제가 생긴다) Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 Outbox 릴레이까지 그 빈으로 옮겨 가 섞인다. 한 주기의 예외와 Error는 `Throwable`로 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈추고 예외는 아무도 읽지 않는 Future에만 남는다). 종료할 때는 새 claim을 먼저 멈추고(`stopping` 플래그) 진행 중인 한 건을 최대 15초 기다린다(한 건 최악 시간이 claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션으로 약 7초라서). 작업은 `RecoveryJob(name, interval, maxPerTick, next)`로 표현하고 스케줄러가 작업마다 `scheduleWithFixedDelay`를 건다. 한 주기는 `maxPerTick`건까지 `next`를 부르다 `false`면 멈춘다. 작업은 `RecoveryConfiguration`이 등록하고, `enabled=false`인 작업은 등록하지 않는다. 스케줄러 빈은 항상 만들고(`ObjectProvider<RecoveryJob>`로 등록된 작업을 받는다. `@ConditionalOnBean`은 자동 설정 밖에서 빈 등록 순서에 결과가 달라질 수 있어 쓰지 않는다), 등록된 작업이 없으면 `start()`가 실행기를 만들지 않아 스레드도 뜨지 않는다. 설정은 `payment.recheck.{enabled,interval,max-per-tick}`와 `payment.refund-worker.{enabled,interval,max-per-tick}`(기본 `true`, 1초, 20)다. 테스트 프로필은 두 작업을 모두 끈다. `scheduleWithFixedDelay`는 같은 작업을 동시에 두 번 돌리지 않으므로 두 작업이 스레드를 하나씩 쓴다.
+- `outbox-relay`는 `OutboxRelayScheduler`(common)가 소유하는 단일 스레드 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `outbox-relay`)다. `SmartLifecycle`로 시작·종료하고(`RecoveryScheduler`와 같은 방식) 간격은 `messaging.outbox.interval`(500ms, `scheduleWithFixedDelay`)이다. 한 주기에 최대 10번 집어 보내고, 가득 집어 모두 보냈을 때만 이어서 돈다. 브로커가 죽어 일부라도 못 보냈으면 멈춘다(라운드마다 마감까지 기다리며 스레드를 독점하기 때문이다). 한 주기의 예외와 `Error`는 `Throwable`로 잡아 ERROR로 남기고 다음 주기를 계속한다. 종료할 때는 새 라운드를 먼저 멈추고(`stopping` 플래그) 진행 중인 한 번의 실행을 전송 시한 + 5초(기본 17초)까지 기다린 뒤 인터럽트한다. 확인을 못 받은 행은 임대가 끝난 뒤 다시 집힌다. `messaging.outbox.relay-enabled=false`면 실행기를 만들지 않는다.
+- 릴레이가 `@Scheduled`를 쓰지 않으므로 `CommonOutboxConfiguration`은 `@EnableScheduling`을 켜지 않는다(ISE-145에서 뗐다). 결제에는 다른 `@Scheduled`가 없어 Boot의 기본 스케줄러가 필요한 곳이 없다. 이후 결제에 `@Scheduled`를 쓰려면 서비스가 `@EnableScheduling`을 따로 켜야 한다(Reservation의 `SeatHoldSchedulingConfiguration`이 그렇게 한다).
+- `recovery`는 Spring `TaskScheduler` 빈이 아니라 `RecoveryScheduler`가 소유하는 전용 실행기(`ScheduledThreadPoolExecutor`, 스레드 이름 `recovery-N`)다. 결제 재확인과 환불 워커가 이 실행기를 함께 쓴다. `TaskScheduler` 빈을 만들면(`ScheduledExecutorService` 빈도 같다. Boot 4.1.2의 `TaskSchedulingConfigurations`가 `@ConditionalOnMissingBean({TaskScheduler, ScheduledExecutorService})`라서 실행기를 빈으로 노출하면 같은 문제가 생긴다) Boot의 기본 스케줄러가 빠지고 기본 스케줄러를 쓰는 다른 `@Scheduled` 작업이 그 빈으로 옮겨 가 섞인다. 릴레이도 같은 이유로 빈 실행기를 쓰지 않는다. 한 주기의 예외와 Error는 `Throwable`로 잡아서 ERROR로 남기고 다음 주기를 계속한다(`scheduleWithFixedDelay`는 예외가 나면 이후 실행을 멈추고 예외는 아무도 읽지 않는 Future에만 남는다). 종료할 때는 새 claim을 먼저 멈추고(`stopping` 플래그) 진행 중인 한 건을 최대 15초 기다린다(한 건 최악 시간이 claim 트랜잭션 + PG 조회 2.5초 + 늦은 승인 방지 2.5초 + 전이 트랜잭션으로 약 7초라서). 작업은 `RecoveryJob(name, interval, maxPerTick, next)`로 표현하고 스케줄러가 작업마다 `scheduleWithFixedDelay`를 건다. 한 주기는 `maxPerTick`건까지 `next`를 부르다 `false`면 멈춘다. 작업은 `RecoveryConfiguration`이 등록하고, `enabled=false`인 작업은 등록하지 않는다. 스케줄러 빈은 항상 만들고(`ObjectProvider<RecoveryJob>`로 등록된 작업을 받는다. `@ConditionalOnBean`은 자동 설정 밖에서 빈 등록 순서에 결과가 달라질 수 있어 쓰지 않는다), 등록된 작업이 없으면 `start()`가 실행기를 만들지 않아 스레드도 뜨지 않는다. 설정은 `payment.recheck.{enabled,interval,max-per-tick}`와 `payment.refund-worker.{enabled,interval,max-per-tick}`(기본 `true`, 1초, 20)다. 테스트 프로필은 두 작업을 모두 끈다. `scheduleWithFixedDelay`는 같은 작업을 동시에 두 번 돌리지 않으므로 두 작업이 스레드를 하나씩 쓴다.
 - 각 작업은 끝날 때 `payment_job_last_success_timestamp{job}`을 갱신하고, 실패는 `payment_job_failures_total{job}`으로 센다. 정체 알림이 이 값을 본다.
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.

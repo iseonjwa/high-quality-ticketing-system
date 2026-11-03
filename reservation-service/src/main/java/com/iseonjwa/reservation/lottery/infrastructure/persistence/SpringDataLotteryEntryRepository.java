@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,11 +64,12 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
             SELECT e.id, e.lottery_id, l.schedule_id, e.user_id, e.quantity
             FROM lottery_entries e JOIN lotteries l ON l.id = e.lottery_id
             WHERE e.status = 'WON' AND e.reservation_id IS NULL AND l.status = 'DRAWN'
+              AND e.id NOT IN (:skipIds)
             ORDER BY e.draw_rank, e.id
             LIMIT 1
             FOR UPDATE OF e SKIP LOCKED
             """)
-    List<Object[]> lockNextUnassignedWinner();
+    List<Object[]> lockNextUnassignedWinner(@Param("skipIds") Collection<Long> skipIds);
 
     @Modifying
     @Query(nativeQuery = true, value = """
@@ -82,6 +85,15 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
             WHERE id = :entryId AND status = 'WON' AND reservation_id IS NULL
             """)
     int markAssignmentFailed(@Param("entryId") Long entryId, @Param("reason") String reason);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE lottery_entries e SET status = 'FAILED', fail_reason = 'NO_SEAT', updated_at = now()
+            FROM lotteries l
+            WHERE e.lottery_id = l.id AND e.id = :entryId AND e.status = 'WON' AND e.reservation_id IS NULL
+              AND l.draw_at + interval '30 minutes' <= now()
+            """)
+    int markNoSeatFailedAfterSuccessionDeadline(@Param("entryId") Long entryId);
 
     @Modifying
     @Query(nativeQuery = true, value = """
@@ -138,4 +150,10 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
                            WHERE lottery_id = :lotteryId AND status IN ('WON', 'WAITLISTED'))
             """)
     boolean hasUnsettled(@Param("lotteryId") Long lotteryId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT l.draw_at FROM lottery_entries e JOIN lotteries l ON l.id = e.lottery_id
+            WHERE e.reservation_id = :reservationId AND e.status = 'WON'
+            """)
+    List<Instant> findWonDrawAtByReservationId(@Param("reservationId") Long reservationId);
 }

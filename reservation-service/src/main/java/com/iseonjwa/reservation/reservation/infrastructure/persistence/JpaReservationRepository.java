@@ -41,4 +41,9 @@ public class JpaReservationRepository implements ReservationRepository {
     public int expireHeld(Long reservationId, Instant now, Long actorId) {
         return repository.expireHeld(reservationId, now, actorId);
     }
+
+    @Override
+    public int extendLotteryHoldOnce(Long reservationId, Instant now, Instant limit, Long actorId) {
+        return repository.extendLotteryHoldOnce(reservationId, now, limit, actorId);
+    }
 }

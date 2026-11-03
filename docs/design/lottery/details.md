@@ -52,7 +52,7 @@
 
 | 이벤트 | 토픽 | 발행 | 변경 |
 |---|---|---|---|
-| `BillingPaymentRequested` | SA 그대로 `payment.command`(D6 기준선). 전용 토픽은 시나리오 2 뒤 개선 후보 | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3 그대로(`reservationId`, `userId`, `amount`, `lotteryEntryId`). 키는 `reservationId` |
+| `BillingPaymentRequested` | SA 그대로 `payment.command`(D6 기준선). 전용 토픽은 시나리오 2 뒤 개선 후보 | 배정 워커 트랜잭션의 outbox | 필드는 SA 10-3(`reservationId`, `userId`, `amount`, `lotteryEntryId`)에 `currency`(KRW)를 더했다(11/2 ISE-92, 결제 계약이 금액·통화를 함께 대조, SA 10-4 필드 추가 허용). 키는 `reservationId`. 결제 쪽 `payment.command` 리스너가 `eventType`으로 나눠 자동결제 서비스로 보낸다(11/2 ISE-89). `pg-approve` 허가를 못 얻으면 DLQ로 보내지 않고 1초 간격으로 계속 다시 읽는다(백프레셔) |
 | `PaymentApproved`·`PaymentDeclined` | `payment.result` | Payment | 변경 없음. 소비자가 `source`로 분기(D11) |
 | `BillingKeyRegistered`·`BillingKeyRevoked` | 미정 | Payment | D4 2단계에서 추가. 필드 `userId`, `cardLast4` |
 | `LotteryEntryRequested` | `lottery.entry` | — | D3 A안이면 쓰지 않는다 |
@@ -68,7 +68,7 @@
 |---|---|---|---|
 | 마감 | 10초 | `OPEN AND entry_end_at <= now()` | OPEN → CLOSED. 늦어도 응모 INSERT 조건이 막으므로 결과가 바뀌지 않는다 |
 | 추첨 | 10초 | `CLOSED AND draw_at <= now()` | 한 트랜잭션으로 순위·WON·WAITLISTED·LOST, CLOSED → DRAWN(D8). WON·WAITLISTED만 순위(`draw_rank`, 전체 응모 중 1부터)와 함께 배치 갱신, LOST는 한 문장이고 순위를 저장하지 않는다(11/2 결정). `timeout = 10`초, `lock_timeout` 3초 |
-| 배정 워커 | 1초 | `WON AND reservation_id IS NULL` | 1명 = 1트랜잭션: 매수 한도 → 좌석(ID 오름차순) → 예매 HELD → 응모 연결 → outbox(D10) |
+| 배정 워커 | 1초 | `WON AND reservation_id IS NULL` | 1명 = 1트랜잭션: 매수 한도 → 좌석(ID 오름차순) → 예매 HELD → 응모 연결 → outbox(D10) 남은 추첨석이 없으면(`NO_SEAT`) 승계 마감 전에는 닫지 않고 그 주기에 건너뛰었다가 다시 시도한다. 앞 당첨자의 결제 실패 좌석이 아직 반환되지 않았을 수 있어서다(11/3 ISE-153). 예상하지 못한 실패는 그 응모만 건너뛰고 같은 주기에 다음 당첨자를 계속 배정하며, 같은 응모가 연속 3번 실패하면 FAILED(`ASSIGN_ERROR`)로 닫는다(ISE-154) |
 | 승계 워커 | 1초 | `DRAWN AND draw_at + 30분 > now()` 추첨 행 `FOR UPDATE SKIP LOCKED` | 남은 좌석(`seat_count - WON·PAID 매수 합`)만큼 WAITLISTED를 순위 순으로 WON(매수 건너뛰기 규칙 동일). 예매는 배정 워커가 만든다(D13) |
 | 승계 마감 | 10초 | `DRAWN AND draw_at + 30분 <= now()` | 남은 WAITLISTED → LOST. 승계 쿼리도 같은 시각 조건을 가져 마감 뒤 승계가 없다 |
 | 종결 | 1분 | `DRAWN`이고 미종결 응모(WON·WAITLISTED)가 없음, 추첨 행 `FOR UPDATE SKIP LOCKED` | 한 트랜잭션: DRAWN → DONE, 그 회차 `LOTTERY` 좌석을 상태와 상관없이 `source_grade`로 되돌림(D9). WAITLISTED도 기다리는 이유는 승계로 WON이 될 수 있어서다(11/2 ISE-91). 잠금 뒤 새 문장으로 다시 확인해 그 사이 커밋된 승계를 놓치지 않는다. 지표 `lottery.seats.remaining`(전체 남은 추첨석 수, 1분마다 갱신) |
@@ -76,7 +76,7 @@
 기존 코드에 붙는 훅 두 곳(예매 흐름 담당과 합의):
 - 11/2 상태(ISE-88): 시스템 선점(`SystemHoldPort` → `SystemSeatHoldService`, 선점 30분, `source = LOTTERY`, 일반 선점과 같은 잠금 순서·매수 한도)과 처리기 인터페이스 `LotteryPaymentResultHandler`를 만들었다. 아래 두 훅은 붙일 소비자·만료 스케줄러가 아직 없어(ISE-73·74, ISE-8) 그 코드가 생길 때 연결한다.
 - `payment.result` 소비자: `source = LOTTERY`면 lottery 처리기 호출(D11).
-- 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12).
+- 예매 만료 스케줄러: `source = LOTTERY` 예매가 만료되면 lottery 처리기 호출. 결제 결과를 받지 못한 만료는 만료 대신 선점을 1회 연장한다(상한: 승계 마감 + 30분, D12). 11/2 ISE-149에서 연결했다: 인터페이스 `LotteryHoldExpiryHook`은 seathold에, 구현은 lottery에 두어 의존 방향을 lottery → seathold 하나로 유지한다. 연장 여부는 따로 저장하지 않고 "기한이 예매 생성 + 31분 안이면 연장 전"으로 본다.
 - 우리 책임 실패의 재시도는 응모 행의 `reservation_id`를 비워 배정 워커에 다시 맡기는 방식이다(D12 `WON → WON`). 응모 행은 현재 예매만 가리키므로, 이전 예매는 `reservations`(source LOTTERY, 같은 사용자)와 예매 상태 이력에서 찾는다.
 
 모듈 경계(D11, 서비스 분리 대비). 모듈 규칙 `#14`의 직접 호출 허용 안에서 호출을 인터페이스 한 곳으로 모은다. DB와 트랜잭션은 공유한다.

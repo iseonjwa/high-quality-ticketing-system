@@ -2,6 +2,7 @@ package com.iseonjwa.payment.messaging;
 
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
 import com.iseonjwa.common.messaging.outbox.OutboxRepository;
+import com.iseonjwa.common.messaging.outbox.OutboxRelayScheduler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,8 +16,10 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Note: 스케줄러를 켠 컨텍스트가 캐시되어 남으면 다른 테스트의 outbox_events 행을 집어 가므로 끝나면 컨텍스트를 닫는다.
 @DirtiesContext
@@ -28,6 +31,10 @@ class OutboxRelaySchedulerTest {
     OutboxRepository outbox;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    OutboxRelayScheduler scheduler;
+
+    static final AtomicReference<String> SENDER_THREAD = new AtomicReference<>();
 
     // Note: 컨텍스트가 뜨자마자 스케줄러가 돌기 시작하므로 처음부터 동작하는 가짜 sender를 빈으로 둔다
     @TestConfiguration
@@ -35,7 +42,10 @@ class OutboxRelaySchedulerTest {
         @Bean
         @Primary
         OutboxEventSender fakeSender() {
-            return (topic, key, payload) -> CompletableFuture.completedFuture(null);
+            return (topic, key, payload) -> {
+                SENDER_THREAD.set(Thread.currentThread().getName());
+                return CompletableFuture.completedFuture(null);
+            };
         }
     }
 
@@ -53,5 +63,7 @@ class OutboxRelaySchedulerTest {
         } while (System.nanoTime() < deadline);
 
         assertEquals("SENT", status);
+        assertEquals("outbox-relay", SENDER_THREAD.get(), "릴레이는 전용 스레드에서 돈다");
+        assertTrue(scheduler.isRunning());
     }
 }

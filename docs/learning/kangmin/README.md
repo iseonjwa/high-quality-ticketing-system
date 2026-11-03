@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-02 | 예매(reservation-service)는 outbox를 언제 어떻게 쓰는가 | [qna/2026-11-02-reservation-outbox-usage.md](qna/2026-11-02-reservation-outbox-usage.md) |
 | 2026-11-02 | 11/2 추첨 MVP와 Gateway 입장 토큰 작업을 이슈·PR 단위로 다시 읽기(코드 리뷰와 개념 정리) | [qna/2026-11-02-lottery-mvp-code-review-report.md](qna/2026-11-02-lottery-mvp-code-review-report.md) |
 | 2026-11-02 | 클라우드 배포는 왜 하고, EC2·AWS 가입·요금은 어떻게 다루며, 우리 프로젝트에는 어느 정도 규모가 맞나 | [qna/2026-11-02-aws-ec2-deployment-basics.md](qna/2026-11-02-aws-ec2-deployment-basics.md) |
 | 2026-11-01 | .env를 지우고 다시 만들면 DB 비밀번호는 어떻게 되고, 로컬 데이터가 필요 없으면 괜찮은가 | [qna/2026-11-01-regenerate-env-db-password.md](qna/2026-11-01-regenerate-env-db-password.md) |

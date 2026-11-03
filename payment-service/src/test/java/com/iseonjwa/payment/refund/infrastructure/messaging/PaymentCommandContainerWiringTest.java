@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.refund.infrastructure.messaging;
 
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
+import com.iseonjwa.payment.pg.application.PgUnavailableException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -71,6 +72,20 @@ class PaymentCommandContainerWiringTest {
         verify(kafkaTemplate).send(captor.capture());
         assertEquals("payment.command.dlq", captor.getValue().topic());
         assertEquals("8800002", captor.getValue().key());
+    }
+
+    // ISE-89 백프레셔가 실제 컨테이너 처리기에 붙었는지 본다(허가 거절은 DLQ로 보내지 않고 다시 읽는다)
+    @Test
+    void 컨테이너의_오류_처리기는_자동결제_허가_거절을_DLQ로_보내지_않는다() {
+        CommonErrorHandler handler = ((AbstractMessageListenerContainer<?, ?>) paymentCommandContainer()).getCommonErrorHandler();
+        var record = new ConsumerRecord<Object, Object>("payment.command", 0, 6L, "9900001", "raw");
+
+        var thrown = assertThrows(RuntimeException.class, () -> handler.handleRemaining(
+                new ListenerExecutionFailedException("failed", new PgUnavailableException("pg-approve 허가 거절")),
+                List.of(record), mock(Consumer.class), mock(MessageListenerContainer.class)));
+
+        assertEquals("RecordInRetryException", thrown.getClass().getSimpleName());
+        verify(kafkaTemplate, never()).send(any(ProducerRecord.class));
     }
 
     @Test

@@ -10,6 +10,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | `V2__outbox_claim_index.sql` | `outbox_events`의 릴레이용 부분 인덱스 `(id) WHERE status = 'PENDING'`(ISE-24 리뷰, 아래 6절) | M2 |
 | `V3__refunds.sql` | `refunds`(ISE-136) | M3 |
 | `V4__dead_letters.sql` | `dead_letters`(ISE-138) | M3 |
+| `V5__outbox_failed_key_index.sql` | `outbox_events`의 `(message_key, id) WHERE status = 'FAILED'` 부분 인덱스(ISE-145, 릴레이가 같은 키의 앞선 `FAILED`를 찾을 때) | M3 |
 | (이후 M3 이슈) | `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
 | (M4) | `billing_keys` | M4 |
 
@@ -145,13 +146,13 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | topic · message_key · event_type | VARCHAR(100) | NOT NULL | |
 | payload | JSONB | NOT NULL | `EventEnvelope` 전체 |
 | status | VARCHAR(10) | NOT NULL, CHECK (PENDING·SENT·FAILED) | |
-| attempts | SMALLINT | NOT NULL, DEFAULT 0 | 모니터링용, 재시도 한계 아님 |
+| attempts | SMALLINT | NOT NULL, DEFAULT 0 | 모니터링용, 재시도 한계 아님. 상한(32767)에서 멈춘다 |
 | next_attempt_at | TIMESTAMPTZ | NOT NULL | **신규.** 백오프 다음 시각 |
 | claimed_until | TIMESTAMPTZ | | **신규.** 릴레이 임대 만료(30초`[가정]`). 릴레이 전송 시한(`send-timeout` 12초)의 2배 이상이고, 전송 시한은 프로듀서 `max.block.ms + delivery.timeout.ms` 이상이다(기동 때 검증) |
 | last_error | VARCHAR(500) | | **신규** |
 | created_at · sent_at | TIMESTAMPTZ | | |
 
-인덱스: `INDEX(next_attempt_at, id) WHERE status = 'PENDING'`(재시도 대기), `INDEX(id) WHERE status = 'PENDING'`(릴레이가 id 순으로 집을 때. 없으면 SENT가 쌓일수록 기본키를 훑어 느려진다, V2), `INDEX(message_key, id) WHERE status = 'PENDING'`(같은 키 순서 확인), `INDEX(sent_at) WHERE status = 'SENT'`(정리), `INDEX(created_at)`(대사 RC-8의 최근 24시간 범위).
+인덱스: `INDEX(next_attempt_at, id) WHERE status = 'PENDING'`(재시도 대기), `INDEX(id) WHERE status = 'PENDING'`(릴레이가 id 순으로 집을 때. 없으면 SENT가 쌓일수록 기본키를 훑어 느려진다, V2), `INDEX(message_key, id) WHERE status = 'PENDING'`·`INDEX(message_key, id) WHERE status = 'FAILED'`(같은 키 순서 확인. 상태별로 나눠야 각각 부분 인덱스를 탄다, V5), `INDEX(sent_at) WHERE status = 'SENT'`(정리), `INDEX(created_at)`(대사 RC-8의 최근 24시간 범위).
 
 ## 7. processed_events
 `PK(event_id, consumer_group)`, `processed_at NOT NULL`. 보존 14일, 정리 인덱스 `INDEX(processed_at)`.
@@ -210,8 +211,11 @@ append-only 트리거는 3절과 같다. 삭제 기간은 없다.
 - `UNIQUE(rule, reservation_id, payment_id) WHERE status = 'OPEN'`(NULL은 0으로 바꾼 식 인덱스): 같은 불일치는 행 하나로 이어 본다.
 - `INDEX(status, rule) WHERE status = 'OPEN'`(Gauge).
 
-## 11. billing_keys (M4)
-SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개). 암호화 키 관리는 M4에서 설계한다.
+## 11. billing_keys (11/2 M2로 당겨 구현, ISE-96)
+SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개, 부분 유니크 `uq_billing_keys_user_active`). 마이그레이션 `V5__billing_keys.sql`, 감사 컬럼은 `BaseEntity` 6개.
+- 암호화: AES-256-GCM, 키 `BILLING_KEY_SECRET`(ADR 0042). 저장 값은 Base64(IV ‖ 암호문 ‖ 태그).
+- 다시 등록하면 같은 트랜잭션에서 기존 ACTIVE를 REVOKED로 바꾸고 새 ACTIVE를 넣는다. 해지(`DELETE …/billing-keys/me`)도 REVOKED다.
+- 자동결제 결제 행은 `method = BILLING`이고 멱등 기록을 남기지 않는다. 같은 예매 중복은 `UNIQUE(reservation_id)`가 막는다(0026). 활성 빌링키가 없거나 PG가 빌링키를 거절하면 `decline_code = BILLING_KEY_MISSING`이다.
 
 ## 12. 보관
 `payments`·`refunds`·`payment_status_histories`·`manual_action_logs`·`dead_letters`·`reconciliation_mismatches`는 자동 삭제하지 않는다(결제 기록 5년 보관, SA 12-1). 정리 대상은 `outbox_events`·`processed_events`·`idempotency_records`뿐이다([events-and-reliability.md](events-and-reliability.md) 8절).

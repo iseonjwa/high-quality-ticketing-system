@@ -28,6 +28,15 @@ public interface PgClient {
     // 승인 여부가 불확실한 주문이 나중에 승인되지 않음을 보장하거나, 이미 승인됐음을 알린다.
     LateApprovalResult preventLateApproval(PgOrderId orderId);
 
+    /** 카드 등록 인증 값({@code authKey})으로 빌링키를 발급한다. 고객 식별자는 PG가 빌링키를 묶는 값이다. */
+    BillingKeyResult issueBillingKey(String authKey, String customerKey);
+
+    /**
+     * 빌링키로 자동결제를 승인한다. 결과·주문번호·멱등 키 규칙은 {@link #approve}와 같아 조회·망취소·재확인을 그대로 쓴다.
+     * 빌링키 원문은 이 호출 안에서만 쓰고 로그에 남기지 않는다.
+     */
+    ApproveResult approveBilling(ApproveCommand command, String billingKey);
+
     sealed interface ApproveResult {}
 
     sealed interface PaymentLookupResult {}
@@ -37,6 +46,14 @@ public interface PgClient {
     sealed interface RefundLookupResult {}
 
     sealed interface LateApprovalResult {}
+
+    sealed interface BillingKeyResult {}
+
+    /** PG가 빌링키를 발급했다. 원문은 저장 전에 암호화한다(ADR 0042). */
+    record BillingKeyIssued(String billingKey, String cardLast4) implements BillingKeyResult {}
+
+    /** PG가 카드 등록 인증 값을 거절했다. */
+    record BillingKeyRejected() implements BillingKeyResult {}
 
     /** PG가 승인했다. 금액·통화는 PG가 응답한 값이라 서비스가 결제와 대조한다(INV-3). */
     record Approved(PgPaymentRef paymentRef, BigDecimal amount, String currency, Instant approvedAt)
@@ -72,5 +89,6 @@ public interface PgClient {
     }
 
     record Unknown(UnknownCause cause)
-            implements ApproveResult, PaymentLookupResult, RefundResult, RefundLookupResult, LateApprovalResult {}
+            implements ApproveResult, PaymentLookupResult, RefundResult, RefundLookupResult, LateApprovalResult,
+            BillingKeyResult {}
 }

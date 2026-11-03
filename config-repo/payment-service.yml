@@ -30,6 +30,9 @@ payment:
   token:
     # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
     secret: ${PAYMENT_TOKEN_SECRET:}
+  billing-key:
+    # 빌링키 암호화 키(AES-256-GCM, ADR 0042). 환경변수로만 주입하고 저장소에는 이름만 둔다
+    secret: ${BILLING_KEY_SECRET:}
   pg:
     protection:
       # 값은 모두 [가정]이며 부하 측정 뒤 조정한다(pg-integration.md 5절, ADR 0018).

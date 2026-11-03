@@ -24,3 +24,6 @@ CLAUDE.local.md
 
 # Python 실행 캐시
 __pycache__/
+
+# IntelliJ HTTP Client 개인 비밀값(관리자 비밀번호 등)
+http/http-client.private.env.json
