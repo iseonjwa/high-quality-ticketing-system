@@ -1,4 +1,4 @@
-package com.iseonjwa.payment.refund.infrastructure.messaging;
+package com.iseonjwa.payment.refund.presentation.messaging;
 
 import com.iseonjwa.payment.payment.application.BillingPaymentService;
 import com.iseonjwa.payment.refund.application.RefundRequestService;

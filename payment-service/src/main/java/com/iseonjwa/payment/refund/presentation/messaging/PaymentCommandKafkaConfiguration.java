@@ -1,4 +1,4 @@
-package com.iseonjwa.payment.refund.infrastructure.messaging;
+package com.iseonjwa.payment.refund.presentation.messaging;
 
 import com.iseonjwa.common.messaging.consumer.ConsumerContainerFactories;
 import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
