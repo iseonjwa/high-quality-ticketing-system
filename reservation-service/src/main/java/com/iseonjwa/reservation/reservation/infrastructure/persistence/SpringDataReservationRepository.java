@@ -36,6 +36,25 @@ interface SpringDataReservationRepository extends JpaRepository<Reservation, Lon
             """)
     int expireHeld(@Param("id") Long id, @Param("now") Instant now, @Param("actorId") Long actorId);
 
+    // 결제 결과 소비자가 바꾼 행은 사람 감사자가 없어 updated_by를 비운다. 변경 이유는 상태 이력에 남긴다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE reservations
+               SET status = 'CONFIRMED', payment_id = :paymentId, updated_at = :now, updated_by = NULL
+             WHERE id = :id
+               AND status = 'HELD'
+            """)
+    int confirmHeld(@Param("id") Long id, @Param("paymentId") Long paymentId, @Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE reservations
+               SET status = 'RELEASED', updated_at = :now, updated_by = NULL
+             WHERE id = :id
+               AND status = 'HELD'
+            """)
+    int releaseHeld(@Param("id") Long id, @Param("now") Instant now);
+
     // Note: 연장 여부를 따로 저장하지 않고 "기한이 생성 + 31분 안"이면 아직 연장 전으로 본다. 첫 선점은 생성 시각 기준 30분이고
     // 연장하면 생성 + 60분이 되기 때문이다. 상한(승계 마감 + 30분)에 걸려 줄어든 연장은 다음 만료 때 now >= limit라 다시 늘지 않는다
     @Modifying(flushAutomatically = true)

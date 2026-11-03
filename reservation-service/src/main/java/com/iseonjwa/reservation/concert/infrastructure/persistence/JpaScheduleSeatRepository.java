@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -63,6 +64,24 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     @Override
     public List<LotterySeatRow> findAvailableLotterySeats(Long scheduleId) {
         return toRows(springDataScheduleSeatRepository.findAvailableLotterySeatRows(scheduleId));
+    }
+
+    @Override
+    public int sellHeldSeats(Long scheduleId, List<Long> seatIds, Instant now) {
+        return updateHeldStatus(scheduleId, seatIds, "SOLD", now);
+    }
+
+    @Override
+    public int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now) {
+        return updateHeldStatus(scheduleId, seatIds, "AVAILABLE", now);
+    }
+
+    // 빈 목록을 IN ()에 넘기면 SQL 문법 오류라 바꿀 좌석이 없으면 부르지 않는다
+    private int updateHeldStatus(Long scheduleId, List<Long> seatIds, String toStatus, Instant now) {
+        if (seatIds.isEmpty()) {
+            return 0;
+        }
+        return springDataScheduleSeatRepository.updateHeldStatus(scheduleId, seatIds, toStatus, now);
     }
 
     private static List<LotterySeatRow> toRows(List<Object[]> rows) {

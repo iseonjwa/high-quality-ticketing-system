@@ -20,6 +20,12 @@ public interface ReservationRepository {
     // HELD이고 기한이 지난 예매만 EXPIRED로 바꾸고 바꾼 행 수를 돌려준다. 0이면 다른 쪽이 먼저 상태를 바꾼 것이다
     int expireHeld(Long reservationId, Instant now, Long actorId);
 
+    // HELD인 예매만 CONFIRMED로 바꾸고 결제 ID를 남긴다. 0이면 만료 스케줄러 등이 먼저 상태를 바꾼 것이다
+    int confirmHeld(Long reservationId, Long paymentId, Instant now);
+
+    // HELD인 예매만 RELEASED로 바꾼다(결제 거절). 0이면 다른 쪽이 먼저 상태를 바꾼 것이다
+    int releaseHeld(Long reservationId, Instant now);
+
     /**
      * 기한이 지난 추첨 예매의 선점을 한 번만 30분 연장한다(D12, 결제 결과를 받지 못한 만료). 상한을 넘기지 않는다.
      *
