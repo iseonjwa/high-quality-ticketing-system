@@ -35,6 +35,12 @@ IDE에서도 테스트 클래스를 실행할 수 있다. 저장소 루트는 �
 ./gradlew :system-tests:systemTest --no-daemon
 ```
 
+일반 예매 한 흐름(공연·회차·좌석 준비, 가입, 대기열 READY, 선점, 결제 승인, 확정)만 Gateway로 확인하려면 `BookingFlowSystemTest`를 지정한다. 회차마다 좌석 15,000석이 생겨 local DB가 커진다. 두 곳은 API가 없어 우회한다: 입장 토큰은 `ENTRY_TOKEN_SECRET`으로 직접 서명하고(발급 API는 ISE-69), 확정은 같은 멱등키로 선점을 다시 보내 `CONFIRMED`를 확인한다(예매 조회 API는 ISE-171). 두 API가 나오면 각각 바꾼다.
+
+```bash
+./gradlew :system-tests:systemTest --tests '*BookingFlowSystemTest' --no-daemon
+```
+
 Gateway 재기동의 첫 인증 요청과 Redis 장애·복구까지 확인하려면 다음 옵션을 쓴다. 해당 스택의 Gateway를 재기동하고 Redis를 잠깐 pause하므로 그 작업을 수행하는 검사에서만 지정한다.
 
 ```bash
