@@ -7,6 +7,7 @@ import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
 import com.iseonjwa.payment.pg.application.RefundCommand;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Note: 결제 DB의 UNIQUE(예매당 결제 1건, 결제당 환불 1건)는 DB가 먼저 막으므로 그 위반은 만들 수 없다. 그래서 중복 위반은
  * Mock PG 원장 쪽(승인 호출 수, 환불 수)으로 만든다.
  */
+@Order(ScenarioTestBase.RUN_FIRST)
 class ScenarioInvariantsTest extends ScenarioTestBase {
     private static final BigDecimal AMOUNT_VALUE = BigDecimal.valueOf(AMOUNT);
 

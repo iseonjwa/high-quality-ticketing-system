@@ -84,7 +84,7 @@ dotenv는 Java에서도 Compose의 해석 결과를 사용한다. 파일 생성�
 ./gradlew :payment-service:test --tests 'com.iseonjwa.payment.scenario.*' --no-daemon
 ```
 
-시나리오 클래스는 `ScenarioTestBase`를 상속해 설정을 더하지 않는다. 컨텍스트는 클래스가 끝나면 닫아 테스트 DB 연결 한도(100)를 지킨다. 새 시나리오 클래스를 더할 때도 컨텍스트 설정을 바꾸지 않는다.
+시나리오 클래스는 `ScenarioTestBase`를 상속해 설정을 더하지 않는다. 컨텍스트는 클래스가 끝나면 닫는다. 다른 통합 테스트의 컨텍스트가 캐시에 쌓이면 테스트 DB 연결이 한도(100)에 가까워져(전체 실행에서 91개 관측) 시나리오 컨텍스트가 뜨지 못하므로, 시나리오 클래스는 `@Order(ScenarioTestBase.RUN_FIRST)`로 먼저 돌린다(`src/test/resources/junit-platform.properties`가 `@Order`로 클래스 순서를 정한다). 새 시나리오 클래스를 더할 때도 같은 애노테이션을 붙이고 컨텍스트 설정을 바꾸지 않는다.
 
 ## 결과 확인
 

@@ -4,6 +4,7 @@ import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 남았다가 재확인·환불 워커의 조회로 확정되는지 확인한다. 장애는 모두 {@code orderId}·{@code refundId}로 대상을 한정해 건다.
  * 시나리오마다 끝에서 V1~V3를 모두 실행하고, 미해결이 남아 있는 중간 시점에도 한 번 실행한다.
  */
+@Order(ScenarioTestBase.RUN_FIRST)
 class Ft2PgResponseLossScenarioTest extends ScenarioTestBase {
 
     @Test

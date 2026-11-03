@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.scenario;
 
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.when;
  * <p>Note: (a)의 {@code PaymentApproved} 중복 수신을 거르는 것은 소비자(예매)의 {@code processed_events}다. 결제 쪽은 이벤트가 같은
  * {@code eventId}로 다시 나가는 데까지만 확인한다.
  */
+@Order(ScenarioTestBase.RUN_FIRST)
 class Ft1DuplicateScenarioTest extends ScenarioTestBase {
     private static final int CONCURRENT_REQUESTS = 6;
 
