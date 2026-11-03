@@ -56,6 +56,11 @@ public class ScheduleSeat extends BaseEntity {
     @Column(nullable = false, length = 10)
     private ScheduleSeatStatus status;
 
+    // 일반 선점이 잡을 수 있는 좌석인가. 선점 쿼리의 조건(status = AVAILABLE AND grade <> LOTTERY)과 같은 기준이다
+    public boolean isHoldable() {
+        return status == ScheduleSeatStatus.AVAILABLE && grade != SeatGrade.LOTTERY;
+    }
+
     // Note: FK는 "회차의 공연장 좌석인가"까지는 막지 못한다. 다른 공연장 좌석이 섞이지 않게 여기서 확인한다.
     public static ScheduleSeat create(Schedule schedule, VenueSeat venueSeat, Money price) {
         if (!isSameVenue(schedule.getVenue(), venueSeat.getVenue())) {
