@@ -88,11 +88,19 @@ M3(사용자 결정): 나란히 띄우기. 발표자 노트북에서 SSH 터널�
 
 M4 후보: 프론트 안 로그 패널. 관리자 전용 API가 traceId로 Loki를 조회해 프론트가 보여 주는 방식이다. 지금은 설계하지 않는다.
 
-### 프론트가 할 일
+### 프론트가 할 일 (ISE-180에서 구현)
 
-프론트 세션이 이 문서를 읽고 한다.
-1. 요청별 `traceId`를 화면에 표시한다(응답 본문의 `traceId`, 시연 모드).
-2. Grafana "요청 로그" 대시보드로 가는 링크를 둔다(시연 모드). 링크에 traceId 변수를 실을 수 있으면 싣는다. 주소는 발표자 노트북의 터널 주소(`localhost:3000`)다.
+프론트 시연 모드(주소에 `?demo=on`)가 화면 오른쪽 요청 로그 패널에 요청마다 메서드·경로·상태·traceId를 보이고, traceId를 누르면 아래 주소로 Grafana를 연다. 켜는 방식, 패널, 기록 범위는 [프론트 설계](../frontend/README.md) "시연 모드 규칙"에 있다.
+
+```
+http://localhost:3000/d/iseonjwa-request-logs?orgId=1&var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>
+```
+
+ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
+- UID는 `iseonjwa-request-logs`다(기존 `iseonjwa-payment`, `iseonjwa-bootstrap`과 같은 규칙).
+- 텍스트 변수 이름은 `traceId`다. 값은 응답 본문의 32자 16진수이고 로그 줄 `[traceId-spanId]`의 앞 32자와 같다.
+- 시간 범위는 주소의 `from`·`to`(epoch ms)를 따른다. 앞뒤 15분은 브라우저·서버 시계 차이와 요청 뒤 Kafka 소비자 로그까지 넣으려는 값이다.
+- 기준 주소가 다르면 프론트 빌드의 `VITE_GRAFANA_URL`로 바꾼다.
 
 ## 6. 남은 결정
 

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
@@ -14,6 +14,16 @@ import {
   type AuthNavigationState,
 } from '@/auth/navigation'
 import { useIsSignedIn } from '@/auth/session'
+import { useIsDemoMode } from '@/demo/demoMode'
+import { cn } from '@/lib/utils'
+
+// 시연 모드를 켠 탭에서만 받는다. 켜지 않은 사용자는 패널 코드를 내려받지 않는다
+const RequestLogPanel = lazy(() =>
+  import('@/demo/RequestLogPanel').then((module) => ({ default: module.RequestLogPanel })),
+)
+
+// 앱 화면이 좁을 때(@container 기준 28rem 미만) 메뉴 버튼 여백
+const COMPACT_MENU = '@max-md:px-3'
 
 export function AppLayout() {
   const isSignedIn = useIsSignedIn()
@@ -21,6 +31,7 @@ export function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
+  const demoMode = useIsDemoMode()
 
   // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과는 비우고 공개 조회(공연 목록)는 둔다.
   // clear()는 처음 화면에 붙은 공연 목록까지 캐시와 끊고, 전부 초기화하면 목록이 스켈레톤으로 깜빡인다.
@@ -47,10 +58,16 @@ export function AppLayout() {
     ? { from: readAuthState(location.state).from }
     : { from: toReturnPath(location) }
 
+  // 시연 모드 요청 로그 패널은 오른쪽에 고정되고, 그 너비(--demo-panel-width)만큼 앱 화면을 비켜 준다.
+  // 패널이 없으면 변수가 없어 여백도 0이다.
+  // Note: 앱 화면 안의 반응형은 화면 폭(sm:·md:)이 아니라 이 요소의 너비(@container, 패널을 뺀 앱 화면)로 정한다.
+  // 화면 폭은 패널이 앱 화면을 좁힌 것을 몰라서, 창 절반에 패널을 띄우면 좁은 앱 화면에 넓은 배치가 그려진다.
+  // 대화상자처럼 화면 전체에 뜨는 것은 화면 폭 그대로 둔다
   return (
-    <div className="min-h-svh">
+    <div className="@container min-h-svh pr-(--demo-panel-width)">
+      {/* 메뉴 셋은 앱 화면이 좁을 때(28rem 미만) 버튼 여백을 줄여 360px 휴대폰에도 한 줄로 들어간다 */}
       <header className="sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 @min-[40rem]:px-6">
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
             to={paths.home}
@@ -74,12 +91,17 @@ export function AppLayout() {
                 <SignedInLink to={paths.me} disabled={loggingOut}>
                   내 정보
                 </SignedInLink>
-                <Button variant="ghost" loading={loggingOut} onClick={() => void handleLogout()}>
+                <Button
+                  variant="ghost"
+                  className={COMPACT_MENU}
+                  loading={loggingOut}
+                  onClick={() => void handleLogout()}
+                >
                   로그아웃
                 </Button>
               </>
             ) : (
-              <Button asChild variant="ghost">
+              <Button asChild variant="ghost" className={COMPACT_MENU}>
                 <Link to={paths.login} state={loginState}>
                   로그인
                 </Link>
@@ -88,10 +110,15 @@ export function AppLayout() {
           </nav>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 @min-[40rem]:px-6">
         <Outlet />
       </div>
       <Toaster />
+      {demoMode && (
+        <Suspense fallback={null}>
+          <RequestLogPanel />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -111,7 +138,7 @@ function SignedInLink({
     <Button
       asChild
       variant="ghost"
-      className={disabled ? 'pointer-events-none text-gray-400' : undefined}
+      className={cn(COMPACT_MENU, disabled && 'pointer-events-none text-gray-400')}
     >
       <Link
         to={to}

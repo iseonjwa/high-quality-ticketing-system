@@ -15,6 +15,10 @@ npm run dev      # http://localhost:5173
 
 개발 서버는 `/api`로 시작하는 요청을 Gateway(`http://localhost:8080`)로 넘긴다. 브라우저는 개발 서버 한 곳만 보므로 CORS가 필요 없다. Gateway를 다른 주소에서 띄웠다면 `API_PROXY_TARGET=http://<주소> npm run dev`로 바꾼다. Gateway는 루트 compose로 띄운다([워크스페이스 가이드](../docs/guides/workspace.md)).
 
+### 시연 모드 (요청 로그)
+
+주소 끝에 `?demo=on`을 붙이면 그 탭에서 화면 오른쪽에 요청 로그가 열린다. 요청마다 메서드·경로·상태·traceId가 쌓이고, traceId를 누르면 Grafana "요청 로그" 대시보드가 Grafana 탭에서 열린다. 처음 열린 탭을 옆 창으로 옮겨 두면 다음부터 그 창에서 바뀐다. 왼쪽 경계를 끌어 너비를 바꾸고, `?demo=off`나 패널의 X로 끈다. Grafana 주소는 기본 `http://localhost:3000`(발표자 노트북의 SSH 터널)이고 `VITE_GRAFANA_URL`로 바꾼다. 규칙은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "시연 모드 규칙"에 있다. 패널이 앱 화면을 좁히므로 화면의 반응형 클래스는 `sm:`·`md:` 대신 `@min-[40rem]:`·`@min-[48rem]:`을 쓴다.
+
 ### 백엔드 없이 띄우기 (API 목)
 
 ```bash
@@ -69,6 +73,7 @@ src/
   api/            API 클라이언트(client.ts)와 도메인별 요청 함수·응답 스키마, 에러 문구 표
   auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts), 입력 검사(formSchemas.ts), 돌아갈 경로(navigation.ts)
   mocks/          MSW 핸들러·목 상태·실패 시나리오. 테스트와 `dev:mock`이 같이 쓴다
+  demo/           시연 모드(켜짐 상태, 요청 기록, 오른쪽 요청 로그 패널, Grafana 주소)
   test/setup.ts   Vitest 설정(jest-dom 매처, MSW 서버, 테스트마다 DOM·목 상태·저장소 정리)
 ```
 

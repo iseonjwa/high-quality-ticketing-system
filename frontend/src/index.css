@@ -294,3 +294,12 @@
       0 0 0 4px var(--danger-600);
   }
 }
+
+/* 시연 모드 요청 로그 패널(src/demo/RequestLogPanel.tsx)이 오른쪽을 차지하면 토스트를 패널을 뺀 앱 화면 가운데에 둔다.
+   패널은 640px 이상에서만 그려지고, 600px 이하에서는 sonner의 휴대폰 배치가 따로 있어 넓은 화면에만 건다.
+   Note: sonner는 실행 중에 같은 선택자로 CSS를 넣어서 순서로 이기지 못한다. `:root`를 붙여 우선순위를 높인다. */
+@media (min-width: 640px) {
+  :root [data-sonner-toaster][data-x-position='center'] {
+    left: calc(50% - var(--demo-panel-width, 0px) / 2);
+  }
+}
