@@ -49,7 +49,8 @@ class ReconciliationLockTest {
         }
 
         @Override
-        public Evaluation evaluate(Instant now, com.iseonjwa.payment.reconciliation.domain.ReconciliationPolicy policy) {
+        public Evaluation evaluate(Instant now, com.iseonjwa.payment.reconciliation.domain.ReconciliationPolicy policy,
+                com.iseonjwa.payment.reconciliation.domain.Preparation preparation) {
             return new Evaluation(List.of(), Set.of());
         }
     };
@@ -67,13 +68,15 @@ class ReconciliationLockTest {
         var held = tx.execute(status -> {
             jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, MismatchRepository.lockKey(RuleCode.RC_7));
             return CompletableFuture.supplyAsync(
-                    () -> recorder.reconcile(nothingFound, Instant.now(), properties.policy())).join();
+                    () -> recorder.reconcile(nothingFound, com.iseonjwa.payment.reconciliation.domain.Preparation.NONE, Instant.now(),
+                            properties.policy())).join();
         });
 
         assertTrue(held.skipped());
         assertEquals("OPEN", status());
 
-        var free = recorder.reconcile(nothingFound, Instant.now(), properties.policy());
+        var free = recorder.reconcile(nothingFound, com.iseonjwa.payment.reconciliation.domain.Preparation.NONE, Instant.now(),
+                            properties.policy());
         assertFalse(free.skipped());
         assertEquals(1, free.resolved());
         assertEquals("RESOLVED", status());
@@ -86,7 +89,8 @@ class ReconciliationLockTest {
         var result = tx.execute(status -> {
             jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, MismatchRepository.lockKey(RuleCode.RC_8));
             return CompletableFuture.supplyAsync(
-                    () -> recorder.reconcile(nothingFound, Instant.now(), properties.policy())).join();
+                    () -> recorder.reconcile(nothingFound, com.iseonjwa.payment.reconciliation.domain.Preparation.NONE, Instant.now(),
+                            properties.policy())).join();
         });
 
         assertFalse(result.skipped());

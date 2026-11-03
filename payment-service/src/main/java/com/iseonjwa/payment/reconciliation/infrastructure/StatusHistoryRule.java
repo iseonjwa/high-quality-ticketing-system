@@ -2,6 +2,7 @@ package com.iseonjwa.payment.reconciliation.infrastructure;
 
 import com.iseonjwa.payment.reconciliation.domain.Finding;
 import com.iseonjwa.payment.reconciliation.domain.MismatchKey;
+import com.iseonjwa.payment.reconciliation.domain.Preparation;
 import com.iseonjwa.payment.reconciliation.domain.ReconciliationPolicy;
 import com.iseonjwa.payment.reconciliation.domain.ReconciliationRule;
 import com.iseonjwa.payment.reconciliation.domain.RuleCode;
@@ -63,7 +64,7 @@ class StatusHistoryRule implements ReconciliationRule {
     }
 
     @Override
-    public Evaluation evaluate(Instant now, ReconciliationPolicy policy) {
+    public Evaluation evaluate(Instant now, ReconciliationPolicy policy, Preparation preparation) {
         var since = Timestamp.from(now.minus(policy.window()));
         var judgedUntil = now.minus(policy.allowedLag());
         var found = new ArrayList<Finding>();
