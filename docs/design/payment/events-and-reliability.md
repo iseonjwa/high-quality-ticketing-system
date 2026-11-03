@@ -148,7 +148,8 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 - 두 번째 허가: `findRefund`가 `NotFound`면 `refund` 전에 허가를 한 번 더 얻는다. 못 얻으면 호출하지 않고 `Unknown`처럼 다음 간격으로 미룬다(이력 사유 `RECOVERY_PERMIT_DENIED`, 시도 횟수는 센다).
 - `PaymentRefunded`의 `amount`는 결제의 `amount`가 아니라 PG 승인 금액(`pg_approved_amount`)이다. 환불 금액이 승인 금액을 복사하므로 같은 값이고, 승인 금액이 결제 금액과 달라 운영자 확인을 거친 결제(`PG_AMOUNT_MISMATCH`)의 환불에서 두 값이 다르다. `refundedAt`은 PG가 환불한 시각이고 밀리초로 자른다.
 - 테스트 범위: 서비스 단위(목 `PgClient`, 실제 테스트 DB와 복구 그룹), 쿼리, 실제 mock-pg를 띄운 E8·E13·응답 유실·`NotFound` 재호출. 환불 워커는 테스트 프로필에서 꺼 두고 서비스 메서드를 직접 부른다. mock-pg의 환불 호출 계수(원장 조회)는 아직 없어 PG 쪽 호출 횟수는 `PgClient` 스파이로 센다.
-- 미확인: Ops `refund retry`가 `pg_requested_at`을 비워야 하는지(비우면 재시도가 `findRefund` 없이 `refund`부터 시작해 이중 환불 방어가 PG 멱등키에만 의존한다. 비우지 않으면 `findRefund`부터 시작한다). Ops 명령 구현에서 정한다. 실제 Kafka로 `PaymentRefunded`가 Reservation까지 닿는 흐름(Outbox 행까지만 확인), 환불 장애 주입(ISE-133)에서의 동작, DLQ 경로가 만든 환불의 처리(ISE-138).
+- 결정(ISE-160): Ops `refund retry`는 `pg_requested_at`을 비우지 않는다. 비우면 재시도가 `findRefund` 없이 `refund`부터 시작해 이중 환불 방어가 PG 멱등키(`pg_refund_id`) 하나에만 기대게 된다. 비우지 않으면 워커가 `findRefund`부터 시작하고 `NotFound`일 때만 같은 `pg_refund_id`로 `refund`를 부른다. 명령이 계획 때 본 `NotFound`가 적용 시점까지 이어진다는 보장도 없다(그사이 PG에서 환불이 끝날 수 있다). 명령은 `attempt`를 0으로, `next_check_at`을 실행 시각으로 바꿔 `REQUESTED`로 되돌릴 뿐 `pg_refund_id`와 `pg_requested_at`은 그대로 둔다([manual-recovery.md](manual-recovery.md) 2.3절). 통합 테스트가 적용 뒤 워커의 `findRefund` → `refund` 순서와 같은 `pg_refund_id`를 확인한다.
+- 미확인: 실제 Kafka로 `PaymentRefunded`가 Reservation까지 닿는 흐름(Outbox 행까지만 확인), 환불 장애 주입(ISE-133)에서의 동작, DLQ 경로가 만든 환불의 처리(ISE-138).
 
 ## 7. 실행기와 DB 연결
 

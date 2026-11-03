@@ -1,6 +1,6 @@
 # 수동 복구 절차
 
-알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letters`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). `inspect`와 `outbox requeue`는 구현했고(ISE-158) 로컬 테스트 DB에서 jar를 `ops` 프로필로 실행해 확인했다. `payment resolve`와 `refund resolve`도 구현했다(ISE-159). 이 두 명령은 실제 PostgreSQL과 가짜 `PgClient`를 쓰는 통합 테스트로 확인했고, jar를 `ops` 프로필로 띄우거나 EC2의 compose 환경에서 실제 PG(Mock PG 포함)에 붙여 실행해 확인하지는 않았다. `refund retry`·`dead-letter resolve`(ISE-160)는 구현 전이다.
+알림이 울렸을 때 원인을 확인하고 복구하는 절차다. 운영자는 결제·환불·Outbox·`dead_letters`의 상태를 SQL로 직접 바꾸지 않고, 감사 기록이 남는 Ops 명령으로만 바꾼다([0028](../../decisions/0028-payment-ops-commands.md)). 지키는 조건은 INV-7이다([invariants.md](invariants.md)). `inspect`와 `outbox requeue`는 구현했고(ISE-158) 로컬 테스트 DB에서 jar를 `ops` 프로필로 실행해 확인했다. `payment resolve`와 `refund resolve`도 구현했다(ISE-159). 이 두 명령은 실제 PostgreSQL과 가짜 `PgClient`를 쓰는 통합 테스트로 확인했고, jar를 `ops` 프로필로 띄우거나 EC2의 compose 환경에서 실제 PG(Mock PG 포함)에 붙여 실행해 확인하지는 않았다. `refund retry`와 `dead-letter resolve`도 구현했다(ISE-160). 이 두 명령도 실제 PostgreSQL과 목 `PgClient`(retry) 또는 PG 없이(dead-letter) 통합 테스트로 확인했고, jar를 `ops` 프로필로 띄우거나 EC2의 compose 환경에서 실행해 확인하지는 않았다.
 
 ## 1. 원칙과 Ops 명령
 
@@ -87,10 +87,10 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 |---|---|---|---|---|
 | `inspect` | 결제·환불·예매 ID | 상태, 이력, 환불, Outbox, `dead_letters`, Ops 기록, 대사 불일치를 묶어 출력. `--with-pg`면 PG 조회 결과와 대조(구현, 대사 불일치는 ISE-43에서 연결) | 조회(선택) | 아니오 |
 | `payment resolve` | 결제 `NEEDS_MANUAL_CHECK` | PG 근거로 `APPROVED`(승인, 금액 일치), `DECLINED`(거절, 또는 미발견 + 늦은 승인 방지 성공), 환불 시작(승인, 금액 불일치) 중 하나. 2.1절(구현) | 조회, 늦은 승인 방지(적용 때만) | 예 |
-| `refund retry` | 환불 `NEEDS_MANUAL_CHECK` | 원인이 풀린 뒤 `REQUESTED`로 되돌려 자동 환불 워커가 이어받게 함(워커는 조회부터 한다) | 조회 | 예 |
+| `refund retry` | 환불 `NEEDS_MANUAL_CHECK` | PG가 `NotFound`·`RefundRejected`이고 원인이 풀린 뒤 `REQUESTED`로 되돌려 자동 환불 워커가 이어받게 함(워커는 조회부터 한다). 2.3절(구현) | 조회 | 예 |
 | `refund resolve` | 환불 `NEEDS_MANUAL_CHECK` | PG가 환불 완료(금액 일치)면 `REFUNDED`. PG가 거절이고 `--close-failed --external-ref`가 있으면 `FAILED`. 2.2절(구현) | 조회 | 예 |
 | `outbox requeue` | Outbox `FAILED` | 원인을 고친 뒤 `PENDING`으로 되돌림(구현) | 없음 | 아니오 |
-| `dead-letter resolve` | `dead_letters` `OPEN` | `--replay`: 원인을 고친 뒤 DLQ 처리기와 같은 검증·영속화를 다시 실행. `--no-obligation`: 환불 의무가 없음을 확인하고 닫음 | 없음 | 예 |
+| `dead-letter resolve` | `dead_letters` `OPEN` | `--replay`: 원인을 고친 뒤 DLQ 처리기와 같은 검증·영속화를 다시 실행. `--no-obligation`: 환불 의무가 없음을 확인하고 닫음. 3.1절(구현) | 없음 | 예 |
 
 전이별로 함께 쓰는 것(모두 한 트랜잭션, 조건부 UPDATE가 1행일 때만):
 
@@ -99,12 +99,12 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
 | `payment resolve` → 승인 | 결제 NMC → `APPROVED` | `PaymentApproved` | 결제 | APPLIED + PG 근거 |
 | `payment resolve` → 거절 | 결제 NMC → `DECLINED` | `PaymentDeclined` | 결제 | 같음 |
 | `payment resolve` → 환불 시작 | 환불 `REQUESTED` 생성(`reason=PG_AMOUNT_MISMATCH`, 금액 = PG 승인 금액). 결제는 `NEEDS_MANUAL_CHECK`로 두되 PG 거래 식별자·승인 금액이 비어 있으면 채운다(환불 워커가 환불할 수 있게) | 없음(환불 완료 때 `PaymentRefunded`) | 환불 | 같음 |
-| `refund retry` | 환불 NMC → `REQUESTED` | 없음 | 환불 | 같음 |
+| `refund retry` | 환불 NMC → `REQUESTED`(`attempt` 0, `next_check_at` 지금, `pg_refund_id`·`pg_requested_at` 유지) | 없음 | 환불(사유 `OPS_RETRY`) | APPLIED + PG 근거 |
 | `refund resolve` → 완료 | 환불 NMC → `REFUNDED`, 결제 → `REFUNDED` | `PaymentRefunded` | 환불·결제 | 같음 |
 | `refund resolve` → 종결 | 환불 NMC → `FAILED` | 없음 | 환불 | APPLIED + 외부 조치 참조 |
 | `outbox requeue` | Outbox `FAILED` → `PENDING`(`attempts`·`last_error` 유지, `next_attempt_at`=지금, 임대 비움) | 기존 이벤트 재발행(릴레이가 발행) | 없음 | APPLIED |
-| `dead-letter resolve --replay` | `dead_letters` → `RESOLVED(REPLAYED)`, 환불 `REQUESTED` 생성 | 없음 | 환불 | APPLIED |
-| `dead-letter resolve --no-obligation` | `dead_letters` → `RESOLVED(NO_OBLIGATION)` | 없음 | 없음 | APPLIED + 근거 메모 |
+| `dead-letter resolve --replay` | `dead_letters` → `RESOLVED(REPLAYED)`와 `refund_id`, 환불 `REQUESTED` 생성. 환불이 이미 있으면 환불은 그대로 두고 `RESOLVED(DUPLICATE)` | 없음 | 환불 생성 때만(actor OPS) | APPLIED(`to_status`는 `REPLAYED`·`DUPLICATE`) |
+| `dead-letter resolve --no-obligation` | `dead_letters` → `RESOLVED(NO_OBLIGATION)`(환불 없음) | 없음 | 없음 | APPLIED(`to_status`는 `NO_OBLIGATION`) + 근거 메모 |
 
 거부(근거 불일치, 0행, 4-eyes 미충족, 해시 불일치)는 `manual_action_logs`에 REJECTED로만 남는다.
 
@@ -116,8 +116,8 @@ $ ops outbox requeue --operator=alice --outbox-id=3 --apply --confirm=3cb74212..
    - 금액 불일치(`PG_AMOUNT_MISMATCH`)는 예매를 확정하지 않고 PG 승인 금액 전액을 환불한다.
    - PG가 아직 불확실(`Unknown`)이면 명령은 거부되고 상태는 그대로다. PG 장애가 풀린 뒤 다시 한다.
 3. 환불 NMC는 사유로 나눈다(2.2절).
-   - `REFUND_UNRESOLVED`(PG 장기 장애), `STATE_CONFLICT`: 원인이 풀렸으면 `refund retry`(ISE-160, 구현 전).
-   - `REFUND_REJECTED`: PG가 거절한 이유를 확인한다. 고칠 수 있으면 고치고 `refund retry`. PG로 환불할 수 없으면 고객 계좌 환불 같은 외부 조치를 하고 `refund resolve --close-failed --external-ref=<조치 참조>`.
+   - `REFUND_UNRESOLVED`(PG 장기 장애), `STATE_CONFLICT`: 원인이 풀렸으면 `refund retry`(2.3절). `STATE_CONFLICT`는 결제 상태가 환불 워커의 기대와 다른 경우라, 결제 상태를 먼저 바로잡지 않으면 `refund retry`가 거부된다.
+   - `REFUND_REJECTED`: PG가 거절한 이유를 확인한다. 고칠 수 있으면 고치고 `refund retry`(2.3절). PG로 환불할 수 없으면 고객 계좌 환불 같은 외부 조치를 하고 `refund resolve --close-failed --external-ref=<조치 참조>`.
    - 이미 PG에서 환불돼 있으면 `refund resolve`로 `REFUNDED` 반영.
    - `REFUND_AMOUNT_MISMATCH`: PG의 실제 환불 금액을 확인하고 담당자와 원인을 찾는다. PG가 우리 환불 금액과 다른 금액으로 환불 완료를 알리면 `refund resolve`는 거부한다. 이 경우를 종결하는 절차는 아직 없다(후속 과제, 2.2절).
 4. 처리 뒤 다음 대사에서 해당 예매의 불일치가 없어졌는지 확인한다.
@@ -304,14 +304,158 @@ $ ops refund resolve --operator=alice --refund-id=377
 (종료 코드 2)
 ```
 
+### 2.3 refund retry (구현, ISE-160)
+
+```bash
+ops refund retry --operator=<나> --refund-id=<환불 ID>                          # dry-run
+ops refund retry --operator=<나> --approver=<승인자> --refund-id=<환불 ID> \
+    --apply --confirm=<계획 해시> --reason=<메모>
+```
+
+대상은 환불 `NEEDS_MANUAL_CHECK`뿐이다. 환불을 `REQUESTED`로 되돌릴 뿐이고 PG 환불은 환불 워커가 다음 주기에 한다(이 명령은 `PgClient.refund`를 부르지 않는다, 0028 결정 4). 계획은 `findRefund(pg_refund_id, paymentRef)`로 PG를 확인한 결과가 정하고, 적용 때 다시 조회해 PG 근거가 같을 때만 적용한다. 근거 요약이 계획 해시에 들어간다.
+
+| PG 결과 | 계획 |
+|---|---|
+| `NotFound` | 재시도 가능 |
+| `RefundRejected` | 재시도 가능. 거절 원인을 고쳤는지 확인하고 적용한다 |
+| `Refunded` | 거부. 이미 환불됐으니 `refund resolve`로 환불 완료를 반영한다 |
+| `Unknown`·예외 | 거부. PG 장애 중에는 다시 시도해도 같다 |
+
+- 결제도 확인한다. 결제가 환불 사유에 맞는 상태(`PG_AMOUNT_MISMATCH`면 `NEEDS_MANUAL_CHECK`, 아니면 `APPROVED`)가 아니거나 `pg_tx_id`가 없으면 PG를 부르기 전에 거부한다. 그대로 되돌리면 워커가 곧바로 다시 `STATE_CONFLICT`로 보내기 때문이다.
+- 적용은 조건부 UPDATE(`status = 'NEEDS_MANUAL_CHECK'`)로 환불을 `REQUESTED`로 되돌린다. `attempt`는 0으로, `next_check_at`은 실행 시각으로 바꾼다(임대도 `next_check_at`이라 따로 비울 값이 없다). 이력은 환불 `NEEDS_MANUAL_CHECK` → `REQUESTED`, actor `OPS:<operator>`, 사유 `OPS_RETRY`다. 감사는 APPLIED이고 PG 근거를 남긴다. 이벤트는 나가지 않는다.
+- `pg_refund_id`(PG 멱등키)와 `pg_requested_at`은 그대로 둔다. `pg_requested_at`이 남아 있으면 워커는 첫 호출이 아니라고 보고 `findRefund`부터 시작해 `NotFound`일 때만 같은 `pg_refund_id`로 `refund`를 부른다. 비우면 워커가 `findRefund` 없이 `refund`부터 불러 이중 환불 방어가 PG 멱등키 하나에만 기대게 된다. 계획 때 본 `NotFound`가 적용 시점까지 이어진다는 보장도 없다. 이 결정으로 [events-and-reliability.md](events-and-reliability.md) 6절의 미확인 항목을 닫았다.
+- 이 명령은 우리 `pg_refund_id`로만 PG를 조회하므로 콘솔 직접 환불(8절)은 `NotFound`로 보여 재시도가 허용된다. 콘솔로 환불했다면 `refund retry`를 쓰지 않는다(8절 5번). 명령이 이를 막지는 못한다.
+
+dry-run(PG에 환불 기록이 없는 경우. 로컬 테스트 DB와 목 PG로 통합 테스트와 같은 구성에서 얻은 출력, 종료 코드 0):
+
+```text
+$ ops refund retry --operator=alice --refund-id=1031
+== ops refund retry ==
+[dry-run] 상태를 바꾸지 않았다
+대상: REFUND 1031
+현재 상태: refundStatus=NEEDS_MANUAL_CHECK amount=50000 KRW reason=EXPIRED_AFTER_APPROVAL pgRefundId=3df33695-21c9-4bff-98e3-14c7a1e60970 attempt=9 pgRequestedAt=set paymentStatus=APPROVED pgTxId=pg-tx-9100001
+PG 근거: {"lookup":"NotFound"}
+바뀔 전이: 환불 NEEDS_MANUAL_CHECK -> REQUESTED (attempt 0, next_check_at=실행 시각, pg_refund_id·pg_requested_at 유지)
+발행할 이벤트: 없음
+PG에 이 환불의 기록이 없다. 원인(PG 장애, 결제 상태)이 풀렸는지 확인한 뒤 적용한다
+pg_refund_id(PG 멱등키)와 pg_requested_at은 그대로 둔다. 워커가 findRefund로 먼저 확인하고 NotFound일 때만 같은 pg_refund_id로 환불을 부른다
+이 명령은 PG 환불을 부르지 않는다. 환불 워커가 다음 주기에 이어받는다
+계획 해시: d88f096e2a8a5e51f24d0fe625e11227578d01e8468f54855f308b4a7fe01050
+적용하려면 같은 인자에 --apply --confirm=d88f096e...fe01050 --reason=<메모> --approver=<승인자>를 붙인다
+```
+
+```text
+$ ops refund retry --operator=alice --approver=bob --refund-id=1031 --apply --confirm=d88f096e...fe01050 --reason=PG 설정을 고쳤다
+== ops refund retry ==
+적용했다: REFUND 1031
+전이: 환불 NEEDS_MANUAL_CHECK -> REQUESTED (attempt 0, next_check_at=실행 시각, pg_refund_id·pg_requested_at 유지)
+발행한 이벤트: 없음
+계획 해시: d88f096e2a8a5e51f24d0fe625e11227578d01e8468f54855f308b4a7fe01050
+감사 기록: APPLIED (실행자 alice, 승인자 bob)
+(종료 코드 0)
+```
+
+PG가 이미 환불했다고 하면 거부한다(종료 코드 2, 적용 시도였다면 `REJECTED`가 남는다):
+
+```text
+$ ops refund retry --operator=alice --refund-id=1031
+== ops refund retry ==
+거부: PG에서 이미 환불이 끝났습니다(환불 거래 rf-done). 다시 시도하지 않는다. refund resolve로 환불 완료를 반영한다
+(종료 코드 2)
+```
+
+적용 뒤 환불 워커가 이어받는지는 통합 테스트로 확인했다. 워커를 직접 부르면 `findRefund` 다음에 같은 `pg_refund_id`로 `refund`를 한 번 부르고 환불·결제가 `REFUNDED`가 되며 `PaymentRefunded`가 쌓인다. 실제 Mock PG와 환불 워커 스케줄러를 띄운 상태에서의 흐름은 확인하지 않았다.
+
 ## 3. dead_letters OPEN·DLQ 처리기 실패
 
 1. `inspect`로 `dead_letters`의 사유(검증 실패 항목, 역직렬화 실패)와 원문을 본다.
 2. DB 장애로 처리기가 재시도 중이면 DB를 복구한다. 처리기는 오프셋을 커밋하지 않고 기다렸다가 이어서 처리한다.
 3. 검증 실패 건은 위조·버그·데이터 불일치를 가린다. 결제와 예매를 함께 확인한다.
-   - 정당한 환불 요청인데 데이터·코드 문제로 실패했으면 원인을 고친 뒤 `dead-letter resolve --replay`.
-   - 환불 의무가 없음이 확인되면(이미 환불됨, 존재하지 않는 결제 등) `dead-letter resolve --no-obligation`과 근거 메모. 실제 의무가 남아 있었다면 대사 RC-2가 다시 찾는다.
+   - 정당한 환불 요청인데 데이터·코드 문제로 실패했으면 원인을 고친 뒤 `dead-letter resolve --replay`(3.1절).
+   - 환불 의무가 없음이 확인되면(이미 환불됨, 존재하지 않는 결제 등) `dead-letter resolve --no-obligation`과 근거 메모(3.1절). 실제 의무가 남아 있었다면 대사 RC-2가 다시 찾는다.
 4. `.dlq` 토픽 보관 기간(7일`[가정]`) 안에 처리한다. `dead_letters`에 원문이 있으므로 토픽이 지워져도 근거는 남는다.
+
+### 3.1 dead-letter resolve (구현, ISE-160)
+
+```bash
+ops dead-letter resolve --operator=<나> --dead-letter-id=<ID> (--replay | --no-obligation)   # dry-run
+ops dead-letter resolve --operator=<나> --approver=<승인자> --dead-letter-id=<ID> (--replay | --no-obligation) \
+    --apply --confirm=<계획 해시> --reason=<메모>
+```
+
+대상은 `dead_letters` `OPEN`뿐이고 다른 상태면 거부한다. `--replay`와 `--no-obligation` 중 정확히 하나가 있어야 하며, 없거나 둘 다 있으면 사용법 오류(종료 코드 1)다. PG는 부르지 않는다.
+
+`--replay`는 원문(`payload_raw`)을 DLQ 처리기와 같은 파서·검증·생성 경로로 다시 처리한다. 계획 단계는 읽고 검증하는 데까지만 하고 아무것도 쓰지 않는다. 계획 해시에는 `dead_letters` 상태와 검증 결과 요약(결제·예매 ID, 환불 사유, 결제 상태, 기존 환불)이 들어간다.
+
+| 결과 | 처리 |
+|---|---|
+| 검증 통과, 환불 없음 | 환불 `REQUESTED` 생성(`source=DLQ`, 이력 actor `OPS:<operator>`). `dead_letters`는 `RESOLVED(REPLAYED)`와 `refund_id`. 감사 APPLIED |
+| 검증 통과, 환불 이미 있음 | 환불은 1건 그대로. `RESOLVED(DUPLICATE)`와 기존 `refund_id`. 감사 APPLIED |
+| 파싱 실패, 검증 실패, 결제가 `APPROVED`가 아니고 환불도 없음 | 거부하고 원인을 출력한다. 데이터를 고치거나 `--no-obligation`을 쓴다. `OPEN` 유지 |
+
+`--no-obligation`은 환불 의무가 없음을 운영자가 확인하고 닫는다. `RESOLVED(NO_OBLIGATION)`이 되고 환불은 만들지 않는다. 근거는 `--reason`(메모)이고 감사 기록에 남는다.
+
+- 두 경우 모두 조건부 UPDATE(`status = 'OPEN'`)가 1행일 때만 적용하고 `resolved_at`을 쓴다. 0행이면 거부하고 롤백하므로 `--replay`가 이미 만든 환불도 함께 되돌아간다. 같은 명령을 두 번 적용하면 두 번째는 `OPEN`이 아니라서 거부되고 환불은 1건이다.
+- 감사 기록의 `to_status`는 닫힌 방식(`REPLAYED`·`DUPLICATE`·`NO_OBLIGATION`)이다. 컬럼이 20자라 `RESOLVED(NO_OBLIGATION)`은 들어가지 않는다.
+- 파서·검증·환불 생성은 DLQ 처리기와 같은 코드(`RefundRequestedParser`, `RefundRequestService.settle`)를 쓴다. 다른 점은 `dead_letters` 행과 `processed_events`를 새로 쓰지 않는다는 것이다(처음 DLQ로 왔을 때 이미 있다).
+- 계획을 만든 뒤 환불이 생겨 결과가 `DUPLICATE`로 바뀌어도 적용은 실제 결과를 감사와 출력에 남긴다. 해시는 dry-run이 보인 계획으로 비교한다.
+
+replay(로컬 테스트 DB에서 통합 테스트와 같은 구성으로 얻은 출력, 종료 코드 0):
+
+```text
+$ ops dead-letter resolve --operator=alice --dead-letter-id=432 --replay
+== ops dead-letter resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: DEAD_LETTER 432
+현재 상태: deadLetterStatus=OPEN eventKey=tmp-8b8dd63a-9978-4c46-89a2-8072e8efbc2a mode=replay paymentId=2525 reservationId=9100002 eventReason=CANCELED paymentStatus=APPROVED refund=none
+바뀔 전이: dead_letters OPEN -> RESOLVED(REPLAYED), 환불 REQUESTED 생성(source=DLQ, 결제 2525)
+발행할 이벤트: 없음
+원문을 DLQ 처리기와 같은 파서·검증으로 읽었고 결제와 맞는다(eventId=e2fc736f-45ed-4718-b081-6d27b1947c2d)
+환불 워커가 다음 주기에 이어받는다. 이 명령은 PG를 부르지 않는다
+계획 해시: abe86e2dc659b90363d0138b98dad3115a2b13b9d11c969a0b32622229ca021f
+적용하려면 같은 인자에 --apply --confirm=abe86e2d...29ca021f --reason=<메모> --approver=<승인자>를 붙인다
+```
+
+```text
+$ ops dead-letter resolve --operator=alice --approver=bob --dead-letter-id=432 --replay --apply --confirm=abe86e2d...29ca021f --reason=결제 데이터를 고친 뒤 재처리
+== ops dead-letter resolve ==
+적용했다: DEAD_LETTER 432
+전이: dead_letters OPEN -> RESOLVED(REPLAYED), 환불 REQUESTED 생성(refund_id=1032)
+발행한 이벤트: 없음
+계획 해시: abe86e2dc659b90363d0138b98dad3115a2b13b9d11c969a0b32622229ca021f
+감사 기록: APPLIED (실행자 alice, 승인자 bob)
+(종료 코드 0)
+```
+
+no-obligation(dry-run 뒤 적용, 적용 출력은 같은 형식이다):
+
+```text
+$ ops dead-letter resolve --operator=alice --dead-letter-id=431 --no-obligation
+== ops dead-letter resolve ==
+[dry-run] 상태를 바꾸지 않았다
+대상: DEAD_LETTER 431
+현재 상태: deadLetterStatus=OPEN eventKey=tmp-8ae781e6-91be-4ea9-af1b-2d5b258196bd mode=no-obligation
+바뀔 전이: dead_letters OPEN -> RESOLVED(NO_OBLIGATION), 환불을 만들지 않는다
+발행할 이벤트: 없음
+사유: 결제 상태 오류
+환불 의무가 없음을 확인했다는 기록이 --reason(메모)이다. 환불은 만들지 않고 PG도 부르지 않는다
+실제 의무가 남아 있었다면 대사 RC-2가 다시 찾는다
+계획 해시: 3d22df20214e4d18fb0ff395346d3e7ed7ef65a72c4dc72d266970d6871b6c4a
+적용하려면 같은 인자에 --apply --confirm=3d22df20...871b6c4a --reason=<메모> --approver=<승인자>를 붙인다
+```
+
+replay가 거부되는 경우(검증 실패, 깨진 JSON. 종료 코드 2, `OPEN` 유지)와 플래그 오류(종료 코드 1):
+
+```text
+$ ops dead-letter resolve --operator=alice --dead-letter-id=431 --replay
+거부: 결제와 이벤트의 amount가 다릅니다: 결제=50000, 이벤트=40000. 데이터를 고치거나 환불 의무가 없으면 --no-obligation을 쓴다
+
+$ ops dead-letter resolve --operator=alice --dead-letter-id=433 --replay
+거부: 역직렬화·봉투 오류: JSON을 읽을 수 없습니다. 데이터를 고치거나 환불 의무가 없으면 --no-obligation을 쓴다
+
+$ ops dead-letter resolve --operator=alice --dead-letter-id=432
+사용법 오류: --replay와 --no-obligation 중 정확히 하나를 지정해야 합니다
+```
 
 ## 4. Outbox FAILED·발행 지연
 
@@ -360,7 +504,7 @@ $ ops refund resolve --operator=alice --refund-id=377
 2. 콘솔에서 전액 환불하고 PG 화면의 거래·취소 식별자를 기록한다.
 3. `refund resolve --external-ref=<콘솔 거래·취소 식별자>`를 실행한다. 명령은 PG API로 환불 완료를 다시 확인한 뒤에만 `REFUNDED`와 `PaymentRefunded`를 반영하고, 콘솔 환불 사실을 `external_ref`로 남긴다(2.2절).
 4. PG API로 확인할 수 없으면 명령은 거부되고 환불은 `NEEDS_MANUAL_CHECK`로 남는다. API가 복구된 뒤 3단계를 다시 한다.
-5. 콘솔 환불 뒤에는 `refund retry`를 쓰지 않는다.
+5. 콘솔 환불 뒤에는 `refund retry`를 쓰지 않는다. `refund retry`는 우리 `pg_refund_id`로만 PG를 조회하므로 콘솔 환불을 `NotFound`로 보고 재시도를 허용한다(2.3절). 명령이 막아 주지 않으니 사람이 지킨다.
 
 **현재 한계(ISE-159).** 콘솔 직접 환불은 우리 `pg_refund_id` 없이 일어난다. 지금 PG 포트의 `findRefund(pg_refund_id, paymentRef)`는 우리 환불 ID로만 조회하므로 콘솔 환불을 확인하지 못한다. 그래서 콘솔 환불 뒤에 3단계를 실행하면 `NotFound`로 거부되고 환불은 `NEEDS_MANUAL_CHECK`로 남는다(위 4단계, 0028 결정 11의 "PG API로 확인할 수 없으면 거부"와 같다). 이 절차는 PG가 `pg_refund_id`로 조회되는 환불(Mock PG, 또는 API로 시작했으나 응답이 유실된 환불)에서는 끝까지 동작하지만, 진짜 콘솔 환불은 아직 반영할 수 없다. 콘솔 환불을 확인하는 PG 조회는 토스 어댑터를 만드는 M4 때 다시 본다.
 
