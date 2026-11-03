@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.redis.test.autoconfigure.DataRedisTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -37,6 +38,7 @@ class RedisQueueRepositoryTest {
     static final String WAITING = "queue:{" + SCHEDULE_ID + "}:waiting";
     static final String ADMITTED = "queue:{" + SCHEDULE_ID + "}:admitted";
     static final String ISSUED = "queue:{" + SCHEDULE_ID + "}:issued";
+    static final String LAST_TICK = "queue:{" + SCHEDULE_ID + "}:lastTick";
 
     @Autowired RedisQueueRepository queueRepository;
     @Autowired StringRedisTemplate stringRedisTemplate;
@@ -44,8 +46,9 @@ class RedisQueueRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        stringRedisTemplate.delete(QueueKeys.of(SCHEDULE_ID).enterKeys());
-        stringRedisTemplate.delete(QueueKeys.of(OTHER_SCHEDULE_ID).enterKeys());
+        // admitKeys는 진입 키에 lastTick까지 포함한다. lastTick이 남으면 다음 테스트가 "이번 초에 이미 올렸다"로 건너뛴다
+        stringRedisTemplate.delete(QueueKeys.of(SCHEDULE_ID).admitKeys());
+        stringRedisTemplate.delete(QueueKeys.of(OTHER_SCHEDULE_ID).admitKeys());
     }
 
 
@@ -288,6 +291,131 @@ class RedisQueueRepositoryTest {
             queueRepository.enter(OTHER_SCHEDULE_ID, 42, 0, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
             PositionOutcome o = queueRepository.position(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS);
             assertEquals(PositionOutcome.Type.NOT_JOINED, o.type());
+        }
+    }
+
+    @Nested
+    class 입장_처리 {
+
+        static final int ADMIT_PER_SECOND = 50;
+        static final int CLEANUP_LIMIT = 500;
+
+        void admit() {
+            admit(CLEANUP_LIMIT);
+        }
+
+        void admit(int cleanupLimit) {
+            queueRepository.admit(SCHEDULE_ID, ADMIT_PER_SECOND, TOKEN_TTL_MILLIS, cleanupLimit, KEY_EXPIRE_AT_EPOCH_SECOND);
+        }
+
+        String get(String key) {
+            return stringRedisTemplate.opsForValue().get(key);
+        }
+
+        @Test
+        void 줄이_있으면_초당_입장_인원만큼_오른다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "100");
+
+            admit();
+
+            assertEquals("50", get(ADMITTED));
+            assertNotNull(get(LAST_TICK));
+        }
+
+        @Test
+        void 이전_admitted에서_이어서_오른다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "200");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "50");
+            stringRedisTemplate.opsForValue().set(LAST_TICK, "1"); // 아주 예전 초
+
+            admit();
+
+            assertEquals("100", get(ADMITTED));
+        }
+
+        @Test
+        void 발급된_seq를_넘지_않는다() {
+            // 줄에 30명뿐이면 50을 더해도 30까지만 (줄이 빈 동안 앞서가지 않음)
+            stringRedisTemplate.opsForValue().set(SEQ, "30");
+
+            admit();
+
+            assertEquals("30", get(ADMITTED));
+        }
+
+        @Test
+        void 이번_초에_이미_올렸으면_다시_올리지_않는다() {
+            // 다른 인스턴스가 이번 초에 이미 올린 상황. 시각은 Lua와 같은 Redis TIME 기준으로 맞춘다
+            long redisNowSec = stringRedisTemplate.execute(
+                    (RedisCallback<Long>) connection -> connection.serverCommands().time()) / 1000;
+            stringRedisTemplate.opsForValue().set(SEQ, "100");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "50");
+            stringRedisTemplate.opsForValue().set(LAST_TICK, String.valueOf(redisNowSec));
+
+            admit();
+
+            assertEquals("50", get(ADMITTED));
+        }
+
+        @Test
+        void 진입한_사람이_없으면_키를_만들지_않는다() {
+            admit();
+
+            assertFalse(stringRedisTemplate.hasKey(ADMITTED));
+            assertFalse(stringRedisTemplate.hasKey(LAST_TICK));
+        }
+
+        @Test
+        void 만료된_issued와_그_사람의_waiting_잔여를_함께_지우고_유효한_issued는_남긴다() {
+            long elevenMinutesAgo = System.currentTimeMillis() - Duration.ofMinutes(11).toMillis();
+            stringRedisTemplate.opsForValue().set(SEQ, "10");
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", elevenMinutesAgo);           // 만료
+            stringRedisTemplate.opsForZSet().add(ISSUED, "7", System.currentTimeMillis());   // 유효
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 3);                         // 만료자의 잔여
+            stringRedisTemplate.opsForZSet().add(WAITING, "7", 4);                          // 유효자의 잔여
+            stringRedisTemplate.opsForZSet().add(WAITING, "9", 8);                          // 아직 대기 중
+
+            admit();
+
+            assertNull(stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+            assertNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(ISSUED, "7"));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(WAITING, "7"));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(WAITING, "9"));
+        }
+
+        @Test
+        void 한_번에_최대_정리_인원까지만_지운다() {
+            long elevenMinutesAgo = System.currentTimeMillis() - Duration.ofMinutes(11).toMillis();
+            stringRedisTemplate.opsForValue().set(SEQ, "10");
+            stringRedisTemplate.opsForZSet().add(ISSUED, "1", elevenMinutesAgo);
+            stringRedisTemplate.opsForZSet().add(ISSUED, "2", elevenMinutesAgo + 1);
+            stringRedisTemplate.opsForZSet().add(ISSUED, "3", elevenMinutesAgo + 2);
+
+            admit(2);
+
+            assertEquals(1L, stringRedisTemplate.opsForZSet().zCard(ISSUED));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(ISSUED, "3")); // 가장 늦게 발급된 1명이 남음
+        }
+
+        @Test
+        void admitted와_lastTick에_만료가_걸린다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "100");
+
+            admit();
+
+            assertTrue(stringRedisTemplate.getExpire(ADMITTED) > 0); // -1이면 만료가 없는 상태
+            assertTrue(stringRedisTemplate.getExpire(LAST_TICK) > 0);
+        }
+
+        @Test
+        void 다른_회차는_올리지_않는다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "100");
+            stringRedisTemplate.opsForValue().set("queue:{" + OTHER_SCHEDULE_ID + "}:seq", "100");
+
+            admit();
+
+            assertFalse(stringRedisTemplate.hasKey("queue:{" + OTHER_SCHEDULE_ID + "}:admitted"));
         }
     }
 }

@@ -9,5 +9,9 @@ public record QueueProperties(int admitPerSecond,
                               Duration entryTokenTtl,
                               Duration pollMin,
                               Duration pollMax,
-                              double pollJitterRatio) {
+                              double pollJitterRatio,
+                              int cleanupLimit,
+                              Duration keyRetentionAfterStart) {
+
+
 }

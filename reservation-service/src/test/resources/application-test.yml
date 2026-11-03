@@ -39,6 +39,12 @@ queue:
   poll-min: 3s
   poll-max: 10s
   poll-jitter-ratio: 0.2
+  admission-enabled: false
+  admission-interval: 500ms
+  cleanup-limit: 500
+  schedule-cache-refresh: 30s
+  schedule-cache-look-ahead: 1h
+  key-retention-after-start: 1h
 entry-token:
   # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다
   secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100

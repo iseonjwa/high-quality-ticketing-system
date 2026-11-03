@@ -7,4 +7,7 @@ public interface QueueRepository {
 
     PositionOutcome position(long scheduleId,
                              long userId, long tokenTtlMillis);
+
+    void admit(long scheduleId,
+               int admitPerSecond, long tokenTtlMillis, int cleanupLimit, long keyExpireAtEpochSecond);
 }

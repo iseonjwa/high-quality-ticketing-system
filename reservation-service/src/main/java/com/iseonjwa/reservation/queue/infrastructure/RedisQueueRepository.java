@@ -19,6 +19,8 @@ public class RedisQueueRepository implements QueueRepository {
             RedisScript.of(new ClassPathResource("/redis/queue/enter.lua"), List.class);
     private final RedisScript<List> POSITION =
             RedisScript.of(new ClassPathResource("/redis/queue/position.lua"), List.class);
+    private final RedisScript<List> ADMIT =
+            RedisScript.of(new ClassPathResource("/redis/queue/admit.lua"), List.class);
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -47,6 +49,13 @@ public class RedisQueueRepository implements QueueRepository {
             return new PositionOutcome(type, null, null);
         }
         return new PositionOutcome(type, (Long) r.get(1), (Long) r.get(2));
+    }
+
+    @Override
+    public void admit(long scheduleId, int admitPerSecond, long tokenTtlMillis, int cleanupLimit, long keyExpireAtEpochSecond) {
+        stringRedisTemplate.execute(ADMIT, QueueKeys.of(scheduleId).admitKeys(),
+                String.valueOf(admitPerSecond), String.valueOf(tokenTtlMillis),
+                String.valueOf(cleanupLimit), String.valueOf(keyExpireAtEpochSecond));
     }
 
 

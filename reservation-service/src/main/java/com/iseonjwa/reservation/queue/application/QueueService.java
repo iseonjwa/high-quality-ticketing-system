@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.queue.application;
 
 import com.iseonjwa.common.response.BusinessException;
+import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.queue.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,11 +17,18 @@ public class QueueService {
     private final PollPolicy pollPolicy;
 
     private final QueueRepository queueRepository;
+    private final ScheduleReader scheduleReader;
 
 
     public QueueEnterResult enter(Long scheduleId, Long userId) {
-        EnterOutcome enterOutcome = queueRepository.enter(scheduleId,
-                userId, 0, queueProperties.entryTokenTtl().toMillis(), Instant.now().plus(Duration.ofDays(1)).getEpochSecond());// 수정 필요
+        ScheduleTimes scheduleTimes = scheduleReader.findById(scheduleId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        EnterOutcome enterOutcome = queueRepository.enter(
+                scheduleId,
+                userId,
+                scheduleTimes.openAt().toEpochMilli(),
+                queueProperties.entryTokenTtl().toMillis(),
+                scheduleTimes.startsAt().plus(queueProperties.keyRetentionAfterStart()).getEpochSecond());
 
         // 아직 판매시간이 되지 않음
         if (enterOutcome.type() == EnterOutcome.Type.SALE_NOT_OPEN) {
