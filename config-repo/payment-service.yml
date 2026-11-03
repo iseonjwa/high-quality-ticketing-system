@@ -9,6 +9,12 @@ spring:
       # Note: SA 9-4의 서비스당 20. 연결 대기는 1초로 줄여 요청 스레드가 Gateway 3초 제한을 넘겨 기다리지 않게 한다
       maximum-pool-size: 20
       connection-timeout: 1000
+      data-source-properties:
+        # Note: connection-timeout은 풀에 빈 연결이 없을 때만 걸린다. 이미 빌린 연결의 쿼리는 아래 두 값이 끊는다. 둘 다 Gateway 3초보다 짧아야 PG 호출 전 구간이 503으로 끝난다
+        # 소켓 시한(초): DB가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 못 오는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다
+        socketTimeout: 2
+        # 문장 시한(ms): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState 57014). 서버에서 끝나므로 잠금을 쥔 쿼리가 남지 않고 연결도 다시 쓴다
+        options: "-c statement_timeout=1500"
   kafka:
     producer:
       properties:
