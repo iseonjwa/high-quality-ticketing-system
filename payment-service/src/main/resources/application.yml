@@ -9,3 +9,40 @@ spring:
     activate:
       on-profile: "!test"
     import: "configserver:${CONFIG_SERVER_URL:http://localhost:8888}?fail-fast=true&max-attempts=6&initial-interval=1000&max-interval=5000&multiplier=1.5"
+---
+# Ops 명령 실행(ADR 0028): 같은 이미지를 이 프로필로 한 번 띄워 명령 하나를 실행하고 끝낸다.
+# Ops JVM은 DB에 쓰기만 한다. Outbox 행의 실제 발행은 떠 있는 결제 서비스의 릴레이가 하므로 Kafka에 연결하지 않는다.
+# config-repo(설정 서버)는 아래 키를 설정하지 않으므로 설정 서버 값이 이 문서를 덮어쓰지 않는다
+spring:
+  config:
+    activate:
+      on-profile: ops
+  main:
+    # 웹 서버를 띄우지 않으므로 관리 포트(actuator)도 뜨지 않는다
+    web-application-type: none
+    banner-mode: "off"
+  kafka:
+    listener:
+      auto-startup: false
+eureka:
+  client:
+    # 서비스 목록에 끼면 안 된다
+    enabled: false
+management:
+  tracing:
+    export:
+      zipkin:
+        enabled: false
+messaging:
+  outbox:
+    relay-enabled: false
+payment:
+  recheck:
+    enabled: false
+  refund-worker:
+    enabled: false
+  housekeeping:
+    enabled: false
+  metrics:
+    gauge-refresh:
+      enabled: false

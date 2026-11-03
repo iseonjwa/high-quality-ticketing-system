@@ -3,6 +3,7 @@ package com.iseonjwa.payment;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -277,6 +278,113 @@ class PaymentMigrationTest {
         assertViolation("dead_letters_refund_id_fkey", () -> jdbc.update("""
                 INSERT INTO dead_letters (event_key, payload_raw, reason, status, resolution, refund_id, created_at)
                 VALUES ('key-6', 'raw', 'r', 'RESOLVED', 'DUPLICATE', 999999999, now())"""));
+    }
+
+    @Test
+    void 감사_테이블_제약과_인덱스가_카탈로그에_존재한다() {
+        var constraints = names("SELECT conname FROM pg_constraint WHERE conrelid = 'manual_action_logs'::regclass");
+        assertTrue(constraints.containsAll(List.of(
+                "chk_manual_action_logs_target_type", "chk_manual_action_logs_result",
+                "chk_manual_action_logs_plan_hash", "chk_manual_action_logs_approver")), constraints.toString());
+        var indexes = names("SELECT indexname FROM pg_indexes WHERE tablename = 'manual_action_logs'");
+        assertTrue(indexes.contains("idx_manual_action_logs_target"), indexes.toString());
+    }
+
+    @Test
+    void append_only_트리거가_카탈로그에_존재한다() {
+        // tgtype 비트: 1 = 행 단위, 2 = BEFORE, 8 = DELETE, 16 = UPDATE, 32 = TRUNCATE
+        var triggers = names("""
+                SELECT c.relname || ':' || t.tgname || ':' || t.tgtype FROM pg_trigger t
+                JOIN pg_class c ON c.oid = t.tgrelid
+                WHERE NOT t.tgisinternal AND t.tgfoid = 'reject_modification'::regproc""");
+        var rowBefore = 1 + 2 + 8 + 16;
+        var statementBefore = 2 + 32;
+        assertEquals(List.of(
+                "manual_action_logs:manual_action_logs_no_truncate:" + statementBefore,
+                "manual_action_logs:manual_action_logs_no_update:" + rowBefore,
+                "payment_status_histories:payment_status_histories_no_truncate:" + statementBefore,
+                "payment_status_histories:payment_status_histories_no_update:" + rowBefore),
+                triggers.stream().sorted().toList());
+    }
+
+    @Test
+    void 이력은_수정할_수_없다() {
+        var paymentId = approvedPaymentId(1201L);
+        insertHistory(paymentId);
+        assertAppendOnly("payment_status_histories",
+                () -> jdbc.update("UPDATE payment_status_histories SET actor = 'OPS:x' WHERE payment_id = ?", paymentId));
+    }
+
+    @Test
+    void 이력은_삭제할_수_없다() {
+        var paymentId = approvedPaymentId(1202L);
+        insertHistory(paymentId);
+        assertAppendOnly("payment_status_histories",
+                () -> jdbc.update("DELETE FROM payment_status_histories WHERE payment_id = ?", paymentId));
+    }
+
+    @Test
+    void 이력은_TRUNCATE할_수_없다() {
+        assertAppendOnly("payment_status_histories", () -> jdbc.execute("TRUNCATE payment_status_histories"));
+    }
+
+    @Test
+    void 감사_기록은_수정할_수_없다() {
+        insertManualActionLog();
+        assertAppendOnly("manual_action_logs", () -> jdbc.update("UPDATE manual_action_logs SET result = 'REJECTED'"));
+    }
+
+    @Test
+    void 감사_기록은_삭제할_수_없다() {
+        insertManualActionLog();
+        assertAppendOnly("manual_action_logs", () -> jdbc.update("DELETE FROM manual_action_logs"));
+    }
+
+    @Test
+    void 감사_기록은_TRUNCATE할_수_없다() {
+        assertAppendOnly("manual_action_logs", () -> jdbc.execute("TRUNCATE manual_action_logs"));
+    }
+
+    @Test
+    void 감사_기록의_승인자는_실행자와_같을_수_없다() {
+        assertViolation("chk_manual_action_logs_approver", () -> insertManualActionLog("alice", "alice", "a".repeat(64)));
+    }
+
+    @Test
+    void 감사_기록의_계획_해시는_소문자_16진수_64자여야_한다() {
+        assertViolation("chk_manual_action_logs_plan_hash", () -> insertManualActionLog("alice", null, "A".repeat(64)));
+    }
+
+    @Test
+    void 정해진_값이_아닌_감사_결과를_거절한다() {
+        assertViolation("chk_manual_action_logs_result", () -> jdbc.update(
+                manualActionLogSql().replace("'APPLIED'", "'DONE'"), "alice", null, "a".repeat(64)));
+    }
+
+    private void insertHistory(long paymentId) {
+        jdbc.update("""
+                INSERT INTO payment_status_histories (payment_id, target_type, from_status, to_status, actor, created_at)
+                VALUES (?, 'PAYMENT', 'REQUESTED', 'APPROVED', 'SYSTEM', now())""", paymentId);
+    }
+
+    private void insertManualActionLog() {
+        insertManualActionLog("alice", null, "a".repeat(64));
+    }
+
+    private void insertManualActionLog(String operator, String approver, String planHash) {
+        jdbc.update(manualActionLogSql(), operator, approver, planHash);
+    }
+
+    private static String manualActionLogSql() {
+        return """
+                INSERT INTO manual_action_logs (command, target_type, target_id, from_status, to_status, result,
+                                                operator, approver, plan_hash, reason, performed_at)
+                VALUES ('outbox requeue', 'OUTBOX', 1, 'FAILED', 'PENDING', 'APPLIED', ?, ?, ?, 'test', now())""";
+    }
+
+    private static void assertAppendOnly(String table, Runnable action) {
+        var exception = assertThrows(DataAccessException.class, action::run);
+        assertTrue(exception.getMessage().contains(table + " is append-only"), exception.getMessage());
     }
 
     private void insertDeadLetter(String eventKey, String status, String resolution) {

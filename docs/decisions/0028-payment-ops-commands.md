@@ -25,7 +25,7 @@
 3. **PG 근거가 목표 상태를 정한다**: 운영자는 목표 상태를 인자로 고르지 않는다. `payment resolve`·`refund resolve`는 실행 시점에 `PgClient`로 다시 조회해 근거와 맞는 전이만 한다. PG를 조회하지 못하거나 `Unknown`이면 아무것도 바꾸지 않는다. 그래서 근거 없이 알림만 끄는 경로가 없다.
 4. **PG 환불은 자동 경로로만**: Ops 명령은 `PgClient.refund`를 부르지 않는다. 환불 시작·재시도는 환불 행을 `REQUESTED`로 만들어 환불 워커가 처리하게 한다. 워커는 재호출 전에 조회부터 한다(0023).
 5. **전이 규칙 공유**: 명령은 승인 API·워커와 같은 application 유스케이스를 부른다. 조건부 UPDATE가 1행일 때만 이력(`actor=OPS:<operator>`)·Outbox·`manual_action_logs`(APPLIED)를 한 트랜잭션에 쓴다. 0행·근거 불일치·통제 위반은 `manual_action_logs`에 REJECTED만 남긴다.
-6. **형태**: `payment-service` 이미지를 `ops` 프로필로 한 번 띄우는 명령행 실행이다. 웹 서버·Kafka 소비자·스케줄러를 켜지 않고, 끝나면 종료한다. HTTP 엔드포인트를 만들지 않는다. EC2에서는 호스트의 SSH 세션에서 compose 네트워크로 실행한다. 정확한 실행 명령은 구현 때 정한다.
+6. **형태**: `payment-service` 이미지를 `ops` 프로필로 한 번 띄우는 명령행 실행이다. 웹 서버·Kafka 소비자·스케줄러를 켜지 않고, 끝나면 종료한다. HTTP 엔드포인트를 만들지 않는다. EC2에서는 호스트의 SSH 세션에서 compose 네트워크로 실행한다. 정확한 실행 명령은 ISE-158에서 정했다([manual-recovery.md](../design/payment/manual-recovery.md) 1절).
 7. **인증**: 실행 경계는 SSH(팀원 IP, 키 인증, SA 9-2)와 호스트의 컨테이너 실행 권한이다. 운영자 ID는 `--operator`로 받고 설정의 허용 목록(팀원 ID)에 있어야 한다. 이 ID는 암호학적으로 증명되지 않는 자기 신고이며, 감사 기록의 정확성은 SSH 접근 통제에 기댄다.
 8. **4-eyes**: 돈이나 이벤트가 움직이는 명령(`payment resolve`, `refund retry`, `refund resolve`, `dead-letter resolve`)은 `--approver`가 필요하다. 승인자는 허용 목록에 있고 실행자와 달라야 한다. `inspect`와 `outbox requeue`(이미 정해진 이벤트를 다시 보냄)는 1인이다.
 9. **dry-run과 계획 해시**: 모든 명령은 dry-run이 기본이다. dry-run은 현재 상태, PG 근거, 바뀔 전이, 발행할 이벤트, 계획 해시(대상·현재 상태·PG 근거 요약의 SHA-256)를 출력한다. `--apply --confirm <해시>`로만 실행하고, 그사이 상태나 근거가 바뀌어 해시가 다르면 거부한다.
@@ -51,7 +51,7 @@
 
 ## 결과
 
-- `manual-recovery.md` 전면 개정, `data-model.md`의 `manual_action_logs` 컬럼(`command`, `result`, `plan_hash`, `pg_evidence`, `external_ref`, `approver`)과 트리거, `observability.md`의 `payment_ops_command_total`.
+- `manual-recovery.md` 전면 개정, `data-model.md`의 `manual_action_logs` 컬럼(`command`, `result`, `plan_hash`, `pg_evidence`, `external_ref`, `approver`)과 트리거, `observability.md`의 Ops 지표(ISE-158에서 Counter `payment_ops_command_total` 대신 DB 집계 Gauge `payment_ops_actions`로 구현했다. Ops JVM이 잠깐 떴다 사라져 Prometheus가 Counter를 수집하지 못하기 때문이다).
 - 0020 개정(SQL 템플릿 문구 제거), SA 변경 요청 S-5·S-22.
 - 구현은 M3. M3 일정이 부족하면 `inspect`·`payment resolve`·`refund retry`·`refund resolve`를 먼저 하고 나머지는 같은 마일스톤 안에서 잇는다. 그 사이에도 직접 SQL은 쓰지 않는다.
 - 테스트: N21, N30, N31, N32.
@@ -59,3 +59,7 @@
 ## 면접에서 설명할 한 줄
 
 운영자 복구를 SQL이 아니라 감사되는 명령으로만 하게 하고, 목표 상태를 사람이 아니라 PG 조회 결과가 정하게 해서 "알림만 끄는 복구"와 이벤트 누락을 구조적으로 막았으며, 감사 테이블은 DB 트리거로 수정을 거부하게 했다.
+
+## 개정 이력
+
+- 2026-11-03: 구현(ISE-158)에 맞춰 결정 6의 "정확한 실행 명령은 구현 때 정한다"를 실행 명령이 있는 문서 위치로 바꾸고, 결과의 Ops 지표를 Counter `payment_ops_command_total`에서 DB 집계 Gauge `payment_ops_actions`로 고쳤다. Ops JVM은 잠깐 떴다 사라져 Prometheus가 그 JVM의 Counter를 수집하지 못하기 때문이다. 결정 내용은 바뀌지 않았다.

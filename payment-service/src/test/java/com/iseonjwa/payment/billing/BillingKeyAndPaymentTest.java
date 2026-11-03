@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.billing;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.billing.application.BillingKeyEncryptor;
 import com.iseonjwa.payment.payment.application.BillingPaymentCommand;
 import com.iseonjwa.payment.payment.application.BillingPaymentService;
@@ -82,7 +83,7 @@ class BillingKeyAndPaymentTest {
         assertEquals(10, approvalGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "Bulkhead 허가가 새고 있다");
         jdbc.update("DELETE FROM billing_keys WHERE user_id BETWEEN ? AND ?", FIRST_USER, LAST_USER);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^83[0-9]{5}$'");
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments"
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments"
                 + " WHERE reservation_id BETWEEN ? AND ?)", FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id BETWEEN ? AND ?", FIRST_RESERVATION, LAST_RESERVATION);
     }

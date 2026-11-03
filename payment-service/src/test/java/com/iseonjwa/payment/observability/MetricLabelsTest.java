@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.observability;
 
+import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.application.ApprovePaymentCommand;
 import com.iseonjwa.payment.payment.application.PaymentApprovalService;
 import com.iseonjwa.payment.pg.application.UnknownCause;
@@ -52,7 +53,7 @@ class MetricLabelsTest {
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key = ?", String.valueOf(RESERVATION));
-        jdbc.update("DELETE FROM payment_status_histories WHERE payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
+        AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id = ?)",
                 RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id = ?", RESERVATION);
     }
