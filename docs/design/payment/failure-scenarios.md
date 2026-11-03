@@ -39,7 +39,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N18 | `next_check_at` 없이 `REQUESTED` 저장 시도 | CHECK 위반. 정상 저장은 10초 뒤 스케줄러가 집음 | 4 | data-model.md | I |
 | N19 | 환불 응답 유실 뒤 PG에 환불 기록 없음(`NotFound`) | 같은 `pg_refund_id`로 재호출, PG 환불 1회 | 2, 4 | 0020, 0023 | I |
 | N20 | PG가 환불을 명확히 거절 | 환불 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`(`FAILED` 아님), 알림 | 4 | 0020 | I |
-| N21 | Ops `payment resolve`로 NMC 결제 확인 | PG 승인·금액 일치면 `APPROVED` + `PaymentApproved` + 이력(actor OPS) + `manual_action_logs`. PG가 `Unknown`이면 거부·상태 유지. `manual_action_logs`·이력의 UPDATE·DELETE는 트리거가 거부 | 7 | 0028 | I |
+| N21 | Ops `payment resolve`로 NMC 결제 확인 | PG 승인·금액 일치면 `APPROVED` + `PaymentApproved` + 이력(actor OPS) + `manual_action_logs`(APPLIED + `pg_evidence`). PG 승인·금액 불일치면 환불 `REQUESTED`(금액 = PG 승인 금액)를 만들고 결제는 NMC 유지. PG가 `Unknown`이면 거부·상태 유지. `manual_action_logs`·이력의 UPDATE·DELETE는 트리거가 거부. 구현: `PaymentResolveCommand`, 테스트: `PaymentResolveTest`(실제 PostgreSQL + 가짜 `PgClient`. 트리거 거부는 `PaymentMigrationTest`) | 7 | 0028 | I |
 | N22 | 예매 계약 | `CONFIRMED` + 같은 paymentId 재전달은 변화 없음. 다른 paymentId는 `RefundRequested(DUPLICATE_APPROVAL)`. `CONFIRMED` + `PaymentRefunded`는 좌석 유지·이상 격리·알림. 사용자·금액·통화 불일치 승인은 확정하지 않음 | 2, 3 | 0027 | I, S(반효승) |
 | N23 | `RefundRequested`가 발행되지 않음(Reservation 소비 실패 모의) | 허용 지연 뒤 대사 RC-2 기록·알림. 자동 수정 없음 | 4, 6 | 0029 | I, S |
 | N24 | 새 키 ALIAS | 같은 새 키 재요청은 PG 호출 0회로 현재 상태. 만료 토큰 + 새 키는 기존 결제가 있으면 조회만, 없으면 403 | 1 | 0019 | I |
@@ -49,7 +49,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N28 | `RefundRequested` 교차 검증 실패(결제 없음, 예매·사용자·금액 불일치, 미지정 사유) | 재시도 없이 DLQ, `dead_letters` `OPEN`, PG 호출 0회, 즉시 알림 | 3, 4, 9 | 0020 | I |
 | N29 | Gateway 504 뒤 같은 키 재시도 | 서버 처리 계속, PG 승인 1회, 재시도는 결과 응답 | 1 | 0018 | S |
 | N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림 | 6, 7 | 0028, 0029 | I |
-| N31 | 긴급 콘솔 환불 뒤 `refund resolve` | PG API로 환불 확인되면 `REFUNDED` + `PaymentRefunded` + `external_ref`. 확인 불가면 거부·NMC 유지 | 2, 7 | 0028 | I |
+| N31 | 긴급 콘솔 환불 뒤 `refund resolve` | PG API로 환불 확인되면 `REFUNDED` + `PaymentRefunded` + `external_ref`. 확인 불가면 거부·NMC 유지. 한계: 콘솔 환불은 우리 `pg_refund_id` 없이 일어나 지금의 `findRefund`로는 확인되지 않으므로 `NotFound`로 거부되고 NMC로 남는다(토스 어댑터 M4 때 콘솔 환불 확인용 조회를 다시 본다). 구현: `RefundResolveCommand`, 테스트: `RefundResolveTest`(PG가 환불을 확인하는 경우와 `NotFound` 거부) | 2, 7 | 0028 | I |
 | N32 | Ops 명령 통제 | 승인자 없음·실행자와 같음·허용 목록 밖·계획 해시 불일치는 거부(REJECTED 기록) | 7, 9 | 0028 | U, I |
 
 ## 3. 시나리오별 확인 규칙
