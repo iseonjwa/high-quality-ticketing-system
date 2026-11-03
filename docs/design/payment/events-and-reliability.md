@@ -169,12 +169,17 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 - `BackgroundJobScheduler`는 주기가 예외 없이 끝나면 `payment_job_last_success_timestamp{job}`을 갱신하고(0건을 처리한 주기도 성공이다), `Throwable`로 끝나면 `payment_job_failures_total{job}`을 올린다. `job` 값은 등록된 작업 이름이다(`recheck`, `refund-worker`, `outbox-cleanup`, `processed-events-cleanup`, `idempotency-cleanup`, `gauge-refresh`). Outbox 릴레이는 common의 전용 실행기라 `outbox_relay_last_success_timestamp`·`outbox_relay_failures_total`을 따로 남긴다. 정체 알림이 이 값을 본다. 릴레이의 마지막 성공은 라운드 반복이 예외 없이 끝난 시각이라 Kafka 장애로 전송이 실패해도 갱신된다(브로커 장애는 `outbox_pending_oldest_seconds`가 잡는다).
 - 배경 작업은 PG 호출 동안 DB 연결을 잡지 않는다. 동시에 잡을 수 있는 연결은 최대 6개다.
 - 연결 풀은 SA 9-4의 서비스당 20으로 둔다. 현재 `config-repo/payment-service.yml`은 `maximum-pool-size: 5`라 배경 작업만으로 풀이 찰 수 있어 고친다(S-21). `connection-timeout`은 1초`[가정]`로 둔다. 기본값 30초면 요청 스레드가 연결을 기다리다 Gateway 3초를 넘기고, TX2가 늦어져 재확인 스케줄러와 겹친다.
-- DB 시한은 `config-repo/payment-service.yml`의 `spring.datasource.hikari.data-source-properties`에 둔다(ISE-163). `connection-timeout`은 풀에 빈 연결이 없을 때만 걸리고 이미 빌린 연결의 쿼리에는 시한이 없어서, DB가 응답 없이 멈추면 요청 스레드가 시한 없이 기다려 Gateway 504가 났다(2026-11-03 compose에서 `docker pause`로 확인). 값은 둘이고 맡는 장애가 다르다. 둘 다 Gateway 3초보다 짧다`[가정]`.
-  - `options: "-c statement_timeout=1500"`(문장 시한 1.5초): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState `57014`). 서버에서 일이 끝나므로 잠금을 쥔 채 도는 쿼리가 남지 않고 연결도 다시 쓸 수 있다.
-  - `socketTimeout: 2`(소켓 시한 2초): 서버가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 오지 못하는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다.
-  - 연결을 얻는 대기는 그대로 1초다. PG 호출 전 구간(TX1)은 연결 대기 1초나 쿼리 소켓 시한 2초 중 먼저 걸리는 쪽으로 끝나 503 `SERVICE_UNAVAILABLE`이 된다. TX2 구간은 기존대로 202이고 재확인이 확정한다.
+- DB 시한은 `config-repo/payment-service.yml`의 `spring.datasource.hikari` 아래에 둔다(ISE-163). `connection-timeout`은 풀에 빈 연결이 없을 때만 걸리고 이미 빌린 연결의 쿼리에는 시한이 없어서, DB가 응답 없이 멈추면 요청 스레드가 시한 없이 기다려 Gateway 504가 났다(2026-11-03 compose에서 `docker pause`로 확인). 연결을 빌릴 때 둘, 빌린 연결의 문장에 둘을 건다. 값은 모두 `[가정]`이다.
+  - `connection-timeout: 1000`(연결 대기 1초): 풀에 빈 연결이 없을 때 기다리는 시간. 이전부터 있던 값이다.
+  - `validation-timeout: 1000`(생존 검사 1초): Hikari는 0.5초 넘게 쉰 연결을 빌려줄 때 살아 있는지 검사한다. 기본값 5초면 DB가 멈췄을 때 검사만으로 Gateway 3초를 넘긴다. HikariCP 7.0.2는 이 값을 `connection-timeout`으로 줄여 주지 않으므로 직접 맞춘다(Opus 리뷰에서 찾았고 FT-4 (h)가 확인한다).
+  - `data-source-properties.options: "-c statement_timeout=1500"`(문장 시한 1.5초): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState `57014`). 서버에서 일이 끝나므로 잠금을 쥔 채 도는 쿼리가 남지 않고 연결도 다시 쓸 수 있다.
+  - `data-source-properties.socketTimeout: 2`(소켓 시한 2초): 서버가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 오지 못하는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다.
+  - 승인 요청: DB가 멈추면 PG 호출 전 구간(TX1까지)은 연결을 빌릴 때 1초, 또는 빌린 연결의 첫 문장에서 2초 안에 끊겨 503 `SERVICE_UNAVAILABLE`이 된다. 시한은 문장마다 걸리므로, DB가 멈추지 않고 느리기만 하면 이 구간의 여러 문장(멱등 조회, 예매별 결제 조회, TX1 쓰기, 커밋)이 각각 1.5초 가까이 걸려 합이 3초를 넘을 수 있다(그때는 504와 같은 키 재시도, N29). TX2 구간은 기존대로 202이고 재확인이 확정한다.
+  - 한계(커밋 응답 유실): TX1의 커밋 응답을 2초 안에 받지 못하면 클라이언트는 연결을 버리고 503을 준다. 그런데 커밋 메시지가 이미 서버에 닿았다면(멈춘 컨테이너의 커널 버퍼, 늦어진 WAL 기록) DB가 풀린 뒤 커밋된다. PostgreSQL은 커밋 기록 중에는 문장 시한으로 취소하지 않는다. 그러면 `REQUESTED` 결제와 멱등 기록이 남고 PG는 불리지 않았으므로, 같은 키 재시도는 202를 받고 재확인이 PG에서 주문을 찾지 못해 `DECLINED`(`NOT_SENT`)로 닫는다. 이 예매는 다시 결제할 수 없다(`PAYMENT_ALREADY_CLOSED`). FT-3의 "TX1 커밋 뒤 프로세스 중단"과 같은 결말이고, 이제 프로세스가 살아 있어도 DB 지연만으로 생길 수 있다. 시한 전에는 커밋 응답을 끝까지 기다려 승인으로 이어졌다. 구조로 막는 방법(PG 호출 전이 확실한 `REQUESTED`를 같은 키 재시도에서 같은 PG 멱등키로 이어 가기)은 설계 변경이라 따로 다룬다.
   - 배경 작업(재확인, 환불 워커, 정리 등)은 DB가 멈추면 그 주기만 실패한다. `payment_job_failures_total{job}`이 오르고 다음 주기에 다시 한다.
-  - 한계: Flyway도 같은 풀로 마이그레이션하므로 문장 시한 1.5초와 소켓 시한 2초가 마이그레이션 문장에도 걸린다. 큰 테이블을 바꾸는 오래 걸리는 마이그레이션이 생기면 시한을 걸지 않은 Flyway 전용 연결을 따로 둬야 한다.
+  - Kafka 소비자: 전에는 DB가 멈추면 리스너 스레드가 기다렸다가 이어서 처리했다. 이제는 시도마다 1~2초 안에 실패해 1·2·4초 재시도 뒤 DLQ로 간다. 대략 10~15초 넘게 멈추면 DLQ로 넘어가고 DLQ 처리기가 DB가 돌아올 때까지 다시 시도한다(FT-4 (c)의 연결 거절과 같은 경로).
+  - Ops 명령 JVM(`ops` 프로필)은 `config-repo/payment-service-ops.yml`에서 소켓 시한 30초, 문장 시한 15초로 늘린다. 사람이 한 번 실행하는 명령이라 Gateway 시한과 상관없고, 부하 테스트 뒤 커진 Outbox를 `inspect`가 조회해도 끊기지 않게 한다. 로컬 `application.yml`의 ops 문서에 두면 설정 서버의 값이 이기므로 프로필 파일에 둔다.
+  - 한계(마이그레이션): Flyway도 같은 풀로 마이그레이션하므로 문장 시한 1.5초와 소켓 시한 2초가 마이그레이션 문장에도 걸린다. 큰 테이블을 바꾸는 오래 걸리는 마이그레이션이 생기면 시한을 걸지 않은 Flyway 전용 연결을 따로 둬야 한다.
 
 ## 8. 정리 작업 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
