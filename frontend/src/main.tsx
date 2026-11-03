@@ -5,7 +5,11 @@ import { createBrowserRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { createQueryClient } from '@/api/queryClient'
 import { routes } from '@/app/routes'
+import { applyDemoModeParam } from '@/demo/demoMode'
 import './index.css'
+
+// 라우터가 첫 주소를 읽기 전에 `demo` 파라미터를 적용하고 지운다.
+applyDemoModeParam()
 
 const queryClient = createQueryClient()
 const router = createBrowserRouter(routes)

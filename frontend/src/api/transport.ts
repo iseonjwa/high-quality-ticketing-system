@@ -1,6 +1,7 @@
 import type { z } from 'zod'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { failureEnvelopeSchema, successEnvelopeSchema } from '@/api/envelope'
+import { recordRequest } from '@/demo/requestLog'
 
 export const API_BASE_PATH = '/api/v1'
 
@@ -18,14 +19,41 @@ export interface SendOptions<T extends z.ZodType> {
 }
 
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).
+// 시연 모드용 요청 기록은 결과와 상관없이 요청마다 한 번 남긴다.
 export async function send<T extends z.ZodType>(options: SendOptions<T>): Promise<z.output<T>> {
-  const response = await fetchOrThrow(options)
-  const payload = await readJson(response)
+  const startedAt = Date.now()
+  const startedTick = performance.now()
+  let status = 0
+  let traceId: string | null = null
 
-  if (!response.ok) {
-    throw toApiError(response, payload)
+  try {
+    const response = await fetchOrThrow(options)
+    status = response.status
+    const payload = await readJson(response)
+    traceId = readTraceId(payload)
+
+    if (!response.ok) {
+      throw toApiError(response, payload)
+    }
+    return parseData(response, payload, options)
+  } finally {
+    // 취소는 TanStack Query가 한 것이므로 사용자가 보낸 요청으로 세지 않는다.
+    if (!options.signal?.aborted) {
+      recordRequest({
+        startedAt,
+        method: options.method,
+        path: loggedPath(options.path),
+        status,
+        durationMs: Math.round(performance.now() - startedTick),
+        traceId,
+      })
+    }
   }
-  return parseData(response, payload, options)
+}
+
+// Note: 쿼리 값은 남기지 않는다. 서버 공통 요청 로그 규칙과 같다.
+function loggedPath(path: string): string {
+  return (API_BASE_PATH + path).split('?')[0]
 }
 
 async function fetchOrThrow(options: SendOptions<z.ZodType>): Promise<Response> {

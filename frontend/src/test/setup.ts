@@ -3,6 +3,8 @@ import { cleanup } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { clearSession } from '@/auth/session'
+import { demoModeStore } from '@/demo/demoMode'
+import { clearRequestLog } from '@/demo/requestLog'
 import { resetMockDb } from '@/mocks/db'
 import { resetMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
@@ -24,6 +26,8 @@ afterEach(() => {
   resetMockDb()
   resetMockScenario()
   clearSession()
+  demoModeStore.setState(demoModeStore.getInitialState())
+  clearRequestLog()
   sessionStorage.clear()
 })
 
