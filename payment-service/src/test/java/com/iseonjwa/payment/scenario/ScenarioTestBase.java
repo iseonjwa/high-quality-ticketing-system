@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -118,6 +119,8 @@ abstract class ScenarioTestBase {
 
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final AtomicReference<PendingFault> pendingApproveFault = new AtomicReference<>();
+    private final AtomicReference<CrashPoint> pendingApproveCrash = new AtomicReference<>();
+    private final AtomicBoolean approveCrashed = new AtomicBoolean();
     private final List<UUID> eventIds = new ArrayList<>();
     private final AtomicLong dlqOffsets = new AtomicLong();
     private MockMvc mockMvc;
@@ -131,6 +134,8 @@ abstract class ScenarioTestBase {
         approvalGate.circuitBreaker().reset();
         recoveryGate.circuitBreaker().reset();
         pendingApproveFault.set(null);
+        pendingApproveCrash.set(null);
+        approveCrashed.set(false);
         eventIds.clear();
         reset(pg, sender);
         doAnswer(invocation -> {
@@ -140,7 +145,17 @@ abstract class ScenarioTestBase {
                 // 이 주문의 승인 요청에만 적용되게 orderId로 한정한다
                 PG.applyFault("APPROVE", fault.mode(), fault.count(), command.orderId().value().toString(), null);
             }
-            return invocation.callRealMethod();
+            var crash = pendingApproveCrash.getAndSet(null);
+            if (crash == CrashPoint.BEFORE_PG_CALL) {
+                approveCrashed.set(true);
+                throw new ProcessCrash("승인 호출 전에 프로세스가 죽었다");
+            }
+            var result = invocation.callRealMethod();
+            if (crash == CrashPoint.AFTER_PG_APPROVAL) {
+                approveCrashed.set(true);
+                throw new ProcessCrash("PG 승인 뒤 응답을 처리하기 전에 프로세스가 죽었다");
+            }
+            return result;
         }).when(pg).approve(any());
         when(sender.send(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
@@ -169,6 +184,34 @@ abstract class ScenarioTestBase {
     /** 다음 승인 호출(PG로 나가는 승인) 한 건을 그 주문 한정 장애로 만든다. 주문 ID는 TX1이 정하므로 호출 직전에 건다. */
     void armApproveFault(String mode) {
         pendingApproveFault.set(new PendingFault(mode, 1));
+    }
+
+    /**
+     * 다음 승인 호출에서 프로세스가 죽는 것을 흉내 낸다(FT-3). {@code BEFORE_PG_CALL}은 TX1이 커밋된 뒤 PG를 부르기 전,
+     * {@code AFTER_PG_APPROVAL}은 PG가 승인을 마친 뒤 앱이 응답을 처리하기 전이다. 어느 쪽이든 TX2는 일어나지 않는다.
+     */
+    void armApproveCrash(CrashPoint point) {
+        pendingApproveCrash.set(point);
+    }
+
+    /**
+     * 승인 API를 부르되 요청 처리 중 {@link ProcessCrash}가 났음을 확인한다. 컨트롤러의 예외 처리기가 {@code Error}를 500 응답으로
+     * 바꿔 돌려주지만, 실제로 프로세스가 죽었다면 클라이언트는 응답을 받지 못한다. 그래서 이 응답은 버리고 중단이 실제로 일어났는지
+     * (발동 표지)와 TX2가 실행되지 않았는지만 쓴다.
+     */
+    void approveAndCrash(long reservation, UUID idempotencyKey) {
+        approveAndCrash(reservation, idempotencyKey, token(USER, reservation, AMOUNT).build());
+    }
+
+    /** 같은 키로 다시 보내는 재시도가 같은 요청이 되도록 토큰을 호출한 쪽이 정한다(요청 해시에 토큰이 들어간다). */
+    void approveAndCrash(long reservation, UUID idempotencyKey, String paymentToken) {
+        try {
+            approve(reservation, idempotencyKey, paymentToken);
+        } catch (Exception thrown) {
+            // 예외로 끝나도 중단이 발동했다면 같은 뜻이다
+            if (!approveCrashed.get()) throw new AssertionError("프로세스 중단이 아닌 예외로 끝났다", thrown);
+        }
+        if (!approveCrashed.get()) throw new AssertionError("프로세스 중단이 발동하지 않았다");
     }
 
     /** 이 시나리오의 검증기(V1~V3). 시나리오 끝에서 {@code assertHolds()}를 부른다. */
@@ -267,6 +310,19 @@ abstract class ScenarioTestBase {
         return dlqOffsets.incrementAndGet();
     }
 
+    /**
+     * 실제 승인 API로 {@code APPROVED} 결제를 만들고 {@code RefundRequested}를 소비해 환불 {@code REQUESTED}까지 만든다. 환불 워커는
+     * 아직 돌리지 않는다. 환불 시나리오(FT-3~5)가 같이 쓴다.
+     */
+    long approvedPaymentWithRefundRequest() throws Exception {
+        var reservation = newReservation();
+        var approval = approve(reservation, UUID.randomUUID());
+        if (!"APPROVED".equals(approval.paymentStatus())) throw new AssertionError("승인되지 않았다: " + approval.body());
+        commandListener.onMessage(refundRequested(newEventId(), reservation, approval.paymentId()));
+        if (!"REQUESTED".equals(refundStatus(reservation))) throw new AssertionError("환불이 REQUESTED가 아니다");
+        return reservation;
+    }
+
     // ----- 복구 -----
 
     /**
@@ -333,6 +389,10 @@ abstract class ScenarioTestBase {
         for (var eventId : eventIds) {
             jdbc.update("DELETE FROM processed_events WHERE event_id = ?", eventId);
         }
+        // Ops 명령의 감사 기록. 대상은 이 범위의 결제와 환불이다
+        AppendOnlyCleanup.deleteManualActionLogs(jdbc, "(target_type = 'PAYMENT' AND target_id IN " + inRange + ") "
+                + "OR (target_type = 'REFUND' AND target_id IN (SELECT id FROM refunds WHERE payment_id IN " + inRange + "))",
+                FIRST_RESERVATION, LAST_RESERVATION, FIRST_RESERVATION, LAST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key IN "
                 + "(SELECT reservation_id::text FROM payments WHERE reservation_id BETWEEN ? AND ?)",
                 FIRST_RESERVATION, LAST_RESERVATION);
@@ -343,5 +403,21 @@ abstract class ScenarioTestBase {
     }
 
     private record PendingFault(String mode, int count) {
+    }
+
+    enum CrashPoint {
+        BEFORE_PG_CALL, AFTER_PG_APPROVAL
+    }
+
+    /**
+     * 프로세스가 갑자기 죽는 일을 흉내 내는 오류. 운영 코드는 {@code RuntimeException}만 PG 결과 모름으로 다루고 {@code Error}는
+     * 그대로 통과시키므로, 이 오류가 나면 이후 단계(TX2, 결과 반영, 임대 해제)는 실행되지 않은 채 끝난다.
+     *
+     * <p>Note: 실제 프로세스 강제 종료는 테스트로 하지 않는다. compose에서 메인이 수동으로 확인한다.
+     */
+    static final class ProcessCrash extends Error {
+        ProcessCrash(String message) {
+            super(message, null, false, false);
+        }
     }
 }
