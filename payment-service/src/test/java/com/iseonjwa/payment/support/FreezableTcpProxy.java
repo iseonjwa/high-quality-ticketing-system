@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Set;
@@ -20,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class FreezableTcpProxy implements Closeable {
     private static final int BUFFER_SIZE = 8192;
+    private static final int CONNECT_TIMEOUT_MILLIS = 2000;
 
     private final ServerSocket server;
     private final String targetHost;
@@ -68,9 +70,16 @@ public final class FreezableTcpProxy implements Closeable {
 
     private void acceptLoop() {
         while (!closed) {
+            Socket client;
             try {
-                var client = server.accept();
-                var upstream = new Socket(targetHost, targetPort);
+                client = server.accept();
+            } catch (IOException e) {
+                if (closed) return;
+                continue;
+            }
+            try {
+                var upstream = new Socket();
+                upstream.connect(new InetSocketAddress(targetHost, targetPort), CONNECT_TIMEOUT_MILLIS);
                 client.setTcpNoDelay(true);
                 upstream.setTcpNoDelay(true);
                 sockets.add(client);
@@ -78,7 +87,8 @@ public final class FreezableTcpProxy implements Closeable {
                 daemon("proxy-up", () -> pump(client, upstream));
                 daemon("proxy-down", () -> pump(upstream, client));
             } catch (IOException e) {
-                if (closed) return;
+                // 위쪽(DB)에 붙지 못하면 받은 연결을 바로 닫는다. 두면 클라이언트가 소켓 시한까지 기다린다
+                closeQuietly(client);
             }
         }
     }
