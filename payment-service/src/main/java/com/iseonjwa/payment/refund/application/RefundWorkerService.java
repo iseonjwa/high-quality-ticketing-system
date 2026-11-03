@@ -224,7 +224,7 @@ public class RefundWorkerService {
     // PG가 환불했다. 금액·통화가 환불과 같으면 확정하고, 다르면 운영자 확인으로 넘긴다(INV-3)
     private void confirm(Claim claim, PgOperation operation, PgClient.Refunded refunded) {
         if (!refunded.matches(claim.amount(), claim.currency())) {
-            // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3)
+            // 즉시 알림은 PaymentPgAmountMismatch 규칙(infra/prometheus/rules/payment-alerts.yml)이 낸다(INV-3)
             metrics.pgAmountMismatch(operation);
             log.error("event=REFUND_AMOUNT_MISMATCH refundId={} paymentId={} expectedAmount={} pgAmount={}",
                     claim.refundId(), claim.paymentId(), claim.amount(), refunded.amount());
@@ -235,7 +235,7 @@ public class RefundWorkerService {
             transactionTemplate.executeWithoutResult(status -> complete(claim, refunded));
         } catch (StateConflictException conflict) {
             // 결제가 환불할 수 없는 상태로 바뀌어 있었다. 환불 전이까지 롤백됐으므로 새 트랜잭션에서 운영자 확인으로 넘긴다
-            // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
+            // 즉시 알림은 RefundNeedsManualCheck 규칙이 낸다. 건수는 gauge-refresh가 센다
             log.error("event=REFUND_STATE_CONFLICT refundId={} paymentId={} pgRefundRef={}", claim.refundId(),
                     claim.paymentId(), refunded.refundRef());
             markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), STATE_CONFLICT);
@@ -261,7 +261,7 @@ public class RefundWorkerService {
 
     // PG가 환불할 수 없다고 명확히 거절했다. FAILED는 운영자가 확인한 뒤에만 쓴다(domain-and-states.md 2절)
     private void reject(Claim claim, PgClient.RefundRejected rejected) {
-        // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
+        // 즉시 알림은 RefundNeedsManualCheck 규칙이 낸다. 건수는 gauge-refresh가 센다
         log.error("event=REFUND_REJECTED refundId={} paymentId={} rejectReason={}", claim.refundId(), claim.paymentId(),
                 rejected.reason());
         markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), "REFUND_REJECTED");
@@ -271,7 +271,7 @@ public class RefundWorkerService {
     private void handleUnknown(Claim claim, String cause) {
         var delay = RecheckSchedule.delayAfter(claim.attempts());
         if (delay.isEmpty()) {
-            // TODO(ISE-157): refund_manual_check_count > 0 알림을 연결한다. 건수는 gauge-refresh가 센다
+            // 즉시 알림은 RefundNeedsManualCheck 규칙이 낸다. 건수는 gauge-refresh가 센다
             log.error("event=REFUND_UNRESOLVED refundId={} paymentId={} attempts={} lastCause={}", claim.refundId(),
                     claim.paymentId(), claim.attempts(), cause);
             markNeedsManualCheck(claim.refundId(), claim.paymentId(), claim.status(), "REFUND_UNRESOLVED");

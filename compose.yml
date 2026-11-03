@@ -240,7 +240,7 @@ services:
   prometheus:
     image: prom/prometheus:latest@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     mem_limit: 256m
-    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus:/prometheus"]
+    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./infra/prometheus/rules:/etc/prometheus/rules:ro", "prometheus:/prometheus"]
     ports: ["127.0.0.1:9090:9090"]
   grafana:
     image: grafana/grafana:latest@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f

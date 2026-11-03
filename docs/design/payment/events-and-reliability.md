@@ -43,7 +43,7 @@
 - 백오프는 `OutboxBackoff`(common)의 순수 함수다. k번째 실패 뒤 기본 지연은 `min(500ms × 2^(k-1), 60s)`이고, 지수는 7에서 멈춰 k가 아무리 커도 넘치지 않는다(8번째 실패부터 60초). Jitter는 equal jitter로, 기본 지연의 절반에 `[0, 절반]` 난수를 더한다. 그래서 다음 시도는 기본 지연의 50~100% 사이이고 60초를 넘지 않는다. 완전 무작위(full jitter)를 쓰지 않은 것은 0에 가까운 지연이 나와 장애 중인 브로커를 곧바로 다시 두드리기 때문이다. 난수원은 주입할 수 있다(테스트에서 고정).
 - 일시 오류 기록은 `attempts = LEAST(attempts + 1, 32767)`, `last_error`, `next_attempt_at`, `claimed_until = NULL`을 한 문장으로 쓴다(`WHERE status = 'PENDING'`). 임대를 바로 풀어 `next_attempt_at`이 재시도 간격을 정한다. 임대를 남기면 임대 만료(30초)가 사실상의 간격이 되어 백오프가 무의미하다. `attempts`는 `SMALLINT` 상한에서 멈추고 그 뒤에도 60초 간격으로 계속 재시도한다. 임대를 바로 풀어도 "전송이 아직 진행 중인데 다른 실행이 다시 보내는" 문제(임대를 전송 시한의 2배로 둔 이유)는 생기지 않는다. 실패를 기록하는 시점은 프로듀서가 그 레코드를 포기한 뒤이기 때문이다. 기동 검증이 `max.block.ms + delivery.timeout.ms`(2초 + 10초)를 릴레이 전송 시한(12초) 안에 두게 하므로, 시한 초과로 기록할 때는 프로듀서 쪽 전송도 이미 성공이나 실패로 끝나 있다.
 - 영구 오류는 `OutboxFailureClassifier` 한 곳에서 가른다. 원인 사슬을 끝까지 훑어(Spring Kafka가 감싼 `KafkaException` 포함) `org.apache.kafka.common.errors`의 `SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 하나라도 있으면 영구 오류다. 시한 초과, 브로커 불가, 알 수 없는 예외는 모두 일시 오류다. 모르는 예외를 `FAILED`로 보내면 정상 이벤트와 같은 키의 뒤 이벤트가 멈추기 때문이다.
-- 영구 오류는 ERROR 로그 `event=OUTBOX_FAILED eventId topic messageKey cause`(값 원문 없이 예외 종류만)를 남긴다. `FAILED`로 바꾼 수는 `outbox_events_failed_total`, 현재 건수는 `outbox_failed_count`가 센다(ISE-156, [observability.md](observability.md)). 알림 규칙은 ISE-157, 복구는 Ops `outbox requeue`(ISE-42)다.
+- 영구 오류는 ERROR 로그 `event=OUTBOX_FAILED eventId topic messageKey cause`(값 원문 없이 예외 종류만)를 남긴다. `FAILED`로 바꾼 수는 `outbox_events_failed_total`, 현재 건수는 `outbox_failed_count`가 센다(ISE-156, [observability.md](observability.md)). 알림은 `PaymentOutboxFailed` 규칙(ISE-157), 복구는 Ops `outbox requeue`(ISE-42)다.
 - `FAILED`가 같은 키를 막는 것은 의도다. `claimNext`는 같은 `message_key`에 앞선 `PENDING` 또는 `FAILED` 행이 있으면 뒤 행을 집지 않는다. 앞선 이벤트를 건너뛰고 뒤 이벤트를 먼저 내보내면 순서가 뒤집히므로 Ops `outbox requeue` 전까지 그 키는 멈춰 있다. 조건은 `NOT EXISTS`를 `PENDING`용과 `FAILED`용으로 나눈다. `status <> 'SENT'` 하나로 합치면 상태별 부분 인덱스를 못 쓴다. `FAILED`용 인덱스는 `V6__outbox_failed_key_index.sql`이다.
 - 테스트 범위: 백오프·분류는 common 단위 테스트, 저장소 동작(일시 오류 기록의 범위·임대 해제, 다음 시도 전에는 집지 않음, `FAILED`와 키 막힘, 복구 뒤 `SENT`)은 PostgreSQL 통합 테스트(`OutboxRelayIntegrationTest`), Kafka 장애에서 승인 API가 200을 주고 Outbox가 쌓였다가 복구 뒤 `SENT`가 되는 흐름(N10)은 가짜 sender로 `OutboxBrokerOutageApiTest`에서 확인했다. 실제 Kafka 브로커를 내리는 장애 주입은 하지 않았다.
 
@@ -103,7 +103,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 - 순서는 한 트랜잭션(`TransactionTemplate`)에서 `dead_letters` OPEN 삽입(`ON CONFLICT (event_key) DO NOTHING`, 사유는 우선 "처리 중") → `processed_events` → 파싱 실패면 `OPEN` 유지 → 검증 → 생성(`source=DLQ`) → 결과 반영이다. `Created`는 `RESOLVED(AUTO_PERSISTED)`와 `refund_id`, `Duplicate`는 `RESOLVED(DUPLICATE)`와 `refund_id`, `Invalid`·`NotApproved`는 `OPEN`과 사유다. 사유는 `VARCHAR(500)`이라 길면 자른다. 원문의 NUL 문자는 PostgreSQL 텍스트가 저장하지 못해 U+FFFD로 바꿔 저장한다(내용 때문에 예외가 나면 같은 메시지를 영원히 다시 처리하게 된다). DB·인프라 오류만 예외로 나가고 트랜잭션이 롤백되어 `dead_letters`·환불·`processed_events`가 모두 남지 않는다.
 - 오류 처리기와 컨테이너: `paymentCommandDlqListenerFactory`는 ISE-136 팩토리처럼 Boot configurer 적용 뒤 ack-mode `RECORD`, 동시성 1로 고정하고 전역 `CommonErrorHandler` 빈은 만들지 않는다. 오류 처리기는 복구기 없는 `DefaultErrorHandler`에 무제한 백오프(1초 시작, 2배, 최대 간격 60초, 횟수·경과 시간 제한 없음)를 쓴다. 다른 토픽으로 보내지 않고 건너뛰지도 않아서, DB 장애 동안 같은 레코드를 계속 다시 처리하며 오프셋을 커밋하지 않는다. 모든 예외를 재시도 대상으로 분류한다. `DefaultErrorHandler`는 기본으로 변환·역직렬화 예외를 재시도 없이 복구하고 기본 복구기는 로그만 남기고 건너뛰는데, 이 리스너에서 건너뛰면 환불 의무가 지워질 수 있기 때문이다.
 - 최대 간격 60초는 `max.poll.interval.ms`(기본 5분)보다 작다. 재시도 대기 중에는 컨슈머가 poll하지 못하므로 한 번의 대기가 이 시간을 넘으면 그룹에서 쫓겨나 리밸런스가 반복된다. 이 값을 키우려면 `max.poll.interval.ms`도 함께 본다.
-- `OPEN`으로 끝난 건은 커밋된 뒤 ERROR 로그(`event=DEAD_LETTER_OPEN`, `eventKey`, 사유)만 남긴다. `OPEN` 건수와 최고령은 `dead_letter_open_count`·`dead_letter_open_oldest_seconds{topic}`가 보이고(ISE-156), 처리기가 예외로 끝나면 `payment_dlq_handler_failures_total{topic}`이 오른다(예외는 그대로 다시 던진다). 즉시 알림 규칙은 ISE-157에서 붙인다(코드에 `TODO(ISE-157)`). `OPEN` 건의 해결(`REPLAYED`·`NO_OBLIGATION`)은 Ops `dead-letter resolve`라 이 이슈 범위 밖이다.
+- `OPEN`으로 끝난 건은 커밋된 뒤 ERROR 로그(`event=DEAD_LETTER_OPEN`, `eventKey`, 사유)만 남긴다. `OPEN` 건수와 최고령은 `dead_letter_open_count`·`dead_letter_open_oldest_seconds{topic}`가 보이고(ISE-156), 처리기가 예외로 끝나면 `payment_dlq_handler_failures_total{topic}`이 오른다(예외는 그대로 다시 던진다). 즉시 알림은 `PaymentDeadLetterOpen`·`PaymentDlqHandlerFailing`·`PaymentDlqConsumerLag` 규칙이다(ISE-157, `infra/prometheus/rules/payment-alerts.yml`). `OPEN` 건의 해결(`REPLAYED`·`NO_OBLIGATION`)은 Ops `dead-letter resolve`라 이 이슈 범위 밖이다.
 - 테스트 범위: DLQ 레코드를 직접 만들어 리스너를 부르는 통합 테스트(실제 테스트 DB)로 표의 세 경우, 재전달 멱등, 원본 위치 키, DB 오류 시 롤백 뒤 재처리(N8)를 확인했다. 오류 처리기는 브로커 없이 단위로 확인한다(백오프가 60초에서 멈추고 끝나지 않는다, 복구기 없음). 실제 브로커에서 DLQ 토픽 소비와 오프셋 보존은 compose 스택에서 확인한다(미확인).
 
 ## 6. 재확인 스케줄러와 환불 워커 (SA 10-5)
@@ -148,7 +148,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 - 두 번째 허가: `findRefund`가 `NotFound`면 `refund` 전에 허가를 한 번 더 얻는다. 못 얻으면 호출하지 않고 `Unknown`처럼 다음 간격으로 미룬다(이력 사유 `RECOVERY_PERMIT_DENIED`, 시도 횟수는 센다).
 - `PaymentRefunded`의 `amount`는 결제의 `amount`가 아니라 PG 승인 금액(`pg_approved_amount`)이다. 환불 금액이 승인 금액을 복사하므로 같은 값이고, 승인 금액이 결제 금액과 달라 운영자 확인을 거친 결제(`PG_AMOUNT_MISMATCH`)의 환불에서 두 값이 다르다. `refundedAt`은 PG가 환불한 시각이고 밀리초로 자른다.
 - 테스트 범위: 서비스 단위(목 `PgClient`, 실제 테스트 DB와 복구 그룹), 쿼리, 실제 mock-pg를 띄운 E8·E13·응답 유실·`NotFound` 재호출. 환불 워커는 테스트 프로필에서 꺼 두고 서비스 메서드를 직접 부른다. mock-pg의 환불 호출 계수(원장 조회)는 아직 없어 PG 쪽 호출 횟수는 `PgClient` 스파이로 센다.
-- 미확인: Ops `refund retry`가 `pg_requested_at`을 비워야 하는지(비우면 재시도가 `findRefund` 없이 `refund`부터 시작해 이중 환불 방어가 PG 멱등키에만 의존한다. 비우지 않으면 `findRefund`부터 시작한다). Ops 명령 구현에서 정한다. 실제 Kafka로 `PaymentRefunded`가 Reservation까지 닿는 흐름(Outbox 행까지만 확인), 환불 장애 주입(ISE-133)에서의 동작, 알림 규칙(ISE-157, 지표는 ISE-156에서 붙였다), DLQ 경로가 만든 환불의 처리(ISE-138).
+- 미확인: Ops `refund retry`가 `pg_requested_at`을 비워야 하는지(비우면 재시도가 `findRefund` 없이 `refund`부터 시작해 이중 환불 방어가 PG 멱등키에만 의존한다. 비우지 않으면 `findRefund`부터 시작한다). Ops 명령 구현에서 정한다. 실제 Kafka로 `PaymentRefunded`가 Reservation까지 닿는 흐름(Outbox 행까지만 확인), 환불 장애 주입(ISE-133)에서의 동작, DLQ 경로가 만든 환불의 처리(ISE-138).
 
 ## 7. 실행기와 DB 연결
 
@@ -190,7 +190,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 - **기동 검증**: `processed-events-retention`이 `max(topic-retention, dlq-retention)`보다 짧거나 같으면 설정 클래스를 만들 때 `IllegalArgumentException`으로 기동이 실패한다(메시지에 세 값). `topic-retention`과 `dlq-retention`은 브로커의 토픽 보관 설정을 앱이 읽는 값이 아니라 운영자가 브로커 설정에 맞춰 적는 값이다. 브로커 보관을 늘리고 이 값을 같이 올리지 않으면 검증이 의미를 잃으므로 브로커 설정을 바꿀 때 함께 고쳐야 한다.
 - **재전달 방어(N11)**: `processed_events`가 정리된 뒤 같은 `RefundRequested`가 다시 와도 환불은 한 건이다. 일반 경로에서는 이력이 한 건으로 되살아나고(재처리), 환불 중복은 `refunds`의 UNIQUE와 조건부 `INSERT … SELECT … ON CONFLICT`(9절)가 막는다. DLQ 처리기 경로는 `dead_letters.event_key` UNIQUE가 먼저 걸러 이력을 다시 쓰지 않는다(`dead_letters`는 정리 대상이 아니다). 근거는 `RedeliveryAfterRetentionCleanupTest`(실제 정리 쿼리, 기준 시각을 미래로).
 - **테스트 범위**: 쿼리와 잠금은 PostgreSQL 통합 테스트(`RetentionCleanupTest`, `IdempotencyRecordCleanupTest`), 보관 기간 검증·작업 등록·실행기 분리는 단위·컨텍스트 테스트다. 잠금은 두 번째 연결이 같은 키의 세션 잠금을 쥔 채 호출해 0을 확인한다.
-- **미확인**: 두 인스턴스의 실제 동시 실행(잠금 경합을 두 연결로만 흉내 냈다), 알림 규칙(ISE-157, 지표는 ISE-156에서 붙였다), 대량 적체에서의 정리 소요 시간, `config-repo`의 운영 값(이 이슈는 config-repo를 고치지 않았다).
+- **미확인**: 두 인스턴스의 실제 동시 실행(잠금 경합을 두 연결로만 흉내 냈다), 대량 적체에서의 정리 소요 시간, `config-repo`의 운영 값(이 이슈는 config-repo를 고치지 않았다).
 
 ## 9. 오래된 이벤트 재전달 방어
 

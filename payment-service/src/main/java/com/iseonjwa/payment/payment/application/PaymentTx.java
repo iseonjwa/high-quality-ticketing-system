@@ -138,7 +138,7 @@ public class PaymentTx {
             changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
                     result.amount(), result.approvedAt(), StatusActor.SYSTEM);
         } else {
-            // TODO(ISE-157): payment.pg.amount.mismatch 증가를 즉시 알림 규칙에 연결한다(INV-3, N16)
+            // 즉시 알림은 PaymentPgAmountMismatch 규칙(infra/prometheus/rules/payment-alerts.yml)이 낸다(INV-3, N16)
             metrics.pgAmountMismatch(PgOperation.APPROVE);
             log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
                     payment.getAmount(), result.amount(), result.paymentRef().value());
