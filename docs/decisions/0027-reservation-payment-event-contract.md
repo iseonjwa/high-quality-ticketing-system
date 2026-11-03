@@ -33,7 +33,7 @@ Reservation의 `reservation.payment-result` 소비자는 이벤트의 `reservati
 | 예매 없음 | — | 이상 기록 | — | 즉시. Payment 대사 RC-2도 찾는다 |
 
 - 만료 시각 판단은 PG 승인 시각(`approvedAt`)으로 한다. 예매가 아직 `HELD`라면 좌석은 다른 사람에게 가지 않았으므로, 선점 시간 안에 승인된 결제는 소비가 늦어도 확정한다.
-- `HELD` → `EXPIRED` 조건부 UPDATE가 0행이면(만료 스케줄러가 먼저 처리) 다시 읽어 바뀐 상태의 규칙을 적용한다.
+- `HELD` → `EXPIRED` 조건부 UPDATE가 0행이면(만료 스케줄러가 먼저 처리) 다시 읽어 바뀐 상태의 규칙을 적용한다. 구현은 같은 자리에서 다시 읽지 않고 예외로 트랜잭션을 되돌려 Kafka 재시도가 처음부터 다시 읽게 한다(결과 절, 2026-11-03).
 - 같은 `paymentId`로 `RefundRequested`를 다시 내도 Payment는 결제당 환불 한 건으로 묶는다(0020). Reservation은 이를 믿고 중복 발행 방지를 따로 두지 않아도 된다.
 
 ### PaymentDeclined
@@ -83,7 +83,10 @@ Reservation의 `reservation.payment-result` 소비자는 이벤트의 `reservati
 
 - 2026-11-03 반효승이 합의하고 ISE-73(`PaymentResultService`)으로 구현했다. SA 10-3에는 `RefundRequested.reason` 네 값이 반영돼 있다.
 - 이상 격리 저장 위치: 우선 별도 테이블 없이 `event=PAYMENT_RESULT_ANOMALY` 오류 로그로 남긴다. 상태는 바꾸지 않는다. 알림 지표와 저장 테이블이 필요해지면 다시 정한다.
-- 조건부 전이(`WHERE status = 'HELD'`)가 0행이면 처리 중에 상태가 바뀐 것이다. 예외로 트랜잭션을 되돌리고 Kafka 재시도(1·2·4초)에 맡겨, 다시 읽은 상태의 규칙을 적용한다.
+- 조건부 전이(`WHERE status = 'HELD'`)가 0행이면 처리 중에 상태가 바뀐 것이다. 예외로 트랜잭션을 되돌리고 Kafka 재시도(1·2·4초)에 맡겨, 다시 읽은 상태의 규칙을 적용한다. 재시도 3회가 모두 실패하면 DLQ 처리기가 한 번 더 처리한다(ISE-74).
+- 표의 "알림"은 MVP에서 오류 로그로 대신한다. "즉시"는 `event=PAYMENT_RESULT_ANOMALY` 오류 로그, "지표만"(`EXPIRED` 예매의 승인)은 경고 로그다. Prometheus 지표와 알림 규칙은 아직 없다.
+- `PaymentRefunded` 표의 "기록"(환불 완료 기록)은 별도 테이블 없이 정보 로그로 남긴다. 예매 상태는 바꾸지 않는다.
+- DLQ 처리기(ISE-74): `payment.result.dlq`를 그룹 `reservation.payment-result-dlq`로 소비해 같은 서비스로 한 번 더 처리한다. 성공하면 예매 DB `dead_letters`에 `RESOLVED(REPLAYED)`, 실패하거나 봉투를 읽지 못하면 `OPEN`으로 남기고 `event=DEAD_LETTER_OPEN` 오류 로그를 낸다. DB 연결 같은 인프라 오류는 기록하지 않고 같은 레코드를 계속 다시 처리한다.
 - Payment 쪽: `RefundRequested` 교차 검증(0020), 대사 RC-1~RC-4(0029).
 - 테스트(반효승 담당 코드): N2, N22. Payment 쪽 통합 시나리오: E8, FT-1의 V3.
 
