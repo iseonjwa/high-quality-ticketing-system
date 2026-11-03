@@ -11,6 +11,7 @@ import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -41,7 +42,11 @@ import static org.mockito.Mockito.reset;
  * 보장하고, 시한이 없는 다른 테스트의 데이터소스는 바꾸지 않는다.
  *
  * <p>Note: 프록시가 멈춘 동안에는 테스트의 {@code jdbc}도 같은 경로라 멈춘다. 상태 조회는 {@code thaw()} 뒤에 한다.
+ *
+ * <p>Note: 이 컨텍스트의 연결 풀은 프록시를 거친다. 클래스가 끝나 프록시를 닫은 뒤에도 컨텍스트가 캐시에 남으면 풀이 닫힌 포트로
+ * 연결을 계속 시도하므로 끝나면 컨텍스트를 닫는다.
  */
+@DirtiesContext
 class Ft4DbFreezeScenarioTest extends ScenarioTestBase {
     private static final Duration GATEWAY_DEADLINE = Duration.ofSeconds(3);
     private static final Pattern HOST_PORT = Pattern.compile("//([^/:?]+)(?::(\\d+))?");
