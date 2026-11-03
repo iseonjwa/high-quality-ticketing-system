@@ -1,6 +1,6 @@
 # 결제 데이터 모델
 
-payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33), V3·V4는 환불과 DLQ 이슈에서 구현했다(ISE-136·138). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
+payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙은 SA 12-1(UTC, 금액 NUMERIC(15,0), 서비스 간 FK 없음)을 따르고, 아래는 SA 12-4·12-5에서 바뀌거나 새로 생기는 부분을 포함한 구현 기준이다. Flyway 마이그레이션 위치는 `payment-service/src/main/resources/db/migration/`이다. V1은 구현했다(ISE-33), V3·V4는 환불과 DLQ 이슈에서 구현했다(ISE-136·138), V8은 감사 테이블과 append-only 트리거다(ISE-158). 제약마다 지키는 불변 조건(INV-n, [invariants.md](invariants.md))을 함께 적는다.
 
 ## 1. 마이그레이션 순서
 
@@ -13,7 +13,8 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | `V5__billing_keys.sql` | `billing_keys`(ISE-96, 아래 11절) | M2 |
 | `V6__outbox_failed_key_index.sql` | `outbox_events`의 `(message_key, id) WHERE status = 'FAILED'` 부분 인덱스(ISE-145, 릴레이가 같은 키의 앞선 `FAILED`를 찾을 때). 처음에 `V5`로 만들었으나 같은 날 먼저 머지된 `V5__billing_keys.sql`과 버전이 겹쳐 `V6`으로 옮겼다(ISE-155) | M3 |
 | `V7__idempotency_expires_index.sql` | `idempotency_records(expires_at)` 인덱스(ISE-146, 만료 기록 정리가 오래된 순으로 읽을 때) | M3 |
-| (이후 M3 이슈) | `manual_action_logs`, `reconciliation_mismatches`, `reject_modification()`과 append-only 트리거(`payment_status_histories`·`manual_action_logs`). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
+| `V8__manual_action_logs.sql` | `manual_action_logs`(9절), `reject_modification()`, `payment_status_histories`·`manual_action_logs`의 `BEFORE UPDATE OR DELETE`(행)·`BEFORE TRUNCATE`(문장) 트리거(ISE-158). 처음 계획은 `V3` 하나였고 이슈 단위로 나눴다 | M3 |
+| (이후 M3 이슈) | `reconciliation_mismatches`(ISE-43) | M3 |
 
 마이그레이션 테스트는 아래 UNIQUE·CHECK·트리거가 실제로 생겼는지 카탈로그(`pg_indexes`, `pg_constraint`, `pg_trigger`)로 확인한다(INV-1, INV-7).
 
@@ -81,6 +82,8 @@ CREATE TRIGGER payment_status_histories_no_update BEFORE UPDATE OR DELETE ON pay
 CREATE TRIGGER payment_status_histories_no_truncate BEFORE TRUNCATE ON payment_status_histories
   FOR EACH STATEMENT EXECUTE FUNCTION reject_modification();
 ```
+
+구현(ISE-158, `V8__manual_action_logs.sql`): 트리거 이름은 `payment_status_histories_no_update`·`payment_status_histories_no_truncate`·`manual_action_logs_no_update`·`manual_action_logs_no_truncate`이고 `PaymentMigrationTest`가 카탈로그(`pg_trigger`)와 UPDATE·DELETE·TRUNCATE 거부를 확인한다. 운영 코드는 이 테이블을 UPDATE·DELETE하지 않고(보관 정리 포함 확인) 테스트 정리는 `AppendOnlyCleanup`이 정리 트랜잭션 안에서만 `SET LOCAL session_replication_role = replica`로 트리거를 건너뛴다. 이 방법은 슈퍼유저만 쓸 수 있고 FK 트리거도 건너뛰므로 운영 코드와 운영 설정에는 쓰지 않는다.
 
 트리거는 테이블 소유 계정이 끌 수 있다. 현재 compose는 DB 계정 하나(`DB_USER`)를 쓰므로 마이그레이션 계정과 앱 계정을 나누는 것은 후속 과제다([invariants.md](invariants.md) 3절 #4).
 
@@ -198,6 +201,8 @@ Ops `payment resolve`가 시작하는 금액 불일치 환불만 `p.status = 'NE
 | performed_at | TIMESTAMPTZ NOT NULL | |
 
 append-only 트리거는 3절과 같다. 삭제 기간은 없다.
+
+구현(ISE-158): 컬럼 중 `target_id`와 `operator`는 `NOT NULL`이고, CHECK는 `chk_manual_action_logs_target_type`·`_result`·`_plan_hash`(소문자 16진수 64자)·`_approver`(승인자가 있으면 실행자와 달라야 함)이다. `idx_manual_action_logs_target(target_type, target_id, id)`가 `inspect`의 대상별 조회를 받친다. `reason`은 적용이면 운영자 메모, 거부면 거부 사유와 메모다. 승인자가 실행자와 같아 거부한 시도는 CHECK 때문에 `approver`를 비우고 `reason`에 적는다. `--apply` 시도에서 생긴 결과만 쓰고 dry-run과 `inspect`는 쓰지 않는다.
 
 ## 10. reconciliation_mismatches (M3)
 
