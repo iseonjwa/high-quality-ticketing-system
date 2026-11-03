@@ -295,7 +295,7 @@ class PaymentCommandDlqListenerTest {
         var eventId = newEventId();
         var failing = spy(refundRequests);
         doThrow(new DataAccessResourceFailureException("DB 연결 실패")).doCallRealMethod()
-                .when(failing).create(any(), any(), any(), any());
+                .when(failing).create(any(), any(), any(), any(), any());
         var flaky = new PaymentCommandDlqListener(parser(), new DeadLetterService(deadLetters, failing, processedEvents,
                 transaction, clock), metrics);
         var record = withOrigin(message(eventId, payment, 50000), 7, 100);
@@ -387,6 +387,11 @@ class PaymentCommandDlqListenerTest {
                 throw new DataAccessResourceFailureException("DB 연결 실패");
             }
             return delegate.resolve(id, resolution, refundId, now);
+        }
+
+        @Override
+        public java.util.Optional<com.iseonjwa.payment.refund.domain.DeadLetter> findById(Long id) {
+            return delegate.findById(id);
         }
 
         @Override
