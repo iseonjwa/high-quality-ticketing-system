@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.queue.infrastructure;
+package com.iseonjwa.reservation.queue.presentation.scheduling;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;

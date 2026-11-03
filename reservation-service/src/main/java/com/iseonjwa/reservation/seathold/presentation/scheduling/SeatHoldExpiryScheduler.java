@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.seathold.infrastructure.scheduling;
+package com.iseonjwa.reservation.seathold.presentation.scheduling;
 
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;
 import org.slf4j.Logger;

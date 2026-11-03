@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.seathold.infrastructure.scheduling;
+package com.iseonjwa.reservation.seathold.presentation.scheduling;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
