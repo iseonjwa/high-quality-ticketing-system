@@ -1286,7 +1286,7 @@
       "gridPos": {
         "x": 0,
         "y": 47,
-        "w": 12,
+        "w": 8,
         "h": 8
       },
       "targets": [
@@ -1339,9 +1339,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 47,
-        "w": 12,
+        "w": 8,
         "h": 8
       },
       "targets": [
@@ -1362,6 +1362,52 @@
           "expr": "increase(outbox_relay_failures_total{application=\"payment-service\"}[5m])",
           "legendFormat": "outbox-relay",
           "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Ops 명령 실행(누적)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "manual_action_logs의 명령·결과별 누적 건수(gauge-refresh가 15초마다 집계). Ops JVM은 잠깐 떴다 사라지므로 Counter 대신 DB 집계다",
+      "gridPos": {
+        "x": 16,
+        "y": 47,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "payment_ops_actions{application=\"payment-service\"}",
+          "legendFormat": "{{command}} {{result}}",
+          "refId": "A"
         }
       ],
       "fieldConfig": {

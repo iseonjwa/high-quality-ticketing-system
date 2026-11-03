@@ -101,7 +101,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 ### 구현 메모 (ISE-157, 대시보드)
 - 맨 위에 "지금 울리는 결제 알림" 표(`ALERTS{service="payment"}`)를 두고, 그 아래 위 표의 다섯 줄을 그대로 둔다. 1줄은 숫자 칸(stat)이라 한눈에 0인지 본다. 최고령 칸은 경고(노랑)·심각(빨강) 기준을 알림 규칙과 같게 칠한다.
 - 승인 지연 p50·p95·p99는 `payment_approve_seconds_bucket`의 `histogram_quantile`이다. PG 호출 지연은 작업별 평균(`_sum / _count`)이다(PG 호출 Timer는 히스토그램을 켜지 않았다).
-- 대사 불일치 칸(ISE-43)과 Ops 명령 실행 수(ISE-158)는 그 이슈에서 더한다. DLQ 랙은 알림만 두고 패널은 DLQ OPEN·처리기 실패로 대신한다.
+- 대사 불일치 칸은 ISE-43에서 더한다. Ops 명령 실행 수는 5줄의 `payment_ops_actions{command,result}` 패널이다(ISE-158). DLQ 랙은 알림만 두고 패널은 DLQ OPEN·처리기 실패로 대신한다.
 
 ## 4. 산출물 위치
 - 대시보드: `infra/grafana/dashboards/payment.json`(uid `iseonjwa-payment`, 제목 "결제"). Grafana 프로비저닝(`infra/grafana/provisioning/dashboards/default.yml`)이 기동 때 자동으로 올린다.
