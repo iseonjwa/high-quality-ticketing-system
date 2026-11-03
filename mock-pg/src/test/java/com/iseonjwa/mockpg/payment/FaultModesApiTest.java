@@ -245,7 +245,7 @@ class FaultModesApiTest {
                 "{\"target\":\"APPROVE\",\"mode\":\"PROCESSING\",\"rate\":1.5}",
                 "{\"target\":\"APPROVE\",\"mode\":\"PROCESSING\",\"count\":0}",
                 "{\"target\":\"APPROVE\",\"mode\":\"PROCESSING\",\"orderId\":\" \"}",
-                "{\"target\":\"REFUND\",\"mode\":\"PROCESSING\"}"
+                "{\"target\":\"UNKNOWN_TARGET\",\"mode\":\"PROCESSING\"}"
         })
         void 설정이_틀리면_400_INVALID_REQUEST다(String body) throws Exception {
             assertResponse(400, "{\"code\":\"INVALID_REQUEST\"}", post("/mock-pg/faults", body));
@@ -274,7 +274,7 @@ class FaultModesApiTest {
 
             var current = send(HttpRequest.newBuilder(uri("/mock-pg/faults")).GET().build());
             assertTrue(current.body().contains(
-                    "{\"target\":\"CANCEL\",\"mode\":\"DELAY\",\"delayMs\":300,\"rate\":1.0,\"count\":2,\"orderId\":\"o-1\"}"),
+                    "{\"target\":\"CANCEL\",\"mode\":\"DELAY\",\"delayMs\":300,\"rate\":1.0,\"count\":2,\"orderId\":\"o-1\",\"refundId\":null}"),
                     current.body());
         }
     }

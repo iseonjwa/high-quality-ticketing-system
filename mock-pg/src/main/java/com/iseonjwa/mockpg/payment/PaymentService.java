@@ -51,10 +51,10 @@ class PaymentService {
         var decisionRan = new AtomicBoolean();
         var state = ledger.approve(request.orderId(), idempotencyKey, () -> {
             decisionRan.set(true);
-            delay(fault);
+            fault.awaitDelay();
             return decide(request, fault);
         });
-        if (!decisionRan.get()) delay(fault);
+        if (!decisionRan.get()) fault.awaitDelay();
         return Outcome.of(fault, state);
     }
 
@@ -66,7 +66,7 @@ class PaymentService {
             return Outcome.withoutLedger(fault);
         }
 
-        delay(fault);
+        fault.awaitDelay();
         return Outcome.of(fault, ledger.cancel(orderId));
     }
 
@@ -78,7 +78,7 @@ class PaymentService {
             return Outcome.withoutLedger(fault);
         }
 
-        delay(fault);
+        fault.awaitDelay();
         return new Outcome(fault, ledger.lookup(orderId));
     }
 
@@ -95,16 +95,6 @@ class PaymentService {
         }
         return new Approved(request.orderId(), "pg-" + UUID.randomUUID(), request.amount(), request.currency(),
                 Instant.now());
-    }
-
-    private static void delay(Fault fault) {
-        if (!fault.is(FaultMode.DELAY)) return;
-        try {
-            Thread.sleep(fault.delayMs());
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("장애 주입 지연 중 인터럽트", exception);
-        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.iseonjwa.mockpg.payment;
 
 import com.iseonjwa.mockpg.ledger.OrderState;
+import com.iseonjwa.mockpg.web.FaultResponses;
 import com.iseonjwa.mockpg.web.ResponseDrop;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -51,7 +52,7 @@ class PaymentController {
 
     private ResponseEntity<?> respond(PaymentService.Outcome outcome, HttpServletRequest servletRequest,
                                       Function<Optional<OrderState>, ResponseEntity<?>> ledgerResponse) {
-        var faultResponse = PaymentResponses.fault(outcome.fault());
+        var faultResponse = FaultResponses.of(outcome.fault());
         if (faultResponse.isPresent()) return faultResponse.get();
         if (outcome.dropsResponse()) {
             // Note: 원장 처리를 끝낸 뒤 응답만 잃는다. 새 주문이면 결과를 저장한 뒤고, 망취소면 반영한 뒤다.
