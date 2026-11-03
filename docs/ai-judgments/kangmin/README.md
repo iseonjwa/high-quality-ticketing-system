@@ -8,6 +8,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-03 | 회의 자료·판단 기록의 "입구" 표현을 "인바운드 어댑터"로 바꾸자는 제안 거부 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-03-keep-entrance-wording.md) |
+| 2026-11-03 | 계층: Kafka 소비자·스케줄러를 infrastructure에 두자는 추천을 거부하고, 입구 어댑터를 presentation으로 모두 옮기기로 팀 회의에서 확정 | Claude Code + Claude(대기열 담당) | **거부** | 예 | 후보 | [기록](2026-11-03-inbound-adapters-to-presentation.md) |
 | 2026-11-02 | 추첨 마일스톤: 팀 문서대로 M4에 둔 배치를 거부, 필수 기능으로 올려 기본 M2·통합 테스트 M3·측정·개선 M4(문서까지 확정) | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-lottery-must-milestone.md) |
 | 2026-11-01 | 계약 ② 확정·머지 브랜치 삭제: 예매 흐름 담당 답과 소유자 동의를 기다리자는 추천 대신 바로 진행(문서에 확인 없이 확정했다고 명시) | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-01-contract-confirm-without-consumer-check.md) |
 | 2026-11-01 | PR CI 자동 수정: 끄고 직접 확인하자는 추천 대신 켬 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-01-pr-ci-auto-fix-on.md) |

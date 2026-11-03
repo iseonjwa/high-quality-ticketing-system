@@ -6,6 +6,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-03 | 입구 어댑터를 presentation에 두는 4계층 구조와 패키지 세팅(B안 이동 대상) | [qna/2026-11-03-four-layer-package-setup.md](qna/2026-11-03-four-layer-package-setup.md) |
+| 2026-11-03 | 소비자·스케줄러를 presentation으로 옮기면 헥사고날로 가는 것인가, 4계층의 한계인가 | [qna/2026-11-03-presentation-move-is-not-hexagonal.md](qna/2026-11-03-presentation-move-is-not-hexagonal.md) |
+| 2026-11-03 | 소비자·스케줄러 같은 입구는 entity인가 entry인가(인바운드·아웃바운드 어댑터) | [qna/2026-11-03-inbound-outbound-adapter.md](qna/2026-11-03-inbound-outbound-adapter.md) |
 | 2026-11-02 | 예매(reservation-service)는 outbox를 언제 어떻게 쓰는가 | [qna/2026-11-02-reservation-outbox-usage.md](qna/2026-11-02-reservation-outbox-usage.md) |
 | 2026-11-02 | 11/2 추첨 MVP와 Gateway 입장 토큰 작업을 이슈·PR 단위로 다시 읽기(코드 리뷰와 개념 정리) | [qna/2026-11-02-lottery-mvp-code-review-report.md](qna/2026-11-02-lottery-mvp-code-review-report.md) |
 | 2026-11-02 | 클라우드 배포는 왜 하고, EC2·AWS 가입·요금은 어떻게 다루며, 우리 프로젝트에는 어느 정도 규모가 맞나 | [qna/2026-11-02-aws-ec2-deployment-basics.md](qna/2026-11-02-aws-ec2-deployment-basics.md) |
