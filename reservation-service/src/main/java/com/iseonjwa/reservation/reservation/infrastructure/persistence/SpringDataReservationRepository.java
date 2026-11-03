@@ -16,6 +16,8 @@ interface SpringDataReservationRepository extends JpaRepository<Reservation, Lon
 
     List<Reservation> findByIdInOrderByIdAsc(List<Long> ids);
 
+    // Note: 대사(ADR 0029)는 "기간 안에 확정·취소가 됨"을 현재 상태 + updated_at으로 대신 본다. 그래서 상태 전이 UPDATE는
+    // 모두 updated_at을 갱신해야 한다. 취소(CONFIRMED → CANCELED)를 만들 때 빠뜨리면 결제 쪽이 RC-2를 찾지 못한다
     @Query(nativeQuery = true, value = """
             SELECT *
               FROM reservations
