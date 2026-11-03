@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * payment.reconciliation.reservation.enabled}가 {@code true}일 때만 켠다. 기본값은 꺼짐이다. 예매 내부 조회 API(ISE-75)가 없는
  * 채로 켜면 회차마다 규칙이 실패해 대사 정체 알림이 울린다.
  *
- * <p>Note: 예매 서비스 주소는 이 어댑터의 RestClient에만 로드밸런서 인터셉터로 붙인다. 앱 전역의 {@code RestClient.Builder}
+ * <p>Note: 예매 서비스 주소는 {@code load-balanced}(기본 true)일 때 이 어댑터의 RestClient에만 로드밸런서 인터셉터로 붙인다. false면 {@code base-url}로 바로 부른다. 앱 전역의 {@code RestClient.Builder}
  * 빈을 새로 등록하거나 {@code @LoadBalanced}로 바꾸지 않으므로 PG 어댑터 같은 다른 HTTP 호출은 그대로다.
  */
 @Configuration(proxyBeanMethods = false)
@@ -30,7 +30,7 @@ class ReservationReconciliationConfiguration {
     ReservationLookup reservationLookup(ReservationLookupProperties properties,
             ObjectProvider<LoadBalancerClient> loadBalancer) {
         var client = loadBalancer.getIfAvailable();
-        var resolver = client == null ? null : new LoadBalancerInterceptor(client, new LoadBalancerRequestFactory(client));
+        var resolver = client == null || !properties.loadBalanced() ? null : new LoadBalancerInterceptor(client, new LoadBalancerRequestFactory(client));
         return ReservationLookupHttpClient.create(properties.baseUrl(), properties.connectTimeout(),
                 properties.readTimeout(), properties.pageSize(), resolver);
     }
@@ -39,7 +39,7 @@ class ReservationReconciliationConfiguration {
     ReservationViewLoader reservationViewLoader(JdbcTemplate jdbc, ReservationLookup lookup,
             ReservationLookupProperties properties) {
         ReservationTargets targets = new JdbcReservationTargets(jdbc);
-        return new ReservationViewLoader(targets, lookup, properties.batchSize());
+        return new ReservationViewLoader(targets, lookup, properties.limits());
     }
 
     @Bean
