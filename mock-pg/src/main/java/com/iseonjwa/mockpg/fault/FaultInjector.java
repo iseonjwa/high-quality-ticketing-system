@@ -27,6 +27,13 @@ public class FaultInjector {
         rules.get(rule.target()).set(rule);
     }
 
+    /** 모든 호출 종류의 장애 설정을 해제한다. 원장 초기화와 함께 부른다(mock-pg.md 9절의 reset). */
+    public void reset() {
+        for (var target : FaultTarget.values()) {
+            rules.get(target).set(FaultRule.none(target));
+        }
+    }
+
     public List<FaultRule> currentRules() {
         var current = new ArrayList<FaultRule>();
         for (var rule : rules.values()) {

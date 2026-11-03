@@ -1,6 +1,8 @@
 package com.iseonjwa.mockpg.ledger;
 
 import com.iseonjwa.mockpg.ledger.LedgerViews.IdempotencyKeys;
+import com.iseonjwa.mockpg.ledger.LedgerViews.OrderPage;
+import com.iseonjwa.mockpg.ledger.LedgerViews.OrderRef;
 import com.iseonjwa.mockpg.ledger.LedgerViews.OrderView;
 import com.iseonjwa.mockpg.ledger.LedgerViews.PaymentRefundsView;
 import com.iseonjwa.mockpg.ledger.LedgerViews.RefundView;
@@ -16,6 +18,7 @@ import com.iseonjwa.mockpg.ledger.RefundOutcome.Rejected;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -215,6 +218,34 @@ public final class Ledger {
                 entry.calls().approve(), entry.calls().lookup(), entry.calls().cancel(),
                 payment == null ? BigDecimal.ZERO : payment.refundedTotal(),
                 entry.calls().keys().view()));
+    }
+
+    /**
+     * 주문 목록 한 쪽. 주문이 처음 보인 순서(단조 증가 순번)로 {@code cursor}보다 뒤의 주문을 {@code limit}개까지 돌려준다.
+     * 저장된 상태가 있는 주문만 담고, {@code status}가 null이 아니면 그 상태의 주문만 담는다.
+     *
+     * <p>Note: 맵 순회 순서는 변경 중에 불안정해서 cursor로 쓸 수 없다. 순번 색인을 쓰므로 같은 cursor로 부르면 같은 순서다.
+     * 순번이 작은 주문이 늦게 색인에 보이는 경쟁이 있어서, 요청이 한창 도는 중의 목록은 대조용으로 믿지 않는다.
+     * 대조는 {@code inFlightCount}가 0이 된 뒤에 한다.
+     */
+    public OrderPage orders(String status, int limit, long cursor) {
+        var page = new ArrayList<OrderRef>();
+        long lastSeq = cursor;
+        boolean more = false;
+        for (var seqAndId : orderIdsBySeq.tailMap(cursor, false).entrySet()) {
+            var entry = orders.get(seqAndId.getValue());
+            if (entry == null || entry.state() == null) continue;
+            var entryStatus = statusOf(entry.state());
+            if (status != null && !status.equals(entryStatus)) continue;
+            if (page.size() == limit) {
+                more = true;
+                break;
+            }
+            page.add(new OrderRef(seqAndId.getValue(), entryStatus,
+                    entry.state() instanceof Approved approved ? approved.pgTxId() : null));
+            lastSeq = seqAndId.getKey();
+        }
+        return new OrderPage(List.copyOf(page), more ? lastSeq : null);
     }
 
     /** 한 결제의 환불 기록. 저장된 환불만 담고, 환불을 처음 호출한 순서로 정렬한다. */

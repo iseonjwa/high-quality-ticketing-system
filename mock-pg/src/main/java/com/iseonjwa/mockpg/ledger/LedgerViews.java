@@ -42,4 +42,16 @@ public final class LedgerViews {
     public record Summary(long approvedCount, long declinedCount, long canceledCount, long refundCount,
             BigDecimal approvedTotal, BigDecimal refundedTotal, long inFlightCount, long orderCount) {
     }
+
+    /** 주문 목록의 한 줄. 승인된 주문만 {@code pgTxId}가 있다. */
+    public record OrderRef(String orderId, String status, String pgTxId) {
+    }
+
+    /**
+     * 주문 목록 한 쪽.
+     *
+     * @param nextCursor 다음 쪽을 부를 때 {@code cursor}로 넘길 값. 마지막 쪽이면 null이다
+     */
+    public record OrderPage(List<OrderRef> orders, Long nextCursor) {
+    }
 }
