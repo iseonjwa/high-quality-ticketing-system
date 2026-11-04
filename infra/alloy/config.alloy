@@ -1,0 +1,71 @@
+// 앱 컨테이너 로그를 모아 Loki로 보내는 Alloy 설정이다(ADR 0045, docs/design/infra/observability.md 1절).
+// Docker 소켓으로 컨테이너를 찾고 로그를 읽는다.
+// Note: 소켓은 :ro로 마운트해도 Docker API를 모두 부를 수 있다(호스트 root와 같은 권한). 공식 이미지라 받아들인다.
+// 로그 파일(/var/lib/docker/containers)을 직접 읽는 방식은 맥 Docker Desktop에서 쓸 수 없어 소켓을 쓴다.
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "apps" {
+  targets = discovery.docker.containers.targets
+
+  // 모으는 것은 compose 프로젝트 iseonjwa의 앱 7개뿐이다.
+  // DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 부하 측정(ISE-176)에서 예측할 수 있게 하려는 것이다.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "iseonjwa"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "config-server|eureka|gateway|user-service|reservation-service|payment-service|mock-pg"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "apps" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.apps.output
+  forward_to = [loki.process.apps.receiver]
+}
+
+loki.process "apps" {
+  // 새 로그는 ISO 시각으로 시작한다. 그렇지 않은 줄(예외 스택 트레이스)은 앞 항목에 붙인다.
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2}T"
+    max_wait_time = "3s"
+  }
+
+  // 레벨: 시각 뒤 공백 다음 단어. 맞지 않아도 줄은 버리지 않는다.
+  stage.regex {
+    expression = "^\\d{4}-\\d{2}-\\d{2}T\\S+\\s+(?P<level>[A-Z]+)\\s"
+  }
+  // traceId: [traceId(32자)-spanId(16자)]의 앞 32자. 추적 정보가 없는 줄은 이 칸이 공백이라 맞지 않는다.
+  stage.regex {
+    expression = "\\[(?P<traceId>[0-9a-f]{32})-[0-9a-f]{16}\\]"
+  }
+
+  // 라벨(색인)은 service, level, env 셋뿐이다. traceId는 값이 요청마다 달라 라벨로 두면 색인이 터지므로 구조화 메타데이터로 붙인다.
+  stage.labels {
+    values = { level = "" }
+  }
+  stage.structured_metadata {
+    values = { traceId = "" }
+  }
+  stage.static_labels {
+    values = { env = coalesce(sys.env("STACK_ENV"), "local") }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
