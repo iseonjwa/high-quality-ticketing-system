@@ -23,6 +23,7 @@ import { readPaymentNavigation } from '@/pages/payment/paymentNavigation'
 import { usePaymentFlow, type PaymentFlowState } from '@/pages/payment/usePaymentFlow'
 import type { QueueConcert } from '@/pages/queue/queueNavigation'
 import {
+  readReservationHeading,
   reservationNavigationState,
   type ReservationHeading,
 } from '@/pages/reservations/reservationNavigation'
@@ -61,7 +62,10 @@ export function PaymentPage() {
 }
 
 function PaymentScreen({ reservationId }: { reservationId: number }) {
-  const navigation = readPaymentNavigation(useLocation().state)
+  const locationState: unknown = useLocation().state
+  const navigation = readPaymentNavigation(locationState)
+  // 예매 상세의 [결제하기]로 오면 공연 요약 대신 공연 제목 줄만 있다. 결과 화면에 그대로 넘긴다
+  const passedHeading = readReservationHeading(locationState)
   // 예매 상태를 화면을 열 때마다 한 번 본다. 이미 확정이면 상세로, 결제할 수 없으면 안내한다.
   // Note: 예매 상세는 조회마다 결제 토큰을 새로 서명한다. 토큰 문자열이 멱등 본문에 들어가므로 열려 있는 동안
   // 다시 받지 않는다(staleTime). 떠나면 버린다(gcTime 0). 남겨 두면 결제를 끝낸 뒤 다시 열 때 옛 HELD로 결제 폼을 그렸다
@@ -122,6 +126,7 @@ function PaymentScreen({ reservationId }: { reservationId: number }) {
     <PaymentForm
       reservationId={reservationId}
       source={source}
+      passedHeading={passedHeading}
       // 좌석 화면 값으로 그렸어도 예매가 이미 끝났으면(만료·해제) 결제를 막는다
       notPayable={blocked !== null}
     />
@@ -224,10 +229,12 @@ function headingOf(concert: QueueConcert | null): ReservationHeading | null {
 function PaymentForm({
   reservationId,
   source,
+  passedHeading,
   notPayable,
 }: {
   reservationId: number
   source: PaymentSource
+  passedHeading: ReservationHeading | null
   notPayable: boolean
 }) {
   const navigate = useNavigate()
@@ -265,12 +272,14 @@ function PaymentForm({
   useEffect(() => {
     if (state.step === 'confirmed') {
       queryClient.setQueryData(reservationQueryKeys.detail(reservationId), state.reservation)
+      // 내 예매 목록은 다음에 열 때 다시 받게 해 "결제 대기"가 남아 보이지 않게 한다
+      void queryClient.invalidateQueries({ queryKey: reservationQueryKeys.mine })
       void navigate(reservationCompletePath(reservationId), {
         replace: true,
-        state: reservationNavigationState(headingOf(source.concert)),
+        state: reservationNavigationState(headingOf(source.concert) ?? passedHeading),
       })
     }
-  }, [state, navigate, queryClient, reservationId, source.concert])
+  }, [state, navigate, queryClient, reservationId, source.concert, passedHeading])
 
   function reselect() {
     removeHeldSeats(source.scheduleId)

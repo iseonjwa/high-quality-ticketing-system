@@ -1,21 +1,25 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   reservationQueryKeys,
   type ReservationDetail,
   type ReservationStatus,
 } from '@/api/reservations'
 import { routes } from '@/app/routes'
+import { savePaymentAttempt } from '@/auth/paymentAttempts'
 import { mockDb, toKstIso } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
 import { formatDateTime } from '@/lib/format'
-import { reservationNavigationState } from '@/pages/reservations/reservationNavigation'
+import {
+  readReservationHeading,
+  reservationNavigationState,
+} from '@/pages/reservations/reservationNavigation'
 import { recordRequests, SEAT_A1, SEAT_A2, signInAsDemo } from '@/test/api'
 import { seedReservation } from '@/test/reservations'
 
@@ -28,6 +32,10 @@ const HEADING_LINE = `${HEADING.title} · ${formatDateTime(HEADING.startsAt)} ·
 
 beforeEach(async () => {
   await signInAsDemo()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 interface RenderOptions {
@@ -61,6 +69,34 @@ function renderReservation(reservationId: number | string, options: RenderOption
 
 function linkNamed(name: string) {
   return screen.getByRole('link', { name })
+}
+
+// 창이 다시 보이는 순간(TanStack Query가 신선하지 않은 조회를 다시 받는 계기)
+function returnToWindow() {
+  act(() => {
+    window.dispatchEvent(new Event('visibilitychange'))
+  })
+}
+
+// 가짜 시계를 나눠 돌린다. 한 번에 건너뛰면 사이의 다시 받기 요청이 끼어들지 못한다
+async function advance(millis: number, stepMillis = 1000) {
+  for (let elapsed = 0; elapsed < millis; elapsed += stepMillis) {
+    await act(() => vi.advanceTimersByTimeAsync(Math.min(stepMillis, millis - elapsed)))
+  }
+}
+
+// 첫 호출은 목에 맡기고, 그다음부터 지정한 응답을 준다(undefined면 목에 맡긴다)
+function respondFromSecondRead(
+  reservationId: number,
+  respond: (call: number) => Response | undefined,
+) {
+  let calls = 0
+  mockServer.use(
+    http.get(`/api/v1/reservations/${reservationId}`, () => {
+      calls += 1
+      return calls === 1 ? undefined : respond(calls)
+    }),
+  )
 }
 
 describe('ReservationPage 결과 화면(complete) 확정', () => {
@@ -117,19 +153,9 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('완료')
   })
 
-  it('결제 화면이 넣은 확정 예매가 캐시에 있으면 조회 응답을 기다리지 않고 확정을 보인다', async () => {
-    // 서버(목)는 아직 HELD로 답하고 응답도 붙잡아 둔다. 보이는 확정은 캐시에서 온 것이다
+  it('결제 화면이 넣은 확정 예매가 캐시에 있으면 조회하지 않고(확정은 60초 동안 신선) 확정을 보인다', async () => {
+    // 서버(목)는 아직 HELD로 답한다. 보이는 확정은 캐시에서 온 것이고, 조회가 나가면 HELD로 바뀐다
     const reservation = seedReservation({ status: 'HELD' })
-    let release: () => void = () => undefined
-    const gate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    mockServer.use(
-      http.get(`/api/v1/reservations/${reservation.reservationId}`, async () => {
-        await gate
-        return undefined
-      }),
-    )
     const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
     const primed: ReservationDetail = {
       reservationId: reservation.reservationId,
@@ -154,18 +180,16 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
         seatId,
       })),
     }
-    try {
-      renderReservation(reservation.reservationId, { variant: 'complete', primed })
+    renderReservation(reservation.reservationId, { variant: 'complete', primed })
 
-      expect(
-        await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
-      ).toBeInTheDocument()
-      expect(screen.queryByText('아직 결제하지 않았어요')).not.toBeInTheDocument()
-      expect(screen.queryByRole('status')).not.toBeInTheDocument()
-      await waitFor(() => expect(reads).toHaveLength(1))
-    } finally {
-      release()
-    }
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(reads).toHaveLength(0)
+    expect(screen.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeInTheDocument()
   })
 })
 
@@ -221,7 +245,7 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     const reservation = seedReservation({ holdExpiresAtMillis })
     const { router } = renderReservation(reservation.reservationId, { heading: HEADING })
 
-    expect(await screen.findByText('아직 결제하지 않았어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
     const payableUntil = new Intl.DateTimeFormat('ko-KR', {
       timeZone: 'Asia/Seoul',
       hour: 'numeric',
@@ -229,8 +253,11 @@ describe('ReservationPage 결제 대기(HELD)', () => {
       second: '2-digit',
     }).format(new Date(holdExpiresAtMillis - 10_000))
     expect(
-      screen.getByText(`${payableUntil}까지 결제하지 않으면 좌석이 풀려요.`),
+      screen.getByText(
+        `${payableUntil}까지 확정되지 않으면 좌석이 풀려요. 이미 결제했다면 확정까지 잠시 걸릴 수 있어요.`,
+      ),
     ).toBeInTheDocument()
+    expect(screen.queryByText('결제를 확인하고 있어요')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: HEADING.title })).toBeInTheDocument()
     expect(screen.getByText('결제 대기')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: '잡아 둔 좌석' })).toBeInTheDocument()
@@ -244,8 +271,8 @@ describe('ReservationPage 결제 대기(HELD)', () => {
         `/reservations/${reservation.reservationId}/payment`,
       ),
     )
-    // 결제 화면이 예매 조회로 결제 대상을 만들도록 이동 값을 넘기지 않는다
-    expect(router.state.location.state).toBeNull()
+    // 결제 화면이 예매 조회로 결제 대상을 만들고, 결과 화면이 쓸 공연 제목 줄만 넘긴다
+    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
   })
 
   it('결제 토큰이 없으면(선점 만료 10초 안) 결제 버튼 없이 곧 풀린다고 알린다', async () => {
@@ -255,7 +282,7 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
     expect(screen.getByText('잡아 둔 좌석은 곧 풀려요.')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
-    expect(screen.queryByText('아직 결제하지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
     expect(linkNamed('내 예매 목록')).toBeInTheDocument()
   })
 
@@ -263,8 +290,142 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     const reservation = seedReservation()
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
-    expect(await screen.findByText('아직 결제하지 않았어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
     expect(screen.queryByText('예매가 확정됐어요')).not.toBeInTheDocument()
+  })
+
+  it('이 브라우저에 결제 시도가 있으면 확인 중이라고 알리고 [결제 결과 확인]을 둔다', async () => {
+    const reservation = seedReservation()
+    savePaymentAttempt(reservation.reservationId, { token: 'stored-token', key: 'stored-key' })
+    renderReservation(reservation.reservationId, { heading: HEADING })
+
+    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.getByText('확정되면 이 화면이 바뀌어요.')).toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
+    expect(linkNamed('결제 결과 확인')).toHaveAttribute(
+      'href',
+      `/reservations/${reservation.reservationId}/payment`,
+    )
+  })
+
+  it('결제 시도는 예매마다 따로라 다른 예매의 시도는 보지 않는다', async () => {
+    const reservation = seedReservation()
+    savePaymentAttempt(reservation.reservationId + 1, { token: 'other-token', key: 'other-key' })
+    renderReservation(reservation.reservationId)
+
+    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
+    expect(screen.queryByText('결제를 확인하고 있어요')).not.toBeInTheDocument()
+  })
+
+  it('[결제 결과 확인]을 누르면 결제 화면으로 가며 공연 제목 줄을 넘긴다', async () => {
+    const reservation = seedReservation()
+    savePaymentAttempt(reservation.reservationId, { token: 'stored-token', key: 'stored-key' })
+    const { router } = renderReservation(reservation.reservationId, { heading: HEADING })
+
+    await userEvent.click(await screen.findByRole('link', { name: '결제 결과 확인' }))
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/reservations/${reservation.reservationId}/payment`,
+      ),
+    )
+    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+  })
+
+  it('공연 값이 없으면 결제 화면으로 빈 이동 값을 넘긴다', async () => {
+    const reservation = seedReservation()
+    const { router } = renderReservation(reservation.reservationId)
+
+    await userEvent.click(await screen.findByRole('link', { name: '결제하기' }))
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/reservations/${reservation.reservationId}/payment`,
+      ),
+    )
+    expect(readReservationHeading(router.state.location.state)).toBeNull()
+  })
+})
+
+describe('ReservationPage 결제 대기 동안 다시 받기', () => {
+  it('5초마다 다시 받다가 확정이 되면 화면이 확정으로 바뀐다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // 첫 조회는 HELD, 다음 조회부터 CONFIRMED
+    const reservation = seedReservation({ confirmAfterChecks: 1 })
+    const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
+    renderReservation(reservation.reservationId, { variant: 'complete' })
+
+    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
+    expect(reads).toHaveLength(1)
+
+    await advance(4000)
+    expect(reads).toHaveLength(1)
+    await advance(2000)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+    ).toBeInTheDocument()
+    expect(reads).toHaveLength(2)
+    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+
+    // 확정되면 더 받지 않는다
+    await advance(20_000)
+    expect(reads).toHaveLength(2)
+  })
+
+  it('선점 만료 시각 + 30초가 지나면 다시 받기를 멈춘다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // 만료 시각이 20초 전이다. 만료 스케줄러가 아직 EXPIRED로 바꾸지 못한 것처럼 확정 대기로 HELD를 붙든다.
+    // 목은 응답 시각의 밀리초를 버리므로 초 단위로 맞춘다
+    const reservation = seedReservation({
+      holdExpiresAtMillis: Math.floor(Date.now() / 1000) * 1000 - 20_000,
+      confirmAfterChecks: 1000,
+    })
+    const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
+    renderReservation(reservation.reservationId)
+
+    expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+    expect(reads).toHaveLength(1)
+
+    // 5초 뒤(만료 + 25초)는 아직 더 받고, 10초 뒤(만료 + 30초)에 받은 결과로 멈춘다
+    await advance(5000)
+    await waitFor(() => expect(reads).toHaveLength(2))
+    await advance(5000)
+    await waitFor(() => expect(reads).toHaveLength(3))
+
+    await advance(60_000)
+    expect(reads).toHaveLength(3)
+    expect(screen.getByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+  })
+
+  it('확정 예매는 60초 동안 다시 받지 않고 그 뒤에는 다시 받는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
+    renderReservation(reservation.reservationId)
+
+    await screen.findByRole('heading', { level: 1, name: `예매 ${reservation.reservationNo}` })
+    expect(reads).toHaveLength(1)
+
+    await advance(30_000, 10_000)
+    returnToWindow()
+    await advance(1000)
+    expect(reads).toHaveLength(1)
+
+    await advance(31_000, 10_000)
+    returnToWindow()
+    await waitFor(() => expect(reads).toHaveLength(2))
+  })
+
+  it('HELD는 창이 다시 보이면 바로 다시 받는다(신선하지 않다)', async () => {
+    const reservation = seedReservation()
+    const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
+    renderReservation(reservation.reservationId)
+
+    await screen.findByText('결제가 아직 확정되지 않았어요')
+    returnToWindow()
+
+    await waitFor(() => expect(reads).toHaveLength(2))
   })
 })
 
@@ -364,5 +525,67 @@ describe('ReservationPage 조회 실패', () => {
       await screen.findByRole('heading', { level: 1, name: `예매 ${reservation.reservationNo}` }),
     ).toBeInTheDocument()
     expect(calls).toBe(2)
+  })
+
+  it('받은 뒤 다시 받기가 실패해도 예매는 그대로 두고 위쪽에 오류 안내를 보이며, 다시 시도하면 안내가 사라진다', async () => {
+    const reservation = seedReservation()
+    respondFromSecondRead(reservation.reservationId, (call) =>
+      call === 2 ? fail(500, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다') : undefined,
+    )
+    renderReservation(reservation.reservationId, { heading: HEADING })
+    const title = await screen.findByRole('heading', { level: 1, name: HEADING.title })
+
+    returnToWindow()
+
+    const retry = await screen.findByRole('button', { name: '다시 시도' })
+    // 내용은 그대로이고 안내는 내용 위에 있다
+    expect(screen.getByRole('heading', { level: 1, name: HEADING.title })).toBe(title)
+    expect(screen.getByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
+    expect(screen.queryByText(/찾는 예매가 없어요/)).not.toBeInTheDocument()
+    expect(retry.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await userEvent.click(retry)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('heading', { level: 1, name: HEADING.title })).toBeInTheDocument()
+  })
+
+  it('받은 뒤 다시 받기가 404면 찾는 예매가 없다고 알린다', async () => {
+    const reservation = seedReservation()
+    respondFromSecondRead(reservation.reservationId, () =>
+      fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다'),
+    )
+    renderReservation(reservation.reservationId, { heading: HEADING })
+    await screen.findByRole('heading', { level: 1, name: HEADING.title })
+
+    returnToWindow()
+
+    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: HEADING.title })).not.toBeInTheDocument()
+    expect(linkNamed('내 예매 보기')).toHaveAttribute('href', '/me/reservations')
+  })
+
+  it('확정 예매도 다시 받기가 실패하면 확정을 그대로 두고 오류 안내를 위에 보인다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    respondFromSecondRead(reservation.reservationId, () =>
+      fail(429, 'TOO_MANY_REQUESTS', '요청이 너무 많습니다'),
+    )
+    // 확정은 60초 동안 신선해 창 복귀로는 다시 받지 않는다. 목록 캐시를 낡게 만들어 직접 다시 받는다
+    const { queryClient } = renderReservation(reservation.reservationId, {
+      variant: 'complete',
+    })
+    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
+
+    await act(() =>
+      queryClient.refetchQueries({
+        queryKey: reservationQueryKeys.detail(reservation.reservationId),
+      }),
+    )
+
+    expect(await screen.findByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '티켓 2매' })).toBeInTheDocument()
   })
 })

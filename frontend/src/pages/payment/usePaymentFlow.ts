@@ -33,10 +33,13 @@ const SETTLED_STEPS = new Set<PaymentFlowViewState['step']>([
 ])
 
 // 결제 흐름을 화면에 잇는다. submit이 [결제하기]다.
-// 멱등키는 결제 토큰 문자열마다 하나다. 서버는 토큰 원문까지 본문 비교에 넣으므로(PaymentRequestHash) 같은 토큰이면
-// 실패(pgUnavailable·failed) 뒤 다시 눌러도 같은 키로 보내고, 예매 조회로 토큰이 바뀌면 새 키를 쓴다.
-// 결제를 시작하면 { token, key }를 sessionStorage에 둔다. 새로고침하거나 뒤로 갔다 와서 화면을 다시 열 때
-// 같은 토큰이면 저장한 키로 바로 이어서 보내 지금 결과를 받는다. 토큰이 다르면 이어 보내지 않고 지운다.
+// 결제를 시작하면 { token, key }를 sessionStorage에 두고, 그 뒤로는 이 예매의 결제를 늘 그 토큰·키로 보낸다.
+// 서버는 토큰 원문까지 본문 비교에 넣으므로(PaymentRequestHash) 토큰과 키를 함께 지켜야 같은 요청이 된다.
+// 화면을 다시 열 때(새로고침, 뒤로 갔다 오기, 예매 상세의 [결제하기]) 저장한 시도가 있으면 화면이 받은 토큰과
+// 달라도(예매 조회는 조회마다 토큰을 새로 서명한다) 저장한 토큰·키로 바로 이어서 보내 지금 결과를 받는다.
+// 서버는 같은 키 재요청이면 토큰이 만료됐어도 결과를 준다(결제 API 1절 3단계가 토큰 검증보다 먼저다).
+// Note: 처음에는 토큰이 다르면 저장한 시도를 지웠다. 그러면 예매 상세에서 다시 열 때 새 키로 결제 버튼이 다시 보였다
+// (ISE-117 셀프 리뷰)
 export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePaymentFlowOptions): {
   state: PaymentFlowViewState
   submit: () => void
@@ -62,18 +65,19 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
     if (runningRef.current) {
       return
     }
-    if (keyRef.current === null || keyRef.current.token !== paymentToken) {
+    if (keyRef.current === null) {
       keyRef.current = { token: paymentToken, key: newIdempotencyKey() }
     }
-    savePaymentAttempt(reservationId, keyRef.current)
+    const attempt = keyRef.current
+    savePaymentAttempt(reservationId, attempt)
     const controller = new AbortController()
     controllerRef.current = controller
     runningRef.current = true
     void runPaymentFlow({
       reservationId,
-      paymentToken,
+      paymentToken: attempt.token,
       amount,
-      idempotencyKey: keyRef.current.key,
+      idempotencyKey: attempt.key,
       signal: controller.signal,
       onState: setState,
     }).then((outcome: PaymentFlowOutcome) => {
@@ -84,23 +88,20 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
     })
   }, [reservationId, paymentToken, amount])
 
-  // 화면을 열 때 저장한 시도가 있으면 같은 키로 이어서 보낸다
+  // 화면을 열 때 저장한 시도가 있으면 그 토큰·키로 이어서 보낸다
   useEffect(() => {
     const stored = readPaymentAttempt(reservationId)
     if (stored === null) {
       return
     }
-    if (stored.token === paymentToken) {
-      keyRef.current = stored
-      submit()
-    } else {
-      removePaymentAttempt(reservationId)
-    }
-  }, [reservationId, paymentToken, submit])
+    keyRef.current = stored
+    submit()
+  }, [reservationId, submit])
 
   useEffect(() => {
     if (SETTLED_STEPS.has(state.step)) {
       removePaymentAttempt(reservationId)
+      keyRef.current = null
     }
   }, [state.step, reservationId])
 
