@@ -240,3 +240,11 @@
 - 해결: ISE-155(PR #248)로 나중에 들어온 Outbox 인덱스를 `V6__outbox_failed_key_index.sql`로 옮겼다. 먼저 들어온 빌링키 마이그레이션은 팀원 로컬 DB에 이미 적용됐을 수 있어 두었다. 로컬에서는 옛 `V5` 이력이 남은 테스트 DB 때문에 `Validate failed`가 이어 나서 TS-28처럼 `docker compose -f compose.test.yml up -d --force-recreate --wait postgres-payment`로 다시 만들었다. #248 머지 뒤 dev CI가 통과했다.
 - AI 활용: 머지는 사용자가 AI에게 맡긴 작업이었다. AI가 다음 PR(#225)의 충돌을 풀다가 테스트 실패로 발견하고 바로 수정 이슈와 PR을 냈다.
 - 배운 점: PR이 머지 가능(CLEAN)으로 보여도 CI가 최신 dev 기준이라는 뜻은 아니다. 마이그레이션을 더하는 PR은 머지 직전에 `git fetch && ls`로 dev의 마이그레이션 번호와 겹치지 않는지 보고, dev를 브랜치에 합쳐 테스트한 뒤 머지한다. 필수 검사를 strict로 켤지는 머지 대기가 늘어나는 비용과 함께 팀이 정한다.
+
+### TS-32 로컬 테스트 환불의 NEEDS_MANUAL_CHECK 알림이 슬랙에 한 시간마다 반복되는데 ops 명령으로 닫히지 않음
+- 서비스·작성: payment / junhyun / 2026-11-04
+- 문제: 팀 슬랙 `#이선좌-성능-모니터링`에 "확인이 필요한 환불이 1건 있습니다(NEEDS_MANUAL_CHECK)"(`RefundNeedsManualCheck`, env 로컬)가 한 시간마다 다시 왔다. 즉시 확인 알림이라 풀릴 때까지 1시간마다 반복된다.
+- 원인: 11/2 로컬 테스트에서 만든 환불 1번이다. 그 뒤 Mock PG가 재시작되며 메모리 원장이 비어, PG에 원래 주문과 환불 기록이 없다. `ops inspect --with-pg` 결과는 결제 "PG에 주문 없음", 환불 "PG에 환불 없음"이었다. `refund resolve`는 PG `NotFound`를 거부하고(`--close-failed`도 `NotFound`에는 쓸 수 없다), `refund retry`는 Mock PG가 다시 거절해 NMC로 돌아온다(11/3에 한 번 시도). 대응 문서에 이 상태를 닫는 명령이 없다. 상태를 바꾸는 SQL은 쓰지 않는다(`manual-recovery.md` 1절).
+- 해결: 데이터는 그대로 두고 로컬 Alertmanager에 7일 무음을 걸었다(`env="local"`, `alertname=~"RefundNeedsManualCheck|RefundManualCheckAging"`, 11/11까지). 알림 3건이 `suppressed`가 된 것을 `/api/v2/alerts`로 확인했다. 로컬 결제 DB를 초기화하면 무음을 지운다(`amtool silence expire <ID>`). 무음 목록은 `docker exec iseonjwa-alertmanager-1 amtool --alertmanager.url=http://localhost:9093 silence query`.
+- AI 활용: 사용자가 반복 알림을 없애 달라고 했다. AI가 `inspect`로 원인을 찾고, NMC를 닫는 대신 로컬 범위의 무음을 걸었다.
+- 배운 점: Mock PG는 원장을 메모리에 두므로 재시작 전에 만든 로컬 결제·환불은 PG 근거를 잃는다. 로컬 알림이 팀 채널로 가므로, 이런 로컬 테스트 데이터의 알림은 데이터를 고치지 말고 env를 좁힌 무음으로 끈다. 운영 서버라면 PG 콘솔 확인과 8절 예외 절차를 따른다.
