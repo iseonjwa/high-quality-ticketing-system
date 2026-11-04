@@ -3,9 +3,11 @@ package com.iseonjwa.reservation.reservation.application;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventService;
 import com.iseonjwa.common.messaging.outbox.OutboxWriter;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
+import com.iseonjwa.reservation.lottery.application.LotteryPaymentResultHandler;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeatStatus;
+import com.iseonjwa.reservation.reservation.domain.entity.ReservationSource;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatusHistory;
 import com.iseonjwa.reservation.reservation.domain.entity.Ticket;
@@ -29,14 +31,15 @@ import java.util.random.RandomGenerator;
 
 /**
  * 결제 결과({@code payment.result})를 예매 원장과 대조해 예매 상태별 규칙으로 반영한다(ADR 0027, SA 8-3).
- * 처리 이력(processed_events), 상태 전이, 상태 이력, 환불 요청(outbox)을 이벤트 한 건마다 한 트랜잭션으로 묶는다.
+ * 처리 이력(processed_events), 상태 전이, 상태 이력, 환불 요청(outbox), 추첨 응모 변경을 이벤트 한 건마다 한 트랜잭션으로 묶는다.
  *
  * <p>Note: 같은 예매를 선점 만료 스케줄러도 바꾼다. 전이는 "지금 HELD일 때만" 조건부 UPDATE로 하고, 0행이면 예외를 던져
  * 트랜잭션을 통째로 되돌린다. Kafka 재시도(1·2·4초)가 처음부터 다시 읽으면 바뀐 상태의 규칙이 적용된다.
  *
  * <p>Note: "이상"은 상태를 바꾸지 않고 {@code event=PAYMENT_RESULT_ANOMALY} 오류 로그로 남겨 사람이 보게 한다(ADR 0027 이상 격리).
  *
- * <p>TODO: 추첨 예매(source = LOTTERY)를 추첨 처리기(LotteryPaymentResultHandler)에 알리는 연결은 ISE-150에서 한다.
+ * <p>Note: 추첨 예매(source = LOTTERY)는 예매 전이가 실제로 일어났을 때만 같은 트랜잭션에서 추첨 처리기에 알린다(D11).
+ * 상태를 바꾸지 않은 결과(재전달, 이상)는 알리지 않는다. 대조 실패로 HELD에 남은 예매는 만료 스케줄러가 1회 연장한 뒤 회수하며 알린다.
  */
 @Service
 @RequiredArgsConstructor
@@ -62,6 +65,7 @@ public class PaymentResultService {
     private final ScheduleSeatRepository scheduleSeats;
     private final TicketRepository tickets;
     private final OutboxWriter outbox;
+    private final LotteryPaymentResultHandler lotteryResults;
     private final Clock clock;
     private final RandomGenerator random = new SecureRandom();
 
@@ -132,6 +136,9 @@ public class PaymentResultService {
                 .toList());
         histories.save(ReservationStatusHistory.of(reservation.getId(), ReservationStatus.HELD,
                 ReservationStatus.CONFIRMED, "PAYMENT_APPROVED", now));
+        if (isLottery(reservation)) {
+            lotteryResults.onPaid(reservation.getId());
+        }
     }
 
     // 선점 기한이 지난 뒤 승인됐다. 만료와 같은 전이를 하고 승인된 결제를 환불한다
@@ -143,6 +150,10 @@ public class PaymentResultService {
         histories.save(ReservationStatusHistory.of(reservation.getId(), ReservationStatus.HELD,
                 ReservationStatus.EXPIRED, EXPIRED_AFTER_APPROVAL, now));
         requestRefund(result, EXPIRED_AFTER_APPROVAL);
+        // Note: 여기서 EXPIRED가 되면 만료 스케줄러가 이 예매를 다시 잡지 않는다. 알리지 않으면 응모가 WON으로 남아 승계·종결이 막힌다(D14)
+        if (isLottery(reservation)) {
+            lotteryResults.onExpired(reservation.getId());
+        }
     }
 
     private void onDeclined(Reservation reservation, PaymentResult result) {
@@ -159,6 +170,9 @@ public class PaymentResultService {
                 releaseSeatsAndQuota(reservation, now);
                 histories.save(ReservationStatusHistory.of(reservation.getId(), ReservationStatus.HELD,
                         ReservationStatus.RELEASED, "PAYMENT_DECLINED", now));
+                if (isLottery(reservation)) {
+                    lotteryResults.onFailed(reservation.getId(), result.getReasonCode());
+                }
             }
             // 확정에 쓰인 결제는 거절될 수 없다
             case CONFIRMED, CANCELED -> anomaly(result, "확정·취소된 예매에 거절이 왔습니다");
@@ -177,6 +191,10 @@ public class PaymentResultService {
         }
         log.info("환불 완료를 받았습니다. reservationId={}, paymentId={}, status={}",
                 reservation.getId(), result.getPaymentId(), reservation.getStatus());
+    }
+
+    private static boolean isLottery(Reservation reservation) {
+        return reservation.getSource() == ReservationSource.LOTTERY;
     }
 
     private static boolean matchesLedger(Reservation reservation, PaymentResult result) {
