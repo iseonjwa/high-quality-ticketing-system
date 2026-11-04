@@ -55,8 +55,15 @@ import { cn } from '@/lib/utils'
 const BILLING_KEY_CARD_ID = 'billing-key'
 // 추첨 시각이 지나 결과가 바뀌는 동안(추첨·배정·자동결제·승계) 다시 받는 간격. 서버 스케줄러는 1~10초 주기다
 const RESULT_POLL_MILLIS = 10_000
+// 화면마다 간격에 더하는 무작위 값의 최대. 시계가 맞는 모든 화면이 추첨 시각에 함께 다시 받기 시작해 10초마다
+// 한꺼번에 몰리지 않게 흩뜨린다(재시도 지터, 대기열 응답 간격과 같은 생각)
+const RESULT_POLL_JITTER_MILLIS = 3_000
 // 추첨 뒤 이만큼 지나면 다시 받기를 멈춘다. 승계 마감(추첨 + 30분)과 당첨 예매의 선점(30분, 한 번 30분 연장)을 덮는다
 const RESULT_POLL_LIMIT_MILLIS = 90 * 60_000
+
+function randomPollMillis(): number {
+  return RESULT_POLL_MILLIS + Math.floor(Math.random() * RESULT_POLL_JITTER_MILLIS)
+}
 
 export function LotteryPage() {
   const lotteryId = readRouteId(useParams().lotteryId)
@@ -70,6 +77,9 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
   const signedIn = useIsSignedIn()
   // 응모 시작·마감·추첨 시각을 넘는 순간 단계와 다시 받기 여부를 다시 정한다
   const now = useNow(1000)
+  // Note: 화면을 열 때 한 번 정한다. refetchInterval에서 매번 무작위로 정하면 1초마다 다시 그릴 때 타이머가 새로 시작돼
+  // 영영 다시 받지 않는다
+  const [pollMillis] = useState(randomPollMillis)
   const lottery = useQuery({
     queryKey: lotteryQueryKeys.info(lotteryId),
     queryFn: () => getLottery(lotteryId),
@@ -77,7 +87,7 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
     refetchInterval: (query) => {
       const data = query.state.data
       return data && phaseOf(data, Date.now()) === 'drawing' && !pollExpired(data, Date.now())
-        ? RESULT_POLL_MILLIS
+        ? pollMillis
         : false
     },
   })
@@ -98,7 +108,11 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
   return (
     <main className="mx-auto grid w-full max-w-[720px] gap-5">
       <LotteryInfo lottery={lottery.data} phase={phaseOf(lottery.data, now)} />
-      {signedIn ? <MyEntrySection lottery={lottery.data} now={now} /> : <SignInPrompt />}
+      {signedIn ? (
+        <MyEntrySection lottery={lottery.data} now={now} pollMillis={pollMillis} />
+      ) : (
+        <SignInPrompt phase={phaseOf(lottery.data, now)} />
+      )}
     </main>
   )
 }
@@ -188,8 +202,11 @@ function Rule({ children }: { children: ReactNode }) {
   )
 }
 
-// 응모·취소에 성공하면 누른 버튼이 사라져 초점이 body로 떨어진다. 응모·취소 직후 처음 새로 그린 카드만 한 번,
-// 초점을 잃었을 때 제목으로 초점을 옮긴다. 다시 받기로 결과가 바뀔 때(응모함 → 당첨)는 초점을 건드리지 않는다
+// 응모·취소에 성공하면 누른 버튼이 사라져 초점이 body로 떨어진다. 응모·취소(결과를 모를 때 다시 받은 결과 포함)
+// 직후 처음 새로 그린 카드만 한 번, 초점을 잃었을 때 제목으로 초점을 옮긴다. 신호는 ACTED_FOCUS_WINDOW_MILLIS 안에만
+// 쓴다. 다시 받기로 결과가 바뀔 때(응모함 → 당첨)는 초점을 건드리지 않는다
+const ACTED_FOCUS_WINDOW_MILLIS = 10_000
+
 interface ActionFocus {
   markActed: () => void
   // 응모·취소 뒤 아직 쓰지 않은 신호가 있으면 true를 주고 지운다
@@ -214,25 +231,33 @@ function useTitleFocus() {
   return ref
 }
 
-function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
+function MyEntrySection({
+  lottery,
+  now,
+  pollMillis,
+}: {
+  lottery: Lottery
+  now: number
+  pollMillis: number
+}) {
   const me = useQuery({ queryKey: authQueryKeys.me, queryFn: getMe })
   const entry = useQuery({
     queryKey: lotteryQueryKeys.myEntry(lottery.lotteryId),
     queryFn: () => getMyEntry(lottery.lotteryId),
     refetchInterval: (query) =>
-      shouldPollResult(lottery, query.state.data ?? null, Date.now()) ? RESULT_POLL_MILLIS : false,
+      shouldPollResult(lottery, query.state.data ?? null, Date.now()) ? pollMillis : false,
   })
   const phase = phaseOf(lottery, now)
-  const actedRef = useRef(false)
+  const actedAtRef = useRef<number | null>(null)
   const actionFocus = useMemo<ActionFocus>(
     () => ({
       markActed: () => {
-        actedRef.current = true
+        actedAtRef.current = Date.now()
       },
       takeActed: () => {
-        const acted = actedRef.current
-        actedRef.current = false
-        return acted
+        const actedAt = actedAtRef.current
+        actedAtRef.current = null
+        return actedAt !== null && Date.now() - actedAt <= ACTED_FOCUS_WINDOW_MILLIS
       },
     }),
     [],
@@ -315,6 +340,11 @@ function EntryForm({
     },
     onError: (error) => {
       if (isOutcomeUnknown(error)) {
+        // 응모 조회는 키가 필요 없다. 서버에 응모가 있으면 결과 카드로 바뀐다. 없으면(404) 폼이 남고 같은 키로 다시 보낸다
+        markActed()
+        void queryClient.invalidateQueries({
+          queryKey: lotteryQueryKeys.myEntry(lottery.lotteryId),
+        })
         return
       }
       keyRef.current = null
@@ -332,7 +362,9 @@ function EntryForm({
   })
   const unknown = enter.isError && isOutcomeUnknown(enter.error)
 
-  if (phase !== 'beforeEntry' && phase !== 'entry') {
+  // 결과를 모르는 응모는 마감이 지나도 확인할 수 있게 폼을 남긴다. 서버는 같은 키를 기간 검사보다 먼저 확인해
+  // 응모가 있었으면 그 상태를 201로 준다. 응모가 없었으면 409(응모 기간 아님)가 와 "응모하지 않았어요"로 바뀐다
+  if (phase !== 'beforeEntry' && phase !== 'entry' && !unknown) {
     return (
       <EntryCard title="응모하지 않았어요">
         <p className="type-body-sm text-gray-500">응모 기간이 끝났어요.</p>
@@ -498,9 +530,9 @@ function EntryResult({
       return (
         <ResultCard
           tone="warning"
-          title="예비 순번이에요"
+          title="예비자예요"
           rank={entry.drawRank}
-          description="앞 당첨자의 결제가 되지 않으면 순서대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에 끝나요."
+          description="앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에 끝나요."
         />
       )
     case 'LOST':
@@ -539,6 +571,14 @@ function EnteredCard({
       setConfirmOpen(false)
     },
     onError: (error) => {
+      if (isOutcomeUnknown(error)) {
+        // 내 응모를 다시 받는다. 취소됐으면 이 카드가 "응모를 취소했어요"로 바뀐다. 다시 눌러도 된다(이미 취소면 200)
+        markActed()
+        void queryClient.invalidateQueries({
+          queryKey: lotteryQueryKeys.myEntry(lottery.lotteryId),
+        })
+        return
+      }
       if (isApiError(error, 'LOTTERY_NOT_OPEN')) {
         // 마감이 지났거나 응모 상태가 바뀌었다. 둘 다 다시 받아 지금 상태를 보인다
         void queryClient.invalidateQueries({ queryKey: lotteryQueryKeys.info(lottery.lotteryId) })
@@ -601,7 +641,12 @@ function EnteredCard({
             취소하면 이 추첨에 다시 응모할 수 없어요.
           </DialogDescription>
           {cancel.isError ? (
-            isApiError(cancel.error, 'LOTTERY_NOT_OPEN') ? (
+            isOutcomeUnknown(cancel.error) ? (
+              <Alert variant="warning">
+                <p className="font-semibold">취소됐는지 확인하지 못했어요</p>
+                <p>다시 누르면 결과를 확인해요.</p>
+              </Alert>
+            ) : isApiError(cancel.error, 'LOTTERY_NOT_OPEN') ? (
               <Alert variant="info">응모 마감이 지나 취소할 수 없어요.</Alert>
             ) : (
               <ErrorNotice error={cancel.error} />
@@ -699,10 +744,14 @@ function ResultCard({
         >
           {title}
         </h2>
+        {/* Note: 서버 drawRank는 예비 몇 번째가 아니라 전체 응모 중 추첨 순위다(당첨자 수보다 크고 건너뛴 번호가 있다) */}
         {rank ? (
-          <p className="text-[40px] leading-[48px] font-extrabold text-gray-900 tabular-nums">
-            {rank}
-            <span className="type-heading text-gray-500">번</span>
+          <p className="grid justify-items-center">
+            <span className="type-caption text-gray-500">추첨 순위</span>
+            <span className="text-[40px] leading-[48px] font-extrabold text-gray-900 tabular-nums">
+              {rank}
+              <span className="type-heading text-gray-500">위</span>
+            </span>
           </p>
         ) : null}
         <p className="type-body-sm text-gray-500">{description}</p>
@@ -712,15 +761,20 @@ function ResultCard({
   )
 }
 
-function SignInPrompt() {
+function SignInPrompt({ phase }: { phase: Phase }) {
   const location = useLocation()
   const state: AuthNavigationState = { from: toReturnPath(location) }
+  const canEnter = phase === 'beforeEntry' || phase === 'entry'
   return (
-    <EntryCard title="응모하기">
-      <p className="type-body-sm text-gray-500">로그인하면 응모하고 결과를 볼 수 있어요.</p>
+    <EntryCard title={canEnter ? '응모하기' : '응모 결과'}>
+      <p className="type-body-sm text-gray-500">
+        {canEnter
+          ? '로그인하면 응모하고 결과를 볼 수 있어요.'
+          : '로그인하면 내 응모 결과를 볼 수 있어요.'}
+      </p>
       <Button asChild size="lg" className="w-full">
         <Link to={paths.login} state={state}>
-          로그인하고 응모하기
+          {canEnter ? '로그인하고 응모하기' : '로그인하고 결과 보기'}
         </Link>
       </Button>
     </EntryCard>

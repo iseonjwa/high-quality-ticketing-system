@@ -39,10 +39,9 @@ beforeEach(async () => {
   Element.prototype.scrollIntoView = vi.fn()
 })
 
-// 전역 setup은 sessionStorage만 비운다
 afterEach(() => {
   vi.useRealTimers()
-  localStorage.clear()
+  vi.restoreAllMocks()
 })
 
 // 조회 재시도를 끈 클라이언트로 그려 실패 화면을 바로 본다
@@ -215,6 +214,37 @@ describe('LotteryPage 단계 배지', () => {
 })
 
 describe('LotteryPage 응모하기', () => {
+  it('결과를 모르는 응모는 마감이 지나도 [응모 결과 확인하기]를 남기고, 서버에 응모가 없었으면 "응모하지 않았어요"로 바뀐다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    placeLottery(OPEN, { start: -HOUR, end: 5_000, draw: 10 * MINUTE })
+    mockServer.use(
+      http.post(entriesApi(OPEN), () => fail(504, 'INTERNAL_SERVER_ERROR', '시간 초과'), {
+        once: true,
+      }),
+    )
+    const requests = recordRequests(entriesApi(OPEN))
+    renderLottery()
+    await userEvent.click(await screen.findByRole('radio', { name: '1매' }))
+    await userEvent.click(screen.getByRole('button', { name: '1매 응모하기' }))
+    expect(await screen.findByText('응모됐는지 확인하지 못했어요')).toBeInTheDocument()
+
+    await advance(6_000)
+
+    // 마감이 지나도 결과를 모르는 동안은 "응모하지 않았어요"라고 하지 않는다
+    expect(
+      screen.queryByRole('heading', { level: 2, name: '응모하지 않았어요' }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '응모 결과 확인하기' }))
+
+    // 서버는 같은 키를 기간보다 먼저 본다. 응모가 없었으니 응모 기간 아님(409)이고, 그제서야 응모하지 않았다고 알린다
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '응모하지 않았어요' }),
+    ).toBeInTheDocument()
+    const posts = methodOf(requests, 'POST')
+    expect(posts).toHaveLength(2)
+    expect(posts[1].headers.get('Idempotency-Key')).toBe(posts[0].headers.get('Idempotency-Key'))
+  })
+
   it('매수를 고르면 버튼 글자가 바뀌고, 최대 1매인 추첨에는 매수 선택이 없다', async () => {
     renderLottery()
 
@@ -259,8 +289,28 @@ describe('LotteryPage 응모하기', () => {
     expect(screen.queryByRole('button', { name: /매 응모하기$/ })).not.toBeInTheDocument()
   })
 
-  it('응답이 504면 "응모됐는지 확인하지 못했어요"와 [응모 결과 확인하기], 매수 잠금이고 같은 키로 다시 보낸다', async () => {
+  it('응답이 504여도 서버에 응모가 있으면 내 응모를 다시 받아 "응모했어요"로 바뀐다', async () => {
     setMockScenario({ lottery: 'unknown' })
+    const requests = recordRequests(entriesApi(OPEN))
+    const reads = recordRequests(myEntryApi(OPEN))
+    renderLottery()
+
+    await userEvent.click(await screen.findByRole('radio', { name: '2매' }))
+    await userEvent.click(screen.getByRole('button', { name: '2매 응모하기' }))
+
+    expect(await screen.findByRole('heading', { level: 2, name: '응모했어요' })).toBeInTheDocument()
+    // 다시 보내지 않고 내 응모 조회(처음 + 결과 모름 뒤)로 알았다
+    expect(methodOf(requests, 'POST')).toHaveLength(1)
+    expect(methodOf(reads, 'GET')).toHaveLength(2)
+  })
+
+  it('응답이 504이고 서버에도 응모가 없으면 "응모됐는지 확인하지 못했어요"와 [응모 결과 확인하기], 매수 잠금이고 같은 키로 다시 보낸다', async () => {
+    // 첫 응모만 서버에 닿지 않고 504로 끝난다
+    mockServer.use(
+      http.post(entriesApi(OPEN), () => fail(504, 'INTERNAL_SERVER_ERROR', '시간 초과'), {
+        once: true,
+      }),
+    )
     const requests = recordRequests(entriesApi(OPEN))
     renderLottery()
 
@@ -433,6 +483,51 @@ describe('LotteryPage 응모 취소', () => {
     return screen.findByRole('dialog', { name: '응모를 취소할까요?' })
   }
 
+  it('취소 응답이 504여도 서버에서 취소됐으면 내 응모를 다시 받아 "응모를 취소했어요"로 바뀌고 제목으로 초점이 간다', async () => {
+    const entry = seedEntry(OPEN)
+    mockServer.use(
+      http.delete(
+        myEntryApi(OPEN),
+        () => {
+          entry.status = 'CANCELED'
+          return fail(504, 'INTERNAL_SERVER_ERROR', '시간 초과')
+        },
+        { once: true },
+      ),
+    )
+    renderLottery()
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: '응모 취소' }))
+
+    const title = await screen.findByRole('heading', { level: 2, name: '응모를 취소했어요' })
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('취소 응답이 504이고 서버에서도 취소되지 않았으면 대화상자에 알리고, 다시 누르면 취소한다', async () => {
+    seedEntry(OPEN)
+    mockServer.use(
+      http.delete(myEntryApi(OPEN), () => fail(504, 'INTERNAL_SERVER_ERROR', '시간 초과'), {
+        once: true,
+      }),
+    )
+    renderLottery()
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: '응모 취소' }))
+
+    expect(await within(dialog).findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    // 대화상자 뒤 카드는 모달이 접근성 트리에서 가리므로 hidden까지 찾는다
+    expect(
+      screen.getByRole('heading', { level: 2, name: '응모했어요', hidden: true }),
+    ).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '응모 취소' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '응모를 취소했어요' }),
+    ).toBeInTheDocument()
+  })
+
   it('[응모 취소]를 누르면 확인 대화상자가 열리고, 돌아가기는 요청 없이 닫는다', async () => {
     seedEntry(OPEN)
     const requests = recordRequests(myEntryApi(OPEN))
@@ -581,12 +676,13 @@ describe('LotteryPage 결과', () => {
     )
   })
 
-  it('WAITLISTED는 "예비 순번이에요"와 순번이다', async () => {
-    setDrawnResult({ status: 'WAITLISTED', drawRank: 3 })
+  it('WAITLISTED는 "예비자예요"와 추첨 순위다(drawRank는 예비 몇 번째가 아니라 전체 응모 중 순위다)', async () => {
+    setDrawnResult({ status: 'WAITLISTED', drawRank: 13 })
     await renderDrawn()
 
-    const result = screen.getByRole('region', { name: '예비 순번이에요' })
-    expect(result).toHaveTextContent('3번')
+    const result = screen.getByRole('region', { name: '예비자예요' })
+    expect(result).toHaveTextContent('추첨 순위13위')
+    expect(result).not.toHaveTextContent('번')
     expect(within(result).getByText(/추첨 30분 뒤에 끝나요/)).toBeInTheDocument()
   })
 
@@ -654,6 +750,29 @@ describe('LotteryPage 결과', () => {
 })
 
 describe('LotteryPage 다시 받기', () => {
+  // 화면마다 간격에 0~3초를 더한다. 간격을 정확히 보려고 무작위 값을 0으로 둔다
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+  })
+
+  it('다시 받기 간격에 화면마다 최대 3초를 더해 추첨 시각에 요청이 한꺼번에 몰리지 않게 한다', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    seedEntry(OPEN)
+    placeLottery(OPEN, { start: -DAY, end: -HOUR, draw: -MINUTE })
+    const requests = recordRequests(myEntryApi(OPEN))
+    renderLottery()
+    await screen.findByRole('heading', { level: 2, name: '응모했어요' })
+    const reads = () => methodOf(requests, 'GET').length
+    expect(reads()).toBe(1)
+
+    // 간격은 10초 + 2,997ms다
+    await advance(11_000)
+    expect(reads()).toBe(1)
+    await advance(2_500)
+    expect(reads()).toBe(2)
+  })
+
   it('추첨 시각 전의 ENTERED는 내 응모를 다시 받지 않는다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     seedEntry(OPEN)
@@ -713,7 +832,7 @@ describe('LotteryPage 다시 받기', () => {
     const entry = setDrawnResult({ status: 'WAITLISTED', drawRank: 3 })
     const requests = recordRequests(myEntryApi(DRAWN))
     renderLottery(`/lotteries/${DRAWN}`)
-    await screen.findByRole('region', { name: '예비 순번이에요' })
+    await screen.findByRole('region', { name: '예비자예요' })
 
     await advance(10_000)
     expect(methodOf(requests, 'GET')).toHaveLength(2)
@@ -796,7 +915,11 @@ describe('LotteryPage 다시 받기', () => {
     const retry = await screen.findByRole('button', { name: '다시 시도' })
     expect(screen.getByRole('heading', { level: 2, name: '당첨됐어요' })).toBe(title)
     expect(retry.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByText('아직 응모하지 않았어요')).not.toBeInTheDocument()
+    // 다시 받기 실패를 "응모 없음"으로 읽어 응모 폼이나 "응모하지 않았어요"로 바꾸지 않는다
+    expect(
+      screen.queryByRole('heading', { level: 2, name: '응모하지 않았어요' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: '응모하기' })).not.toBeInTheDocument()
 
     await userEvent.click(retry)
 
@@ -827,6 +950,17 @@ describe('LotteryPage 다시 받기', () => {
 })
 
 describe('LotteryPage 로그인 전', () => {
+  it('응모 기간이 지났으면 "응모 결과"와 [로그인하고 결과 보기]를 보인다', async () => {
+    clearSession()
+    placeLottery(OPEN, { start: -DAY, end: -2 * HOUR, draw: -HOUR })
+    renderLottery()
+
+    expect(await screen.findByRole('heading', { level: 2, name: '응모 결과' })).toBeInTheDocument()
+    expect(screen.getByText('로그인하면 내 응모 결과를 볼 수 있어요.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '로그인하고 결과 보기' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '로그인하고 응모하기' })).not.toBeInTheDocument()
+  })
+
   it('추첨 정보와 [로그인하고 응모하기]를 보이고 응모 폼·자동결제 카드는 없다', async () => {
     clearSession()
     renderLottery()
