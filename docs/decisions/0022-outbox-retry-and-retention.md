@@ -94,7 +94,7 @@ SA 12-5는 `outbox_events`(`PENDING·SENT·FAILED`, `attempts`), `processed_even
 
 - SA 변경 요청: S-10(outbox 컬럼, 재시도·보관 값, 임대와 전송 시한, `SENT` 의미, Reservation DLQ 처리기), S-21(실행기 분리와 연결 풀).
 - `events-and-reliability.md`에 공통 규칙·릴레이·실행기·정리를, `data-model.md`에 컬럼·인덱스를, `manual-recovery.md`에 `FAILED` outbox 복구(Ops `outbox requeue`)를 쓴다.
-- 반효승에게 통보: `payment.result` 소비 DLQ 처리기와 `SENT` 의미.
+- 반효승에게 통보: `payment.result` 소비 DLQ 처리기와 `SENT` 의미. DLQ 처리기는 ISE-74에서 구현했다(2026-11-03). 같은 소비 로직으로 한 번 더 처리하고, 실패는 예매 DB `dead_letters` `OPEN`과 오류 로그로 남긴다([0027](0027-reservation-payment-event-contract.md) 결과 절).
 - 테스트: 전송 확인 전 중단 뒤 재처리, 중복 전송 시 소비 멱등, 일시 오류 백오프와 최대 간격·Jitter, 영구 오류 `FAILED`, 같은 키 순서 보존, 정리 배치(조건·크기·중복 실행 방지), 멱등 기록 삭제 제외 조건, 14일 뒤 재전달 시 업무 규칙 방어(N11), 0행 경합(N17), 실행기 분리(N26).
 
 ## 개정 이력
