@@ -78,6 +78,24 @@ describe('회차 입력', () => {
     )
   })
 
+  it('선택 칸 오류 문구는 칸 이름의 조사까지 맞다', () => {
+    const labels = { maxPerUser: '1인 최대 매수는', holdMinutes: '선점 시간은' } as const
+    for (const field of ['maxPerUser', 'holdMinutes'] as const) {
+      expect(messageAt(scheduleFormSchema.safeParse({ ...valid, [field]: 'x' }), field)).toBe(
+        `${labels[field]} 숫자로 입력해 주세요`,
+      )
+      expect(messageAt(scheduleFormSchema.safeParse({ ...valid, [field]: '0' }), field)).toBe(
+        `${labels[field]} 1~32767 사이로 입력해 주세요`,
+      )
+    }
+    expect(
+      messageAt(scheduleFormSchema.safeParse({ ...valid, maxPerUser: 'x' }), 'maxPerUser'),
+    ).toBe('1인 최대 매수는 숫자로 입력해 주세요')
+    expect(
+      messageAt(scheduleFormSchema.safeParse({ ...valid, holdMinutes: '0' }), 'holdMinutes'),
+    ).toBe('선점 시간은 1~32767 사이로 입력해 주세요')
+  })
+
   it('1인당 예매 수와 선점 시간은 1~32767 정수만 받는다', () => {
     for (const field of ['maxPerUser', 'holdMinutes'] as const) {
       expect(scheduleFormSchema.safeParse({ ...valid, [field]: '32767' }).success).toBe(true)
