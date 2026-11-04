@@ -1,0 +1,126 @@
+# 배포 이미지 워크플로 (ISE-173, ADR 0044)
+#
+# 하는 일: main에 커밋이 들어오면(dev → main 릴리스 PR 머지) 배포에 쓰는 이미지 8개를 만들어
+# GHCR(GitHub 컨테이너 레지스트리)에 올린다.
+#   ghcr.io/iseonjwa/<서비스>:<main 커밋 SHA>
+#   서비스: config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend
+#
+# 배포와의 관계: 이 워크플로는 이미지를 만들기만 하고 서버에 손대지 않는다. Jenkins가 main을 폴링하다가
+# 새 SHA를 보면 이 SHA의 이미지를 배포 EC2에서 받아(docker compose pull) 띄운다(ISE-175). 그래서 main의
+# 커밋마다 8개 이미지가 모두 같은 SHA 태그로 있어야 한다. main push에는 paths 필터를 걸지 않는다.
+#
+# 언제 무엇을 하나
+#   - main push: 빌드하고 GHCR에 올린다.
+#   - PR(아래 paths가 바뀐 경우만): 빌드만 하고 올리지 않는다. Dockerfile·nginx 설정·bake 정의가 깨졌는지
+#     main에 가기 전에 알기 위해서다. 필수 검사가 아니다(paths 필터 워크플로라 필수로 두면 머지가 막힌다).
+#   - 수동 실행(Actions 화면의 Run workflow): main에서 돌리면 그 시점 main SHA로 다시 올린다. 실패한 릴리스를
+#     다시 만들 때 쓴다. 다른 브랜치에서 돌리면 빌드만 한다.
+#
+# 자세한 설명: docs/design/infra/deployment.md "이미지 워크플로" 절,
+# 개념: docs/learning/junhyun/qna/2026-11-04-github-actions-ghcr-image-workflow.md
+name: images
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-bake.hcl'
+      - 'frontend/Dockerfile'
+      - 'frontend/.dockerignore'
+      - 'frontend/nginx/**'
+      - '.github/workflows/images.yml'
+  workflow_dispatch:
+
+# 기본 권한은 읽기만. 이미지를 올리는 권한(packages: write)은 아래 job에서만 준다.
+permissions:
+  contents: read
+
+# 같은 브랜치에서 새 실행이 오면: PR은 이전 실행을 취소한다(마지막 커밋만 보면 된다).
+# main은 취소하지 않는다(커밋마다 이미지가 있어야 Jenkins가 그 SHA를 배포·되돌림할 수 있다).
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # main에서 돌 때만 GHCR에 올린다. PR의 github.ref는 refs/pull/<번호>/merge라서 여기서 걸러진다.
+  PUSH: ${{ github.ref == 'refs/heads/main' }}
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # GITHUB_TOKEN(워크플로마다 GitHub이 새로 만들어 주는 짧은 토큰)으로 GHCR에 쓰는 권한.
+      # 개인 토큰을 비밀값으로 두지 않아도 된다.
+      packages: write
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@v7
+
+      # buildx: BuildKit으로 빌드하는 docker 플러그인. 여러 이미지를 한 번에(bake), 다른 CPU용(amd64)으로 만든다.
+      - name: buildx 준비
+        id: buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Gradle·npm 다운로드 캐시를 실행 사이에 남긴다.
+      # Note: Dockerfile의 RUN --mount=type=cache(/root/.gradle, /root/.npm)는 빌드 머신 안에만 남는다.
+      # GitHub 실행기는 매번 새 머신이라 그대로 두면 매번 의존성을 처음부터 받는다. 그래서 actions/cache로
+      # 폴더를 복원하고(아래), buildkit-cache-dance가 그 폴더를 BuildKit 캐시 마운트에 넣었다가 빌드가 끝나면
+      # 다시 꺼내 저장한다. 키는 의존성 목록 파일의 해시라서 의존성이 바뀌면 새 캐시가 만들어진다.
+      - name: 의존성 캐시 복원
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: build-cache
+          key: image-deps-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties', 'frontend/package-lock.json') }}
+          restore-keys: image-deps-
+
+      - name: 의존성 캐시를 BuildKit 캐시 마운트에 넣기
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "build-cache/gradle": "/root/.gradle",
+              "build-cache/npm": "/root/.npm"
+            }
+          # 키가 정확히 맞았으면 캐시가 그대로라 빌드 뒤 다시 꺼내 저장할 필요가 없다.
+          skip-extraction: ${{ steps.cache.outputs.cache-hit }}
+
+      - name: GHCR 로그인
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker-bake.hcl의 default 그룹(이미지 8개)을 한 번에 빌드한다. 앱 7개의 Gradle 빌드는 한 번만 돈다.
+      - name: 이미지 빌드(main이면 GHCR에 올림)
+        uses: docker/bake-action@v7
+        env:
+          TAG: ${{ github.sha }}
+        with:
+          # 받아 둔 저장소 폴더로 빌드한다(기본값은 GitHub에서 다시 받는 Git 컨텍스트).
+          source: .
+          # compose.yml을 같이 읽지 않게 bake 정의 파일을 지정한다.
+          files: docker-bake.hcl
+          push: ${{ env.PUSH == 'true' }}
+          # 출처 증명(provenance) 첨부를 끈다. 켜면 GHCR 화면에 unknown/unknown 플랫폼 항목이 더 붙는다.
+          # 이미지 하나 = 플랫폼 하나로 단순하게 둔다.
+          provenance: false
+
+      - name: 올린 이미지 목록을 실행 요약에 남기기
+        env:
+          TAG: ${{ github.sha }}
+        run: |
+          {
+            if [ "$PUSH" = "true" ]; then echo "### GHCR에 올린 이미지"; else echo "### 빌드만 한 이미지(올리지 않음)"; fi
+            echo
+            docker buildx bake -f docker-bake.hcl --print 2>/dev/null | jq -r '.target[].tags[]' | sort \
+              | while read -r ref; do echo "- \`$ref\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
