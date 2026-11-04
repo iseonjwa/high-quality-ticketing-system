@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Minus, TriangleAlert } from 'lucide-react'
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { authQueryKeys, getMe } from '@/api/auth'
@@ -43,7 +51,7 @@ import { cn } from '@/lib/utils'
 // 추첨 응모 화면(ISE-121). 추첨 정보는 공개이고, 응모·결과·자동결제 카드는 로그인 뒤에 보인다.
 // Note: 공연·회차에서 추첨 번호를 찾는 API가 없어, 운영자가 추첨을 설정하며 받은 이 화면 주소로만 들어온다.
 
-// 응모 폼의 "카드 등록" 안내가 초점을 옮길 자동결제 카드 영역
+// 응모 폼의 "카드 등록하러 가기"가 초점을 옮길 자동결제 카드 영역
 const BILLING_KEY_CARD_ID = 'billing-key'
 // 추첨 시각이 지나 결과가 바뀌는 동안(추첨·배정·자동결제·승계) 다시 받는 간격. 서버 스케줄러는 1~10초 주기다
 const RESULT_POLL_MILLIS = 10_000
@@ -180,24 +188,29 @@ function Rule({ children }: { children: ReactNode }) {
   )
 }
 
-// 응모·취소에 성공하면 누른 버튼이 사라져 초점이 body로 떨어진다. 사용자가 이 화면에서 응모·취소를 한 뒤에
-// 초점을 잃었을 때만 새로 그린 카드 제목으로 옮긴다. 다시 받기로 결과가 바뀔 때는 초점을 건드리지 않는다
-const ActionFocusContext = createContext<{ acted: boolean; markActed: () => void }>({
-  acted: false,
+// 응모·취소에 성공하면 누른 버튼이 사라져 초점이 body로 떨어진다. 응모·취소 직후 처음 새로 그린 카드만 한 번,
+// 초점을 잃었을 때 제목으로 초점을 옮긴다. 다시 받기로 결과가 바뀔 때(응모함 → 당첨)는 초점을 건드리지 않는다
+interface ActionFocus {
+  markActed: () => void
+  // 응모·취소 뒤 아직 쓰지 않은 신호가 있으면 true를 주고 지운다
+  takeActed: () => boolean
+}
+const ActionFocusContext = createContext<ActionFocus>({
   markActed: () => {},
+  takeActed: () => false,
 })
 
 function useTitleFocus() {
-  const { acted } = useContext(ActionFocusContext)
+  const { takeActed } = useContext(ActionFocusContext)
   const ref = useRef<HTMLHeadingElement>(null)
   // 카드가 새로 그려질 때 한 번만 본다. 1초마다 다시 그려도 초점을 다시 옮기지 않는다
-  const actedOnMount = useRef(acted)
   useEffect(() => {
+    const acted = takeActed()
     const active = document.activeElement
-    if (actedOnMount.current && (active === null || active === document.body)) {
+    if (acted && (active === null || active === document.body)) {
       ref.current?.focus()
     }
-  }, [])
+  }, [takeActed])
   return ref
 }
 
@@ -210,7 +223,20 @@ function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
       shouldPollResult(lottery, query.state.data ?? null, Date.now()) ? RESULT_POLL_MILLIS : false,
   })
   const phase = phaseOf(lottery, now)
-  const [acted, setActed] = useState(false)
+  const actedRef = useRef(false)
+  const actionFocus = useMemo<ActionFocus>(
+    () => ({
+      markActed: () => {
+        actedRef.current = true
+      },
+      takeActed: () => {
+        const acted = actedRef.current
+        actedRef.current = false
+        return acted
+      },
+    }),
+    [],
+  )
 
   let content: ReactNode
   if (entry.isPending) {
@@ -234,7 +260,7 @@ function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
   }
 
   return (
-    <ActionFocusContext value={{ acted, markActed: () => setActed(true) }}>
+    <ActionFocusContext value={actionFocus}>
       {content}
       {me.data ? <BillingKeyCard userId={me.data.userId} anchorId={BILLING_KEY_CARD_ID} /> : null}
     </ActionFocusContext>
@@ -360,7 +386,7 @@ function BillingKeyReminder({ userId }: { userId: number }) {
       variant="warning"
       action={
         <Button variant="outline" size="sm" onClick={moveToCard}>
-          카드 등록
+          카드 등록하러 가기
         </Button>
       }
     >
@@ -504,6 +530,7 @@ function EnteredCard({
   const queryClient = useQueryClient()
   const { markActed } = useContext(ActionFocusContext)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const cancelTriggerRef = useRef<HTMLButtonElement>(null)
   const cancel = useMutation({
     mutationFn: () => cancelEntry(lottery.lotteryId),
     onSuccess: (canceled) => {
@@ -540,7 +567,7 @@ function EnteredCard({
             응모 마감 전까지 취소할 수 있어요. 취소하면 다시 응모할 수 없어요.
           </p>
           <div>
-            <Button variant="outline" onClick={() => setConfirmOpen(true)}>
+            <Button ref={cancelTriggerRef} variant="outline" onClick={() => setConfirmOpen(true)}>
               응모 취소
             </Button>
           </div>
@@ -555,7 +582,20 @@ function EnteredCard({
           }
         }}
       >
-        <DialogContent showCloseButton={!cancel.isPending}>
+        <DialogContent
+          showCloseButton={!cancel.isPending}
+          onCloseAutoFocus={(event) => {
+            // 트리거 없이 연 대화상자라 Radix가 초점을 돌려줄 곳을 모른다. 마감이 지나 [응모 취소]가 사라졌으면
+            // 카드 제목으로 간다. 취소에 성공하면 이 카드가 사라지고 새 카드 제목이 초점을 받는다
+            event.preventDefault()
+            const trigger = cancelTriggerRef.current
+            if (trigger?.isConnected) {
+              trigger.focus()
+            } else {
+              document.getElementById('entry-title')?.focus()
+            }
+          }}
+        >
           <DialogTitle className="type-heading text-gray-900">응모를 취소할까요?</DialogTitle>
           <DialogDescription className="type-body-sm text-gray-500">
             취소하면 이 추첨에 다시 응모할 수 없어요.

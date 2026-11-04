@@ -364,7 +364,7 @@ describe('LotteryPage 응모하기', () => {
 })
 
 describe('LotteryPage 자동결제 카드 안내', () => {
-  it('이 브라우저에 카드 기록이 없으면 경고와 [카드 등록]을 보이고, 누르면 자동결제 카드 영역으로 초점을 옮긴다', async () => {
+  it('이 브라우저에 카드 기록이 없으면 경고와 [카드 등록하러 가기]를 보이고, 누르면 자동결제 카드 영역으로 초점을 옮긴다', async () => {
     renderLottery()
 
     expect(await screen.findByText('자동결제 카드를 확인해 주세요')).toBeInTheDocument()
@@ -381,7 +381,9 @@ describe('LotteryPage 자동결제 카드 안내', () => {
     expect(card).not.toHaveFocus()
 
     await userEvent.click(
-      within(alertOf('자동결제 카드를 확인해 주세요')).getByRole('button', { name: '카드 등록' }),
+      within(alertOf('자동결제 카드를 확인해 주세요')).getByRole('button', {
+        name: '카드 등록하러 가기',
+      }),
     )
 
     expect(card).toHaveFocus()
@@ -445,6 +447,8 @@ describe('LotteryPage 응모 취소', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(methodOf(requests, 'DELETE')).toHaveLength(0)
     expect(screen.getByRole('heading', { level: 2, name: '응모했어요' })).toBeInTheDocument()
+    // 트리거 없이 연 대화상자라 직접 돌려준다. 그대로 두면 body로 간다
+    await waitFor(() => expect(screen.getByRole('button', { name: '응모 취소' })).toHaveFocus())
   })
 
   it('대화상자에서 확인하면 취소하고 "응모를 취소했어요"를 보인다', async () => {
@@ -928,9 +932,8 @@ describe('LotteryPage 응모·취소 뒤 초점', () => {
     await waitFor(() => expect(title).toHaveFocus())
   })
 
-  // 알려진 어긋남: acted가 화면 안에서 계속 true라, 응모한 뒤 다시 받기로 ENTERED 카드가 WON 카드로 바뀌면
-  // 새 카드가 마운트되며 body에 있던 초점을 제목으로 가져간다. 고치면 이 테스트가 통과해 it.fails가 실패하니 it로 바꾼다
-  it.fails('응모한 뒤 다시 받기로 결과가 바뀌어도 초점을 옮기지 않는다', async () => {
+  // 응모 뒤 신호는 처음 새로 그린 카드(응모했어요)가 한 번 쓰고 지운다. 다시 받기로 당첨 카드가 그려져도 초점을 옮기지 않는다
+  it('응모한 뒤 다시 받기로 결과가 바뀌어도 초점을 옮기지 않는다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     placeLottery(OPEN, { end: 10_000, draw: 15_000 })
     renderLottery()
