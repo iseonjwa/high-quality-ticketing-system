@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | Grafana Alloy는 무엇이고 왜 쓰나 | [qna/2026-11-04-grafana-alloy-what-is.md](qna/2026-11-04-grafana-alloy-what-is.md) |
 | 2026-11-04 | 배포·알림용 슬랙 채널을 만든 뒤 무엇을 설정해야 하나 | [qna/2026-11-04-slack-incoming-webhook-setup.md](qna/2026-11-04-slack-incoming-webhook-setup.md) |
 | 2026-11-02 | 실제 PG(토스페이먼츠)를 붙여도 Mock PG가 필요한가 | [qna/2026-11-02-mock-pg-with-real-pg.md](qna/2026-11-02-mock-pg-with-real-pg.md) |
 | 2026-11-02 | 토스페이먼츠 테스트 연동을 위해 미리 준비해 둘 것은 무엇인가 | [qna/2026-11-02-toss-payments-test-setup.md](qna/2026-11-02-toss-payments-test-setup.md) |
