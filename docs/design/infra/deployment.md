@@ -15,7 +15,7 @@ flowchart LR
   JK -->|SSH 키 인증<br/>.env·compose 반영, pull, up -d| DEPLOY[배포 EC2<br/>docker compose]
   DEPLOY -->|pull| GHCR
   JK -->|결과| SL[슬랙 #이선좌-배포상태알림]
-  USER[사용자 브라우저] -->|8080| DEPLOY
+  USER[사용자 브라우저] -->|80| DEPLOY
 ```
 
 역할을 나누는 이유는 GitHub Actions가 CI와 이미지 빌드·푸시를, Jenkins가 배포만 맡도록 하기 위해서다(2026-11-03 사용자 결정).
@@ -93,15 +93,15 @@ TAG=local docker buildx bake -f docker-bake.hcl gateway \
 
 ### 이미지와 compose
 
-- 서비스 이미지는 `ghcr.io/iseonjwa/<서비스>:<커밋 SHA>` 형태를 쓴다(아래 "이미지 워크플로").
+- 서비스 이미지는 `ghcr.io/iseonjwa/<서비스>:<커밋 SHA>` 형태를 쓴다(위 "이미지 워크플로").
 - 지금 `compose.yml`은 `build:`로 로컬에서 빌드한다. 배포용은 `image: ghcr.io/...:<sha>`를 참조하는 별도 compose 파일을 둔다. 이름과 위치는 구현 이슈에서 정한다.
 - 인프라 이미지(PostgreSQL, Redis, Kafka 등)는 지금처럼 digest로 고정한다.
-- 현재 Dockerfile은 `APP_MODULE` 인자 하나로 모듈을 골라 `bootJar`를 만든다. 서비스 7개는 매트릭스가 아니라 bake 한 번으로 빌드한다(아래 "이미지 워크플로").
-- 프론트 SPA는 nginx 컨테이너가 서빙하고 `/api`를 Gateway로 중계한다([ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md), ISE-109). 배포 compose에 포함한다. 확인 시점(2026-11-03)에 `frontend/`에는 Dockerfile이 없고 compose에도 프론트 서비스가 없다.
+- 현재 Dockerfile은 `APP_MODULE` 인자 하나로 모듈을 골라 `bootJar`를 만든다. 서비스 7개는 매트릭스가 아니라 bake 한 번으로 빌드한다(위 "이미지 워크플로").
+- 프론트 SPA는 nginx 컨테이너가 서빙하고 `/api`를 Gateway로 중계한다([ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md), ISE-109). 배포 compose에 포함한다. `frontend/Dockerfile`(node 빌드 → nginx)과 compose의 `frontend` 서비스는 ISE-109에서 만들었다(로컬 `127.0.0.1:8000:80`, `mem_limit` 64m).
 
 ### 외부 노출 (SA 9-2)
 
-8080만 공개한다. 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 내부 서비스는 `ports` 없이 `expose`만 쓴다. 프론트 nginx를 배포 compose에 넣으면 공개 진입점이 nginx의 포트가 된다. 그 포트와 8080의 관계(Gateway를 계속 직접 공개할지)는 미정이다.
+공개 진입점은 프론트 nginx의 80이다. 8080(Gateway 직접)은 전체에 열지 않고, 부하 측정 때 발생기 보안그룹에만 연다(부하 도구는 nginx를 거치지 않고 Gateway를 부른다, [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절). 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 내부 서비스는 `ports` 없이 `expose`만 쓴다.
 
 ## 3. 보안그룹 규칙
 
@@ -110,14 +110,15 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 대상 | 포트 | 인바운드 허용 | 비고 |
 |---|---|---|---|
 | 배포 EC2 | 22 | 팀원 IP, Jenkins EC2 보안그룹 | 키 인증만. Jenkins EC2는 SSH만 허용 |
-| 배포 EC2 | 8080 | 전체(0.0.0.0/0). 부하 측정 중에는 발생기 보안그룹으로 제한 | 유일한 서비스 진입점 |
+| 배포 EC2 | 80 | 전체(0.0.0.0/0) | 화면과 `/api/` 중계(프론트 nginx). 유일한 공개 진입점 |
+| 배포 EC2 | 8080 | 허용 없음. 부하 측정 중에만 발생기 보안그룹 | Gateway 직접 접근. 부하 도구용 |
 | 배포 EC2 | 3000, 8085, 9090, 9411, 8761 | 허용 없음 | SSH 터널로만 |
 | 배포 EC2 | 8081~8083, 8090, 8888, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 | Jenkins EC2 | 22 | 팀원 IP | Jenkins UI(8080)는 열지 않고 SSH 터널로만 접근 |
 | Jenkins EC2 | 웹훅 포트 | 허용 없음 `[가정]` | 폴링이 기본이다. 웹훅으로 바꿀 때만 GitHub 웹훅 IP 대역을 허용 |
 | 발생기 EC2 (측정 때만) | 22 | 팀원 IP | 측정이 끝나면 인스턴스를 지운다([load-test.md](load-test.md)) |
 
-배포 EC2의 8080 인바운드는 부하 측정 때 발생기 보안그룹 하나로 좁힌다. SA 9-2의 "측정 기기 IP 허용"을 같은 VPC 방식으로 구체화한 것이다.
+배포 EC2의 8080 인바운드는 평소 닫아 두고, 부하 측정 때만 발생기 보안그룹 하나에 연다. SA 9-2의 "측정 기기 IP 허용"을 같은 VPC 방식으로 구체화한 것이다.
 
 ## 4. 비밀값
 
@@ -152,7 +153,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | GHCR 소유자·이미지 이름 규칙 | 정함(ISE-173): `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` |
 | GHCR 패키지 공개 여부(배포 서버가 토큰 없이 받을지) | 미정. 첫 main 실행 뒤 ISE-174에서 정함 |
 | 배포용 compose 파일 이름·위치 | 미정. 구현 이슈에서 정함 |
-| 프론트 nginx 공개 포트와 8080의 관계 | 미정 |
+| 프론트 nginx 공개 포트와 8080의 관계 | 정함(ISE-109): 80 공개, 8080은 발생기 보안그룹만 |
 | 서버 `.env` 키 갱신 절차 | 미정 |
 | DB 마이그레이션이 있는 릴리스의 되돌림 규칙 | 미정 |
 | 배포 DB 시드(시연용 관리자·샘플 계정, 공연 데이터) | 별도 이슈 |
@@ -161,4 +162,5 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 - SA 9-1 구조도와 구성 요소 표에 Jenkins EC2와 GHCR이 더해진다. 부하 도구 열은 "다른 기기"에서 "측정 때만 띄우는 같은 VPC의 임시 EC2"로 바뀐다.
 - SA 9-2 보안그룹 표에 Jenkins EC2와 발생기 EC2 행이 더해지고, 부하 측정 중 8080 허용이 "측정 기기 IP"에서 "발생기 보안그룹"이 된다.
+- SA 9-2의 공개 진입점이 8080에서 프론트 nginx 80으로 바뀐다. 8080은 전체에 열지 않는다.
 - SA 9-3 메모리 표는 Jenkins EC2를 포함하지 않는다(별도 인스턴스). 배포 EC2 합계에는 관측 추가분이 더해진다.

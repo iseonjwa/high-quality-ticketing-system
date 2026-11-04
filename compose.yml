@@ -64,6 +64,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+  # 화면(정적 파일)과 /api/ 중계. 공개 진입점이다(ADR 0040)
+  frontend:
+    build:
+      context: ./frontend
+    mem_limit: 64m
+    ports: ["127.0.0.1:8000:80"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
   user-service:
     <<: *app
     build:
