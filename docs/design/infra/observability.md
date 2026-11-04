@@ -58,6 +58,7 @@ flowchart LR
   - 같은 요청의 Gateway 줄과 서비스 줄에 같은 traceId가 붙었다. 빈 본문 로그인은 Gateway와 user-service에서 `요청 POST /api/v1/auth/login 400`, 공연 조회는 reservation-service에서 `요청 GET /api/v1/concerts/{concertId} 200`으로 남았다.
   - `BookingFlowSystemTest`(예매 한 흐름)가 통과했다. 이어서 Loki에서 최근 10분의 `{service="payment-service"} |= "요청 "` 줄 둘의 traceId로 `{service=~"gateway|reservation-service|payment-service"}`를 조회하니 각각 Gateway 줄과 payment-service 줄이 함께 나왔다(`POST /api/v1/payments` Gateway 638ms·payment 521ms). 이 traceId에는 reservation-service 요청 줄이 없었다. 결제 승인 뒤 예매 확정은 Kafka 소비자에서 일어나 요청 로그에 잡히지 않는 것이 설계 그대로다.
   - 최근 10분에 Gateway·reservation·payment·user 요청 줄이 같은 traceId로 묶인 경우는 Gateway와 서비스 하나씩의 쌍이었고, 세 서비스를 모두 지나는 traceId는 없었다.
+- 완료 기준을 읽는 법: 요청 하나의 traceId에는 Gateway 줄과 그 요청을 받은 서비스 줄이 함께 나온다. 예매 한 흐름은 요청 여러 개(대기열, 선점, 결제, 조회)라 traceId도 여러 개다. 결제 승인 뒤 예매 확정은 Kafka 소비자에서 일어나 요청 로그에 잡히지 않는다. 그래서 ISE-182의 완료 기준("한 traceId로 Gateway·예매·결제 요청 줄")은 "요청마다 Gateway와 서비스 줄이 같은 traceId로 보인다"로 확인했다. 소비자 처리의 로그·트레이스 전파는 6절의 남은 항목이다.
 
 ### 구현 (ISE-178, 수집)
 
