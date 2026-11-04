@@ -18,7 +18,7 @@ Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사�
 | payment-service | 8083 | 18083 | 결제 영역 실행 기반, local 연결 진단 |
 | mock-pg | 8090 | 18090 | Mock PG 실행 기반 |
 
-컨테이너 안의 관리 포트는 공통으로 9080이며 서로 다른 컨테이너다. 기본 Compose는 서비스·관리 포트를 호스트에 열지 않는다. Gateway와 관리자 UI만 loopback에 바인딩한다. local override에서 개발용 서비스·관리·DB·Redis·Kafka 포트를 loopback에 연다.
+컨테이너 안의 관리 포트는 공통으로 9080이며 서로 다른 컨테이너다. 기본 Compose는 서비스·관리 포트를 호스트에 열지 않는다. 화면(frontend nginx, 8000)과 Gateway, 관리자 UI만 loopback에 바인딩한다. local override에서 개발용 서비스·관리·DB·Redis·Kafka 포트를 loopback에 연다.
 
 공통 코드는 `common` 모듈 하나에 패키지로 나뉜다([ADR 0013](../decisions/0013-single-common-module.md)). `persistence`·`event`는 감사 엔티티·이벤트 봉투, `response`·`identity`는 Spring에 독립적인 응답·에러 계약과 사용자 헤더·역할 상수, `auth`는 Gateway와 User가 함께 쓰는 JWT 서명·검증 계약, `web`은 MVC 예외·내부 사용자 컨텍스트, `messaging`은 Boot Kafka 연결 기반이다. 웹·JPA·Kafka·JWT 라이브러리는 `compileOnly`라서 쓰는 서비스가 직접 선언한다. Gateway는 `auth`·`response`·`identity`만 쓰며 MVC·JPA·Kafka를 받지 않는다(`GatewayClasspathTest`).
 
@@ -26,9 +26,9 @@ Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사�
 
 서비스는 Gateway가 검증해 넣은 X-User-Id·X-User-Role을 서명 없이 믿는다(SA 7-2). 그래서 Gateway 외의 포트가 외부에서 닿으면 누구나 사용자·ADMIN을 위조할 수 있다. 이 전제를 지키는 규칙은 다음과 같다.
 
-- 기본 Compose는 Gateway(8080)와 관리자 UI(Grafana·Kafka-UI·Prometheus·Alertmanager·Zipkin)만 호스트에 열고, 모두 `127.0.0.1`에 바인딩한다. 서비스·Config Server·Eureka·Mock PG·DB·Redis·Kafka는 열지 않는다.
+- 기본 Compose는 화면(frontend nginx, 8000)과 Gateway(8080), 관리자 UI(Grafana·Kafka-UI·Prometheus·Alertmanager·Zipkin)만 호스트에 열고, 모두 `127.0.0.1`에 바인딩한다. 서비스·Config Server·Eureka·Mock PG·DB·Redis·Kafka는 열지 않는다.
 - local override와 JVM 실행의 개발용 포트도 모두 `127.0.0.1`이다.
-- 배포(EC2)에서는 보안그룹으로 8080만 외부에 열고(부하 측정 중에는 측정 기기 IP로 제한) 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다.
+- 배포(EC2)에서는 보안그룹으로 화면(frontend nginx) 80만 외부에 연다. Gateway 8080은 외부에 열지 않고 부하 측정 때만 발생기 보안그룹에 연다. 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다([deployment.md](../design/infra/deployment.md) 3절).
 - 서비스 사이의 내부 HTTP API는 `/internal/**`(또는 `/api/v1/internal/**`)에 둔다. Gateway의 `AccessPolicy`가 이 경로를 외부 요청에서 404로 막는다.
 - `./gradlew checkPortExposure`가 위 규칙(기본 Compose의 공개 서비스 목록, 모든 호스트 주소가 loopback)을 검사한다. `verifyWorkspace`와 CI에 포함되며 규칙 위반이면 실패한다.
 
@@ -41,6 +41,8 @@ Docker와 JDK 21을 준비하고 저장소 루트에서 실행한다. 다른 프
 docker compose -f compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 180
 ./gradlew :system-tests:systemTest -PredisFailure=true --no-daemon
 ```
+
+화면은 http://localhost:8000에서 연다(frontend nginx, `/api/`는 Gateway로 중계). 첫 `docker compose up`에는 프론트 이미지 빌드(도커 안에서 Node로, 처음 몇 분)가 더해진다. 화면만 고칠 때는 `frontend/`에서 `npm run dev`(5173)가 더 빠르다.
 
 환경변수 생성기는 .env가 있으면 덮어쓰지 않는다. 그래서 `PAYMENT_TOKEN_SECRET`이 생기기 전에 만든 .env에는 키가 없다. 이 경우 `openssl rand -hex 32`로 만든 값을 `PAYMENT_TOKEN_SECRET=`에 직접 넣는다(없으면 compose가 시작 전에 오류로 멈춘다). 새 파일은 0600으로 만들고 값을 출력하지 않는다. 변수 목록은 .env.example에 있다. 실제 키·비밀번호는 .env에만 두고 커밋하지 않는다. Config Server에는 이 비밀값을 전달하지 않고 각 클라이언트 프로세스의 환경변수로 주입한다.
 
@@ -123,10 +125,11 @@ Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 
 
 ## 관측성
 
-- [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다.
+- [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다. traceId로 요청 하나의 로그와 트레이스를 보는 대시보드는 [요청 로그](http://localhost:3000/d/iseonjwa-request-logs)다.
 - [Prometheus](http://localhost:9090/targets): 앱 7개의 별도 관리 포트를 수집한다.
 - [Alertmanager](http://localhost:9093): Prometheus 알림을 묶어 슬랙으로 보낸다. 웹훅(SLACK_WEBHOOK_MONITORING)이 없으면 보내지 않는다.
   - 웹훅이나 `STACK_ENV`를 바꾸면 `docker compose up -d --force-recreate alertmanager prometheus`로, `infra/alertmanager/` 설정만 바꿨으면 `curl -X POST localhost:9093/-/reload`로 반영한다.
+- Loki·Alloy: Alloy가 앱 7개의 컨테이너 로그를 Loki에 모은다(7일 보관). 호스트 포트가 없고 Grafana의 Loki 데이터 소스(`loki`)로 본다. 앱을 JVM으로 호스트에서 띄우면 그 로그는 Alloy가 모으지 않는다. 요청마다 한 줄(`요청 메서드 경로 상태 시간ms`)을 남기는 필터는 `iseonjwa.request-log.enabled`(기본 true, `config-repo/application.yml`)로 끈다.
 - [Zipkin](http://localhost:9411): Gateway와 서비스의 같은 trace를 확인한다.
 - [Kafka-UI](http://localhost:8085): iseonjwa 클러스터를 확인한다.
 

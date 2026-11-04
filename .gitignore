@@ -27,3 +27,6 @@ __pycache__/
 
 # IntelliJ HTTP Client 개인 비밀값(관리자 비밀번호 등)
 http/http-client.private.env.json
+
+# 배포 서버의 배포 상태(script/deploy/deploy.sh가 직전·현재 성공 커밋을 적는다)
+.deploy/

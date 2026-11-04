@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        # 로그 줄의 [traceId-spanId]에서 traceId(앞 32자)를 뽑아 Zipkin 트레이스로 연결한다.
+        # Note: provisioning 파일은 ${VAR}를 환경 변수로 치환한다. 달러 기호가 필요하면 $$로 쓴다(Grafana 문서).
+        - name: traceId
+          matcherRegex: '\[([0-9a-f]{32})-[0-9a-f]{16}\]'
+          url: '$${__value.raw}'
+          datasourceUid: zipkin

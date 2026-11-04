@@ -1,0 +1,336 @@
+{
+  "uid": "iseonjwa-request-logs",
+  "title": "요청 로그",
+  "tags": [
+    "logs",
+    "demo"
+  ],
+  "description": "traceId 하나로 요청 하나의 로그와 트레이스를 본다. 프론트 시연 모드에서 traceId를 누르면 이 화면이 그 traceId와 앞뒤 15분으로 열린다(docs/design/infra/observability.md 2·5절).",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "refresh": "",
+  "links": [
+    {
+      "title": "결제 대시보드",
+      "type": "link",
+      "url": "/d/iseonjwa-payment",
+      "icon": "dashboard"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "traceId",
+        "label": "traceId",
+        "description": "응답 본문의 traceId(32자 16진). 로그 줄 [traceId-spanId]의 앞 32자와 같다",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "요청 하나 따라가기",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "traces",
+      "title": "트레이스(Zipkin): 서비스 사이 구간과 시간",
+      "description": "traceId의 Zipkin 트레이스. 서비스 사이 호출 순서와 걸린 시간을 본다. traceId가 비었거나 Zipkin에 아직 없으면 비어 보인다(전송까지 몇 초 걸린다).",
+      "datasource": {
+        "type": "zipkin",
+        "uid": "zipkin"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "zipkin",
+            "uid": "zipkin"
+          },
+          "refId": "A",
+          "query": "$traceId",
+          "queryType": "traceID"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "이 요청의 로그(모든 서비스, 시간순)",
+      "description": "Gateway·user·reservation·payment·mock-pg 로그 중 traceId가 들어간 줄을 시간순으로 한곳에 모은다. 줄 왼쪽 라벨이 서비스다. traceId를 비우면 이 서비스들의 최근 로그가 모두 나온다. 줄을 펼치면 traceId로 Zipkin 트레이스를 여는 링크가 있다.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{service=~\"gateway|user-service|reservation-service|payment-service|mock-pg\"} |= \"$traceId\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "서비스별",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Gateway 로그",
+      "description": "gateway 컨테이너 로그 중 traceId가 들어간 줄(시간순).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{service=\"gateway\"} |= \"$traceId\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "user 로그",
+      "description": "user-service 컨테이너 로그 중 traceId가 들어간 줄(시간순).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{service=\"user-service\"} |= \"$traceId\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "reservation 로그",
+      "description": "reservation-service 컨테이너 로그 중 traceId가 들어간 줄(시간순).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{service=\"reservation-service\"} |= \"$traceId\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "payment 로그",
+      "description": "payment-service 컨테이너 로그 중 traceId가 들어간 줄(시간순).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{service=\"payment-service\"} |= \"$traceId\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "최근 경고·오류(traceId와 무관)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 10,
+          "type": "logs",
+          "title": "앱 7개의 WARN·ERROR",
+          "description": "선택한 시간 범위의 경고·오류 로그 전체. 시연 중 실패 원인을 찾을 때 연다.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 43,
+            "w": 24,
+            "h": 10
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "refId": "A",
+              "expr": "{service=~\"config-server|eureka|gateway|user-service|reservation-service|payment-service|mock-pg\", level=~\"WARN|ERROR\"}",
+              "queryType": "range"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "dedupStrategy": "none",
+            "sortOrder": "Ascending"
+          }
+        }
+      ]
+    }
+  ]
+}

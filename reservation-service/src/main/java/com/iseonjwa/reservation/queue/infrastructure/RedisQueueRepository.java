@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.reservation.queue.domain.EnterOutcome;
+import com.iseonjwa.reservation.queue.domain.IssueTokenOutcome;
 import com.iseonjwa.reservation.queue.domain.PositionOutcome;
 import com.iseonjwa.reservation.queue.domain.QueueRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,15 +22,17 @@ public class RedisQueueRepository implements QueueRepository {
             RedisScript.of(new ClassPathResource("/redis/queue/position.lua"), List.class);
     private final RedisScript<List> ADMIT =
             RedisScript.of(new ClassPathResource("/redis/queue/admit.lua"), List.class);
+    private final RedisScript<List> ISSUE_TOKEN =
+            RedisScript.of(new ClassPathResource("/redis/queue/issue-token.lua"), List.class);
 
     private final StringRedisTemplate stringRedisTemplate;
 
 
     @Override
     public EnterOutcome enter(long scheduleId,
-                              long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
         List r = stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
-                String.valueOf(userId), String.valueOf(openAtEpochMilli),
+                String.valueOf(userId), String.valueOf(openAtEpochMilli), String.valueOf(startsAtEpochMilli),
                 String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond));
 
         EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) r.get(0));
@@ -56,6 +59,18 @@ public class RedisQueueRepository implements QueueRepository {
         stringRedisTemplate.execute(ADMIT, QueueKeys.of(scheduleId).admitKeys(),
                 String.valueOf(admitPerSecond), String.valueOf(tokenTtlMillis),
                 String.valueOf(cleanupLimit), String.valueOf(keyExpireAtEpochSecond));
+    }
+
+    @Override
+    public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+        List r = stringRedisTemplate.execute(ISSUE_TOKEN, QueueKeys.of(scheduleId).issueTokenKeys(),
+                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond));
+
+        IssueTokenOutcome.Type type = IssueTokenOutcome.Type.valueOf((String) r.get(0));
+        if (r.size() == 1) {
+            return new IssueTokenOutcome(type, null);
+        }
+        return new IssueTokenOutcome(type, (Long) r.get(1));
     }
 
 

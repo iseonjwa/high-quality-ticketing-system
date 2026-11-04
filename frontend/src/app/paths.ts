@@ -8,10 +8,17 @@ export const paths = {
   me: '/me',
   queue: '/schedules/:scheduleId/queue',
   myReservations: '/me/reservations',
+  admin: '/admin',
+  adminConcertNew: '/admin/concerts/new',
+  adminConcert: '/admin/concerts/:concertId',
 } as const
 
 export function concertPath(concertId: number): string {
   return `/concerts/${concertId}`
+}
+
+export function adminConcertPath(concertId: number): string {
+  return `/admin/concerts/${concertId}`
 }
 
 export function queuePath(scheduleId: number): string {

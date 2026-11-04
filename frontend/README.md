@@ -15,6 +15,14 @@ npm run dev      # http://localhost:5173
 
 개발 서버는 `/api`로 시작하는 요청을 Gateway(`http://localhost:8080`)로 넘긴다. 브라우저는 개발 서버 한 곳만 보므로 CORS가 필요 없다. Gateway를 다른 주소에서 띄웠다면 `API_PROXY_TARGET=http://<주소> npm run dev`로 바꾼다. Gateway는 루트 compose로 띄운다([워크스페이스 가이드](../docs/guides/workspace.md)).
 
+### 컨테이너로 띄우기
+
+```bash
+docker compose up -d --build frontend   # http://localhost:8000
+```
+
+nginx가 빌드 결과를 서빙하고 `/api/`를 Gateway로 중계한다. 첫 빌드는 도커 안에서 Node로 하므로 몇 분 걸린다. 화면을 고치는 동안은 파일 저장이 바로 반영되는 개발 서버(5173)를 쓰고, 컨테이너는 배포와 같은 모양을 확인할 때 쓴다.
+
 ### 시연 모드 (요청 로그)
 
 주소 끝에 `?demo=on`을 붙이면 그 탭에서 화면 오른쪽에 요청 로그가 열린다. 요청마다 메서드·경로·상태·traceId가 쌓이고, traceId를 누르면 Grafana "요청 로그" 대시보드가 Grafana 탭에서 열린다. 처음 열린 탭을 옆 창으로 옮겨 두면 다음부터 그 창에서 바뀐다. 왼쪽 경계를 끌어 너비를 바꾸고, `?demo=off`나 패널의 X로 끈다. Grafana 주소는 기본 `http://localhost:3000`(발표자 노트북의 SSH 터널)이고 `VITE_GRAFANA_URL`로 바꾼다. 규칙은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "시연 모드 규칙"에 있다. 패널이 앱 화면을 좁히므로 화면의 반응형 클래스는 `sm:`·`md:` 대신 `@min-[40rem]:`·`@min-[48rem]:`을 쓴다.
@@ -25,7 +33,7 @@ npm run dev      # http://localhost:5173
 npm run dev:mock   # MSW가 계약 문서대로 응답한다
 ```
 
-- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
+- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호. 운영자 등록 API가 만드는 회차는 공연장 1번 KSPO DOME을 쓰고 등급은 VIP·R·S다). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
 - 임시 비밀번호 계정: `temp@iseonjwa.dev` / `TempPass2345`. 로그인하면 비밀번호 변경 화면으로 간다. 어느 계정이든 비밀번호를 5번 틀리면 잠긴다(새로고침하면 목 상태와 함께 풀린다).
 - 실패 화면은 주소에 `?mock=`로 고른다. 쉼표로 여러 개를 고를 수 있고 탭을 닫을 때까지 유지된다. `?mock=`(빈 값)이면 기본으로 돌아간다.
 
@@ -67,7 +75,9 @@ src/
   app/routes.tsx  경로 목록. 테스트도 같은 목록으로 라우터를 만든다
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/
+  app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 운영자는 pages/admin/
+  admin/          운영자 입력 검사(formSchemas.ts)
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
   components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)
