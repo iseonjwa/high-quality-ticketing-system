@@ -43,7 +43,7 @@ flowchart LR
   - 모든 서비스에 걸리는 공통 변경이라 `contract` 이슈로 팀에 알리고 결제 담당이 구현한다
 - Kafka로 이어지는 처리(결제 → 예매 확정)는 요청이 아니라 소비자에서 일어나므로 이 필터에 잡히지 않는다. 소비자 처리 로그와 트레이스 전파는 구현 이슈에서 확인한다.
 
-### 구현 (ISE-178)
+### 구현 (ISE-178, 수집)
 
 - 파일: `infra/loki/loki.yml`, `infra/alloy/config.alloy`, Grafana 데이터 소스 `infra/grafana/provisioning/datasources/loki.yml`·`zipkin.yml`, compose의 `loki`(`grafana/loki:3.7.9`, 512m)·`alloy`(`grafana/alloy:v1.21.3`, 256m) 서비스. 이미지는 인덱스 digest로 고정했다. 호스트 포트는 열지 않고 Grafana가 `http://loki:3100`으로 읽는다.
 - 모으는 컨테이너: compose 프로젝트 `iseonjwa`의 앱 7개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg)만이다. DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 [부하 측정](load-test.md)(ISE-176)에서 예측할 수 있게 하려는 것이다.
@@ -68,6 +68,23 @@ flowchart LR
 - 서비스별 패널(Gateway, user, reservation, payment)이 그 traceId가 들어간 로그를 시간순으로 보여 준다.
 - 같은 traceId의 Zipkin 트레이스로 가는 링크를 둔다.
 - 데이터 소스 프로비저닝은 `infra/grafana/provisioning/datasources/`에 Loki를 더하고, 대시보드는 `infra/grafana/dashboards/`에 JSON으로 둔다(기존 `payment.json`과 같은 방식). 파일 이름은 구현 이슈에서 정한다.
+
+### 구현 (ISE-178, 대시보드)
+
+파일은 `infra/grafana/dashboards/request-logs.json`이고 UID는 `iseonjwa-request-logs`, 제목은 "요청 로그"다. 프론트 시연 모드가 여는 주소(5절)에 맞췄다. 위에서 아래로 "흐름 → 로그 → 서비스별 → 오류" 순서로 둔다.
+
+| 위치 | 패널 | 쿼리 | 왜 |
+|---|---|---|---|
+| 맨 위 | 트레이스(Zipkin) | Zipkin 데이터 소스, `$traceId` | 서비스 사이 호출 순서와 걸린 시간을 먼저 본다. 로그만으로는 구간 시간이 안 보인다 |
+| 그 아래 | 이 요청의 로그(모든 서비스, 시간순) | `{service=~"gateway\|user-service\|reservation-service\|payment-service\|mock-pg"} \|= "$traceId"` | 완료 기준인 "한 화면에 시간순"을 패널 하나로 만족한다. 줄 옆 라벨이 서비스다 |
+| 서비스별 행 | Gateway·user·reservation·payment 로그 4개 | `{service="<서비스>"} \|= "$traceId"` | 설계 2절의 서비스별 패널. 한 서비스만 따로 볼 때 쓴다 |
+| 접힌 행 | 앱 7개의 WARN·ERROR | `{service=~"<앱 7개>", level=~"WARN\|ERROR"}` | 시연 중 실패 원인을 traceId 없이 찾을 때 연다 |
+
+- traceId 필터는 구조화 메타데이터가 아니라 줄 필터(`|=`)를 쓴다. traceId가 줄에 그대로 있어서 결과가 같고, 메타데이터가 붙지 않은 줄(파싱 실패)도 놓치지 않는다.
+- traceId를 비우면 줄 필터가 모든 줄과 맞아 최근 로그가 나온다. 시연 전에 로그가 들어오는지 볼 때 쓴다.
+- 로그 줄을 펼치면 Loki 데이터 소스의 derived field가 traceId로 Zipkin 트레이스를 여는 링크를 보여 준다.
+- 기본 시간 범위는 최근 15분이고 자동 새로 고침은 끈다. 프론트가 여는 주소에는 요청 시각 앞뒤 15분이 들어 있다.
+- 확인(2026-11-04, 로컬): Grafana가 대시보드를 읽었다(`/api/dashboards/uid/iseonjwa-request-logs`). Loki에 있던 traceId(reservation-service 예약 작업의 ERROR 줄)로 "이 요청의 로그" 쿼리를 Grafana를 거쳐 돌려 그 줄 하나가 나왔다. 트레이스 패널과 같은 쿼리(Zipkin, `queryType: traceID`)를 Grafana로 보내 Gateway 트레이스의 스팬 표를 받았다. Zipkin 컨테이너는 확인 때만 켰다(로컬에서 꺼져 있었다). 실제 예매 한 흐름의 서비스별 로그는 공통 요청 로그 필터(ISE-182) 뒤에 확인한다.
 
 ## 3. 알림: Alertmanager → 슬랙
 

@@ -123,7 +123,7 @@ Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 
 
 ## 관측성
 
-- [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다.
+- [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다. traceId로 요청 하나의 로그와 트레이스를 보는 대시보드는 [요청 로그](http://localhost:3000/d/iseonjwa-request-logs)다.
 - [Prometheus](http://localhost:9090/targets): 앱 7개의 별도 관리 포트를 수집한다.
 - [Alertmanager](http://localhost:9093): Prometheus 알림을 묶어 슬랙으로 보낸다. 웹훅(SLACK_WEBHOOK_MONITORING)이 없으면 보내지 않는다.
   - 웹훅이나 `STACK_ENV`를 바꾸면 `docker compose up -d --force-recreate alertmanager prometheus`로, `infra/alertmanager/` 설정만 바꿨으면 `curl -X POST localhost:9093/-/reload`로 반영한다.
