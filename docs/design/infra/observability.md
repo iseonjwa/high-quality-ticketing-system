@@ -15,7 +15,7 @@ flowchart LR
 - Alloy는 Docker 소켓으로 컨테이너 로그를 읽어 Loki에 보낸다. Docker 소켓을 읽기 전용으로 마운트하는 방식이 기본이고, 구현 이슈에서 확정한다.
 - 로그 형식(패턴)은 바꾸지 않는다. Alloy가 로그 줄의 추적 부분을 파싱해 `traceId`를 뽑는다.
 - 라벨은 서비스 이름 정도로 적게 둔다(카디널리티). `traceId`는 라벨이 아니라 로그 줄에서 필터로 찾는다.
-- 보관 기간은 7일 `[가정]`이다.
+- 보관 기간은 7일이다(Loki compactor).
 
 ### 실제 로그 형식 (2026-11-03 compose 로그로 확인)
 
@@ -43,12 +43,51 @@ flowchart LR
   - 모든 서비스에 걸리는 공통 변경이라 `contract` 이슈로 팀에 알리고 결제 담당이 구현한다
 - Kafka로 이어지는 처리(결제 → 예매 확정)는 요청이 아니라 소비자에서 일어나므로 이 필터에 잡히지 않는다. 소비자 처리 로그와 트레이스 전파는 구현 이슈에서 확인한다.
 
+### 구현 (ISE-178, 수집)
+
+- 파일: `infra/loki/loki.yml`, `infra/alloy/config.alloy`, Grafana 데이터 소스 `infra/grafana/provisioning/datasources/loki.yml`·`zipkin.yml`, compose의 `loki`(`grafana/loki:3.7.9`, 512m)·`alloy`(`grafana/alloy:v1.21.3`, 256m) 서비스. 이미지는 인덱스 digest로 고정했다. 호스트 포트는 열지 않고 Grafana가 `http://loki:3100`으로 읽는다.
+- 모으는 컨테이너: compose 프로젝트 `iseonjwa`의 앱 7개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg)만이다. DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 [부하 측정](load-test.md)(ISE-176)에서 예측할 수 있게 하려는 것이다.
+- 라벨(색인)은 `service`(compose 서비스 이름), `level`(INFO·WARN·ERROR), `env`(`STACK_ENV`, 없으면 `local`) 셋이다. `traceId`는 라벨이 아니라 구조화 메타데이터로 붙이고 로그 줄에도 그대로 남는다. 추적 정보가 없는 줄은 `traceId`가 없고 줄은 버리지 않는다. Loki가 `service`에서 `service_name`과 `detected_level` 라벨을 자동으로 더 붙인다.
+- 여러 줄 병합(정함): 새 로그는 `^\d{4}-\d{2}-\d{2}T`로 시작한다고 보고 이어지는 줄(예외 스택 트레이스)을 앞 항목에 붙인다(`stage.multiline`, 최대 대기 3s). 첫 줄의 `traceId`가 스택 트레이스까지 한 항목에 담긴다.
+- 보관 7일: Loki compactor 보존(`retention_enabled: true`, `retention_period: 168h`, `delete_request_store: filesystem`). compactor는 기동 뒤 10분 기다렸다가 시작한다.
+- Docker 소켓: Alloy가 `/var/run/docker.sock`을 `:ro`로 읽는다. `:ro`여도 소켓으로 Docker API를 모두 부를 수 있어 호스트 root와 같은 권한이다. 공식 이미지라 받아들인다. 로그 파일(`/var/lib/docker/containers`)을 직접 읽는 방식은 맥 Docker Desktop에서 쓸 수 없어 소켓을 쓴다.
+- Loki 이미지에는 wget·curl·셸이 없어 healthcheck를 두지 않았다. 준비 여부는 `/ready`로 확인한다. 기동 직후에는 "Ingester not ready: waiting for 15s"가 나온다.
+- Grafana Loki 데이터 소스에는 derived field를 두어 로그 줄의 `[traceId-spanId]`에서 traceId를 뽑아 Zipkin으로 연결한다. provisioning 파일의 `$`는 `$$`로 써야 하고, Grafana API로 읽으면 `${__value.raw}`로 풀려 있는 것을 확인했다.
+- 배포 서버의 compose도 프로젝트 이름이 `iseonjwa`여야 한다(`compose.yml`의 `name`). Alloy가 이 프로젝트 라벨로 컨테이너를 고르므로, 이름이 다르면 오류 없이 로그가 0건이 된다. 배포 첫 확인(ISE-174)에 Loki `label/service/values`로 앱 7개가 보이는지를 넣는다.
+- Alloy는 5초마다 컨테이너 목록을 다시 찾는다(기본 1분). 뜬 지 1분 안에 죽는 컨테이너의 로그도 남기려는 것이다.
+- Loki 받기 한도를 기본값(초당 4MB, 스트림당 3MB)보다 넉넉히 두었다(초당 16MB, 스트림당 8MB). 공통 요청 로그가 들어온 뒤 부하 측정에서 gateway 한 스트림에 줄이 몰려도 거절되지 않게 하려는 것이다. 측정 때 `loki_discarded_samples_total`이 늘지 않는지 본다.
+- Alloy는 새로 뜰 때 컨테이너의 지난 로그부터 읽는다(확인 때 6시간 전 줄도 들어왔다). 저장된 위치는 `alloy` 볼륨에 남는다.
+- 확인 결과(2026-11-04, 로컬 compose):
+  - Loki `/ready`는 `ready`, `label/service/values`에 앱 7개가 모두 보였다. 라벨은 `env`, `level`, `service`, `service_name`이다. Alloy 로그에 오류·경고는 없었다.
+  - `{service="payment-service"}` 줄에 `level=INFO`, `env=local`이 붙었다. 레벨 값은 ERROR·INFO·WARN이다.
+  - traceId 구조화 메타데이터가 붙은 줄은 최근 12시간에 reservation-service 7줄, eureka 4줄이었다.
+  - 스택 트레이스가 있는 항목 7개가 줄 단위로 나뉘지 않고 한 항목으로 묶였다(예: reservation-service의 `QueryTimeoutException` 항목에 첫 줄의 traceId가 메타데이터로 붙음).
+  - Gateway로 실패 요청(빈 본문 로그인, 인증 없는 `/api/v1/users/me`) 6개를 보내 얻은 traceId를 `|= "<traceId>"`로 10분 범위에서 찾았을 때 줄은 0개였다. 정상·실패 요청은 지금 로그를 남기지 않는다. 공통 요청 로그 필터(ISE-182)가 들어오면 달라진다.
+  - Grafana `/api/health`는 ok였고 데이터 소스에 `loki`·`zipkin`·`prometheus`가 있었다. Loki 데이터 소스 상태 확인은 연결 성공이었다.
+
 ## 2. Grafana "요청 로그" 대시보드
 
 - `traceId` 텍스트 변수 하나를 둔다.
 - 서비스별 패널(Gateway, user, reservation, payment)이 그 traceId가 들어간 로그를 시간순으로 보여 준다.
 - 같은 traceId의 Zipkin 트레이스로 가는 링크를 둔다.
 - 데이터 소스 프로비저닝은 `infra/grafana/provisioning/datasources/`에 Loki를 더하고, 대시보드는 `infra/grafana/dashboards/`에 JSON으로 둔다(기존 `payment.json`과 같은 방식). 파일 이름은 구현 이슈에서 정한다.
+
+### 구현 (ISE-178, 대시보드)
+
+파일은 `infra/grafana/dashboards/request-logs.json`이고 UID는 `iseonjwa-request-logs`, 제목은 "요청 로그"다. 프론트 시연 모드가 여는 주소(5절)에 맞췄다. 위에서 아래로 "흐름 → 로그 → 서비스별 → 오류" 순서로 둔다.
+
+| 위치 | 패널 | 쿼리 | 왜 |
+|---|---|---|---|
+| 맨 위 | 트레이스(Zipkin) | Zipkin 데이터 소스, `$traceId` | 서비스 사이 호출 순서와 걸린 시간을 먼저 본다. 로그만으로는 구간 시간이 안 보인다 |
+| 그 아래 | 이 요청의 로그(모든 서비스, 시간순) | `{service=~"gateway\|user-service\|reservation-service\|payment-service\|mock-pg"} \|= "$traceId"` | 완료 기준인 "한 화면에 시간순"을 패널 하나로 만족한다. 줄 옆 라벨이 서비스다 |
+| 서비스별 행 | Gateway·user·reservation·payment 로그 4개 | `{service="<서비스>"} \|= "$traceId"` | 설계 2절의 서비스별 패널. 한 서비스만 따로 볼 때 쓴다 |
+| 접힌 행 | 앱 7개의 WARN·ERROR | `{service=~"<앱 7개>", level=~"WARN\|ERROR"}` | 시연 중 실패 원인을 traceId 없이 찾을 때 연다 |
+
+- traceId 필터는 구조화 메타데이터가 아니라 줄 필터(`|=`)를 쓴다. traceId가 줄에 그대로 있어서 결과가 같고, 메타데이터가 붙지 않은 줄(파싱 실패)도 놓치지 않는다.
+- traceId를 비우면 줄 필터가 모든 줄과 맞아 최근 로그가 나온다. 시연 전에 로그가 들어오는지 볼 때 쓴다.
+- 로그 줄을 펼치면 Loki 데이터 소스의 derived field가 traceId로 Zipkin 트레이스를 여는 링크를 보여 준다.
+- 기본 시간 범위는 최근 15분이고 자동 새로 고침은 끈다. 프론트가 여는 주소에는 요청 시각 앞뒤 15분이 들어 있다.
+- 확인(2026-11-04, 로컬): Grafana가 대시보드를 읽었다(`/api/dashboards/uid/iseonjwa-request-logs`). Loki에 있던 traceId(reservation-service 예약 작업의 ERROR 줄)로 "이 요청의 로그" 쿼리를 Grafana를 거쳐 돌려 그 줄 하나가 나왔다. 트레이스 패널과 같은 쿼리(Zipkin, `queryType: traceID`)를 Grafana로 보내 Gateway 트레이스의 스팬 표를 받았다. Zipkin 컨테이너는 확인 때만 켰다(로컬에서 꺼져 있었다). 실제 예매 한 흐름의 서비스별 로그는 공통 요청 로그 필터(ISE-182) 뒤에 확인한다.
 
 ## 3. 알림: Alertmanager → 슬랙
 
@@ -107,6 +146,8 @@ SA 9-3 표에 아래 행을 더한다. 값은 모두 `[가정]`이고 [부하 �
 
 SA 9-3 합계 11,392m에 더하면 약 12,288m(12.0GB)다. 75% 규칙이면 필요 메모리는 약 16.0GB로 16GB급이 정확히 한계에 닿는다. 이 값이 크기 결정에 영향을 주므로 측정 결과로 다시 본다. 로컬 compose의 현재 상한은 SA 표보다 작으므로 위 합계와 로컬 합계를 직접 비교하지 않는다.
 
+측정(2026-11-04, 로컬 compose 유휴, `docker stats`): loki 약 83MiB, alloy 약 53MiB. 부하가 없는 값이라 상한(512m·256m)은 그대로 `[가정]`이다.
+
 ## 5. 시연 방식
 
 M3(사용자 결정): 나란히 띄우기. 발표자 노트북에서 SSH 터널로 Grafana를 열고, 프론트 화면과 나란히 둔다. 프론트가 요청마다 traceId를 보여 주면 Grafana 대시보드가 그 traceId로 서비스별 로그를 거른다.
@@ -134,11 +175,11 @@ ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 
 | 항목 | 상태 |
 |---|---|
-| 로그 보관 기간 | 7일 `[가정]` |
+| 로그 보관 기간 | 7일(compactor 보존, ISE-178) |
 | 알림 묶기·반복 간격 | 확정(ISE-179): 묶기 `env`·`service`·`severity`, 반복 4h(`immediate`는 1h) |
 | 슬랙 채널 이름 | 확정: `#이선좌-성능-모니터링`(알림), `#이선좌-배포상태알림`(배포 결과). 2026-11-04 생성 |
 | Loki·Alloy·Alertmanager 메모리 상한 | `[가정]`, 측정 뒤 확정 |
-| 예외 스택 트레이스 여러 줄 병합 | 미정 |
+| 예외 스택 트레이스 여러 줄 병합 | 정함(ISE-178): ISO 시각으로 시작하지 않는 줄을 앞 항목에 붙인다 |
 | 요청 단위 로그 부족 문제 | 공통 요청 로그 필터로 해결(사용자 결정, contract 이슈) |
 | Kafka 소비자 처리의 로그·트레이스 전파 | 구현 이슈에서 확인 |
 | 서비스 다운·Alertmanager 장애 알림 | 미정 |
