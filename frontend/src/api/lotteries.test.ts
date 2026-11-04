@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { login, logout } from '@/api/auth'
+import { registerBillingKey, revokeBillingKey } from '@/api/billingKeys'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import {
   cancelEntry,
@@ -346,7 +347,8 @@ describe('내 응모 목', () => {
       expect(entrySchema.parse(response.body.data).status).toBe('CANCELED')
     })
 
-    it('3번 추첨은 처음 조회 WON(순위 1, 예매 번호 있음), 다음 조회부터 PAID이고 그 예매는 확정이다', async () => {
+    it('3번 추첨은 카드가 있으면 처음 조회 WON(순위 1, 예매 번호 있음), 다음 조회부터 PAID이고 그 예매는 확정이다', async () => {
+      await registerBillingKey('demo-1')
       const first = await getMyEntry(DRAWN)
       const second = await getMyEntry(DRAWN)
       const third = await getMyEntry(DRAWN)
@@ -370,7 +372,7 @@ describe('내 응모 목', () => {
     })
 
     it.each([
-      ['waitlisted', { status: 'WAITLISTED', drawRank: 3, reservationId: null }],
+      ['waitlisted', { status: 'WAITLISTED', drawRank: 13, reservationId: null }],
       ['lost', { status: 'LOST', drawRank: null, reservationId: null }],
     ] as const)('lottery-%s 시나리오에서는 처음 조회부터 %o', async (scenario, expected) => {
       setMockScenario({ lottery: scenario })
@@ -379,7 +381,37 @@ describe('내 응모 목', () => {
       await expect(getMyEntry(DRAWN)).resolves.toMatchObject(expected)
     })
 
-    it('lottery-failed 시나리오에서는 처음 조회 WON, 다음 조회부터 FAILED(BILLING_KEY_MISSING)이고 예매는 풀린다', async () => {
+    it('카드가 없으면 처음 조회 WON, 다음 조회부터 FAILED(BILLING_KEY_MISSING)이고 예매는 풀린다(자동결제 거절)', async () => {
+      const first = await getMyEntry(DRAWN)
+      const second = await getMyEntry(DRAWN)
+
+      expect(first?.status).toBe('WON')
+      expect(second).toMatchObject({ status: 'FAILED', failReason: 'BILLING_KEY_MISSING' })
+      expect(mockDb.reservations.get(first!.reservationId!)?.status).toBe('RELEASED')
+      await expect(getMyEntry(DRAWN)).resolves.toEqual(second)
+    })
+
+    it('해지한 카드는 없는 것으로 본다(ACTIVE 빌링키만 센다)', async () => {
+      await registerBillingKey('demo-1')
+      await revokeBillingKey()
+
+      await getMyEntry(DRAWN)
+
+      await expect(getMyEntry(DRAWN)).resolves.toMatchObject({
+        status: 'FAILED',
+        failReason: 'BILLING_KEY_MISSING',
+      })
+    })
+
+    it('카드를 당첨 뒤 결제 전에 등록해도 결제 시점에 있으면 PAID이다', async () => {
+      await getMyEntry(DRAWN)
+      await registerBillingKey('demo-1')
+
+      await expect(getMyEntry(DRAWN)).resolves.toMatchObject({ status: 'PAID' })
+    })
+
+    it('lottery-failed 시나리오에서는 카드가 있어도 FAILED(BILLING_KEY_MISSING)이다', async () => {
+      await registerBillingKey('demo-1')
       setMockScenario({ lottery: 'failed' })
 
       const first = await getMyEntry(DRAWN)
@@ -438,5 +470,50 @@ describe('응모 취소 목', () => {
 
       expect([error.status, error.code]).toEqual([409, 'LOTTERY_NOT_OPEN'])
     })
+  })
+})
+
+describe('추첨 상태는 시각에 따라 바뀐다(서버 마감·추첨 스케줄러)', () => {
+  const row = (lotteryId: number) =>
+    mockDb.lotteries.find((lottery) => lottery.lotteryId === lotteryId)!
+
+  it('응모 마감 전에는 OPEN이다', async () => {
+    await expect(getLottery(OPEN)).resolves.toMatchObject({ status: 'OPEN' })
+  })
+
+  it('마감 시각이 지나고 추첨 시각 전이면 CLOSED가 된다', async () => {
+    row(OPEN).entryEndAtMillis = Date.now() - 1000
+
+    await expect(getLottery(OPEN)).resolves.toMatchObject({ status: 'CLOSED' })
+    expect(row(OPEN).status).toBe('CLOSED')
+  })
+
+  it('추첨 시각이 지나면 DRAWN이 된다(마감 처리를 건너뛰어도)', async () => {
+    row(OPEN).entryEndAtMillis = Date.now() - 2000
+    row(OPEN).drawAtMillis = Date.now() - 1000
+
+    await expect(getLottery(OPEN)).resolves.toMatchObject({ status: 'DRAWN' })
+  })
+
+  it('이미 DRAWN·DONE이면 그대로다', async () => {
+    row(DRAWN).status = 'DONE'
+
+    await expect(getLottery(DRAWN)).resolves.toMatchObject({ status: 'DONE' })
+  })
+
+  it('응모 시작 전(2번)은 OPEN으로 남는다', async () => {
+    await expect(getLottery(2)).resolves.toMatchObject({ status: 'OPEN' })
+  })
+
+  it('요청마다 반영한다: 응모는 마감 뒤 LOTTERY_NOT_OPEN이고 ENTERED 응모는 추첨되지 않고 ENTERED로 남는다', async () => {
+    await signInAsDemo()
+    await enterLottery(OPEN, 1, newIdempotencyKey())
+    row(OPEN).entryEndAtMillis = Date.now() - 2000
+    row(OPEN).drawAtMillis = Date.now() - 1000
+
+    await expect(getMyEntry(OPEN)).resolves.toMatchObject({ status: 'ENTERED', drawRank: null })
+    expect(row(OPEN).status).toBe('DRAWN')
+    const cancel = await rejectionOf(cancelEntry(OPEN))
+    expect(cancel.code).toBe('LOTTERY_NOT_OPEN')
   })
 })

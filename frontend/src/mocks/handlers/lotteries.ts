@@ -1,6 +1,7 @@
 import { http } from 'msw'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import {
+  hasActiveBillingKey,
   mockDb,
   nextMockId,
   releaseSeats,
@@ -18,7 +19,8 @@ import { mockScenario } from '@/mocks/scenario'
 const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // 당첨 예매의 선점은 30분이다(SystemSeatHoldService:42)
 const LOTTERY_HOLD_MILLIS = 30 * 60_000
-const MOCK_WAITLIST_RANK = 3
+// 서버의 drawRank는 전체 응모 중 추첨 순위라 예비자는 당첨자 수(추첨석 10)보다 큰 값이다(LotteryEntryRepository.java:42)
+const MOCK_WAITLIST_RANK = 13
 
 // Instant라 `Z`로 낸다(LotteryInfoResponse). 일반 예매의 `+09:00`과 다르다
 function toInstant(millis: number): string {
@@ -104,8 +106,22 @@ function parseQuantity(body: Record<string, unknown>): number {
   return quantity
 }
 
+// 서버 스케줄러가 시각에 따라 바꾸는 추첨 상태를 요청 때 반영한다: 마감 시각이 지나면 OPEN → CLOSED(마감 스케줄러 10초),
+// 추첨 시각이 지나면 DRAWN(추첨 스케줄러 10초). DRAWN·DONE은 그대로 둔다. 응모 행을 추첨하지는 않는다(ENTERED 그대로)
+function settleLotteryStates(nowMillis = Date.now()) {
+  for (const lottery of mockDb.lotteries) {
+    if (lottery.status === 'OPEN' && nowMillis >= lottery.entryEndAtMillis) {
+      lottery.status = 'CLOSED'
+    }
+    if (lottery.status === 'CLOSED' && nowMillis >= lottery.drawAtMillis) {
+      lottery.status = 'DRAWN'
+    }
+  }
+}
+
 // 3번 추첨의 데모 응모는 조회할 때 시나리오에 따라 결과가 정해진다. 기본은 처음 조회 WON(좌석 배정, 결제 대기),
-// 다음 조회부터 PAID(자동결제 승인, 예매 확정). 서버에서는 추첨·배정·자동결제 스케줄러가 시간을 두고 하는 일이다.
+// 다음 조회부터 PAID(자동결제 승인, 예매 확정). 자동결제는 ACTIVE 빌링키가 있어야 승인되고 없으면 BILLING_KEY_MISSING으로
+// 거절돼 FAILED가 된다(BillingPaymentService.approve:62-68). 서버에서는 추첨·배정·자동결제 스케줄러가 시간을 두고 하는 일이다.
 function advanceSeededEntry(entry: MockLotteryEntry) {
   if (entry.seedStage === 'settled') {
     return
@@ -129,7 +145,7 @@ function advanceSeededEntry(entry: MockLotteryEntry) {
     return
   }
   const reservation = mockDb.reservations.get(entry.reservationId!)!
-  if (scenario === 'failed') {
+  if (scenario === 'failed' || !hasActiveBillingKey(entry.userId)) {
     // 자동결제가 거절돼 선점을 풀고 다음 순번으로 넘긴다
     entry.status = 'FAILED'
     entry.failReason = 'BILLING_KEY_MISSING'
@@ -171,6 +187,7 @@ export const lotteryHandlers = [
   // 공개. 토큰을 보내도 쓰지 않는다(LotteryController:69-74)
   http.get('/api/v1/lotteries/:lotteryId', ({ params }) => {
     const lotteryId = lotteryIdOf(params)
+    settleLotteryStates()
     const lottery = mockDb.lotteries.find((candidate) => candidate.lotteryId === lotteryId)
     if (lottery === undefined) {
       return fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')
@@ -182,6 +199,7 @@ export const lotteryHandlers = [
   http.post('/api/v1/lotteries/:lotteryId/entries', async ({ request, params }) => {
     const user = requireUser(request)
     const lotteryId = lotteryIdOf(params)
+    settleLotteryStates()
     // 인자 해석 순서: Idempotency-Key 헤더 → 본문 검증 → (메서드 안) 키 형식 확인
     const key = request.headers.get('Idempotency-Key')
     if (key === null) {
@@ -255,6 +273,7 @@ export const lotteryHandlers = [
   http.delete('/api/v1/lotteries/:lotteryId/entries/me', ({ request, params }) => {
     const user = requireUser(request)
     const lotteryId = lotteryIdOf(params)
+    settleLotteryStates()
     const entry = entryOf(lotteryId, user.userId)
     if (entry === undefined) {
       return fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')
@@ -276,6 +295,7 @@ export const lotteryHandlers = [
   http.get('/api/v1/lotteries/:lotteryId/entries/me', ({ request, params }) => {
     const user = requireUser(request)
     const lotteryId = lotteryIdOf(params)
+    settleLotteryStates()
     const entry = entryOf(lotteryId, user.userId)
     if (entry === undefined) {
       return fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')

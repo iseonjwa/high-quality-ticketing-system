@@ -4,6 +4,7 @@ import { createSchedule, createScheduleSeats } from '@/api/admin'
 import { createLottery } from '@/api/adminLotteries'
 import { resetUserPassword } from '@/api/adminUsers'
 import { changePassword, login, logout } from '@/api/auth'
+import { registerBillingKey } from '@/api/billingKeys'
 import { getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
 import { describeError } from '@/api/errorMessages'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
@@ -343,8 +344,9 @@ describe('추첨 흐름', () => {
     expect(reentry.code).toBe('LOTTERY_ALREADY_ENTERED')
   })
 
-  it('추첨 완료 3번: 처음 WON → PAID가 되고 그 예매는 티켓이 나온 확정 예매다', async () => {
+  it('추첨 완료 3번: 카드를 등록해 두면 처음 WON → PAID가 되고 그 예매는 티켓이 나온 확정 예매다', async () => {
     await signInAsDemo()
+    await registerBillingKey('demo-1')
 
     const won = await getMyEntry(3)
     expect(won).toMatchObject({ status: 'WON', drawRank: 1 })
@@ -421,5 +423,18 @@ describe('운영자 흐름', () => {
     })
     await login({ email: DEMO_USER.email, password: 'new-password-1234' })
     expect(sessionStore.getState().accessToken).not.toBeNull()
+  })
+})
+
+describe('추첨 당첨 자동결제는 카드가 정한다', () => {
+  it('카드를 등록하지 않으면 당첨이 FAILED(BILLING_KEY_MISSING)로 넘어가고 예매는 풀린다', async () => {
+    await signInAsDemo()
+
+    const won = await getMyEntry(3)
+    const failed = await getMyEntry(3)
+
+    expect(won?.status).toBe('WON')
+    expect(failed).toMatchObject({ status: 'FAILED', failReason: 'BILLING_KEY_MISSING' })
+    expect((await getReservation(won!.reservationId!)).status).toBe('RELEASED')
   })
 })
