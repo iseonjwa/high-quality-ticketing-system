@@ -1,5 +1,5 @@
 import { Check, Loader2 } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
@@ -238,7 +238,9 @@ function StateMessage({
   children?: ReactNode
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null)
-  useEffect(() => {
+  // Note: 그린 직후 같은 흐름에서 옮긴다(useLayoutEffect). useEffect는 화면에 그린 뒤 따로 돌아서, 제목이 보이는데
+  // 초점은 아직 이전 자리인 순간이 생긴다(느린 CI에서 테스트가 그 순간을 잡아 실패했다)
+  useLayoutEffect(() => {
     if (focus) {
       titleRef.current?.focus()
     }
