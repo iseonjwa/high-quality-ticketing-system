@@ -243,6 +243,12 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 |---|---|---|
 | ![A·F구역에서 한 석씩 고르고 F구역 좌석을 보이는 상태, C구역은 매진](samples/screens/seat-sections-selected.png) | ![겹친 좌석을 빼고 남은 한 석을 유지한 채 경고를 보인 상태](samples/screens/seat-sections-conflict.png) | ![구역 4칸, 입장 시간이 본문 위로 내려온 좁은 화면](samples/screens/seat-sections-375.png) |
 
+[`samples/payment.html`](samples/payment.html)은 결제 화면이다(ISE-116). 결제 수단은 카드 하나다(API가 `method: CARD`만 받고, 시연 결제(Mock PG)라 카드 정보를 받지 않는다). 조작판으로 결제 전, 결제 요청 중, 확인 중(202·504), 승인 뒤 확정 확인, 거절, 결제사 장애(503), 결제 가능 시간 지남, 수동 확인(409), 승인 뒤 만료(환불)를 바꿔 본다. 주소 끝에 `#demo=checking` 등을 붙이면 그 상태로 열리고 `&panel=0`이면 조작판을 숨긴다.
+
+| 결제 전 | 확인 중 | 거절 |
+|---|---|---|
+| ![결제 수단 카드와 결제 금액, 결제하기 버튼](samples/screens/payment-ready.png) | ![버튼 자리가 결제를 확인하고 있어요 표시로 바뀐 상태](samples/screens/payment-checking.png) | ![결제가 거절됐다는 위험 알림과 좌석 다시 고르기](samples/screens/payment-declined.png) |
+
 ## 9. 확정한 방향
 
 샘플을 보고 초안 그대로 확정했다(2026-11-02, [판단 기록](../../ai-judgments/junhyun/2026-11-02-design-system-sample-accepted.md)).

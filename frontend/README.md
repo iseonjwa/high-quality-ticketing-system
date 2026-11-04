@@ -48,6 +48,9 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `payment-declined` | 결제 200 `DECLINED`(한도 초과) |
 | `payment-unknown` | 결제 202 `UNKNOWN`, 첫 결제 조회에서 `APPROVED` |
 | `pg-unavailable` | 결제 503 `PG_UNAVAILABLE`, 좌석은 유지 |
+| `payment-manual` | 결제 409 `PAYMENT_ALREADY_EXISTS`(수동 확인 필요, `Location` 있음) |
+| `payment-slow-confirm` | 결제는 승인되지만 예매가 계속 `HELD`라 확정 확인이 30초를 넘긴다 |
+| `payment-late-approval` | 결제는 승인되지만 그 뒤 예매가 `EXPIRED`가 된다(선점 만료 뒤 승인 도착, 환불 안내) |
 
 - 결제가 승인돼도 예매는 바로 확정되지 않는다. 승인 뒤 예매 조회 한 번은 `HELD`, 다음 조회부터 `CONFIRMED`다(실제는 이벤트로 2초 안에 반영).
 - 결제 토큰은 발급마다 다르다. 같은 결제 멱등키 재요청은 처음 응답을 그대로 돌려준다(202 뒤 승인돼도 202).
@@ -76,7 +79,7 @@ src/
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
   app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제 화면 이동 값은 pages/payment/, 운영자는 pages/admin/
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제(화면과 승인·확인 흐름)는 pages/payment/, 예매 결과로 넘기는 값은 pages/reservations/, 운영자는 pages/admin/
   admin/          운영자 입력 검사(formSchemas.ts)
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
