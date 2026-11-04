@@ -82,7 +82,7 @@ export interface MockPayment {
   paymentId: number
   reservationId: number
   userId: number
-  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED'
+  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED' | 'NEEDS_MANUAL_CHECK'
   amount: number
   approvedAtMillis: number | null
   reasonCode: string | null
@@ -129,7 +129,8 @@ interface MockState {
     { userId: number; scheduleId: number; seatKey: string; reservationId: number }
   >
   payments: Map<number, MockPayment>
-  // Idempotency-Key → 결제 요청. 기존 결제에 붙은 별칭 키는 storedResponse가 null이다
+  // `${userId}:${Idempotency-Key}` → 결제 요청(키 범위는 사용자별이다, PaymentApprovalService:226-233).
+  // 기존 결제에 붙은 별칭 키와 응답을 저장하지 않는 409는 storedResponse가 null이다
   paymentRequests: Map<
     string,
     {
@@ -191,8 +192,8 @@ export function settleExpiredHolds(nowMillis = Date.now()) {
 
 // 결제가 승인되면 부른다. 실제로는 PaymentApproved 이벤트를 받아 비동기로 확정한다(목표 2초, SA 9-4).
 // 승인 직후 예매 조회는 아직 HELD라서 화면은 CONFIRMED가 될 때까지 다시 조회해야 한다(design-system.md 5절 "확정 반영 대기").
-export function scheduleConfirmation(reservation: MockReservation) {
-  reservation.confirmAfterChecks = 1
+export function scheduleConfirmation(reservation: MockReservation, checks: number = 1) {
+  reservation.confirmAfterChecks = checks
 }
 
 // 예매를 조회할 때 부른다. 확정 반영을 기다리는 예매는 정해진 횟수만큼 조회된 뒤 CONFIRMED가 된다.

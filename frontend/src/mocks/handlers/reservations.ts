@@ -222,8 +222,13 @@ export const reservationHandlers = [
   }),
 
   http.get('/api/v1/reservations/:reservationId', ({ request, params }) => {
+    const reservationId = Number(params.reservationId)
+    // 서버는 숫자가 아니거나 0 이하인 ID를 400으로 거른다(ReservationController:47-49)
+    if (!Number.isInteger(reservationId) || reservationId <= 0) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
     settleExpiredHolds()
-    const reservation = ownReservation(request, Number(params.reservationId))
+    const reservation = ownReservation(request, reservationId)
     advanceConfirmation(reservation)
     const seats = mockDb.seats.filter((seat) => reservation.seatIds.includes(seat.seatId))
     return ok({
@@ -241,7 +246,12 @@ export const reservationHandlers = [
         grade,
         price,
       })),
-      paymentToken: reservation.status === 'HELD' ? issuePaymentToken(reservation) : null,
+      // HELD이고 결제 가능 시간(만료 10초 전) 안일 때만 준다(ReservationService:47-55)
+      paymentToken:
+        reservation.status === 'HELD' &&
+        Date.now() < reservation.holdExpiresAtMillis - PAYMENT_TOKEN_MARGIN_MILLIS
+          ? issuePaymentToken(reservation)
+          : null,
       tickets:
         reservation.status === 'CONFIRMED'
           ? reservation.seatIds.map((seatId) => ({

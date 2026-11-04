@@ -8,8 +8,11 @@ export interface MockScenario {
   // seat-conflict: 첫 선점 요청이 409 SEAT_ALREADY_HELD로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다
   // hold-unknown: 첫 선점 요청은 서버에서 성립하지만 응답 대신 504를 준다. 같은 멱등키로 다시 보내면 처음 결과(201)를 준다
   seatHold: 'held' | 'seat-conflict' | 'hold-unknown'
+  // approved: 승인 응답 200 뒤 예매 조회 두 번째에 CONFIRMED, declined: 거절 200 뒤 예매 RELEASED
   // unknown: 202 UNKNOWN 뒤 첫 결제 조회에서 APPROVED, pg-unavailable: 503 PG_UNAVAILABLE(결제 기록 없음)
-  payment: 'approved' | 'declined' | 'unknown' | 'pg-unavailable'
+  // manual: 승인 요청이 409 PAYMENT_ALREADY_EXISTS(결제는 NEEDS_MANUAL_CHECK로 남고 Location이 붙는다)
+  // slow-confirm: 승인은 되지만 예매가 계속 HELD라 확정 확인이 시간을 넘긴다
+  payment: 'approved' | 'declined' | 'unknown' | 'pg-unavailable' | 'manual' | 'slow-confirm'
 }
 
 const DEFAULT_SCENARIO: MockScenario = { queue: 'waiting', seatHold: 'held', payment: 'approved' }
@@ -38,6 +41,8 @@ export const SCENARIO_SWITCHES = {
   'payment-declined': { payment: 'declined' },
   'payment-unknown': { payment: 'unknown' },
   'pg-unavailable': { payment: 'pg-unavailable' },
+  'payment-manual': { payment: 'manual' },
+  'payment-slow-confirm': { payment: 'slow-confirm' },
 } as const satisfies Record<string, Partial<MockScenario>>
 
 export function parseScenarioSwitches(value: string): Partial<MockScenario> {

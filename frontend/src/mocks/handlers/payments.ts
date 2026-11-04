@@ -44,6 +44,8 @@ function currentResult(payment: MockPayment): StoredPaymentResponse {
       }
     case 'DECLINED':
       return { status: 200, data: { ...base, reasonCode: payment.reasonCode } }
+    case 'NEEDS_MANUAL_CHECK':
+      throw new Error('NEEDS_MANUAL_CHECK는 응답 본문이 없다. respondCurrent를 쓴다')
   }
 }
 
@@ -54,7 +56,21 @@ function respond(result: StoredPaymentResponse) {
 function approve(payment: MockPayment, reservation: MockReservation) {
   payment.status = 'APPROVED'
   payment.approvedAtMillis = Date.now()
-  scheduleConfirmation(reservation)
+  // slow-confirm은 확정 이벤트가 오지 않는 경우다. 예매가 계속 HELD이고 선점 만료로도 바뀌지 않는다
+  scheduleConfirmation(
+    reservation,
+    mockScenario().payment === 'slow-confirm' ? Number.POSITIVE_INFINITY : 1,
+  )
+}
+
+// 결제의 현재 상태로 답한다. NEEDS_MANUAL_CHECK는 응답 모양이 에러(409)다(PaymentOutcome.of)
+function respondCurrent(payment: MockPayment) {
+  if (payment.status === 'NEEDS_MANUAL_CHECK') {
+    return fail(409, 'PAYMENT_ALREADY_EXISTS', '이미 처리 중인 결제가 있습니다', {
+      headers: { Location: `/api/v1/payments/${payment.paymentId}` },
+    })
+  }
+  return respond(currentResult(payment))
 }
 
 // 결제 토큰 `mock-payment.{reservationId}.{발급 번호}`의 예매를 찾는다. 모양이 틀렸거나 남의 예매면 403이다.
@@ -79,7 +95,7 @@ function existingPaymentOf(reservationId: number) {
 export const paymentHandlers = [
   http.post('/api/v1/payments', async ({ request }) => {
     const user = requireUser(request)
-    const key = requireIdempotencyKey(request)
+    const key = `${user.userId}:${requireIdempotencyKey(request)}`
     const body = await readBody(request)
     if (body.method !== 'CARD' || !Number.isInteger(body.amount) || (body.amount as number) <= 0) {
       return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
@@ -94,9 +110,9 @@ export const paymentHandlers = [
       if (previous.userId !== user.userId || previous.bodyKey !== bodyKey) {
         return fail(409, 'IDEMPOTENCY_KEY_REUSED', '같은 멱등키로 다른 요청을 보낼 수 없습니다')
       }
-      return respond(
-        previous.storedResponse ?? currentResult(mockDb.payments.get(previous.paymentId)!),
-      )
+      return previous.storedResponse === null
+        ? respondCurrent(mockDb.payments.get(previous.paymentId)!)
+        : respond(previous.storedResponse)
     }
 
     // 4단계: 토큰·금액. 결제 가능 시간이 지난 토큰은 기존 결제를 찾는 데만 쓴다(조회 전용)
@@ -123,7 +139,7 @@ export const paymentHandlers = [
         paymentId: existing.paymentId,
         storedResponse: null,
       })
-      return respond(currentResult(existing))
+      return respondCurrent(existing)
     }
     if (tokenExpired) {
       return fail(403, 'PAYMENT_TOKEN_INVALID', '결제 토큰이 올바르지 않습니다')
@@ -145,7 +161,19 @@ export const paymentHandlers = [
       reasonCode: null,
       checksUntilResolved: 1,
     }
-    if (scenario === 'approved') {
+    if (scenario === 'manual') {
+      // PG가 다른 금액을 승인한 것처럼 운영자 확인이 필요한 상태로 둔다. 409 에러라 응답은 저장되지 않는다
+      payment.status = 'NEEDS_MANUAL_CHECK'
+      mockDb.payments.set(payment.paymentId, payment)
+      mockDb.paymentRequests.set(key, {
+        userId: user.userId,
+        bodyKey,
+        paymentId: payment.paymentId,
+        storedResponse: null,
+      })
+      return respondCurrent(payment)
+    }
+    if (scenario === 'approved' || scenario === 'slow-confirm') {
       approve(payment, reservation)
     } else if (scenario === 'declined') {
       payment.status = 'DECLINED'
