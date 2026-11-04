@@ -2,7 +2,9 @@
 
 export interface MockScenario {
   // waiting: 순번 조회 두 번 뒤 READY, ready: 진입하자마자 READY
-  queue: 'waiting' | 'ready'
+  // unavailable: 대기열 요청의 첫 1번이 503 SERVICE_UNAVAILABLE(Retry-After 1), 그다음부터 waiting과 같다
+  // expired: READY까지는 waiting과 같고 첫 토큰 요청이 줄 기록을 지우고 404 QUEUE_NOT_JOINED를 준다. 다시 진입하면 waiting처럼 돈다
+  queue: 'waiting' | 'ready' | 'unavailable' | 'expired'
   // seat-conflict: 첫 선점 요청이 409 SEAT_ALREADY_HELD로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다
   seatHold: 'held' | 'seat-conflict'
   // unknown: 202 UNKNOWN 뒤 첫 결제 조회에서 APPROVED, pg-unavailable: 503 PG_UNAVAILABLE(결제 기록 없음)
@@ -28,6 +30,8 @@ export function resetMockScenario() {
 // `?mock=seat-conflict,payment-unknown`처럼 쉼표로 여러 개를 고른다
 export const SCENARIO_SWITCHES = {
   'queue-ready': { queue: 'ready' },
+  'queue-unavailable': { queue: 'unavailable' },
+  'queue-expired': { queue: 'expired' },
   'seat-conflict': { seatHold: 'seat-conflict' },
   'payment-declined': { payment: 'declined' },
   'payment-unknown': { payment: 'unknown' },

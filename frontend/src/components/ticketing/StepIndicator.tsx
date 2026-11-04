@@ -19,9 +19,10 @@ export function StepIndicator({ steps = BOOKING_STEPS, currentIndex }: StepIndic
             data-status={status}
             aria-current={status === 'current' ? 'step' : undefined}
             className={cn(
-              'flex items-center gap-2 type-body-sm',
+              'flex items-center gap-2 type-body-sm whitespace-nowrap',
               status === 'current' ? 'font-semibold text-gray-900' : 'text-gray-500',
-              index > 0 && 'before:mr-2 before:h-px before:w-6 before:bg-gray-200',
+              index > 0 &&
+                'before:mr-2 before:h-px before:w-6 before:bg-gray-200 @max-[60rem]:before:w-3',
             )}
           >
             <span
@@ -35,7 +36,10 @@ export function StepIndicator({ steps = BOOKING_STEPS, currentIndex }: StepIndic
             >
               {status === 'done' ? <Check className="size-3.5" strokeWidth={3} /> : index + 1}
             </span>
-            {label}
+            {/* 앱 화면이 60rem보다 좁으면 지금 단계 이름만 보인다. 나머지 이름은 화면 낭독기에 남긴다 */}
+            <span className={status === 'current' ? undefined : '@max-[60rem]:sr-only'}>
+              {label}
+            </span>
           </li>
         )
       })}

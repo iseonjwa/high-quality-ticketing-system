@@ -33,6 +33,8 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 |---|---|
 | (기본) | 대기열은 순번 조회 두 번 뒤 READY, 선점 성공, 결제 승인 |
 | `queue-ready` | 대기열 진입하자마자 READY |
+| `queue-unavailable` | 대기열 요청 첫 1번이 503(`Retry-After: 1`), 그다음부터 기본과 같다 |
+| `queue-expired` | READY 뒤 첫 토큰 요청이 줄 기록을 지우고 404 `QUEUE_NOT_JOINED`. 다시 진입하면 기본처럼 돈다 |
 | `seat-conflict` | 첫 선점이 409 이선좌로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다 |
 | `payment-declined` | 결제 200 `DECLINED`(한도 초과) |
 | `payment-unknown` | 결제 202 `UNKNOWN`, 첫 결제 조회에서 `APPROVED` |
@@ -63,7 +65,8 @@ src/
   main.tsx        진입점. QueryClient와 라우터를 붙인다
   app/routes.tsx  경로 목록. 테스트도 같은 목록으로 라우터를 만든다
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/
+  app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
   components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)

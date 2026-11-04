@@ -7,9 +7,11 @@ import { LoginPage } from '@/pages/auth/LoginPage'
 import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
 import { ConcertListPage } from '@/pages/concerts/ConcertListPage'
 import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
+import { QueuePage } from '@/pages/queue/QueuePage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
 import { RequireAuth } from '@/app/RequireAuth'
+import { bookingStepHandle } from '@/app/bookingStep'
 
 // 테스트도 같은 목록으로 라우터를 만든다.
 // 개발 서버에서만 붙는 디자인 시스템 확인 화면. DEV가 빌드 때 상수 false가 돼 운영 번들에는 화면 코드가 들어가지 않는다.
@@ -41,7 +43,13 @@ export const routes: RouteObject[] = [
           { path: paths.signup, element: <SignupPage /> },
           { path: paths.passwordChange, element: <PasswordChangePage /> },
           // 로그인이 필요한 화면은 이 아래에 둔다
-          { element: <RequireAuth />, children: [{ path: paths.me, element: <MyInfoPage /> }] },
+          {
+            element: <RequireAuth />,
+            children: [
+              { path: paths.me, element: <MyInfoPage /> },
+              { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
+            ],
+          },
           ...devRoutes,
           { path: '*', element: <NotFoundPage /> },
         ],

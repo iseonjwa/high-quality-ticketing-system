@@ -24,15 +24,20 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
   return error.status === 0 || error.status >= 500
 }
 
+// minBaseMillis는 서버가 Retry-After를 주지 않았을 때 지킬 최소 간격이다(대기열은 SA 9-4의 최소 조회 간격 3초)
 export function queryRetryDelay(
   attemptIndex: number,
   error: unknown,
   random: () => number = Math.random,
+  minBaseMillis = 0,
 ): number {
   const baseMillis =
     error instanceof ApiError && error.retryAfterSeconds !== null
       ? error.retryAfterSeconds * 1000
-      : Math.min(BASE_RETRY_DELAY_MILLIS * 2 ** attemptIndex, MAX_RETRY_DELAY_MILLIS)
+      : Math.max(
+          minBaseMillis,
+          Math.min(BASE_RETRY_DELAY_MILLIS * 2 ** attemptIndex, MAX_RETRY_DELAY_MILLIS),
+        )
   return Math.round(baseMillis * (1 + random() * RETRY_JITTER_RATIO))
 }
 
