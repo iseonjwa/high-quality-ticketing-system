@@ -18,6 +18,15 @@ describe('MyInfoPage', () => {
     expect(screen.getByText('일반 회원')).toBeInTheDocument()
   })
 
+  it('자동결제 카드 영역을 보인다. 등록한 기록이 없으면 등록을 권한다', async () => {
+    await signInAsDemo()
+    renderRoutes(routes, '/me')
+
+    expect(await screen.findByRole('heading', { name: '자동결제 카드' })).toBeInTheDocument()
+    expect(screen.getByText('이 브라우저에서 등록한 카드가 없어요')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
+  })
+
   it('로그인 전이면 지금 주소를 돌아갈 곳으로 넘기고 로그인 화면으로 보낸다', () => {
     const { router } = renderRoutes(routes, '/me?tab=info')
 
