@@ -5,6 +5,7 @@ import { Link, useLocation, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
 import { getReservation, reservationQueryKeys, type ReservationDetail } from '@/api/reservations'
 import { paths, paymentPath } from '@/app/paths'
+import { readPaymentAttempt } from '@/auth/paymentAttempts'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { GradeBadge } from '@/components/ticketing/GradeBadge'
 import { ReservationStatusBadge } from '@/components/ticketing/ReservationStatusBadge'
@@ -18,6 +19,7 @@ import { readRouteId } from '@/lib/routeId'
 import { cn } from '@/lib/utils'
 import {
   readReservationHeading,
+  reservationNavigationState,
   type ReservationHeading,
 } from '@/pages/reservations/reservationNavigation'
 
@@ -28,6 +30,21 @@ import {
 
 // 결제 토큰은 선점 만료보다 10초 먼저 끝난다(SA 7-3). 결제 가능 시각을 이 값으로 보인다
 const PAYMENT_TOKEN_MARGIN_MILLIS = 10_000
+// 결제 대기 동안 다시 받는 간격. 결제 확정(이벤트로 2초 안)이나 선점 만료를 화면에 반영한다
+const HELD_POLL_MILLIS = 5_000
+// 선점 만료 뒤 만료 스케줄러가 EXPIRED로 바꿀 때까지 더 기다리는 시간
+const EXPIRY_GRACE_MILLIS = 30_000
+// 확정은 끝난 상태라(취소 API 없음) 결제 화면이 넣은 값을 이 시간 동안 다시 받지 않고 쓴다
+const CONFIRMED_STALE_MILLIS = 60_000
+
+function shouldPollHeld(detail: ReservationDetail | undefined): boolean {
+  if (detail?.status !== 'HELD') {
+    return false
+  }
+  return detail.holdExpiresAt === null
+    ? true
+    : Date.now() < instantMillis(detail.holdExpiresAt) + EXPIRY_GRACE_MILLIS
+}
 
 export function ReservationPage({ variant }: { variant: 'detail' | 'complete' }) {
   const reservationId = readRouteId(useParams().reservationId)
@@ -48,35 +65,48 @@ function ReservationScreen({
   const reservation = useQuery({
     queryKey: reservationQueryKeys.detail(reservationId),
     queryFn: () => getReservation(reservationId),
+    staleTime: (query) => (query.state.data?.status === 'CONFIRMED' ? CONFIRMED_STALE_MILLIS : 0),
+    refetchInterval: (query) => (shouldPollHeld(query.state.data) ? HELD_POLL_MILLIS : false),
   })
 
-  if (reservation.isPending) {
+  // Note: 다시 받기가 실패해도 이미 받은 예매는 그대로 보인다. TanStack Query는 다시 받기 실패에도 isError가 되는데,
+  // isError로 갈라 오류 화면을 그리면 결제 직후 "예매가 확정됐어요"가 부하 중 429 한 번에 사라졌다(셀프 리뷰에서 재현)
+  if (reservation.data === undefined) {
+    if (reservation.isError) {
+      return isApiError(reservation.error, 'NOT_FOUND') ? (
+        <MissingReservation />
+      ) : (
+        <main className="mx-auto w-full max-w-[720px]">
+          <h1 className="sr-only">예매 상세</h1>
+          <ErrorNotice error={reservation.error} onRetry={() => void reservation.refetch()} />
+        </main>
+      )
+    }
     return <ReservationSkeleton />
   }
-  if (reservation.isError) {
-    return isApiError(reservation.error, 'NOT_FOUND') ? (
-      <MissingReservation />
-    ) : (
-      <main className="mx-auto w-full max-w-[720px]">
-        <h1 className="sr-only">예매 상세</h1>
-        <ErrorNotice error={reservation.error} onRetry={() => void reservation.refetch()} />
-      </main>
-    )
+  if (isApiError(reservation.error, 'NOT_FOUND')) {
+    return <MissingReservation />
   }
 
   const detail = reservation.data
-  switch (detail.status) {
-    case 'CONFIRMED':
-      return variant === 'complete' ? (
-        <ConfirmedResult detail={detail} heading={heading} />
+  return (
+    <main className="mx-auto grid w-full max-w-[720px] gap-5">
+      {reservation.isRefetchError ? (
+        <ErrorNotice error={reservation.error} onRetry={() => void reservation.refetch()} />
+      ) : null}
+      {detail.status === 'CONFIRMED' ? (
+        variant === 'complete' ? (
+          <ConfirmedResult detail={detail} heading={heading} />
+        ) : (
+          <ConfirmedDetail detail={detail} heading={heading} />
+        )
+      ) : detail.status === 'HELD' ? (
+        <HeldDetail detail={detail} heading={heading} />
       ) : (
-        <ConfirmedDetail detail={detail} heading={heading} />
-      )
-    case 'HELD':
-      return <HeldDetail detail={detail} heading={heading} />
-    default:
-      return <EndedDetail detail={detail} heading={heading} />
-  }
+        <EndedDetail detail={detail} heading={heading} />
+      )}
+    </main>
+  )
 }
 
 // 결제 직후 결과: 확정 표시를 크게 두고 티켓 번호를 보인다
@@ -88,7 +118,7 @@ function ConfirmedResult({
   heading: ReservationHeading | null
 }) {
   return (
-    <main className="mx-auto grid w-full max-w-[720px] gap-5">
+    <>
       <ResultHead
         tone="success"
         title="예매가 확정됐어요"
@@ -103,7 +133,7 @@ function ConfirmedResult({
           <Link to={paths.home}>다른 공연 보기</Link>
         </Button>
       </Actions>
-    </main>
+    </>
   )
 }
 
@@ -115,7 +145,7 @@ function ConfirmedDetail({
   heading: ReservationHeading | null
 }) {
   return (
-    <main className="mx-auto grid w-full max-w-[720px] gap-5">
+    <>
       <DetailHead detail={detail} heading={heading} />
       <TicketsCard detail={detail} showStatus={false} />
       <Actions>
@@ -123,7 +153,7 @@ function ConfirmedDetail({
           <Link to={paths.myReservations}>내 예매 목록</Link>
         </Button>
       </Actions>
-    </main>
+    </>
   )
 }
 
@@ -140,19 +170,47 @@ function HeldDetail({
       ? null
       : instantMillis(detail.holdExpiresAt) - PAYMENT_TOKEN_MARGIN_MILLIS
   return (
-    <main className="mx-auto grid w-full max-w-[720px] gap-5">
+    <>
       <DetailHead detail={detail} heading={heading} />
-      {detail.paymentToken !== null && payableUntil !== null ? (
+      {readPaymentAttempt(detail.reservationId) !== null ? (
+        // 이 브라우저에서 결제를 시작했다. 결제 화면이 저장한 토큰·키로 결과를 이어서 확인한다
+        <Alert
+          variant="info"
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to={paymentPath(detail.reservationId)}
+                state={reservationNavigationState(heading)}
+              >
+                결제 결과 확인
+              </Link>
+            </Button>
+          }
+        >
+          <p className="font-semibold">결제를 확인하고 있어요</p>
+          <p>확정되면 이 화면이 바뀌어요.</p>
+        </Alert>
+      ) : detail.paymentToken !== null && payableUntil !== null ? (
+        // Note: "아직 결제하지 않았어요"라고 하지 않는다. 결제가 승인됐는데 확정이 늦거나 운영자 확인을 기다리는 예매도
+        // HELD이고, 예매 응답에는 결제 상태가 없다(셀프 리뷰)
         <Alert
           variant="warning"
           action={
             <Button asChild variant="outline" size="sm">
-              <Link to={paymentPath(detail.reservationId)}>결제하기</Link>
+              <Link
+                to={paymentPath(detail.reservationId)}
+                state={reservationNavigationState(heading)}
+              >
+                결제하기
+              </Link>
             </Button>
           }
         >
-          <p className="font-semibold">아직 결제하지 않았어요</p>
-          <p>{formatClock(payableUntil)}까지 결제하지 않으면 좌석이 풀려요.</p>
+          <p className="font-semibold">결제가 아직 확정되지 않았어요</p>
+          <p>
+            {formatClock(payableUntil)}까지 확정되지 않으면 좌석이 풀려요. 이미 결제했다면 확정까지
+            잠시 걸릴 수 있어요.
+          </p>
         </Alert>
       ) : (
         <Alert variant="warning">
@@ -166,7 +224,7 @@ function HeldDetail({
           <Link to={paths.myReservations}>내 예매 목록</Link>
         </Button>
       </Actions>
-    </main>
+    </>
   )
 }
 
@@ -194,7 +252,7 @@ function EndedDetail({
 }) {
   const copy = ENDED_COPY[detail.status as keyof typeof ENDED_COPY]
   return (
-    <main className="mx-auto grid w-full max-w-[720px] gap-5">
+    <>
       <ResultHead
         tone="danger"
         title={copy.title}
@@ -209,7 +267,7 @@ function EndedDetail({
           <Link to={paths.home}>공연 보러 가기</Link>
         </Button>
       </Actions>
-    </main>
+    </>
   )
 }
 

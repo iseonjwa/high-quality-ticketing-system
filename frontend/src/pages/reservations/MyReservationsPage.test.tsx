@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { reservationQueryKeys } from '@/api/reservations'
 import { routes } from '@/app/routes'
 import { mockDb, toKstIso, type MockReservation } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
@@ -171,6 +172,75 @@ describe('MyReservationsPage 더 보기', () => {
     await screen.findByRole('list')
     expect(screen.getByRole('button', { name: '더 보기' })).toBeInTheDocument()
   })
+
+  it('더 보기가 실패해도 받은 목록은 그대로 두고 더 보기 위에 오류 안내를 보이며, 다시 시도하면 다음 쪽을 받는다', async () => {
+    seedMany(25)
+    let nextPageCalls = 0
+    mockServer.use(
+      http.get(MINE_API, ({ request }) => {
+        if (new URL(request.url).searchParams.get('page') !== '1') {
+          return undefined
+        }
+        nextPageCalls += 1
+        return nextPageCalls === 1
+          ? fail(500, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+          : undefined
+      }),
+    )
+    const requests = recordRequests(MINE_API)
+    renderMine()
+    await screen.findByRole('list')
+    const firstTexts = itemLinks().map((link) => link.textContent)
+
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
+
+    const retry = await screen.findByRole('button', { name: '다시 시도' })
+    expect(itemLinks()).toHaveLength(20)
+    expect(itemLinks().map((link) => link.textContent)).toEqual(firstTexts)
+    // 오류 안내는 목록 아래, 더 보기 버튼 위에 있다
+    const more = screen.getByRole('button', { name: '더 보기' })
+    expect(retry.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      screen.getByRole('list').compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
+
+    await userEvent.click(retry)
+
+    await waitFor(() => expect(itemLinks()).toHaveLength(25))
+    const pages = requests.map((request) => new URL(request.url).searchParams.get('page'))
+    expect(pages).toEqual(['0', '1', '1'])
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+  })
+
+  it('쪽 사이에 새 예매가 생겨 앞 쪽의 마지막 항목이 다음 쪽에 또 와도 한 번만 보인다', async () => {
+    seedMany(21)
+    renderMine()
+    await screen.findByRole('list')
+    expect(itemLinks()).toHaveLength(20)
+
+    // 새 예매가 맨 앞에 끼어 모든 항목이 한 칸씩 밀린다. 다음 쪽(offset 20)은 이미 받은 마지막 항목부터 시작한다
+    seedReservation({ status: 'CONFIRMED' })
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
+
+    await waitFor(() => expect(itemLinks()).toHaveLength(21))
+    const hrefs = itemLinks().map((link) => link.getAttribute('href'))
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+    expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
+  })
+
+  it('더 보기로 붙인 첫 항목으로 초점을 옮기고 몇 건 더 불러왔는지 알린다', async () => {
+    seedMany(25)
+    renderMine()
+    await screen.findByRole('list')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
+
+    await waitFor(() => expect(itemLinks()).toHaveLength(25))
+    await waitFor(() => expect(itemLinks()[20]).toHaveFocus())
+    expect(screen.getByRole('status')).toHaveTextContent('5건 더 불러왔어요')
+  })
 })
 
 describe('MyReservationsPage 조회 실패', () => {
@@ -193,6 +263,38 @@ describe('MyReservationsPage 조회 실패', () => {
 
     await screen.findByRole('list')
     expect(itemLinks()).toHaveLength(1)
+    expect(calls).toBe(2)
+  })
+})
+
+describe('MyReservationsPage 다시 받기 실패', () => {
+  it('받은 목록이 있으면 다시 받기가 실패해도 목록을 그대로 두고 오류 안내를 보이며, 다시 시도하면 안내가 사라진다', async () => {
+    seedMany(2)
+    const { queryClient } = renderMine()
+    await screen.findByRole('list')
+    const texts = itemLinks().map((link) => link.textContent)
+    let calls = 0
+    mockServer.use(
+      http.get(MINE_API, () => {
+        calls += 1
+        return calls === 1
+          ? fail(500, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+          : undefined
+      }),
+    )
+
+    await act(() => queryClient.refetchQueries({ queryKey: reservationQueryKeys.mine }))
+
+    const retry = await screen.findByRole('button', { name: '다시 시도' })
+    expect(itemLinks().map((link) => link.textContent)).toEqual(texts)
+    expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
+
+    await userEvent.click(retry)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument(),
+    )
+    expect(itemLinks()).toHaveLength(2)
     expect(calls).toBe(2)
   })
 })

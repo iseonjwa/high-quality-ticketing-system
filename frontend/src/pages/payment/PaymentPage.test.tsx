@@ -7,17 +7,20 @@ import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats, reservationQueryKeys, type HeldSeatHold } from '@/api/reservations'
-import { paymentPath } from '@/app/paths'
+import { paymentPath, reservationPath } from '@/app/paths'
 import { routes } from '@/app/routes'
 import { readHeldSeats, saveHeldSeats, type HeldSeat } from '@/auth/heldSeats'
 import { mockDb, toKstIso, type MockReservation } from '@/mocks/db'
 import { fail, ok } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
-import { formatWon } from '@/lib/format'
+import { formatDateTime, formatWon } from '@/lib/format'
 import { paymentNavigationState } from '@/pages/payment/paymentNavigation'
 import { queueNavigationState, readQueueConcert } from '@/pages/queue/queueNavigation'
-import { readReservationHeading } from '@/pages/reservations/reservationNavigation'
+import {
+  readReservationHeading,
+  reservationNavigationState,
+} from '@/pages/reservations/reservationNavigation'
 import {
   admitTo,
   CONCERT_ID,
@@ -101,10 +104,12 @@ interface RenderOptions {
     clockOffsetMillis?: number | null
   }
   reservationId?: number | string
+  // 예매 상세의 [결제하기]가 넘기는 공연 제목 줄만 있는 이동 값(navigation이 없을 때)
+  heading?: typeof HEADING
 }
 
 // 조회 재시도를 끈 클라이언트로 그려 실패 화면을 바로 본다
-function renderPayment({ navigation, reservationId }: RenderOptions) {
+function renderPayment({ navigation, reservationId, heading }: RenderOptions) {
   const id = reservationId ?? navigation?.held.hold.reservationId
   const state = navigation
     ? paymentNavigationState({
@@ -113,7 +118,9 @@ function renderPayment({ navigation, reservationId }: RenderOptions) {
         concert: navigation.concert === undefined ? CONCERT : navigation.concert,
         clockOffsetMillis: navigation.clockOffsetMillis ?? null,
       })
-    : null
+    : heading
+      ? reservationNavigationState(heading)
+      : null
   const router = createMemoryRouter(routes, {
     initialEntries: [
       {
@@ -511,6 +518,36 @@ describe('PaymentPage 결제하기', () => {
     expect(
       queryClient.getQueryData(reservationQueryKeys.detail(held.hold.reservationId)),
     ).toMatchObject({ reservationId: held.hold.reservationId, status: 'CONFIRMED' })
+  })
+
+  it('예매 상세의 [결제하기]처럼 공연 제목 줄만 넘겨 열어도 확정되면 결과 화면이 그 제목 줄을 받는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const held = await hold()
+    const { router } = renderPayment({ reservationId: held.hold.reservationId, heading: HEADING })
+
+    // 공연 요약은 없고 제목 줄만 있어 공연 카드 없이 열린다
+    await clickPay()
+    await advanceUntil(() => router.state.location.pathname === resultPath(held))
+
+    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+    expect(
+      await screen.findByText(
+        `${HEADING.title} · ${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('확정되면 내 예매 목록 캐시를 낡은 것으로 표시해 다음에 열 때 다시 받게 한다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const held = await hold()
+    const { router, queryClient } = renderPayment({ navigation: { held } })
+    queryClient.setQueryData(reservationQueryKeys.mine, { pages: [], pageParams: [] })
+    expect(queryClient.getQueryState(reservationQueryKeys.mine)?.isInvalidated).toBe(false)
+
+    await clickPay()
+    await advanceUntil(() => router.state.location.pathname === resultPath(held))
+
+    expect(queryClient.getQueryState(reservationQueryKeys.mine)?.isInvalidated).toBe(true)
   })
 
   it('이동 값 없이 시작해도 확정되면 결과 경로로 가고 공연 제목 줄은 비어 있다', async () => {
@@ -941,6 +978,38 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     expect(payments[1].headers.get('Idempotency-Key')).toBe(
       payments[0].headers.get('Idempotency-Key'),
     )
+  })
+
+  it('확인 중에 예매 상세로 갔다가 [결제 결과 확인]으로 돌아오면 같은 키로 이어 보내 확정까지 간다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    const payments = recordRequests(PAYMENTS_API)
+    const { router } = renderPayment({ navigation: { held } })
+    await clickPay()
+    await findPendingTitle('결제를 확인하고 있어요')
+
+    // 결제 화면을 떠나 예매 상세로 간다. 결제 시도(토큰·키)는 남아 있다
+    await act(() =>
+      router.navigate(reservationPath(held.hold.reservationId), {
+        state: reservationNavigationState(HEADING),
+      }),
+    )
+    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('link', { name: '결제 결과 확인' }))
+    await advanceUntil(() => router.state.location.pathname === resultPath(held))
+
+    // 두 번째 결제 화면은 결제 버튼 없이 저장한 키로 바로 이어 보냈다
+    expect(payments).toHaveLength(2)
+    expect(payments[1].headers.get('Idempotency-Key')).toBe(
+      payments[0].headers.get('Idempotency-Key'),
+    )
+    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+    ).toBeInTheDocument()
   })
 })
 
