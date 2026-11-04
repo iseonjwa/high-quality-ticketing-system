@@ -243,8 +243,21 @@
 
 ### TS-32 로컬 테스트 환불의 NEEDS_MANUAL_CHECK 알림이 슬랙에 한 시간마다 반복되는데 ops 명령으로 닫히지 않음
 - 서비스·작성: payment / junhyun / 2026-11-04
-- 문제: 팀 슬랙 `#이선좌-성능-모니터링`에 "확인이 필요한 환불이 1건 있습니다(NEEDS_MANUAL_CHECK)"(`RefundNeedsManualCheck`, env 로컬)가 한 시간마다 다시 왔다. 즉시 확인 알림이라 풀릴 때까지 1시간마다 반복된다.
-- 원인: 11/2 로컬 테스트에서 만든 환불 1번이다. 그 뒤 Mock PG가 재시작되며 메모리 원장이 비어, PG에 원래 주문과 환불 기록이 없다. `ops inspect --with-pg` 결과는 결제 "PG에 주문 없음", 환불 "PG에 환불 없음"이었다. `refund resolve`는 PG `NotFound`를 거부하고(`--close-failed`도 `NotFound`에는 쓸 수 없다), `refund retry`는 Mock PG가 다시 거절해 NMC로 돌아온다(11/3에 한 번 시도). 대응 문서에 이 상태를 닫는 명령이 없다. 상태를 바꾸는 SQL은 쓰지 않는다(`manual-recovery.md` 1절).
-- 해결: 데이터는 그대로 두고 로컬 Alertmanager에 7일 무음을 걸었다(`env="local"`, `alertname=~"RefundNeedsManualCheck|RefundManualCheckAging"`, 11/11까지). 알림 3건이 `suppressed`가 된 것을 `/api/v2/alerts`로 확인했다. 로컬 결제 DB를 초기화하면 무음을 지운다(`amtool silence expire <ID>`). 무음 목록은 `docker exec iseonjwa-alertmanager-1 amtool --alertmanager.url=http://localhost:9093 silence query`.
-- AI 활용: 사용자가 반복 알림을 없애 달라고 했다. AI가 `inspect`로 원인을 찾고, NMC를 닫는 대신 로컬 범위의 무음을 걸었다.
-- 배운 점: Mock PG는 원장을 메모리에 두므로 재시작 전에 만든 로컬 결제·환불은 PG 근거를 잃는다. 로컬 알림이 팀 채널로 가므로, 이런 로컬 테스트 데이터의 알림은 데이터를 고치지 말고 env를 좁힌 무음으로 끈다. 운영 서버라면 PG 콘솔 확인과 8절 예외 절차를 따른다.
+- 문제: 팀 슬랙 `#이선좌-성능-모니터링`에 "확인이 필요한 환불이 1건 있습니다(NEEDS_MANUAL_CHECK)"가 한 시간마다 다시 왔다. 알림은 `RefundNeedsManualCheck`이고 env는 로컬이다. 즉시 확인 알림이라 풀릴 때까지 1시간마다 반복된다.
+- 원인: 11/2 로컬 테스트에서 만든 환불 1번이다. 그 뒤 Mock PG가 재시작되며 메모리 원장이 비어, PG에 원래 주문과 환불 기록이 없다.
+  - `ops inspect --with-pg` 결과는 결제 "PG에 주문 없음", 환불 "PG에 환불 없음"이었다.
+  - `refund resolve`는 PG `NotFound`를 거부한다. `--close-failed`도 `NotFound`에는 쓸 수 없다.
+  - `refund retry`는 Mock PG가 다시 거절해 NMC로 돌아온다(11/3에 한 번 시도).
+  - 대응 문서에 이 상태를 닫는 명령이 없다.
+- 해결:
+  1. 처음에는 데이터를 두고 로컬 Alertmanager에 무음을 걸었다(`env="local"`, 환불 알림 두 개).
+  2. 사용자가 "로컬 테스트 데이터니까 지금 한 번만 데이터를 정상화"하라고 해서, `ops refund resolve --close-failed`가 하는 전이를 SQL로 똑같이 했다. 한 문장(CTE)이라 둘 다 되거나 둘 다 안 된다.
+     - 환불 1번: `NEEDS_MANUAL_CHECK` → `FAILED`, `next_check_at = NULL`.
+     - 상태 이력: 한 줄. 사유는 SQL로 닫았다는 것이 드러나게 `LOCAL_TEST_DATA_SQL_CLOSE`, actor는 `OPS:junhyun`.
+     - 이벤트는 내지 않았고 결제 상태(`APPROVED`)는 그대로 뒀다. close-failed와 같다.
+  3. `refund_manual_check_count`가 0이 되고 Prometheus·Alertmanager에서 환불 알림이 사라진 것을 확인한 뒤 무음을 지웠다.
+- AI 활용: AI가 `inspect`로 원인을 찾고 처음에는 무음을 걸었다. 사용자가 로컬 데이터 정상화를 골랐고, AI가 운영 명령의 전이 코드(`RefundSettlementService.closeAsFailed`)를 읽고 같은 변경을 SQL로 했다.
+- 배운 점:
+  - Mock PG는 원장을 메모리에 두므로, 재시작 전에 만든 로컬 결제·환불은 PG 근거를 잃는다.
+  - 운영 서버에서는 상태를 바꾸는 SQL을 쓰지 않고(`manual-recovery.md` 1절) PG 콘솔 확인과 8절 예외 절차를 따른다.
+  - 로컬 테스트 데이터를 SQL로 고칠 때도 운영 명령과 같은 전이와 이력을 남기고, 사유로 SQL로 고친 것임을 드러낸다.
