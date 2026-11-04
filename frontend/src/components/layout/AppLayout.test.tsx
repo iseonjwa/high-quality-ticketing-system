@@ -1,4 +1,4 @@
-import { act, screen } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
@@ -108,6 +108,22 @@ describe('AppLayout', () => {
     finishLogout()
     expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('예매 흐름 화면(대기열)에서는 헤더에 예매 단계를 보이고 대기열을 현재 단계로 표시한다', async () => {
+    await signInAsDemo()
+    renderRoutes(routes, '/schedules/31/queue')
+
+    const steps = await screen.findByRole('list', { name: '예매 단계' })
+    const current = within(steps).getByRole('listitem', { current: 'step' })
+    expect(current).toHaveTextContent('대기열')
+  })
+
+  it('공연 목록에서는 예매 단계를 보이지 않는다', async () => {
+    renderRoutes(routes, '/')
+
+    await screen.findByRole('heading', { level: 1, name: '공연' })
+    expect(screen.queryByRole('list', { name: '예매 단계' })).not.toBeInTheDocument()
   })
 
   it('워드마크는 제목 요소가 아니라 홈 링크다', () => {
