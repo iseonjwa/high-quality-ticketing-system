@@ -892,3 +892,136 @@ describe('LotteryPage 조회 실패', () => {
     expect(calls).toBe(2)
   })
 })
+
+describe('LotteryPage 응모·취소 뒤 초점', () => {
+  const titleOf = (name: string) => screen.findByRole('heading', { level: 2, name })
+
+  it('응모에 성공하면 누른 버튼이 사라져도 초점이 "응모했어요" 제목에 간다', async () => {
+    renderLottery()
+
+    await userEvent.click(await enterButton('1매 응모하기'))
+
+    const title = await titleOf('응모했어요')
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('취소를 확인하면 초점이 "응모를 취소했어요" 제목에 간다', async () => {
+    seedEntry(OPEN)
+    renderLottery()
+    await userEvent.click(await screen.findByRole('button', { name: '응모 취소' }))
+    const dialog = await screen.findByRole('dialog', { name: '응모를 취소할까요?' })
+
+    await userEvent.click(within(dialog).getByRole('button', { name: '응모 취소' }))
+
+    const title = await titleOf('응모를 취소했어요')
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('이미 응모했다는 409로 결과를 다시 받은 뒤에도 초점이 결과 카드 제목에 간다', async () => {
+    renderLottery()
+    const button = await enterButton('1매 응모하기')
+    seedEntry(OPEN, { quantity: 2 })
+
+    await userEvent.click(button)
+
+    const title = await titleOf('응모했어요')
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  // 알려진 어긋남: acted가 화면 안에서 계속 true라, 응모한 뒤 다시 받기로 ENTERED 카드가 WON 카드로 바뀌면
+  // 새 카드가 마운트되며 body에 있던 초점을 제목으로 가져간다. 고치면 이 테스트가 통과해 it.fails가 실패하니 it로 바꾼다
+  it.fails('응모한 뒤 다시 받기로 결과가 바뀌어도 초점을 옮기지 않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    placeLottery(OPEN, { end: 10_000, draw: 15_000 })
+    renderLottery()
+    await userEvent.click(await enterButton('1매 응모하기'))
+    const entered = await titleOf('응모했어요')
+    await waitFor(() => expect(entered).toHaveFocus())
+    // 사용자가 초점을 화면 밖으로 옮겨 두었다(body)
+    act(() => entered.blur())
+    expect(document.body).toHaveFocus()
+
+    Object.assign(
+      mockDb.lotteryEntries.find((entry) => entry.lotteryId === OPEN)!,
+      {
+        status: 'WON',
+        drawRank: 1,
+      },
+    )
+    await advance(30_000)
+
+    const won = await titleOf('당첨됐어요')
+    expect(won).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
+  it('처음 연 화면에서 다시 받기로 결과가 바뀔 때도 초점을 옮기지 않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const entry = seedEntry(OPEN)
+    placeLottery(OPEN, { start: -DAY, end: -HOUR, draw: 5_000 })
+    renderLottery()
+    await titleOf('응모했어요')
+
+    Object.assign(entry, { status: 'WON', drawRank: 1 })
+    await advance(20_000)
+
+    const won = await titleOf('당첨됐어요')
+    expect(won).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
+  it('1초마다 다시 그려도 제목으로 초점을 다시 가져가지 않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderLottery()
+    await userEvent.click(await enterButton('1매 응모하기'))
+    const title = await titleOf('응모했어요')
+    await waitFor(() => expect(title).toHaveFocus())
+    const card = document.getElementById('billing-key')!
+    const cardButton = within(card).getByRole('button', { name: '카드 등록' })
+
+    act(() => cardButton.focus())
+    await advance(5_000)
+
+    expect(cardButton).toHaveFocus()
+    expect(title).not.toHaveFocus()
+  })
+
+  it('제목에서 초점이 body로 빠진 뒤 시계가 몇 초 지나도 제목이 초점을 다시 가져가지 않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderLottery()
+    await userEvent.click(await enterButton('1매 응모하기'))
+    const title = await titleOf('응모했어요')
+    await waitFor(() => expect(title).toHaveFocus())
+
+    act(() => title.blur())
+    await advance(5_000)
+
+    expect(title).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
+  it('응모 뒤 초점이 이미 다른 곳에 있으면 제목으로 옮기지 않는다', async () => {
+    let release!: () => void
+    const closed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    mockServer.use(
+      http.post(entriesApi(OPEN), async () => {
+        await closed
+        return undefined
+      }),
+    )
+    renderLottery()
+    await userEvent.click(await enterButton('1매 응모하기'))
+    const cardButton = within(document.getElementById('billing-key')!).getByRole('button', {
+      name: '카드 등록',
+    })
+
+    act(() => cardButton.focus())
+    release()
+
+    const title = await titleOf('응모했어요')
+    expect(title).not.toHaveFocus()
+    expect(cardButton).toHaveFocus()
+  })
+})
