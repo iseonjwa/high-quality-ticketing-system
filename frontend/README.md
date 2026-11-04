@@ -15,6 +15,14 @@ npm run dev      # http://localhost:5173
 
 개발 서버는 `/api`로 시작하는 요청을 Gateway(`http://localhost:8080`)로 넘긴다. 브라우저는 개발 서버 한 곳만 보므로 CORS가 필요 없다. Gateway를 다른 주소에서 띄웠다면 `API_PROXY_TARGET=http://<주소> npm run dev`로 바꾼다. Gateway는 루트 compose로 띄운다([워크스페이스 가이드](../docs/guides/workspace.md)).
 
+### 컨테이너로 띄우기
+
+```bash
+docker compose up -d --build frontend   # http://localhost:8000
+```
+
+nginx가 빌드 결과를 서빙하고 `/api/`를 Gateway로 중계한다. 첫 빌드는 도커 안에서 Node로 하므로 몇 분 걸린다. 화면을 고치는 동안은 파일 저장이 바로 반영되는 개발 서버(5173)를 쓰고, 컨테이너는 배포와 같은 모양을 확인할 때 쓴다.
+
 ### 시연 모드 (요청 로그)
 
 주소 끝에 `?demo=on`을 붙이면 그 탭에서 화면 오른쪽에 요청 로그가 열린다. 요청마다 메서드·경로·상태·traceId가 쌓이고, traceId를 누르면 Grafana "요청 로그" 대시보드가 Grafana 탭에서 열린다. 처음 열린 탭을 옆 창으로 옮겨 두면 다음부터 그 창에서 바뀐다. 왼쪽 경계를 끌어 너비를 바꾸고, `?demo=off`나 패널의 X로 끈다. Grafana 주소는 기본 `http://localhost:3000`(발표자 노트북의 SSH 터널)이고 `VITE_GRAFANA_URL`로 바꾼다. 규칙은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "시연 모드 규칙"에 있다. 패널이 앱 화면을 좁히므로 화면의 반응형 클래스는 `sm:`·`md:` 대신 `@min-[40rem]:`·`@min-[48rem]:`을 쓴다.

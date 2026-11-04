@@ -34,6 +34,12 @@ class PortExposureTest {
     }
 
     @Test
+    void 프론트_nginx의_loopback_포트는_허용한다() {
+        var configuration = config(Map.of("frontend", Map.of("ports", List.of(port(8000, "127.0.0.1")))));
+        assertTrue(PortExposure.violations(configuration, true).isEmpty());
+    }
+
+    @Test
     void Alertmanager의_loopback_포트는_허용한다() {
         var configuration = config(Map.of("alertmanager", Map.of("ports", List.of(port(9093, "127.0.0.1")))));
         assertTrue(PortExposure.violations(configuration, true).isEmpty());
