@@ -43,6 +43,22 @@ flowchart LR
   - 모든 서비스에 걸리는 공통 변경이라 `contract` 이슈로 팀에 알리고 결제 담당이 구현한다
 - Kafka로 이어지는 처리(결제 → 예매 확정)는 요청이 아니라 소비자에서 일어나므로 이 필터에 잡히지 않는다. 소비자 처리 로그와 트레이스 전파는 구현 이슈에서 확인한다.
 
+### 구현 (ISE-182, 요청 로그 필터)
+
+- 위치: 서블릿 서비스(user·reservation·payment)는 `common`의 `RequestLogFilter`(`OncePerRequestFilter`)이고 `CommonWebConfiguration`이 `FilterRegistrationBean`으로 등록한다. Gateway는 `gateway/.../observability/RequestLogWebFilter`(`WebFilter` + `Ordered`)다. mock-pg는 `common`을 쓰지 않아 이번에 넣지 않았다. 외부 PG를 흉내 내는 서비스이고 호출은 Zipkin 트레이스로 보인다.
+- 한 줄 형식: `요청 {메서드} {경로} {상태} {시간}ms`. 로그 레벨은 INFO이고 `traceId`는 기존 로그 패턴이 붙인다. 예: `요청 POST /api/v1/payments 200 521ms`.
+- 경로: 서블릿 서비스는 컨트롤러 경로 템플릿(`HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE`, 예 `/api/v1/payments/{paymentId}`)을 쓰고 매칭이 없으면 요청 경로를 쓴다. Gateway는 경로 템플릿이 없어 쿼리를 뺀 원래 경로를 쓴다(예 `/api/v1/payments/23`).
+- 남기지 않는 것: 요청·응답 본문, 헤더, 쿼리 문자열, `/actuator`로 시작하는 경로.
+- 설정: `iseonjwa.request-log.enabled`(기본 true, `config-repo/application.yml`). false면 필터를 등록하지 않는다. 부하 측정 때 로그 양을 줄이는 데 쓴다.
+- 필터 순서: 트레이싱 관측 필터 안쪽에서 돌아 traceId가 MDC에 있을 때 줄을 쓰고, 요청을 거절하는 필터보다 바깥에서 돌아 401·403·404도 한 줄이 남는다. 서블릿은 관측 필터가 `HIGHEST_PRECEDENCE + 1`이라 이 필터를 `HIGHEST_PRECEDENCE + 2`로 등록한다(`GatewayIdentityFilter`는 기본 순서). Gateway는 WebFlux 관측 필터가 `@Order(0)`이라 이 필터는 order 1이다(`Ordered.HIGHEST_PRECEDENCE + 2`로 두면 관측 필터 바깥이 되어 traceId가 비므로 맞추지 않았다). Gateway 인증·입장 토큰 필터는 `GlobalFilter`라 이 필터보다 안쪽이다.
+- 상태: 체인이 예외를 던지면 서블릿은 500으로 남기고 예외를 다시 던진다. Gateway는 `ErrorResponse` 예외(라우트 없음 404 등)는 그 상태로, 그 밖의 예외는 500으로 남기고 다시 던진다. 클라이언트가 끊으면 상태 자리에 `CANCELLED`가 남는다.
+- 확인 결과(2026-11-04, 로컬 compose):
+  - 테스트는 common 100, gateway 76, user 35, reservation 294, payment 764건이 모두 통과했다.
+  - Gateway 줄에도 traceId가 채워졌다. `spring.reactor.context-propagation: auto`로 `doFinally`에서 쓴 줄에서 MDC가 살아 있었다. 인증 없는 `/api/v1/users/me`는 `요청 GET /api/v1/users/me 401 29ms`, 없는 경로는 `요청 GET /api/v1/nowhere 404 3ms`로 남았다.
+  - 같은 요청의 Gateway 줄과 서비스 줄에 같은 traceId가 붙었다. 빈 본문 로그인은 Gateway와 user-service에서 `요청 POST /api/v1/auth/login 400`, 공연 조회는 reservation-service에서 `요청 GET /api/v1/concerts/{concertId} 200`으로 남았다.
+  - `BookingFlowSystemTest`(예매 한 흐름)가 통과했다. 이어서 Loki에서 최근 10분의 `{service="payment-service"} |= "요청 "` 줄 둘의 traceId로 `{service=~"gateway|reservation-service|payment-service"}`를 조회하니 각각 Gateway 줄과 payment-service 줄이 함께 나왔다(`POST /api/v1/payments` Gateway 638ms·payment 521ms). 이 traceId에는 reservation-service 요청 줄이 없었다. 결제 승인 뒤 예매 확정은 Kafka 소비자에서 일어나 요청 로그에 잡히지 않는 것이 설계 그대로다.
+  - 최근 10분에 Gateway·reservation·payment·user 요청 줄이 같은 traceId로 묶인 경우는 Gateway와 서비스 하나씩의 쌍이었고, 세 서비스를 모두 지나는 traceId는 없었다.
+
 ### 구현 (ISE-178, 수집)
 
 - 파일: `infra/loki/loki.yml`, `infra/alloy/config.alloy`, Grafana 데이터 소스 `infra/grafana/provisioning/datasources/loki.yml`·`zipkin.yml`, compose의 `loki`(`grafana/loki:3.7.9`, 512m)·`alloy`(`grafana/alloy:v1.21.3`, 256m) 서비스. 이미지는 인덱스 digest로 고정했다. 호스트 포트는 열지 않고 Grafana가 `http://loki:3100`으로 읽는다.
