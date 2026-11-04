@@ -26,7 +26,7 @@ export function LotteryFields({
 
   return (
     <>
-      <div className="grid gap-5 @min-[40rem]:grid-cols-2">
+      <div className="grid items-start gap-5 @min-[40rem]:grid-cols-2">
         <SelectField
           label="추첨석으로 뗄 등급"
           options={gradeOptions}
@@ -48,7 +48,7 @@ export function LotteryFields({
           {...form.register('maxPerEntry')}
         />
       </div>
-      <div className="grid gap-5 @min-[40rem]:grid-cols-2">
+      <div className="grid items-start gap-5 @min-[40rem]:grid-cols-2">
         <TextField
           label="추첨석 수"
           inputMode="numeric"
@@ -67,7 +67,7 @@ export function LotteryFields({
           {...form.register('waitlistCount')}
         />
       </div>
-      <div className="grid gap-5 @min-[40rem]:grid-cols-2">
+      <div className="grid items-start gap-5 @min-[40rem]:grid-cols-2">
         <TextField
           label="응모 시작"
           type="datetime-local"

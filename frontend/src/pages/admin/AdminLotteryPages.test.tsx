@@ -180,12 +180,12 @@ describe('추첨 설정 화면', () => {
     await userEvent.click(screen.getByRole('button', { name: '추첨 설정' }))
 
     const created = mockDb.lotteries.find((lottery) => lottery.scheduleId === scheduleId)!
-    expect(
-      await screen.findByRole('heading', {
-        level: 2,
-        name: `추첨 #${created.lotteryId}을 설정했어요`,
-      }),
-    ).toBeInTheDocument()
+    const title = await screen.findByRole('heading', {
+      level: 2,
+      name: `추첨 #${created.lotteryId}을 설정했어요`,
+    })
+    // 폼이 사라져도 초점을 잃지 않게 결과 제목으로 옮긴다
+    await waitFor(() => expect(title).toHaveFocus())
     expect(screen.getByText('추첨을 설정했어요')).toBeInTheDocument()
     expect(screen.getByLabelText('응모 화면 주소')).toHaveValue(
       `${window.location.origin}/lotteries/${created.lotteryId}`,

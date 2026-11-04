@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -214,10 +214,17 @@ function LotteryCreateForm({
 
 function CreatedLottery({ concertId, lottery }: { concertId: number; lottery: AdminLottery }) {
   const entryUrl = `${window.location.origin}${lotteryPath(lottery.lotteryId)}`
+  // 설정에 성공하면 폼(누른 버튼)이 사라져 초점이 body로 떨어진다. 결과 제목으로 옮긴다
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    titleRef.current?.focus()
+  }, [])
   return (
     <Card className="gap-5 px-5 @min-[40rem]:px-6">
       <div className="grid gap-1">
-        <h2 className="type-heading text-gray-900">추첨 #{lottery.lotteryId}을 설정했어요</h2>
+        <h2 ref={titleRef} tabIndex={-1} className="type-heading text-gray-900 outline-none">
+          추첨 #{lottery.lotteryId}을 설정했어요
+        </h2>
         <p className="type-body-sm text-gray-500 tabular-nums">
           {lottery.sourceGrade}석 {lottery.seatCount}석 · 예비 {lottery.waitlistCount}명 · 응모{' '}
           {formatDateTime(lottery.entryStartAt)} ~ {formatDateTime(lottery.entryEndAt)} · 추첨{' '}
