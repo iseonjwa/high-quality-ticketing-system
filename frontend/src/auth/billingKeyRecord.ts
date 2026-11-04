@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import { z } from 'zod'
 
 // 이 브라우저에서 등록한 자동결제 카드 기록. 서버에 보유 여부를 조회하는 API가 없어 등록 응답을 기억해 둔다.
@@ -33,8 +34,38 @@ export function readBillingKeyRecord(userId: number): BillingKeyRecord | null {
 
 export function saveBillingKeyRecord(userId: number, record: BillingKeyRecord) {
   localStorage.setItem(KEY_PREFIX + userId, JSON.stringify(record))
+  notifyChanged()
 }
 
 export function removeBillingKeyRecord(userId: number) {
   localStorage.removeItem(KEY_PREFIX + userId)
+  notifyChanged()
+}
+
+// 기록이 바뀌면 같은 화면의 카드·안내(내 정보, 추첨 응모 화면)가 바로 다시 그린다. 다른 탭의 변경은 storage 이벤트로 받는다
+const listeners = new Set<() => void>()
+
+function notifyChanged() {
+  listeners.forEach((listener) => listener())
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  const onStorage = (event: StorageEvent) => {
+    // key가 null이면 다른 탭에서 저장소를 통째로 비웠다
+    if (event.key === null || event.key.startsWith(KEY_PREFIX)) {
+      listener()
+    }
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    listeners.delete(listener)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+export function useBillingKeyRecord(userId: number): BillingKeyRecord | null {
+  // 문자열로 비교해야 렌더마다 새 객체로 다시 그리지 않는다
+  const raw = useSyncExternalStore(subscribe, () => JSON.stringify(readBillingKeyRecord(userId)))
+  return JSON.parse(raw) as BillingKeyRecord | null
 }

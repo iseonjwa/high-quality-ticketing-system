@@ -1,13 +1,13 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState, useSyncExternalStore } from 'react'
+import { useId, useRef, useState, type MouseEvent } from 'react'
 import { toast } from 'sonner'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { registerBillingKey, revokeBillingKey } from '@/api/billingKeys'
+import { newIdempotencyKey } from '@/api/idempotencyKey'
 import {
-  readBillingKeyRecord,
   removeBillingKeyRecord,
   saveBillingKeyRecord,
-  type BillingKeyRecord,
+  useBillingKeyRecord,
 } from '@/auth/billingKeyRecord'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Alert } from '@/components/ui/alert'
@@ -24,26 +24,12 @@ import {
 
 // 자동결제 카드(빌링키) 카드. 내 정보와 추첨 응모 화면에 둔다.
 // 서버에 보유 여부를 묻는 API가 없어 이 브라우저에서 등록한 기록(billingKeyRecord)으로 보인다.
+// 기록이 없어도 서버에 카드가 있을 수 있어(다른 브라우저에서 등록, 등록 결과를 받지 못함) 해지는 늘 할 수 있게 둔다.
 
-// 같은 화면의 다른 카드(내 정보·추첨)가 기록 변경을 바로 보도록 알린다
-const listeners = new Set<() => void>()
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-function notifyRecordChanged() {
-  listeners.forEach((listener) => listener())
-}
-
-function useBillingKeyRecord(userId: number): BillingKeyRecord | null {
-  // 문자열로 비교해야 렌더마다 새 객체로 다시 그리지 않는다
-  const raw = useSyncExternalStore(subscribe, () => JSON.stringify(readBillingKeyRecord(userId)))
-  return JSON.parse(raw) as BillingKeyRecord | null
-}
-
-// 시연 결제(Mock PG)에 보낼 인증 값. 실제 PG라면 결제창이 준다(ISE-125)
+// 시연 결제(Mock PG)에 보낼 인증 값. 실제 PG라면 결제창이 준다(ISE-125).
+// Note: crypto.randomUUID()는 http 배포 주소에서 없다(newIdempotencyKey 참고)
 function demoAuthKey(): string {
-  return `demo-${crypto.randomUUID()}`
+  return `demo-${newIdempotencyKey()}`
 }
 
 export function BillingKeyCard({
@@ -54,8 +40,12 @@ export function BillingKeyCard({
   titleAs?: 'h2' | 'h3'
 }) {
   const Title = titleAs
+  const titleId = useId()
   const record = useBillingKeyRecord(userId)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // 대화상자를 닫으면 연 버튼으로 초점을 돌린다. 해지로 그 버튼이 사라졌으면 등록 버튼으로 간다
+  const openerRef = useRef<HTMLElement | null>(null)
+  const registerButtonRef = useRef<HTMLButtonElement>(null)
 
   const register = useMutation({
     mutationFn: () => registerBillingKey(demoAuthKey()),
@@ -64,7 +54,6 @@ export function BillingKeyCard({
         cardLast4: key.cardLast4,
         registeredAt: new Date().toISOString(),
       })
-      notifyRecordChanged()
       toast('자동결제 카드를 등록했어요')
     },
   })
@@ -72,23 +61,36 @@ export function BillingKeyCard({
     mutationFn: revokeBillingKey,
     onSuccess: ({ revoked }) => {
       removeBillingKeyRecord(userId)
-      notifyRecordChanged()
+      // 앞서 실패한 등록 안내("다시 등록하면 새 카드로 바뀌어요" 등)는 해지 뒤에 맞지 않는다
+      register.reset()
       setConfirmOpen(false)
       toast(revoked ? '자동결제 카드를 해지했어요' : '등록된 카드가 없었어요')
     },
   })
   const busy = register.isPending || revoke.isPending
 
+  const openRevoke = (event: MouseEvent<HTMLElement>) => {
+    openerRef.current = event.currentTarget
+    revoke.reset()
+    setConfirmOpen(true)
+  }
+
   return (
-    <section aria-labelledby="billing-key-title">
+    <section aria-labelledby={titleId}>
       <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Title id="billing-key-title" className="type-heading text-gray-900">
+          <Title id={titleId} className="type-heading text-gray-900">
             자동결제 카드
           </Title>
-          {record ? <Badge variant="onSale">등록됨</Badge> : <Badge variant="soldOut">없음</Badge>}
+          {record ? (
+            <Badge variant="onSale">등록됨</Badge>
+          ) : (
+            <Badge variant="soldOut">기록 없음</Badge>
+          )}
         </div>
-        {register.isError ? <RegisterError error={register.error} /> : null}
+        {register.isError ? (
+          <RegisterError error={register.error} busy={busy} onRevoke={openRevoke} />
+        ) : null}
         {record ? (
           <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md bg-gray-50 p-4">
             <span
@@ -102,16 +104,26 @@ export function BillingKeyCard({
                 {formatDate(record.registeredAt)} 등록
               </p>
             </div>
-            <Button variant="outline" disabled={busy} onClick={() => setConfirmOpen(true)}>
+            <Button variant="outline" disabled={busy} onClick={openRevoke}>
               해지
             </Button>
           </div>
         ) : (
-          <p className="rounded-md border border-dashed border-gray-200 px-4 py-5 text-center type-body-sm text-gray-500">
-            이 브라우저에서 등록한 카드가 없어요
-          </p>
+          <div className="grid justify-items-center gap-1 rounded-md border border-dashed border-gray-200 px-4 py-5 text-center">
+            <p className="type-body-sm text-gray-500">이 브라우저에서 등록한 카드가 없어요</p>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+              disabled={busy}
+              onClick={openRevoke}
+            >
+              다른 곳에서 등록한 카드 해지
+            </Button>
+          </div>
         )}
         <Button
+          ref={registerButtonRef}
           variant={record ? 'outline' : 'default'}
           className="w-full"
           loading={register.isPending}
@@ -133,7 +145,19 @@ export function BillingKeyCard({
           }
         }}
       >
-        <DialogContent showCloseButton={!revoke.isPending}>
+        <DialogContent
+          showCloseButton={!revoke.isPending}
+          onCloseAutoFocus={(event) => {
+            // 트리거 없이 연 대화상자라 Radix가 초점을 돌려줄 곳을 모른다. 그대로 두면 body로 간다
+            event.preventDefault()
+            const opener = openerRef.current
+            if (opener?.isConnected) {
+              opener.focus()
+            } else {
+              registerButtonRef.current?.focus()
+            }
+          }}
+        >
           <DialogTitle className="type-heading text-gray-900">
             자동결제 카드를 해지할까요?
           </DialogTitle>
@@ -164,7 +188,15 @@ export function BillingKeyCard({
   )
 }
 
-function RegisterError({ error }: { error: unknown }) {
+function RegisterError({
+  error,
+  busy,
+  onRevoke,
+}: {
+  error: unknown
+  busy: boolean
+  onRevoke: (event: MouseEvent<HTMLElement>) => void
+}) {
   if (isApiError(error, 'BILLING_KEY_REJECTED')) {
     return (
       <Alert variant="danger">
@@ -174,6 +206,7 @@ function RegisterError({ error }: { error: unknown }) {
     )
   }
   if (isApiError(error, 'PG_UNAVAILABLE')) {
+    // 서버는 결제사 결과를 모르면 저장하지 않고 앞 카드도 그대로 둔다(BillingKeyService). 그래서 "등록 안 됨"이 맞다
     return (
       <Alert variant="warning">
         <p className="font-semibold">카드사 연결이 원활하지 않아요</p>
@@ -182,11 +215,19 @@ function RegisterError({ error }: { error: unknown }) {
     )
   }
   if (isOutcomeUnknown(error)) {
-    // 멱등키가 없지만 다시 등록하면 새 카드로 바뀔 뿐이라(앞 카드 해지) 그대로 다시 누르게 한다
+    // 멱등키가 없지만 다시 등록하면 새 카드로 바뀔 뿐이라(앞 카드 해지) 그대로 다시 누르게 한다.
+    // 서버에서는 등록됐을 수 있어 쓰지 않으려면 해지하게 한다(해지는 카드가 없어도 성공한다)
     return (
-      <Alert variant="warning">
+      <Alert
+        variant="warning"
+        action={
+          <Button variant="outline" size="sm" disabled={busy} onClick={onRevoke}>
+            해지
+          </Button>
+        }
+      >
         <p className="font-semibold">등록됐는지 확인하지 못했어요</p>
-        <p>다시 등록하면 새 카드로 바뀌어요.</p>
+        <p>다시 등록하면 새 카드로 바뀌어요. 쓰지 않으려면 해지해 주세요.</p>
       </Alert>
     )
   }

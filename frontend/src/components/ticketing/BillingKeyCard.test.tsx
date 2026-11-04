@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { readBillingKeyRecord, saveBillingKeyRecord } from '@/auth/billingKeyRecord'
 import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { Toaster } from '@/components/ui/sonner'
@@ -18,11 +18,6 @@ const REVOKE_API = '/api/v1/payments/billing-keys/me'
 
 beforeEach(async () => {
   await signInAsDemo()
-})
-
-// 전역 setup은 sessionStorage만 비운다
-afterEach(() => {
-  localStorage.clear()
 })
 
 function renderCards(count = 1) {
@@ -54,12 +49,14 @@ function seedActiveCard() {
 }
 
 describe('BillingKeyCard: 표시', () => {
-  it('기록이 없으면 없음 배지와 안내, 카드 등록 버튼만 보인다', () => {
+  it('기록이 없으면 기록 없음 배지와 안내, 카드 등록과 다른 곳에서 등록한 카드 해지를 보인다', () => {
     renderCards()
 
-    expect(screen.getByText('없음')).toBeInTheDocument()
+    expect(screen.getByText('기록 없음')).toBeInTheDocument()
     expect(screen.getByText('이 브라우저에서 등록한 카드가 없어요')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
+    // 서버에는 카드가 있을 수 있어(다른 브라우저에서 등록, 등록 결과 모름) 해지는 늘 할 수 있다
+    expect(screen.getByRole('button', { name: '다른 곳에서 등록한 카드 해지' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '해지' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다른 카드로 바꾸기' })).not.toBeInTheDocument()
   })
@@ -149,7 +146,10 @@ describe('BillingKeyCard: 등록', () => {
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
     expect(await screen.findByText('등록됐는지 확인하지 못했어요')).toBeInTheDocument()
-    expect(screen.getByText('다시 등록하면 새 카드로 바뀌어요.')).toBeInTheDocument()
+    expect(
+      screen.getByText('다시 등록하면 새 카드로 바뀌어요. 쓰지 않으려면 해지해 주세요.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
 
     mockServer.use(http.post(REGISTER_API, () => HttpResponse.error()))
@@ -252,7 +252,7 @@ describe('BillingKeyCard: 해지', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('없음')).toBeInTheDocument()
+    expect(screen.getByText('기록 없음')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
   })
 
@@ -267,7 +267,7 @@ describe('BillingKeyCard: 해지', () => {
 
     expect(await screen.findByText('등록된 카드가 없었어요')).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
-    expect(screen.getByText('없음')).toBeInTheDocument()
+    expect(screen.getByText('기록 없음')).toBeInTheDocument()
   })
 
   it('요청 중에는 대화상자가 닫히지 않고 버튼이 막힌다', async () => {
@@ -318,8 +318,8 @@ describe('BillingKeyCard: 해지', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
-    // 오류 안내는 대화상자 뒤 카드 안에 있다(대화상자가 열려 있어 접근성 트리에서는 가려진다)
-    expect(await screen.findByText(/문제가 생겼어요/)).toBeInTheDocument()
+    // 오류 안내는 대화상자 안에 있다. 카드에 두면 모달 뒤에 가려져 읽히지 않는다
+    expect(await within(dialog).findByText(/문제가 생겼어요/)).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).not.toBeNull()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '해지' })).not.toHaveAttribute(
@@ -356,8 +356,156 @@ describe('BillingKeyCard: 같은 화면의 카드 둘', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
     await waitFor(() => {
-      expect(second.getByText('없음')).toBeInTheDocument()
+      expect(second.getByText('기록 없음')).toBeInTheDocument()
     })
     expect(second.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
+  })
+})
+
+describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
+  it('crypto.randomUUID가 없는 http 주소에서도 등록한다', async () => {
+    // 배포는 http://<EC2 주소>라 보안 컨텍스트가 아니고 crypto.randomUUID가 없다(ADR 0040)
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { value: undefined, configurable: true })
+    try {
+      const requests = recordRequests(REGISTER_API)
+      renderCards()
+
+      await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
+
+      expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+      expect(await requests[0].json()).toEqual({
+        authKey: expect.stringMatching(/^demo-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/),
+      })
+    } finally {
+      Reflect.deleteProperty(globalThis.crypto, 'randomUUID')
+    }
+  })
+
+  it('기록이 없어도 다른 곳에서 등록한 카드를 해지할 수 있다', async () => {
+    mockDb.billingKeys.push({ billingKeyId: 7, userId: USER_ID, status: 'ACTIVE' })
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '다른 곳에서 등록한 카드 해지' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+
+    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
+    expect(hasActiveBillingKey(USER_ID)).toBe(false)
+  })
+
+  it('등록 결과를 모르면 안내에서 바로 해지할 수 있고, 해지하면 그 안내가 사라진다', async () => {
+    mockServer.use(http.post(REGISTER_API, () => fail(504, 'INTERNAL_SERVER_ERROR', '시간 초과')))
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
+    const notice = (await screen.findByText('등록됐는지 확인하지 못했어요')).closest(
+      '[data-slot="alert"]',
+    )
+    expect(notice).not.toBeNull()
+    await userEvent.click(within(notice as HTMLElement).getByRole('button', { name: '해지' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+
+    expect(await screen.findByText('등록된 카드가 없었어요')).toBeInTheDocument()
+    expect(screen.queryByText('등록됐는지 확인하지 못했어요')).not.toBeInTheDocument()
+    // 연 버튼(안내의 해지)이 사라졌으니 등록 버튼으로 초점이 간다
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '카드 등록' })).toHaveFocus()
+    })
+  })
+})
+
+describe('BillingKeyCard: 초점과 지난 오류', () => {
+  it('취소하면 대화상자를 연 해지 버튼으로 초점이 돌아간다', async () => {
+    seedActiveCard()
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '해지' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '해지' })).toHaveFocus()
+    })
+  })
+
+  it('해지하면 해지 버튼이 사라지므로 카드 등록 버튼으로 초점이 간다', async () => {
+    seedActiveCard()
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '해지' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '카드 등록' })).toHaveFocus()
+    })
+  })
+
+  it('해지가 실패한 뒤 대화상자를 다시 열면 지난 오류를 보이지 않는다', async () => {
+    seedActiveCard()
+    mockServer.use(http.delete(REVOKE_API, () => fail(500, 'INTERNAL_SERVER_ERROR', '서버 오류')))
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '해지' }))
+    let dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+    expect(await within(dialog).findByText(/문제가 생겼어요/)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: '해지' }))
+    dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByText(/문제가 생겼어요/)).not.toBeInTheDocument()
+  })
+
+  it('카드를 바꾸다 실패한 뒤 해지하면 등록 실패 안내가 사라진다', async () => {
+    seedActiveCard()
+    setMockScenario({ billing: 'unavailable' })
+    renderCards()
+
+    await userEvent.click(screen.getByRole('button', { name: '다른 카드로 바꾸기' }))
+    expect(await screen.findByText('카드사 연결이 원활하지 않아요')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '해지' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+
+    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
+    expect(screen.queryByText('카드사 연결이 원활하지 않아요')).not.toBeInTheDocument()
+  })
+})
+
+describe('BillingKeyCard: 다른 탭과 제목', () => {
+  it('다른 탭이 기록을 바꾸면(storage 이벤트) 바로 다시 그린다', () => {
+    renderCards()
+    expect(screen.getByText('기록 없음')).toBeInTheDocument()
+
+    // 다른 탭의 저장은 이 탭의 알림을 거치지 않고 storage 이벤트로만 온다
+    const key = `iseonjwa.billingKey.${USER_ID}`
+    localStorage.setItem(
+      key,
+      JSON.stringify({ cardLast4: '4242', registeredAt: '2026-11-04T03:00:00.000Z' }),
+    )
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key }))
+    })
+    expect(screen.getByText('등록됨')).toBeInTheDocument()
+
+    localStorage.removeItem(key)
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
+    })
+    expect(screen.getByText('기록 없음')).toBeInTheDocument()
+  })
+
+  it('카드가 둘이어도 각 영역의 제목 id가 겹치지 않는다', () => {
+    renderCards(2)
+
+    const regions = screen.getAllByRole('region', { name: '자동결제 카드' })
+    expect(regions).toHaveLength(2)
+    const ids = regions.map((region) => region.getAttribute('aria-labelledby'))
+    expect(new Set(ids).size).toBe(2)
   })
 })

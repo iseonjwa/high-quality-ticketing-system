@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   readBillingKeyRecord,
   removeBillingKeyRecord,
@@ -7,11 +7,6 @@ import {
 
 const KEY_OF_42 = 'iseonjwa.billingKey.42'
 const RECORD = { cardLast4: '4242', registeredAt: '2026-11-04T12:00:00.000Z' }
-
-// 전역 setup은 sessionStorage만 비운다
-afterEach(() => {
-  localStorage.clear()
-})
 
 describe('billingKeyRecord', () => {
   it('저장한 기록을 그대로 읽는다', () => {
