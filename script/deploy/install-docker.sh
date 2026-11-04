@@ -4,7 +4,7 @@
 # Docker 공식 문서의 Ubuntu apt 저장소 설치 순서를 그대로 따른다. 끝나면 다시 로그인해야 sudo 없이 docker를 쓴다.
 set -euo pipefail
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl git
+sudo apt-get install -y ca-certificates curl git jq
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
