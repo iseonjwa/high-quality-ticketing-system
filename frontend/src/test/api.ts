@@ -1,6 +1,6 @@
 import { joinQueue, issueEntryToken } from '@/api/queue'
 import { login } from '@/api/auth'
-import { DEMO_USER } from '@/mocks/db'
+import { ADMIN_USER, DEMO_USER } from '@/mocks/db'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
 
@@ -17,6 +17,10 @@ export const SEAT_A3 = 1003
 
 export function signInAsDemo() {
   return login({ email: DEMO_USER.email, password: DEMO_USER.password })
+}
+
+export function signInAsAdmin() {
+  return login({ email: ADMIN_USER.email, password: ADMIN_USER.password })
 }
 
 // 대기 없이 입장 토큰까지 받는다
