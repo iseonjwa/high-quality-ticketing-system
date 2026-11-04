@@ -11,6 +11,8 @@ import com.iseonjwa.reservation.lottery.application.LotteryFinishService;
 import com.iseonjwa.reservation.lottery.application.LotteryPaymentResultHandler;
 import com.iseonjwa.reservation.lottery.application.LotterySuccessionService;
 import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
+import com.iseonjwa.reservation.reservation.application.PaymentResult;
+import com.iseonjwa.reservation.reservation.application.PaymentResultService;
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,8 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 추첨 서비스 내부 시나리오(ISE-151). 설정부터 종결까지 서비스를 차례로 불러 기능이 이어지는지 확인한다.
- * 스케줄러는 끄고, 시각은 SQL로 옮긴다. 결제 결과는 추첨 처리기를 직접 불러 대신하고, 결제 결과 소비자(ISE-73)가 할
- * 거절 예매의 좌석 반환은 {@link #releaseLikeResultConsumer}로 흉내 낸다. 서비스 사이 흐름은 ISE-143 E2E에서 본다.
+ * 스케줄러는 끄고, 시각은 SQL로 옮긴다. S12·S13만 실제 결제 결과 소비자를 거친다(ISE-150). 나머지는 결제 결과를 추첨 처리기를 직접
+ * 불러 대신하고, 소비자가 할 거절 예매의 좌석 반환은 {@link #releaseLikeResultConsumer}로 흉내 낸다(S11처럼 반환이 늦는 순서를
+ * 만들기 위해서다). 서비스 사이 흐름은 ISE-143 E2E에서 본다.
  */
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
@@ -60,6 +64,8 @@ class LotteryScenarioTest {
     LotteryFinishService finishService;
     @Autowired
     SeatHoldExpiryService expiryService;
+    @Autowired
+    PaymentResultService paymentResults;
     @Autowired
     JdbcTemplate jdbc;
 
@@ -87,6 +93,9 @@ class LotteryScenarioTest {
                 scheduleId);
         jdbc.update("DELETE FROM lotteries WHERE schedule_id = ?", scheduleId);
         String reservationsOfSchedule = "(SELECT id FROM reservations WHERE schedule_id = ?)";
+        jdbc.update("DELETE FROM tickets WHERE reservation_seat_id IN (SELECT id FROM reservation_seats"
+                + " WHERE reservation_id IN " + reservationsOfSchedule + ")", scheduleId);
+        jdbc.update("DELETE FROM processed_events WHERE consumer_group = ?", PaymentResultService.CONSUMER_GROUP);
         jdbc.update("DELETE FROM reservation_status_histories WHERE reservation_id IN " + reservationsOfSchedule,
                 scheduleId);
         jdbc.update("DELETE FROM reservation_seats WHERE reservation_id IN " + reservationsOfSchedule, scheduleId);
@@ -305,6 +314,63 @@ class LotteryScenarioTest {
         assertEquals(2, countEntries("PAID"));
     }
 
+    // S12(ISE-150) 처리기를 직접 부르지 않고 결제 결과 소비자로 잇는다: 거절 → 좌석 반환·FAILED → 승계 → 재배정 → 승인 → PAID → 종결
+    @Test
+    void S12_결제_결과_소비자가_거절과_승인을_응모까지_반영한다() {
+        setUpLottery(1, 1, 1);
+        enterAll(2, 1);
+        closeAndDraw();
+        assignAll();
+        Long declined = reservationsOfWinners().getFirst();
+
+        paymentResults.handle(PaymentResult.declined(UUID.randomUUID(), 9201L, declined, ownerOf(declined),
+                "CARD_DECLINED"));
+        assertEquals(1, countEntries("FAILED"));
+        assertEquals("RELEASED", reservationStatus(declined));
+
+        assertEquals(1, successionService.succeed(lotteryId));
+        assertEquals(1, assignAll().size(), "거절 처리가 좌석을 돌려줘 승계자를 바로 배정한다");
+        Long approved = reservationsOfWinners().getFirst();
+        paymentResults.handle(PaymentResult.approved(UUID.randomUUID(), 9202L, approved, ownerOf(approved),
+                BigDecimal.valueOf(100000), "KRW", Instant.now()));
+
+        assertEquals("CONFIRMED", reservationStatus(approved));
+        assertEquals(1, countEntries("PAID"));
+        assertEquals(1, soldSeats(), "확정하면 추첨석이 팔린다");
+        assertEquals(1, tickets(approved));
+        assertEquals(Optional.of(1), finishService.finish(lotteryId));
+    }
+
+    // S13(ISE-150) NOT_SENT를 소비자로 받으면 보유 매수까지 돌려줘 2매 응모도 한도에 걸리지 않고 다시 배정된다(D12)
+    @Test
+    void S13_NOT_SENT_거절_뒤_2매_응모가_새_예매로_다시_배정되어_결제된다() {
+        setUpLottery(2, 0, 2);
+        // 한도를 응모 매수와 같게 둔다. 거절이 보유 매수를 돌려주지 않으면 재배정이 한도에 걸린다
+        jdbc.update("UPDATE schedules SET max_per_user = 2 WHERE id = ?", scheduleId);
+        enterAll(1, 2);
+        closeAndDraw();
+        assignAll();
+        Long first = reservationsOfWinners().getFirst();
+
+        paymentResults.handle(PaymentResult.declined(UUID.randomUUID(), 9301L, first, ownerOf(first), "NOT_SENT"));
+        assertEquals("RELEASED", reservationStatus(first));
+        assertEquals(1, countEntries("WON"), "우리 책임 실패는 당첨을 유지한다");
+
+        assertEquals(1, assignAll().size(), "매수와 좌석이 돌아와 다시 배정된다");
+        Long second = reservationsOfWinners().getFirst();
+        assertFalse(first.equals(second));
+        paymentResults.handle(PaymentResult.approved(UUID.randomUUID(), 9302L, second, ownerOf(second),
+                BigDecimal.valueOf(200000), "KRW", Instant.now()));
+
+        assertEquals("CONFIRMED", reservationStatus(second));
+        assertEquals(1, countEntries("PAID"));
+        assertEquals(2, soldSeats());
+        assertEquals(2, tickets(second));
+        assertEquals(2, billingRequests());
+        assertEquals(2, jdbc.queryForObject("SELECT payment_attempts FROM lottery_entries WHERE lottery_id = ?",
+                Integer.class, lotteryId));
+    }
+
     private void setUpLottery(int seatCount, int waitlistCount, int sSeats) {
         jdbc.update("INSERT INTO venue_seats (venue_id, section, row_no, seat_no, grade, created_at, updated_at)"
                 + " SELECT ?, 'B', 1, n, 'S', now(), now() FROM generate_series(1, ?) n", venueId, sSeats);
@@ -376,6 +442,14 @@ class LotteryScenarioTest {
                 + " hold_expires_at = hold_expires_at - interval '31 minute' WHERE id = ?", reservationId);
     }
 
+    private long ownerOf(Long reservationId) {
+        return jdbc.queryForObject("SELECT user_id FROM reservations WHERE id = ?", Long.class, reservationId);
+    }
+
+    private String reservationStatus(Long reservationId) {
+        return jdbc.queryForObject("SELECT status FROM reservations WHERE id = ?", String.class, reservationId);
+    }
+
     private List<Long> reservationsOfWinners() {
         return jdbc.queryForList("SELECT reservation_id FROM lottery_entries WHERE lottery_id = ? AND status = 'WON'"
                 + " AND reservation_id IS NOT NULL ORDER BY draw_rank", Long.class, lotteryId);
@@ -389,6 +463,16 @@ class LotteryScenarioTest {
     private int seats(String grade) {
         return jdbc.queryForObject("SELECT count(*) FROM schedule_seats WHERE schedule_id = ? AND grade = ?",
                 Integer.class, scheduleId, grade);
+    }
+
+    private int soldSeats() {
+        return jdbc.queryForObject("SELECT count(*) FROM schedule_seats WHERE schedule_id = ? AND status = 'SOLD'",
+                Integer.class, scheduleId);
+    }
+
+    private int tickets(Long reservationId) {
+        return jdbc.queryForObject("SELECT count(*) FROM tickets t JOIN reservation_seats rs"
+                + " ON rs.id = t.reservation_seat_id WHERE rs.reservation_id = ?", Integer.class, reservationId);
     }
 
     private int billingRequests() {

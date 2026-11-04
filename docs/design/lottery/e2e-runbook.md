@@ -8,11 +8,11 @@
 |---|---|---|
 | 설정 → 응모 → 마감 → 추첨 → 배정(예매 HELD) | 가능 | ISE-85·86·87·90 |
 | 자동결제 요청 outbox → `payment.command` → 결제 리스너 → 빌링키 자동결제 → `payment.result` 발행 | 가능 | ISE-147·92·89·96 |
-| `payment.result` → 예매 확정·발권 → 추첨 응모 PAID | **불가**(소비자 없음) | ISE-73(예매 흐름) → ISE-150 |
+| `payment.result` → 예매 확정·발권 → 추첨 응모 PAID | 연결됨(11/4 ISE-150). 서비스 통합 테스트까지 확인, compose 스택에서는 미확인 | ISE-73(예매 흐름) → ISE-150 |
 | 결과 미수신 만료 → 1회 연장 → FAILED → 승계 | 가능(30분 + 30분을 기다리거나 DB 시각 조정) | ISE-149·93 |
-| 종결·추첨석 반환 | 결제 결과 연결 뒤 가능 | ISE-91 |
+| 종결·추첨석 반환 | 연결됨(11/4 ISE-150). 서비스 통합 테스트까지 확인, compose 스택에서는 미확인 | ISE-91 |
 
-그래서 지금 E2E의 끝은 "payment DB에 `method = BILLING` 결제가 APPROVED이고 `payment.result` outbox 행이 SENT"까지다. 응모가 PAID로 바뀌는 것은 ISE-150 뒤에 확인한다.
+아래 4절의 끝은 "payment DB에 `method = BILLING` 결제가 APPROVED이고 `payment.result` outbox 행이 SENT"까지다. 응모가 PAID로 바뀌는 것은 6절에서 확인한다.
 
 ## 2. 준비
 
@@ -51,10 +51,10 @@ SELECT status, event_type, message_key FROM outbox_events WHERE event_type IN ('
 - Kafka UI(`payment.command`, `payment.result`)에서 같은 키(`reservationId`)의 메시지를 볼 수 있다.
 
 ## 5. 실패 경로 확인(선택)
-- 결제 거절: Mock PG 장애 주입(`POST /mock-pg/faults`, 측정·테스트 프로필)으로 다음 승인을 `DECLINE`로 둔다. 결과 소비자(ISE-150)가 생기기 전에는 payment DB의 `DECLINED`까지만 확인된다.
+- 결제 거절: Mock PG 장애 주입(`POST /mock-pg/faults`, 측정·테스트 프로필)으로 다음 승인을 `DECLINE`로 둔다. payment DB의 `DECLINED` 뒤의 응모 전이는 6절에서 확인한다.
 - 허가 대기(백프레셔): Mock PG에 지연을 넣어 `pg-approve` 동시 10을 채우면 자동결제 메시지가 DLQ로 가지 않고 다시 읽힌다. 로그 `PG 승인 허가 거절` 빈도와 `payment.command.dlq`가 비어 있는지 본다.
 
-## 6. ISE-150 뒤에 더할 확인
+## 6. 결제 결과 반영 확인(ISE-150 연결, compose 스택에서 아직 돌리지 않음)
 - 응모 `PAID`, 예매 `CONFIRMED`·티켓 발권.
 - 결제 거절 → 응모 `FAILED` → 예비자 승계 → 새 예매·새 자동결제.
 - 승계 마감(추첨 후 30분) 뒤 종결 → `lotteries.status = DONE`, 남은 추첨석이 S석으로 일반 판매에.
