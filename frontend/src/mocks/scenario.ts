@@ -23,6 +23,12 @@ export interface MockScenario {
     | 'late-approval'
   // unavailable: 자동결제 카드 등록이 503 PG_UNAVAILABLE로 끝난다(해지는 영향 없다)
   billing: 'ok' | 'unavailable'
+  // 추첨 3번(추첨 완료)의 데모 응모 결과와 응모 실패. 기본은 처음 조회 WON, 다음 조회부터 PAID(예매 확정)
+  // waitlisted: 예비 순번 3번, lost: 낙첨
+  // failed: 처음 조회 WON, 다음 조회부터 FAILED(BILLING_KEY_MISSING)
+  // unknown: 첫 응모 POST가 서버에서는 성립하지만 504. 같은 멱등키로 다시 보내면 201(그 응모의 지금 상태)
+  // closed: 응모 POST가 409 LOTTERY_NOT_OPEN
+  lottery: 'default' | 'waitlisted' | 'lost' | 'failed' | 'unknown' | 'closed'
 }
 
 const DEFAULT_SCENARIO: MockScenario = {
@@ -30,6 +36,7 @@ const DEFAULT_SCENARIO: MockScenario = {
   seatHold: 'held',
   payment: 'approved',
   billing: 'ok',
+  lottery: 'default',
 }
 
 let current: MockScenario = { ...DEFAULT_SCENARIO }
@@ -60,6 +67,11 @@ export const SCENARIO_SWITCHES = {
   'payment-slow-confirm': { payment: 'slow-confirm' },
   'payment-late-approval': { payment: 'late-approval' },
   'billing-unavailable': { billing: 'unavailable' },
+  'lottery-waitlisted': { lottery: 'waitlisted' },
+  'lottery-lost': { lottery: 'lost' },
+  'lottery-failed': { lottery: 'failed' },
+  'lottery-unknown': { lottery: 'unknown' },
+  'lottery-closed': { lottery: 'closed' },
 } as const satisfies Record<string, Partial<MockScenario>>
 
 export function parseScenarioSwitches(value: string): Partial<MockScenario> {
