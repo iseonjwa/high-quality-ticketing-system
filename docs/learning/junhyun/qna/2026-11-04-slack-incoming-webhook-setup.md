@@ -53,7 +53,7 @@ curl -sS -X POST -H 'Content-type: application/json' \
 - 성공하면 응답 본문이 `ok`이고 채널에 메시지가 뜬다. 명령 기록에 주소가 남지 않게 변수로 넘긴다.
 
 ### 6. 받는 쪽이 이 주소를 쓰는 방법
-- **Alertmanager**: `slack_configs`의 `api_url`이나 `api_url_file`에 넣는다. 설정 파일은 환경 변수를 풀어 주지 않으므로, 주소를 파일로 마운트해 `api_url_file`로 읽게 하는 방식이 비밀값을 설정 파일 밖에 두기 좋다. `send_resolved`는 슬랙에서 기본값이 `false`라 해결 알림을 받으려면 `true`로 켠다(ADR 0045).
+- **Alertmanager**: `slack_configs`의 `api_url`이나 `api_url_file`에 넣는다. 설정 파일은 환경 변수를 풀어 주지 않으므로, 주소를 파일로 만들어 `api_url_file`로 읽게 하는 방식이 비밀값을 설정 파일 밖에 두기 좋다. 이 프로젝트는 compose `configs`의 `content`로 `.env` 값을 파일로 만들어 마운트하고, 값이 없으면 보내지 않는 자리표시 주소를 넣는다(compose `secrets`의 `environment` 방식은 변수가 없으면 compose 전체가 실패한다). `send_resolved`는 슬랙에서 기본값이 `false`라 해결 알림을 받으려면 `true`로 켠다(ADR 0045).
 - **Jenkins**: 플러그인 없이 파이프라인의 `curl` 한 줄로 보낸다. 주소는 `withCredentials`로 꺼낸다.
 
 ### 7. 봇 토큰과 앱 토큰은 필요 없다
