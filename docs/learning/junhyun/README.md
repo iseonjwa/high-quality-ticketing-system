@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | GHCR(GitHub Container Registry)은 무엇이고 왜 쓰나 | [qna/2026-11-04-what-is-ghcr.md](qna/2026-11-04-what-is-ghcr.md) |
 | 2026-11-04 | Grafana Alloy는 무엇이고 왜 쓰나 | [qna/2026-11-04-grafana-alloy-what-is.md](qna/2026-11-04-grafana-alloy-what-is.md) |
 | 2026-11-04 | GitHub Actions로 배포 이미지를 만들어 GHCR에 올리는 워크플로는 어떻게 읽나 | [qna/2026-11-04-github-actions-ghcr-image-workflow.md](qna/2026-11-04-github-actions-ghcr-image-workflow.md) |
 | 2026-11-04 | 배포용 AWS 계정을 만든 뒤 무엇을 어떤 순서로 설정하나 | [qna/2026-11-04-aws-account-initial-setup.md](qna/2026-11-04-aws-account-initial-setup.md) |
