@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { authQueryKeys, getMe, type Me } from '@/api/auth'
 import { paths } from '@/app/paths'
 import type { AuthNavigationState } from '@/auth/navigation'
+import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -45,6 +46,7 @@ export function MyInfoPage() {
           </CardContent>
         </Card>
       )}
+      {me.data ? <BillingKeyCard userId={me.data.userId} /> : null}
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline">
           <Link to={paths.passwordChange} state={passwordChangeState}>
