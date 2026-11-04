@@ -21,9 +21,16 @@ export interface MockScenario {
     | 'manual'
     | 'slow-confirm'
     | 'late-approval'
+  // unavailable: 자동결제 카드 등록이 503 PG_UNAVAILABLE로 끝난다(해지는 영향 없다)
+  billing: 'ok' | 'unavailable'
 }
 
-const DEFAULT_SCENARIO: MockScenario = { queue: 'waiting', seatHold: 'held', payment: 'approved' }
+const DEFAULT_SCENARIO: MockScenario = {
+  queue: 'waiting',
+  seatHold: 'held',
+  payment: 'approved',
+  billing: 'ok',
+}
 
 let current: MockScenario = { ...DEFAULT_SCENARIO }
 
@@ -52,6 +59,7 @@ export const SCENARIO_SWITCHES = {
   'payment-manual': { payment: 'manual' },
   'payment-slow-confirm': { payment: 'slow-confirm' },
   'payment-late-approval': { payment: 'late-approval' },
+  'billing-unavailable': { billing: 'unavailable' },
 } as const satisfies Record<string, Partial<MockScenario>>
 
 export function parseScenarioSwitches(value: string): Partial<MockScenario> {

@@ -105,6 +105,13 @@ export interface MockVenue {
   grades: string[]
 }
 
+// 사용자당 ACTIVE는 하나다. 다시 등록하면 앞 키는 REVOKED가 된다(V5__billing_keys.sql)
+export interface MockBillingKey {
+  billingKeyId: number
+  userId: number
+  status: 'ACTIVE' | 'REVOKED'
+}
+
 interface MockState {
   nextId: number
   users: MockUser[]
@@ -141,6 +148,8 @@ interface MockState {
       storedResponse: StoredPaymentResponse | null
     }
   >
+  // 등록된 빌링키(해지한 것 포함). 추첨 당첨 자동결제는 hasActiveBillingKey로 본다
+  billingKeys: MockBillingKey[]
   seatConflictUsed: boolean
   // hold-unknown이 이미 504를 줬는지
   holdUnknownUsed: boolean
@@ -208,6 +217,11 @@ export function advanceConfirmation(reservation: MockReservation) {
     return
   }
   reservation.confirmAfterChecks -= 1
+}
+
+// 이 사용자가 ACTIVE 빌링키를 갖고 있는가. 추첨 목이 당첨 자동결제를 거절할지(BILLING_KEY_MISSING) 볼 때 쓴다
+export function hasActiveBillingKey(userId: number): boolean {
+  return mockDb.billingKeys.some((key) => key.userId === userId && key.status === 'ACTIVE')
 }
 
 export function releaseSeats(seatIds: number[]) {
@@ -335,6 +349,7 @@ function createInitialState(nowMillis = Date.now()): MockState {
     holdRequests: new Map(),
     payments: new Map(),
     paymentRequests: new Map(),
+    billingKeys: [],
     seatConflictUsed: false,
     holdUnknownUsed: false,
     queueUnavailableLeft: 1,
