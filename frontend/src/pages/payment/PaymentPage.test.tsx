@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
-import { holdSeats, type HeldSeatHold } from '@/api/reservations'
+import { holdSeats, reservationQueryKeys, type HeldSeatHold } from '@/api/reservations'
 import { paymentPath } from '@/app/paths'
 import { routes } from '@/app/routes'
 import { readHeldSeats, saveHeldSeats, type HeldSeat } from '@/auth/heldSeats'
@@ -17,7 +17,7 @@ import { mockServer } from '@/mocks/server'
 import { formatWon } from '@/lib/format'
 import { paymentNavigationState } from '@/pages/payment/paymentNavigation'
 import { queueNavigationState, readQueueConcert } from '@/pages/queue/queueNavigation'
-import { readReservationNavigation } from '@/pages/reservations/reservationNavigation'
+import { readReservationHeading } from '@/pages/reservations/reservationNavigation'
 import {
   admitTo,
   CONCERT_ID,
@@ -80,7 +80,14 @@ interface Visit {
   action: string
 }
 
-const resultPath = (held: Held) => `/reservations/${held.hold.reservationId}`
+// 결제 직후의 결과 경로. 이미 확정된 예매로 결제 화면을 열면 상세(detailPath)로 보낸다
+const resultPath = (held: Held) => `/reservations/${held.hold.reservationId}/complete`
+const detailPath = (held: Held) => `/reservations/${held.hold.reservationId}`
+const HEADING = {
+  title: CONCERT.title,
+  startsAt: CONCERT.startsAt,
+  venueName: CONCERT.venueName,
+}
 const QUEUE_PATH = `/schedules/${ON_SALE_SCHEDULE_ID}/queue`
 
 const visitTo = (visited: Visit[], pathname: string) =>
@@ -121,12 +128,12 @@ function renderPayment({ navigation, reservationId }: RenderOptions) {
     visited.push({ pathname: location.pathname, state: location.state, action: historyAction }),
   )
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  return { router, visited }
+  return { router, visited, queryClient, unmount }
 }
 
 const payButton = () => screen.findByRole('button', { name: /원 결제하기$/ })
@@ -171,6 +178,18 @@ function declinedResponse(reservationId: number, reasonCode: string) {
     ok({ paymentId: 5001, reservationId, status: 'DECLINED', reasonCode }),
   )
 }
+
+// 확인 중 상자의 제목. 같은 글자가 늘 있는 알림 영역(sr-only role=status)에도 있어 그 밖의 것만 고른다
+async function findPendingTitle(text: string) {
+  const found = await screen.findAllByText(text)
+  const box = found.find((element) => element.closest('[role="status"]') === null)
+  if (box === undefined) {
+    throw new Error(`확인 중 상자에 "${text}" 제목이 없다`)
+  }
+  return box
+}
+
+const statusText = () => screen.getByRole('status').textContent
 
 // 알림이 뜨면 초점이 가는 자리(알림을 감싼 칸)
 function alertSlotOf(title: string) {
@@ -241,36 +260,29 @@ describe('PaymentPage 결제 대상', () => {
     expect(body.paymentToken).toBe(tokens[0])
   })
 
-  it('예매가 이미 확정이면 결제 화면 대신 결과 경로로 바꿔 들어가며 공연 요약을 넘긴다', async () => {
+  it('예매가 이미 확정이면 결제 화면 대신 예매 상세로 바꿔 들어가고 이동 값은 넘기지 않는다', async () => {
     const held = await hold()
     reservationOf(held.hold.reservationId).status = 'CONFIRMED'
     const payments = recordRequests(PAYMENTS_API)
     const { router } = renderPayment({ navigation: { held } })
 
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe(`/reservations/${held.hold.reservationId}`),
-    )
+    await waitFor(() => expect(router.state.location.pathname).toBe(detailPath(held)))
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(readReservationNavigation(router.state.location.state)).toEqual({
-      concert: CONCERT,
-      fromPayment: true,
-    })
+    // 방금 결제를 끝낸 것인지 알 수 없어 결과 화면(완료)으로 보내지 않는다
+    expect(router.state.location.pathname).not.toBe(resultPath(held))
+    expect(router.state.location.state).toBeNull()
+    expect(readReservationHeading(router.state.location.state)).toBeNull()
     expect(payments).toHaveLength(0)
   })
 
-  it('이동 값이 없어도 확정된 예매는 결과 경로로 바꿔 들어가고 공연 요약은 비어 있다', async () => {
+  it('이동 값이 없어도 확정된 예매는 예매 상세로 바꿔 들어간다', async () => {
     const held = await hold()
     reservationOf(held.hold.reservationId).status = 'CONFIRMED'
     const { router } = renderPayment({ reservationId: held.hold.reservationId })
 
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe(`/reservations/${held.hold.reservationId}`),
-    )
+    await waitFor(() => expect(router.state.location.pathname).toBe(detailPath(held)))
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(readReservationNavigation(router.state.location.state)).toEqual({
-      concert: null,
-      fromPayment: true,
-    })
+    expect(readReservationHeading(router.state.location.state)).toBeNull()
   })
 
   it.each(['EXPIRED', 'RELEASED'] as const)(
@@ -348,6 +360,11 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
 
     expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
     expect(await payButton()).toBeDisabled()
+    // 서버 시계로 시간이 지나 버튼이 막히면 초점을 알림으로 옮긴다
+    expect(alertSlotOf('결제 가능 시간이 지났어요')).toHaveFocus()
+    expect(
+      screen.getByText('잡아 둔 좌석은 곧 풀려요. 좌석을 다시 골라 주세요.'),
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     screen.getAllByRole('timer').forEach((timer) => expect(timer).toHaveTextContent('00:00'))
     await userEvent.click(screen.getByRole('button', { name: /결제하기$/ }))
@@ -389,23 +406,64 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
     expect(screen.getByRole('button', { name: '좌석 다시 고르기' })).toBeInTheDocument()
   })
 
-  it('결제 요청 중·확인 중에는 보이고 승인되거나 거절되면 숨긴다', async () => {
+  it('결제 요청 중에는 보인다', async () => {
+    const held = await hold()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    mockServer.use(
+      http.post(PAYMENTS_API, async () => {
+        await gate
+        return undefined
+      }),
+    )
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByRole('button', { name: '결제하는 중' })).toBeInTheDocument()
+    expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
+    release()
+  })
+
+  it('결제 ID를 받기 전 확인 중(응답 없음)에는 보인다', async () => {
+    const held = await hold()
+    mockServer.use(http.post(PAYMENTS_API, () => HttpResponse.error()))
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await findPendingTitle('결제 요청을 보내고 있어요')).toBeInTheDocument()
+    expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
+  })
+
+  it('결제 ID를 받은 확인 중부터 숨기고 승인되고 나서도 숨긴다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'unknown' })
     const held = await hold()
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
-    expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
+    expect(await findPendingTitle('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.queryAllByRole('timer')).toHaveLength(0)
 
     await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    expect(screen.queryAllByRole('timer')).toHaveLength(0)
+  })
+
+  it('거절되면 숨긴다', async () => {
+    setMockScenario({ payment: 'declined' })
+    const held = await hold()
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText('결제가 거절됐어요')).toBeInTheDocument()
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
   })
 })
 
 describe('PaymentPage 결제하기', () => {
-  it('누르면 본문·멱등키로 보내고 저장한 선점을 지우며, 요청 중에는 결제하는 중으로 바꿔 한 번만 보낸다', async () => {
+  it('누르면 본문·멱등키로 보내고, 요청 중에는 결제하는 중으로 바꿔 한 번만 보낸다. 저장한 선점은 서버에 결제가 생길 때까지 둔다', async () => {
     const held = await hold()
     saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
     let release!: () => void
@@ -431,30 +489,31 @@ describe('PaymentPage 결제하기', () => {
       method: 'CARD',
     })
     expect(payments[0].headers.get('Idempotency-Key')).toBeTruthy()
-    // 결제를 시작하면 좌석 화면이 이 선점으로 대화상자를 다시 띄우지 않는다
-    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
+    // 누르자마자 지우지 않는다. 결제가 생기기 전이면 살아 있는 선점이라 좌석 화면이 다시 보여 줄 수 있어야 한다
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
     release()
+    // 승인돼 확정을 확인하는 단계가 되면 지운다
+    await waitFor(() => expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull())
   })
 
-  it('승인되면 결제가 승인됐다고 알리고, 예매가 확정되면 결과 경로로 바꿔 들어가며 공연 요약을 넘긴다', async () => {
+  it('승인되면 결제가 승인됐다고 알리고, 예매가 확정되면 결과 경로로 바꿔 들어가며 공연 제목 줄을 넘기고 상세 캐시에 확정된 예매를 둔다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const held = await hold()
-    const { router } = renderPayment({ navigation: { held } })
+    const { router, queryClient } = renderPayment({ navigation: { held } })
 
     await clickPay()
     expect(await screen.findByText('결제가 승인됐어요')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
 
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
-    expect(router.state.location.pathname).toBe(`/reservations/${held.hold.reservationId}`)
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(readReservationNavigation(router.state.location.state)).toEqual({
-      concert: CONCERT,
-      fromPayment: true,
-    })
+    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+    expect(
+      queryClient.getQueryData(reservationQueryKeys.detail(held.hold.reservationId)),
+    ).toMatchObject({ reservationId: held.hold.reservationId, status: 'CONFIRMED' })
   })
 
-  it('이동 값 없이 시작해도 확정되면 결과 경로로 가고 공연 요약은 비어 있다', async () => {
+  it('이동 값 없이 시작해도 확정되면 결과 경로로 가고 공연 제목 줄은 비어 있다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const held = await hold()
     const { router } = renderPayment({ reservationId: held.hold.reservationId })
@@ -462,11 +521,7 @@ describe('PaymentPage 결제하기', () => {
     await clickPay()
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
 
-    expect(router.state.location.pathname).toBe(`/reservations/${held.hold.reservationId}`)
-    expect(readReservationNavigation(router.state.location.state)).toEqual({
-      concert: null,
-      fromPayment: true,
-    })
+    expect(readReservationHeading(router.state.location.state)).toBeNull()
   })
 
   it('결과를 기다리는 중에는 확인 중 표시만 두고, 승인되면 승인 표시로 바꾼 뒤 결과 경로로 간다', async () => {
@@ -477,14 +532,121 @@ describe('PaymentPage 결제하기', () => {
 
     await clickPay()
 
-    const checking = await screen.findByRole('status')
-    expect(checking).toHaveTextContent('결제를 확인하고 있어요')
+    const title = await findPendingTitle('결제를 확인하고 있어요')
+    // 확인 중 상자에는 role이 없다. 알림은 늘 있는 sr-only 영역이 글자를 바꿔 맡는다
+    expect(title.closest('[role]')).toBeNull()
+    expect(statusText()).toBe('결제를 확인하고 있어요')
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 결제하기' })).not.toBeInTheDocument()
 
     await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
-    expect(router.state.location.pathname).toBe(`/reservations/${held.hold.reservationId}`)
+    expect(router.state.location.pathname).toBe(resultPath(held))
+  })
+
+  it('결제 ID를 받기 전에는 화면을 닫지 말라고 하고, 받은 뒤에는 닫아도 된다고 한다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    const first = http.post(PAYMENTS_API, () => HttpResponse.error(), { once: true })
+    mockServer.use(first)
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    const title = await findPendingTitle('결제 요청을 보내고 있어요')
+    expect(title.parentElement).toHaveTextContent(
+      '연결이 잠시 불안정해요. 화면을 닫지 말고 기다려 주세요.',
+    )
+    expect(title.parentElement).not.toHaveTextContent('화면을 닫아도')
+    expect(statusText()).toBe('결제 요청을 보내고 있어요')
+
+    // 재전송이 처음 결과(202, 결제 ID)를 받으면 문구가 바뀐다
+    const confirmed = await findPendingTitle('결제를 확인하고 있어요').catch(() => null)
+    expect(confirmed).toBeNull()
+    await advanceUntil(
+      () => screen.queryAllByText('결제를 확인하고 있어요').length > 0,
+      500,
+      20_000,
+    )
+    const checking = await findPendingTitle('결제를 확인하고 있어요')
+    expect(checking.parentElement).toHaveTextContent('화면을 닫아도')
+    expect(statusText()).toBe('결제를 확인하고 있어요')
+  })
+
+  it('서버에 결제가 생기면(결제 ID를 받은 확인 중) 저장한 선점을 지우고, 결제 결과를 모르는 동안에는 남긴다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
+    mockServer.use(http.post(PAYMENTS_API, () => HttpResponse.error(), { once: true }))
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+    await findPendingTitle('결제 요청을 보내고 있어요')
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
+
+    await advanceUntil(
+      () => screen.queryAllByText('결제를 확인하고 있어요').length > 0,
+      500,
+      20_000,
+    )
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('결제사 장애에서는 저장한 선점을 남긴다', async () => {
+    setMockScenario({ payment: 'pg-unavailable' })
+    const held = await hold()
+    saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
+  })
+
+  it('늘 있는 알림 영역의 글자가 단계마다 바뀐다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    mockServer.use(
+      http.post(PAYMENTS_API, async () => {
+        await gate
+        return undefined
+      }),
+    )
+    renderPayment({ navigation: { held } })
+
+    await payButton()
+    expect(statusText()).toBe('')
+    await clickPay()
+    await screen.findByRole('button', { name: '결제하는 중' })
+    expect(statusText()).toBe('결제를 요청하고 있어요')
+
+    release()
+    await findPendingTitle('결제를 확인하고 있어요')
+    expect(statusText()).toBe('결제를 확인하고 있어요')
+
+    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    expect(statusText()).toBe('결제가 승인됐어요. 예매를 확정하고 있어요')
+  })
+
+  it('확인 중이 되면 초점을 결제 금액 제목으로 옮긴다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+    await findPendingTitle('결제를 확인하고 있어요')
+    expect(screen.getByRole('heading', { level: 2, name: '결제 금액' })).toHaveFocus()
+
+    // 확정 확인으로 바뀌어도 제목에 있다
+    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    expect(screen.getByRole('heading', { level: 2, name: '결제 금액' })).toHaveFocus()
   })
 })
 
@@ -501,6 +663,8 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     expect(title.closest('[role="alert"]')).toHaveTextContent('카드 한도가 부족해요.')
     expect(title.closest('[role="alert"]')).toHaveTextContent('잡아 둔 좌석은 풀렸으니')
     expect(alertSlotOf('결제가 거절됐어요')).toHaveFocus()
+    // 거절되면 선점이 끝난다. 좌석 다시 고르기를 누르기 전에 이미 지웠다
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 결제하기' })).not.toBeInTheDocument()
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
@@ -688,7 +852,7 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(await findPendingTitle('결제 요청을 보내고 있어요')).toBeInTheDocument()
     await advanceUntil(
       () => screen.queryByText('결제 결과를 아직 확인하지 못했어요') !== null,
       2000,
@@ -696,10 +860,87 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
 
     expect(screen.queryByText('결제는 승인됐어요')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '결제 결과 확인하기' })).toBeInTheDocument()
     // 처음 요청과 재전송 8번은 모두 같은 멱등키다
     expect(payments).toHaveLength(9)
     const keys = new Set(payments.map((request) => request.headers.get('Idempotency-Key')))
     expect(keys.size).toBe(1)
+  })
+})
+
+describe('PaymentPage 결과 확인과 이어 가기', () => {
+  it('승인 전에 끝난 slowConfirm의 결제 결과 확인하기는 같은 키로 다시 보내 결과를 받는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const held = await hold()
+    mockServer.use(
+      http.post(PAYMENTS_API, () => fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류')),
+    )
+    const payments = recordRequests(PAYMENTS_API)
+    const { router } = renderPayment({ navigation: { held } })
+    await clickPay()
+    await advanceUntil(
+      () => screen.queryByText('결제 결과를 아직 확인하지 못했어요') !== null,
+      2000,
+    )
+    expect(payments).toHaveLength(9)
+
+    // 장애가 풀렸다. 눌러서 같은 키로 다시 보낸다
+    mockServer.resetHandlers()
+    await userEvent.click(screen.getByRole('button', { name: '결제 결과 확인하기' }))
+    await advanceUntil(() => router.state.location.pathname === resultPath(held))
+
+    expect(payments).toHaveLength(10)
+    const keys = new Set(payments.map((request) => request.headers.get('Idempotency-Key')))
+    expect(keys.size).toBe(1)
+  })
+
+  it('승인된 뒤 끝난 slowConfirm에는 결제 결과 확인하기가 없다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'slow-confirm' })
+    const held = await hold()
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+    await advanceUntil(() => screen.queryByText('결제는 승인됐어요') !== null)
+
+    expect(screen.queryByRole('button', { name: '결제 결과 확인하기' })).not.toBeInTheDocument()
+  })
+
+  it('payment-late-approval: 승인됐지만 예매가 만료되면 확정되지 않았고 환불된다고 알린다', async () => {
+    setMockScenario({ payment: 'late-approval' })
+    const held = await hold()
+    saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText('예매가 확정되지 않았어요')).toBeInTheDocument()
+    expect(screen.getByText(/환불돼요/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('새로고침(다시 마운트)하면 같은 키로 이어서 보내 결과를 받고 확정까지 간다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    const payments = recordRequests(PAYMENTS_API)
+    const first = renderPayment({ navigation: { held } })
+    await clickPay()
+    await findPendingTitle('결제를 확인하고 있어요')
+    first.unmount()
+
+    const { router } = renderPayment({ navigation: { held } })
+
+    // 누르지 않아도 이어서 보내 지금 상태(확인 중)를 보인다
+    expect(await findPendingTitle('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
+    await advanceUntil(() => router.state.location.pathname === resultPath(held))
+
+    expect(payments).toHaveLength(2)
+    expect(payments[1].headers.get('Idempotency-Key')).toBe(
+      payments[0].headers.get('Idempotency-Key'),
+    )
   })
 })
 

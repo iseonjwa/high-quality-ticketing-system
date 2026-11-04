@@ -1,24 +1,24 @@
 import { z } from 'zod'
-import { readQueueConcert, type QueueConcert } from '@/pages/queue/queueNavigation'
+import { isoDateTime } from '@/api/envelope'
 
-// 예매 상세(결과) 화면으로 넘기는 값이다. 예매 상세 응답에는 공연 제목이 없어 결제 화면이 가진 공연 요약을
-// 화면 이동 값으로 넘긴다. fromPayment면 결제에서 막 확정된 결과로 보인다(예매 단계 "완료").
+// 예매 상세·결과 화면으로 넘기는 공연 제목 줄이다. 예매 상세 응답에는 공연 제목·일시가 없어서
+// 결제 화면(공연 요약)과 내 예매 목록(공연 제목·시작 시각)이 가진 값을 화면 이동 값으로 넘긴다.
+// 없으면(주소로 들어옴) 예매 번호를 제목으로 쓴다.
 
-const reservationNavigationSchema = z.object({ fromPayment: z.boolean() })
+const reservationHeadingSchema = z.object({
+  title: z.string().min(1),
+  startsAt: isoDateTime,
+  venueName: z.string().nullable(),
+})
+export type ReservationHeading = z.infer<typeof reservationHeadingSchema>
 
-export interface ReservationNavigation {
-  concert: QueueConcert | null
-  fromPayment: boolean
+const reservationNavigationSchema = z.object({ heading: reservationHeadingSchema })
+
+export function reservationNavigationState(heading: ReservationHeading | null) {
+  return heading === null ? {} : { heading }
 }
 
-export function reservationNavigationState({ concert, fromPayment }: ReservationNavigation) {
-  return concert === null ? { fromPayment } : { fromPayment, concert }
-}
-
-export function readReservationNavigation(state: unknown): ReservationNavigation {
+export function readReservationHeading(state: unknown): ReservationHeading | null {
   const parsed = reservationNavigationSchema.safeParse(state)
-  return {
-    concert: readQueueConcert(state),
-    fromPayment: parsed.success ? parsed.data.fromPayment : false,
-  }
+  return parsed.success ? parsed.data.heading : null
 }

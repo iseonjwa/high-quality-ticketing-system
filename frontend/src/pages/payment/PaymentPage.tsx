@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
-import { getReservation, type ReservationDetail } from '@/api/reservations'
-import { paths, queuePath, reservationPath } from '@/app/paths'
+import { getReservation, reservationQueryKeys, type ReservationDetail } from '@/api/reservations'
+import { paths, queuePath, reservationCompletePath, reservationPath } from '@/app/paths'
 import { removeHeldSeats, type HeldSeat } from '@/auth/heldSeats'
 import { HeaderSlot } from '@/components/layout/HeaderSlot'
 import { ConcertHeader } from '@/components/ticketing/ConcertHeader'
@@ -22,7 +22,10 @@ import type { ServerClock } from '@/lib/serverClock'
 import { readPaymentNavigation } from '@/pages/payment/paymentNavigation'
 import { usePaymentFlow, type PaymentFlowState } from '@/pages/payment/usePaymentFlow'
 import type { QueueConcert } from '@/pages/queue/queueNavigation'
-import { reservationNavigationState } from '@/pages/reservations/reservationNavigation'
+import {
+  reservationNavigationState,
+  type ReservationHeading,
+} from '@/pages/reservations/reservationNavigation'
 
 // 결제 화면(ISE-116, samples/payment.html). 흐름은 usePaymentFlow가 정하고 이 화면은 단계별로 그리기만 한다.
 // 승인 응답은 예매 확정이 아니라서, 예매 조회로 CONFIRMED를 본 뒤 예매 결과 화면(ISE-117)으로 바꿔 들어간다.
@@ -30,7 +33,10 @@ import { reservationNavigationState } from '@/pages/reservations/reservationNavi
 // 결제 토큰은 선점 만료보다 10초 먼저 끝난다(SA 7-3). 예매 상세에는 토큰 만료 시각이 없어 이 값으로 계산한다
 const PAYMENT_TOKEN_MARGIN_MILLIS = 10_000
 
-const reservationQueryKey = (reservationId: number) => ['reservations', 'detail', reservationId]
+// 결제 화면만 쓰는 조회 키. 예매 상세 화면(['reservations', 'detail', id])과 나눠, 결제 중에 잡은 HELD 사진이
+// 결과 화면에 먼저 보이지 않게 한다
+const paymentReservationKey = (reservationId: number) =>
+  ['reservations', 'payment', reservationId] as const
 
 // 결제할 대상. 좌석 화면이 넘긴 값이 있으면 그것을, 없으면(새로고침이 아닌 새 탭·주소) 예매 조회로 만든다
 interface PaymentSource {
@@ -56,13 +62,16 @@ export function PaymentPage() {
 
 function PaymentScreen({ reservationId }: { reservationId: number }) {
   const navigation = readPaymentNavigation(useLocation().state)
-  // 예매 상태를 한 번 본다. 이미 확정이면 결과 화면으로, 결제할 수 없으면 안내한다.
-  // Note: 예매 상세는 조회마다 결제 토큰을 새로 서명한다. 토큰 문자열이 멱등 본문에 들어가므로 다시 받지 않는다
+  // 예매 상태를 화면을 열 때마다 한 번 본다. 이미 확정이면 상세로, 결제할 수 없으면 안내한다.
+  // Note: 예매 상세는 조회마다 결제 토큰을 새로 서명한다. 토큰 문자열이 멱등 본문에 들어가므로 열려 있는 동안
+  // 다시 받지 않는다(staleTime). 떠나면 버린다(gcTime 0). 남겨 두면 결제를 끝낸 뒤 다시 열 때 옛 HELD로 결제 폼을 그렸다
   const reservation = useQuery({
-    queryKey: reservationQueryKey(reservationId),
+    queryKey: paymentReservationKey(reservationId),
     queryFn: () => getReservation(reservationId),
     staleTime: Infinity,
+    gcTime: 0,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const clock = useMemo<ServerClock | null>(() => {
@@ -91,7 +100,7 @@ function PaymentScreen({ reservationId }: { reservationId: number }) {
   const blocked = reservation.data ? blockedReason(reservation.data) : null
 
   if (blocked === 'confirmed') {
-    return <ConfirmedRedirect reservationId={reservationId} concert={navigation?.concert ?? null} />
+    return <ConfirmedRedirect reservationId={reservationId} />
   }
   if (source === null) {
     if (reservation.isPending) {
@@ -168,15 +177,49 @@ const ATTENTION_STEPS = new Set<PaymentFlowState['step']>([
   'failed',
 ])
 
-// 결제 가능 시간을 보이는 단계. 결제가 끝났거나 결과를 기다리는 동안에는 숨긴다
-const TIMER_STEPS = new Set<PaymentFlowState['step']>([
-  'ready',
-  'paying',
-  'checking',
-  'pgUnavailable',
-  'failed',
-  'tokenExpired',
-])
+// 결제 가능 시간을 보이는 단계. 서버에 결제가 생긴 뒤(결제 ID를 받은 확인 중, 확정 확인)와 끝난 단계에서는 숨긴다.
+// 그때는 결제 가능 시간이 지나도 결제가 그대로 진행돼 시간 안내가 맞지 않는다
+function showsTimer(state: PaymentFlowState): boolean {
+  switch (state.step) {
+    case 'ready':
+    case 'paying':
+    case 'pgUnavailable':
+    case 'failed':
+    case 'tokenExpired':
+      return true
+    case 'checking':
+      return state.paymentId === null
+    default:
+      return false
+  }
+}
+
+// 서버에 결제가 생겼거나 선점이 끝난 단계. 이때 저장해 둔 선점을 지워 좌석 화면이 좌석 확보 대화상자를 다시 띄우지
+// 않게 한다. 결제사 장애·실패·결과 모름처럼 결제가 없을 수 있는 단계에서는 남겨, 좌석 화면으로 돌아가도 잡은 좌석으로
+// 결제하러 올 수 있게 한다(셀프 리뷰: 누르자마자 지우면 살아 있는 선점을 두고 새 좌석을 또 잡았다)
+function endsHold(state: PaymentFlowState): boolean {
+  switch (state.step) {
+    case 'confirming':
+    case 'confirmed':
+    case 'declined':
+    case 'closed':
+    case 'refunded':
+    case 'notConfirmed':
+    case 'manualCheck':
+    case 'tokenExpired':
+      return true
+    case 'checking':
+      return state.paymentId !== null
+    default:
+      return false
+  }
+}
+
+function headingOf(concert: QueueConcert | null): ReservationHeading | null {
+  return concert === null
+    ? null
+    : { title: concert.title, startsAt: concert.startsAt, venueName: concert.venueName }
+}
 
 function PaymentForm({
   reservationId,
@@ -188,6 +231,7 @@ function PaymentForm({
   notPayable: boolean
 }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { state, submit } = usePaymentFlow({
     reservationId,
     paymentToken: source.paymentToken,
@@ -197,28 +241,36 @@ function PaymentForm({
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
   const alertRef = useRef<HTMLDivElement>(null)
+  const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
+  const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
 
+  // 읽고 행동해야 하는 단계가 되거나 시간이 지나 버튼이 막히면 알림으로, 버튼이 확인 중 표시로 바뀌면 요약 제목으로
+  // 초점을 옮긴다. 누른 버튼이 사라지거나 막혀 초점이 body로 떨어지지 않게 한다
   useLayoutEffect(() => {
-    if (ATTENTION_STEPS.has(state.step)) {
+    if (ATTENTION_STEPS.has(state.step) || (expiredByClock && state.step === 'ready')) {
       alertRef.current?.focus()
+    } else if (state.step === 'checking' || state.step === 'confirming') {
+      summaryHeadingRef.current?.focus()
     }
-  }, [state.step])
+  }, [state.step, expiredByClock])
 
-  // 확정을 보면 결과 화면으로 바꿔 들어간다. 뒤로 가면 공연 상세다
+  useEffect(() => {
+    if (endsHold(state)) {
+      removeHeldSeats(source.scheduleId)
+    }
+  }, [state, source.scheduleId])
+
+  // 확정을 보면 결과 화면으로 바꿔 들어간다. 뒤로 가면 공연 상세다.
+  // 결과 화면이 쓰는 예매 상세 캐시에 확정된 예매를 넣어 HELD가 먼저 보이지 않게 한다
   useEffect(() => {
     if (state.step === 'confirmed') {
-      void navigate(reservationPath(reservationId), {
+      queryClient.setQueryData(reservationQueryKeys.detail(reservationId), state.reservation)
+      void navigate(reservationCompletePath(reservationId), {
         replace: true,
-        state: reservationNavigationState({ concert: source.concert, fromPayment: true }),
+        state: reservationNavigationState(headingOf(source.concert)),
       })
     }
-  }, [state.step, navigate, reservationId, source.concert])
-
-  function pay() {
-    // 결제를 시작하면 좌석 화면이 이 선점으로 좌석 확보 대화상자를 다시 띄우지 않게 한다
-    removeHeldSeats(source.scheduleId)
-    submit()
-  }
+  }, [state, navigate, queryClient, reservationId, source.concert])
 
   function reselect() {
     removeHeldSeats(source.scheduleId)
@@ -229,8 +281,7 @@ function PaymentForm({
     })
   }
 
-  const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
-  const showTimer = TIMER_STEPS.has(state.step) && !notPayable
+  const showTimer = showsTimer(state) && !notPayable
 
   const timer = (onExpire?: () => void) => (
     <TimeChip
@@ -307,7 +358,12 @@ function PaymentForm({
         >
           <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
             <div className="flex items-baseline justify-between">
-              <h2 id="payment-summary-title" className="type-heading text-gray-900">
+              <h2
+                ref={summaryHeadingRef}
+                id="payment-summary-title"
+                tabIndex={-1}
+                className="type-heading text-gray-900 outline-none"
+              >
                 결제 금액
               </h2>
               <span className="type-body-sm text-gray-500 tabular-nums">
@@ -337,11 +393,15 @@ function PaymentForm({
                 {formatWon(source.amount)}
               </dd>
             </dl>
+            {/* 확인 중 표시를 끼워 넣으면 화면 낭독기가 읽지 않을 수 있어, 늘 있는 알림 영역의 글자만 바꾼다 */}
+            <p role="status" className="sr-only">
+              {statusText(state)}
+            </p>
             <PayAction
               state={state}
               amount={source.amount}
               disabled={notPayable || tokenExpired}
-              onPay={pay}
+              onPay={submit}
             />
             {showTimer && !tokenExpired ? (
               <p className="type-caption text-gray-500">
@@ -389,8 +449,22 @@ function PayAction({
           다시 결제하기
         </Button>
       )
+    case 'slowConfirm':
+      // 승인을 받지 못한 채 끝났다. 같은 키로 다시 보내면 서버가 처음 결과를 돌려준다(결제가 없었으면 결제한다)
+      return state.approved ? null : (
+        <Button size="lg" variant="outline" className="w-full" onClick={onPay}>
+          결제 결과 확인하기
+        </Button>
+      )
     case 'checking':
-      return (
+      // 결제 ID를 받기 전(응답 없음·504)에는 요청이 서버에 닿았는지 모른다. 화면을 닫아도 된다고 하지 않는다
+      return state.paymentId === null ? (
+        <PendingBox
+          tone="info"
+          title="결제 요청을 보내고 있어요"
+          body="연결이 잠시 불안정해요. 화면을 닫지 말고 기다려 주세요."
+        />
+      ) : (
         <PendingBox
           tone="info"
           title="결제를 확인하고 있어요"
@@ -411,6 +485,20 @@ function PayAction({
   }
 }
 
+// 늘 있는 알림 영역(sr-only)에 넣을 글자. 바뀔 때마다 화면 낭독기가 읽는다
+function statusText(state: PaymentFlowState): string {
+  switch (state.step) {
+    case 'paying':
+      return '결제를 요청하고 있어요'
+    case 'checking':
+      return state.paymentId === null ? '결제 요청을 보내고 있어요' : '결제를 확인하고 있어요'
+    case 'confirming':
+      return '결제가 승인됐어요. 예매를 확정하고 있어요'
+    default:
+      return ''
+  }
+}
+
 function PendingBox({
   tone,
   title,
@@ -422,7 +510,6 @@ function PendingBox({
 }) {
   return (
     <div
-      role="status"
       className={
         tone === 'info'
           ? 'grid grid-cols-[auto_1fr] items-start gap-3 rounded-md bg-info-50 p-4 text-info-600'
@@ -465,7 +552,7 @@ function FlowAlert({
       <StepAlert
         variant="danger"
         title="결제 가능 시간이 지났어요"
-        body="잡아 둔 좌석이 풀렸어요. 좌석을 다시 골라 주세요."
+        body="잡아 둔 좌석은 곧 풀려요. 좌석을 다시 골라 주세요."
         action={reselect}
       />
     )
@@ -574,21 +661,13 @@ function ActionButton({ onClick, children }: { onClick: () => void; children: Re
   )
 }
 
-// 이미 확정된 예매로 결제 화면을 열면(결제 뒤 새로고침 등) 결과 화면으로 바꿔 들어간다
-function ConfirmedRedirect({
-  reservationId,
-  concert,
-}: {
-  reservationId: number
-  concert: QueueConcert | null
-}) {
+// 이미 확정된 예매로 결제 화면을 열면(결제 뒤 새로고침·뒤로 가기 등) 예매 상세로 바꿔 들어간다.
+// 방금 결제를 끝낸 것인지 알 수 없어 결과 화면("완료")이 아니라 상세로 보낸다
+function ConfirmedRedirect({ reservationId }: { reservationId: number }) {
   const navigate = useNavigate()
   useEffect(() => {
-    void navigate(reservationPath(reservationId), {
-      replace: true,
-      state: reservationNavigationState({ concert, fromPayment: true }),
-    })
-  }, [navigate, reservationId, concert])
+    void navigate(reservationPath(reservationId), { replace: true })
+  }, [navigate, reservationId])
   return <PaymentSkeleton />
 }
 

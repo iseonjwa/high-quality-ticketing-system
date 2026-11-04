@@ -83,6 +83,10 @@ async function run(
   return { outcome, states, waits, controller }
 }
 
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0)
+}
+
 function steps(states: PaymentFlowState[]) {
   return states.map((state) => state.step)
 }
@@ -218,7 +222,6 @@ describe('runPaymentFlow 승인 응답 분기', () => {
 
   it.each([
     [403, 'PAYMENT_TOKEN_INVALID', { step: 'tokenExpired' }],
-    [409, 'RESERVATION_NOT_PAYABLE', { step: 'tokenExpired' }],
     [409, 'PAYMENT_ALREADY_EXISTS', { step: 'manualCheck' }],
     [409, 'PAYMENT_ALREADY_CLOSED', { step: 'closed' }],
   ])('%i %s는 %o로 끝난다', async (status, code, expected) => {
@@ -234,6 +237,8 @@ describe('runPaymentFlow 승인 응답 분기', () => {
   it.each([
     [400, 'PAYMENT_AMOUNT_MISMATCH'],
     [409, 'IDEMPOTENCY_KEY_REUSED'],
+    // payment-service는 보내지 않는 코드다. 알 수 없는 409로 본다
+    [409, 'RESERVATION_NOT_PAYABLE'],
     [404, 'NOT_FOUND'],
     [500, 'INTERNAL_SERVER_ERROR'],
   ])('%i %s는 다시 보내지 않고 failed다', async (status, code) => {
@@ -286,14 +291,98 @@ describe('runPaymentFlow 결제 조회', () => {
     expect(waits.slice(0, 2)).toEqual([2000, queryRetryDelay(0, retryAfter, () => 0.5, 3000)])
   })
 
-  it.each([404, 500])('조회가 %i이면 failed다', async (status) => {
+  it.each([
+    ['404', () => fail(404, 'NOT_FOUND', '없음')],
+    ['500', () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')],
+    ['스키마 불일치', () => ok({ unexpected: true })],
+  ])(
+    '조회 오류(%s)는 failed가 아니라 단계를 그대로 두고 다시 조회한다',
+    async (_name, response) => {
+      setMockScenario({ payment: 'unknown' })
+      const held = await hold()
+      errorOnce('/api/v1/payments/:paymentId', 'get', response)
+
+      const { outcome, states } = await run(held)
+
+      expect(outcome.step).toBe('confirmed')
+      expect(steps(states)).toEqual(['paying', 'checking', 'confirming', 'confirmed'])
+    },
+  )
+
+  it('조회 오류가 계속되면 기다린 시간이 2분을 넘을 때 slowConfirm(approved false)다', async () => {
     setMockScenario({ payment: 'unknown' })
     const held = await hold()
-    mockServer.use(http.get('/api/v1/payments/:paymentId', () => fail(status, 'X', '실패')))
+    mockServer.use(
+      http.get('/api/v1/payments/:paymentId', () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')),
+    )
 
-    const { outcome } = await run(held)
+    const { outcome, waits, controller } = await run(held)
 
-    expect(outcome).toMatchObject({ step: 'failed', error: expect.any(ApiError) })
+    expect(controller.signal.aborted).toBe(false)
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: false })
+    expect(sum(waits)).toBeGreaterThanOrEqual(120_000)
+    // 마지막 기다림 직전에는 한도 아래였다
+    expect(sum(waits.slice(0, -1))).toBeLessThan(120_000)
+  })
+
+  it('계속 확인 중이면(REQUESTED) 처음 checking이 된 때부터 2분 뒤 slowConfirm(approved false)다', async () => {
+    const held = await hold()
+    let polls = 0
+    mockServer.use(
+      http.post(PAYMENTS_PATH, () =>
+        ok(
+          {
+            paymentId: 9001,
+            reservationId: held.reservationId,
+            status: 'UNKNOWN',
+            nextPollAfterSeconds: 30,
+          },
+          { status: 202 },
+        ),
+      ),
+      http.get('/api/v1/payments/:paymentId', () => {
+        polls += 1
+        return ok(paymentDetailBody(held, 'REQUESTED'))
+      }),
+    )
+
+    const { outcome, states, waits, controller } = await run(held)
+
+    expect(controller.signal.aborted).toBe(false)
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: false })
+    expect(steps(states)).toEqual(['paying', 'checking', 'slowConfirm'])
+    // 30초씩 4번 기다린 뒤 마지막으로 한 번 더 조회하고 끝낸다
+    expect(waits).toEqual([30_000, 30_000, 30_000, 30_000])
+    expect(polls).toBe(4)
+  })
+
+  it('응답 없음으로 시작한 checking의 기다림도 2분에 센다', async () => {
+    const held = await hold()
+    mockServer.use(
+      http.get('/api/v1/payments/:paymentId', () => ok(paymentDetailBody(held, 'REQUESTED'))),
+      // 재전송에 돌아온 처음 결과가 간격 100초인 202다
+      http.post(PAYMENTS_PATH, () =>
+        ok(
+          {
+            paymentId: 9001,
+            reservationId: held.reservationId,
+            status: 'UNKNOWN',
+            nextPollAfterSeconds: 100,
+          },
+          { status: 202 },
+        ),
+      ),
+    )
+    // 먼저 쓰이는 핸들러라 마지막에 끼운다
+    errorOnce(PAYMENTS_PATH, 'post', () => HttpResponse.error())
+
+    const { outcome, waits } = await run(held)
+
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: false })
+    // 재전송 지연(3초 이상) + 100초 + 100초에서 2분을 넘어 멈춘다
+    expect(waits).toHaveLength(3)
+    expect(waits[1]).toBe(100_000)
+    expect(waits[2]).toBe(100_000)
   })
 })
 
@@ -426,13 +515,47 @@ describe('runPaymentFlow 예매 확정 확인', () => {
     expect(steps(states)).toEqual(['paying', 'confirming', 'confirmed'])
   })
 
-  it.each([404, 500])('예매 조회가 %i이면 failed다', async (status) => {
+  it.each([
+    ['404', () => fail(404, 'NOT_FOUND', '없음')],
+    ['500', () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')],
+    ['스키마 불일치', () => ok({ unexpected: true })],
+  ])(
+    '승인 뒤 예매 조회 오류(%s)는 failed가 아니라 단계를 그대로 두고 다시 조회한다',
+    async (_name, response) => {
+      const held = await hold()
+      errorOnce('/api/v1/reservations/:reservationId', 'get', response)
+
+      const { outcome, states } = await run(held)
+
+      expect(outcome.step).toBe('confirmed')
+      expect(steps(states)).toEqual(['paying', 'confirming', 'confirmed'])
+    },
+  )
+
+  it('승인 뒤 예매 조회 오류가 계속되면 30초 뒤 slowConfirm(approved true)다', async () => {
     const held = await hold()
-    mockServer.use(http.get('/api/v1/reservations/:reservationId', () => fail(status, 'X', '실패')))
+    mockServer.use(
+      http.get('/api/v1/reservations/:reservationId', () =>
+        fail(500, 'INTERNAL_SERVER_ERROR', '실패'),
+      ),
+    )
 
-    const { outcome } = await run(held)
+    const { outcome, states, waits, controller } = await run(held)
 
-    expect(outcome).toMatchObject({ step: 'failed' })
+    expect(controller.signal.aborted).toBe(false)
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: true })
+    expect(steps(states)).toEqual(['paying', 'confirming', 'slowConfirm'])
+    expect(sum(waits)).toBeGreaterThanOrEqual(30_000)
+  })
+
+  it('payment-late-approval: 승인됐지만 예매가 EXPIRED면 refunded다', async () => {
+    setMockScenario({ payment: 'late-approval' })
+    const held = await hold()
+
+    const { outcome, states } = await run(held)
+
+    expect(steps(states)).toEqual(['paying', 'confirming', 'refunded'])
+    expect(outcome).toEqual({ step: 'refunded' })
   })
 })
 

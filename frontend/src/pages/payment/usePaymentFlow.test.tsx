@@ -3,6 +3,7 @@ import { http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats } from '@/api/reservations'
+import { readPaymentAttempt, savePaymentAttempt } from '@/auth/paymentAttempts'
 import { fail } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
@@ -118,5 +119,113 @@ describe('usePaymentFlow', () => {
     await new Promise((resolve) => setTimeout(resolve, 2300))
 
     expect(detailRequests).toHaveLength(0)
+  })
+
+  it('결제를 시작하면 토큰과 멱등키를 저장한다', async () => {
+    setMockScenario({ payment: 'pg-unavailable' })
+    const held = await hold()
+    const requests = recordRequests(PAYMENTS_PATH)
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    act(() => result.current.submit())
+    await waitFor(() => expect(result.current.state.step).toBe('pgUnavailable'))
+
+    expect(readPaymentAttempt(held.reservationId)).toEqual({
+      token: held.paymentToken,
+      key: requests[0].headers.get('Idempotency-Key'),
+    })
+  })
+
+  it('저장한 시도가 있고 토큰이 같으면 화면을 열 때 같은 키로 바로 이어서 보낸다', async () => {
+    const held = await hold()
+    const key = newIdempotencyKey()
+    savePaymentAttempt(held.reservationId, { token: held.paymentToken, key })
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    await waitFor(() => expect(result.current.state.step).toBe('confirmed'), { timeout: 5000 })
+    expect(requests).toHaveLength(1)
+    expect(requests[0].headers.get('Idempotency-Key')).toBe(key)
+  })
+
+  it('이어 보낸 뒤 다시 열어도(새로고침) 같은 키로 처음 결과를 받는다', async () => {
+    setMockScenario({ payment: 'unknown' })
+    const held = await hold()
+    const requests = recordRequests(PAYMENTS_PATH)
+    const first = renderHook(() => usePaymentFlow(held))
+    act(() => first.result.current.submit())
+    await waitFor(() => expect(first.result.current.state.step).toBe('checking'))
+    first.unmount()
+
+    const second = renderHook(() => usePaymentFlow(held))
+
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[1].headers.get('Idempotency-Key')).toBe(
+      requests[0].headers.get('Idempotency-Key'),
+    )
+    expect(second.result.current.state.step).not.toBe('ready')
+    second.unmount()
+  })
+
+  it('저장한 시도의 토큰이 다르면 이어 보내지 않고 저장한 시도를 지운다', async () => {
+    const held = await hold()
+    savePaymentAttempt(held.reservationId, {
+      token: `${held.paymentToken}.old`,
+      key: newIdempotencyKey(),
+    })
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    await waitFor(() => expect(readPaymentAttempt(held.reservationId)).toBeNull())
+    expect(result.current.state).toEqual({ step: 'ready' })
+    expect(requests).toHaveLength(0)
+  })
+
+  it('저장한 시도가 없으면 눌러야 보낸다', async () => {
+    const held = await hold()
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { result } = renderHook(() => usePaymentFlow(held))
+    await Promise.resolve()
+
+    expect(result.current.state).toEqual({ step: 'ready' })
+    expect(requests).toHaveLength(0)
+  })
+
+  it.each([
+    ['declined', 'declined' as const],
+    ['manual', 'manualCheck' as const],
+  ])('끝난 단계(%s)가 되면 저장한 시도를 지운다', async (scenario, step) => {
+    setMockScenario({ payment: scenario as 'declined' | 'manual' })
+    const held = await hold()
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    act(() => result.current.submit())
+    await waitFor(() => expect(result.current.state.step).toBe(step))
+
+    expect(readPaymentAttempt(held.reservationId)).toBeNull()
+  })
+
+  it('확정되면 저장한 시도를 지운다', async () => {
+    const held = await hold()
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    act(() => result.current.submit())
+    await waitFor(() => expect(result.current.state.step).toBe('confirmed'), { timeout: 5000 })
+
+    expect(readPaymentAttempt(held.reservationId)).toBeNull()
+  })
+
+  it('pgUnavailable·failed에서는 저장한 시도를 남긴다', async () => {
+    mockServer.use(http.post(PAYMENTS_PATH, () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')))
+    const held = await hold()
+    const { result } = renderHook(() => usePaymentFlow(held))
+
+    act(() => result.current.submit())
+    await waitFor(() => expect(result.current.state.step).toBe('failed'))
+
+    expect(readPaymentAttempt(held.reservationId)?.token).toBe(held.paymentToken)
   })
 })

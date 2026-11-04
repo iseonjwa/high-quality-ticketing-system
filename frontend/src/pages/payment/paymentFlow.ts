@@ -24,11 +24,11 @@ export type PaymentFlowState =
   | { step: 'manualCheck' }
   // 409 PAYMENT_ALREADY_CLOSED. 이 선점의 결제는 끝났다
   | { step: 'closed' }
-  // 결제 토큰이 못 쓰게 됐다. 403 PAYMENT_TOKEN_INVALID, 409 RESERVATION_NOT_PAYABLE
+  // 결제 토큰이 못 쓰게 됐다. 403 PAYMENT_TOKEN_INVALID
   | { step: 'tokenExpired' }
   // 503 PG_UNAVAILABLE. 결제 기록이 남지 않아 같은 키로 다시 누르면 된다
   | { step: 'pgUnavailable' }
-  // 확정 확인이 30초를 넘겼거나(approved) 결과 모름 재전송이 한도에 닿았다. 결과는 나중에 예매 내역에서 확인한다
+  // 확정 확인이 30초를 넘겼거나(approved), 결과 모름 재전송·결제 확인이 한도에 닿았다(approved false). 결과는 나중에 예매 내역에서 확인한다
   | { step: 'slowConfirm'; approved: boolean }
   // 승인 뒤 예매가 RELEASED·CANCELED가 됐다
   | { step: 'notConfirmed' }
@@ -61,6 +61,9 @@ const MIN_RETRY_MILLIS = 3000
 const DEFAULT_POLL_MILLIS = 10_000
 const CONFIRM_INTERVAL_MILLIS = 1000
 const CONFIRM_LIMIT_MILLIS = 30_000
+// 결제 결과를 확인하는 단계(checking)에 머무는 최대 시간. 기다린 시간의 합으로 센다.
+// 서버의 재확인 스케줄은 22분까지 가지만 화면이 그동안 계속 조회하지 않는다
+const CHECK_LIMIT_MILLIS = 120_000
 
 export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<PaymentFlowOutcome> {
   const { signal, onState, sleep = sleepUntil, random = Math.random } = options
@@ -81,6 +84,15 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
   let pollMillis = DEFAULT_POLL_MILLIS
   let resends = 0
   let approved = false
+  // checking이 처음 된 때부터 기다린 시간의 합
+  let checking = false
+  let checkWaited = 0
+  async function waitWhileChecking(millis: number) {
+    await sleep(millis, signal)
+    if (checking) {
+      checkWaited += millis
+    }
+  }
   for (;;) {
     if (signal.aborted) {
       return aborted
@@ -103,6 +115,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
         return emit({ step: 'refunded' })
       } else {
         pollMillis = result.nextPollAfterSeconds * 1000
+        checking = true
         emit({ step: 'checking', paymentId })
       }
       break
@@ -119,9 +132,10 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
         return emit({ step: 'slowConfirm', approved: false })
       }
       if (isOutcomeUnknown(error)) {
+        checking = true
         emit({ step: 'checking', paymentId: null })
       }
-      await sleep(queryRetryDelay(resends, error, random, MIN_RETRY_MILLIS), signal)
+      await waitWhileChecking(queryRetryDelay(resends, error, random, MIN_RETRY_MILLIS))
       resends += 1
     }
   }
@@ -132,7 +146,11 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
     // 다음 조회까지 기다릴 시간. 처음은 서버가 준 간격, 조회가 실패하면 다시 시도 지연
     let wait = pollMillis
     for (;;) {
-      await sleep(wait, signal)
+      // 결제 결과를 오래 확인하지 못했다. 서버는 계속 확인하지만 화면은 여기서 멈춘다
+      if (checkWaited >= CHECK_LIMIT_MILLIS) {
+        return emit({ step: 'slowConfirm', approved: false })
+      }
+      await waitWhileChecking(wait)
       if (signal.aborted) {
         return aborted
       }
@@ -160,9 +178,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
         if (signal.aborted) {
           return aborted
         }
-        if (!isRetryableQuery(error)) {
-          return emit({ step: 'failed', error })
-        }
+        // 승인 요청이 이미 서버에 닿았다. 조회 오류는 어떤 것이든 결과를 모를 뿐이라 다시 조회한다
         wait = queryRetryDelay(failures, error, random, MIN_RETRY_MILLIS)
         failures += 1
       }
@@ -202,9 +218,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
       if (signal.aborted) {
         return aborted
       }
-      if (!isRetryableQuery(error)) {
-        return emit({ step: 'failed', error })
-      }
+      // 승인된 뒤에는 오류가 무엇이든 failed로 끝내지 않는다. 결제는 이미 됐으니 한도까지 다시 조회한다
       if (waited >= CONFIRM_LIMIT_MILLIS) {
         return emit({ step: 'slowConfirm', approved: true })
       }
@@ -229,8 +243,6 @@ function settleApproveError(error: unknown): PaymentFlowState | null {
   }
   if (error.status === 409) {
     switch (error.code) {
-      case 'RESERVATION_NOT_PAYABLE':
-        return { step: 'tokenExpired' }
       case 'PAYMENT_ALREADY_EXISTS':
         return { step: 'manualCheck' }
       case 'PAYMENT_ALREADY_CLOSED':
@@ -243,12 +255,8 @@ function settleApproveError(error: unknown): PaymentFlowState | null {
   return { step: 'failed', error }
 }
 
-// 응답을 못 받았거나(0) 지나가는 장애(429, 502·503·504)면 같은 조회를 다시 보낸다. 404·500은 다시 봐도 같다
+// 응답을 못 받았거나(0) 지나가는 장애(429, 502·503·504)면 같은 승인 요청을 다시 보낸다
 const RETRYABLE_STATUSES = new Set([0, 429, 502, 503, 504])
-
-function isRetryableQuery(error: unknown): error is ApiError {
-  return error instanceof ApiError && RETRYABLE_STATUSES.has(error.status)
-}
 
 function sleepUntil(millis: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {

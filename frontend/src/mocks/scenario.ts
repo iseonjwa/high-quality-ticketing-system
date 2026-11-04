@@ -12,7 +12,15 @@ export interface MockScenario {
   // unknown: 202 UNKNOWN 뒤 첫 결제 조회에서 APPROVED, pg-unavailable: 503 PG_UNAVAILABLE(결제 기록 없음)
   // manual: 승인 요청이 409 PAYMENT_ALREADY_EXISTS(결제는 NEEDS_MANUAL_CHECK로 남고 Location이 붙는다)
   // slow-confirm: 승인은 되지만 예매가 계속 HELD라 확정 확인이 시간을 넘긴다
-  payment: 'approved' | 'declined' | 'unknown' | 'pg-unavailable' | 'manual' | 'slow-confirm'
+  // late-approval: 결제는 승인되지만 승인이 선점 만료 뒤에 도착해 예매가 EXPIRED가 된다(서버는 환불한다)
+  payment:
+    | 'approved'
+    | 'declined'
+    | 'unknown'
+    | 'pg-unavailable'
+    | 'manual'
+    | 'slow-confirm'
+    | 'late-approval'
 }
 
 const DEFAULT_SCENARIO: MockScenario = { queue: 'waiting', seatHold: 'held', payment: 'approved' }
@@ -43,6 +51,7 @@ export const SCENARIO_SWITCHES = {
   'pg-unavailable': { payment: 'pg-unavailable' },
   'payment-manual': { payment: 'manual' },
   'payment-slow-confirm': { payment: 'slow-confirm' },
+  'payment-late-approval': { payment: 'late-approval' },
 } as const satisfies Record<string, Partial<MockScenario>>
 
 export function parseScenarioSwitches(value: string): Partial<MockScenario> {

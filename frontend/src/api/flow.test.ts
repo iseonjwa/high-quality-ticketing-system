@@ -158,6 +158,19 @@ describe('일반 예매 흐름', () => {
     expect(sessionStorage.getItem('iseonjwa.heldSeats.32')).toBeNull()
     expect(sessionStorage.getItem('unrelated')).toBe('keep')
   })
+
+  it('로그아웃하면 저장한 결제 시도(결제 토큰·멱등키)도 지우고 다른 저장값은 둔다', async () => {
+    await signInAsDemo()
+    sessionStorage.setItem('iseonjwa.paymentAttempt.1001', '{}')
+    sessionStorage.setItem('iseonjwa.paymentAttempt.1002', '{}')
+    sessionStorage.setItem('unrelated', 'keep')
+
+    await logout()
+
+    expect(sessionStorage.getItem('iseonjwa.paymentAttempt.1001')).toBeNull()
+    expect(sessionStorage.getItem('iseonjwa.paymentAttempt.1002')).toBeNull()
+    expect(sessionStorage.getItem('unrelated')).toBe('keep')
+  })
 })
 
 describe('실패 재현 스위치', () => {

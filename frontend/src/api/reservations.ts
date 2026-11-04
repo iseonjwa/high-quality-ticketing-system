@@ -97,6 +97,12 @@ export function holdSeats(
   })
 }
 
+// 예매 조회 캐시 키. 'reservations'는 사용자별 조회라 로그아웃 때 지운다(resetUserQueries)
+export const reservationQueryKeys = {
+  detail: (reservationId: number) => ['reservations', 'detail', reservationId] as const,
+  mine: ['reservations', 'mine'] as const,
+}
+
 export function getReservation(reservationId: number, options: { signal?: AbortSignal } = {}) {
   return apiRequest({
     method: 'GET',

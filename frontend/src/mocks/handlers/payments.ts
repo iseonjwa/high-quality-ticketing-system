@@ -56,6 +56,13 @@ function respond(result: StoredPaymentResponse) {
 function approve(payment: MockPayment, reservation: MockReservation) {
   payment.status = 'APPROVED'
   payment.approvedAtMillis = Date.now()
+  if (mockScenario().payment === 'late-approval') {
+    // 승인이 선점 만료 뒤에 도착한 경우다. 예매는 EXPIRED가 되고 좌석은 풀린다(환불은 서버가 맡는다)
+    reservation.status = 'EXPIRED'
+    reservation.confirmAfterChecks = null
+    releaseSeats(reservation.seatIds)
+    return
+  }
   // slow-confirm은 확정 이벤트가 오지 않는 경우다. 예매가 계속 HELD이고 선점 만료로도 바뀌지 않는다
   scheduleConfirmation(
     reservation,
@@ -173,7 +180,7 @@ export const paymentHandlers = [
       })
       return respondCurrent(payment)
     }
-    if (scenario === 'approved' || scenario === 'slow-confirm') {
+    if (scenario === 'approved' || scenario === 'slow-confirm' || scenario === 'late-approval') {
       approve(payment, reservation)
     } else if (scenario === 'declined') {
       payment.status = 'DECLINED'
