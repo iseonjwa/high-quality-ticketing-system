@@ -9,6 +9,7 @@ interface QueuePositionProps {
   initialPosition?: number
 }
 
+// 대기열 화면의 주인공 숫자라 글자 토큰(display 32px)보다 크게 쓴다(samples/queue.html)
 export function QueuePosition({
   position,
   estimatedWaitSeconds,
@@ -20,15 +21,22 @@ export function QueuePosition({
       : null
 
   return (
-    <div data-slot="queue-position" className="grid gap-3">
-      <div className="grid gap-1">
+    <div data-slot="queue-position" className="grid gap-6">
+      <div className="grid gap-1 text-center">
         {/* Note: 순번은 max(0, seq - admitted)라 바로 다음 차례가 1이다(SA 12-8). "내 앞에 n명"으로 쓰면 1명 어긋난다.
             조회마다 읽히므로 화면 낭독기에는 순번 한 줄만 읽힌다(aria-live를 이 줄에만 둔다). */}
-        <p aria-live="polite" aria-atomic="true" className="type-title tabular-nums text-gray-900">
-          내 순번 {numberFormat.format(position)}번
+        <p aria-live="polite" aria-atomic="true" className="grid gap-1">
+          <span className="text-[15px] leading-[22px] font-medium text-gray-500">내 순번</span>{' '}
+          <span className="text-[48px] leading-[56px] font-extrabold tracking-[-0.02em] text-gray-900 tabular-nums">
+            {numberFormat.format(position)}
+            <span className="ml-0.5 text-[24px] font-bold">번</span>
+          </span>
         </p>
-        <p className="type-body-sm text-gray-500">
-          예상 대기 <span className="tabular-nums">{formatWaitTime(estimatedWaitSeconds)}</span>
+        <p className="text-[15px] leading-[22px] text-gray-700">
+          예상 대기{' '}
+          <b className="font-bold text-gray-900 tabular-nums">
+            {formatWaitTime(estimatedWaitSeconds)}
+          </b>
         </p>
       </div>
       {progress !== null ? (

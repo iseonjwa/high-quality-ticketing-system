@@ -6,6 +6,7 @@ export const paths = {
   signup: '/signup',
   passwordChange: '/password-change',
   me: '/me',
+  queue: '/schedules/:scheduleId/queue',
   myReservations: '/me/reservations',
 } as const
 

@@ -4,7 +4,9 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
 import { resetUserQueries } from '@/api/queryClient'
+import { useBookingStep } from '@/app/bookingStep'
 import { paths } from '@/app/paths'
+import { StepIndicator } from '@/components/ticketing/StepIndicator'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import {
@@ -32,6 +34,7 @@ export function AppLayout() {
   const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
   const demoMode = useIsDemoMode()
+  const bookingStep = useBookingStep()
 
   // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과는 비우고 공개 조회(공연 목록)는 둔다.
   // clear()는 처음 화면에 붙은 공연 목록까지 캐시와 끊고, 전부 초기화하면 목록이 스켈레톤으로 깜빡인다.
@@ -82,6 +85,12 @@ export function AppLayout() {
             </span>
             이선좌
           </Link>
+          {/* 예매 흐름 화면에서만 가운데에 단계를 보인다. 휴대폰 폭(앱 화면 40rem 미만)에서는 메뉴 자리가 모자라 숨긴다 */}
+          {bookingStep !== null ? (
+            <div className="mx-auto px-4 @max-[40rem]:hidden">
+              <StepIndicator currentIndex={bookingStep} />
+            </div>
+          ) : null}
           <nav aria-label="주 메뉴" className="flex items-center gap-1">
             {isSignedIn ? (
               <>
