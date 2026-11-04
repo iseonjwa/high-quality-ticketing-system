@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#3B3BD4"/>
+  <g fill="#FFFFFF">
+    <!-- 공연장 좌석 정면: 등받이, 양쪽 팔걸이, 방석 -->
+    <rect x="330" y="236" width="364" height="364" rx="72"/>
+    <rect x="214" y="452" width="96" height="364" rx="48"/>
+    <rect x="714" y="452" width="96" height="364" rx="48"/>
+    <rect x="330" y="636" width="364" height="112" rx="40"/>
+    <rect x="356" y="748" width="40" height="68" rx="12"/>
+    <rect x="628" y="748" width="40" height="68" rx="12"/>
+  </g>
+  <!-- 선택됨 배지: 배경색 테두리로 등받이 모서리를 파낸다 -->
+  <circle cx="704" cy="256" r="150" fill="#3B3BD4"/>
+  <circle cx="704" cy="256" r="114" fill="#F59F00"/>
+  <path d="M648 258 L689 299 L762 220" fill="none" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
