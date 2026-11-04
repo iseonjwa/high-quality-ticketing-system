@@ -10,4 +10,7 @@ public interface QueueRepository {
 
     void admit(long scheduleId,
                int admitPerSecond, long tokenTtlMillis, int cleanupLimit, long keyExpireAtEpochSecond);
+
+    IssueTokenOutcome issueToken(long scheduleId,
+                                 long userId, long tokenTtlMillis, long keyExpireAtEpochSecond);
 }
