@@ -71,7 +71,8 @@ export interface MockReservation {
   userId: number
   scheduleId: number
   seatIds: number[]
-  status: 'HELD' | 'CONFIRMED' | 'EXPIRED' | 'RELEASED'
+  // 서버 enum에는 CANCELED도 있으나 만드는 API가 아직 없다(테스트가 직접 넣어 화면을 확인한다)
+  status: 'HELD' | 'CONFIRMED' | 'EXPIRED' | 'RELEASED' | 'CANCELED'
   holdExpiresAtMillis: number
   totalAmount: number
   // 결제 승인 뒤 확정 반영을 기다리는 동안만 값이 있다. 예매 조회 몇 번 뒤 CONFIRMED가 되는지
