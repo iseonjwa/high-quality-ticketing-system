@@ -19,4 +19,4 @@ EC2 배포 파이프라인, 로그·알림 관측, 부하 측정 환경의 설�
 
 ## 아직 구현하지 않았다
 
-이 폴더는 설계다. 배포용 compose, Jenkinsfile, Alloy·Loki·Alertmanager 설정, k6 스크립트는 코드로 존재하지 않는다. 구현 이슈에서 위치와 이름을 정한다.
+이 폴더는 설계다. Alertmanager 설정(`infra/alertmanager/`)은 ISE-179에서 구현했다. 배포용 compose, Jenkinsfile, Alloy·Loki 설정, k6 스크립트는 코드로 존재하지 않는다. 구현 이슈에서 위치와 이름을 정한다.

@@ -26,7 +26,7 @@ Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사�
 
 서비스는 Gateway가 검증해 넣은 X-User-Id·X-User-Role을 서명 없이 믿는다(SA 7-2). 그래서 Gateway 외의 포트가 외부에서 닿으면 누구나 사용자·ADMIN을 위조할 수 있다. 이 전제를 지키는 규칙은 다음과 같다.
 
-- 기본 Compose는 Gateway(8080)와 관리자 UI(Grafana·Kafka-UI·Prometheus·Zipkin)만 호스트에 열고, 모두 `127.0.0.1`에 바인딩한다. 서비스·Config Server·Eureka·Mock PG·DB·Redis·Kafka는 열지 않는다.
+- 기본 Compose는 Gateway(8080)와 관리자 UI(Grafana·Kafka-UI·Prometheus·Alertmanager·Zipkin)만 호스트에 열고, 모두 `127.0.0.1`에 바인딩한다. 서비스·Config Server·Eureka·Mock PG·DB·Redis·Kafka는 열지 않는다.
 - local override와 JVM 실행의 개발용 포트도 모두 `127.0.0.1`이다.
 - 배포(EC2)에서는 보안그룹으로 8080만 외부에 열고(부하 측정 중에는 측정 기기 IP로 제한) 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다.
 - 서비스 사이의 내부 HTTP API는 `/internal/**`(또는 `/api/v1/internal/**`)에 둔다. Gateway의 `AccessPolicy`가 이 경로를 외부 요청에서 404로 막는다.
@@ -125,6 +125,7 @@ Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 
 
 - [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다.
 - [Prometheus](http://localhost:9090/targets): 앱 7개의 별도 관리 포트를 수집한다.
+- [Alertmanager](http://localhost:9093): Prometheus 알림을 묶어 슬랙으로 보낸다. 웹훅(SLACK_WEBHOOK_MONITORING)이 없으면 보내지 않는다.
 - [Zipkin](http://localhost:9411): Gateway와 서비스의 같은 trace를 확인한다.
 - [Kafka-UI](http://localhost:8085): iseonjwa 클러스터를 확인한다.
 

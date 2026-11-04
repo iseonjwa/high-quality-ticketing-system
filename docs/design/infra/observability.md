@@ -56,15 +56,26 @@ flowchart LR
 
 | 항목 | 내용 |
 |---|---|
-| 전송 대상 | 팀 슬랙 워크스페이스의 새 채널(예: #alerts) |
-| 배포 결과 | Jenkins가 #deploy로 보낸다([deployment.md](deployment.md)). 채널 이름은 `[가정]`이고 팀이 만든다 |
-| 웹훅 주소 | 비밀값. `.env`와 Jenkins Credentials에만 둔다. 저장소에 올리지 않는다 |
-| 해결 알림 | 보낸다(`send_resolved`) |
-| 묶기 | 서비스(`service` 라벨)와 심각도(`severity`)별로 묶는다 `[가정]` |
-| 반복 간격 | `[가정]` 값은 구현 이슈에서 정한다 |
+| 전송 대상 | 슬랙 워크스페이스 디스이스스파르타의 `#이선좌-성능-모니터링`(2026-11-04 생성) |
+| 배포 결과 | Jenkins가 `#이선좌-배포상태알림`으로 보낸다([deployment.md](deployment.md), ISE-175) |
+| 웹훅 주소 | 비밀값. 저장소에 올리지 않는다. 알림용은 `.env`의 `SLACK_WEBHOOK_MONITORING`이고 compose `configs`가 파일로 만들어 Alertmanager의 `api_url_file`로 읽는다. 배포 결과용은 Jenkins Credentials에 둔다. 봇 토큰·앱 토큰은 쓰지 않고 Incoming Webhook만 쓴다 |
+| 해결 알림 | 보낸다(`send_resolved: true`) |
+| 묶기 | `env`, `service`, `severity` 라벨별로 한 메시지에 묶는다(`group_by`). `group_wait` 30s, `group_interval` 5m |
+| 반복 간격 | 기본 4h, `urgency="immediate"` 알림은 1h(`repeat_interval`) |
+| 억제 | 같은 `env`·`service`·`alertname`에서 critical이 울리면 warning은 보내지 않는다 |
+| `env` 라벨 | Prometheus `external_labels.env`를 `.env`의 `STACK_ENV`로 채운다(기본 `local`). 슬랙 제목에 환경이 붙어 로컬 알림과 배포 서버 알림을 가린다 |
 | 규칙 | 기존 결제 알림 규칙의 `service`, `urgency`, `severity` 라벨을 그대로 쓴다 |
 
 결제 서비스가 내려가면 건수 알림이 풀리는 한계(서비스 다운 알림은 범위 밖)는 그대로 둔다. 서비스 다운과 Alertmanager 자체가 죽는 경우의 알림은 미정이다.
+
+### 구현 (ISE-179)
+
+- 설정 파일은 `infra/alertmanager/alertmanager.yml`이다. 제목은 `[발생]/[해결] <env> · <service> <severity> N건`이고 본문에 알림 이름, summary, runbook을 담는다. compose에는 `alertmanager` 서비스(prom/alertmanager 0.34.2 digest 고정, `mem_limit` 128m, `127.0.0.1:9093`, 볼륨 `alertmanager`, `--web.external-url=http://localhost:9093`)를 더했고, Prometheus는 `alerting.alertmanagers`에 `alertmanager:9093`을 둔다.
+- 웹훅 주소를 파일로 넘기는 이유: Alertmanager 설정 파일은 환경 변수를 풀지 않는다. compose `secrets`의 `environment` 방식은 변수가 없으면 compose 전체가 실패해 웹훅이 없는 팀원 스택이 뜨지 않는다(2026-11-04 Compose v5.6.0으로 확인). `configs`의 `content`가 빈 값이면 파일 대신 디렉터리가 생긴다(같은 날 확인). 그래서 최상위 `configs.slack-monitoring-url`의 `content`에 `${SLACK_WEBHOOK_MONITORING:-http://127.0.0.1:9/slack-webhook-not-set}`를 두어, 값이 없으면 보내지 않는 자리표시 주소를 넣는다. 이때 Alertmanager는 그대로 뜨고 알림을 보낼 때 실패만 로그에 남는다.
+- `STACK_ENV`: compose가 prometheus에 `STACK_ENV: ${STACK_ENV:-local}`을 넘기고, `infra/prometheus.yml`과 `infra/prometheus-local.yml`의 `global.external_labels.env`가 `${STACK_ENV}`로 받는다. Prometheus 3.15.1은 `external_labels`의 `${VAR}`를 기능 플래그 없이 풀어 준다(2026-11-04 확인). 배포 서버는 `.env`에 `STACK_ENV`를 `deploy` 같은 다른 값으로 둔다.
+- 로컬 주의: 웹훅을 `.env`에 넣은 사람의 로컬 스택 알림도 팀 채널로 간다(제목에 `local`이 붙는다). 확인할 때만 넣고 평소에는 비워 둔다.
+- 검사: `script/check-prometheus-rules.sh`가 promtool 규칙 검사·테스트에 더해 `amtool check-config`와 경로 검사(`immediate`·`threshold` 알림이 모두 `slack-monitoring` 수신자로 가는지)를 한다. CI `prometheus-rules` 워크플로의 paths에 `infra/alertmanager/**`와 이 스크립트를 더했다.
+- 확인 방법: Alertmanager UI(http://localhost:9093)에서 수신자와 알림 상태를 보고, `curl -s localhost:9090/api/v1/alertmanagers`로 Prometheus가 Alertmanager를 찾았는지 본다.
 
 ## 4. 메모리 추가분
 
@@ -107,8 +118,8 @@ ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 | 항목 | 상태 |
 |---|---|
 | 로그 보관 기간 | 7일 `[가정]` |
-| 알림 묶기·반복 간격 | `[가정]`, 구현 이슈에서 정함 |
-| 슬랙 채널 이름 | #alerts `[가정]`, 팀이 만든다 |
+| 알림 묶기·반복 간격 | 확정(ISE-179): 묶기 `env`·`service`·`severity`, 반복 4h(`immediate`는 1h) |
+| 슬랙 채널 이름 | 확정: `#이선좌-성능-모니터링`(알림), `#이선좌-배포상태알림`(배포 결과). 2026-11-04 생성 |
 | Loki·Alloy·Alertmanager 메모리 상한 | `[가정]`, 측정 뒤 확정 |
 | 예외 스택 트레이스 여러 줄 병합 | 미정 |
 | 요청 단위 로그 부족 문제 | 공통 요청 로그 필터로 해결(사용자 결정, contract 이슈) |
