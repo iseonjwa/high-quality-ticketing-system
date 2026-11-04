@@ -1,0 +1,35 @@
+# Prometheus 알림(결제 규칙 infra/prometheus/rules)을 슬랙 #이선좌-성능-모니터링으로 보낸다.
+# 결정: ADR 0045, 설계: docs/design/infra/observability.md 3절.
+# 웹훅 주소는 비밀값이라 이 파일에 두지 않는다. compose가 .env의 SLACK_WEBHOOK_MONITORING을 파일로 마운트하고,
+# 값이 없으면 보내지 않는 자리표시 주소가 들어간다(보내기 실패만 로그에 남는다).
+route:
+  receiver: slack-monitoring
+  # 장애 하나에 알림 여러 개가 함께 울리므로 환경·서비스·심각도 단위로 한 메시지에 묶는다.
+  group_by: [env, service, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태(urgency=immediate)는 더 자주 다시 알린다.
+    - matchers: ['urgency="immediate"']
+      receiver: slack-monitoring
+      repeat_interval: 1h
+
+# 같은 알림의 경고(warning)와 심각(critical) 단계가 함께 울리면 심각만 보낸다(예: 수동 확인 30분·24시간 경과).
+inhibit_rules:
+  - source_matchers: ['severity="critical"']
+    target_matchers: ['severity="warning"']
+    equal: [env, service, alertname]
+
+receivers:
+  - name: slack-monitoring
+    slack_configs:
+      - api_url_file: /etc/alertmanager/slack-monitoring-url
+        # 슬랙은 기본값이 false라 켜야 해결 알림이 간다.
+        send_resolved: true
+        title: |-
+          {{ if eq .Status "firing" }}[발생]{{ else }}[해결]{{ end }} {{ .CommonLabels.env }} · {{ .CommonLabels.service }} {{ .CommonLabels.severity }}{{ if eq .Status "firing" }} {{ .Alerts.Firing | len }}건{{ end }}
+        text: |-
+          {{ range .Alerts.Firing }}• *{{ .Labels.alertname }}* {{ .Annotations.summary }}{{ if .Annotations.runbook }} (대응: {{ .Annotations.runbook }}){{ end }}
+          {{ end }}{{ range .Alerts.Resolved }}• {{ .Labels.alertname }} 해결됨
+          {{ end }}
