@@ -381,7 +381,7 @@ describe('runPaymentFlow 결과 모름 재전송', () => {
     const { outcome, waits, controller } = await run(held)
 
     expect(controller.signal.aborted).toBe(false)
-    expect(outcome).toEqual({ step: 'slowConfirm' })
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: false })
     expect(requests).toHaveLength(9)
     expect(waits).toHaveLength(8)
   })
@@ -410,7 +410,7 @@ describe('runPaymentFlow 예매 확정 확인', () => {
     const { outcome, waits, controller } = await run(held)
 
     expect(controller.signal.aborted).toBe(false)
-    expect(outcome).toEqual({ step: 'slowConfirm' })
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: true })
     expect(waits).toEqual(Array<number>(30).fill(1000))
   })
 

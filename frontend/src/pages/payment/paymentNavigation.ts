@@ -10,16 +10,25 @@ import { readQueueConcert, type QueueConcert } from '@/pages/queue/queueNavigati
 const paymentNavigationSchema = z.object({
   hold: heldSeatHoldSchema,
   seats: z.array(heldSeatSchema),
+  // 서버 시각 - 브라우저 시각(밀리초). 좌석 응답의 serverTime으로 잰 값이고, 없으면 null
+  clockOffsetMillis: z.number().nullable().default(null),
 })
 
 export interface PaymentNavigation {
   hold: HeldSeatHold
   seats: HeldSeat[]
   concert: QueueConcert | null
+  clockOffsetMillis: number | null
 }
 
-export function paymentNavigationState({ hold, seats, concert }: PaymentNavigation) {
-  return concert === null ? { hold, seats } : { hold, seats, concert }
+export function paymentNavigationState({
+  hold,
+  seats,
+  concert,
+  clockOffsetMillis,
+}: PaymentNavigation) {
+  const base = { hold, seats, clockOffsetMillis }
+  return concert === null ? base : { ...base, concert }
 }
 
 export function readPaymentNavigation(state: unknown): PaymentNavigation | null {

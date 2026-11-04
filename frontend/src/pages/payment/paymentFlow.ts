@@ -28,8 +28,8 @@ export type PaymentFlowState =
   | { step: 'tokenExpired' }
   // 503 PG_UNAVAILABLE. 결제 기록이 남지 않아 같은 키로 다시 누르면 된다
   | { step: 'pgUnavailable' }
-  // 확정 확인이 30초를 넘겼거나 결과 모름 재전송이 한도에 닿았다. 결과는 나중에 예매 내역에서 확인한다
-  | { step: 'slowConfirm' }
+  // 확정 확인이 30초를 넘겼거나(approved) 결과 모름 재전송이 한도에 닿았다. 결과는 나중에 예매 내역에서 확인한다
+  | { step: 'slowConfirm'; approved: boolean }
   // 승인 뒤 예매가 RELEASED·CANCELED가 됐다
   | { step: 'notConfirmed' }
   // 그 밖의 오류
@@ -116,7 +116,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
       }
       // 결과를 모르거나 지나가는 장애다. 한도 안에서 같은 요청을 다시 보낸다
       if (resends >= MAX_RESENDS) {
-        return emit({ step: 'slowConfirm' })
+        return emit({ step: 'slowConfirm', approved: false })
       }
       if (isOutcomeUnknown(error)) {
         emit({ step: 'checking', paymentId: null })
@@ -194,7 +194,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
       }
       // HELD: 아직 반영 중이다
       if (waited >= CONFIRM_LIMIT_MILLIS) {
-        return emit({ step: 'slowConfirm' })
+        return emit({ step: 'slowConfirm', approved: true })
       }
       await sleep(CONFIRM_INTERVAL_MILLIS, signal)
       waited += CONFIRM_INTERVAL_MILLIS
@@ -206,7 +206,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
         return emit({ step: 'failed', error })
       }
       if (waited >= CONFIRM_LIMIT_MILLIS) {
-        return emit({ step: 'slowConfirm' })
+        return emit({ step: 'slowConfirm', approved: true })
       }
       const delay = queryRetryDelay(failures, error, random, MIN_RETRY_MILLIS)
       await sleep(delay, signal)
