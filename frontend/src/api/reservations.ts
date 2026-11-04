@@ -48,7 +48,8 @@ export const reservationDetailSchema = z.object({
   reservationNo: z.string(),
   scheduleId: entityId,
   status: reservationStatusSchema,
-  holdExpiresAt: isoDateTime,
+  // DB 컬럼이 nullable이라 서버 응답도 null일 수 있다. 선점 때 항상 채우므로 실제로는 늘 값이 있다
+  holdExpiresAt: isoDateTime.nullable(),
   totalAmount: won,
   seats: z.array(
     z.object({
