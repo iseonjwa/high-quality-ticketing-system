@@ -51,6 +51,12 @@ export function MyInfoPage() {
             비밀번호 변경
           </Link>
         </Button>
+        {/* 운영 화면으로 가는 길은 내 정보 조회가 이미 있는 이 화면에 둔다. 헤더에 두면 모든 화면이 내 정보를 한 번씩 더 조회한다 */}
+        {me.data?.role === 'ADMIN' ? (
+          <Button asChild variant="outline">
+            <Link to={paths.admin}>운영 화면</Link>
+          </Button>
+        ) : null}
       </div>
     </main>
   )

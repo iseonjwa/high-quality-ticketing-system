@@ -25,7 +25,7 @@ npm run dev      # http://localhost:5173
 npm run dev:mock   # MSW가 계약 문서대로 응답한다
 ```
 
-- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
+- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호. 운영자 등록 API가 만드는 회차는 공연장 1번 KSPO DOME을 쓰고 등급은 VIP·R·S다). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
 - 임시 비밀번호 계정: `temp@iseonjwa.dev` / `TempPass2345`. 로그인하면 비밀번호 변경 화면으로 간다. 어느 계정이든 비밀번호를 5번 틀리면 잠긴다(새로고침하면 목 상태와 함께 풀린다).
 - 실패 화면은 주소에 `?mock=`로 고른다. 쉼표로 여러 개를 고를 수 있고 탭을 닫을 때까지 유지된다. `?mock=`(빈 값)이면 기본으로 돌아간다.
 
@@ -66,7 +66,9 @@ src/
   app/routes.tsx  경로 목록. 테스트도 같은 목록으로 라우터를 만든다
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/
+  app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 운영자는 pages/admin/
+  admin/          운영자 입력 검사(formSchemas.ts)
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
   components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)

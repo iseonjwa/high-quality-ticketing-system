@@ -2,6 +2,9 @@ import type { RouteObject } from 'react-router'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { MyInfoPage } from '@/pages/MyInfoPage'
+import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
+import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
+import { AdminHomePage } from '@/pages/admin/AdminHomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
@@ -10,6 +13,7 @@ import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { QueuePage } from '@/pages/queue/QueuePage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
+import { RequireAdmin } from '@/app/RequireAdmin'
 import { RequireAuth } from '@/app/RequireAuth'
 import { bookingStepHandle } from '@/app/bookingStep'
 
@@ -48,6 +52,14 @@ export const routes: RouteObject[] = [
             children: [
               { path: paths.me, element: <MyInfoPage /> },
               { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
+              {
+                element: <RequireAdmin />,
+                children: [
+                  { path: paths.admin, element: <AdminHomePage /> },
+                  { path: paths.adminConcertNew, element: <AdminConcertNewPage /> },
+                  { path: paths.adminConcert, element: <AdminConcertPage /> },
+                ],
+              },
             ],
           },
           ...devRoutes,
