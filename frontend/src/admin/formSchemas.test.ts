@@ -71,6 +71,16 @@ describe('회차 입력', () => {
     }
   })
 
+  it('공연장 번호가 안전한 정수 범위를 넘으면 확인 문구로 거절한다', () => {
+    for (const venueId of ['9007199254740993', '99999999999999999999']) {
+      const result = scheduleFormSchema.safeParse({ ...valid, venueId })
+      expect(messageAt(result, 'venueId')).toBe('공연장 번호를 확인해 주세요')
+    }
+    expect(scheduleFormSchema.safeParse({ ...valid, venueId: '9007199254740991' }).success).toBe(
+      true,
+    )
+  })
+
   it('시각이 비었거나 형식이 틀리면 실패한다', () => {
     expect(scheduleFormSchema.safeParse({ ...valid, startsAt: '' }).success).toBe(false)
     expect(scheduleFormSchema.safeParse({ ...valid, openAt: '2026-13-01T10:00' }).success).toBe(
@@ -117,8 +127,24 @@ describe('좌석 가격 입력', () => {
     ])
   })
 
-  it('모두 비면 실패한다', () => {
-    expect(seatPriceFormSchema.safeParse(empty).success).toBe(false)
+  it('모두 비면 칸이 아니라 root 오류로 알린다', () => {
+    const result = seatPriceFormSchema.safeParse(empty)
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => [issue.path, issue.message])).toEqual([
+      [['root'], '적어도 한 등급의 가격을 입력해 주세요'],
+    ])
+  })
+
+  it('가격 상한을 넘으면 하한과 다른 문구로 알린다', () => {
+    const over = seatPriceFormSchema.safeParse({ ...empty, VIP: '1000000000000000' })
+    expect(over.error?.issues.map((issue) => issue.message)).toEqual([
+      '가격이 너무 커요. 다시 확인해 주세요',
+    ])
+    const zero = seatPriceFormSchema.safeParse({ ...empty, VIP: '0' })
+    expect(zero.error?.issues.map((issue) => issue.message)).toEqual([
+      '가격은 1원 이상으로 입력해 주세요',
+    ])
+    expect(seatPriceFormSchema.safeParse({ ...empty, VIP: '999999999999999' }).success).toBe(true)
   })
 
   it('0이나 음수, 소수, 숫자가 아닌 값은 실패한다', () => {

@@ -1,11 +1,19 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import { mockDb } from '@/mocks/db'
 import { mockServer } from '@/mocks/server'
-import { CONCERT_ID, recordRequests, signInAsAdmin, signInAsDemo } from '@/test/api'
+import { CONCERT_ID, recordRequests, requestStarted, signInAsAdmin, signInAsDemo } from '@/test/api'
 import { renderRoutes } from '@/test/render'
+
+const UNKNOWN_OUTCOME_FAILURE = {
+  status: 504,
+  code: 'INTERNAL_SERVER_ERROR',
+  message: '응답 시간이 초과됐습니다',
+  traceId: '0'.repeat(32),
+}
 
 const NOT_ADMIN_NOTICE = '운영자만 볼 수 있는 화면이에요'
 
@@ -115,6 +123,40 @@ describe('공연 등록', () => {
   })
 })
 
+describe('공연 등록: 결과를 모를 때', () => {
+  it('504면 실패가 아니라 확인 안내를 보이고 등록 화면에 남으며 목록으로 가는 링크가 있다', async () => {
+    await signInAsAdmin()
+    mockServer.use(
+      http.post('/api/v1/admin/concerts', () =>
+        HttpResponse.json(UNKNOWN_OUTCOME_FAILURE, { status: 504 }),
+      ),
+    )
+    const user = userEvent.setup()
+    const { router } = renderRoutes(routes, '/admin/concerts/new')
+
+    await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
+    await user.click(screen.getByRole('button', { name: '등록하기' }))
+
+    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/concerts/new')
+    expect(screen.getByRole('link', { name: '운영 목록 보기' })).toHaveAttribute('href', '/admin')
+    expect(screen.getByLabelText('공연 제목')).toHaveValue('새 공연')
+  })
+
+  it('응답을 받지 못해도 같다', async () => {
+    await signInAsAdmin()
+    mockServer.use(http.post('/api/v1/admin/concerts', () => HttpResponse.error()))
+    const user = userEvent.setup()
+    const { router } = renderRoutes(routes, '/admin/concerts/new')
+
+    await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
+    await user.click(screen.getByRole('button', { name: '등록하기' }))
+
+    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/concerts/new')
+  })
+})
+
 describe('회차 추가', () => {
   async function openConcert() {
     await signInAsAdmin()
@@ -204,6 +246,32 @@ describe('회차 추가', () => {
   })
 })
 
+describe('회차 추가: 결과를 모를 때', () => {
+  it('504면 확인 안내를 보이고 공연 상세를 다시 조회하며 폼은 비우지 않는다', async () => {
+    await signInAsAdmin()
+    mockServer.use(
+      http.post(`/api/v1/admin/concerts/${CONCERT_ID}/schedules`, () =>
+        HttpResponse.json(UNKNOWN_OUTCOME_FAILURE, { status: 504 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+    await screen.findByRole('heading', { name: '회차 추가' })
+    const detailRequests = recordRequests(`/api/v1/concerts/${CONCERT_ID}`)
+
+    await addSchedule(user, {
+      venueId: '1',
+      startsAt: '2026-12-20T19:00',
+      openAt: '2026-12-10T20:00',
+    })
+
+    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    await waitFor(() => expect(detailRequests.length).toBeGreaterThan(0))
+    expect(screen.getByLabelText('공연장 번호')).toHaveValue('1')
+    expect(screen.getByLabelText('공연 시작')).toHaveValue('2026-12-20T19:00')
+  })
+})
+
 describe('좌석 만들기', () => {
   async function openConcert() {
     await signInAsAdmin()
@@ -288,6 +356,75 @@ describe('좌석 만들기', () => {
       await within(dialog).findByText('적어도 한 등급의 가격을 입력해 주세요'),
     ).toBeInTheDocument()
     expect(adminPosts).toEqual([])
+  })
+
+  it('빈 칸만으로 제출하면 알림은 대화상자 안에 보이고 VIP 칸은 오류로 표시되지 않는다', async () => {
+    const user = await openConcert()
+
+    await user.click(within(scheduleRow('회차 #32')).getByRole('button', { name: '좌석 만들기' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
+
+    expect(
+      await within(dialog).findByText('적어도 한 등급의 가격을 입력해 주세요'),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('VIP석 가격(원)')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('요청이 끝나지 않은 동안에는 Esc로 닫히지 않고 닫기는 비활성이며, 끝나면 닫힌다', async () => {
+    const user = await openConcert()
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const started = requestStarted('/api/v1/admin/schedules/31/seats')
+    mockServer.use(
+      http.post('/api/v1/admin/schedules/:scheduleId/seats', async () => {
+        await held
+        return HttpResponse.json(
+          { status: 409, code: 'SCHEDULE_SEATS_ALREADY_CREATED', message: '이미', traceId: '0' },
+          { status: 409 },
+        )
+      }),
+    )
+
+    await user.click(within(scheduleRow('회차 #31')).getByRole('button', { name: '좌석 만들기' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('VIP석 가격(원)'), '165000')
+    await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
+    await started
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '닫기' })).toBeDisabled()
+
+    release()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('Esc로 닫으면 초점이 그 회차의 좌석 만들기 버튼으로 돌아온다', async () => {
+    const user = await openConcert()
+    const button = within(scheduleRow('회차 #32')).getByRole('button', { name: '좌석 만들기' })
+
+    await user.click(button)
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it('좌석을 만들어 닫으면 초점이 좌석 수 글자로 간다', async () => {
+    const user = await openConcert()
+    const dialog = await openSeatDialogOfNewSchedule(user)
+
+    await user.type(within(dialog).getByLabelText('VIP석 가격(원)'), '165000')
+    await user.type(within(dialog).getByLabelText('R석 가격(원)'), '132000')
+    await user.type(within(dialog).getByLabelText('S석 가격(원)'), '99000')
+    await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
+
+    const done = await within(scheduleRow('2026.12.20 (일) 19:00')).findByText('좌석 60석 만듦')
+    await waitFor(() => expect(done).toHaveFocus())
   })
 })
 
