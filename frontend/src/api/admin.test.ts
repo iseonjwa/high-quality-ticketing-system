@@ -57,6 +57,17 @@ describe('운영자 등록 API', () => {
     expect(await requests[0].text()).toBe(JSON.stringify({ title: '제목만' }))
   })
 
+  it('설명 없이 등록하면 공연 상세 description은 null이다', async () => {
+    await signInAsAdmin()
+    const empty = await createConcert({ title: '설명 없음' })
+    const blank = await createConcert({ title: '공백 설명', description: '   ' })
+    const filled = await createConcert({ title: '설명 있음', description: '설명' })
+
+    expect((await getConcert(empty.concertId)).description).toBeNull()
+    expect((await getConcert(blank.concertId)).description).toBeNull()
+    expect((await getConcert(filled.concertId)).description).toBe('설명')
+  })
+
   it('USER는 세 API 모두 403이다', async () => {
     await signInAsDemo()
     const forbidden = { status: 403, code: 'FORBIDDEN' }

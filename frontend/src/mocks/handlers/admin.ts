@@ -55,7 +55,10 @@ export const adminHandlers = [
       return validationFailed('description', '문자열이어야 합니다')
     }
     const concertId = nextMockId()
-    mockDb.concerts.push({ concertId, title, description: description ?? '' })
+    // 서버(Concert.description)는 설명이 없으면 null로 저장한다. 공백만 있는 값도 비운 것으로 본다
+    const storedDescription =
+      typeof description === 'string' && description.trim() !== '' ? description : null
+    mockDb.concerts.push({ concertId, title, description: storedDescription })
     return ok({ concertId }, { status: 201 })
   }),
 

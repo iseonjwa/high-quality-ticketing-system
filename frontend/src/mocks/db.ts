@@ -108,7 +108,7 @@ interface MockState {
   nextId: number
   users: MockUser[]
   venues: MockVenue[]
-  concerts: { concertId: number; title: string; description: string }[]
+  concerts: { concertId: number; title: string; description: string | null }[]
   schedules: MockSchedule[]
   seats: MockSeat[]
   // 접근 토큰 → 사용자 ID. 지우면 Gateway가 만료로 보고 401을 준다
