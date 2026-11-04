@@ -16,6 +16,20 @@ interface SpringDataReservationRepository extends JpaRepository<Reservation, Lon
 
     List<Reservation> findByIdInOrderByIdAsc(List<Long> ids);
 
+    long countByUserId(Long userId);
+
+    // idx_reservations_user_id_created_at(user_id, created_at)를 탄다. 지워진 공연·회차도 이미 한 예매라 거르지 않는다
+    @Query(nativeQuery = true, value = """
+            SELECT r.id, r.reservation_no, c.title, s.starts_at, r.status, r.total_amount
+              FROM reservations r
+              JOIN schedules s ON s.id = r.schedule_id
+              JOIN concerts c ON c.id = s.concert_id
+             WHERE r.user_id = :userId
+             ORDER BY r.created_at DESC, r.id DESC
+             LIMIT :limit OFFSET :offset
+            """)
+    List<Object[]> findMineRows(@Param("userId") Long userId, @Param("limit") int limit, @Param("offset") long offset);
+
     // Note: 대사(ADR 0029)는 "기간 안에 확정·취소가 됨"을 현재 상태 + updated_at으로 대신 본다. 그래서 상태 전이 UPDATE는
     // 모두 updated_at을 갱신해야 한다. 취소(CONFIRMED → CANCELED)를 만들 때 빠뜨리면 결제 쪽이 RC-2를 찾지 못한다
     @Query(nativeQuery = true, value = """
