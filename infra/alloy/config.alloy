@@ -5,12 +5,15 @@
 
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
+  // 기본 1분이면 뜬 지 1분 안에 죽는 컨테이너(배포 직후 설정 오류 등)의 로그를 놓친다.
+  refresh_interval = "5s"
 }
 
 discovery.relabel "apps" {
   targets = discovery.docker.containers.targets
 
   // 모으는 것은 compose 프로젝트 iseonjwa의 앱 7개뿐이다.
+  // Note: 배포 서버의 compose도 프로젝트 이름이 iseonjwa여야 한다(compose.yml의 name). 다르면 오류 없이 로그가 0건이 된다.
   // DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 부하 측정(ISE-176)에서 예측할 수 있게 하려는 것이다.
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_project"]

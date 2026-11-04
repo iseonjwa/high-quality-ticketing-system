@@ -53,6 +53,9 @@ flowchart LR
 - Docker 소켓: Alloy가 `/var/run/docker.sock`을 `:ro`로 읽는다. `:ro`여도 소켓으로 Docker API를 모두 부를 수 있어 호스트 root와 같은 권한이다. 공식 이미지라 받아들인다. 로그 파일(`/var/lib/docker/containers`)을 직접 읽는 방식은 맥 Docker Desktop에서 쓸 수 없어 소켓을 쓴다.
 - Loki 이미지에는 wget·curl·셸이 없어 healthcheck를 두지 않았다. 준비 여부는 `/ready`로 확인한다. 기동 직후에는 "Ingester not ready: waiting for 15s"가 나온다.
 - Grafana Loki 데이터 소스에는 derived field를 두어 로그 줄의 `[traceId-spanId]`에서 traceId를 뽑아 Zipkin으로 연결한다. provisioning 파일의 `$`는 `$$`로 써야 하고, Grafana API로 읽으면 `${__value.raw}`로 풀려 있는 것을 확인했다.
+- 배포 서버의 compose도 프로젝트 이름이 `iseonjwa`여야 한다(`compose.yml`의 `name`). Alloy가 이 프로젝트 라벨로 컨테이너를 고르므로, 이름이 다르면 오류 없이 로그가 0건이 된다. 배포 첫 확인(ISE-174)에 Loki `label/service/values`로 앱 7개가 보이는지를 넣는다.
+- Alloy는 5초마다 컨테이너 목록을 다시 찾는다(기본 1분). 뜬 지 1분 안에 죽는 컨테이너의 로그도 남기려는 것이다.
+- Loki 받기 한도를 기본값(초당 4MB, 스트림당 3MB)보다 넉넉히 두었다(초당 16MB, 스트림당 8MB). 공통 요청 로그가 들어온 뒤 부하 측정에서 gateway 한 스트림에 줄이 몰려도 거절되지 않게 하려는 것이다. 측정 때 `loki_discarded_samples_total`이 늘지 않는지 본다.
 - Alloy는 새로 뜰 때 컨테이너의 지난 로그부터 읽는다(확인 때 6시간 전 줄도 들어왔다). 저장된 위치는 `alloy` 볼륨에 남는다.
 - 확인 결과(2026-11-04, 로컬 compose):
   - Loki `/ready`는 `ready`, `label/service/values`에 앱 7개가 모두 보였다. 라벨은 `env`, `level`, `service`, `service_name`이다. Alloy 로그에 오류·경고는 없었다.
