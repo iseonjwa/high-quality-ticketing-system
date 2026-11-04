@@ -2,6 +2,7 @@
 // 브라우저 목 모드에서는 새로고침하면 처음 상태로 돌아간다.
 
 export const DEMO_USER = { email: 'demo@iseonjwa.dev', password: 'password1234' } as const
+export const ADMIN_USER = { email: 'admin@iseonjwa.dev', password: 'password1234' } as const
 // 운영자가 비밀번호를 초기화한 상태의 계정. 이 비밀번호로 로그인하면 403 PASSWORD_CHANGE_REQUIRED다
 export const TEMPORARY_PASSWORD_USER = {
   email: 'temp@iseonjwa.dev',
@@ -96,10 +97,18 @@ export interface StoredPaymentResponse {
   headers?: Record<string, string>
 }
 
+export interface MockVenue {
+  venueId: number
+  name: string
+  // 공연장 좌석의 등급 모음. 회차 좌석을 만들 때 가격표의 등급과 정확히 같아야 한다
+  grades: string[]
+}
+
 interface MockState {
   nextId: number
   users: MockUser[]
-  concerts: { concertId: number; title: string; description: string }[]
+  venues: MockVenue[]
+  concerts: { concertId: number; title: string; description: string | null }[]
   schedules: MockSchedule[]
   seats: MockSeat[]
   // 접근 토큰 → 사용자 ID. 지우면 Gateway가 만료로 보고 401을 준다
@@ -131,6 +140,10 @@ interface MockState {
     }
   >
   seatConflictUsed: boolean
+  // queue-unavailable이 아직 503을 줘야 하는 남은 횟수
+  queueUnavailableLeft: number
+  // queue-expired가 이미 줄 기록을 지웠는지
+  queueExpiredUsed: boolean
 }
 
 export const mockDb: MockState = createInitialState()
@@ -213,8 +226,7 @@ function createInitialState(nowMillis = Date.now()): MockState {
       newMockUser({ userId: 42, ...DEMO_USER, nickname: '데모', role: 'USER' }),
       newMockUser({
         userId: 1,
-        email: 'admin@iseonjwa.dev',
-        password: 'password1234',
+        ...ADMIN_USER,
         nickname: '운영자',
         role: 'ADMIN',
       }),
@@ -223,6 +235,8 @@ function createInitialState(nowMillis = Date.now()): MockState {
         passwordChangeRequired: true,
       },
     ],
+    // 로컬 시드 공연장과 같다(등급 VIP·R·S)
+    venues: [{ venueId: 1, name: 'KSPO DOME', grades: ['VIP', 'R', 'S'] }],
     // 공연·장소 이름은 지어낸 것이다(디자인 샘플과 같다)
     concerts: [
       {
@@ -307,10 +321,12 @@ function createInitialState(nowMillis = Date.now()): MockState {
     payments: new Map(),
     paymentRequests: new Map(),
     seatConflictUsed: false,
+    queueUnavailableLeft: 1,
+    queueExpiredUsed: false,
   }
 }
 
-function createSeats(spec: {
+export function createSeats(spec: {
   scheduleId: number
   firstSeatId: number
   section: string

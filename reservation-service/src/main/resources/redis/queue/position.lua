@@ -1,6 +1,5 @@
 #!lua flags=no-writes
 -- KEYS[1]=waiting  KEYS[2]=admitted  KEYS[3]=issued
--- KEYS[1]=waiting  KEYS[2]=admitted  KEYS[3]=issued
 -- ARGV[1]=userId  ARGV[2]=토큰 유효 시간 T(ms)
 -- 반환: {종류, seq, admitted}  종류 = TOKEN_ISSUED | IN_QUEUE | NOT_JOINED
 

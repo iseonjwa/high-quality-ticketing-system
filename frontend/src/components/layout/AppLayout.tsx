@@ -4,7 +4,9 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
 import { resetUserQueries } from '@/api/queryClient'
+import { useBookingStep } from '@/app/bookingStep'
 import { paths } from '@/app/paths'
+import { StepIndicator } from '@/components/ticketing/StepIndicator'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import {
@@ -32,6 +34,7 @@ export function AppLayout() {
   const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
   const demoMode = useIsDemoMode()
+  const bookingStep = useBookingStep()
 
   // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과는 비우고 공개 조회(공연 목록)는 둔다.
   // clear()는 처음 화면에 붙은 공연 목록까지 캐시와 끊고, 전부 초기화하면 목록이 스켈레톤으로 깜빡인다.
@@ -71,7 +74,7 @@ export function AppLayout() {
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
             to={paths.home}
-            className="inline-flex items-center gap-2 rounded-sm text-[20px] font-extrabold tracking-[-0.02em] text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex shrink-0 items-center gap-2 rounded-sm text-[20px] font-extrabold tracking-[-0.02em] text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {/* 꾸밈이라 링크 이름은 글자만 남긴다 */}
             <span
@@ -82,7 +85,14 @@ export function AppLayout() {
             </span>
             이선좌
           </Link>
-          <nav aria-label="주 메뉴" className="flex items-center gap-1">
+          {/* 예매 흐름 화면에서만 가운데에 단계를 보인다. 앱 화면이 48rem보다 좁으면 워드마크·메뉴와 한 줄에 들어가지
+              않아 숨긴다(40rem으로 두었을 때 640~673px에서 워드마크가 접혔다). 워드마크와 메뉴는 줄어들지 않는다 */}
+          {bookingStep !== null ? (
+            <div className="mx-auto px-4 @max-[48rem]:hidden">
+              <StepIndicator currentIndex={bookingStep} />
+            </div>
+          ) : null}
+          <nav aria-label="주 메뉴" className="flex shrink-0 items-center gap-1">
             {isSignedIn ? (
               <>
                 <SignedInLink to={paths.myReservations} disabled={loggingOut}>

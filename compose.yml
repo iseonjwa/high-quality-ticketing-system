@@ -64,6 +64,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+  # 화면(정적 파일)과 /api/ 중계. 공개 진입점이다(ADR 0040)
+  frontend:
+    build:
+      context: ./frontend
+    mem_limit: 64m
+    ports: ["127.0.0.1:8000:80"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
   user-service:
     <<: *app
     build:
@@ -265,6 +276,25 @@ services:
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana:/var/lib/grafana
     ports: ["127.0.0.1:3000:3000"]
+  # 컨테이너 로그 저장소(ADR 0045). 호스트 포트 없이 Grafana가 내부 주소로 읽는다.
+  # Note: 이미지에 wget·curl·셸이 없어 healthcheck를 두지 않는다(준비 여부는 /ready로 확인한다).
+  loki:
+    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    mem_limit: 512m
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes: ["./infra/loki/loki.yml:/etc/loki/loki.yml:ro", "loki:/loki"]
+  # 앱 컨테이너 로그를 Docker 소켓으로 읽어 Loki로 보낸다. 소켓 권한과 모으는 범위는 config.alloy 주석에 있다.
+  alloy:
+    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    mem_limit: 256m
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    environment:
+      STACK_ENV: ${STACK_ENV:-local}
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy:/var/lib/alloy/data
+    depends_on: [loki]
   zipkin:
     image: openzipkin/zipkin:latest@sha256:d17e856dcbba7ffeefbbfc252f89ab78a4ab6faed47e646d46daad78f91b5ee2
     mem_limit: 384m
@@ -281,6 +311,8 @@ volumes:
   prometheus:
   alertmanager:
   grafana:
+  loki:
+  alloy:
 
 configs:
   # Alertmanager가 읽는 슬랙 웹훅 주소(비밀값, .env에만 둔다). 값이 없으면 보내지 않는 자리표시 주소가 들어가 스택은 그대로 뜬다.
