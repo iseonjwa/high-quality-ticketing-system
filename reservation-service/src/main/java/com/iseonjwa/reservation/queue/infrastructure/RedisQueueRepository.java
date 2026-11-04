@@ -30,9 +30,9 @@ public class RedisQueueRepository implements QueueRepository {
 
     @Override
     public EnterOutcome enter(long scheduleId,
-                              long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
         List r = stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
-                String.valueOf(userId), String.valueOf(openAtEpochMilli),
+                String.valueOf(userId), String.valueOf(openAtEpochMilli), String.valueOf(startsAtEpochMilli),
                 String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond));
 
         EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) r.get(0));

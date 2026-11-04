@@ -87,7 +87,7 @@ class QueueAdmissionServiceTest {
         }
 
         @Override
-        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
             throw new UnsupportedOperationException();
         }
 
