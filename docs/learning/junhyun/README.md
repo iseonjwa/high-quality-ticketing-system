@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | 배포 EC2 요금은 얼마이고, DB까지 한 인스턴스에 띄우는 설계인가 | [qna/2026-11-04-deploy-cost-and-single-host-db.md](qna/2026-11-04-deploy-cost-and-single-host-db.md) |
 | 2026-11-04 | GHCR(GitHub Container Registry)은 무엇이고 왜 쓰나 | [qna/2026-11-04-what-is-ghcr.md](qna/2026-11-04-what-is-ghcr.md) |
 | 2026-11-04 | Grafana Alloy는 무엇이고 왜 쓰나 | [qna/2026-11-04-grafana-alloy-what-is.md](qna/2026-11-04-grafana-alloy-what-is.md) |
 | 2026-11-04 | GitHub Actions로 배포 이미지를 만들어 GHCR에 올리는 워크플로는 어떻게 읽나 | [qna/2026-11-04-github-actions-ghcr-image-workflow.md](qna/2026-11-04-github-actions-ghcr-image-workflow.md) |
