@@ -1,10 +1,12 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { routes } from '@/app/routes'
+import { AppLayout } from '@/components/layout/AppLayout'
+import { HeaderSlot } from '@/components/layout/HeaderSlot'
 import { sessionStore } from '@/auth/session'
 import { enableDemoMode } from '@/demo/demoMode'
 import { mockServer } from '@/mocks/server'
@@ -218,5 +220,65 @@ describe('RouteErrorPage', () => {
 
     expect(await screen.findByRole('link', { name: '로그인' })).toBeInTheDocument()
     expect(logoutRequests).toHaveLength(1)
+  })
+})
+
+describe('AppLayout 헤더 자리', () => {
+  const slotOf = (header: HTMLElement) =>
+    header.querySelector<HTMLElement>('div[class*="empty:hidden"]')!
+
+  const slotRoutes: RouteObject[] = [
+    {
+      element: <AppLayout />,
+      children: [
+        {
+          path: '/with-slot',
+          element: (
+            <main>
+              <h1>채우는 화면</h1>
+              <HeaderSlot>
+                <span>헤더에 넣은 내용</span>
+              </HeaderSlot>
+            </main>
+          ),
+        },
+        { path: '/without-slot', element: <h1>비우는 화면</h1> },
+      ],
+    },
+  ]
+
+  it('화면이 HeaderSlot으로 넣은 내용은 본문이 아니라 header 안에 보인다', async () => {
+    renderRoutes(slotRoutes, '/with-slot')
+
+    const header = screen.getByRole('banner')
+    const content = await within(header).findByText('헤더에 넣은 내용')
+    expect(slotOf(header)).toContainElement(content)
+    expect(within(screen.getByRole('main')).queryByText('헤더에 넣은 내용')).not.toBeInTheDocument()
+  })
+
+  it('화면이 채우지 않으면 자리가 비어 있다', () => {
+    renderRoutes(slotRoutes, '/without-slot')
+
+    expect(slotOf(screen.getByRole('banner'))).toBeEmptyDOMElement()
+  })
+
+  it('화면을 옮기면 이전 화면이 넣은 내용을 치운다', async () => {
+    const { router } = renderRoutes(slotRoutes, '/with-slot')
+    await screen.findByText('헤더에 넣은 내용')
+
+    await act(() => router.navigate('/without-slot'))
+
+    expect(screen.queryByText('헤더에 넣은 내용')).not.toBeInTheDocument()
+    expect(slotOf(screen.getByRole('banner'))).toBeEmptyDOMElement()
+  })
+
+  it('AppLayout 밖에서 그리면 아무것도 그리지 않는다', () => {
+    render(
+      <HeaderSlot>
+        <span>갈 곳 없는 내용</span>
+      </HeaderSlot>,
+    )
+
+    expect(screen.queryByText('갈 곳 없는 내용')).not.toBeInTheDocument()
   })
 })
