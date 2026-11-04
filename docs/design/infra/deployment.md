@@ -47,7 +47,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 | 계기 | 하는 일 | 이유 |
 |---|---|---|
 | main push(dev → main 릴리스 머지) | 이미지 8개를 빌드해 GHCR에 올린다 | Jenkins가 main 커밋마다 그 SHA의 이미지를 배포하고 되돌린다. 그래서 paths 필터 없이 매번 8개를 모두 만든다 |
-| PR(Dockerfile, `.dockerignore`, `docker-bake.hcl`, `frontend/Dockerfile`, `frontend/nginx/**`, 이 워크플로가 바뀐 경우) | 빌드만 하고 올리지 않는다 | 이미지 정의가 깨진 것을 main에 가기 전에 본다. 필수 검사가 아니다(paths 필터 워크플로라 필수로 두면 해당 없는 PR의 머지가 막힌다) |
+| PR(Dockerfile, `.dockerignore`, `docker-bake.hcl`, `frontend/Dockerfile`, `frontend/nginx/**`, 프론트 의존성 파일(`package.json`, `package-lock.json`, `.npmrc`, `.nvmrc`), 이 워크플로가 바뀐 경우) | 빌드만 하고 올리지 않는다 | 이미지 정의가 깨진 것을 main에 가기 전에 본다. 필수 검사가 아니다(paths 필터 워크플로라 필수로 두면 해당 없는 PR의 머지가 막힌다) |
 | 수동 실행(Actions → images → Run workflow) | main에서 돌리면 그 시점 main SHA로 다시 올린다. 다른 브랜치는 빌드만 한다 | 실패한 릴리스 이미지를 다시 만들 때 |
 
 **무엇을 만드나**
@@ -68,6 +68,8 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 | bake | `docker-bake.hcl`의 8개를 한 번에 빌드한다 | 앱 7개의 builder 단계(`gradlew bootJar`)가 `APP_MODULE`과 무관해서 BuildKit이 한 번만 돌린다. 앱마다 워크플로 매트릭스로 나누면 같은 Gradle 빌드를 7번 한다. 2026-11-04 로컬에서 앱 두 개를 함께 빌드해 Gradle 단계가 한 번만 도는 것을 확인했다 |
 | 요약 | 올린(또는 빌드만 한) 이미지 이름을 실행 요약에 적는다 | Jenkins나 사람이 배포할 태그를 바로 찾는다 |
 
+- 동시 실행: PR은 같은 PR의 이전 실행을 취소한다. main은 커밋마다 그룹을 따로 둔다. GitHub은 한 그룹에 대기 실행을 하나만 남기고 먼저 기다리던 실행을 취소하므로, main을 그룹 하나로 두면 빌드 중에 머지가 연달아 올 때 가운데 커밋의 이미지가 빠진다.
+- 의존성 캐시 폴더(`build-cache`)와 cache-dance 작업 폴더(`scratch`)는 저장소 루트에 생긴다. 루트 `.dockerignore`에서 빼 두었다. 빼지 않으면 캐시를 맞힌 실행마다 수백 MB가 빌드 컨텍스트로 들어간다.
 - 출처 증명(provenance) 첨부는 껐다. 켜면 GHCR 화면에 `unknown/unknown` 플랫폼 항목이 더 붙는다. 이미지 하나에 플랫폼 하나로 단순하게 둔다.
 - `docker buildx bake`는 항상 `-f docker-bake.hcl`로 실행한다. 파일을 고르지 않으면 bake가 `compose.yml`도 읽어 같은 이름의 compose 서비스를 타깃에 합친다.
 

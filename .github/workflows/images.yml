@@ -31,6 +31,11 @@ on:
       - 'frontend/Dockerfile'
       - 'frontend/.dockerignore'
       - 'frontend/nginx/**'
+      # 의존성이 바뀌면 이미지 안(alpine, musl)의 npm ci가 CI의 frontend 검사(ubuntu, glibc)와 다르게 실패할 수 있다.
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/.npmrc'
+      - 'frontend/.nvmrc'
       - '.github/workflows/images.yml'
   workflow_dispatch:
 
@@ -38,10 +43,12 @@ on:
 permissions:
   contents: read
 
-# 같은 브랜치에서 새 실행이 오면: PR은 이전 실행을 취소한다(마지막 커밋만 보면 된다).
-# main은 취소하지 않는다(커밋마다 이미지가 있어야 Jenkins가 그 SHA를 배포·되돌림할 수 있다).
+# PR은 같은 PR의 새 커밋이 오면 이전 실행을 취소한다(마지막 커밋만 보면 된다).
+# main은 커밋(SHA)마다 그룹을 따로 둔다. 커밋마다 이미지가 있어야 Jenkins가 그 SHA를 배포·되돌림할 수 있다.
+# Note: 한 그룹에는 대기 실행이 하나만 남고 먼저 기다리던 실행은 취소된다(cancel-in-progress가 false여도).
+# main을 브랜치 하나의 그룹으로 두면 빌드 중에 머지가 두 번 더 오면 가운데 커밋의 이미지가 만들어지지 않는다.
 concurrency:
-  group: images-${{ github.ref }}
+  group: images-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -71,6 +78,7 @@ jobs:
       # GitHub 실행기는 매번 새 머신이라 그대로 두면 매번 의존성을 처음부터 받는다. 그래서 actions/cache로
       # 폴더를 복원하고(아래), buildkit-cache-dance가 그 폴더를 BuildKit 캐시 마운트에 넣었다가 빌드가 끝나면
       # 다시 꺼내 저장한다. 키는 의존성 목록 파일의 해시라서 의존성이 바뀌면 새 캐시가 만들어진다.
+      # Note: build-cache와 cache-dance 작업 폴더(scratch)는 저장소 루트에 생긴다. 루트 .dockerignore에서 빼 두었다.
       - name: 의존성 캐시 복원
         id: cache
         uses: actions/cache@v6
