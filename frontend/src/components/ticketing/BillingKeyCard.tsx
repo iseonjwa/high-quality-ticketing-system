@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-// 자동결제 카드(빌링키) 카드(samples/lottery.html "자동결제 카드"). 내 정보와 추첨 응모 화면에 둔다.
+// 자동결제 카드(빌링키) 카드. 내 정보와 추첨 응모 화면에 둔다.
 // 서버에 보유 여부를 묻는 API가 없어 이 브라우저에서 등록한 기록(billingKeyRecord)으로 보인다.
 
 // 같은 화면의 다른 카드(내 정보·추첨)가 기록 변경을 바로 보도록 알린다

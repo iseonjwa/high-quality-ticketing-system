@@ -51,6 +51,7 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `payment-manual` | 결제 409 `PAYMENT_ALREADY_EXISTS`(수동 확인 필요, `Location` 있음) |
 | `payment-slow-confirm` | 결제는 승인되지만 예매가 계속 `HELD`라 확정 확인이 30초를 넘긴다 |
 | `payment-late-approval` | 결제는 승인되지만 그 뒤 예매가 `EXPIRED`가 된다(선점 만료 뒤 승인 도착, 환불 안내) |
+| `billing-unavailable` | 자동결제 카드 등록이 503 `PG_UNAVAILABLE`. 해지는 기본과 같다 |
 
 - 결제가 승인돼도 예매는 바로 확정되지 않는다. 승인 뒤 예매 조회 한 번은 `HELD`, 다음 조회부터 `CONFIRMED`다(실제는 이벤트로 2초 안에 반영).
 - 결제 토큰은 발급마다 다르다. 같은 결제 멱등키 재요청은 처음 응답을 그대로 돌려준다(202 뒤 승인돼도 202).
@@ -88,7 +89,7 @@ src/
   pages/DesignSystemPage.tsx  `npm run dev`에서 `/_design`으로 여는 컴포넌트 확인 화면(운영 빌드에는 없다)
   lib/            공통 함수
   api/            API 클라이언트(client.ts)와 도메인별 요청 함수·응답 스키마, 에러 문구 표
-  auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts), 입력 검사(formSchemas.ts), 돌아갈 경로(navigation.ts)
+  auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts), 잡은 좌석(heldSeats.ts), 결제 시도(paymentAttempts.ts), 자동결제 카드 등록 기록(billingKeyRecord.ts), 입력 검사(formSchemas.ts), 돌아갈 경로(navigation.ts)
   mocks/          MSW 핸들러·목 상태·실패 시나리오. 테스트와 `dev:mock`이 같이 쓴다
   demo/           시연 모드(켜짐 상태, 요청 기록, 오른쪽 요청 로그 패널, Grafana 주소)
   test/setup.ts   Vitest 설정(jest-dom 매처, MSW 서버, 테스트마다 DOM·목 상태·저장소 정리)
