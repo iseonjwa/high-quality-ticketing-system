@@ -19,6 +19,8 @@ public class QueueService {
     private final QueueRepository queueRepository;
     private final ScheduleReader scheduleReader;
 
+    private final EntryTokenIssuer entryTokenIssuer;
+
 
     public QueueEnterResult enter(Long scheduleId, Long userId) {
         ScheduleTimes scheduleTimes = scheduleReader.findById(scheduleId)
@@ -76,5 +78,26 @@ public class QueueService {
         long estimatedWaitSeconds = pollPolicy.estimatedWaitSeconds(position);
         long nextPollAfterMillis = pollPolicy.nextPollAfterMillis(estimatedWaitSeconds);
         return QueuePositionResult.waiting(position, estimatedWaitSeconds, nextPollAfterMillis);
+    }
+
+    public QueueTokenResult issueToken(Long scheduleId, Long userId) {
+        ScheduleTimes scheduleTimes = scheduleReader.findById(scheduleId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        IssueTokenOutcome issueTokenOutcome = queueRepository.issueToken(
+                scheduleId,
+                userId,
+                queueProperties.entryTokenTtl().toMillis(),
+                scheduleTimes.startsAt().plus(queueProperties.keyRetentionAfterStart()).getEpochSecond());
+
+        if (issueTokenOutcome.type() == IssueTokenOutcome.Type.NOT_JOINED) {
+            throw new BusinessException(QueueErrorCode.QUEUE_NOT_JOINED);
+        }
+
+        if (issueTokenOutcome.type() == IssueTokenOutcome.Type.NOT_READY) {
+            throw new BusinessException(QueueErrorCode.QUEUE_NOT_READY);
+        }
+
+        EntryToken entryToken = entryTokenIssuer.issue(userId, scheduleId, issueTokenOutcome.issuedAt());
+        return new QueueTokenResult(AdmissionStatus.ADMITTED, entryToken.value(), entryToken.expiresAt());
     }
 }

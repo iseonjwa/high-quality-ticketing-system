@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.reservation.queue.domain.EnterOutcome;
+import com.iseonjwa.reservation.queue.domain.IssueTokenOutcome;
 import com.iseonjwa.reservation.queue.domain.PositionOutcome;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -416,6 +417,108 @@ class RedisQueueRepositoryTest {
             admit();
 
             assertFalse(stringRedisTemplate.hasKey("queue:{" + OTHER_SCHEDULE_ID + "}:admitted"));
+        }
+    }
+
+    @Nested
+    class 토큰_발급 {
+
+        IssueTokenOutcome issue(long userId) {
+            return queueRepository.issueToken(SCHEDULE_ID, userId, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+        }
+
+        @Test
+        void 차례가_된_사용자는_토큰을_받고_waiting에서_빠진다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            IssueTokenOutcome o = issue(42);
+
+            assertEquals(IssueTokenOutcome.Type.TOKEN_ISSUED, o.type());
+            assertNotNull(o.issuedAt());
+            assertEquals(Double.valueOf(o.issuedAt()), stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+            assertNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void 다시_요청하면_같은_발급_시각을_돌려준다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            IssueTokenOutcome first = issue(42);
+            IssueTokenOutcome second = issue(42);
+
+            assertEquals(IssueTokenOutcome.Type.TOKEN_ISSUED, second.type());
+            assertEquals(first.issuedAt(), second.issuedAt());
+        }
+
+        @Test
+        void 차례_전이면_NOT_READY이고_issued에_쓰지_않는다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 15);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            IssueTokenOutcome o = issue(42);
+
+            assertEquals(IssueTokenOutcome.Type.NOT_READY, o.type());
+            assertNull(stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+            assertNotNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void admitted가_없으면_NOT_READY() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 1);
+
+            assertEquals(IssueTokenOutcome.Type.NOT_READY, issue(42).type());
+        }
+
+        @Test
+        void 줄에_없으면_NOT_JOINED() {
+            assertEquals(IssueTokenOutcome.Type.NOT_JOINED, issue(42).type());
+        }
+
+        @Test
+        void 유효한_토큰이_있으면_저장된_시각을_주고_waiting_잔여를_지운다() {
+            long issuedAt = System.currentTimeMillis() - Duration.ofMinutes(1).toMillis();
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", issuedAt);
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5); // 진입 Lua가 남긴 잔여
+
+            IssueTokenOutcome o = issue(42);
+
+            assertEquals(IssueTokenOutcome.Type.TOKEN_ISSUED, o.type());
+            assertEquals(issuedAt, o.issuedAt().longValue());
+            assertNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void 만료된_토큰이면_NOT_JOINED이고_issued와_waiting을_모두_지운다() {
+            long elevenMinutesAgo = System.currentTimeMillis() - Duration.ofMinutes(11).toMillis();
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", elevenMinutesAgo);
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            IssueTokenOutcome o = issue(42);
+
+            assertEquals(IssueTokenOutcome.Type.NOT_JOINED, o.type());
+            assertNull(stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+            assertNull(stringRedisTemplate.opsForZSet().score(WAITING, "42"));
+        }
+
+        @Test
+        void issued에_만료가_걸린다() {
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 5);
+            stringRedisTemplate.opsForValue().set(ADMITTED, "10");
+
+            issue(42);
+
+            assertTrue(stringRedisTemplate.getExpire(ISSUED) > 0);
+        }
+
+        @Test
+        void 다른_회차의_줄은_보지_않는다() {
+            stringRedisTemplate.opsForZSet().add("queue:{" + OTHER_SCHEDULE_ID + "}:waiting", "42", 1);
+            stringRedisTemplate.opsForValue().set("queue:{" + OTHER_SCHEDULE_ID + "}:admitted", "10");
+
+            assertEquals(IssueTokenOutcome.Type.NOT_JOINED, issue(42).type());
         }
     }
 }
