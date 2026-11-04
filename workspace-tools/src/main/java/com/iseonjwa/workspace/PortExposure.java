@@ -12,7 +12,7 @@ import java.util.Set;
 
 public final class PortExposure {
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final Set<String> PUBLISHABLE = Set.of("alertmanager", "gateway", "grafana", "kafka-ui", "prometheus", "zipkin");
+    private static final Set<String> PUBLISHABLE = Set.of("alertmanager", "frontend", "gateway", "grafana", "kafka-ui", "prometheus", "zipkin");
 
     private PortExposure() {}
 
