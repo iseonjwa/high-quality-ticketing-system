@@ -149,7 +149,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - 앱 프로필은 `prod`다. `local` 전용 컨트롤러(`LocalIdentityController` 등)가 배포 서버에 뜨지 않게 하려는 것이다. `application-prod.yml`의 샘플링은 `${TRACING_SAMPLE_RATE:0.1}`로 바꾸고 배포 compose가 1.0을 넣는다(시연에서 traceId로 트레이스를 본다). 부하 측정 때는 0.01(`loadtest`)로 바꿀지 측정 이슈에서 정한다.
 - 상한 합계는 약 12.1GB(앱 4.8GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 77%로 SA 9-3의 75% 기준을 조금 넘는다. 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
 - 2026-11-04 로컬에서 `IMAGE_TAG=<임의 SHA> docker compose -f compose.yml -f compose.deploy.yml config`로 합쳐진 설정(이미지, 빌드 없음, 상한, 포트, 프로필)을 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했고, `smoke.sh`를 로컬 nginx(8000)에 돌려 네 항목이 모두 통과했다. 실제 배포는 첫 main 릴리스로 GHCR 이미지가 생긴 뒤 확인한다.
-- `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다.
+- `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 
 ### 서버 준비 순서 (배포 EC2, 처음 한 번)
 
@@ -159,7 +159,8 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 4. `bash script/deploy/install-docker.sh` 뒤 다시 접속한다.
 5. `script/deploy/init-env.sh`. 슬랙 알림을 받으려면 `.env`의 `SLACK_WEBHOOK_MONITORING`을 서버에서 직접 채운다.
 6. 첫 배포: `script/deploy/deploy.sh <main의 40자 커밋 SHA>`(그 커밋의 이미지가 GHCR에 있어야 한다).
-   - 시연 데이터: `script/deploy/seed-demo.sh`(ISE-177). 회차 둘을 만든다. "지금 예매"는 오픈 시각이 이미 지난 회차(공연 7일 뒤)이고, "오픈 시연"은 `OPEN_AT`(ISO-8601 UTC)으로 정한 시각에 열리는 회차(공연 8일 뒤)다. `OPEN_AT`이 없으면 지금부터 30분 뒤다. 예: `OPEN_AT=2026-11-06T05:00:00Z script/deploy/seed-demo.sh`. 오픈 시각을 바꾸려면 회차를 고치는 API가 없으므로 DB의 시연 공연을 지우고 다시 돌려야 한다.
+   - 시연 데이터: `script/deploy/seed-demo.sh`(ISE-177). 회차 둘을 만든다. "지금 예매"는 오픈 시각이 이미 지난 회차(공연 7일 뒤)이고, "오픈 시연"은 `OPEN_AT`(ISO-8601 UTC)으로 정한 시각에 열리는 회차(공연 8일 뒤)다. `OPEN_AT`이 없으면 지금부터 30분 뒤다. 예: `OPEN_AT=2026-11-06T05:00:00Z script/deploy/seed-demo.sh`. 회차를 고치는 API가 없으므로 오픈 시각은 바꿀 수 없다. 대신 리허설·시연 직전에 `script/deploy/seed-demo.sh open <OPEN_AT> [주소]`로 시연 공연에 "오픈 시연" 회차를 하나 더 만든다(좌석 포함, 공연 시작은 OPEN_AT 다음 날). 예: `script/deploy/seed-demo.sh open $(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)`. 끝에 새 회차 id와 오픈 시각이 나온다.
+   - `OPEN_AT`은 API를 부르기 전에 형식과 "공연 시작(8일 뒤)보다 앞선다"를 검사하고, 틀리면 아무것도 만들지 않고 종료 코드 2로 끝난다. 공연만 있고 회차가 0개면(이전 실행이 중간에 실패) 기본 실행이 회차·좌석을 이어서 만든다.
    - 공연장 id는 조회 API가 없어 예약 DB 컨테이너에서 이름이 `KSPO DOME`인 공연장을 찾는다(없으면 `VENUE_ID`로 넘긴다). 오픈 시각 검증은 회차 등록이 `openAt`이 `startsAt`보다 앞서는지만 본다(`Schedule.create`). 지난 오픈 시각도 받는다. 샘플 사용자 비밀번호는 서버에서 `grep SAMPLE_USER_PASSWORD .env`로 본다.
 7. 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:3000`.
 8. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
