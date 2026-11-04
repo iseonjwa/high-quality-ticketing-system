@@ -192,6 +192,8 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 배포용 compose 파일 이름·위치 | 정함(ISE-174): 저장소 루트 `compose.deploy.yml`, 서버의 `~/iseonjwa` 클론에서 `script/deploy/deploy.sh`로 실행 |
 | 프론트 nginx 공개 포트와 8080의 관계 | 정함(ISE-109): 80 공개, 8080은 발생기 보안그룹만 |
 | 서버 `.env` 키 갱신 절차 | 정함(ISE-174): `script/deploy/init-env.sh`가 빠진 키만 더한다. 키가 바뀌는 릴리스는 배포 전에 서버에서 한 번 돌린다 |
+| DB·캐시·브로커를 매니지드 서비스(RDS 등)로 분리 | 검토 예정: 11/7~11/12 서버 중지 기간([ADR 0047](../../decisions/0047-single-ec2-first-managed-split-review.md)). 그전까지는 단일 EC2 |
+| 서버 운영 일정 | 정함(ADR 0047): 11/6까지 켜 둠, 11/7~11/12 중지, 11/13~11/19 다시 켬, 그 뒤 삭제 |
 | DB 마이그레이션이 있는 릴리스의 되돌림 규칙 | 미정 |
 | 배포 DB 시드(시연용 관리자·샘플 계정, 공연 데이터) | 정함(ISE-177): `seed-demo.sh`. 관리자는 `.env`의 `ADMIN_EMAIL`로 기동 때 만들어진다 |
 
