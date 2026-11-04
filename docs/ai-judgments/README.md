@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
 | 2026-11-03 | 계층: Kafka 소비자·스케줄러를 infrastructure에 두자는 추천을 거부하고, 입구 어댑터를 presentation으로 모두 옮기기로 팀 회의에서 확정 | kangmin | Claude Code + Claude(대기열 담당) | **거부** | 후보 | [기록](kangmin/2026-11-03-inbound-adapters-to-presentation.md) |
 | 2026-11-02 | 추첨 마일스톤: 팀 문서대로 M4에 둔 배치를 거부, 필수 기능으로 올려 기본 M2·통합 테스트 M3·측정·개선 M4(문서까지 확정) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-02-lottery-must-milestone.md) |
 | 2026-11-02 | 프론트는 백엔드에 필드를 먼저 요청하지 않고 구현된 API만 쓰며, 빈 곳은 나중에 고칠 것으로 기록(ISE-113) | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-frontend-follows-backend-as-is.md) |

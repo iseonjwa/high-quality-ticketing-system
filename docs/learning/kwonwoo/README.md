@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-03 | 접수형 선점에 Kafka를 도입할 때 코드를 infrastructure에 넣으면 되는가 | [qna/2026-11-03-seathold-kafka-placement.md](qna/2026-11-03-seathold-kafka-placement.md) |
 | 2026-10-30 | reservation-service 내부에서 좌석 선점(seathold)과 예매(reservation)를 별도 도메인 패키지로 나누는 설계의 장단점 | [qna/2026-10-30-reservation-seathold-module-boundary.md](qna/2026-10-30-reservation-seathold-module-boundary.md) |
 | 2026-10-29 | 입장 토큰의 회차 ID와 요청 회차 ID 비교를 Gateway와 서비스 중 어디서 할까 | [qna/2026-10-29-entry-token-schedule-check-placement.md](qna/2026-10-29-entry-token-schedule-check-placement.md) |
 | 2026-10-29 | 좌석 선점 API에서 멱등 재요청(Idempotency Retry)이 뜻하는 것과 케이스별 응답 설계 | [qna/2026-10-29-seat-hold-idempotency-retry.md](qna/2026-10-29-seat-hold-idempotency-retry.md) |
