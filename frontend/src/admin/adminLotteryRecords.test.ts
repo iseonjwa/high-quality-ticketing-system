@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { readLotteryIdOfSchedule, saveLotteryOfSchedule } from '@/admin/adminLotteryRecords'
+import {
+  forgetLottery,
+  forgetLotteryOfSchedule,
+  readLotteryIdOfSchedule,
+  saveLotteryOfSchedule,
+} from '@/admin/adminLotteryRecords'
 
-const KEY = 'iseonjwa.adminLotteries'
+// 키는 실행 모드(import.meta.env.MODE)별이다. 테스트의 모드는 test다
+const KEY = 'iseonjwa.adminLotteries.test'
 
 // 전역 setup은 sessionStorage만 비운다
 afterEach(() => {
@@ -49,5 +55,44 @@ describe('adminLotteryRecords', () => {
     saveLotteryOfSchedule(32, 10)
 
     expect(JSON.parse(localStorage.getItem(KEY) as string)).toEqual({ '32': 10 })
+  })
+
+  it('실행 모드별 키에 저장한다', () => {
+    expect(import.meta.env.MODE).toBe('test')
+
+    saveLotteryOfSchedule(31, 9)
+
+    expect(localStorage.getItem(KEY)).not.toBeNull()
+    expect(localStorage.getItem('iseonjwa.adminLotteries')).toBeNull()
+  })
+
+  it('다른 모드(dev, dev:mock)나 모드 없는 옛 키의 기록은 읽지 않는다', () => {
+    localStorage.setItem('iseonjwa.adminLotteries', '{"31":9}')
+    localStorage.setItem('iseonjwa.adminLotteries.development', '{"31":9}')
+    localStorage.setItem('iseonjwa.adminLotteries.mock', '{"31":9}')
+
+    expect(readLotteryIdOfSchedule(31)).toBeNull()
+  })
+
+  it('회차의 기록을 지운다', () => {
+    saveLotteryOfSchedule(31, 9)
+    saveLotteryOfSchedule(32, 10)
+
+    forgetLotteryOfSchedule(31)
+
+    expect(readLotteryIdOfSchedule(31)).toBeNull()
+    expect(readLotteryIdOfSchedule(32)).toBe(10)
+  })
+
+  it('추첨 번호로 지우면 그 번호를 가리키는 기록을 모두 지우고 다른 번호는 남긴다', () => {
+    saveLotteryOfSchedule(31, 9)
+    saveLotteryOfSchedule(32, 9)
+    saveLotteryOfSchedule(33, 10)
+
+    forgetLottery(9)
+
+    expect(readLotteryIdOfSchedule(31)).toBeNull()
+    expect(readLotteryIdOfSchedule(32)).toBeNull()
+    expect(readLotteryIdOfSchedule(33)).toBe(10)
   })
 })

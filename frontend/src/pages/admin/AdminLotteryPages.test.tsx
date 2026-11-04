@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readLotteryIdOfSchedule, saveLotteryOfSchedule } from '@/admin/adminLotteryRecords'
+import { authQueryKeys } from '@/api/auth'
 import { createLottery } from '@/api/adminLotteries'
 import { routes } from '@/app/routes'
 import { formatDateTime } from '@/lib/format'
@@ -43,6 +44,21 @@ const UNKNOWN_OUTCOME = () => fail(504, 'INTERNAL_SERVER_ERROR', '응답 시간�
 
 function mockStatus<T extends 'post' | 'patch'>(method: T, path: string, response: () => Response) {
   mockServer.use(http[method](path, response))
+}
+
+// 그 추첨의 공개 조회 응답을 붙잡아, 기록을 확인하는 동안의 화면을 본다
+function holdInfo(lotteryId: number) {
+  let release!: () => void
+  const closed = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  mockServer.use(
+    http.get(`/api/v1/lotteries/${lotteryId}`, async () => {
+      await closed
+      return undefined
+    }),
+  )
+  return release
 }
 
 describe('운영자 경로 보호', () => {
@@ -113,19 +129,62 @@ describe('추첨 설정 화면', () => {
     expect(screen.queryByLabelText('추첨석 수')).not.toBeInTheDocument()
   })
 
-  it('이 브라우저에 설정 기록이 있으면 안내와 설정 보기 링크만 보이고 폼이 없다', async () => {
+  it('이 브라우저에 설정 기록이 있고 추첨이 실제로 있으면 안내와 설정 보기 링크만 보이고 폼이 없다', async () => {
     const scheduleId = seedScheduleForLottery()
-    saveLotteryOfSchedule(scheduleId, 77)
+    const lottery = await createLottery(scheduleId, lotteryInput())
+    saveLotteryOfSchedule(scheduleId, lottery.lotteryId)
     renderRoutes(routes, newPath(scheduleId))
 
     expect(
-      await screen.findByText(/이 회차에는 이 브라우저에서 설정한 추첨 #77이 있어요/),
+      await screen.findByText(
+        new RegExp(`이 회차에는 이 브라우저에서 설정한 추첨 #${lottery.lotteryId}이 있어요`),
+      ),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '설정 보기' })).toHaveAttribute(
       'href',
-      '/admin/lotteries/77',
+      `/admin/lotteries/${lottery.lotteryId}`,
     )
     expect(screen.queryByLabelText('추첨석 수')).not.toBeInTheDocument()
+  })
+
+  it('기록을 확인하는 동안에는 스켈레톤을 보이고, 기록이 가리키는 추첨이 없으면 지우고 폼을 보인다', async () => {
+    const scheduleId = seedScheduleForLottery()
+    saveLotteryOfSchedule(scheduleId, 999_999)
+    const release = holdInfo(999_999)
+    renderRoutes(routes, newPath(scheduleId))
+
+    expect(await screen.findByText('이 회차의 추첨을 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.queryByLabelText('추첨석 수')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '설정 보기' })).not.toBeInTheDocument()
+
+    release()
+
+    expect(await screen.findByLabelText('추첨석 수')).toBeInTheDocument()
+    expect(screen.queryByText('이 회차의 추첨을 확인하고 있어요')).not.toBeInTheDocument()
+    expect(readLotteryIdOfSchedule(scheduleId)).toBeNull()
+  })
+
+  it('기록이 다른 회차의 추첨을 가리키면 지우고 폼을 보인다', async () => {
+    const scheduleId = seedScheduleForLottery()
+    // 추첨 3번은 회차 31의 것이다
+    saveLotteryOfSchedule(scheduleId, 3)
+    renderRoutes(routes, newPath(scheduleId))
+
+    expect(await screen.findByLabelText('추첨석 수')).toBeInTheDocument()
+    expect(readLotteryIdOfSchedule(scheduleId)).toBeNull()
+  })
+
+  it('기록을 확인하다 다른 오류가 나면 기록을 믿고 안내한다', async () => {
+    const scheduleId = seedScheduleForLottery()
+    saveLotteryOfSchedule(scheduleId, 77)
+    // 4xx는 조회를 다시 보내지 않아 바로 결과가 난다(5xx는 두 번 다시 보낸다)
+    mockServer.use(
+      http.get('/api/v1/lotteries/77', () => fail(403, 'FORBIDDEN', '접근 권한이 없습니다')),
+    )
+    renderRoutes(routes, newPath(scheduleId))
+
+    expect(await screen.findByText(/설정한 추첨 #77이 있어요/)).toBeInTheDocument()
+    expect(readLotteryIdOfSchedule(scheduleId)).toBe(77)
   })
 
   it('칸을 비운 채 설정하면 칸마다 안내하고 요청을 보내지 않는다', async () => {
@@ -243,16 +302,18 @@ describe('추첨 설정 화면', () => {
   })
 
   describe('오류', () => {
-    it('이미 추첨이 있는 회차(기록 없음)면 안내한다', async () => {
+    it('이미 추첨이 있는 회차(기록 없음)면 번호를 넣을 곳을 알리고 운영으로 가는 링크를 준다', async () => {
       const { scheduleId } = await openNew()
       fillValid()
       await createLottery(scheduleId, lotteryInput())
 
       await userEvent.click(screen.getByRole('button', { name: '추첨 설정' }))
 
+      expect(await screen.findByText('이 회차에는 이미 추첨이 있어요')).toBeInTheDocument()
       expect(
-        await screen.findByText('이 회차에는 이미 추첨이 있어요. 회차마다 추첨은 하나예요'),
+        screen.getByText(/설정할 때 받은 번호를 운영 첫 화면의 "추첨 번호로 열기"에 넣어 주세요/),
       ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: '운영으로' })).toHaveAttribute('href', '/admin')
       expect(readLotteryIdOfSchedule(scheduleId)).toBeNull()
     })
 
@@ -330,6 +391,12 @@ describe('추첨 설정 화면', () => {
       await userEvent.click(screen.getByRole('button', { name: '추첨 설정' }))
 
       expect(await screen.findByText(/설정됐는지 확인하지 못했어요/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/다시 설정했을 때 이미 있다고 나오면 설정된 거예요/),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/운영자용 추첨 조회가 없어 이 화면에서는 추첨 번호를 알 수 없어요/),
+      ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '추첨 설정' })).toBeInTheDocument()
       expect(screen.getByLabelText('추첨석 수')).toHaveValue('4')
       expect(readLotteryIdOfSchedule(scheduleId)).toBeNull()
@@ -597,6 +664,80 @@ describe('추첨 고치기 화면', () => {
   })
 })
 
+describe('추첨 고치기 화면: 기록과 시각 비교', () => {
+  beforeEach(async () => {
+    await signInAsAdmin()
+  })
+
+  it('없는 추첨(404)이면 그 번호를 가리키는 기록을 모두 지운다', async () => {
+    saveLotteryOfSchedule(32, 999_999)
+    saveLotteryOfSchedule(41, 999_999)
+    saveLotteryOfSchedule(31, 3)
+    renderRoutes(routes, '/admin/lotteries/999999')
+
+    expect(await screen.findByText(/찾는 추첨이 없어요/)).toBeInTheDocument()
+    await waitFor(() => expect(readLotteryIdOfSchedule(32)).toBeNull())
+    expect(readLotteryIdOfSchedule(41)).toBeNull()
+    // 다른 추첨의 기록은 그대로다
+    expect(readLotteryIdOfSchedule(31)).toBe(3)
+  })
+
+  // 추첨 2번의 마감을 초가 있는 값(분 + 27초)으로, 추첨을 30분 뒤로 둔다
+  function seedSecondsLottery() {
+    const lottery = mockDb.lotteries.find((item) => item.lotteryId === 2)!
+    const base = Math.floor((Date.now() + 2 * DAY) / MINUTE) * MINUTE
+    lottery.entryStartAtMillis = base - DAY
+    lottery.entryEndAtMillis = base + 27_000
+    lottery.drawAtMillis = base + 30 * MINUTE
+    return base
+  }
+
+  it('저장된 마감이 초를 가진 값일 때 추첨을 같은 분으로 고치면 칸 오류이고 요청을 보내지 않는다', async () => {
+    const base = seedSecondsLottery()
+    const requests = recordRequests('/api/v1/admin/lotteries/2')
+    renderRoutes(routes, '/admin/lotteries/2')
+    await screen.findByRole('heading', { level: 1, name: '추첨 #2' })
+    // 칸에는 분까지만 보인다
+    expect(screen.getByLabelText('응모 마감')).toHaveValue(kstLocal(base))
+
+    setValue('추첨 시각', kstLocal(base))
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(await screen.findByText('추첨은 응모 마감과 같거나 뒤여야 해요')).toBeInTheDocument()
+    expect(requests.filter((request) => request.method === 'PATCH')).toHaveLength(0)
+  })
+
+  it('바꾸지 않은 칸은 저장된 값 그대로 통과해 다른 칸만 저장된다', async () => {
+    seedSecondsLottery()
+    const requests = recordRequests('/api/v1/admin/lotteries/2')
+    renderRoutes(routes, '/admin/lotteries/2')
+    await screen.findByRole('heading', { level: 1, name: '추첨 #2' })
+
+    setValue('추첨석 수', '8')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(await screen.findByText('추첨 설정을 고쳤어요')).toBeInTheDocument()
+    const patches = requests.filter((request) => request.method === 'PATCH')
+    expect(await patches[0].json()).toEqual({ seatCount: 8 })
+  })
+
+  it('저장한 뒤에도 응답의 초 값으로 비교해 같은 분의 추첨은 계속 막는다', async () => {
+    const base = seedSecondsLottery()
+    const requests = recordRequests('/api/v1/admin/lotteries/2')
+    renderRoutes(routes, '/admin/lotteries/2')
+    await screen.findByRole('heading', { level: 1, name: '추첨 #2' })
+    setValue('추첨석 수', '8')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    await screen.findByText('추첨 설정을 고쳤어요')
+
+    setValue('추첨 시각', kstLocal(base))
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(await screen.findByText('추첨은 응모 마감과 같거나 뒤여야 해요')).toBeInTheDocument()
+    expect(requests.filter((request) => request.method === 'PATCH')).toHaveLength(1)
+  })
+})
+
 describe('비밀번호 초기화 화면', () => {
   beforeEach(async () => {
     await signInAsAdmin()
@@ -760,6 +901,90 @@ describe('비밀번호 초기화 화면', () => {
   })
 })
 
+describe('비밀번호 초기화 화면: 내 계정과 임시 비밀번호 보관', () => {
+  beforeEach(async () => {
+    await signInAsAdmin()
+  })
+
+  async function openReset() {
+    const user = userEvent.setup()
+    const view = renderRoutes(routes, '/admin/users/password-reset')
+    await screen.findByRole('heading', { level: 1, name: '비밀번호 초기화' })
+    // 내 번호를 알아야 막을 수 있어서 내 정보를 받은 뒤에 누른다
+    await waitFor(() => expect(view.queryClient.getQueryData(authQueryKeys.me)).toBeDefined())
+    return { user, ...view }
+  }
+
+  const resetPath = (userId: number) => `/api/v1/admin/users/${userId}/password-reset`
+  const cachedPasswords = (queryClient: ReturnType<typeof renderRoutes>['queryClient']) =>
+    queryClient
+      .getMutationCache()
+      .getAll()
+      .filter((mutation) =>
+        JSON.stringify(mutation.state.data ?? null).includes('temporaryPassword'),
+      )
+
+  async function resetMember(user: ReturnType<typeof userEvent.setup>, userId: string) {
+    await user.type(screen.getByLabelText('회원 번호'), userId)
+    await user.click(screen.getByRole('button', { name: '임시 비밀번호 만들기' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: '초기화' }),
+    )
+    await screen.findByLabelText('임시 비밀번호')
+  }
+
+  it('내 번호(운영자 1)를 넣으면 대화상자 없이 칸 오류이고 요청을 보내지 않는다', async () => {
+    const { user } = await openReset()
+    const requests = recordRequests(resetPath(1))
+
+    await user.type(screen.getByLabelText('회원 번호'), '1')
+    await user.click(screen.getByRole('button', { name: '임시 비밀번호 만들기' }))
+
+    expect(
+      await screen.findByText(
+        '내 계정이에요. 내 비밀번호는 내 정보의 비밀번호 변경에서 바꿔 주세요',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(requests).toHaveLength(0)
+    expect(screen.getByLabelText('회원 번호')).toHaveFocus()
+  })
+
+  it('다른 회원 번호는 그대로 대화상자가 열린다', async () => {
+    const { user } = await openReset()
+
+    await user.type(screen.getByLabelText('회원 번호'), '42')
+    await user.click(screen.getByRole('button', { name: '임시 비밀번호 만들기' }))
+
+    expect(
+      await screen.findByRole('dialog', { name: '회원 #42의 비밀번호를 초기화할까요?' }),
+    ).toBeInTheDocument()
+  })
+
+  it('[다른 회원 초기화]를 누르면 회원 번호 칸으로 초점이 가고 받은 응답이 캐시에 남지 않는다', async () => {
+    const { user, queryClient } = await openReset()
+    await resetMember(user, '42')
+    // 결과를 보는 동안에는 응답이 있다
+    expect(cachedPasswords(queryClient)).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: '다른 회원 초기화' }))
+
+    await waitFor(() => expect(screen.getByLabelText('회원 번호')).toHaveFocus())
+    expect(screen.getByLabelText('회원 번호')).toHaveValue('')
+    expect(cachedPasswords(queryClient)).toHaveLength(0)
+  })
+
+  it('화면을 떠나면 받은 응답이 캐시에서 사라진다', async () => {
+    const { user, queryClient, router } = await openReset()
+    await resetMember(user, '42')
+    expect(cachedPasswords(queryClient)).toHaveLength(1)
+
+    await act(() => router.navigate('/admin'))
+
+    await waitFor(() => expect(cachedPasswords(queryClient)).toHaveLength(0))
+  })
+})
+
 describe('운영 첫 화면의 추첨·비밀번호 초기화 입구', () => {
   beforeEach(async () => {
     await signInAsAdmin()
@@ -829,16 +1054,62 @@ describe('공연 화면 회차 줄의 추첨 버튼', () => {
     expect(within(await rowOf(51)).queryByRole('link', { name: /추첨/ })).not.toBeInTheDocument()
   })
 
-  it('이 브라우저에 기록이 있으면 판매 중인 회차라도 "추첨 #N"으로 바뀐다', async () => {
-    saveLotteryOfSchedule(31, 5)
+  it('이 브라우저에 기록이 있고 추첨이 실제로 있으면 판매 중인 회차라도 "추첨 #N"으로 바뀐다', async () => {
+    // 추첨 3번은 회차 31의 것이다
+    saveLotteryOfSchedule(31, 3)
     renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
 
     const row = await rowOf(31)
-    expect(within(row).getByRole('link', { name: '추첨 #5' })).toHaveAttribute(
+    expect(await within(row).findByRole('link', { name: '추첨 #3' })).toHaveAttribute(
       'href',
-      '/admin/lotteries/5',
+      '/admin/lotteries/3',
     )
     expect(within(await rowOf(32)).getByRole('link', { name: '추첨 설정' })).toBeInTheDocument()
+    expect(readLotteryIdOfSchedule(31)).toBe(3)
+  })
+
+  it('기록이 가리키는 추첨이 없으면(404) [추첨 설정]으로 돌아가고 기록을 지운다', async () => {
+    saveLotteryOfSchedule(32, 999_999)
+    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+
+    const row = await rowOf(32)
+    expect(await within(row).findByRole('link', { name: '추첨 설정' })).toBeInTheDocument()
+    expect(within(row).queryByRole('link', { name: /추첨 #/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(readLotteryIdOfSchedule(32)).toBeNull())
+  })
+
+  it('기록이 다른 회차의 추첨을 가리키면 같다', async () => {
+    saveLotteryOfSchedule(32, 3)
+    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+
+    const row = await rowOf(32)
+    expect(await within(row).findByRole('link', { name: '추첨 설정' })).toBeInTheDocument()
+    await waitFor(() => expect(readLotteryIdOfSchedule(32)).toBeNull())
+  })
+
+  it('기록을 확인하는 동안에는 그 줄에 추첨 버튼이 없다', async () => {
+    saveLotteryOfSchedule(32, 999_999)
+    const release = holdInfo(999_999)
+    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+
+    const row = await rowOf(32)
+    expect(within(row).queryByRole('link', { name: /추첨/ })).not.toBeInTheDocument()
+
+    release()
+    expect(await within(row).findByRole('link', { name: '추첨 설정' })).toBeInTheDocument()
+  })
+
+  it('기록을 확인하다 다른 오류가 나면 기록을 믿고 "추첨 #N"을 보인다', async () => {
+    saveLotteryOfSchedule(31, 3)
+    mockServer.use(
+      http.get('/api/v1/lotteries/3', () => fail(403, 'FORBIDDEN', '접근 권한이 없습니다')),
+    )
+    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+
+    expect(
+      await within(await rowOf(31)).findByRole('link', { name: '추첨 #3' }),
+    ).toBeInTheDocument()
+    expect(readLotteryIdOfSchedule(31)).toBe(3)
   })
 })
 

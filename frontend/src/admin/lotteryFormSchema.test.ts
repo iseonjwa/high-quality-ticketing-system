@@ -177,6 +177,58 @@ describe('설정과 수정의 차이', () => {
   })
 })
 
+describe('수정 화면: 바꾸지 않은 시각은 저장된 값(초 포함)으로 비교한다', () => {
+  // 저장된 값: 마감 23:17:27(한국), 추첨 00:17:40 다음 날, 응모 시작은 훨씬 앞이지만 미래다
+  const savedTimes = {
+    entryStartAt: '2099-12-01T05:00:00Z',
+    entryEndAt: '2099-12-02T14:17:27Z',
+    drawAt: '2099-12-02T15:17:40Z',
+  }
+  const unchanged = {
+    entryStartAt: '2099-12-01T14:00',
+    entryEndAt: '2099-12-02T23:17',
+    drawAt: '2099-12-03T00:17',
+  }
+  const run = (
+    overrides: Partial<LotteryFormInput>,
+    saved: typeof savedTimes | null = savedTimes,
+  ) =>
+    lotteryFormSchema({ mode: 'edit', scheduleStartsAt: null, savedTimes: saved }).safeParse(
+      baseInput({ ...unchanged, ...overrides }),
+    )
+
+  it('바꾸지 않은 값은 그대로 통과한다', () => {
+    expect(run({}).success).toBe(true)
+  })
+
+  it('추첨을 마감과 같은 분(23:17)으로 고치면 마감(23:17:27)보다 앞이라 막는다', () => {
+    const result = run({ drawAt: '2099-12-02T23:17' })
+
+    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 해요')
+  })
+
+  it('저장된 값을 모르면(savedTimes 없음) 같은 분이라 통과한다 — 서버에서만 400이 된다', () => {
+    expect(run({ drawAt: '2099-12-02T23:17' }, null).success).toBe(true)
+  })
+
+  it('마감을 저장된 추첨(00:17:40)보다 뒤인 분으로 고치면 막는다', () => {
+    const result = run({ entryEndAt: '2099-12-03T00:18' })
+
+    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 해요')
+  })
+
+  it('마감과 추첨이 같은 분이어도 저장된 값에서 추첨이 뒤(23:17:27 ≤ 23:17:40)면 바꾸지 않은 칸은 통과한다', () => {
+    const same = { ...savedTimes, drawAt: '2099-12-02T14:17:40Z' }
+
+    expect(run({ drawAt: '2099-12-02T23:17' }, same).success).toBe(true)
+  })
+
+  it('바꾼 칸은 칸 값(초 0)으로 읽는다', () => {
+    // 마감을 23:18로 고치고 추첨(저장값 00:17:40)은 그대로: 통과
+    expect(run({ entryEndAt: '2099-12-02T23:18' }).success).toBe(true)
+  })
+})
+
 describe('isLowTrafficDrawTime', () => {
   it.each([
     ['2026-12-01T02:59', false],

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CopyField } from '@/components/ticketing/CopyField'
@@ -80,6 +80,20 @@ describe('CopyField', () => {
       expect(input.selectionStart).toBe(0)
       expect(input.selectionEnd).toBe('abcDEF123'.length)
     })
+  })
+
+  it('이미 초점이 있는 칸을 눌러도 값 전체를 고른다', async () => {
+    setClipboard(undefined)
+    renderField('abcDEF123')
+    const input = screen.getByLabelText<HTMLInputElement>('응모 화면 주소')
+    act(() => input.focus())
+    // 브라우저는 초점이 있는 칸을 누르면 고른 범위를 풀고 캐럿만 둔다. 일부만 고른 상태로 만든다
+    input.setSelectionRange(2, 4)
+
+    await userEvent.click(input)
+
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe('abcDEF123'.length)
   })
 
   it('monospace를 켜면 고정폭 글꼴을 쓴다', () => {
