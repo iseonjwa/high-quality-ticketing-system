@@ -1,6 +1,6 @@
 # 0029. 결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다
 
-- 상태: 제안 (반효승 협의 필요, SA 변경 요청 필요. 서비스 경계 해법은 AI 제안이라 사용자 확인 필요. 2026-11-03 개정)
+- 상태: 제안 (SA 변경 요청 필요. 서비스 경계 해법은 AI 제안이라 사용자 확인 필요. 2026-11-03 개정. 예매 쪽 내부 조회 API는 2026-11-03 반효승 합의·ISE-75 구현, 대사 작업(ISE-43)이 남았다)
 - 날짜: 2026-10-28
 - 결정자: 안준현(M3에 최소 대사, 상태·금액·환불 여부 대조, 허용 지연 초과 탐지, MVP는 자동 수정 없이 기록과 Grafana 알림은 사용자 결정)
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
@@ -58,7 +58,14 @@ SA 3장은 메시지 신뢰성을 "outbox·처리 이력·예매 상태를 대�
 
 ## 결과
 
-- 반효승: 내부 조회 API 두 개(S-23). 이 결정은 반효승 합의 전까지 제안이다.
+- 반효승: 내부 조회 API 두 개(S-23). 2026-11-03 ISE-75로 구현했다. 결정 2의 내용에서 구현이 정한 부분은 아래와 같다.
+  - 응답은 다른 API와 같이 `SuccessResponse`의 `data`에 담는다. ID 조회는 예매 목록(없는 ID는 빠지고 ID 순), 변경 조회는 `{items, nextCursor}`다.
+  - 변경 조회의 기준은 "기간 안에 `CONFIRMED`·`CANCELED`가 된 시각"이 아니라 **현재 상태가 `CONFIRMED`·`CANCELED`이고 `updated_at`이 `[from, to)`인 예매**다. 상태 이력을 읽지 않아 단순하고, 확정 뒤 취소된 예매는 `CANCELED`로 한 번 나온다.
+  - 한 쪽은 100건이고 ID 순이다. 100건이 차면 마지막 ID를 `nextCursor`로 주고, 다음 쪽은 `cursor`로 그 다음 ID부터 읽는다. 덜 차면 `nextCursor`는 `null`이다.
+  - 400 `VALIDATION_FAILED`: `ids`가 없거나 100건 초과, `from`·`to`가 없거나 `from` ≥ `to`, `cursor` < 0.
+  - 인증 헤더 없이 부른다. `/internal/**`은 Gateway가 막는다(AccessPolicy).
+  - `updated_at` 인덱스는 두지 않았다. 대사 부하가 보이면 `(status, updated_at)` 인덱스를 더한다.
+  - 이 기준이 맞으려면 예매 상태 전이마다 `updated_at`을 갱신해야 한다. 지금 확정·만료·해제 UPDATE는 모두 갱신한다. 나중에 취소(`CONFIRMED` → `CANCELED`)를 만들 때 빠뜨리면 확정한 지 7일이 지난 뒤 취소된 예매가 변경 조회에 나오지 않아 결제 쪽이 RC-2를 찾지 못한다(#283 리뷰).
 - `data-model.md`의 `reconciliation_mismatches`, `outbox_events`의 `INDEX(created_at)`, `payment_status_histories`의 `target_type`.
 - 0020의 잔여 위험("토픽 보관 기간 초과 시 대응 없음")을 RC-2가 맡는다.
 - 테스트: N23, N30, FT-1~FT-5의 V3(테스트 프로필은 L을 5초로 줄이고 대사를 강제 실행).
