@@ -33,6 +33,8 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 |---|---|
 | (기본) | 대기열은 순번 조회 두 번 뒤 READY, 선점 성공, 결제 승인 |
 | `queue-ready` | 대기열 진입하자마자 READY |
+| `queue-unavailable` | 대기열 요청 첫 1번이 503(`Retry-After: 1`), 그다음부터 기본과 같다 |
+| `queue-expired` | READY 뒤 첫 토큰 요청이 줄 기록을 지우고 404 `QUEUE_NOT_JOINED`. 다시 진입하면 기본처럼 돈다 |
 | `seat-conflict` | 첫 선점이 409 이선좌로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다 |
 | `payment-declined` | 결제 200 `DECLINED`(한도 초과) |
 | `payment-unknown` | 결제 202 `UNKNOWN`, 첫 결제 조회에서 `APPROVED` |

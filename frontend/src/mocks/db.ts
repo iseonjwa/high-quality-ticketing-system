@@ -131,6 +131,10 @@ interface MockState {
     }
   >
   seatConflictUsed: boolean
+  // queue-unavailable이 아직 503을 줘야 하는 남은 횟수
+  queueUnavailableLeft: number
+  // queue-expired가 이미 줄 기록을 지웠는지
+  queueExpiredUsed: boolean
 }
 
 export const mockDb: MockState = createInitialState()
@@ -307,6 +311,8 @@ function createInitialState(nowMillis = Date.now()): MockState {
     payments: new Map(),
     paymentRequests: new Map(),
     seatConflictUsed: false,
+    queueUnavailableLeft: 1,
+    queueExpiredUsed: false,
   }
 }
 
