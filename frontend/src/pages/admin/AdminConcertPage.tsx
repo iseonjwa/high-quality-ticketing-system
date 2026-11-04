@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronLeft, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -17,7 +17,7 @@ import {
   type SeatPriceFormValues,
 } from '@/admin/formSchemas'
 import { createSchedule, createScheduleSeats } from '@/api/admin'
-import { isApiError } from '@/api/apiError'
+import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { concertQueryKeys, getConcert, type ScheduleSummary } from '@/api/concerts'
 import { concertPath, paths } from '@/app/paths'
 import { applyFieldErrors } from '@/components/form/applyFieldErrors'
@@ -51,7 +51,11 @@ export function AdminConcertPage() {
   })
   // 이 화면에서 좌석을 만든(또는 이미 있다고 확인한) 회차 → 만든 좌석 수(이미 있으면 null)
   const [seatsByScheduleId, setSeatsByScheduleId] = useState<Record<number, number | null>>({})
+  // 대화상자가 닫히는 동안(퇴장 애니메이션)에도 내용을 그리도록 대상과 열림을 나눈다
   const [seatTarget, setSeatTarget] = useState<ScheduleSummary | null>(null)
+  const [seatDialogOpen, setSeatDialogOpen] = useState(false)
+  // 대화상자를 닫으면 그 회차 줄로 초점을 돌려준다(버튼, 만든 뒤에는 결과 글자)
+  const rowFocusTargets = useRef(new Map<number, HTMLElement>())
 
   const missing =
     concertId === null || (concert.data === undefined && isApiError(concert.error, 'NOT_FOUND'))
@@ -131,7 +135,17 @@ export function AdminConcertPage() {
                     <ScheduleRow
                       schedule={schedule}
                       seats={seatsByScheduleId[schedule.scheduleId]}
-                      onCreateSeats={() => setSeatTarget(schedule)}
+                      focusRef={(node) => {
+                        if (node) {
+                          rowFocusTargets.current.set(schedule.scheduleId, node)
+                        } else {
+                          rowFocusTargets.current.delete(schedule.scheduleId)
+                        }
+                      }}
+                      onCreateSeats={() => {
+                        setSeatTarget(schedule)
+                        setSeatDialogOpen(true)
+                      }}
                     />
                   </li>
                 ))}
@@ -143,7 +157,9 @@ export function AdminConcertPage() {
 
           <SeatDialog
             schedule={seatTarget}
-            onClose={() => setSeatTarget(null)}
+            open={seatDialogOpen}
+            onClose={() => setSeatDialogOpen(false)}
+            onClosed={(scheduleId) => rowFocusTargets.current.get(scheduleId)?.focus()}
             onDone={(scheduleId, createdSeats) =>
               setSeatsByScheduleId((current) => ({ ...current, [scheduleId]: createdSeats }))
             }
@@ -157,11 +173,13 @@ export function AdminConcertPage() {
 function ScheduleRow({
   schedule,
   seats,
+  focusRef,
   onCreateSeats,
 }: {
   schedule: ScheduleSummary
   // undefined: 이 화면에서 모름, number: 방금 만든 좌석 수, null: 이미 있다고 확인함
   seats: number | null | undefined
+  focusRef: (node: HTMLElement | null) => void
   onCreateSeats: () => void
 }) {
   return (
@@ -183,11 +201,16 @@ function ScheduleRow({
       </div>
       <div className="shrink-0">
         {seats === undefined ? (
-          <Button variant="outline" onClick={onCreateSeats}>
+          <Button ref={focusRef} variant="outline" onClick={onCreateSeats}>
             좌석 만들기
           </Button>
         ) : (
-          <span className="inline-flex items-center gap-1.5 type-body-sm font-semibold text-success-600 tabular-nums">
+          // 좌석을 만들면 버튼이 이 글자로 바뀐다. 대화상자를 닫은 초점이 여기로 온다
+          <span
+            ref={focusRef}
+            tabIndex={-1}
+            className="inline-flex items-center gap-1.5 type-body-sm font-semibold text-success-600 tabular-nums outline-none"
+          >
             <Check aria-hidden="true" className="size-4" strokeWidth={3} />
             {seats === null ? '좌석이 이미 있어요' : `좌석 ${numberFormat.format(seats)}석 만듦`}
           </span>
@@ -200,6 +223,8 @@ function ScheduleRow({
 function ScheduleForm({ concertId }: { concertId: number }) {
   const queryClient = useQueryClient()
   const [formError, setFormError] = useState<unknown>(null)
+  // 응답을 받지 못해(연결 끊김·504) 등록됐는지 모른다. 등록 API에는 멱등키가 없어 다시 보내면 같은 회차가 둘 생긴다
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false)
   const form = useForm<ScheduleFormInput, unknown, ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: { venueId: '', startsAt: '', openAt: '', maxPerUser: '', holdMinutes: '' },
@@ -208,12 +233,19 @@ function ScheduleForm({ concertId }: { concertId: number }) {
 
   async function handleCreate(values: ScheduleFormValues) {
     setFormError(null)
+    setOutcomeUnknown(false)
     try {
       await createSchedule(concertId, toScheduleInput(values))
-      await queryClient.invalidateQueries({ queryKey: ['concerts'] })
+      // 등록은 끝났다. 목록 재조회가 늦거나 실패해도 버튼을 붙잡지 않는다
+      void queryClient.invalidateQueries({ queryKey: ['concerts'] })
       toast('회차를 등록했어요. 좌석을 만들어야 예매할 수 있어요')
       form.reset()
     } catch (error) {
+      if (isOutcomeUnknown(error)) {
+        void queryClient.invalidateQueries({ queryKey: ['concerts'] })
+        setOutcomeUnknown(true)
+        return
+      }
       // 공연은 이 화면이 이미 조회했으므로 404는 공연장 번호가 없다는 뜻이다
       if (isApiError(error, 'NOT_FOUND')) {
         form.setError('venueId', { message: '이 번호의 공연장이 없어요' }, { shouldFocus: true })
@@ -240,6 +272,12 @@ function ScheduleForm({ concertId }: { concertId: number }) {
       </h2>
       <Card className="px-5 @min-[40rem]:px-6">
         <form noValidate onSubmit={form.handleSubmit(handleCreate)} className="grid gap-5">
+          {outcomeUnknown ? (
+            <Alert variant="warning">
+              등록됐는지 확인하지 못했어요. 회차 목록을 다시 불러왔어요. 목록에 없을 때만 다시
+              등록해 주세요
+            </Alert>
+          ) : null}
           {formError === null ? null : <ErrorNotice error={formError} />}
           <TextField
             label="공연장 번호"
@@ -292,23 +330,47 @@ function ScheduleForm({ concertId }: { concertId: number }) {
 }
 
 // 회차 좌석 만들기. 공연장 좌석 배치를 그대로 복사하고 가격은 등급으로 정한다(서버 규칙)
+// Note: 요청 중에는 닫지 못하게 한다(Esc·바깥 누름·X·닫기). 좌석 15,000석을 만드는 데 시간이 걸리는데, 그 사이 닫고
+// 다른 회차를 열면 앞 요청의 응답이 새로 연 대화상자를 닫거나, 닫힌 뒤 온 실패가 보이지 않는다(셀프 리뷰에서 재현).
+// 트리거 없이 여닫아 Radix가 초점을 돌려줄 곳을 모르므로, 닫힌 뒤 그 회차 줄로 직접 돌려준다
 function SeatDialog({
   schedule,
+  open,
   onClose,
+  onClosed,
   onDone,
 }: {
   schedule: ScheduleSummary | null
+  open: boolean
   onClose: () => void
+  onClosed: (scheduleId: number) => void
   onDone: (scheduleId: number, createdSeats: number | null) => void
 }) {
+  const [submitting, setSubmitting] = useState(false)
   return (
-    <Dialog open={schedule !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !submitting) {
+          onClose()
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={!submitting}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (schedule !== null) {
+            onClosed(schedule.scheduleId)
+          }
+        }}
+      >
         {schedule !== null ? (
           // 회차마다 입력 상태를 새로 시작한다
           <SeatForm
             key={schedule.scheduleId}
             schedule={schedule}
+            onSubmittingChange={setSubmitting}
             onClose={onClose}
             onDone={onDone}
           />
@@ -320,10 +382,12 @@ function SeatDialog({
 
 function SeatForm({
   schedule,
+  onSubmittingChange,
   onClose,
   onDone,
 }: {
   schedule: ScheduleSummary
+  onSubmittingChange: (submitting: boolean) => void
   onClose: () => void
   onDone: (scheduleId: number, createdSeats: number | null) => void
 }) {
@@ -339,12 +403,16 @@ function SeatForm({
   async function handleCreate(values: SeatPriceFormValues) {
     setGradeMismatch(false)
     setUnexpectedError(null)
+    onSubmittingChange(true)
     try {
       const { createdSeats } = await createScheduleSeats(schedule.scheduleId, toSeatPrices(values))
       toast(`좌석 ${numberFormat.format(createdSeats)}석을 만들었어요`)
       onDone(schedule.scheduleId, createdSeats)
+      onSubmittingChange(false)
       onClose()
     } catch (error) {
+      onSubmittingChange(false)
+      // 좌석 만들기는 다시 보내도 안전하다. 이미 만들었으면 서버가 409로 알려 준다
       if (isApiError(error, 'SCHEDULE_SEATS_ALREADY_CREATED')) {
         toast('이미 좌석을 만든 회차예요')
         onDone(schedule.scheduleId, null)
@@ -378,6 +446,7 @@ function SeatForm({
           </Alert>
         ) : null}
         {unexpectedError !== null ? <ErrorNotice error={unexpectedError} /> : null}
+        {errors.root?.message ? <Alert variant="warning">{errors.root.message}</Alert> : null}
         {SEAT_GRADES.map((grade) => (
           <TextField
             key={grade}
@@ -388,7 +457,7 @@ function SeatForm({
           />
         ))}
         <div className="mt-1 flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" disabled={isSubmitting} onClick={onClose}>
             닫기
           </Button>
           <Button type="submit" loading={isSubmitting}>

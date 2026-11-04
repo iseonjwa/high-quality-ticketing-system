@@ -40,10 +40,10 @@ const optionalSmallInt = (topic: string) =>
 
 export const scheduleFormSchema = z
   .object({
-    venueId: requiredInteger(
-      '공연장 번호를 입력해 주세요',
-      '공연장 번호는 숫자로 입력해 주세요',
-    ).refine((value) => value > 0, '공연장 번호는 1 이상이어야 해요'),
+    venueId: requiredInteger('공연장 번호를 입력해 주세요', '공연장 번호는 숫자로 입력해 주세요')
+      .refine((value) => value > 0, '공연장 번호는 1 이상이어야 해요')
+      // 안전 범위를 넘으면 JSON 숫자가 반올림되거나(2^53 이상) 서버 Long으로 읽히지 않는다
+      .refine((value) => Number.isSafeInteger(value), '공연장 번호를 확인해 주세요'),
     startsAt: z
       .string()
       .min(1, '공연 시작 시각을 입력해 주세요')
@@ -71,15 +71,17 @@ const optionalPrice = z
   .string()
   .trim()
   .refine((value) => value === '' || /^\d+$/.test(value), '가격은 숫자로 입력해 주세요')
+  .refine((value) => value === '' || Number(value) >= 1, '가격은 1원 이상으로 입력해 주세요')
   .refine(
-    (value) => value === '' || (Number(value) >= 1 && Number(value) <= MAX_PRICE),
-    '가격은 1원 이상으로 입력해 주세요',
+    (value) => value === '' || Number(value) <= MAX_PRICE,
+    '가격이 너무 커요. 다시 확인해 주세요',
   )
 
 export const seatPriceFormSchema = z
   .object({ VIP: optionalPrice, R: optionalPrice, S: optionalPrice })
+  // 특정 칸이 아니라 폼 전체의 규칙이라 root 오류로 둔다. VIP 칸에 붙이면 VIP가 없는 공연장에서 틀린 칸을 가리킨다
   .refine((values) => SEAT_GRADES.some((grade) => values[grade] !== ''), {
-    path: ['VIP'],
+    path: ['root'],
     message: '적어도 한 등급의 가격을 입력해 주세요',
   })
 export type SeatPriceFormInput = z.input<typeof seatPriceFormSchema>

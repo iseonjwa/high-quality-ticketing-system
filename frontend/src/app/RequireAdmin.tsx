@@ -14,10 +14,12 @@ export function RequireAdmin() {
 
   if (me.isPending) {
     return (
-      <main className="mx-auto grid w-full max-w-[880px] gap-4" role="status">
-        <span className="sr-only">권한을 확인하고 있어요</span>
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-32 w-full" />
+      <main className="mx-auto w-full max-w-[880px]">
+        <div className="grid gap-4" role="status">
+          <span className="sr-only">권한을 확인하고 있어요</span>
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </main>
     )
   }
