@@ -70,7 +70,7 @@ describe('BillingKeyCard: 표시', () => {
     renderCards()
 
     expect(screen.getByText('등록됨')).toBeInTheDocument()
-    expect(screen.getByText(/•••• 4242/)).toHaveTextContent('•••• 4242 · 11. 04. 등록')
+    expect(screen.getByText(/•••• 4242/)).toHaveTextContent('•••• 4242 · 11.04 등록')
     expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다른 카드로 바꾸기' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '카드 등록' })).not.toBeInTheDocument()
@@ -80,7 +80,7 @@ describe('BillingKeyCard: 표시', () => {
     saveBillingKeyRecord(USER_ID, { cardLast4: null, registeredAt: '2026-11-04T03:00:00.000Z' })
     renderCards()
 
-    expect(screen.getByText('11. 04. 등록')).toBeInTheDocument()
+    expect(screen.getByText('11.04 등록')).toBeInTheDocument()
     expect(screen.queryByText(/••••/)).not.toBeInTheDocument()
   })
 })

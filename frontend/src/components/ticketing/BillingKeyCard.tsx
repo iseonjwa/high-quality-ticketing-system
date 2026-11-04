@@ -193,10 +193,16 @@ function RegisterError({ error }: { error: unknown }) {
   return <ErrorNotice error={error} />
 }
 
+const monthDay = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+// "11.04"처럼 보인다
 function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(iso))
+  const parts = Object.fromEntries(
+    monthDay.formatToParts(new Date(iso)).map((part) => [part.type, part.value]),
+  )
+  return `${parts.month}.${parts.day}`
 }
