@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Minus, TriangleAlert } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { authQueryKeys, getMe } from '@/api/auth'
@@ -180,6 +180,27 @@ function Rule({ children }: { children: ReactNode }) {
   )
 }
 
+// 응모·취소에 성공하면 누른 버튼이 사라져 초점이 body로 떨어진다. 사용자가 이 화면에서 응모·취소를 한 뒤에
+// 초점을 잃었을 때만 새로 그린 카드 제목으로 옮긴다. 다시 받기로 결과가 바뀔 때는 초점을 건드리지 않는다
+const ActionFocusContext = createContext<{ acted: boolean; markActed: () => void }>({
+  acted: false,
+  markActed: () => {},
+})
+
+function useTitleFocus() {
+  const { acted } = useContext(ActionFocusContext)
+  const ref = useRef<HTMLHeadingElement>(null)
+  // 카드가 새로 그려질 때 한 번만 본다. 1초마다 다시 그려도 초점을 다시 옮기지 않는다
+  const actedOnMount = useRef(acted)
+  useEffect(() => {
+    const active = document.activeElement
+    if (actedOnMount.current && (active === null || active === document.body)) {
+      ref.current?.focus()
+    }
+  }, [])
+  return ref
+}
+
 function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
   const me = useQuery({ queryKey: authQueryKeys.me, queryFn: getMe })
   const entry = useQuery({
@@ -189,6 +210,7 @@ function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
       shouldPollResult(lottery, query.state.data ?? null, Date.now()) ? RESULT_POLL_MILLIS : false,
   })
   const phase = phaseOf(lottery, now)
+  const [acted, setActed] = useState(false)
 
   let content: ReactNode
   if (entry.isPending) {
@@ -212,10 +234,10 @@ function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
   }
 
   return (
-    <>
+    <ActionFocusContext value={{ acted, markActed: () => setActed(true) }}>
       {content}
       {me.data ? <BillingKeyCard userId={me.data.userId} anchorId={BILLING_KEY_CARD_ID} /> : null}
-    </>
+    </ActionFocusContext>
   )
 }
 
@@ -246,6 +268,7 @@ function EntryForm({
   userId: number | undefined
 }) {
   const queryClient = useQueryClient()
+  const { markActed } = useContext(ActionFocusContext)
   const { minPerEntry, maxPerEntry } = lottery.rules
   const [quantity, setQuantity] = useState(minPerEntry)
   // 응모 한 번(매수)에 키 하나. 결과를 모르면 같은 키로 다시 보내 서버가 그 응모의 지금 상태를 주게 한다.
@@ -261,6 +284,7 @@ function EntryForm({
     },
     onSuccess: (entry) => {
       keyRef.current = null
+      markActed()
       queryClient.setQueryData(lotteryQueryKeys.myEntry(lottery.lotteryId), entry)
     },
     onError: (error) => {
@@ -270,6 +294,7 @@ function EntryForm({
       keyRef.current = null
       if (isApiError(error, 'LOTTERY_ALREADY_ENTERED')) {
         // 다른 탭·기기에서 이미 응모했다. 내 응모를 다시 받아 결과를 보인다
+        markActed()
         void queryClient.invalidateQueries({
           queryKey: lotteryQueryKeys.myEntry(lottery.lotteryId),
         })
@@ -477,10 +502,12 @@ function EnteredCard({
   phase: Phase
 }) {
   const queryClient = useQueryClient()
+  const { markActed } = useContext(ActionFocusContext)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cancel = useMutation({
     mutationFn: () => cancelEntry(lottery.lotteryId),
     onSuccess: (canceled) => {
+      markActed()
       queryClient.setQueryData(lotteryQueryKeys.myEntry(lottery.lotteryId), canceled)
       setConfirmOpen(false)
     },
@@ -574,11 +601,17 @@ function EntryCard({
   badge?: ReactNode
   children: ReactNode
 }) {
+  const titleRef = useTitleFocus()
   return (
     <section aria-labelledby="entry-title">
       <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="entry-title" className="type-heading text-gray-900">
+          <h2
+            ref={titleRef}
+            id="entry-title"
+            tabIndex={-1}
+            className="type-heading text-gray-900 outline-none"
+          >
             {title}
           </h2>
           {badge}
@@ -603,6 +636,7 @@ function ResultCard({
   action?: ReactNode
 }) {
   const Icon = tone === 'success' ? Check : tone === 'warning' ? TriangleAlert : Minus
+  const titleRef = useTitleFocus()
   return (
     <section aria-labelledby="entry-result-title">
       <Card className="items-center gap-2 px-4 pt-8 pb-6 text-center @min-[40rem]:px-6">
@@ -617,7 +651,12 @@ function ResultCard({
         >
           <Icon className="size-7" strokeWidth={tone === 'success' ? 3 : 2} />
         </span>
-        <h2 id="entry-result-title" className="mt-2 type-title text-gray-900">
+        <h2
+          ref={titleRef}
+          id="entry-result-title"
+          tabIndex={-1}
+          className="mt-2 type-title text-gray-900 outline-none"
+        >
           {title}
         </h2>
         {rank ? (
