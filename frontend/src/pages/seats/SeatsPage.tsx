@@ -3,12 +3,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
-import { isApiError, isOutcomeUnknown } from '@/api/apiError'
+import { isApiError } from '@/api/apiError'
 import { concertQueryKeys, getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
 import { describeError } from '@/api/errorMessages'
-import type { HeldSeatHold } from '@/api/reservations'
 import { concertPath, paths, paymentPath, queuePath, reservationPath } from '@/app/paths'
 import { readEntryToken, removeEntryToken, type StoredEntryToken } from '@/auth/entryTokens'
+import {
+  readHeldSeats,
+  removeHeldSeats,
+  saveHeldSeats,
+  type HeldSeat,
+  type StoredHold,
+} from '@/auth/heldSeats'
 import { HeaderSlot } from '@/components/layout/HeaderSlot'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { EmptyState } from '@/components/ticketing/EmptyState'
@@ -23,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime, formatWon } from '@/lib/format'
+import { instantMillis } from '@/lib/instant'
 import { readRouteId } from '@/lib/routeId'
 import { createServerClock, type ServerClock } from '@/lib/serverClock'
 import { paymentNavigationState } from '@/pages/payment/paymentNavigation'
@@ -50,9 +57,13 @@ const DEFAULT_QUANTITY = 2
 
 const seatQueryKey = (scheduleId: number) => ['seats', scheduleId] as const
 
+// 409 뒤 방금 남에게 넘어간 좌석이 깜빡이는 시간(Seat의 깜빡임과 같다)
+const JUST_TAKEN_MILLIS = 1600
+
 type SeatNotice =
-  // 409. lost는 다시 조회해 보니 고를 수 없게 된 좌석 이름이다. 비었으면 겹친 좌석이 그사이 풀렸다
-  | { kind: 'conflict'; lost: string[] }
+  // 409. lost는 다시 조회해 보니 고를 수 없게 된 좌석 이름이다. 비었으면 겹친 좌석이 그사이 풀렸고,
+  // null이면 좌석을 다시 받지 못했다(requested로 다시 받는다)
+  | { kind: 'conflict'; lost: string[] | null; requested: number[] }
   // 다시 보내도 결과를 끝내 모른다. 같은 좌석으로 다시 누르면 같은 멱등키로 결과를 확인한다
   | { kind: 'unknown' }
   | { kind: 'error'; error: unknown }
@@ -117,6 +128,8 @@ function SeatsScreen({
   const maxPerUser = concertDetail.data?.schedules.find(
     (schedule) => schedule.scheduleId === scheduleId,
   )?.maxPerUser
+  // 좌석 확보 대화상자가 떠 있던 중 뒤로 가거나 새로고침했으면 결제 가능 시간이 남은 동안 대화상자를 다시 띄운다
+  const [restoredHold] = useState(() => restoreHeldSeats(scheduleId))
 
   const clock = useMemo(
     () => (seats.data ? createServerClock(seats.data.serverTime, seats.dataUpdatedAt) : undefined),
@@ -133,15 +146,23 @@ function SeatsScreen({
     void navigate(queuePath(scheduleId), { replace: true, state: locationState })
   }
 
+  // Note: 서버 시각(좌석 응답)이 오기 전에는 만료를 재지 않는다. 브라우저 시계가 빠르면 그리자마자 만료로 잠기고,
+  // 서버 시각으로 시간이 남아도 풀리지 않았다(셀프 리뷰에서 재현). 서버 시계가 오면 칩을 새로 그려(key) 그때부터 잰다.
   const entryChip = (onExpire?: () => void) => (
-    <TimeChip label="입장 유효" expiresAt={entry.expiresAt} clock={clock} onExpire={onExpire} />
+    <TimeChip
+      key={clock ? 'server' : 'browser'}
+      label="입장 유효"
+      expiresAt={entry.expiresAt}
+      clock={clock}
+      onExpire={clock ? onExpire : undefined}
+    />
   )
 
   return (
     <main className="grid gap-5">
       <HeaderSlot>{entryChip()}</HeaderSlot>
-      {/* 앱 화면이 56rem보다 좁으면 헤더 자리가 숨으니 본문 맨 위에 둔다. 만료 처리는 늘 그려지는 이쪽이 맡는다 */}
-      <div className="flex justify-end @min-[56rem]:hidden">
+      {/* 앱 화면이 62rem보다 좁으면 헤더 자리가 숨으니 본문 맨 위에 둔다. 만료 처리는 늘 그려지는 이쪽이 맡는다 */}
+      <div className="flex justify-end @min-[62rem]:hidden">
         {entryChip(() => setEntryExpired(true))}
       </div>
       {concert !== null ? (
@@ -158,13 +179,14 @@ function SeatsScreen({
           maxPerUser={maxPerUser}
           concert={concert}
           clock={clock}
+          restoredHold={restoredHold}
           entryExpired={entryExpired || tokenRejected}
           onEntryExpired={() => setEntryExpired(true)}
           onBackToQueue={backToQueue}
         />
       ) : seats.isError ? (
         tokenRejected ? (
-          <EntryExpiredAlert onBackToQueue={backToQueue} />
+          <EntryExpiredAlert onBackToQueue={backToQueue} maybeHeld={false} />
         ) : (
           <ErrorNotice error={seats.error} onRetry={() => void seats.refetch()} />
         )
@@ -175,6 +197,20 @@ function SeatsScreen({
   )
 }
 
+// 저장한 선점이 있고 결제 가능 시간이 남았으면 돌려준다. 지난 것은 지운다.
+// 서버 시각이 오기 전이라 브라우저 시계로 본다. 어긋나도 대화상자가 시간 칩으로 남은 시간을 다시 보인다
+function restoreHeldSeats(scheduleId: number): StoredHold | null {
+  const stored = readHeldSeats(scheduleId)
+  if (stored === null) {
+    return null
+  }
+  if (instantMillis(stored.hold.paymentTokenExpiresAt) <= Date.now()) {
+    removeHeldSeats(scheduleId)
+    return null
+  }
+  return stored
+}
+
 function SeatSelection({
   scheduleId,
   data,
@@ -183,6 +219,7 @@ function SeatSelection({
   maxPerUser,
   concert,
   clock,
+  restoredHold,
   entryExpired,
   onEntryExpired,
   onBackToQueue,
@@ -194,6 +231,7 @@ function SeatSelection({
   maxPerUser: number | undefined
   concert: QueueConcert | null
   clock: ServerClock | undefined
+  restoredHold: StoredHold | null
   entryExpired: boolean
   onEntryExpired: () => void
   onBackToQueue: () => void
@@ -211,10 +249,26 @@ function SeatSelection({
   const [sectionChoice, setSectionChoice] = useState<string | null>(null)
   const [justTaken, setJustTaken] = useState<number[]>([])
   const [notice, setNotice] = useState<SeatNotice | null>(null)
-  const [held, setHeld] = useState<HeldSeatHold | null>(null)
+  const [held, setHeld] = useState<StoredHold | null>(restoredHold)
+  // 409 뒤 좌석을 다시 받는 중. 그동안 고친 선택을 다 받은 뒤 옛 값으로 덮지 않게 잠근다
+  const [recovering, setRecovering] = useState(false)
+  // 입장 만료 직전 요청의 결과를 몰라 좌석이 잡혔을 수 있다
+  const [maybeHeld, setMaybeHeld] = useState(false)
   // 알림 자리. 409·결과 모름·실패를 알릴 때 초점을 옮긴다. [선택 완료]가 비활성으로 바뀌어 초점이 body로 떨어지고,
   // 끼워 넣은 role=alert는 화면 낭독기가 읽지 않을 수 있어서 초점으로 내용을 읽힌다
   const noticeRef = useRef<HTMLDivElement>(null)
+  // 알림을 닫거나 대화상자가 내려가면 초점을 둘 곳
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // 409 뒤 깜빡임(1.6초)이 끝나면 표시를 지운다. 남겨 두면 구역을 다시 열 때마다 깜빡이고, 다시 받은 좌석이
+  // 선택할 수 있게 돼도 막힌다
+  useEffect(() => {
+    if (justTaken.length === 0) {
+      return
+    }
+    const timer = setTimeout(() => setJustTaken([]), JUST_TAKEN_MILLIS)
+    return () => clearTimeout(timer)
+  }, [justTaken])
 
   const current =
     sections.find((section) => section.section === sectionChoice) ??
@@ -244,7 +298,10 @@ function SeatSelection({
     pickedBySection.set(seat.section, (pickedBySection.get(seat.section) ?? 0) + 1)
   }
   const soldOut = sections.every((section) => remainingSeats(section) === 0)
-  const locked = entryExpired || held !== null || hold.busy
+  // 더 고칠 수 없다(입장 만료, 좌석 확보)
+  const finished = entryExpired || held !== null
+  // 좌석·매수를 바꿀 수 없다. 결과를 모르는 키가 남아 있으면 같은 좌석으로 확인할 때까지 고르지 못하게 한다
+  const editLocked = finished || hold.busy || recovering || hold.outstanding
 
   function changeQuantity(next: number) {
     setQuantityChoice(next)
@@ -252,7 +309,7 @@ function SeatSelection({
   }
 
   function toggleSeat(seatId: number) {
-    if (locked) {
+    if (editLocked) {
       return
     }
     if (selectedSeatIds.includes(seatId)) {
@@ -270,35 +327,43 @@ function SeatSelection({
     noticeRef.current?.focus()
   }
 
+  function closeNotice() {
+    flushSync(() => setNotice(null))
+    headingRef.current?.focus()
+  }
+
   async function submit() {
     const requested = selectedSeatIds
     setNotice(null)
     setJustTaken([])
     const outcome = await hold.submit(requested)
     switch (outcome.kind) {
-      case 'held':
+      case 'held': {
         if (outcome.hold.status === 'CONFIRMED') {
           // 같은 키 재요청인데 이미 결제가 끝났다. 이 화면에서는 거의 일어나지 않는다
           toast('이미 결제까지 끝난 예매예요')
           void navigate(reservationPath(outcome.hold.reservationId), { replace: true })
           return
         }
-        setHeld(outcome.hold)
+        const stored: StoredHold = { hold: outcome.hold, seats: heldSeatsOf(outcome.hold.seatIds) }
+        saveHeldSeats(scheduleId, stored)
+        setHeld(stored)
         return
+      }
       case 'conflict':
         await recoverFromConflict(requested)
         return
+      case 'unknown':
+        announce(() => setNotice({ kind: 'unknown' }))
+        return
       case 'entryExpired':
-        announce(onEntryExpired)
+        announce(() => {
+          setMaybeHeld(outcome.maybeHeld)
+          onEntryExpired()
+        })
         return
       case 'failed':
-        announce(() =>
-          setNotice(
-            isOutcomeUnknown(outcome.error)
-              ? { kind: 'unknown' }
-              : { kind: 'error', error: outcome.error },
-          ),
-        )
+        announce(() => setNotice({ kind: 'error', error: outcome.error }))
         return
       case 'aborted':
         return
@@ -307,16 +372,23 @@ function SeatSelection({
 
   // 409는 어느 좌석이 겹쳤는지 알려 주지 않는다. 좌석을 다시 받아 고를 수 없게 된 좌석만 풀고 나머지는 둔다
   async function recoverFromConflict(requested: number[]) {
-    const result = await refetchSeats()
+    setRecovering(true)
+    let result: Awaited<ReturnType<typeof refetchSeats>>
+    try {
+      result = await refetchSeats()
+    } finally {
+      setRecovering(false)
+    }
     if (result.isError || result.data === undefined) {
-      announce(() => setNotice({ kind: 'conflict', lost: [] }))
+      // 겹친 좌석이 아직 선택에 남아 있다. 다시 누르게 하지 않고 좌석을 다시 받게 한다
+      announce(() => setNotice({ kind: 'conflict', lost: null, requested }))
       return
     }
     const fresh = result.data.sections
     const lost = lostSeatIds(requested, fresh)
     const firstLost = lost.length > 0 ? findSeat(fresh, lost[0]) : undefined
     announce(() => {
-      setSelectedIds(requested.filter((seatId) => !lost.includes(seatId)))
+      setSelectedIds((previous) => previous.filter((seatId) => !lost.includes(seatId)))
       setJustTaken(lost)
       if (firstLost) {
         setSectionChoice(firstLost.section)
@@ -327,36 +399,42 @@ function SeatSelection({
           const seat = findSeat(fresh, seatId) ?? findSeat(sections, seatId)
           return seat ? [seatLabel(seat)] : []
         }),
+        requested,
       })
     })
   }
 
-  function goToPayment(hold: HeldSeatHold) {
-    const heldSeats = hold.seatIds.flatMap((seatId) => {
+  function heldSeatsOf(seatIds: number[]): HeldSeat[] {
+    return seatIds.flatMap((seatId) => {
       const seat = findSeat(sections, seatId)
-      return seat ? [{ seatId, ...seat }] : []
+      return seat
+        ? [
+            {
+              seatId,
+              section: seat.section,
+              grade: seat.grade,
+              price: seat.price,
+              row: seat.row,
+              number: seat.number,
+            },
+          ]
+        : []
     })
+  }
+
+  function goToPayment({ hold, seats }: StoredHold) {
     // 결제 화면에서 뒤로 가면 공연 상세로 간다. 좌석 화면으로 돌아오면 잡은 좌석을 두고 또 고르게 된다
     void navigate(paymentPath(hold.reservationId), {
       replace: true,
-      state: paymentNavigationState({
-        hold,
-        seats: heldSeats.map(({ seatId, section, grade, price, row, number }) => ({
-          seatId,
-          section,
-          grade,
-          price,
-          row,
-          number,
-        })),
-        concert,
-      }),
+      state: paymentNavigationState({ hold, seats, concert }),
     })
   }
 
   function reselectAfterPaymentExpired() {
+    removeHeldSeats(scheduleId)
     setHeld(null)
     setSelectedIds([])
+    setJustTaken([])
     setNotice(null)
     void refetchSeats()
   }
@@ -367,7 +445,12 @@ function SeatSelection({
         <Card className="gap-0 px-4 py-5 @min-[40rem]:p-6">
           <div className="mb-5 flex flex-col gap-4 @min-[40rem]:flex-row @min-[40rem]:items-end @min-[40rem]:justify-between">
             <div>
-              <h2 id="seat-map-title" className="type-heading text-gray-900">
+              <h2
+                ref={headingRef}
+                id="seat-map-title"
+                tabIndex={-1}
+                className="type-heading text-gray-900 outline-none"
+              >
                 좌석 선택
               </h2>
               <p className="type-body-sm text-gray-500">
@@ -379,7 +462,7 @@ function SeatSelection({
                 value={quantity}
                 max={max}
                 onChange={changeQuantity}
-                disabled={locked}
+                disabled={editLocked}
               />
               {maxPerUser !== undefined ? (
                 <p className="type-caption text-gray-500">회차당 최대 {maxPerUser}매</p>
@@ -391,12 +474,22 @@ function SeatSelection({
             tabIndex={-1}
             className="grid gap-3 outline-none empty:hidden [&:not(:empty)]:mb-4"
           >
-            {entryExpired ? <EntryExpiredAlert onBackToQueue={onBackToQueue} /> : null}
-            {refetchError !== null ? (
+            {entryExpired ? (
+              <EntryExpiredAlert onBackToQueue={onBackToQueue} maybeHeld={maybeHeld} />
+            ) : null}
+            {refetchError !== null && !(notice?.kind === 'conflict' && notice.lost === null) ? (
               <ErrorNotice error={refetchError} onRetry={() => void refetchSeats()} />
             ) : null}
             {notice !== null ? (
-              <SeatNoticeAlert notice={notice} onClose={() => setNotice(null)} />
+              <SeatNoticeAlert
+                notice={notice}
+                onClose={closeNotice}
+                onReload={(requested) => void recoverFromConflict(requested)}
+                onAbandon={() => {
+                  hold.abandon()
+                  closeNotice()
+                }}
+              />
             ) : null}
             {soldOut ? (
               <Alert
@@ -444,7 +537,7 @@ function SeatSelection({
                 section={current}
                 selectedSeatIds={selectedSeatIds}
                 justTakenSeatIds={justTaken}
-                locked={entryExpired || held !== null}
+                locked={finished}
                 onToggle={toggleSeat}
               />
             </div>
@@ -459,8 +552,9 @@ function SeatSelection({
         seats={selectedSeats}
         quantity={quantity}
         total={totalPrice(selectedSeatIds, sections)}
-        request={hold.state}
-        locked={entryExpired || held !== null}
+        request={recovering ? 'sending' : hold.state}
+        locked={finished}
+        outstanding={hold.outstanding}
         onRemove={(seatId) => setSelectedIds(selectedSeatIds.filter((id) => id !== seatId))}
         onClear={() => {
           setSelectedIds([])
@@ -470,38 +564,72 @@ function SeatSelection({
       />
       {held !== null ? (
         <HeldDialog
-          hold={held}
-          seats={held.seatIds.flatMap((seatId) => {
-            const seat = findSeat(sections, seatId)
-            return seat ? [{ ...seat, seatId }] : []
-          })}
+          hold={held.hold}
+          seats={held.seats}
           clock={clock}
           onPay={() => goToPayment(held)}
           onReselect={reselectAfterPaymentExpired}
+          onReturnFocus={() => headingRef.current?.focus()}
         />
       ) : null}
     </div>
   )
 }
 
-function SeatNoticeAlert({ notice, onClose }: { notice: SeatNotice; onClose: () => void }) {
+function SeatNoticeAlert({
+  notice,
+  onClose,
+  onReload,
+  onAbandon,
+}: {
+  notice: SeatNotice
+  onClose: () => void
+  onReload: (requested: number[]) => void
+  onAbandon: () => void
+}) {
   switch (notice.kind) {
     case 'conflict':
+      if (notice.lost === null) {
+        return (
+          <Alert
+            variant="warning"
+            action={
+              <Button variant="outline" size="sm" onClick={() => onReload(notice.requested)}>
+                좌석 다시 불러오기
+              </Button>
+            }
+          >
+            <p className="font-semibold">이미 선택된 좌석이 있어요</p>
+            <p>좌석을 다시 불러오지 못했어요. 다시 불러온 뒤 골라 주세요.</p>
+          </Alert>
+        )
+      }
       return (
         <Alert variant="warning" onClose={onClose}>
           <p className="font-semibold">이미 선택된 좌석입니다</p>
           <p>
             {notice.lost.length > 0
               ? `${notice.lost.join(', ')}이 방금 다른 분께 선택됐어요. 남은 좌석은 그대로 두었어요.`
-              : '다른 분이 먼저 고른 좌석이 있었어요. 좌석을 새로 불러왔으니 다시 선택 완료를 눌러 주세요.'}
+              : '다른 분이 먼저 고른 좌석이 있었는데 그사이 풀렸어요. 좌석을 새로 불러왔으니 다시 선택 완료를 눌러 주세요.'}
           </p>
         </Alert>
       )
     case 'unknown':
+      // 키를 남겨 두었다. 같은 좌석으로 [결과 확인하기]를 누르면 서버가 처음 결과를 돌려준다
       return (
-        <Alert variant="warning" onClose={onClose}>
+        <Alert
+          variant="warning"
+          action={
+            <Button variant="outline" size="sm" onClick={onAbandon}>
+              다른 좌석 고르기
+            </Button>
+          }
+        >
           <p className="font-semibold">좌석을 잡았는지 확인하지 못했어요</p>
-          <p>같은 좌석으로 다시 선택 완료를 누르면 결과를 확인해요.</p>
+          <p>
+            [결과 확인하기]를 누르면 같은 요청으로 다시 확인해요. 다른 좌석을 고르면 앞 요청으로
+            잡힌 좌석은 결제하지 않는 한 잠시 뒤 풀려요.
+          </p>
         </Alert>
       )
     case 'error':
@@ -524,7 +652,13 @@ function SeatNoticeAlert({ notice, onClose }: { notice: SeatNotice; onClose: () 
   }
 }
 
-function EntryExpiredAlert({ onBackToQueue }: { onBackToQueue: () => void }) {
+function EntryExpiredAlert({
+  onBackToQueue,
+  maybeHeld,
+}: {
+  onBackToQueue: () => void
+  maybeHeld: boolean
+}) {
   return (
     <Alert
       variant="danger"
@@ -536,6 +670,15 @@ function EntryExpiredAlert({ onBackToQueue }: { onBackToQueue: () => void }) {
     >
       <p className="font-semibold">입장 시간이 끝났어요</p>
       <p>다시 줄을 서서 입장해 주세요.</p>
+      {maybeHeld ? (
+        <p className="mt-1">
+          마지막 요청의 결과를 확인하지 못했어요.{' '}
+          <Link to={paths.myReservations} className="font-semibold underline underline-offset-2">
+            내 예매
+          </Link>
+          에서 잡힌 좌석이 있는지 확인해 주세요.
+        </p>
+      ) : null}
     </Alert>
   )
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { apiRequest } from '@/api/client'
 import { entityId } from '@/api/envelope'
 import { removeAllEntryTokens } from '@/auth/entryTokens'
+import { removeAllHeldSeats } from '@/auth/heldSeats'
 import { clearSession, saveTokens, tokenPairSchema } from '@/auth/session'
 
 // 회원·인증 API(SA 11-5, user-service AuthController). 재발급은 `auth/refresh.ts`가 맡는다.
@@ -58,6 +59,7 @@ export async function logout(): Promise<void> {
   } finally {
     clearSession()
     removeAllEntryTokens()
+    removeAllHeldSeats()
   }
 }
 

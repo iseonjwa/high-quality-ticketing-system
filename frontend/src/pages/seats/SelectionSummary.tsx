@@ -15,6 +15,8 @@ interface SelectionSummaryProps {
   request: HoldRequestState
   // 입장 시간이 끝났거나 좌석을 잡은 뒤라 더 고칠 수 없다
   locked: boolean
+  // 결과를 모르는 선점 요청이 남아 있다. 좌석을 바꾸지 못하고 같은 좌석으로 결과를 확인한다
+  outstanding: boolean
   onRemove: (seatId: number) => void
   onClear: () => void
   onSubmit: () => void
@@ -27,12 +29,14 @@ export function SelectionSummary({
   total,
   request,
   locked,
+  outstanding,
   onRemove,
   onClear,
   onSubmit,
 }: SelectionSummaryProps) {
   const need = quantity - seats.length
   const busy = request !== 'idle'
+  const frozen = busy || locked || outstanding
   const headingRef = useRef<HTMLHeadingElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
 
@@ -86,7 +90,7 @@ export function SelectionSummary({
                   variant="ghost"
                   size="sm"
                   className="text-gray-500"
-                  disabled={busy || locked}
+                  disabled={frozen}
                   aria-label={`${seatLabel(seat)} 해제`}
                   onClick={() => remove(seat.seatId, index)}
                 >
@@ -123,10 +127,14 @@ export function SelectionSummary({
             loading={request === 'sending'}
             onClick={onSubmit}
           >
-            {need > 0 ? `${need}석 더 골라 주세요` : `${quantity}매 선택 완료`}
+            {outstanding
+              ? '결과 확인하기'
+              : need > 0
+                ? `${need}석 더 골라 주세요`
+                : `${quantity}매 선택 완료`}
           </Button>
         )}
-        <Button variant="outline" className="w-full" disabled={busy || locked} onClick={onClear}>
+        <Button variant="outline" className="w-full" disabled={frozen} onClick={onClear}>
           다시 고르기
         </Button>
         <p className="type-caption text-gray-500">

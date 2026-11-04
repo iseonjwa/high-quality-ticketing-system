@@ -71,7 +71,7 @@ function isRetryable(error: unknown): error is ApiError {
   )
 }
 
-function sleepUntil(millis: number, signal: AbortSignal): Promise<void> {
+export function sleepUntil(millis: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) {
       resolve()

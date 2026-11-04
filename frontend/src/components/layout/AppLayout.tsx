@@ -95,11 +95,11 @@ export function AppLayout() {
               <StepIndicator currentIndex={bookingStep} />
             </div>
           ) : null}
-          {/* 비어 있으면 숨긴다. 앱 화면이 56rem보다 좁으면 단계 표시·메뉴와 한 줄에 들어가지 않아(768px에서 46px 넘침)
-              숨기고, 그 폭에서는 화면이 본문에 같은 내용을 둔다 */}
+          {/* 비어 있으면 숨긴다. 앱 화면이 62rem보다 좁으면 단계 표시·메뉴와 한 줄에 들어가지 않아(768px에서 46px 넘침,
+              단계 이름이 다 보이는 960px에서 오른쪽 여백 22px 잠식) 숨기고, 그 폭에서는 화면이 본문에 같은 내용을 둔다 */}
           <div
             ref={setHeaderSlot}
-            className="flex shrink-0 items-center pr-2 empty:hidden @max-[56rem]:hidden"
+            className="flex shrink-0 items-center pr-2 empty:hidden @max-[62rem]:hidden"
           />
           <nav aria-label="주 메뉴" className="flex shrink-0 items-center gap-1">
             {isSignedIn ? (

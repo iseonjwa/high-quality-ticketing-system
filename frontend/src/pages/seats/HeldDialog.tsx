@@ -6,30 +6,41 @@ import { TimeChip } from '@/components/ticketing/TimeChip'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { ServerClock } from '@/lib/serverClock'
-import type { SelectedSeat } from '@/pages/seats/seatSections'
+import type { HeldSeat } from '@/auth/heldSeats'
 
 interface HeldDialogProps {
   hold: HeldSeatHold
-  seats: SelectedSeat[]
+  seats: HeldSeat[]
   clock?: ServerClock
   onPay: () => void
   // 결제 가능 시간이 지난 뒤 [좌석 다시 고르기]
   onReselect: () => void
+  // 대화상자가 내려간 뒤 초점을 둘 곳. Radix는 열기 전 초점(비활성이 된 [선택 완료])으로 돌려 body로 떨어진다
+  onReturnFocus: () => void
 }
 
 // 좌석 확보 대화상자(샘플 .modal). 좌석은 이미 잡혔으니 닫는 길 없이 결제로만 보낸다.
 // Note: 닫을 수 있으면 잡힌 좌석을 두고 좌석표로 돌아가 같은 회차를 또 고르게 된다(1인 매수 한도에 걸린다).
-// 결제 가능 시간이 지나면 좌석이 풀리므로 그때만 [좌석 다시 고르기]로 대화상자를 닫는다.
-export function HeldDialog({ hold, seats, clock, onPay, onReselect }: HeldDialogProps) {
+// open을 고정하고 onOpenChange를 주지 않아 Esc·바깥 누름으로 닫히지 않는다. 결제 가능 시간이 지나면 좌석이 풀리므로
+// 그때만 [좌석 다시 고르기]로 화면이 대화상자를 내린다.
+export function HeldDialog({
+  hold,
+  seats,
+  clock,
+  onPay,
+  onReselect,
+  onReturnFocus,
+}: HeldDialogProps) {
   const [expired, setExpired] = useState(false)
 
   return (
     <Dialog open>
       <DialogContent
         showCloseButton={false}
-        onEscapeKeyDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-        onInteractOutside={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          onReturnFocus()
+        }}
         className="gap-4 px-6 pt-8 pb-6"
       >
         {expired ? (

@@ -145,6 +145,19 @@ describe('일반 예매 흐름', () => {
     })
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
   })
+
+  it('로그아웃하면 모든 회차의 저장한 선점 좌석도 지우고 다른 저장값은 둔다', async () => {
+    await signInAsDemo()
+    sessionStorage.setItem('iseonjwa.heldSeats.31', '{}')
+    sessionStorage.setItem('iseonjwa.heldSeats.32', '{}')
+    sessionStorage.setItem('unrelated', 'keep')
+
+    await logout()
+
+    expect(sessionStorage.getItem('iseonjwa.heldSeats.31')).toBeNull()
+    expect(sessionStorage.getItem('iseonjwa.heldSeats.32')).toBeNull()
+    expect(sessionStorage.getItem('unrelated')).toBe('keep')
+  })
 })
 
 describe('실패 재현 스위치', () => {

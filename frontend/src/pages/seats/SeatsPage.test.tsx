@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { createMemoryRouter } from 'react-router'
@@ -7,6 +7,7 @@ import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
 import { readEntryToken, saveEntryToken } from '@/auth/entryTokens'
+import { readHeldSeats, saveHeldSeats, type StoredHold } from '@/auth/heldSeats'
 import { mockDb, toKstIso } from '@/mocks/db'
 import { fail, ok } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
@@ -103,6 +104,56 @@ const summary = () => screen.getByRole('complementary')
 
 function holdKeys(requests: Request[]) {
   return requests.map((request) => request.headers.get('Idempotency-Key'))
+}
+
+const unknown504 = () => fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+const conflict409 = () => fail(409, 'SEAT_ALREADY_HELD', '이미 선택된 좌석입니다')
+const entryRejected403 = () => fail(403, 'ENTRY_TOKEN_INVALID', '입장 토큰이 올바르지 않습니다')
+
+// 선점 요청에 앞에서부터 하나씩 답하고, 다 쓰면 기본 목 핸들러(정상 선점)로 넘긴다
+function scriptHoldThenDefault(...responders: (() => Response)[]) {
+  const queue = [...responders]
+  mockServer.use(http.post(HOLD_API, () => queue.shift()?.()))
+}
+
+// 선점 요청에 앞에서부터 하나씩 답하고, 다 쓰면 마지막 답을 되풀이한다
+function scriptHoldRepeatingLast(...responders: (() => Response)[]) {
+  const queue = [...responders]
+  mockServer.use(http.post(HOLD_API, () => (queue.length > 1 ? queue.shift()! : queue[0])()))
+}
+
+// 목 데이터(회차 31)를 서버 시각만 바꿔 돌려주는 좌석 조회
+function serveSeatsAt(serverMillis: number) {
+  mockServer.use(
+    http.get(SEATS_API, () => {
+      const sections = new Map<
+        string,
+        { section: string; grade: string; price: number; seats: unknown[] }
+      >()
+      for (const seat of mockDb.seats.filter(
+        (candidate) => candidate.scheduleId === ON_SALE_SCHEDULE_ID,
+      )) {
+        const section = sections.get(seat.section) ?? {
+          section: seat.section,
+          grade: seat.grade,
+          price: seat.price,
+          seats: [],
+        }
+        section.seats.push({
+          seatId: seat.seatId,
+          row: seat.row,
+          number: seat.number,
+          available: seat.available,
+        })
+        sections.set(seat.section, section)
+      }
+      return ok({
+        scheduleId: ON_SALE_SCHEDULE_ID,
+        serverTime: toKstIso(serverMillis),
+        sections: [...sections.values()],
+      })
+    }),
+  )
 }
 
 // 가짜 시계로 다시 보내기 간격(1초·2초·4초, 0~20% 더함)을 건너뛴다
@@ -333,13 +384,9 @@ describe('SeatsPage 선점', () => {
     expect(screen.queryByText('좌석을 확인하고 있어요')).not.toBeInTheDocument()
   })
 
-  it('계속 결과를 모르면 확인하지 못했다고 알리고, 같은 좌석은 같은 멱등키로, 다른 좌석은 새 키로 보낸다', async () => {
+  it('계속 결과를 모르면 확인하지 못했다고 알리고 좌석·매수를 막으며, 결과 확인하기는 같은 좌석을 같은 멱등키로 보낸다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    mockServer.use(
-      http.post(HOLD_API, () =>
-        fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다'),
-      ),
-    )
+    mockServer.use(http.post(HOLD_API, unknown504))
     await renderLoaded()
     const requests = recordRequests(HOLD_API)
     await pickA(SEAT_A1, SEAT_A2)
@@ -352,21 +399,85 @@ describe('SeatsPage 선점', () => {
     const firstRound = requests.length
     expect(firstRound).toBeGreaterThan(1)
     expect(new Set(holdKeys(requests)).size).toBe(1)
+    // 키가 남아 있는 동안 좌석·매수·해제·다시 고르기가 막힌다
+    expect(screen.getByRole('radio', { name: '3매' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'A구역 1열 1번 해제' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '다시 고르기' })).toBeDisabled()
+    await userEvent.click(seatButton('A', 1, 3))
+    expect(within(summary()).getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: '2매 선택 완료' })).not.toBeInTheDocument()
 
-    // 같은 좌석으로 다시 누르면 같은 키다
-    await userEvent.click(submitButton())
+    await userEvent.click(screen.getByRole('button', { name: '결과 확인하기' }))
     await skipRetryDelays()
+
     await waitFor(() => expect(requests.length).toBe(firstRound * 2))
     expect(new Set(holdKeys(requests)).size).toBe(1)
+    expect(await requests[firstRound].json()).toEqual({ seatIds: [SEAT_A1, SEAT_A2] })
+  })
 
-    // 좌석을 바꾸면 새 키다
+  it('결과를 모른 채 다른 좌석 고르기를 누르면 알림이 닫히고 다시 고를 수 있으며 다음 요청은 새 멱등키다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    scriptHoldThenDefault(unknown504, unknown504, unknown504, unknown504)
+    await renderLoaded()
+    const requests = recordRequests(HOLD_API)
+    await pickA(SEAT_A1, SEAT_A2)
+    await userEvent.click(submitButton())
+    await skipRetryDelays()
+    await screen.findByText('좌석을 잡았는지 확인하지 못했어요')
+    expect(requests).toHaveLength(4)
+
+    await userEvent.click(screen.getByRole('button', { name: '다른 좌석 고르기' }))
+
+    expect(screen.queryByText('좌석을 잡았는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '좌석 선택' })).toHaveFocus()
+    expect(screen.getByRole('radio', { name: '3매' })).toBeEnabled()
     await userEvent.click(screen.getByRole('button', { name: 'A구역 1열 2번 해제' }))
     await userEvent.click(seatButton('A', 1, 3))
     await userEvent.click(submitButton())
+
+    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    expect(requests).toHaveLength(5)
+    expect(await requests[4].json()).toEqual({ seatIds: [SEAT_A1, SEAT_A3] })
+    const keys = holdKeys(requests)
+    expect(new Set(keys.slice(0, 4)).size).toBe(1)
+    expect(keys[4]).not.toBe(keys[0])
+  })
+
+  it('결과를 모른 요청 뒤 409는 기다렸다 같은 키로 다시 확인해 잡혔으면 좌석 확보 대화상자를 보인다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    scriptHoldThenDefault(unknown504, conflict409)
+    await renderLoaded()
+    const requests = recordRequests(HOLD_API)
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
     await skipRetryDelays()
-    await waitFor(() => expect(requests.length).toBe(firstRound * 3))
-    expect(new Set(holdKeys(requests)).size).toBe(2)
-    expect(await requests[firstRound * 2].json()).toEqual({ seatIds: [SEAT_A1, SEAT_A3] })
+
+    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    expect(requests).toHaveLength(3)
+    expect(new Set(holdKeys(requests)).size).toBe(1)
+    expect(screen.queryByText('이미 선택된 좌석입니다')).not.toBeInTheDocument()
+  })
+
+  it('결과를 모른 요청 뒤 409가 기다린 뒤에도 409면 이미 선택된 좌석으로 알리고 다음 요청은 새 키다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    scriptHoldRepeatingLast(unknown504, conflict409)
+    await renderLoaded()
+    const requests = recordRequests(HOLD_API)
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+    await skipRetryDelays()
+
+    expect(await screen.findByText('이미 선택된 좌석입니다')).toBeInTheDocument()
+    expect(screen.queryByText('좌석을 잡았는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(requests).toHaveLength(3)
+
+    await userEvent.click(submitButton())
+    await waitFor(() => expect(requests).toHaveLength(4))
+    const keys = holdKeys(requests)
+    expect(new Set(keys.slice(0, 3)).size).toBe(1)
+    expect(keys[3]).not.toBe(keys[0])
   })
 
   it('1인 매수 한도를 넘으면 경고와 내 예매 보기 링크를 보인다', async () => {
@@ -448,9 +559,15 @@ describe('SeatsPage 선점', () => {
 
     const dialog = await screen.findByRole('dialog', { name: '결제 가능 시간이 지났어요' })
     expect(within(dialog).queryByRole('button', { name: '결제하러 가기' })).not.toBeInTheDocument()
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
     await userEvent.click(within(dialog).getByRole('button', { name: '좌석 다시 고르기' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // 저장한 선점을 지우고, 대화상자가 내려가면 초점은 좌석 선택 제목으로 간다
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 2, name: '좌석 선택' })).toHaveFocus(),
+    )
     expect(within(summary()).queryAllByRole('listitem')).toHaveLength(0)
     expect(screen.getByRole('heading', { name: '선택한 좌석' }).parentElement).toHaveTextContent(
       '0 / 2매',
@@ -475,6 +592,7 @@ describe('SeatsPage 입장 시간', () => {
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).toHaveAttribute('data-locked')
     expect(seatButton('A', 1, 3)).toBeDisabled()
     expect(alert.closest('[tabindex="-1"]')).toHaveFocus()
+    expect(screen.queryByText(/마지막 요청의 결과를 확인하지 못했어요/)).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe(SEATS_PATH)
 
     // 클라이언트가 이미 지운 토큰이 다시 저장돼 있어도 이 버튼이 지운다
@@ -597,5 +715,219 @@ describe('SeatsPage 탭 제목', () => {
     await renderLoaded()
 
     expect(document.title).toBe('원래 제목')
+  })
+})
+
+describe('SeatsPage 입장 시간 시계', () => {
+  // 저장한 expiresAt이 브라우저 시계로는 1분 지났다. 목 서버는 토큰 문자열의 만료로 통과시킨다
+  function storeBrowserExpiredEntry() {
+    const embeddedExpiry = Date.now() + 10 * 60_000
+    saveEntryToken(ON_SALE_SCHEDULE_ID, {
+      token: `mock-entry.${ON_SALE_SCHEDULE_ID}.${DEMO_USER_ID}.${embeddedExpiry}`,
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+    })
+  }
+
+  it('브라우저 시계로는 지났어도 서버 시각으로 남았으면 좌석을 잠그지 않는다', async () => {
+    storeBrowserExpiredEntry()
+    // 서버 시각은 브라우저보다 5분 느리다. 서버 기준으로는 4분쯤 남는다
+    serveSeatsAt(Date.now() - 5 * 60_000)
+    renderSeats()
+    await screen.findByRole('radio', { name: /^A구역 VIP/ })
+
+    expect(screen.queryByText('입장 시간이 끝났어요')).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'A구역 좌석' })).not.toHaveAttribute('data-locked')
+    expect(seatButton('A', 1, 1)).toBeEnabled()
+    expect(screen.getByRole('radio', { name: '2매' })).toBeEnabled()
+    const chips = screen.getAllByRole('timer')
+    expect(chips.length).toBeGreaterThan(0)
+    chips.forEach((chip) => expect(chip).toHaveTextContent(/0[34]:\d\d/))
+  })
+
+  it('서버 시각으로도 지났으면 좌석을 잠근다', async () => {
+    storeBrowserExpiredEntry()
+    serveSeatsAt(Date.now())
+    renderSeats()
+    await screen.findByRole('radio', { name: /^A구역 VIP/ })
+
+    expect(await screen.findByText('입장 시간이 끝났어요')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'A구역 좌석' })).toHaveAttribute('data-locked')
+    expect(seatButton('A', 1, 1)).toBeDisabled()
+  })
+
+  it('결과를 모른 요청 뒤 입장 토큰 거절이면 잡혔을 수 있다고 알리고 내 예매 링크를 준다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    scriptHoldRepeatingLast(unknown504, entryRejected403)
+    await renderLoaded()
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+    await skipRetryDelays()
+
+    const alert = (await screen.findByText('입장 시간이 끝났어요')).closest('[role="alert"]')!
+    expect(alert).toHaveTextContent('마지막 요청의 결과를 확인하지 못했어요')
+    expect(within(alert as HTMLElement).getByRole('link', { name: '내 예매' })).toHaveAttribute(
+      'href',
+      '/me/reservations',
+    )
+  })
+})
+
+describe('SeatsPage 409 뒤 좌석 다시 받기', () => {
+  it('다시 받는 동안 좌석·매수·버튼을 막고, 받은 뒤 겹친 좌석만 뺀다', async () => {
+    setMockScenario({ seatHold: 'seat-conflict' })
+    await renderLoaded()
+    const seatRequests = recordRequests(SEATS_API)
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    // 다시 받기 응답을 붙잡아 둔다. 풀면 기본 핸들러가 답한다
+    mockServer.use(
+      http.get(SEATS_API, async () => {
+        await gate
+      }),
+    )
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+    await waitFor(() => expect(seatRequests).toHaveLength(1))
+
+    const busy = submitButton()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('radio', { name: '3매' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '다시 고르기' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'A구역 1열 1번 해제' })).toBeDisabled()
+    await userEvent.click(seatButton('A', 1, 3))
+    expect(within(summary()).getAllByRole('listitem')).toHaveLength(2)
+
+    release()
+
+    expect(await screen.findByText('이미 선택된 좌석입니다')).toBeInTheDocument()
+    const list = within(summary()).getAllByRole('listitem')
+    expect(list).toHaveLength(1)
+    expect(list[0]).toHaveTextContent('A구역 1열 2번')
+    expect(screen.getByRole('radio', { name: '3매' })).toBeEnabled()
+  })
+
+  it('좌석을 다시 받지 못하면 좌석 다시 불러오기를 주고, 누르면 다시 받아 겹친 좌석을 뺀다', async () => {
+    setMockScenario({ seatHold: 'seat-conflict' })
+    await renderLoaded()
+    mockServer.use(
+      http.get(
+        SEATS_API,
+        () => fail(500, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다'),
+        {
+          once: true,
+        },
+      ),
+    )
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+
+    expect(await screen.findByText('이미 선택된 좌석이 있어요')).toBeInTheDocument()
+    expect(
+      screen.getByText('좌석을 다시 불러오지 못했어요. 다시 불러온 뒤 골라 주세요.'),
+    ).toBeInTheDocument()
+    // 일반 다시 시도 알림은 숨긴다. 겹친 좌석은 아직 선택에 남아 있다
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
+    expect(within(summary()).getAllByRole('listitem')).toHaveLength(2)
+
+    await userEvent.click(screen.getByRole('button', { name: '좌석 다시 불러오기' }))
+
+    expect(await screen.findByText(/A구역 1열 1번이 방금 다른 분께 선택됐어요/)).toBeInTheDocument()
+    const list = within(summary()).getAllByRole('listitem')
+    expect(list).toHaveLength(1)
+    expect(list[0]).toHaveTextContent('A구역 1열 2번')
+    expect(screen.queryByRole('button', { name: '좌석 다시 불러오기' })).not.toBeInTheDocument()
+  })
+
+  it('깜빡임 표시는 1.6초 뒤 지워져 구역을 다시 열어도 깜빡이지 않고, 알림을 닫으면 초점은 제목으로 간다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ seatHold: 'seat-conflict' })
+    await renderLoaded()
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+
+    await screen.findByText('이미 선택된 좌석입니다')
+    const flashingSeat = () =>
+      screen.getByRole('button', { name: /A구역 1열 1번, .*선택할 수 없음/ })
+    expect(flashingSeat()).toHaveAttribute('data-flashing')
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    await userEvent.click(screen.getByRole('radio', { name: /^B구역 R/ }))
+    await userEvent.click(screen.getByRole('radio', { name: /^A구역 VIP/ }))
+
+    expect(flashingSeat()).not.toHaveAttribute('data-flashing')
+
+    const alert = screen.getByText('이미 선택된 좌석입니다').closest('[role="alert"]')!
+    await userEvent.click(within(alert as HTMLElement).getByRole('button', { name: '닫기' }))
+
+    expect(screen.queryByText('이미 선택된 좌석입니다')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '좌석 선택' })).toHaveFocus()
+  })
+})
+
+describe('SeatsPage 저장한 선점 좌석', () => {
+  function storedHoldExpiringIn(millis: number): StoredHold {
+    return {
+      hold: {
+        requestId: '6f1b7c0e-3a52-4f6e-9a40-0d5c1c1f2b11',
+        reservationId: 901,
+        reservationNo: 'R20261104-000901',
+        scheduleId: ON_SALE_SCHEDULE_ID,
+        seatIds: [SEAT_A1, SEAT_A2],
+        status: 'HELD',
+        holdExpiresAt: toKstIso(Date.now() + millis + 10_000),
+        totalAmount: 330000,
+        paymentToken: 'mock-payment.901.42',
+        paymentTokenExpiresAt: toKstIso(Date.now() + millis),
+      },
+      seats: [
+        { seatId: SEAT_A1, section: 'A', grade: 'VIP', price: 165000, row: 1, number: 1 },
+        { seatId: SEAT_A2, section: 'A', grade: 'VIP', price: 165000, row: 1, number: 2 },
+      ],
+    }
+  }
+
+  it('좌석을 잡으면 회차별로 저장하고, 화면을 다시 열면 대화상자를 바로 띄운다', async () => {
+    await renderLoaded()
+    await pickA(SEAT_A1, SEAT_A2)
+    await userEvent.click(submitButton())
+    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+
+    const saved = readHeldSeats(ON_SALE_SCHEDULE_ID)
+    expect(saved?.hold.seatIds).toEqual([SEAT_A1, SEAT_A2])
+    expect(saved?.seats.map((seat) => `${seat.section}${seat.row}-${seat.number}`)).toEqual([
+      'A1-1',
+      'A1-2',
+    ])
+
+    cleanup()
+    renderSeats()
+
+    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    expect(within(dialog).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(dialog).getByRole('button', { name: '결제하러 가기' })).toBeInTheDocument()
+  })
+
+  it('저장한 선점의 결제 가능 시간이 남았으면 열자마자 대화상자를 띄운다', async () => {
+    saveHeldSeats(ON_SALE_SCHEDULE_ID, storedHoldExpiringIn(5 * 60_000))
+    storeEntryToken()
+    renderSeats()
+
+    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    expect(within(dialog).getByRole('timer')).toHaveTextContent(/결제 가능\s*0[45]:\d\d/)
+  })
+
+  it('결제 가능 시간이 지난 저장값은 대화상자 없이 지운다', async () => {
+    saveHeldSeats(ON_SALE_SCHEDULE_ID, storedHoldExpiringIn(-1_000))
+    storeEntryToken()
+    renderSeats()
+    await screen.findByRole('radio', { name: /^A구역 VIP/ })
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
+    expect(seatButton('A', 1, 1)).toBeEnabled()
   })
 })
