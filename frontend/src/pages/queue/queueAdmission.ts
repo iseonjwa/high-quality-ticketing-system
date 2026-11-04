@@ -48,8 +48,9 @@ export const INITIAL_QUEUE_ADMISSION_STATE: QueueAdmissionState = {
   error: null,
 }
 
-// 토큰 요청이 409 QUEUE_NOT_READY를 받았을 때 순번 조회로 돌아가기 전에 기다리는 시간(SA 9-4 최소 조회 간격)
-const NOT_READY_POLL_MILLIS = 3000
+// SA 9-4의 최소 조회 간격(폴링 부하 상한). 토큰 요청이 409 QUEUE_NOT_READY면 이만큼 기다렸다 순번 조회로 돌아가고,
+// Retry-After 없이 다시 보낼 때도 이보다 짧게 기다리지 않는다
+const MIN_POLL_MILLIS = 3000
 
 type Request = 'join' | 'poll' | 'token'
 
@@ -84,7 +85,7 @@ export async function runQueueAdmission(options: RunQueueAdmissionOptions): Prom
       }
       if (isRetryable(error)) {
         update({ connectionError: error })
-        await sleep(queryRetryDelay(failures, error, random), signal)
+        await sleep(queryRetryDelay(failures, error, random, MIN_POLL_MILLIS), signal)
         failures += 1
         continue
       }
@@ -141,11 +142,12 @@ async function send(
   }
 }
 
-// 응답을 못 받았거나(0) 429·5xx면 같은 요청을 다시 보낸다. 세 요청 모두 다시 보내도 결과가 같다(ADR 0031)
+// 응답을 못 받았거나(0) 지나가는 장애(429, 502·503·504)면 같은 요청을 다시 보낸다. 세 요청 모두 다시 보내도
+// 결과가 같다(ADR 0031). 500은 다시 보내도 같은 결과일 가능성이 커서 끝없이 기다리게 하지 않고 문의 번호와 함께 실패로 보인다
+const RETRYABLE_STATUSES = new Set([0, 429, 502, 503, 504])
+
 function isRetryable(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiError && (error.status === 0 || error.status === 429 || error.status >= 500)
-  )
+  return error instanceof ApiError && RETRYABLE_STATUSES.has(error.status)
 }
 
 interface Settled {
@@ -164,7 +166,7 @@ function settle(request: Request, error: unknown): Settled {
     if (error.status === 409 && error.code === 'QUEUE_NOT_READY' && request === 'token') {
       return {
         patch: { step: 'waiting', connectionError: null },
-        retry: { request: 'poll', afterMillis: NOT_READY_POLL_MILLIS },
+        retry: { request: 'poll', afterMillis: MIN_POLL_MILLIS },
       }
     }
   }

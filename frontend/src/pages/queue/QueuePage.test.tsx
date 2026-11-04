@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import { readEntryToken, saveEntryToken } from '@/auth/entryTokens'
+import { readQueueConcert } from '@/pages/queue/queueNavigation'
 import { clearSession } from '@/auth/session'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
@@ -48,6 +49,8 @@ describe('QueuePage', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe(SEATS_PATH), STEP_TIMEOUT)
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)).not.toBeNull()
+    // 좌석 화면도 공연 줄을 그릴 수 있게 공연 요약을 넘긴다
+    expect(readQueueConcert(router.state.location.state)?.title).toBe(CONCERT_TITLE)
 
     // 대기열이 history에 남지 않는다
     await act(() => router.navigate(-1))
@@ -79,9 +82,10 @@ describe('QueuePage', () => {
     setMockScenario({ queue: 'unavailable' })
     renderRoutes(routes, QUEUE_PATH)
 
-    expect(
-      await screen.findByText('연결이 잠시 불안정해요. 곧 다시 시도할게요'),
-    ).toBeInTheDocument()
+    // 알림 영역은 처음부터 있고 글자만 바뀐다(내용을 담은 채 새로 붙는 영역은 읽히지 않을 수 있다)
+    const regions = screen.getAllByRole('status')
+    const unstable = await screen.findByText('연결이 잠시 불안정해요. 곧 다시 시도할게요')
+    expect(regions.some((region) => region.contains(unstable))).toBe(true)
     expect(await screen.findByText('내 순번', undefined, STEP_TIMEOUT)).toBeInTheDocument()
     expect(screen.queryByText('연결이 잠시 불안정해요. 곧 다시 시도할게요')).not.toBeInTheDocument()
   })
@@ -99,11 +103,19 @@ describe('QueuePage', () => {
     // 공연 줄이 없으면 보조 링크는 목록이다
     expect(screen.getByRole('link', { name: '공연 목록으로' })).toHaveAttribute('href', '/')
 
-    await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
-
     const card = document.querySelector<HTMLElement>('[tabindex="-1"][data-slot="card"]')
     expect(card).not.toBeNull()
+    // 초점을 받는 순간 카드가 이미 새 내용이어야 방금 본 안내를 다시 읽지 않는다
+    let textOnFocus = ''
+    card!.addEventListener('focus', () => {
+      textOnFocus = card!.textContent ?? ''
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
+
     expect(card).toHaveFocus()
+    expect(textOnFocus).toContain('줄을 서고 있어요')
+    expect(textOnFocus).not.toContain('입장 시간이 지나')
     expect(await screen.findByText('내 순번')).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.pathname).toBe(SEATS_PATH), STEP_TIMEOUT)
   }, 12_000)

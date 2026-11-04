@@ -74,7 +74,7 @@ export function AppLayout() {
           {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
           <Link
             to={paths.home}
-            className="inline-flex items-center gap-2 rounded-sm text-[20px] font-extrabold tracking-[-0.02em] text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex shrink-0 items-center gap-2 rounded-sm text-[20px] font-extrabold tracking-[-0.02em] text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {/* 꾸밈이라 링크 이름은 글자만 남긴다 */}
             <span
@@ -85,13 +85,14 @@ export function AppLayout() {
             </span>
             이선좌
           </Link>
-          {/* 예매 흐름 화면에서만 가운데에 단계를 보인다. 휴대폰 폭(앱 화면 40rem 미만)에서는 메뉴 자리가 모자라 숨긴다 */}
+          {/* 예매 흐름 화면에서만 가운데에 단계를 보인다. 앱 화면이 48rem보다 좁으면 워드마크·메뉴와 한 줄에 들어가지
+              않아 숨긴다(40rem으로 두었을 때 640~673px에서 워드마크가 접혔다). 워드마크와 메뉴는 줄어들지 않는다 */}
           {bookingStep !== null ? (
-            <div className="mx-auto px-4 @max-[40rem]:hidden">
+            <div className="mx-auto px-4 @max-[48rem]:hidden">
               <StepIndicator currentIndex={bookingStep} />
             </div>
           ) : null}
-          <nav aria-label="주 메뉴" className="flex items-center gap-1">
+          <nav aria-label="주 메뉴" className="flex shrink-0 items-center gap-1">
             {isSignedIn ? (
               <>
                 <SignedInLink to={paths.myReservations} disabled={loggingOut}>

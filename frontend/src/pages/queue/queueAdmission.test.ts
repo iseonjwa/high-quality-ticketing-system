@@ -26,16 +26,25 @@ beforeEach(async () => {
   await signInAsDemo()
 })
 
-// 기다린 시간을 남기고 바로 끝나는 sleep과 상태 기록을 묶어 흐름을 끝까지 돌린다
+// 정상 흐름은 기다림이 몇 번뿐이다. 이보다 많으면 끝없이 다시 보내는 것으로 보고 멈춘다
+const MAX_WAITS = 20
+
+// 기다린 시간을 남기고 바로 끝나는 sleep과 상태 기록을 묶어 흐름을 끝까지 돌린다.
+// Note: 가짜 sleep이 바로 끝나서 흐름이 끝나지 않으면 타이머가 돌 틈이 없어 테스트 시간 제한도 걸리지 않는다.
+// 그래서 기다림 횟수로 끊는다
 async function run(scheduleId = ON_SALE_SCHEDULE_ID) {
   const states: QueueAdmissionState[] = []
   const waits: number[] = []
+  const controller = new AbortController()
   await runQueueAdmission({
     scheduleId,
-    signal: new AbortController().signal,
+    signal: controller.signal,
     onChange: (state) => states.push(state),
     sleep: (millis) => {
       waits.push(millis)
+      if (waits.length >= MAX_WAITS) {
+        controller.abort()
+      }
       return Promise.resolve()
     },
     random: () => 0.5,
@@ -113,13 +122,14 @@ describe('대기열 입장 흐름', () => {
     expect(last.step).toBe('admitted')
   })
 
-  it('연결에 실패하면 Retry-After 없이 지수로 늘려 가며 다시 보낸다', async () => {
+  it('연결에 실패하면 최소 조회 간격 3초 아래로 내려가지 않고 지수로 늘려 가며 다시 보낸다', async () => {
     const failOnce = () => http.post(QUEUE_PATH, () => HttpResponse.error(), { once: true })
-    mockServer.use(failOnce(), failOnce())
+    mockServer.use(failOnce(), failOnce(), failOnce())
 
     const { states, waits, last } = await run()
 
-    expect(waits.slice(0, 2)).toEqual([1100, 2200])
+    // 1·2·4초가 3·3·4초가 되고 jitter(random 0.5 → +10%)가 붙는다
+    expect(waits.slice(0, 3)).toEqual([3300, 3300, 4400])
     expect(states[1].connectionError?.status).toBe(0)
     expect(last.step).toBe('admitted')
   })
@@ -173,6 +183,33 @@ describe('대기열 입장 흐름', () => {
 
     expect(stepsOf(states)).toEqual(['joining', 'admitting', 'waiting', 'admitting', 'admitted'])
     expect(waits).toEqual([3000])
+    expect(positionRequests).toHaveLength(1)
+  })
+
+  it('502는 지나가는 장애로 보고 다시 보낸다', async () => {
+    mockServer.use(
+      http.get(POSITION_PATH, () => fail(502, 'BAD_GATEWAY', '잠시 후 다시 시도해 주세요'), {
+        once: true,
+      }),
+    )
+
+    const { states, last } = await run()
+
+    expect(states.some((state) => state.connectionError?.status === 502)).toBe(true)
+    expect(last.step).toBe('admitted')
+  })
+
+  it('500은 다시 보내지 않고 failed로 끝난다', async () => {
+    const positionRequests = recordRequests(POSITION_PATH)
+    mockServer.use(
+      http.get(POSITION_PATH, () => fail(500, 'INTERNAL_SERVER_ERROR', '서버 오류입니다')),
+    )
+
+    const { states, last } = await run()
+
+    expect(last.step).toBe('failed')
+    expect((last.error as ApiError).status).toBe(500)
+    expect(states.every((state) => state.connectionError === null)).toBe(true)
     expect(positionRequests).toHaveLength(1)
   })
 

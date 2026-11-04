@@ -1,5 +1,6 @@
 import { Check, Loader2 } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
 import { describeError, type ErrorTone } from '@/api/errorMessages'
@@ -42,22 +43,25 @@ export function QueuePage() {
 
 function QueueScreen({ scheduleId }: { scheduleId: number }) {
   const admission = useQueueAdmission(scheduleId)
-  const concert = readQueueConcert(useLocation().state)
+  const locationState: unknown = useLocation().state
+  const concert = readQueueConcert(locationState)
   const navigate = useNavigate()
   const cardRef = useRef<HTMLDivElement>(null)
 
-  // [다시 줄 서기]·[다시 시도]는 누르면 사라진다. 초점이 페이지 맨 위로 가지 않게 카드로 옮긴다
+  // [다시 줄 서기]·[다시 시도]는 누르면 사라진다. 초점이 페이지 맨 위로 가지 않게 카드로 옮긴다.
+  // 새 내용(줄을 서고 있어요)을 먼저 그린 뒤 옮겨야 화면 낭독기가 방금 본 안내를 다시 읽지 않는다
   function rejoin() {
-    admission.rejoin()
+    flushSync(() => admission.rejoin())
     cardRef.current?.focus()
   }
 
-  // 좌석 화면으로 바꿔 들어간다. 좌석 화면에서 뒤로 가면 대기열이 아니라 공연 상세로 간다
+  // 좌석 화면으로 바꿔 들어간다. 좌석 화면에서 뒤로 가면 대기열이 아니라 공연 상세로 간다.
+  // 공연 요약도 함께 넘긴다(좌석 API에도 공연 제목이 없다)
   useEffect(() => {
     if (admission.step === 'admitted') {
-      void navigate(seatsPath(scheduleId), { replace: true })
+      void navigate(seatsPath(scheduleId), { replace: true, state: locationState })
     }
-  }, [admission.step, navigate, scheduleId])
+  }, [admission.step, navigate, scheduleId, locationState])
 
   return (
     <main className="mx-auto grid w-full max-w-[560px] gap-4">
@@ -68,7 +72,7 @@ function QueueScreen({ scheduleId }: { scheduleId: number }) {
         tabIndex={-1}
         className="gap-6 px-5 py-6 text-center outline-none @min-[40rem]:p-8"
       >
-        {admission.connectionError !== null ? <LiveStatus unstable /> : null}
+        <ConnectionStatus unstable={admission.connectionError !== null} />
         <QueueBody admission={admission} concert={concert} onRejoin={rejoin} />
       </Card>
     </main>
@@ -113,7 +117,7 @@ function QueueBody({
         />
       ) : (
         <>
-          {admission.connectionError === null ? <LiveStatus /> : null}
+          {admission.connectionError === null ? <StatusPill /> : null}
           <QueuePosition
             position={admission.waiting.position}
             estimatedWaitSeconds={admission.waiting.estimatedWaitSeconds}
@@ -304,14 +308,23 @@ function Actions({
   )
 }
 
-// 지금 자동으로 확인하고 있는지 알린다. 연결이 불안정하면(자동 재시도 중) 경고 색으로 바꾼다.
+// 자동 재시도 중임을 알리는 영역. 처음부터 화면에 두고 글자만 바꾼다. 내용을 담은 채 새로 붙는 알림 영역은
+// 화면 낭독기마다 읽는 여부가 달라서다. 안정적일 때는 비워 두고 보이지 않게 한다
+function ConnectionStatus({ unstable }: { unstable: boolean }) {
+  return (
+    <div role="status" className={unstable ? 'grid' : 'sr-only'}>
+      {unstable ? <StatusPill unstable /> : null}
+    </div>
+  )
+}
+
+// 지금 자동으로 확인하고 있는지 보인다. 연결이 불안정하면(자동 재시도 중) 경고 색으로 바꾼다.
 // 사용자가 할 일이 없어서 알림 상자를 띄우지 않고 이 줄만 바꾼다(samples/queue.html)
-function LiveStatus({ unstable = false }: { unstable?: boolean }) {
+function StatusPill({ unstable = false }: { unstable?: boolean }) {
   return (
     <p
-      role="status"
       className={cn(
-        'inline-flex items-center gap-2 self-center rounded-pill px-3 py-1 text-left text-[13px] leading-5',
+        'inline-flex items-center gap-2 self-center justify-self-center rounded-pill px-3 py-1 text-left text-[13px] leading-5',
         unstable ? 'bg-warning-50 text-warning-700' : 'bg-gray-50 text-gray-500',
       )}
     >
