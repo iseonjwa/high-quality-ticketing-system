@@ -27,15 +27,15 @@ export type ConcertFormValues = z.output<typeof concertFormSchema>
 const requiredInteger = (requiredMessage: string, invalidMessage: string) =>
   z.string().trim().min(1, requiredMessage).regex(/^\d+$/, invalidMessage).transform(Number)
 
-// 비우면 서버 기본값을 쓰는 선택 칸. 넣으면 1~32767 정수다
-const optionalSmallInt = (label: string) =>
+// 비우면 서버 기본값을 쓰는 선택 칸. 넣으면 1~32767 정수다. topic은 조사까지 붙인 칸 이름이다("선점 시간은")
+const optionalSmallInt = (topic: string) =>
   z
     .string()
     .trim()
-    .refine((value) => value === '' || /^\d+$/.test(value), `${label}은 숫자로 입력해 주세요`)
+    .refine((value) => value === '' || /^\d+$/.test(value), `${topic} 숫자로 입력해 주세요`)
     .refine(
       (value) => value === '' || (Number(value) >= 1 && Number(value) <= MAX_SMALLINT),
-      `${label}은 1~${MAX_SMALLINT} 사이로 입력해 주세요`,
+      `${topic} 1~${MAX_SMALLINT} 사이로 입력해 주세요`,
     )
 
 export const scheduleFormSchema = z
@@ -52,8 +52,8 @@ export const scheduleFormSchema = z
       .string()
       .min(1, '오픈 시각을 입력해 주세요')
       .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해 주세요'),
-    maxPerUser: optionalSmallInt('1인당 예매 수'),
-    holdMinutes: optionalSmallInt('선점 시간'),
+    maxPerUser: optionalSmallInt('1인 최대 매수는'),
+    holdMinutes: optionalSmallInt('선점 시간은'),
   })
   .refine(
     (values) => {
