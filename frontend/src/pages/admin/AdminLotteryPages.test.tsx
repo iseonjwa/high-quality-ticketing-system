@@ -296,7 +296,8 @@ describe('추첨 설정 화면', () => {
 
     const row = (await screen.findByText(`회차 #${scheduleId}`)).closest('li') as HTMLElement
     const created = mockDb.lotteries.find((lottery) => lottery.scheduleId === scheduleId)!
-    const link = within(row).getByRole('link', { name: `추첨 #${created.lotteryId}` })
+    // 기록을 공개 조회로 확인한 뒤에 보인다
+    const link = await within(row).findByRole('link', { name: `추첨 #${created.lotteryId}` })
     expect(link).toHaveAttribute('href', `/admin/lotteries/${created.lotteryId}`)
     expect(within(row).queryByRole('link', { name: '추첨 설정' })).not.toBeInTheDocument()
   })
