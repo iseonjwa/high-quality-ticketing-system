@@ -10,7 +10,7 @@ import { clearSession } from '@/auth/session'
 import { routes } from '@/app/routes'
 import { formatDateTime } from '@/lib/format'
 import { mockDb, type MockLottery, type MockLotteryEntry } from '@/mocks/db'
-import { fail } from '@/mocks/respond'
+import { fail, ok } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
 import { recordRequests, signInAsDemo } from '@/test/api'
@@ -100,6 +100,42 @@ function setDrawnResult(fields: Partial<MockLotteryEntry>) {
   return entry
 }
 
+// 서버(목)에 ACTIVE 자동결제 카드를 둔다. 당첨 자동결제가 승인되려면 있어야 한다
+function registerCardOnServer() {
+  mockDb.billingKeys.push({ billingKeyId: 7, userId: DEMO_USER_ID, status: 'ACTIVE' })
+}
+
+// 서버 스케줄러가 추첨(10초 주기)하기 전의 짧은 "추첨 중"을 재현한다. 지정한 횟수만큼 OPEN으로 답하고 그다음부터는
+// 목이 시각대로(DRAWN) 답한다
+function holdDrawing(lotteryId: number, times = Number.POSITIVE_INFINITY) {
+  let calls = 0
+  mockServer.use(
+    http.get(infoApi(lotteryId), () => {
+      calls += 1
+      if (calls > times) {
+        return undefined
+      }
+      const lottery = lotteryRow(lotteryId)
+      return ok({
+        lotteryId,
+        scheduleId: lottery.scheduleId,
+        status: 'OPEN',
+        seatCount: lottery.seatCount,
+        entryStartAt: instant(lottery.entryStartAtMillis),
+        entryEndAt: instant(lottery.entryEndAtMillis),
+        drawAt: instant(lottery.drawAtMillis),
+        rules: {
+          minPerEntry: 1,
+          maxPerEntry: lottery.maxPerEntry,
+          adjacentSeatsGuaranteed: false,
+          reentryAllowed: false,
+          billingKeyRequired: true,
+        },
+      })
+    }),
+  )
+}
+
 function saveCard() {
   saveBillingKeyRecord(DEMO_USER_ID, {
     cardLast4: '4242',
@@ -140,6 +176,9 @@ describe('LotteryPage 단계 배지', () => {
     ['종료', () => placeLottery(DRAWN, { status: 'DONE' }), DRAWN],
   ] as const)('%s', async (label, arrange, lotteryId) => {
     arrange()
+    if (label === '추첨 중') {
+      holdDrawing(OPEN)
+    }
     renderLottery(`/lotteries/${lotteryId}`)
 
     await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
@@ -734,7 +773,8 @@ describe('LotteryPage 결과', () => {
   })
 
   it('PAID에서 [예매 보기]를 누르면 확정된 예매 상세가 열린다', async () => {
-    // 목 기본 시나리오: 처음 조회 WON, 다음 조회부터 PAID(예매 확정)
+    // 목 기본 시나리오: 처음 조회 WON, 다음 조회부터 PAID(예매 확정). 자동결제 카드가 서버에 있어야 승인된다
+    registerCardOnServer()
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const { router } = renderLottery(`/lotteries/${DRAWN}`)
     await screen.findByRole('heading', { level: 2, name: '당첨됐어요' })
@@ -746,6 +786,37 @@ describe('LotteryPage 결과', () => {
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/reservations\/\d+$/))
     expect(await screen.findAllByText(/티켓 번호/)).toHaveLength(1)
     expect(screen.getByText('예매 확정')).toBeInTheDocument()
+  })
+})
+
+describe('LotteryPage 자동결제 결과는 카드가 정한다', () => {
+  it('카드가 없으면 당첨 뒤 다시 받기에서 자동결제 실패(FAILED)로 바뀐다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderLottery(`/lotteries/${DRAWN}`)
+    await screen.findByRole('heading', { level: 2, name: '당첨됐어요' })
+
+    await advance(12_000)
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '자동결제가 되지 않았어요' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('등록된 자동결제 카드가 없어 당첨이 다음 순번으로 넘어갔어요.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '예매 보기' })).not.toBeInTheDocument()
+  })
+
+  it('카드가 있으면 당첨 뒤 다시 받기에서 결제 완료(PAID)로 바뀐다', async () => {
+    registerCardOnServer()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderLottery(`/lotteries/${DRAWN}`)
+    await screen.findByRole('heading', { level: 2, name: '당첨됐어요' })
+
+    await advance(12_000)
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '당첨되고 결제까지 끝났어요' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -865,6 +936,8 @@ describe('LotteryPage 다시 받기', () => {
   it('추첨 중 단계 동안 추첨 정보를 10초마다 받다가 추첨 완료가 되면 멈춘다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     placeLottery(OPEN, { start: -DAY, end: -2 * HOUR, draw: -MINUTE })
+    // 서버 추첨 스케줄러가 처리하기 전의 두 번(처음 받기와 한 번 다시 받기)은 아직 OPEN이다
+    holdDrawing(OPEN, 2)
     const requests = recordRequests(infoApi(OPEN))
     renderLottery()
     await screen.findByText('추첨 중')
@@ -874,7 +947,6 @@ describe('LotteryPage 다시 받기', () => {
     expect(requests).toHaveLength(2)
     expect(within(infoSection()).getByText('추첨 중')).toBeInTheDocument()
 
-    lotteryRow(OPEN).status = 'DRAWN'
     await advance(10_000)
     expect(await screen.findByText('추첨 완료')).toBeInTheDocument()
     expect(requests).toHaveLength(3)
