@@ -28,7 +28,7 @@ Java 21, Gradle Wrapper 9.1.0, Spring Boot 4.1.2, Spring Cloud 2025.1.4를 사�
 
 - 기본 Compose는 화면(frontend nginx, 8000)과 Gateway(8080), 관리자 UI(Grafana·Kafka-UI·Prometheus·Alertmanager·Zipkin)만 호스트에 열고, 모두 `127.0.0.1`에 바인딩한다. 서비스·Config Server·Eureka·Mock PG·DB·Redis·Kafka는 열지 않는다.
 - local override와 JVM 실행의 개발용 포트도 모두 `127.0.0.1`이다.
-- 배포(EC2)에서는 보안그룹으로 8080만 외부에 열고(부하 측정 중에는 측정 기기 IP로 제한) 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다.
+- 배포(EC2)에서는 보안그룹으로 화면(frontend nginx) 80만 외부에 연다. Gateway 8080은 외부에 열지 않고 부하 측정 때만 발생기 보안그룹에 연다. 22번은 팀원 IP만 허용한다. 나머지는 SA 9-2의 "허용 없음"을 따른다([deployment.md](../design/infra/deployment.md) 3절).
 - 서비스 사이의 내부 HTTP API는 `/internal/**`(또는 `/api/v1/internal/**`)에 둔다. Gateway의 `AccessPolicy`가 이 경로를 외부 요청에서 404로 막는다.
 - `./gradlew checkPortExposure`가 위 규칙(기본 Compose의 공개 서비스 목록, 모든 호스트 주소가 loopback)을 검사한다. `verifyWorkspace`와 CI에 포함되며 규칙 위반이면 실패한다.
 
