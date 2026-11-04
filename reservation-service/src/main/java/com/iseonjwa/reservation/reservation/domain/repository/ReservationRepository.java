@@ -1,6 +1,8 @@
 package com.iseonjwa.reservation.reservation.domain.repository;
 
+import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
+import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,6 +15,11 @@ public interface ReservationRepository {
     Optional<Reservation> findById(Long id);
 
     Optional<Reservation> findByRequestId(UUID requestId);
+
+    // 내 예매 목록(SA 11-5). 사용자의 예매를 최근 것부터 한 페이지만큼 공연 제목·시작 시각과 함께 돌려준다
+    List<MyReservationRow> findMine(Long userId, int page, int size);
+
+    long countByUserId(Long userId);
 
     // 대사(ADR 0029): ID 목록의 예매를 ID 순으로 돌려준다. 없는 ID는 빠진다
     List<Reservation> findAllByIds(List<Long> ids);
@@ -38,4 +45,7 @@ public interface ReservationRepository {
      * @return 연장한 행 수. 이미 연장했거나 상한이 지났거나 HELD가 아니면 0
      */
     int extendLotteryHoldOnce(Long reservationId, Instant now, Instant limit, Long actorId);
+
+    record MyReservationRow(long reservationId, String reservationNo, String concertTitle, Instant startsAt,
+            ReservationStatus status, Money totalAmount) {}
 }
