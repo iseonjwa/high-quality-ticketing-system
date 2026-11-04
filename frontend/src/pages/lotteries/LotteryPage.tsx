@@ -17,14 +17,11 @@ import {
 } from '@/api/lotteries'
 import { paths, reservationPath } from '@/app/paths'
 import { toReturnPath, type AuthNavigationState } from '@/auth/navigation'
+import { useBillingKeyRecord } from '@/auth/billingKeyRecord'
 import { useIsSignedIn } from '@/auth/session'
 import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { QuantitySelector } from '@/components/ticketing/QuantitySelector'
-import {
-  BILLING_KEY_CARD_ID,
-  useBillingKeyRecord,
-} from '@/components/ticketing/useBillingKeyRecord'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -46,6 +43,8 @@ import { cn } from '@/lib/utils'
 // 추첨 응모 화면(ISE-121). 추첨 정보는 공개이고, 응모·결과·자동결제 카드는 로그인 뒤에 보인다.
 // Note: 공연·회차에서 추첨 번호를 찾는 API가 없어, 운영자가 추첨을 설정하며 받은 이 화면 주소로만 들어온다.
 
+// 응모 폼의 "카드 등록" 안내가 초점을 옮길 자동결제 카드 영역
+const BILLING_KEY_CARD_ID = 'billing-key'
 // 추첨 시각이 지나 결과가 바뀌는 동안(추첨·배정·자동결제·승계) 다시 받는 간격. 서버 스케줄러는 1~10초 주기다
 const RESULT_POLL_MILLIS = 10_000
 // 추첨 뒤 이만큼 지나면 다시 받기를 멈춘다. 승계 마감(추첨 + 30분)과 당첨 예매의 선점(30분, 한 번 30분 연장)을 덮는다
@@ -215,7 +214,7 @@ function MyEntrySection({ lottery, now }: { lottery: Lottery; now: number }) {
   return (
     <>
       {content}
-      {me.data ? <BillingKeyCard userId={me.data.userId} /> : null}
+      {me.data ? <BillingKeyCard userId={me.data.userId} anchorId={BILLING_KEY_CARD_ID} /> : null}
     </>
   )
 }
