@@ -65,7 +65,7 @@ docker compose -f compose.yml -f compose.local.yml stop
 전체 Compose 앱이 실행 중이면 위 stop 명령으로 이 프로젝트만 멈춘 뒤 시작한다. infra만 선택해 올린다.
 
 ```bash
-docker compose -f compose.yml -f compose.local.yml -f compose.jvm.yml up -d postgres-user postgres-reservation postgres-payment redis kafka kafka-ui prometheus grafana zipkin
+docker compose -f compose.yml -f compose.local.yml -f compose.jvm.yml up -d postgres-user postgres-reservation postgres-payment redis kafka kafka-ui prometheus alertmanager grafana zipkin
 ./gradlew runLocal -Papp=config-server
 ```
 
@@ -126,6 +126,7 @@ Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 
 - [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다.
 - [Prometheus](http://localhost:9090/targets): 앱 7개의 별도 관리 포트를 수집한다.
 - [Alertmanager](http://localhost:9093): Prometheus 알림을 묶어 슬랙으로 보낸다. 웹훅(SLACK_WEBHOOK_MONITORING)이 없으면 보내지 않는다.
+  - 웹훅이나 `STACK_ENV`를 바꾸면 `docker compose up -d --force-recreate alertmanager prometheus`로, `infra/alertmanager/` 설정만 바꿨으면 `curl -X POST localhost:9093/-/reload`로 반영한다.
 - [Zipkin](http://localhost:9411): Gateway와 서비스의 같은 trace를 확인한다.
 - [Kafka-UI](http://localhost:8085): iseonjwa 클러스터를 확인한다.
 
