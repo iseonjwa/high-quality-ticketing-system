@@ -14,7 +14,7 @@ flowchart LR
   JK -->|이미지 존재 확인| GHCR
   JK -->|SSH 키 인증<br/>.env·compose 반영, pull, up -d| DEPLOY[배포 EC2<br/>docker compose]
   DEPLOY -->|pull| GHCR
-  JK -->|결과| SL[슬랙 #deploy]
+  JK -->|결과| SL[슬랙 #이선좌-배포상태알림]
   USER[사용자 브라우저] -->|8080| DEPLOY
 ```
 
@@ -31,7 +31,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 5. 배포 EC2에 SSH로 접속해 `.env`와 compose 파일을 반영하고 `docker compose pull`, `up -d`를 실행한다.
 6. 헬스를 기다린다(Gateway 경유와 각 컨테이너의 readiness).
 7. 스모크 테스트를 돈다.
-8. 결과를 슬랙 #deploy에 보낸다.
+8. 결과를 슬랙 #이선좌-배포상태알림에 보낸다.
 9. 헬스나 스모크가 실패하면 직전 성공 태그로 되돌린다.
 
 스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 15,000석을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
@@ -68,8 +68,8 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 주소가 더해진다([observability.md](observability.md)).
-- Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅.
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다. 키 목록이 바뀔 때 서버 `.env`를 누가 어떻게 갱신하는지는 미정이다.
 
 ## 5. 배포·되돌림 절차 개요
@@ -95,7 +95,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | AWS 계정 | 미정. 팀과 정한다(만드는 단계) |
 | 배포 EC2 크기 | 미정. 측정 뒤 16GB급/8GB급 선택(U10) |
 | Jenkins EC2 크기 | t3.small 2GB급 `[가정]` |
-| 슬랙 채널 이름 | #deploy, #alerts `[가정]`. 팀이 만든다 |
+| 슬랙 채널 이름 | 확정: 배포 결과 `#이선좌-배포상태알림`, 알림 `#이선좌-성능-모니터링`(2026-11-04 생성) |
 | GHCR 소유자·이미지 이름 규칙 | 미정. 구현 이슈에서 정함 |
 | 배포용 compose 파일 이름·위치 | 미정. 구현 이슈에서 정함 |
 | 프론트 nginx 공개 포트와 8080의 관계 | 미정 |

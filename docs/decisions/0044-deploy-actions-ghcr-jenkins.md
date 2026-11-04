@@ -17,7 +17,7 @@
 
 1. **CI와 이미지는 GitHub Actions**: main에 머지되면 서비스 이미지를 빌드해 GHCR(GitHub Container Registry)에 커밋 SHA 태그로 올린다. dev → main 머지가 릴리스다.
 2. **배포는 Jenkins**: 배포 EC2와 분리한 작은 EC2(t3.small급 `[가정]`)에 Jenkins를 둔다. UI는 공개하지 않고 SSH 터널로만 연다(SA 9-2 방식). 배포 EC2는 Jenkins EC2의 SSH만 받는다.
-3. **배포 시점은 main 머지 자동**: Jenkins가 main을 폴링으로 감지한다(Jenkins를 웹훅에 열지 않기 위해서다). 그 SHA 이미지가 GHCR에 있으면 배포 EC2에서 `docker compose pull`·`up -d` → 헬스 대기 → 스모크 테스트 → 슬랙(#deploy) 알림 순으로 진행한다. 실패하면 직전 성공 태그로 되돌린다. 태그를 골라 다시 배포하는 수동 실행도 둔다.
+3. **배포 시점은 main 머지 자동**: Jenkins가 main을 폴링으로 감지한다(Jenkins를 웹훅에 열지 않기 위해서다). 그 SHA 이미지가 GHCR에 있으면 배포 EC2에서 `docker compose pull`·`up -d` → 헬스 대기 → 스모크 테스트 → 슬랙(#이선좌-배포상태알림) 알림 순으로 진행한다. 실패하면 직전 성공 태그로 되돌린다. 태그를 골라 다시 배포하는 수동 실행도 둔다.
 4. **스모크 테스트**: 기본은 가볍게 한다(Gateway 경유 헬스, 가입·로그인, 공연 목록). 회차마다 좌석 15,000석을 만드는 `BookingFlowSystemTest`는 파라미터로 고를 때만 돈다.
 5. **비밀값**: 서버 `.env`는 서버에서 만든다(저장소에 올리지 않음). GHCR 읽기 토큰, 배포 SSH 키, 슬랙 웹훅은 Jenkins Credentials에만 둔다.
 6. **인스턴스 크기(SA U10)**: 로컬에서 부하를 걸어 측정한 뒤 16GB급과 8GB급 중 고른다.

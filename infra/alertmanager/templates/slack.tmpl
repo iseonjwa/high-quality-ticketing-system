@@ -1,0 +1,53 @@
+{{/*
+  이선좌 슬랙 알림의 모양. infra/alertmanager/alertmanager.yml의 slack_configs가 쓴다.
+  메시지 하나는 env·service·severity(즉시 확인 알림은 urgency까지)가 같은 알림 묶음이다.
+  확인: amtool template render --template.glob='infra/alertmanager/templates/*.tmpl' --template.text='{{ template "iseonjwa.slack.text" . }}'
+*/}}
+
+{{/* 라벨 값을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 둔다. */}}
+{{ define "iseonjwa.env" }}{{ if eq . "local" }}로컬{{ else if eq . "deploy" }}배포 서버{{ else if eq . "preview" }}미리보기{{ else }}{{ . }}{{ end }}{{ end }}
+{{ define "iseonjwa.service" }}{{ if eq . "payment" }}결제{{ else }}{{ . }}{{ end }}{{ end }}
+{{ define "iseonjwa.severity" }}{{ if eq . "critical" }}심각{{ else if eq . "warning" }}경고{{ else }}{{ . }}{{ end }}{{ end }}
+{{ define "iseonjwa.urgency" }}{{ if eq . "immediate" }}즉시 확인{{ else if eq . "threshold" }}지연 감시{{ else }}{{ . }}{{ end }}{{ end }}
+
+{{/* 왼쪽 색 띠: 해결은 초록, 심각은 빨강, 경고는 주황(프론트 디자인 토큰 success-600·danger-600·warning-500) */}}
+{{ define "iseonjwa.slack.color" }}{{ if eq .Status "resolved" }}#1E7F4F{{ else if eq .CommonLabels.severity "critical" }}#D12B3A{{ else }}#F59F00{{ end }}{{ end }}
+
+{{ define "iseonjwa.slack.title" -}}
+{{ if eq .Status "firing" }}[발생]{{ else }}[해결]{{ end }} {{ template "iseonjwa.service" .CommonLabels.service }} {{ template "iseonjwa.severity" .CommonLabels.severity }}
+{{- with .CommonLabels.urgency }}({{ template "iseonjwa.urgency" . }}){{ end }}
+{{- if eq .Status "firing" }} {{ .Alerts.Firing | len }}건{{ else }} {{ .Alerts.Resolved | len }}건 모두 해결{{ end }} · {{ template "iseonjwa.env" .CommonLabels.env }}
+{{- end }}
+
+{{/* 푸시 알림·미리보기에 보이는 한 줄. 첫 알림의 요약을 붙인다. */}}
+{{ define "iseonjwa.slack.fallback" -}}
+{{ template "iseonjwa.slack.title" . }}: {{ (index .Alerts 0).Annotations.summary }}
+{{- end }}
+
+{{/* 같은 이름의 알림을 가르는 라벨(rule, topic, operation, pool, job 등). 묶음 공통 라벨과 수집 라벨은 뺀다. */}}
+{{ define "iseonjwa.labels" -}}
+{{ range .Labels.SortedPairs }}{{ if not (match "^(alertname|service|severity|urgency|env|application|instance|job)$" .Name) }} `{{ .Name }}={{ .Value }}`{{ end }}{{ end }}
+{{- if and .Labels.job (ne .Labels.job "spring") }} `job={{ .Labels.job }}`{{ end }}
+{{- end }}
+
+{{/* runbook 주석("docs/... N절")을 GitHub 문서 링크로 바꾼다. */}}
+{{ define "iseonjwa.runbook" -}}
+{{ reReplaceAll "^(\\S*/)?([^/\\s]+)\\s*(.*)$" "<https://github.com/iseonjwa/high-quality-ticketing-system/blob/dev/${1}${2}|대응 문서 ${2} ${3}>" . }}
+{{- end }}
+
+{{ define "iseonjwa.slack.text" -}}
+{{ range .Alerts.Firing -}}
+*{{ .Annotations.summary }}*
+`{{ .Labels.alertname }}`{{ template "iseonjwa.labels" . }} · {{ .StartsAt | tz "Asia/Seoul" | date "01/02 15:04" }} 시작{{ with .Annotations.runbook }} · {{ template "iseonjwa.runbook" . }}{{ end }}
+{{ end -}}
+{{ if and .Alerts.Firing .Alerts.Resolved }}
+*이번에 해결된 알림*
+{{ end -}}
+{{ range .Alerts.Resolved -}}
+`{{ .Labels.alertname }}`{{ template "iseonjwa.labels" . }} · {{ .StartsAt | tz "Asia/Seoul" | date "15:04" }}~{{ .EndsAt | tz "Asia/Seoul" | date "15:04" }} ({{ (.EndsAt.Sub .StartsAt).Seconds | humanizeDuration }} 지속)
+{{ end -}}
+{{- end }}
+
+{{ define "iseonjwa.slack.footer" -}}
+이선좌 Alertmanager · {{ if eq .Status "firing" }}풀릴 때까지 {{ if eq .CommonLabels.urgency "immediate" }}1시간{{ else }}4시간{{ end }}마다 다시 알림{{ else }}해결 알림{{ end }}
+{{- end }}

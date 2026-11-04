@@ -33,6 +33,16 @@ public class JpaReservationRepository implements ReservationRepository {
     }
 
     @Override
+    public List<Reservation> findAllByIds(List<Long> ids) {
+        return repository.findByIdInOrderByIdAsc(ids);
+    }
+
+    @Override
+    public List<Reservation> findSettledChanges(Instant from, Instant to, long cursor, int limit) {
+        return repository.findSettledChanges(from, to, cursor, limit);
+    }
+
+    @Override
     public List<Long> findExpiredHeldIds(Instant now, int limit) {
         return repository.findExpiredHeldIds(now, limit);
     }
