@@ -212,6 +212,18 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 - 파이프라인 시험: Jenkinsfile을 인라인 잡으로 옮겨 단계마다 확인했다. 20분 대기를 12초로 줄이면 "[배포 중단]" 경로로 가고 슬랙 전송 실패는 빌드를 바꾸지 않았다. 이미지 확인을 건너뛰면 SSH 단계까지 가서 ssh-agent가 키를 읽고 `127.0.0.1:22`에 접속을 시도했다(연결 거부, 오류 경로). `ssh`를 종료 코드 0·1·3으로 흉내 내면 슬랙 메시지가 각각 성공, "직전 버전(aaaaaaa)으로 되돌렸습니다", "되돌림도 실패했습니다"로 나왔다.
 - 실제 GHCR 이미지 확인, 실제 배포 EC2 SSH, 실제 슬랙 전송은 하지 않았다(이미지는 아직 올라오지 않았다).
 
+### 첫 배포 기록 (2026-11-04)
+
+- 서버: 배포 `m7i-flex.xlarge`(Ubuntu 24.04, 4 vCPU, 15.7GiB, 디스크 40GB, 탄력적 IP `52.63.10.174`, 사설 IP `172.31.4.93`), Jenkins `t3.small`(사설 IP `172.31.38.150`). 공개 주소는 `http://52.63.10.174/`다.
+- 막혔던 것: 두 보안 그룹에 아웃바운드 규칙이 없어 서버에서 GitHub·GHCR·Docker 저장소로 나가지 못했다(DNS와 들어오는 SSH는 됨). 아웃바운드 "모든 트래픽 0.0.0.0/0"을 더해 풀었다. 보안 그룹을 만들 때 아웃바운드 기본 규칙이 있는지 확인한다.
+- 릴리스: dev → main을 merge commit으로 반영(#315, `e27d54e`). `images` 워크플로가 이미지 8개를 올렸고, 사용자가 패키지 8개를 공개로 바꾼 뒤 익명으로 받아지는 것(200)을 확인했다.
+- 배포 서버 준비: `install-docker.sh`(Docker 29.9, Compose 5.7), `init-env.sh`(키 15개, 0600), 슬랙 알림 웹훅은 로컬 `.env`에서 출력 없이 옮겼다.
+- 첫 `deploy.sh e27d54e…`: 컨테이너 20개가 모두 떴고(`--wait` 통과) `prod` 프로필 기동과 요청 로그(traceId 포함)를 확인했다. 그런데 스모크의 공연 목록이 503으로 실패했다. reservation-service가 뜬 뒤 약 35초 동안 Gateway가 Eureka에서 서비스를 찾지 못했다(`No servers available for service: reservation-service`). 직전 성공 커밋이 없어 되돌리지 않았고, 다시 돌린 스모크가 통과해 `.deploy/current`에 기록했다. 이 지연을 기다리도록 `smoke.sh`를 항목마다 최대 120초 다시 확인하게 고쳤다(`SMOKE_WAIT_SECONDS`).
+- 외부에서 `http://52.63.10.174/` 화면 200, `/api/v1/concerts` 200, `:8080`은 막힘(보안 그룹)을 확인했다.
+- 시드: `seed-demo.sh`(Ubuntu, GNU date)로 공연 1, 회차 1(판매 중)·2(오픈 시연), 각 15,000석, 샘플 사용자를 만들었다.
+- Jenkins: Jenkins 서버에서 만든 배포 전용 키(`/opt/jenkins/deploy_ssh_key`, ed25519)를 배포 서버 `authorized_keys`에 더하고, Jenkins 서버에서 배포 서버 사설 IP로 SSH가 되는 것(보안 그룹 참조 규칙)을 확인했다. `/opt/jenkins/jenkins.env`(관리자 비밀번호 무작위, 배포 웹훅은 로컬 `.env`에서 출력 없이)로 띄우자 폴링이 첫 빌드를 시작했다. 빌드 #1은 커밋 확인 → 이미지 8개 확인 → SSH 배포 → 스모크 4개 통과로 23초 만에 SUCCESS였다.
+- 유휴 메모리(배포 직후, `docker stats`): 사용 약 4.7GB / 15.7GB. 큰 것부터 reservation 505MiB(상한 1,152m의 44%), kafka 429MiB, payment 404MiB, user 384MiB(60%), gateway 347MiB, grafana 278MiB(384m의 72%), eureka 273MiB. 부하 중 측정은 ISE-176·181에서 한다. Loki에 앱 7개 라벨이 모두 들어왔다.
+
 ## 6. 인스턴스 크기 결정 방법 (SA U10)
 
 결정(2026-11-04, 사용자): 16GB급. 금요일(11/6) 리허설에 맞추려고 측정을 기다리지 않고 SA 9-3 합계(관측 추가분 포함 약 12GB)로 정했다. Free plan은 8GB급까지라 Paid plan으로 바꿨다. 측정(ISE-176)은 배포 서버의 실제 사용량으로 대신하고, 아래 근거는 결정 전 기록이다.
