@@ -27,7 +27,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 1. main에 머지된다.
 2. Actions가 커밋 SHA 태그로 서비스 이미지를 빌드하고 GHCR에 푸시한다. `.github/workflows/images.yml`이 맡는다(아래 "이미지 워크플로"). 테스트는 지금처럼 `build.yml`이 한다.
 3. Jenkins가 main의 새 커밋을 감지한다. 웹훅을 받으려고 Jenkins를 공개하지 않도록 폴링을 기본으로 한다. 웹훅으로 바꾸려면 GitHub 웹훅 IP 대역만 보안그룹에서 허용한다.
-4. Jenkins가 그 SHA 이미지가 GHCR에 모두 있는지 확인한다. 없으면 기다리거나 실패로 끝낸다(대기 시간은 미정).
+4. Jenkins가 그 SHA 이미지가 GHCR에 모두 있는지 확인한다. 없으면 30초마다 다시 확인하고 20분이 지나면 중단한다(ISE-175).
 5. 배포 EC2에 SSH로 접속해 `.env`와 compose 파일을 반영하고 `docker compose pull`, `up -d`를 실행한다.
 6. 헬스를 기다린다(Gateway 경유와 각 컨테이너의 readiness).
 7. 스모크 테스트를 돈다.
@@ -168,6 +168,50 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - DB 스키마(Flyway) 변경이 있는 릴리스는 이미지만 되돌려서는 풀리지 않을 수 있다. 되돌림 가능한 마이그레이션 규칙은 정하지 않았다(미정).
 - 되돌림 자체가 실패하면 슬랙에 알리고 사람이 접속한다. 자동 재시도 횟수는 미정이다.
 
+### Jenkins (ISE-175)
+
+Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화면에서 하지 않고 코드(JCasC)로만 한다.
+
+| 파일 | 하는 일 |
+|---|---|
+| `infra/jenkins/Dockerfile` | `jenkins/jenkins:2.580.2-lts-jdk21`을 digest로 고정하고 `jq`를 더한다. 플러그인을 이미지에 넣는다 |
+| `infra/jenkins/plugins.txt` | 플러그인 7개(configuration-as-code, job-dsl, workflow-aggregator, git, ssh-agent, credentials-binding, timestamper)와 의존성을 2026-11-04 버전으로 모두 고정했다 |
+| `infra/jenkins/casc.yaml` | 설치 마법사 없이 설정한다. 로컬 사용자 `admin` 하나(가입·익명 읽기 없음), 실행기 1개, 자격 증명 `deploy-ssh`(사용자 `ubuntu`)·`slack-webhook-deploy`, 잡 `deploy-main` |
+| `infra/jenkins/compose.yml` | Jenkins EC2용. `127.0.0.1:8080`, `jenkins_home` 볼륨, `mem_limit` 1200m, `-Xmx768m`, `restart: unless-stopped`, 로그 20MB×5 |
+| `Jenkinsfile` | 파이프라인(아래) |
+
+**잡 흐름**: 폴링(`POLL_SCHEDULE`, 서버 기본 `H/2 * * * *`) → 커밋 정하기 → GHCR 이미지 8개 기다리기 → 배포 서버에 SSH로 `deploy.sh` → 슬랙.
+
+1. 커밋 정하기: 매개변수 `TAG`가 비면 checkout한 main의 HEAD SHA, 있으면 그 40자 SHA(16진이 아니면 실패)를 쓴다. 커밋 제목도 함께 읽는다.
+2. 이미지 기다리기: 8개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend)에 그 SHA 태그가 모두 생길 때까지 30초마다 확인하고 최대 20분 기다린다. 익명 토큰(`https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull`)으로 매니페스트에 HEAD 요청을 보내 200을 본다. 이 방식은 패키지가 공개일 때만 동작한다(아래 "GHCR 패키지 공개"). 아직 올라오지 않은 이미지는 토큰 요청이 403(`DENIED`)으로 끝나는데, 이것도 "없음"으로 센다.
+3. 배포: `sshagent(['deploy-ssh'])` 안에서 `ssh ubuntu@${DEPLOY_HOST} "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach <SHA> && script/deploy/deploy.sh <SHA>"`를 실행한다. 종료 코드 0은 성공, 1은 실패(되돌림 성공), 3은 되돌림도 실패, 그 밖(예: SSH 접속 실패 255)은 오류다.
+4. 슬랙: 결과를 `#이선좌-배포상태알림`에 한 줄로 보낸다. 예: `[배포 성공] abc1234 커밋 제목 (#12)`, `[배포 실패] … 직전 버전(def5678)으로 되돌렸습니다`, `[배포 실패] … 되돌림도 실패했습니다. 서버 확인이 필요합니다`, `[배포 중단] … 이미지가 20분 안에 GHCR에 올라오지 않았습니다`. 웹훅 주소는 `withCredentials` 환경 변수로만 다루고 로그에 찍지 않는다. 전송이 실패해도 빌드 결과는 바뀌지 않는다.
+
+옵션은 동시 실행 금지, 타임스탬프, 전체 40분 제한이다. 되돌리기·재배포는 Jenkins에서 `TAG`에 이전 커밋 SHA를 넣고 실행한다. `BookingFlowSystemTest`를 고르는 매개변수는 이번에 넣지 않았다(후속).
+
+**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
+
+**`DEPLOY_HOST`는 배포 EC2의 사설 IP다.** 배포 서버 보안 그룹은 "Jenkins 보안 그룹에서 오는 22"만 허용하는데, 이 규칙은 VPC 안 사설 IP로 온 연결에만 맞는다. 공인 IP(Elastic IP)로 붙으면 출발지가 Jenkins 보안 그룹이 아닌 공인 주소로 보여 막힌다. 두 EC2는 같은 VPC에 둔다.
+
+**UI는 SSH 터널로만 연다**: `ssh -i <키> -L 8081:127.0.0.1:8080 ubuntu@<Jenkins IP>` 뒤 `http://localhost:8081`(`admin`과 `jenkins.env`의 비밀번호).
+
+**Jenkins EC2 준비 순서**
+1. EC2: Ubuntu 24.04, t3.small 급, 같은 VPC, 보안 그룹은 22를 팀원 IP에만 연다(3절).
+2. `git clone https://github.com/iseonjwa/high-quality-ticketing-system.git ~/iseonjwa && cd ~/iseonjwa`, `bash script/deploy/install-docker.sh` 뒤 다시 접속한다.
+3. `sudo mkdir -p /opt/jenkins && sudo chown ubuntu: /opt/jenkins`, `/opt/jenkins/jenkins.env`를 만들고 `chmod 600`. `ssh-keygen -t ed25519 -N '' -f /opt/jenkins/deploy_ssh_key`로 키를 만들고 `chmod 600`.
+4. 배포 EC2의 `~/.ssh/authorized_keys`에 `/opt/jenkins/deploy_ssh_key.pub` 한 줄을 더한다.
+5. `docker compose -f infra/jenkins/compose.yml up -d --build`.
+
+**GHCR 패키지 공개**: 이미지 대기 확인은 익명 토큰을 쓰므로 패키지 8개를 공개로 바꿔야 한다(위 "첫 실행 뒤 할 일"). 비공개로 두면 확인이 항상 403이라 20분 뒤 "[배포 중단]"이 된다.
+
+**로컬 확인(2026-11-04, 맥 Docker)**: 가짜 값(무작위 관리자 비밀번호, 막힌 슬랙 주소, `ssh-keygen`으로 만든 가짜 키)으로 따로 띄웠다(프로젝트 `iseonjwa-jenkins-test`, 포트 28080).
+- 이미지 빌드와 기동 성공. 설치 마법사 없이 로그인 페이지가 200. 익명 `/api/json`은 403, 틀린 비밀번호는 401.
+- `admin`으로 잡 `deploy-main` 하나, 자격 증명 `deploy-ssh`(SSH 개인 키)와 `slack-webhook-deploy`(Secret text) 둘, 실행기 1개. `POLL_SCHEDULE`이 비면 트리거가 없고 `H/2 * * * *`이면 SCM 폴링이 생긴다.
+- Jenkinsfile 문법 검사(`/pipeline-model-converter/validate`)가 "successfully validated". 안의 셸 조각 셋은 shellcheck(경고 없음)를 통과했다.
+- `deploy-main`을 실행하니 GitHub에서 main을 받았으나 main에 `Jenkinsfile`이 아직 없어 실패했다(이 PR이 main에 들어가야 한다).
+- 파이프라인 시험: Jenkinsfile을 인라인 잡으로 옮겨 단계마다 확인했다. 20분 대기를 12초로 줄이면 "[배포 중단]" 경로로 가고 슬랙 전송 실패는 빌드를 바꾸지 않았다. 이미지 확인을 건너뛰면 SSH 단계까지 가서 ssh-agent가 키를 읽고 `127.0.0.1:22`에 접속을 시도했다(연결 거부, 오류 경로). `ssh`를 종료 코드 0·1·3으로 흉내 내면 슬랙 메시지가 각각 성공, "직전 버전(aaaaaaa)으로 되돌렸습니다", "되돌림도 실패했습니다"로 나왔다.
+- 실제 GHCR 이미지 확인, 실제 배포 EC2 SSH, 실제 슬랙 전송은 하지 않았다(이미지는 아직 올라오지 않았다).
+
 ## 6. 인스턴스 크기 결정 방법 (SA U10)
 
 결정(2026-11-04, 사용자): 16GB급. 금요일(11/6) 리허설에 맞추려고 측정을 기다리지 않고 SA 9-3 합계(관측 추가분 포함 약 12GB)로 정했다. Free plan은 8GB급까지라 Paid plan으로 바꿨다. 측정(ISE-176)은 배포 서버의 실제 사용량으로 대신하고, 아래 근거는 결정 전 기록이다.
@@ -186,6 +230,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | AWS 계정 | 정함(2026-11-04): 안준현 계정, 새 가입 방식, 리전 시드니 `ap-southeast-2` |
 | 배포 EC2 크기 | 정함(2026-11-04, 사용자): 16GB급, AWS Paid plan. 측정은 배포 뒤 실제 사용량으로(ISE-176) |
 | Jenkins EC2 크기 | t3.small 2GB급 `[가정]` |
+| Jenkins 구성·파이프라인 | 정함(ISE-175): JCasC 이미지 + `Jenkinsfile`(폴링 → 이미지 대기 20분 → SSH 배포 → 슬랙). 서버 설치는 EC2 준비 뒤 |
 | 슬랙 채널 이름 | 확정: 배포 결과 `#이선좌-배포상태알림`, 알림 `#이선좌-성능-모니터링`(2026-11-04 생성) |
 | GHCR 소유자·이미지 이름 규칙 | 정함(ISE-173): `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` |
 | GHCR 패키지 공개 여부(배포 서버가 토큰 없이 받을지) | 미정. 첫 main 실행 뒤 ISE-174에서 정함 |
