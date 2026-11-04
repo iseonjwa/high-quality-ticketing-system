@@ -329,6 +329,23 @@ describe('SeatsPage 선점', () => {
     expect(readPaymentNavigation(router.state.location.state)?.concert).toBeNull()
   })
 
+  it('결제로 갈 때 좌석 응답의 서버 시각으로 잰 시계 차이(숫자)를 이동 값에 넣는다', async () => {
+    // 서버 시각은 브라우저보다 5분 느리다
+    storeEntryToken()
+    serveSeatsAt(Date.now() - 5 * 60_000)
+    const { router } = renderSeats()
+    await screen.findByRole('radio', { name: /^A구역 VIP/ })
+    await pickA(SEAT_A1, SEAT_A2)
+    await userEvent.click(submitButton())
+    await userEvent.click(await screen.findByRole('button', { name: '결제하러 가기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/payment$/))
+    const offset = readPaymentNavigation(router.state.location.state)?.clockOffsetMillis
+    expect(typeof offset).toBe('number')
+    expect(offset).toBeLessThan(-290_000)
+    expect(offset).toBeGreaterThan(-310_000)
+  })
+
   it('이미 선택된 좌석이면 고를 수 없게 된 좌석만 빼고 그 구역으로 옮겨 알리고, 다시 고르면 새 멱등키로 잡는다', async () => {
     setMockScenario({ seatHold: 'seat-conflict' })
     await renderLoaded()
