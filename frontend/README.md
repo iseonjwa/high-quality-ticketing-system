@@ -52,7 +52,13 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `payment-slow-confirm` | 결제는 승인되지만 예매가 계속 `HELD`라 확정 확인이 30초를 넘긴다 |
 | `payment-late-approval` | 결제는 승인되지만 그 뒤 예매가 `EXPIRED`가 된다(선점 만료 뒤 승인 도착, 환불 안내) |
 | `billing-unavailable` | 자동결제 카드 등록이 503 `PG_UNAVAILABLE`. 해지는 기본과 같다 |
+| `lottery-waitlisted` | 추첨 3번의 데모 응모가 예비자(추첨 순위 13위) |
+| `lottery-lost` | 추첨 3번의 데모 응모가 미당첨 |
+| `lottery-failed` | 추첨 3번이 당첨 → 다음 조회부터 자동결제 실패(`BILLING_KEY_MISSING`) |
+| `lottery-unknown` | 첫 응모가 서버에서는 성립하지만 504. 같은 키로 다시 보내면 201(지금 상태) |
+| `lottery-closed` | 응모가 409 `LOTTERY_NOT_OPEN` |
 
+- 추첨은 셋이다(`/lotteries/1`·`2`·`3`). 1번은 회차 32의 응모 중(최대 2매), 2번은 회차 41의 응모 시작 전(최대 1매), 3번은 회차 31의 추첨 완료다. 3번은 데모 계정이 1매 응모해 두었고 첫 조회에 당첨이다. 다음 조회 때 자동결제 카드가 있으면 결제 완료(확정 예매), 없으면 자동결제 실패(`BILLING_KEY_MISSING`)다(서버와 같다). 추첨 상태는 조회 때 시각으로 바뀐다(응모 마감 뒤 `CLOSED`, 추첨 시각 뒤 `DRAWN`).
 - 결제가 승인돼도 예매는 바로 확정되지 않는다. 승인 뒤 예매 조회 한 번은 `HELD`, 다음 조회부터 `CONFIRMED`다(실제는 이벤트로 2초 안에 반영).
 - 결제 토큰은 발급마다 다르다. 같은 결제 멱등키 재요청은 처음 응답을 그대로 돌려준다(202 뒤 승인돼도 202).
 - 목 상태는 페이지 메모리에 있어 새로고침하면 처음으로 돌아간다. 로그인은 Refresh 토큰으로 이어진다(브라우저 목 모드에서만 처음 보는 Refresh 토큰을 받아 준다. 테스트는 서버처럼 거절한다).
@@ -80,7 +86,7 @@ src/
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
   app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제(화면과 승인·확인 흐름)는 pages/payment/, 예매 결과·상세·내 예매는 pages/reservations/, 운영자는 pages/admin/
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제(화면과 승인·확인 흐름)는 pages/payment/, 예매 결과·상세·내 예매는 pages/reservations/, 추첨 응모는 pages/lotteries/, 운영자는 pages/admin/
   admin/          운영자 입력 검사(formSchemas.ts)
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)

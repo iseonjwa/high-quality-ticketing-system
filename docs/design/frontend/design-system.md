@@ -255,6 +255,12 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 |---|---|---|
 | ![예매가 확정됐다는 머리와 좌석별 티켓 번호](samples/screens/reservations-confirmed.png) | ![아직 결제하지 않았다는 경고와 결제하기](samples/screens/reservations-held.png) | ![상태 배지가 붙은 예매 목록과 더 보기](samples/screens/reservations-list.png) |
 
+[`samples/lottery.html`](samples/lottery.html)은 추첨 응모 화면이다(ISE-121·122). 조작판으로 응모 전(자동결제 카드 기록 없음), 응모 완료, 추첨 중, 당첨(자동결제 중), 당첨·결제 완료, 예비, 미당첨, 자동결제 실패를 바꿔 본다. 추첨 정보에 공연 제목이 없어 추첨 번호·회차 번호를 보인다. 아래 자동결제 카드는 내 정보에 두는 카드와 같다.
+
+| 응모 전 | 추첨 중 | 당첨·결제 완료 |
+|---|---|---|
+| ![응모 매수와 응모하기, 자동결제 카드 확인 경고와 기록 없음 카드](samples/screens/lottery-form.png) | ![응모했어요 카드에 추첨하고 있다는 안내](samples/screens/lottery-drawing.png) | ![당첨되고 결제까지 끝났다는 결과와 예매 보기](samples/screens/lottery-paid.png) |
+
 ## 9. 확정한 방향
 
 샘플을 보고 초안 그대로 확정했다(2026-11-02, [판단 기록](../../ai-judgments/junhyun/2026-11-02-design-system-sample-accepted.md)).
