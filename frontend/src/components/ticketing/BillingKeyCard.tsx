@@ -89,7 +89,6 @@ export function BillingKeyCard({
           {record ? <Badge variant="onSale">등록됨</Badge> : <Badge variant="soldOut">없음</Badge>}
         </div>
         {register.isError ? <RegisterError error={register.error} /> : null}
-        {revoke.isError ? <ErrorNotice error={revoke.error} /> : null}
         {record ? (
           <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md bg-gray-50 p-4">
             <span
@@ -141,6 +140,8 @@ export function BillingKeyCard({
           <DialogDescription className="type-body-sm text-gray-500">
             응모한 추첨에 당첨되면 결제되지 않아 당첨이 다음 순번으로 넘어가요.
           </DialogDescription>
+          {/* 실패하면 대화상자가 열린 채 남는다. 카드에 두면 모달 뒤에 가려져 읽히지 않는다 */}
+          {revoke.isError ? <ErrorNotice error={revoke.error} /> : null}
           <DialogFooter>
             <Button
               variant="outline"

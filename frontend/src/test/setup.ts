@@ -29,6 +29,8 @@ afterEach(() => {
   demoModeStore.setState(demoModeStore.getInitialState())
   clearRequestLog()
   sessionStorage.clear()
+  // 자동결제 카드 기록(billingKeyRecord)이 localStorage에 있다. 테스트끼리 섞이지 않게 함께 비운다
+  localStorage.clear()
 })
 
 afterAll(() => {
