@@ -6,6 +6,7 @@ import { logout } from '@/api/auth'
 import { resetUserQueries } from '@/api/queryClient'
 import { useBookingStep } from '@/app/bookingStep'
 import { paths } from '@/app/paths'
+import { HeaderSlotContext } from '@/components/layout/headerSlotContext'
 import { StepIndicator } from '@/components/ticketing/StepIndicator'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
@@ -35,6 +36,8 @@ export function AppLayout() {
   const [loggingOut, setLoggingOut] = useState(false)
   const demoMode = useIsDemoMode()
   const bookingStep = useBookingStep()
+  // 화면이 HeaderSlot으로 채우는 헤더 자리(좌석 화면의 입장 유효 시간)
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
 
   // logout()은 서버 요청이 실패해도 던지지 않는다. 이전 사용자의 조회 결과는 비우고 공개 조회(공연 목록)는 둔다.
   // clear()는 처음 화면에 붙은 공연 목록까지 캐시와 끊고, 전부 초기화하면 목록이 스켈레톤으로 깜빡인다.
@@ -92,6 +95,12 @@ export function AppLayout() {
               <StepIndicator currentIndex={bookingStep} />
             </div>
           ) : null}
+          {/* 비어 있으면 숨긴다. 앱 화면이 56rem보다 좁으면 단계 표시·메뉴와 한 줄에 들어가지 않아(768px에서 46px 넘침)
+              숨기고, 그 폭에서는 화면이 본문에 같은 내용을 둔다 */}
+          <div
+            ref={setHeaderSlot}
+            className="flex shrink-0 items-center pr-2 empty:hidden @max-[56rem]:hidden"
+          />
           <nav aria-label="주 메뉴" className="flex shrink-0 items-center gap-1">
             {isSignedIn ? (
               <>
@@ -121,7 +130,9 @@ export function AppLayout() {
         </div>
       </header>
       <div className="mx-auto w-full max-w-[1200px] px-4 py-8 @min-[40rem]:px-6">
-        <Outlet />
+        <HeaderSlotContext.Provider value={headerSlot}>
+          <Outlet />
+        </HeaderSlotContext.Provider>
       </div>
       <Toaster />
       {demoMode && (
