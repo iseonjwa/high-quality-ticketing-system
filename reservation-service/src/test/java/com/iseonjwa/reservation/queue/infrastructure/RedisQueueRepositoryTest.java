@@ -369,17 +369,26 @@ class RedisQueueRepositoryTest {
         }
 
         @Test
-        void 이번_초에_이미_올렸으면_다시_올리지_않는다() {
+        void 이번_초에_이미_올렸으면_다시_올리지_않는다() throws InterruptedException {
             // 다른 인스턴스가 이번 초에 이미 올린 상황. 시각은 Lua와 같은 Redis TIME 기준으로 맞춘다
-            long redisNowSec = stringRedisTemplate.execute(
-                    (RedisCallback<Long>) connection -> connection.serverCommands().time()) / 1000;
+            // 초가 끝나기 직전이면 admit() 사이에 초가 넘어가므로, 다음 초 앞부분까지 기다린다
+            long redisNowMillis = redisTimeMillis();
+            if (redisNowMillis % 1000 > 500) {
+                Thread.sleep(1000 - redisNowMillis % 1000 + 10);
+                redisNowMillis = redisTimeMillis();
+            }
             stringRedisTemplate.opsForValue().set(SEQ, "100");
             stringRedisTemplate.opsForValue().set(ADMITTED, "50");
-            stringRedisTemplate.opsForValue().set(LAST_TICK, String.valueOf(redisNowSec));
+            stringRedisTemplate.opsForValue().set(LAST_TICK, String.valueOf(redisNowMillis / 1000));
 
             admit();
 
             assertEquals("50", get(ADMITTED));
+        }
+
+        long redisTimeMillis() {
+            return stringRedisTemplate.execute(
+                    (RedisCallback<Long>) connection -> connection.serverCommands().time());
         }
 
         @Test
