@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | 배포 서버의 관리 화면(Grafana 등)을 IP 주소로 바로 열 수 있나 | [qna/2026-11-04-admin-ui-access-by-ip.md](qna/2026-11-04-admin-ui-access-by-ip.md) |
 | 2026-11-04 | EC2에 탄력적 IP(Elastic IP)는 어떻게 할당하나 | [qna/2026-11-04-ec2-elastic-ip-allocate.md](qna/2026-11-04-ec2-elastic-ip-allocate.md) |
 | 2026-11-04 | 배포 EC2 요금은 얼마이고, DB까지 한 인스턴스에 띄우는 설계인가 | [qna/2026-11-04-deploy-cost-and-single-host-db.md](qna/2026-11-04-deploy-cost-and-single-host-db.md) |
 | 2026-11-04 | GHCR(GitHub Container Registry)은 무엇이고 왜 쓰나 | [qna/2026-11-04-what-is-ghcr.md](qna/2026-11-04-what-is-ghcr.md) |
