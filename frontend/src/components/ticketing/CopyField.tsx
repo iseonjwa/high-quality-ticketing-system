@@ -49,7 +49,9 @@ export function CopyField({
           id={inputId}
           readOnly
           value={value}
+          // 이미 초점이 있는 칸을 다시 누르면 브라우저가 고른 범위를 풀어서 누를 때도 고른다
           onFocus={(event) => event.currentTarget.select()}
+          onClick={(event) => event.currentTarget.select()}
           className={monospace ? 'font-mono tracking-wider' : undefined}
         />
         {navigator.clipboard === undefined ? null : (

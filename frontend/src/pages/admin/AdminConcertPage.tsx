@@ -19,7 +19,7 @@ import {
 import { createSchedule, createScheduleSeats } from '@/api/admin'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { concertQueryKeys, getConcert, type ScheduleSummary } from '@/api/concerts'
-import { readLotteryIdOfSchedule } from '@/admin/adminLotteryRecords'
+import { useRecordedLottery } from '@/admin/adminLotteryRecords'
 import { adminLotteryNewPath, adminLotteryPath, concertPath, paths } from '@/app/paths'
 import { applyFieldErrors } from '@/components/form/applyFieldErrors'
 import { TextField } from '@/components/form/TextField'
@@ -228,11 +228,14 @@ function ScheduleRow({
 // 추첨은 회차마다 하나다. 이 브라우저에서 설정한 추첨이면 그 설정으로, 아니면 오픈 전 회차에만 설정 버튼을 둔다.
 // Note: 운영자용 추첨 조회 API가 없어 다른 브라우저에서 설정한 추첨은 모른다. 설정 화면에서 409로 알게 된다
 function LotteryAction({ concertId, schedule }: { concertId: number; schedule: ScheduleSummary }) {
-  const lotteryId = readLotteryIdOfSchedule(schedule.scheduleId)
-  if (lotteryId !== null) {
+  const recorded = useRecordedLottery(schedule.scheduleId)
+  if (recorded.state === 'checking') {
+    return null
+  }
+  if (recorded.state === 'found') {
     return (
       <Button asChild variant="ghost">
-        <Link to={adminLotteryPath(lotteryId)}>추첨 #{lotteryId}</Link>
+        <Link to={adminLotteryPath(recorded.lotteryId)}>추첨 #{recorded.lotteryId}</Link>
       </Button>
     )
   }

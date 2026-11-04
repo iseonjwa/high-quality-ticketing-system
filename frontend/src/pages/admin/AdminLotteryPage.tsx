@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
+import { forgetLottery } from '@/admin/adminLotteryRecords'
 import {
   LOTTERY_FIELDS,
   lotteryFormSchema,
@@ -48,8 +49,15 @@ export function AdminLotteryPage() {
     queryFn: () => getLottery(lotteryId ?? 0),
     enabled: lotteryId !== null,
   })
-  const missing =
-    lotteryId === null || (lottery.data === undefined && isApiError(lottery.error, 'NOT_FOUND'))
+  const notFound = lottery.data === undefined && isApiError(lottery.error, 'NOT_FOUND')
+  const missing = lotteryId === null || notFound
+
+  // 없는 추첨을 가리키는 이 브라우저의 기록(공연 화면의 "추첨 #번호")을 지운다
+  useEffect(() => {
+    if (notFound && lotteryId !== null) {
+      forgetLottery(lotteryId)
+    }
+  }, [notFound, lotteryId])
 
   return (
     <main className="mx-auto grid w-full max-w-[720px] gap-6">
@@ -161,8 +169,24 @@ function LotteryEditForm({ lottery }: { lottery: Lottery }) {
   const [outcomeUnknown, setOutcomeUnknown] = useState(false)
   const [noChange, setNoChange] = useState(false)
   const [saved, setSaved] = useState<AdminLottery | null>(null)
+  // 지금 서버에 저장된 시각(초 포함). 바꾸지 않은 칸은 분까지 보이는 칸 값 대신 이 값으로 비교한다.
+  // useForm은 그릴 때마다 resolver를 새로 받으므로 저장하면 새 기준으로 검사한다
+  const current = saved ?? lottery
+  const schema = useMemo(
+    () =>
+      lotteryFormSchema({
+        mode: 'edit',
+        scheduleStartsAt: null,
+        savedTimes: {
+          entryStartAt: current.entryStartAt,
+          entryEndAt: current.entryEndAt,
+          drawAt: current.drawAt,
+        },
+      }),
+    [current.entryStartAt, current.entryEndAt, current.drawAt],
+  )
   const form = useForm<LotteryFormInput, unknown, LotteryFormValues>({
-    resolver: zodResolver(lotteryFormSchema({ mode: 'edit', scheduleStartsAt: null })),
+    resolver: zodResolver(schema),
     defaultValues: valuesOf(lottery, null),
   })
   const { isSubmitting, dirtyFields } = form.formState

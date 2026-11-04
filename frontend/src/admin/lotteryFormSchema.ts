@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { SEAT_GRADES } from '@/admin/formSchemas'
 import type { LotteryCreateInput, LotteryUpdateInput } from '@/api/adminLotteries'
-import { kstLocalToIso } from '@/lib/kstDateTime'
+import { instantMillis } from '@/lib/instant'
+import { isoToKstLocal, kstLocalToIso } from '@/lib/kstDateTime'
 
 // 추첨 설정 입력 검사(reservation-service LotteryCreateRequest·LotteryUpdateRequest와 Lottery.LotterySettings.validate).
 // 서버도 다시 확인하므로 여기가 정본은 아니다. 규칙이 바뀌면 함께 고친다.
@@ -42,14 +43,20 @@ const millisOf = (local: string) => {
   return iso === null ? null : Date.parse(iso)
 }
 
+export type LotteryTimes = Record<'entryStartAt' | 'entryEndAt' | 'drawAt', string>
+
 export interface LotteryFormContext {
   // 설정(create)은 등급·예비 순번 수가 필수다. 수정(edit)은 비우면 바꾸지 않는다(공개 조회에 현재 값이 없다)
   mode: 'create' | 'edit'
   // 회차 시작. 알면(설정 화면) 추첨이 1시간 전까지인지 먼저 본다. 수정 화면은 회차 시각을 모른다
   scheduleStartsAt: string | null
+  // 수정 화면의 지금 저장된 시각(서버 ISO). 칸은 분까지만 보여서, 바꾸지 않은 칸은 이 값(초 포함)으로 비교한다.
+  // Note: 마감이 14:17:27이면 칸에는 14:17로 보인다. 추첨을 14:17로 고치면 분으로는 같아도 서버에서는 추첨이 마감보다
+  // 앞서 400이다
+  savedTimes?: LotteryTimes | null
 }
 
-export function lotteryFormSchema({ mode, scheduleStartsAt }: LotteryFormContext) {
+export function lotteryFormSchema({ mode, scheduleStartsAt, savedTimes }: LotteryFormContext) {
   const required = mode === 'create'
   return z
     .object({
@@ -70,9 +77,14 @@ export function lotteryFormSchema({ mode, scheduleStartsAt }: LotteryFormContext
       drawAt: localDateTime('추첨 시각을 입력해 주세요'),
     })
     .superRefine((values, context) => {
-      const start = millisOf(values.entryStartAt)
-      const end = millisOf(values.entryEndAt)
-      const draw = millisOf(values.drawAt)
+      const saved = savedTimes ?? null
+      const timeOf = (field: keyof LotteryTimes) =>
+        saved !== null && values[field] === isoToKstLocal(saved[field])
+          ? instantMillis(saved[field])
+          : millisOf(values[field])
+      const start = timeOf('entryStartAt')
+      const end = timeOf('entryEndAt')
+      const draw = timeOf('drawAt')
       // 형식이 틀린 칸은 위에서 이미 안내한다
       if (start !== null && start <= Date.now()) {
         context.addIssue({

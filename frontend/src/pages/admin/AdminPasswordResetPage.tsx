@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
 import { z } from 'zod'
 import { resetUserPassword } from '@/api/adminUsers'
+import { authQueryKeys, getMe } from '@/api/auth'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { paths } from '@/app/paths'
 import { TextField } from '@/components/form/TextField'
@@ -37,28 +38,42 @@ type UserIdValues = z.output<typeof userIdSchema>
 // 회원 비밀번호 초기화(ISE-124). 회원을 찾는 API가 없어 회원 번호로 부른다(회원은 내 정보에서 번호를 본다).
 // 임시 비밀번호는 응답으로 한 번만 온다. 화면 상태에만 두고 저장하지 않는다(요청 로그에도 본문은 남지 않는다).
 export function AdminPasswordResetPage() {
+  const me = useQuery({ queryKey: authQueryKeys.me, queryFn: getMe })
+  // 대화상자에 보일 회원 번호. 닫히는 동안(퇴장 애니메이션)에도 제목이 비지 않게 열림과 나눈다
   const [target, setTarget] = useState<number | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [result, setResult] = useState<{ userId: number; temporaryPassword: string } | null>(null)
   const submitRef = useRef<HTMLButtonElement>(null)
   const resultTitleRef = useRef<HTMLHeadingElement>(null)
+  // [다른 회원 초기화]로 결과 카드가 사라지면 회원 번호 칸으로 초점을 옮긴다
+  const focusFieldNext = useRef(false)
   const form = useForm<UserIdInput, unknown, UserIdValues>({
     resolver: zodResolver(userIdSchema),
     defaultValues: { userId: '' },
   })
   const reset = useMutation({
     mutationFn: (userId: number) => resetUserPassword(userId),
+    // 응답(임시 비밀번호)을 화면을 떠난 뒤 캐시에 남기지 않는다
+    gcTime: 0,
     onSuccess: ({ temporaryPassword }, userId) => {
-      setTarget(null)
+      setDialogOpen(false)
       setResult({ userId, temporaryPassword })
       form.reset()
     },
     onError: (error) => {
       if (isApiError(error, 'NOT_FOUND')) {
-        setTarget(null)
+        setDialogOpen(false)
         form.setError('userId', { message: '이 번호의 회원이 없어요' }, { shouldFocus: true })
       }
     },
   })
+
+  useEffect(() => {
+    if (result === null && focusFieldNext.current) {
+      focusFieldNext.current = false
+      form.setFocus('userId')
+    }
+  }, [result, form])
 
   return (
     <main className="mx-auto grid w-full max-w-[560px] gap-6">
@@ -95,7 +110,16 @@ export function AdminPasswordResetPage() {
             <li>이미 로그인한 기기는 30분 안에 로그아웃돼요.</li>
             <li>로그인 잠금도 풀렸어요.</li>
           </ul>
-          <Button variant="outline" className="w-fit" onClick={() => setResult(null)}>
+          <Button
+            variant="outline"
+            className="w-fit"
+            onClick={() => {
+              // 결과 카드와 함께 받은 응답도 지운다
+              focusFieldNext.current = true
+              reset.reset()
+              setResult(null)
+            }}
+          >
             다른 회원 초기화
           </Button>
         </Card>
@@ -104,8 +128,21 @@ export function AdminPasswordResetPage() {
           <form
             noValidate
             onSubmit={form.handleSubmit((values) => {
+              // Note: 서버는 자기 계정도 막지 않는다. 초기화하면 내 Refresh 토큰이 폐기돼 곧 로그아웃되고, 결과 카드와
+              // 함께 임시 비밀번호도 사라져 다른 운영자가 없으면 들어올 수 없다. 내 비밀번호는 비밀번호 변경으로 바꾼다
+              if (me.data !== undefined && values.userId === me.data.userId) {
+                form.setError(
+                  'userId',
+                  {
+                    message: '내 계정이에요. 내 비밀번호는 내 정보의 비밀번호 변경에서 바꿔 주세요',
+                  },
+                  { shouldFocus: true },
+                )
+                return
+              }
               reset.reset()
               setTarget(values.userId)
+              setDialogOpen(true)
             })}
             className="grid gap-5"
           >
@@ -124,10 +161,10 @@ export function AdminPasswordResetPage() {
       )}
 
       <Dialog
-        open={target !== null}
+        open={dialogOpen}
         onOpenChange={(open) => {
           if (!open && !reset.isPending) {
-            setTarget(null)
+            setDialogOpen(false)
           }
         }}
       >
@@ -163,7 +200,11 @@ export function AdminPasswordResetPage() {
             )
           ) : null}
           <DialogFooter>
-            <Button variant="outline" disabled={reset.isPending} onClick={() => setTarget(null)}>
+            <Button
+              variant="outline"
+              disabled={reset.isPending}
+              onClick={() => setDialogOpen(false)}
+            >
               취소
             </Button>
             <Button

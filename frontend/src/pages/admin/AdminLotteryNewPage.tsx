@@ -1,11 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
-import { readLotteryIdOfSchedule, saveLotteryOfSchedule } from '@/admin/adminLotteryRecords'
+import { saveLotteryOfSchedule, useRecordedLottery } from '@/admin/adminLotteryRecords'
 import {
   LOTTERY_FIELDS,
   lotteryFormSchema,
@@ -94,8 +94,8 @@ export function AdminLotteryNewPage() {
 
 function LotterySetup({ concertId, schedule }: { concertId: number; schedule: ScheduleSummary }) {
   const [created, setCreated] = useState<AdminLottery | null>(null)
-  // 이 브라우저에서 이미 설정한 추첨(회차마다 하나)
-  const knownLotteryId = useMemo(() => readLotteryIdOfSchedule(schedule.scheduleId), [schedule])
+  // 이 브라우저에서 이미 설정한 추첨(회차마다 하나). 공연 화면처럼 공개 조회로 맞는지 확인한 뒤 쓴다
+  const recorded = useRecordedLottery(schedule.scheduleId)
   // 화면을 보는 사이 오픈이 지나면 폼을 닫는다. 판정은 서버도 한다(LOTTERY_SETUP_CLOSED)
   const now = useNow(10_000)
   const openPassed = now >= instantMillis(schedule.openAt)
@@ -111,16 +111,21 @@ function LotterySetup({ concertId, schedule }: { concertId: number; schedule: Sc
       </div>
       {created !== null ? (
         <CreatedLottery concertId={concertId} lottery={created} />
-      ) : knownLotteryId !== null ? (
+      ) : recorded.state === 'checking' ? (
+        <div role="status">
+          <span className="sr-only">이 회차의 추첨을 확인하고 있어요</span>
+          <Skeleton className="h-64 w-full" />
+        </div>
+      ) : recorded.state === 'found' ? (
         <Alert
           variant="info"
           action={
             <Button asChild variant="outline" size="sm">
-              <Link to={adminLotteryPath(knownLotteryId)}>설정 보기</Link>
+              <Link to={adminLotteryPath(recorded.lotteryId)}>설정 보기</Link>
             </Button>
           }
         >
-          이 회차에는 이 브라우저에서 설정한 추첨 #{knownLotteryId}이 있어요. 회차마다 추첨은
+          이 회차에는 이 브라우저에서 설정한 추첨 #{recorded.lotteryId}이 있어요. 회차마다 추첨은
           하나예요
         </Alert>
       ) : openPassed ? (
@@ -198,8 +203,8 @@ function LotteryCreateForm({
       <form noValidate onSubmit={form.handleSubmit(handleCreate)} className="grid gap-5">
         {outcomeUnknown ? (
           <Alert variant="warning">
-            설정됐는지 확인하지 못했어요. 다시 설정하면 이미 있다고 나올 수 있어요. 그때는 공연
-            화면에서 이 회차의 추첨을 확인해 주세요
+            설정됐는지 확인하지 못했어요. 다시 설정했을 때 이미 있다고 나오면 설정된 거예요.
+            운영자용 추첨 조회가 없어 이 화면에서는 추첨 번호를 알 수 없어요
           </Alert>
         ) : null}
         {formError === null ? null : <LotteryFormError error={formError} />}
