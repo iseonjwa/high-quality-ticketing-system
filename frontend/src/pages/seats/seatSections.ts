@@ -14,6 +14,16 @@ export interface FoundSeat {
   available: boolean
 }
 
+// 고른 좌석 한 칸. 선택 요약·좌석 확보 대화상자·결제 화면 이동 값이 같은 모양을 쓴다
+export interface SelectedSeat extends FoundSeat {
+  seatId: number
+}
+
+// 좌석 이름("A구역 3열 7번"). 등급과 가격은 따로 보인다
+export function seatLabel(seat: Pick<FoundSeat, 'section' | 'row' | 'number'>): string {
+  return `${seat.section}구역 ${seat.row}열 ${seat.number}번`
+}
+
 export function remainingSeats(section: Section): number {
   return section.seats.filter((seat) => seat.available).length
 }

@@ -15,14 +15,18 @@ const heldReservationSchema = z.object({
   totalAmount: won,
 })
 
+// 선점이 성립한 응답. 결제 화면에 넘기는 값이다
+export const heldSeatHoldSchema = heldReservationSchema.extend({
+  status: z.literal('HELD'),
+  paymentToken: z.string().min(1),
+  // 선점 만료보다 10초 이르다(SA 7-3). 결제 가능 시간은 이 값으로 보인다
+  paymentTokenExpiresAt: isoDateTime,
+})
+export type HeldSeatHold = z.infer<typeof heldSeatHoldSchema>
+
 // 동기형 201. 같은 키 재요청 때 이미 결제가 끝났으면 CONFIRMED이고 결제 토큰이 null이다(contracts.md 3-2 ③)
 export const seatHoldSchema = z.discriminatedUnion('status', [
-  heldReservationSchema.extend({
-    status: z.literal('HELD'),
-    paymentToken: z.string().min(1),
-    // 선점 만료보다 10초 이르다(SA 7-3). 결제 가능 시간은 이 값으로 보인다
-    paymentTokenExpiresAt: isoDateTime,
-  }),
+  heldSeatHoldSchema,
   heldReservationSchema.extend({
     status: z.literal('CONFIRMED'),
     paymentToken: z.null(),
