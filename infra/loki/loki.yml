@@ -1,0 +1,49 @@
+# Alloy가 보낸 컨테이너 로그를 저장하는 Loki 설정이다(ADR 0045, docs/design/infra/observability.md 1절).
+# 단일 노드 단일 바이너리이고 파일시스템(/loki)에 저장한다. 호스트 포트는 열지 않고 Grafana가 compose 내부 주소로 읽는다.
+# 보관은 7일이다. compactor가 오래된 로그를 지운다.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: 168h
+  # 받기 한도. 기본값(초당 4MB, 스트림당 3MB)을 넘으면 Loki가 429로 거절하고 Alloy가 재시도하다 버린다.
+  # 공통 요청 로그(ISE-182)가 들어오면 부하 측정 때 gateway 한 스트림에 줄이 몰리므로 넉넉히 둔다.
+  # 부하 측정 때 loki_discarded_samples_total이 늘지 않는지 본다.
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+  per_stream_rate_limit: 8MB
+  per_stream_rate_limit_burst: 16MB
+  # traceId를 구조화 메타데이터로 붙이려면 켜야 한다(3.x 기본값은 켜짐이지만 의도를 드러내려 적는다).
+  allow_structured_metadata: true
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+# 사용 통계를 외부로 보내지 않는다.
+analytics:
+  reporting_enabled: false

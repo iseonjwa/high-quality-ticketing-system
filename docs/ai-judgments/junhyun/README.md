@@ -8,6 +8,26 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-04-single-ec2-then-review-managed.md) |
+| 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-04-deploy-ec2-16gb-paid-plan.md) |
+| 2026-11-04 | 로컬 테스트 환불의 반복 알림을 무음으로 끈 AI 처리를 거두고 로컬 데이터를 한 번 정상화(close-failed와 같은 전이를 SQL로)하게 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-04-local-refund-alert-fix-data.md) |
+| 2026-11-04 | M3 배포 순서(173·178 → 176 → 174·177 → 175)를 받아들이고 프론트 nginx(ISE-109)를 M4에서 M3로 당겨 이미지 워크플로(ISE-173)와 함께 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-04-m3-deploy-order-with-ise109.md) |
+| 2026-11-04 | 배포용 AWS 계정 운영: 시드니 리전 유지(서울 전환 안 함), 팀원은 각자 SSH 키와 IP로 접속하고 콘솔 초대는 필요한 사람만 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-04-aws-region-and-team-access.md) |
+| 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-03-deploy-observability-loadtest-design.md) |
+| 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
+| 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-11-03-reconciliation-rc5-rc6-approved-only.md) |
+| 2026-11-03 | herdr 작업자 패널 입력창의 Claude Code 추천 입력을 사용자 판단으로 읽은 AI 해석을 바로잡음 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-03-worker-pane-suggestion-not-user-input.md) |
+| 2026-11-02 | 공연 화면에 없는 필드를 백엔드에 먼저 요청하자는 제안 대신 백엔드 구현 그대로 쓰고 빈 곳은 나중에 고칠 것으로 기록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-frontend-follows-backend-as-is.md) |
+| 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA대로 고치는 안(1안) 선택, SA를 단일 401로 바꾸는 안은 고르지 않음 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-gateway-token-expired-code.md) |
+| 2026-11-02 | 프론트 Refresh 토큰을 탭 단위 `sessionStorage`에 두는 제안(ADR 0040 4절) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-refresh-token-session-storage.md) |
+| 2026-11-02 | 좌석 선택 샘플과 디자인 시스템 초안(이선좌 워드마크, 인디고, 검정+체크 선택 좌석)을 그대로 확정 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-design-system-sample-accepted.md) |
+| 2026-11-02 | "Notion보다 저장소 기록 우선"을 개인 전역 지침에 넣은 AI 처리를 바로잡아 팀 규칙(`AGENTS.md` 대전제 4)으로 올림 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-docs-first-as-team-rule.md) |
+| 2026-11-02 | 프론트 결정을 Notion 결정 기록에 반영하자는 제안 대신 저장소 docs에 기록 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-02-records-in-docs-over-notion.md) |
+| 2026-11-02 | 프론트·Gateway 연결: BFF 대신 nginx 중계(A), 실서비스 구조(BFF·앞단 대기실)는 학습 기록으로 남기고 백엔드 집중 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-frontend-relay-over-bff.md) |
+| 2026-11-02 | 프론트를 팀 결정 #7(정적 HTML·JS) 대신 저장소 안 `frontend/`의 React SPA로 전환, 추천 스택 채택, 화면 범위는 전부 계획에 넣고 단계적 구현 (ADR 0040) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-02-frontend-react-spa.md) |
+| 2026-10-30 | Mock PG 설계 Opus 리뷰 지적 전부 반영, 계약 테스트는 bootJar 별도 프로세스, 처리 중 승인 재요청은 409, compose 프로필은 팀 확인 대기 | Claude Code, Opus 리뷰 | 수용 | 예 | 후보 | [기록](2026-10-30-mock-pg-design-review.md) |
+| 2026-10-28 | Outbox·처리 이력 코드를 payment-service에 둔 AI 판단을 되돌려 common 모듈로 옮기기로 함 | Claude Code, Opus 리뷰 | 수용 | 예 | 아님 | [기록](2026-10-28-outbox-code-location.md) |
+| 2026-10-27 | 결제 상세 설계 빈틈 11개 결정과 Opus 검토 반영(10/28 갱신: 예매당 결제 하나, 환불 자동 복구, Ops 명령, 대사, 불변 조건) | Claude Code | 수용 | 예 | 후보 | [기록](2026-10-27-payment-design-gaps.md) |
 | 2026-10-27 | 앱 검증 이관을 수용하고 Python 도구 유지안 대신 전체 Java·Gradle 통일 선택 | Codex | 부분 수용 | 예 | 아님 | [기록](2026-10-27-java-gradle-tools.md) |
 | 2026-10-27 | Python 앱 검증 대신 내부 JUnit 테스트로 정리 | Codex | **거부** | 예 | 아님 | [기록](2026-10-27-junit-test-boundary.md) |
 | 2026-10-27 | 인증 구현 보강 4개 수용과 항목별 커밋 | Codex | 수용 | 예 | 아님 | [기록](2026-10-27-auth-hardening.md) |
@@ -31,5 +51,10 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |
+| 2026-11-03 | [daily/2026-11-03.md](daily/2026-11-03.md) |
+| 2026-11-02 | [daily/2026-11-02.md](daily/2026-11-02.md) |
+| 2026-10-30 | [daily/2026-10-30.md](daily/2026-10-30.md) |
+| 2026-10-28 | [daily/2026-10-28.md](daily/2026-10-28.md) |
 | 2026-10-26 | [daily/2026-10-26.md](daily/2026-10-26.md) |
 | 2026-10-23 | [daily/2026-10-23.md](daily/2026-10-23.md) |

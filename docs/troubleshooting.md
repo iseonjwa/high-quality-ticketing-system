@@ -204,3 +204,60 @@
 - 원인: 모듈을 Spring Initializr로 따로 만들면서 IntelliJ의 `.idea/gradle.xml`에 루트 외에 모듈 6개가 각각 독립 Gradle 프로젝트로 연결돼 있었다. 모듈 안의 `settings.gradle`을 지운 뒤에는 모듈 폴더에서 실행한 Gradle이 루트 빌드의 하위 프로젝트(`:common`)로 동작한다. IDE 연동용 `prepareKotlinBuildScriptModel` 작업은 루트 프로젝트에만 있어서 하위 프로젝트 기준 요청이 실패한다. `./gradlew -p common prepareKotlinBuildScriptModel`로 같은 오류를 재현했고, 루트에서 실행하면 성공했다.
 - 해결: Gradle 창에서 모듈 6개의 연결을 Unlink Gradle Project로 해제하고 루트만 남긴다(`.idea/gradle.xml`의 `GradleProjectSettings`가 루트 하나). 이어서 Reload All Gradle Projects를 실행한다. `.idea/`는 커밋 대상이 아니라 팀원마다 각자 한 번 해야 한다.
 - 배운 점: 멀티모듈에서는 루트만 Gradle 프로젝트로 연결한다. Initializr로 모듈을 추가하면 모듈 안의 `settings.gradle`·`gradlew`와 IDE의 별도 연결이 함께 생기므로 둘 다 정리한다.
+
+### TS-27 Vite 템플릿의 TypeScript 7과 typescript-eslint peer 충돌로 `npm install` 실패
+- 서비스·작성: frontend / junhyun / 2026-11-02
+- 문제: `create-vite` 9.3.3의 `react-ts --eslint` 템플릿으로 만든 직후 `npm install`이 `ERESOLVE could not resolve`로 실패했다. 추가 패키지를 설치하기 전, 템플릿 그대로의 상태였다.
+- 원인: 템플릿이 `typescript ~7.0.2`를 넣었지만 `typescript-eslint` 8.72.1의 peer 범위가 `typescript >=4.8.4 <6.1.0`이었다. `npm view typescript-eslint@canary peerDependencies`로 canary도 같은 범위임을 확인했다. TypeScript 7은 Go로 다시 쓴 컴파일러라 typescript-eslint가 아직 따라오지 못했다.
+- 해결: `--legacy-peer-deps`로 무시하지 않고 TypeScript를 6.x 최신인 6.0.3으로 고정했다. `npm install`, `npm run lint`, `npm run build`(`tsc -b`), `npm test`가 통과했다. 버전과 올릴 조건은 ADR 0040 5절에 적었다.
+- 배운 점: 스캐폴딩 템플릿의 기본 버전도 서로 맞지 않을 수 있다. peer 충돌은 무시 옵션보다 맞는 조합을 찾는 쪽이 안전하다. 린터처럼 컴파일러 API에 기대는 도구는 컴파일러 메이저 버전을 늦게 따라온다.
+
+### TS-28 마이그레이션 파일을 고친 뒤 로컬 테스트가 `Migration checksum mismatch`로 무더기 실패
+- 서비스·작성: reservation / kangmin / 2026-11-02
+- 문제: 아직 머지되지 않은 Flyway 마이그레이션(`V20261102_1__lottery_tables.sql`)의 주석 한 줄을 고친 뒤 `./gradlew :reservation-service:test`에서 137개 중 73개가 실패했다. 스프링 컨텍스트를 띄우는 테스트가 모두 `Validate failed: Migrations have failed validation` / `Migration checksum mismatch for migration version 20261102.1`로 죽었다. 같은 이유로 마이그레이션 CHECK 제약을 일부러 틀리게 바꾸는 변이 테스트도 관계없는 테스트까지 실패해 결론을 내지 못했다.
+- 원인: `prepareTestInfra`가 `docker compose -f compose.test.yml up -d --wait`만 실행한다. 컨테이너가 이미 떠 있으면 다시 만들지 않으므로, tmpfs DB라도 컨테이너가 살아 있는 동안 이전 실행에서 적용한 마이그레이션과 checksum이 남는다. 파일 내용이 바뀌면 Flyway가 기록된 checksum과 달라 검증에서 막는다. CI는 매번 새 컨테이너로 시작하므로 이 문제가 없다.
+- 해결: 로컬에서 `docker compose -f compose.test.yml up -d --force-recreate --wait postgres-reservation`으로 테스트 DB 컨테이너만 새로 띄웠다. 다시 실행해 137개가 모두 통과했고, `./gradlew verifyWorkspace`도 통과했다. 이미 머지된 마이그레이션은 고치지 않고 새 버전 파일을 더한다(다른 사람의 DB에 이미 적용됐기 때문이다).
+- 배운 점: 머지 전 마이그레이션을 고쳤거나 마이그레이션 변이 테스트를 할 때는 테스트 DB 컨테이너를 새로 띄운다. `build.gradle:42`의 `up`만 하는 구조는 인수인계 메모에도 "의도인지 확인 못 함"으로 남아 있다. `--force-recreate`를 기본으로 할지는 실행 시간과 함께 팀이 정한다.
+
+### TS-29 compose로 다시 띄운 서비스가 `Failed to configure a DataSource`로 기동 실패(config-server가 빈 설정을 줌)
+- 서비스·작성: infra(config-server) / junhyun / 2026-11-02
+- 문제: payment-service와 mock-pg 이미지를 새로 빌드해 `docker compose up -d --no-deps payment-service mock-pg`로 띄우자 둘 다 바로 종료됐다. payment-service는 `Failed to configure a DataSource: 'url' attribute is not specified`, mock-pg는 `Management-specific server address cannot be configured as the management server is not listening on a separate port`였다. 두 오류 모두 config-server에서 받아야 할 설정(`config-repo/*.yml`)이 없을 때 나는 오류다.
+- 원인: config-server는 `config-repo`를 바인드 마운트로 읽는데, 컨테이너 안의 `/config-repo`가 비어 있었다(`ls`가 `total 0`, `/payment-service/local` 응답의 `propertySources: []`). 컨테이너는 10/26 22:46에 만들어졌고 호스트의 `config-repo` 디렉터리는 10/27 19:22에 새로 만들어졌다(`stat -f %SB config-repo`). 바인드 마운트는 컨테이너를 만들 때의 디렉터리를 가리키므로, 그 뒤 호스트에서 디렉터리가 지워졌다 다시 생기면 컨테이너는 빈 디렉터리를 본다. 이미 떠 있던 서비스는 기동할 때 설정을 받아 두어서 드러나지 않았고, 새로 띄운 서비스부터 실패했다.
+- 해결: `docker compose up -d --no-deps --force-recreate config-server`로 config-server 컨테이너만 다시 만들었다(이미지는 그대로). `/config-repo`에 파일 11개가 보이고 `payment-service.yml`·`application.yml`·`application-local.yml`을 돌려주는 것을 확인한 뒤 두 서비스를 다시 띄우자 정상 기동했다.
+- 배운 점: 설정 오류처럼 보이는 기동 실패가 여러 서비스에서 함께 나면 먼저 `docker compose exec config-server curl -s localhost:8888/<서비스>/local`로 config-server가 실제로 무엇을 주는지 본다. 빈 `propertySources`면 마운트 문제다.
+
+### TS-30 squash 머지 뒤 같은 브랜치에 push한 커밋이 dev에 들어가지 않고 사라짐
+- 서비스·작성: docs / kangmin / 2026-11-02
+- 문제: PR #224(ISE-91)를 올린 뒤 같은 브랜치에 보고서 보강 커밋(`52107e6`)을 push했는데, 나중에 dev의 보고서에 그 절(8-1)이 없었다. 이슈는 Done, PR은 머지 상태라 빠진 것을 바로 알아채지 못했다.
+- 원인: 보강 커밋을 push하기 직전에 PR이 squash 머지됐다. squash 머지는 그 시점의 브랜치 내용을 커밋 하나로 dev에 넣고 PR을 닫는다. 머지 뒤 같은 브랜치에 push한 커밋은 닫힌 PR에만 붙고 dev로 가는 경로가 없다. 로컬 브랜치를 지운 뒤라 커밋은 reflog에만 남아 있었다.
+- 해결: `git show --stat 52107e6`으로 커밋이 남아 있는지 확인하고, 다음 작업 브랜치(ISE-89)에서 `git cherry-pick 52107e6`으로 되살렸다. 보고서에 8-1절이 다시 들어간 것을 `grep`으로 확인했다.
+- 배운 점: PR에 커밋을 더 올리기 전에 `gh pr view <번호> --json state`로 아직 OPEN인지 본다. 이 확인을 `gh pr view … && git push`처럼 이어 쓰면 MERGED여도 명령이 성공(종료 코드 0)해 push가 그대로 나간다. 같은 날 한 번 더 겪었다(보고서 커밋, `2f09414`). `[ "$(gh pr view <번호> --json state -q .state)" = OPEN ] && git push`처럼 값을 비교한다. 머지된 뒤라면 새 브랜치(또는 다음 PR)로 올린다. 머지된 브랜치를 지우기 전에 `git log origin/dev..<브랜치>`로 dev에 없는 커밋이 남았는지 확인한다.
+
+### TS-31 글자 충돌 없는 두 PR이 같은 Flyway 버전을 써서 머지 뒤 dev의 결제 서비스가 뜨지 않음
+- 서비스·작성: payment / junhyun / 2026-11-03
+- 문제: PR #229(ISE-145)를 머지하자 dev CI `build`가 머지 커밋 `54f399c`에서 실패했다. 결제 서비스 컨텍스트를 띄우는 테스트가 모두 `FlywayException: Found more than one migration with version 5`로 죽었다(payment-service 435건 중 268건 실패).
+- 원인: 전날 밤 머지된 PR #236(ISE-96)의 `V5__billing_keys.sql`과 #229의 `V5__outbox_failed_key_index.sql`이 같은 버전 5였다. 파일 이름이 달라 GitHub는 충돌로 보지 않았다. dev 보호 규칙의 필수 검사(`build`, `records-check`)가 "최신 dev 기준"(strict)이 아니어서, #229의 초록 CI는 #236이 들어가기 전 dev 기준이었다.
+- 해결: ISE-155(PR #248)로 나중에 들어온 Outbox 인덱스를 `V6__outbox_failed_key_index.sql`로 옮겼다. 먼저 들어온 빌링키 마이그레이션은 팀원 로컬 DB에 이미 적용됐을 수 있어 두었다. 로컬에서는 옛 `V5` 이력이 남은 테스트 DB 때문에 `Validate failed`가 이어 나서 TS-28처럼 `docker compose -f compose.test.yml up -d --force-recreate --wait postgres-payment`로 다시 만들었다. #248 머지 뒤 dev CI가 통과했다.
+- AI 활용: 머지는 사용자가 AI에게 맡긴 작업이었다. AI가 다음 PR(#225)의 충돌을 풀다가 테스트 실패로 발견하고 바로 수정 이슈와 PR을 냈다.
+- 배운 점: PR이 머지 가능(CLEAN)으로 보여도 CI가 최신 dev 기준이라는 뜻은 아니다. 마이그레이션을 더하는 PR은 머지 직전에 `git fetch && ls`로 dev의 마이그레이션 번호와 겹치지 않는지 보고, dev를 브랜치에 합쳐 테스트한 뒤 머지한다. 필수 검사를 strict로 켤지는 머지 대기가 늘어나는 비용과 함께 팀이 정한다.
+
+### TS-32 로컬 테스트 환불의 NEEDS_MANUAL_CHECK 알림이 슬랙에 한 시간마다 반복되는데 ops 명령으로 닫히지 않음
+- 서비스·작성: payment / junhyun / 2026-11-04
+- 문제: 팀 슬랙 `#이선좌-성능-모니터링`에 "확인이 필요한 환불이 1건 있습니다(NEEDS_MANUAL_CHECK)"가 한 시간마다 다시 왔다. 알림은 `RefundNeedsManualCheck`이고 env는 로컬이다. 즉시 확인 알림이라 풀릴 때까지 1시간마다 반복된다.
+- 원인: 11/2 로컬 테스트에서 만든 환불 1번이다. 그 뒤 Mock PG가 재시작되며 메모리 원장이 비어, PG에 원래 주문과 환불 기록이 없다.
+  - `ops inspect --with-pg` 결과는 결제 "PG에 주문 없음", 환불 "PG에 환불 없음"이었다.
+  - `refund resolve`는 PG `NotFound`를 거부한다. `--close-failed`도 `NotFound`에는 쓸 수 없다.
+  - `refund retry`는 Mock PG가 다시 거절해 NMC로 돌아온다(11/3에 한 번 시도).
+  - 대응 문서에 이 상태를 닫는 명령이 없다.
+- 해결:
+  1. 처음에는 데이터를 두고 로컬 Alertmanager에 무음을 걸었다(`env="local"`, 환불 알림 두 개).
+  2. 사용자가 "로컬 테스트 데이터니까 지금 한 번만 데이터를 정상화"하라고 해서, `ops refund resolve --close-failed`가 하는 전이를 SQL로 똑같이 했다. 한 문장(CTE)이라 둘 다 되거나 둘 다 안 된다.
+     - 환불 1번: `NEEDS_MANUAL_CHECK` → `FAILED`, `next_check_at = NULL`.
+     - 상태 이력: 한 줄. 사유는 SQL로 닫았다는 것이 드러나게 `LOCAL_TEST_DATA_SQL_CLOSE`, actor는 `OPS:junhyun`.
+     - 이벤트는 내지 않았고 결제 상태(`APPROVED`)는 그대로 뒀다. close-failed와 같다.
+  3. `refund_manual_check_count`가 0이 되고 Prometheus·Alertmanager에서 환불 알림이 사라진 것을 확인한 뒤 무음을 지웠다.
+- AI 활용: AI가 `inspect`로 원인을 찾고 처음에는 무음을 걸었다. 사용자가 로컬 데이터 정상화를 골랐고, AI가 운영 명령의 전이 코드(`RefundSettlementService.closeAsFailed`)를 읽고 같은 변경을 SQL로 했다.
+- 배운 점:
+  - Mock PG는 원장을 메모리에 두므로, 재시작 전에 만든 로컬 결제·환불은 PG 근거를 잃는다.
+  - 운영 서버에서는 상태를 바꾸는 SQL을 쓰지 않고(`manual-recovery.md` 1절) PG 콘솔 확인과 8절 예외 절차를 따른다.
+  - 로컬 테스트 데이터를 SQL로 고칠 때도 운영 명령과 같은 전이와 이력을 남기고, 사유로 SQL로 고친 것임을 드러낸다.

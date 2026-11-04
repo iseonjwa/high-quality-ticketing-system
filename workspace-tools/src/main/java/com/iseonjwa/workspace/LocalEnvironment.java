@@ -2,6 +2,7 @@ package com.iseonjwa.workspace;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
@@ -13,15 +14,18 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class LocalEnvironment {
     public static final List<String> KEYS = List.of("DB_USER", "DB_PASSWORD", "JWT_ACCESS_SECRET",
-            "JWT_REFRESH_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
+            "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET", "ENTRY_TOKEN_SECRET", "BILLING_KEY_SECRET", "ADMIN_EMAIL",
+            "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private LocalEnvironment() {}
@@ -66,14 +70,7 @@ public final class LocalEnvironment {
         var values = new LinkedHashMap<String, String>();
         var random = new SecureRandom();
         for (var key : KEYS) {
-            var value = switch (key) {
-                case "DB_USER" -> "iseonjwa";
-                case "ADMIN_EMAIL" -> "admin@iseonjwa.local";
-                case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET" -> randomHex(random, 32);
-                case "DB_PASSWORD" -> randomHex(random, 24);
-                default -> randomHex(random, 16);
-            };
-            values.put(key, value);
+            values.put(key, generate(key, random));
         }
         var content = new StringBuilder();
         values.forEach((key, value) -> content.append(key).append('=').append(value).append('\n'));
@@ -84,6 +81,44 @@ public final class LocalEnvironment {
         } catch (FileAlreadyExistsException exception) {
             return false;
         }
+    }
+
+    // 기존 .env의 값은 그대로 두고, KEYS 중 아예 없는 키만 맨 끝에 추가한다. 추가한 키 이름만 돌려준다(값은 돌려주지 않는다).
+    // Note: 값이 비어 있는 줄(KEY=)은 일부러 비운 것일 수 있어 건드리지 않는다. DB_PASSWORD처럼 이미 쓰인 값이 바뀌면
+    // 로컬 Postgres 볼륨의 비밀번호와 어긋나므로 기존 줄은 다시 쓰지 않고 덧붙이기만 한다
+    public static List<String> fillMissing(Path path) throws IOException {
+        var content = Files.readString(path, StandardCharsets.UTF_8);
+        var present = content.lines()
+                .map(String::strip)
+                .filter(line -> !line.isEmpty() && !line.startsWith("#") && line.contains("="))
+                .map(line -> line.substring(0, line.indexOf('=')).strip())
+                .collect(Collectors.toSet());
+
+        var random = new SecureRandom();
+        var added = new ArrayList<String>();
+        var addition = new StringBuilder();
+        for (var key : KEYS) {
+            if (present.contains(key)) continue;
+            addition.append(key).append('=').append(generate(key, random)).append('\n');
+            added.add(key);
+        }
+        if (added.isEmpty()) return List.of();
+
+        // 마지막 줄에 줄바꿈이 없으면 새 키가 그 줄에 이어 붙지 않게 먼저 줄을 바꾼다
+        if (!content.isEmpty() && !content.endsWith("\n")) addition.insert(0, '\n');
+        Files.writeString(path, addition, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+        return List.copyOf(added);
+    }
+
+    private static String generate(String key, SecureRandom random) {
+        return switch (key) {
+            case "DB_USER" -> "iseonjwa";
+            case "ADMIN_EMAIL" -> "admin@iseonjwa.local";
+            case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET", "ENTRY_TOKEN_SECRET",
+                 "BILLING_KEY_SECRET" -> randomHex(random, 32);
+            case "DB_PASSWORD" -> randomHex(random, 24);
+            default -> randomHex(random, 16);
+        };
     }
 
     // Note: Windows(NTFS)는 POSIX 권한을 지원하지 않아 지정하면 예외가 난다. 이때는 상위 폴더의 접근 권한을 그대로 따른다

@@ -1,0 +1,64 @@
+server:
+  address: 127.0.0.1
+spring:
+  cloud:
+    config:
+      enabled: false
+  datasource:
+    url: ${TEST_PAYMENT_DB_URL:jdbc:postgresql://localhost:25434/payment_test}
+    username: test
+    password: test-only-password
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  kafka:
+    producer:
+      properties:
+        # config-repo/payment-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
+        delivery.timeout.ms: 10000
+        max.block.ms: 2000
+    listener:
+      auto-startup: false
+management:
+  tracing:
+    export:
+      zipkin:
+        enabled: false
+eureka:
+  client:
+    enabled: false
+messaging:
+  outbox:
+    # 테스트는 릴레이를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    relay-enabled: false
+payment:
+  recheck:
+    # 테스트는 재확인 서비스를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    enabled: false
+  refund-worker:
+    # 테스트는 환불 워커 서비스를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
+    enabled: false
+  housekeeping:
+    # 테스트는 정리 쿼리를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 지운다
+    enabled: false
+  reconciliation:
+    # 테스트는 ReconciliationService.runOnce(now)를 직접 부른다. 스케줄러가 돌면 테스트가 만든 불일치를 먼저 기록하거나 닫는다
+    enabled: false
+  metrics:
+    gauge-refresh:
+      # 테스트는 DbAggregateGauges.refresh()를 직접 부른다. 작업이 돌면 테스트가 넣은 행을 먼저 집계한다
+      enabled: false
+  ops:
+    # 테스트용 허용 목록이다. 실제 목록은 config-repo/payment-service.yml에 있다
+    operators: [alice, bob, carol]
+  pg:
+    provider: mock
+    mock:
+      base-url: http://127.0.0.1:8090
+  token:
+    # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
+    secret: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+  billing-key:
+    # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다(ADR 0042)
+    secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100

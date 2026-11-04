@@ -5,19 +5,21 @@
 ## 프로젝트
 - 주제: 티켓 오픈 순간의 폭주 트래픽을 견디는 콘서트 예매 서버. 대기열, 좌석 선점, 예매↔결제 SAGA, 추첨 자동결제 예매.
 - 기술: 발제 기준 Spring Boot·Spring Cloud MSA, Kafka, Redis, PostgreSQL, Prometheus·Grafana, docker-compose. 버전과 모듈 구성은 2차 SA에서 확정한다.
-- 설계 정본: Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb), 저장소 사본은 `docs/core/SA MASTER.md`(v3.1, 10/26 결정 기록 반영). 각 결정이 확정인지는 Notion 「SA 기획·설계 결정 기록」 DB의 상태(결정·잠정 결정)를 따른다. 설계와 다르게 구현해야 하면 먼저 사용자에게 확인하고 `docs/decisions/`에 기록한다.
+- 설계 정본: Notion [SA MASTER v3.3](https://app.notion.com/p/6867bd823b7583f9896c81d8881f0004), 저장소 사본은 `docs/core/SA MASTER.md`(v3.3, 10/31 추첨 결정 반영). 각 결정이 확정인지는 Notion 「SA 기획·설계 결정 기록」 DB의 상태(결정·잠정 결정)를 따르되, 저장소 `docs/decisions/`가 그 결정을 대체했으면 저장소 기록을 따른다(대전제 4). 설계와 다르게 구현해야 하면 먼저 사용자에게 확인하고 `docs/decisions/`에 기록한다.
 - 팀 공유 저장소다. 팀 합의(SA 문서, 결정 기록)를 개인 판단으로 덮어쓰지 않는다.
 
 ## 대전제
 1. **완성과 학습을 함께 추구한다.** 사용자는 백엔드 취업을 준비 중이다. "무엇을"과 함께 "왜"를 남긴다.
 2. **질문은 기록한다.** 사용자가 지식이나 방법을 물으면 답한 뒤 `docs/learning/<이름>/qna/`에 날짜와 함께 저장한다(`<이름>`은 팀원 영문 이름, 예: junhyun).
 3. **AI 판단은 모두 기록한다.** 사용자가 AI(Claude Code, codex, ChatGPT 등)의 응답·제안·리뷰·코드를 받고 수용, 부분 수용, 거부, 보류, 선택지 고르기 같은 판단을 내리면 그 순간을 `docs/ai-judgments/<이름>/`에 남긴다. 팀이 함께 알아야 할 판단은 `shared: 예`로 표시해 `docs/ai-judgments/README.md`에 모은다. 발제 필수 "AI 설계 검증 로그"(3건 이상, 거부 1건 이상)와 발표 대표 사례(2건 이상)의 원천이다. 절차는 `ai-judgment` 스킬이다.
-4. **결정은 이유와 함께 남긴다.** 버전, 구조, 라이브러리, 서비스 경계처럼 되돌리기 어려운 선택은 `docs/decisions/`에 기록한다.
+4. **결정은 이유와 함께 저장소에 남긴다.** 버전, 구조, 라이브러리, 서비스 경계처럼 되돌리기 어려운 선택은 `docs/decisions/`에 기록한다. 결정·논의·학습 기록은 Notion보다 저장소 `docs/`에 먼저 남겨 팀원이 PR로 검토하고 같은 곳에서 보게 한다. Notion은 사용자가 요청할 때만 고친다. 저장소 기록과 Notion이 어긋나면 저장소 기록을 따르고, 그 기록에 어긋난다는 사실과 어느 Notion 항목을 대체하는지 적는다.
 5. **품질은 작업량과 무관하게 유지한다.** 검증 근거 없이 완료라고 말하지 않는다.
 6. **구현 주체는 작업마다 다르다.** 기본은 에이전트가 구현하고, 사용자가 "내가 할게"라고 하면 단계 안내와 리뷰만 한다.
 7. **톤**: 코드 주석, 문서, 커밋은 한국어 평서체로 쓴다. AI 말투(과한 공감, 감탄, 장황한 서두)와 이모지를 쓰지 않는다.
 8. **비밀값 금지**: 토큰, 실제 비밀번호, `.env`는 커밋하지 않는다.
 9. **AI 공동 작성자 표기 금지**: 커밋과 PR에 `Co-Authored-By`로 에이전트를 넣지 않고 생성 도구 문구도 넣지 않는다. 커밋 제목은 `type(scope): 요약`이다. 자세한 규칙은 `docs/guides/git-workflow.md`에 있다.
+10. **코드는 읽는 흐름을 우선한다.** 의미 있는 이름·책임 분리·기존 공통 계약·실패 의미를 유지한다. `Note:`는 코드만으로 알기 어려운 이유·주의점·학습 포인트에만 선택적으로 쓰고, 자명한 설명과 같은 내용의 반복으로 남발하지 않는다. 세부 기준은 `docs/guides/code-style.md`에 있다.
+11. **서비스 간 접점은 이슈로 알리고 작업 전에 확인한다.** 이벤트·토큰·내부 API·공유 설정처럼 다른 서비스가 따라야 하는 변경은 Linear에 라벨 `contract` 이슈로 올려 상대 담당에게 배정·멘션한다. 작업을 시작하기 전에 나에게 배정된 열린 `contract` 이슈를 확인하고 반영한다. 정본은 저장소 문서이고 이슈는 알림과 추적용이다. 절차는 `docs/guides/contract-issues.md`에 있다.
 
 ## 작업별 필수 문서
 | 언제 | 읽을 문서 |
@@ -26,8 +28,11 @@
 | 사용자 질문에 답할 때, 개념을 설명할 때 | `docs/agents/learning-guide.md` |
 | 사용자가 AI 응답·제안에 판단을 내렸을 때 | `.agents/skills/ai-judgment/SKILL.md`, `docs/ai-judgments/README.md` |
 | 문서·노트·커밋·PR 본문을 쓸 때 | `docs/guides/writing.md` |
+| 코드를 작성·수정·리뷰할 때 | `docs/guides/code-style.md` |
+| 테스트·개발 도구를 작성·실행할 때 | `docs/guides/testing.md` (Java·JUnit·Gradle 기준) |
 | 커밋·PR 작업 시 | `docs/guides/git-workflow.md`, `.github/pull_request_template.md` |
 | 작업 완료 보고·테스트 전 | `docs/agents/quality-gates.md` |
+| 작업을 시작할 때, 서비스 간 접점(이벤트·토큰·내부 API·공유 설정)을 바꿀 때 | `docs/guides/contract-issues.md` |
 | 결정을 기록할 때 | `docs/decisions/README.md` |
 | 설계 검토 결과를 볼 때 | `docs/sa-review/` |
 

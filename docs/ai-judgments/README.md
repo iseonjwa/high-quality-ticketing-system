@@ -31,9 +31,10 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 16건, 일지 2일 |
-| [kangmin](kangmin/README.md) | 개별 기록 10건, 일지 2일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 3건, 일지 0일 |
+| [junhyun](junhyun/README.md) | 개별 기록 36건, 일지 5일 |
+| [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
+| [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
 
@@ -41,6 +42,62 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-04-single-ec2-then-review-managed.md) |
+| 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-deploy-ec2-16gb-paid-plan.md) |
+| 2026-11-04 | M3 배포 순서(173·178 → 176 → 174·177 → 175)를 받아들이고 프론트 nginx(ISE-109)를 M4에서 M3로 당겨 이미지 워크플로(ISE-173)와 함께 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-m3-deploy-order-with-ise109.md) |
+| 2026-11-04 | 배포용 AWS 계정 운영: 시드니 리전 유지(서울 전환 안 함), 팀원은 각자 SSH 키와 IP로 접속하고 콘솔 초대는 필요한 사람만 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-aws-region-and-team-access.md) |
+| 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | junhyun | Claude Code | 부분 수용 | 후보 | [기록](junhyun/2026-11-03-deploy-observability-loadtest-design.md) |
+| 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
+| 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-reconciliation-rc5-rc6-approved-only.md) |
+| 2026-11-03 | 계층: Kafka 소비자·스케줄러를 infrastructure에 두자는 추천을 거부하고, 입구 어댑터를 presentation으로 모두 옮기기로 팀 회의에서 확정 | kangmin | Claude Code + Claude(대기열 담당) | **거부** | 후보 | [기록](kangmin/2026-11-03-inbound-adapters-to-presentation.md) |
+| 2026-11-02 | 추첨 마일스톤: 팀 문서대로 M4에 둔 배치를 거부, 필수 기능으로 올려 기본 M2·통합 테스트 M3·측정·개선 M4(문서까지 확정) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-02-lottery-must-milestone.md) |
+| 2026-11-02 | 프론트는 백엔드에 필드를 먼저 요청하지 않고 구현된 API만 쓰며, 빈 곳은 나중에 고칠 것으로 기록(ISE-113) | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-frontend-follows-backend-as-is.md) |
+| 2026-11-02 | 좌석·매수 반환 위치를 먼저 합의하자는 AI 권고 대신 만료 스케줄러(ISE-13)를 먼저 구현하고 논의 항목을 문서로 남김 | kwonwoo | Claude Code | 부분 수용 | 아님 | [기록](kwonwoo/2026-11-02-hold-expiry-implement-first.md) |
+| 2026-11-02 | Gateway가 만료된 Access 토큰에 401 `TOKEN_EXPIRED`를 주도록 SA 11-3대로 고침(ISE-131) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-gateway-token-expired-code.md) |
+| 2026-11-02 | 프론트 Refresh 토큰은 탭 단위 `sessionStorage`, Access 토큰은 메모리(ADR 0040 4절) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-refresh-token-session-storage.md) |
+| 2026-11-02 | 프론트 디자인 시스템 확정: 이선좌 워드마크, 인디고 주 색, 좌석 상태 규칙(409 뒤 빠진 좌석만 풀기, 좌석 바뀌면 새 멱등키) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-design-system-sample-accepted.md) |
+| 2026-11-02 | **팀 규칙 변경: 결정·논의·학습 기록은 Notion보다 저장소 `docs/`에 먼저 남기고, 어긋나면 저장소 기록을 따른다(`AGENTS.md` 대전제 4). AI가 개인 전역 지침에 넣은 것을 바로잡음** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-docs-first-as-team-rule.md) |
+| 2026-11-02 | 프론트 결정은 Notion 결정 기록 #7을 고치지 않고 저장소 docs(ADR 0040, `docs/design/frontend/`)에 기록 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-02-records-in-docs-over-notion.md) |
+| 2026-11-02 | 프론트·Gateway 연결은 BFF 대신 nginx 중계. Gateway에 CORS를 넣지 않고 백엔드 계약도 그대로 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-frontend-relay-over-bff.md) |
+| 2026-11-02 | 프론트 스택: 팀 결정 #7(정적 HTML·JS)의 바꿀 조건을 근거로 저장소 안 `frontend/`의 React SPA로 전환, Spring Boot 내장은 하지 않음 (ADR 0040) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-02-frontend-react-spa.md) |
+| 2026-11-01 | 계약 ② 확정·머지 브랜치 삭제: 예매 흐름 담당 답과 소유자 동의를 기다리자는 추천 대신 바로 진행(문서에 확인 없이 확정했다고 명시) | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-01-contract-confirm-without-consumer-check.md) |
+| 2026-10-31 | 추첨 D6 변경: 자동결제 전용 그룹(동시 3)을 두지 않고 `pg-approve`(동시 10)를 함께 씀. 겹침 문제는 시나리오 2 트러블슈팅 소재 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-10-31-lottery-billing-share-approve-group.md) |
+| 2026-10-31 | 추첨 SA 반영: 후속 분리는 수용, 다른 담당 동의가 필요한 항목은 합의 대기 대신 선반영 후 보고 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-sa-sync-apply-first-report-later.md) |
+| 2026-10-31 | 추첨 이슈화: 다른 서비스·모듈 일거리를 각 담당 배치 대신 추첨 담당이 묶어 맡음(담당은 합의·리뷰) | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-31-lottery-cross-area-work-ownership.md) |
+| 2026-10-31 | 추첨 D9 후속: 설정은 일반 오픈·응모 시작 전만, 좌석 캐시는 DB 조건에 맡김, 알림은 결과 조회 API 기본 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-31-lottery-seat-split-followups.md) |
+| 2026-10-30 | **ISE-11 구현이 다른 담당 모듈에 걸친 부분을 contract 이슈로 알리고 유지하자는 AI 권고를 거부하고 선점 모듈 안으로 격리** | kwonwoo | Claude Code | 거부 | 아님 | [기록](kwonwoo/2026-10-30-seathold-isolate-other-owners.md) |
+| 2026-10-30 | 포트폴리오 트러블슈팅 서사 확보를 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 MVP 이후 고도화(M4)로 분리 (ADR 0035) | kwonwoo | Antigravity (Gemini) | 수용 | 후보 | [기록](kwonwoo/2026-10-30-mvp-and-troubleshooting-scope-split.md) |
+| 2026-10-30 | 트래픽 집중 지점 격리와 향후 스케일업을 위해 좌석 선점(seathold)을 별도 도메인 모듈로 분리하되 단방향 의존 규칙 수용 (ADR 0034) | kwonwoo | Antigravity (Gemini) | 부분 수용 | 후보 | [기록](kwonwoo/2026-10-30-seathold-module-separation.md) |
+| 2026-10-30 | 추첨 D12: `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(대안: 즉시 승계, 원인 확인 후 분기 등), ADR 0026 유지 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-payment-failure-handling.md) |
+| 2026-10-30 | 추첨 D11: 결제 결과는 기존 예매 소비자에서 같은 트랜잭션으로 처리(A)하고, 서비스 분리 대비 모듈 사이 호출은 포트로만 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-payment-result-module-port.md) |
+| 2026-10-30 | 추첨 시간대 정책: 사용자 제안(새벽 추첨 + 예매 차단)을 AI가 나눠, 저트래픽 시간대 추첨은 기본 정책, 예매 차단은 측정 뒤 최후 수단으로 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-draw-time-window-policy.md) |
+| 2026-10-30 | 추첨 D6: 요구 조건 3개 + 전용 Bulkhead `pg-billing` 동시 3·전용 토픽·백프레셔·그룹별 CB를 결제 담당에게 제안 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-billing-bulkhead-proposal.md) |
+| 2026-10-30 | 추첨 D4: 응모 때 빌링키 확인 없이 결제 시점 실패 → 승계 + 사전 안내, 이벤트 사본은 확장안 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-30-lottery-billing-key-check-at-payment.md) |
+| 2026-10-30 | 추첨 D14: 결과 미확정(NMC) 결제는 선점 만료로 끊고 늦은 승인은 E8 환불, 종결 최장 추첨 후 60분 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-30-lottery-close-on-hold-expiry.md) |
+| 2026-10-30 | 추첨 D13: 소비자 안 승계(A) 대신 실패는 FAILED만 기록하고 1초 승계 워커가 추첨 행 잠금으로 승계(D) | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-succession-worker.md) |
+| 2026-10-30 | 추첨 D8: 한 트랜잭션(A) + 쓰기 줄이기·시간 상한·측정, 초과 시 청크(B) | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-draw-single-transaction.md) |
+| 2026-10-30 | 추첨 D7: 해시 정렬(C)은 수용, 시드 약속은 확장안으로 미루고 규칙 공개 + 1계정 중복 차단으로 마무리 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-30-lottery-fairness-scope.md) |
+| 2026-10-30 | 추첨 응모 매수: 1인 1매 추천 대신 SA대로 1~2매 유지 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-30-lottery-entry-quantity-keep-two.md) |
+| 2026-10-30 | 추첨 D5: 재응모 허용(A) 추천 대신 마감 전 취소는 받고 같은 회차 재응모는 막기, 재응모는 확장안 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-30-lottery-cancel-no-reentry.md) |
+| 2026-10-29 | 입장 토큰 회차 비교: 선점 경로를 /schedules/{scheduleId}/reservations로 바꾸고 Gateway가 경로로 비교 (계약 ①) | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-10-29-entry-token-schedule-check-path.md) |
+| 2026-10-29 | 대기열 설계 설명 중 AI 근거 두 가지(멱등성, issued 선기록의 자동 복구)를 틀렸다고 지적, 만료 기록 처리 추가 | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-10-29-queue-ai-reasoning-corrections.md) |
+| 2026-10-29 | 대기열: 토큰 API 분리, READY 상태, 진입·순번 조회 같은 상태 응답, 순번 조회 읽기 전용, jti 계산 (ADR 0031) | youngeun | Claude (Cowork) | 부분 수용 | 후보 | [기록](youngeun/2026-10-29-queue-token-api-ready.md) |
+| 2026-10-29 | 좌석 선점 결과 계약(ISE-21): 동기형 멱등 재요청 처리 규칙(실패 시 롤백·동시 PK 충돌 재조회) 수용 및 응답에 `seatIds` 포함 결정 | kwonwoo | Antigravity (Gemini) | 수용 | 후보 | [기록](kwonwoo/2026-10-29-seat-hold-contract-and-idempotency.md) |
+| 2026-10-29 | 추첨 D9: 추첨석 미리 떼지 않음·구분 컬럼 추천 대신 S석 일부를 좌석 등급 `LOTTERY`로 떼기(관리자가 한 등급+좌석 수, 응모 시작 전 수정) | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-10-29-lottery-seat-allocation-grade.md) |
+| 2026-10-29 | 추첨 D3: 응모 접수는 동기 INSERT 기준선으로 시작, 측정 시나리오 1로 접수형과 비교 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-29-lottery-entry-sync-insert-baseline.md) |
+| 2026-10-29 | 추첨 D2: "1인 1회차 1응모" 규칙 유지, 좌석 등급별 복수 응모 금지(구현은 추천 A, 팀 확인 전) | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-29-lottery-one-entry-per-schedule.md) |
+| 2026-10-28 | 추첨 방향: 추첨 유지 + 측정 시나리오 3종(마감 몰림, 자동결제 폭주, 일반 예매 간섭) | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-28-lottery-direction-measurement.md) |
+| 2026-10-28 | Notion SA 반영 방법: 구간 교체 HTML 대신 v3.3 전체를 가져오기로 교체 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-full-import.md) |
+| 2026-10-28 | 테이블 이름 복수형 적용 범위: 결제 코드·문서는 후속 이슈(ISE-67), `outbox_events`, M3 테이블 제외 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-table-naming-scope.md) |
+| 2026-10-28 | Notion SA 동기화: 변경마다 바로 고치는 AI 방식 대신 쌓아서 한 번에 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-28-notion-sa-batch-sync.md) |
+| 2026-10-28 | 역할 변경 확정: 결제 담당이 Mock PG까지 맡고 지원 불필요, SA·마일스톤 담당 표기 정정 | kangmin (결제 담당 확인 전달) | Claude Code | 수용 | 아님 | [기록](kangmin/2026-10-28-role-change-confirmed.md) |
+| 2026-10-30 | Mock PG 설계 Opus 리뷰 지적 전부 반영, 계약 테스트는 bootJar 별도 프로세스, 처리 중 승인 재요청은 409, compose 프로필은 팀 확인 대기 | junhyun | Claude Code, Opus 리뷰 | 수용 | 후보 | [기록](junhyun/2026-10-30-mock-pg-design-review.md) |
+| 2026-10-28 | Outbox·처리 이력 코드를 payment-service에 둔 AI 판단을 되돌려 common 모듈로 옮기기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-10-28-outbox-code-location.md) |
+| 2026-10-27 | 결제 상세 설계 빈틈 11개 결정과 Opus 검토 반영(10/28 갱신: 예매당 결제 하나, 환불 자동 복구, Ops 명령, 대사, 불변 조건) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-10-27-payment-design-gaps.md) |
+| 2026-10-27 | AI 설계 검증 #7: 계층형 아키텍처 제안 7건 부분 수용, 응답 레코드 분리 거부 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-27-layered-architecture-check7.md) |
+| 2026-10-27 | 대기열 입장 토큰 발급: 발급 기록(issued)을 남기는 B안 선택, 입장 처리 중복 방지·sub 확인 보강 | youngeun | Claude (Cowork) | 수용 | 후보 | [기록](youngeun/2026-10-27-queue-admission-guards.md) |
+| 2026-10-27 | Notion SA: AI의 블록 7곳 수정 대신 v3.2 통째 재등록 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-27-sa-v3-2-reregister.md) |
+| 2026-10-27 | 회의 결정 후속: AI가 나눈 후속 이슈 대신 이번 통합에서 끝내기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-10-27-meeting-followups-finish-now.md) |
 | 2026-10-27 | 통합 회의: 결정 시트 추천 중 D6 공통 모듈(하나+패키지), 리뷰 없음, 패키지 com.iseonjwa로 정함 | 팀 (전달: kangmin) | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-10-27-integration-meeting-decisions.md) |
 | 2026-10-27 | 브랜치 통합: AI 추천(준현 브랜치 기준, Groovy, WebFlux 등 D1~D11)을 회의 입장으로 수용 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-10-27-branch-integration-recommendation.md) |
 | 2026-10-27 | M1 진행 방식: AI의 "각자 만드는 건 공통 모듈만" 설명 대신 전원이 같은 범위를 각자 만들고 병합 | 팀 (전달: hyoseung) | Claude Code | **거부** | 아님 | [기록](hyoseung/2026-10-27-m1-everyone-builds-full-skeleton.md) |

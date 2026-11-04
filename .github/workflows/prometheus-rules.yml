@@ -1,0 +1,20 @@
+name: prometheus-rules
+
+# 알림 규칙·Alertmanager 설정이 바뀔 때만 문법 검사와 단위 테스트(promtool·amtool)를 돌린다. 필수 검사가 아니라 paths 필터를 쓴다.
+on:
+  pull_request:
+    paths: ["infra/prometheus/**", "infra/prometheus.yml", "infra/prometheus-local.yml", "infra/alertmanager/**", "script/check-prometheus-rules.sh"]
+  push:
+    branches: [main, dev]
+    paths: ["infra/prometheus/**", "infra/prometheus.yml", "infra/prometheus-local.yml", "infra/alertmanager/**", "script/check-prometheus-rules.sh"]
+
+permissions:
+  contents: read
+
+jobs:
+  promtool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 규칙 문법 검사와 단위 테스트
+        run: script/check-prometheus-rules.sh

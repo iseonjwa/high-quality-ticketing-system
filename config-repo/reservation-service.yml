@@ -8,5 +8,38 @@ spring:
     hikari:
       maximum-pool-size: 5
   kafka:
+    producer:
+      properties:
+        # Note: Outbox 릴레이가 브로커 확인을 기다리는 시간의 기준이다(payment-service와 같은 값).
+        # max.block.ms + delivery.timeout.ms가 전송 시한(send-timeout) 안에 들어오지 않으면 기동이 실패한다
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        max.block.ms: 2000
+        linger.ms: 0
     consumer:
       group-id: reservation-service.bootstrap
+messaging:
+  outbox:
+    # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
+    batch-size: 20
+    lease: 30s
+    send-timeout: 12s
+queue:
+  admit-per-second: 50
+  entry-token-ttl: 10m
+  poll-min: 3s
+  poll-max: 10s
+  poll-jitter-ratio: 0.2
+  admission-enabled: true
+  admission-interval: 500ms
+  cleanup-limit: 500
+  schedule-cache-refresh: 30s
+  schedule-cache-look-ahead: 1h
+  key-retention-after-start: 1h
+entry-token:
+  # 입장 토큰 발급 키. 키는 환경변수로만 주입하고 저장소에는 이름만 둔다(docs/design/queue/contracts.md 1절)
+  secret: ${ENTRY_TOKEN_SECRET:}
+payment:
+  token:
+    # 결제 토큰 발급 키. 키는 환경변수로만 주입하고 저장소에는 이름만 둔다(ADR 0025)
+    secret: ${PAYMENT_TOKEN_SECRET:}

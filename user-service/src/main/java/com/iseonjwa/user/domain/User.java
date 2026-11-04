@@ -1,6 +1,7 @@
 package com.iseonjwa.user.domain;
 
 import com.iseonjwa.common.persistence.BaseEntity;
+import com.iseonjwa.common.response.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -9,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.Locale;
 
 @Entity
 @Table(name = "users")
@@ -42,14 +44,33 @@ public class User extends BaseEntity {
     protected User() {}
 
     public User(String email, String passwordHash, String nickname, String role) {
-        this.email = email;
+        this.email = normalizeEmail(email);
         this.passwordHash = passwordHash;
         this.nickname = nickname;
         this.role = role;
     }
 
+    // 저장과 조회가 같은 규칙을 쓰도록 이메일은 항상 이 형태로 다룬다.
+    public static String normalizeEmail(String email) {
+        return email.strip().toLowerCase(Locale.ROOT);
+    }
+
     public boolean isLocked() {
         return lockedAt != null;
+    }
+
+    public void ensureUnlocked() {
+        if (isLocked()) {
+            throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
+        }
+    }
+
+    // 잠긴 계정과 임시 비밀번호 계정에는 토큰을 발급하지 않는다(로그인·재발급 공통).
+    public void ensureTokenIssuable() {
+        ensureUnlocked();
+        if (passwordChangeRequired) {
+            throw new BusinessException(UserErrorCode.PASSWORD_CHANGE_REQUIRED);
+        }
     }
 
     public Long getId() { return id; }

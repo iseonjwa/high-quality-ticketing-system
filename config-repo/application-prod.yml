@@ -5,4 +5,5 @@ eureka:
 management:
   tracing:
     sampling:
-      probability: 0.1
+      # 배포 서버(compose.deploy.yml)는 시연에서 트레이스를 보려고 TRACING_SAMPLE_RATE=1.0을 넣는다
+      probability: ${TRACING_SAMPLE_RATE:0.1}

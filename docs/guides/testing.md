@@ -12,9 +12,10 @@ API·인증·업무 동작과 앱 기동 정책은 Java·JUnit 테스트로 관�
 | dotenv·비밀값 파일·실행 환경·포트 정책·프로세스 종료 | `workspace-tools/src/test/java` | 기본 `test`·`build`에 포함 |
 | 필수 설정 서버 장애 시 앱 기동 실패 | `system-tests/src/test/java`의 `ConfigServerUnavailableTest` | 기본 `test`·`build`에 포함 |
 | 실행 중인 전체 스택의 API·연동·관측·장애 | 같은 모듈의 `WorkspaceSystemTest` | `:system-tests:systemTest`로 별도 실행 |
+| 프론트 화면·라우팅(Vitest + Testing Library) | `frontend/src/**/*.test.tsx` | `cd frontend && npm test`. Gradle 빌드와 별도다([`frontend/README.md`](../../frontend/README.md)) |
 
 `system-tests`는 검증 전용 모듈이며 실행 서비스나 업무 JAR를 추가하지 않는다. 기존 애플리케이션 테스트는 각 서비스에 그대로 둔다.
-IDE에서도 테스트 클래스를 실행할 수 있다. 저장소 루트는 작업 경로에서 찾으며, 설정 서버 기동 실패 검증 전에는 `:eureka:bootJar`가 필요하다. 시스템 테스트에는 실행 중인 local 스택과 `.env`가 필요하다.
+IDE에서도 테스트 클래스를 실행할 수 있다. 저장소 루트는 작업 경로에서 찾으며, 설정 서버 기동 실패 검증 전에는 `:eureka:bootJar`가 필요하다. `payment-service`의 Mock PG 계약 테스트(`MockPgServerContractTest`)는 `mock-pg`를 별도 JVM으로 띄우므로 Gradle 없이 돌리기 전에 `:mock-pg:bootJar`가 필요하다. 시스템 테스트에는 실행 중인 local 스택과 `.env`가 필요하다.
 기본 `test`는 `system` 태그를 제외하므로 전체 앱 스택이나 실제 `.env` 없이도 CI에서 실행할 수 있다. PostgreSQL·Redis가 필요한 서비스 통합 테스트의 인프라는 별도로 준비한다.
 
 ## 기본 검사
@@ -32,6 +33,12 @@ IDE에서도 테스트 클래스를 실행할 수 있다. 저장소 루트는 �
 
 ```bash
 ./gradlew :system-tests:systemTest --no-daemon
+```
+
+일반 예매 한 흐름(공연·회차·좌석 준비, 가입, 대기열 READY, 선점, 결제 승인, 확정)만 Gateway로 확인하려면 `BookingFlowSystemTest`를 지정한다. 회차마다 좌석 15,000석이 생겨 local DB가 커진다. 두 곳은 API가 없어 우회한다: 입장 토큰은 `ENTRY_TOKEN_SECRET`으로 직접 서명하고(발급 API는 ISE-69), 확정은 같은 멱등키로 선점을 다시 보내 `CONFIRMED`를 확인한다(예매 조회 API는 ISE-171). 두 API가 나오면 각각 바꾼다.
+
+```bash
+./gradlew :system-tests:systemTest --tests '*BookingFlowSystemTest' --no-daemon
 ```
 
 Gateway 재기동의 첫 인증 요청과 Redis 장애·복구까지 확인하려면 다음 옵션을 쓴다. 해당 스택의 Gateway를 재기동하고 Redis를 잠깐 pause하므로 그 작업을 수행하는 검사에서만 지정한다.
@@ -74,6 +81,16 @@ dotenv는 Java에서도 Compose의 해석 결과를 사용한다. 파일 생성�
 `runLocal`은 선택한 앱의 JAR를 빌드하고 loopback으로 실행한다. 종료 시 자신이 시작한 JVM을 정리한다.
 전체 JVM 모드는 워크스페이스 가이드에 따라 Compose 앱 포트를 비우고 Prometheus를 JVM 모드로 준비한 뒤 `./gradlew verifyJvm --no-daemon`으로 실행한다.
 이 태스크는 앱 JAR 7개를 준비하고, Java가 시작한 JVM의 실제 소켓과 HTTP·Eureka 등록 주소·연동을 검증한다. 검사 후 소유한 JVM을 종료한다. 실제 소켓 확인에는 기존과 같이 `lsof`를 사용한다.
+
+## 결제 장애 시나리오 테스트
+
+`payment-service`의 `scenario` 패키지가 실제 Mock PG 프로세스와 테스트 PostgreSQL로 결제 장애 시나리오(FT-1·FT-2)와 검증기 V1~V3를 돌린다([failure-scenarios.md](../design/payment/failure-scenarios.md) 4절). Mock PG 실행 파일(`:mock-pg:bootJar`)이 필요하고 Gradle 실행은 이를 먼저 만든다. Gradle 없이 IDE에서 돌리기 전에는 `./gradlew :mock-pg:bootJar`를 실행한다.
+
+```bash
+./gradlew :payment-service:test --tests 'com.iseonjwa.payment.scenario.*' --no-daemon
+```
+
+시나리오 클래스는 `ScenarioTestBase`를 상속해 설정을 더하지 않는다. 컨텍스트는 클래스가 끝나면 닫는다. Spring은 설정이 다른 테스트 컨텍스트를 캐시하고 각 컨텍스트가 커넥션 풀을 쥐므로, 결제 테스트 DB는 연결 한도를 300으로 올려 둔다(`compose.test.yml`의 `postgres-payment`, 기본 100에서는 전체 실행 중 `too many clients`가 났다). 새 시나리오 클래스를 더할 때도 컨텍스트 설정을 바꾸지 않는다. 로컬 테스트 DB가 예전 설정으로 떠 있으면 `docker compose -f compose.test.yml up -d --wait postgres-payment`가 새 설정으로 다시 만든다.
 
 ## 결과 확인
 

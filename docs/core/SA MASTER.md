@@ -1,12 +1,88 @@
-# SA MASTER v3.1 (결정 기록 반영)
+# SA MASTER v3.3 (테이블 이름·ERD 정리)
 
-> **SA MASTER v3.1 (결정 기록 반영)** · 2026년 10월 26일 · 5조 이선좌
+> **SA MASTER v3.3 (테이블 이름·ERD 정리)** · 2026년 10월 28일 · 5조 이선좌
 >
 > - 이 문서 하나가 설계 기준이다. 아래 문서들은 근거 보관용으로 남긴다.
-> - 근거: SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - 근거: SA MASTER v3.1 (결정 기록 반영, 10/26) · 10/27 초기 환경 통합 회의 결정 시트(저장소 `docs/integration/decision-sheet.md`) · SA MASTER v3 (통합, 10/26 17:38) · 「SA 기획·설계 결정 기록」 DB (10/26 19:53 기준) · 프로젝트 일정관리 마일스톤 M1~M4 · [261026 1차 피드백 내용 모음](https://app.notion.com/p/261026-1-4057bd823b7580d9b0ebf4d0b721a2a6?pvs=21) · [261026 피드백 반영 개선안](https://app.notion.com/p/261026-4057bd823b7581a78143c148826fe0bc?pvs=21) · [SA v2](https://app.notion.com/p/SA-v2-85d7bd823b75835f8a7b0110360f0b2b?pvs=21) · [SA MASTER](https://app.notion.com/p/SA-MASTER-4027bd823b75808bb67efd7dbd1f7c53?pvs=21)
+> - v3.3은 v3.2에 10/27~10/28 저장소 변경(AI 검증 `#7`, 대기열 제안, 역할 변경)과 테이블 이름 복수형 통일·ERD 전체 반영을 더했다(아래 "10/28 바뀐 점"). 저장소 사본 `docs/core/SA MASTER.md`가 원본이고, Notion은 이 파일을 가져와 교체한다.
+> - v3.2는 v3.1에 10/27 초기 환경 통합 회의 결정(아래 "10/27 바뀐 점")을 반영했다. 이전 안은 부록 C에 있다.
 > - v3에서 "제안"으로 적었던 10/26 피드백 변경은 결정 기록에 모두 반영됐다. 이 문서는 그 결과에 맞춰 제안 표시를 없애고 확정된 내용으로 고쳤다. 바뀐 결정은 결정 기록 각 항목의 "수정 내역"에 이전 안과 함께 남아 있다.
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
-> - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
+> - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
+
+### 11/2 바뀐 점 (추첨 담당)
+
+추첨 테이블 마이그레이션(ISE-85)을 쓰면서 명세를 구현에 맞췄다.
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | `lotteries.seed`를 `BIGINT`에서 `BYTEA NOT NULL, CHECK(32바이트)`로 바꿈. 순위 계산(`DrawRanker`, ISE-84)이 32바이트 시드를 쓴다 | 12-3, ERD 그림 3 | ADR 0041 |
+| 2 | 추첨 설정·수정 에러 코드 3개(`LOTTERY_ALREADY_EXISTS`·`LOTTERY_SETUP_CLOSED`·`LOTTERY_SEATS_NOT_ENOUGH`)와 설정 응답 `warnings` 추가. 설정 검증에 `draw_at + 60분 <= starts_at` 추가 | 11-3, 11-4 | D9·D10·D14 |
+| 3 | 추첨을 다른 서비스와 같은 필수 기능으로 올림(Should → Must). 기본 기능은 M2, 통합 테스트는 M3, 측정·수치 기반 개선은 M4. 추첨·빌링키 API 단계를 이후 → MVP로 | 4장 Must·Should, 5-2 일정, 6-7, 11-4 | 11/2 팀 합의 |
+
+### 10/31 바뀐 점 (추첨 담당)
+
+추첨 상세 설계(`docs/design/lottery/`, ISE-49)의 결정을 반영했다(ISE-82). 응모 접수 방식(D3)은 측정 시나리오 1 뒤에 반영한다(ISE-87). 7·8행은 결제 담당·팀 확인 전에 먼저 반영한 것(선반영)이라 확인 결과에 따라 되돌릴 수 있다.
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 회차당 추첨 1개: `lotteries.grade` → `source_grade`, `UNIQUE(schedule_id, grade)` → `UNIQUE(schedule_id)`. 응모 제약 `UNIQUE(lottery_id, user_id)`는 그대로 | 4-3, 12-3, ERD 그림 3 | D2·D9, ADR 0036 |
+| 2 | 추첨석은 한 등급(기본 S)에서 좌석 수만큼 떼어 좌석 등급 `LOTTERY`로 표시. 일반 선점은 `LOTTERY` 좌석을 잡지 않고, 좌석 생성 API는 `LOTTERY`를 받지 않는다. 종결 때 원래 등급으로 반환. 설정·수정은 일반 오픈·응모 시작 전만 | 4-3, 12-3 `schedule_seats`·`lotteries`, 11-4 | D9 |
+| 3 | 응모 취소(마감 전)와 상태 `CANCELED`, 같은 회차 재응모 불가 | 4-3, 8-2, 11-4, 12-3 | D5 |
+| 4 | 응모 때 빌링키를 확인하지 않고 결제 시점 실패 → 승계. `BILLING_KEY_REQUIRED`는 확장안 | 4-3, 11-3 | D4 |
+| 5 | `lottery_entries`에 `payment_attempts`·`fail_reason`, 상태 `CANCELED` | 12-3, ERD 그림 3 | D5·D12 |
+| 6 | U9를 추첨 담당 결정으로 갱신(결제 담당 확인 대기), U19는 동기 INSERT 기준선으로 시작 | 17-2 | D3·D4·D12 |
+| 7 | 추첨은 결제 거절 `reasonCode`로 분기한다(`NOT_SENT`는 새 예매로 1회 재시도). 결제 `contracts.md`에 같은 문구. 선반영, 결제 담당 확인 대기(ISE-89) | 17-2 U9, `docs/design/payment/contracts.md` | D12, ADR 0038 |
+| 8 | 3개 서비스로 줄인 근거 중 추첨 문장을 "추첨석을 좌석 등급 `LOTTERY`로 떼어 두어 실시간 선점과 같은 좌석을 다투지 않는다"로 바꿈. 선반영, 팀 확인 대기 | 7-1 | D9, ADR 0037 |
+
+### 10/30 바뀐 점 (공연·좌석 담당)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | `venue_seats.row_no`를 `VARCHAR(5)`에서 `INT`로 바꾸고, 좌석 조회·예매 조회 응답의 `row`를 JSON 정수로 바꿈. 문자열이면 정렬이 사전순(1, 10, 2…)이 된다 | 11장 좌석 조회·예매 조회 예시, 12-3, 12-6 | ADR 0033 (제안), Linear ISE-65 |
+
+### 10/28 바뀐 점 (v3.3)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 테이블 이름을 snake_case 복수형으로 통일(`users` 외 21개). 여러 단어는 마지막 단어만 복수형, `history` → `histories`, `outbox` → `outbox_events`. 컬럼·FK 컬럼은 단수형 유지 | 12장 전체, 본문의 테이블 언급 | ADR 0030 (제안), Linear ISE-66 |
+| 2 | ERD를 DB별 그림 5개로 다시 그리고 명세의 모든 테이블·컬럼을 넣음. 이전 ERD에 없던 `billing_keys`·`payment_status_histories`·`notifications`·공통 테이블 3개와 `venues`·`concerts`·`lotteries` 등의 속성 추가 | 12-6 | ISE-66 |
+| 3 | `users`에 로그인 잠금 컬럼 3개(`failed_login_count`·`locked_at`·`password_change_required`) 명세 반영. user-service V2 마이그레이션과 맞춤 | 12-2 | ADR 0007 |
+| 4 | 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당, 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 | 6-1, 6-6, 6-7, 6-9, 11장 Mock PG, 17-2 U16, 부록 A C1, 부록 C | 10/28 회의, PR `#73` |
+| 5 | AI 설계 검증 `#7`(계층형 아키텍처) 결과와 포트 표 | 9-1, 14장, 17-2 U12, 17-3 | PR `#24`·`#25` |
+| 6 | 대기열 안전장치 제안(아래 "10/27 대기열 제안" 표) | 머리말, 7-3, 12-8 | PR `#26`, ADR 0015 (제안) |
+| 7 | 이미 머지된 결제·공통 마이그레이션에 맞춰 테이블 명세 갱신: `payments`의 `currency`·`pg_approved_amount`·`UNIQUE(pg_tx_id)`·상태별 CHECK, D3를 `UNIQUE(reservation_id)` 전체로, `payment_status_histories`의 `target_type`·`actor`, `idempotency_records`의 `resource_id`·`link_type`, `outbox_events`의 재시도 컬럼 3개 | 4장 D3, 12-4, 12-5, 12-6, 15장 #58 | SA 변경 요청 S-3·S-4·S-10(컬럼)·S-11, ADR 0019·0022·0026 (결제 담당 확인) |
+
+- 아직 반영하지 않은 것: 결제 담당의 SA 변경 요청 S-1~S-28(`docs/design/payment/sa-change-requests.md`) 중 위 7번 외의 항목(동작·계약·운영, 미구현 M3 테이블)은 팀 검토 전이라 넣지 않았다. 이미 머지된 payment-service 코드와 결제 설계 문서의 테이블 이름은 ISE-67에서 이 규칙으로 바꾼다. 그 전까지 코드는 단수형이다.
+
+### 10/27 바뀐 점 (초기 환경 통합 회의)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 패키지 이름을 `com.iseonjwa`로 확정(U12 패키지 항목 해소) | 13장 | 결정 시트 D4, ADR 0014 |
+| 2 | 공통 모듈을 `common` 하나로 두고 안에서 패키지로 나눔. 웹·JPA·Kafka·JWT 라이브러리는 `compileOnly`, 쓰는 서비스가 직접 선언 | 11-2, 13장 | D6, ADR 0013 |
+| 3 | 로그아웃 블랙리스트 Redis 장애 시 closed(503 + `Retry-After`). 이 때문에 생기는 문제는 따로 고친다 | 9-5 | D14, ADR 0005 |
+| 4 | Config 서버(native) 사용 확정. #30 잠정 → 결정 | 9-1, 9-6 | D15, ADR 0003 |
+| 5 | 구현 버전: Gradle 9.8.2(Groovy DSL), PostgreSQL 17, Lombok 사용 | 9-1 | D2·D3·D12·D13 |
+| 6 | SA 범위 밖 기능 채택: 로그인 5회 실패 잠금, 관리자 비밀번호 초기화, `@RequireRole`, `/internal/**` 외부 차단, workspace-tools, system-tests | 저장소 ADR | D11, ADR 0007·0012 |
+| 7 | 브랜치 전략: `{type}/ISE-{번호}-{주제}`, dev에서 출발, squash 기본, 필수 리뷰 없음(AI 검증 후 머지·공유), main·dev는 PR과 CI 통과 필수, 마일스톤마다 dev → main | 17-1 #5 | D16, `docs/guides/git-workflow.md` 5절 |
+
+### 🆕 10/27~10/29 대기열 제안 (팀 합의 전, 대기열 담당)
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 입장 토큰 검증에 `sub` = JWT 사용자 ID 확인 추가. 다른 사람이 받은 입장 토큰으로 대기열을 우회하지 못하게 한다 | 7-3 | ADR 0015 |
+| 2 | Redis 키 `queue:{scheduleId}:lastTick` 추가. 인스턴스가 여러 개여도 `admitted`를 1초에 한 번만 올린다(1차 AI 피드백 Queue 유지 조건 3이 "전역 카운터"로만 요약돼 빠진 장치) | 12-8 | ADR 0015 |
+| 3 | `admitted` 상한을 발급된 `seq`로 둔다. 줄이 빈 동안 카운터가 앞서가 오픈 순간 한꺼번에 입장하는 것을 막는다 | 12-8 | ADR 0015 |
+| 4 | Redis 키 `queue:{scheduleId}:issued` 추가. 입장 토큰을 발급하면 발급 시각을 기록하고 `waiting`에서 뺀다. 다시 요청해도 만료 시각이 같고, 응답 유실·새 탭·다른 기기에서도 같은 토큰을 다시 받는다. 만료 뒤에는 다시 줄을 선다 | 12-8 | ADR 0015 |
+| 5 | 입장 토큰 발급을 POST `/queue/token`으로 분리한다. 진입·순번 조회는 토큰을 주지 않고, 순번 조회는 읽기 전용이다 | 6-3, 8-1, 11-4, 11-5, 12-8 | ADR 0031 |
+| 6 | 응답 상태 `READY`(토큰 API를 부르면 토큰을 받을 수 있음) 추가. 진입과 순번 조회는 같은 판단 규칙으로 같은 모양의 상태를 응답한다. 진입은 새로 서면 201, 이미 있으면 200 | 11-4, 11-5 | ADR 0031 |
+| 7 | 에러 코드 `QUEUE_NOT_READY`(409) 추가 | 11-3 | ADR 0031 |
+| 8 | 토큰 발급 쓰기 순서(`issued` 기록 → `waiting` 제거), 만료된 `issued` 기록 처리, 입장 처리 Lua의 1초 정리, Redis `TIME` 기준 시각 | 12-8 | ADR 0031 |
+| 9 | 입장 토큰 `jti`를 회차·사용자·발급 시각으로 계산한다. 같은 발급 시각이면 같은 토큰이 나온다 | 7-3 | ADR 0031 |
+| 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
+| 11 | 입장 토큰 claim 확정: 회차 ID는 `scheduleId`(JSON 정수), `iat` 추가, `exp`·`jti`는 발급 시각 ms에서 계산 | 7-3 | 계약 ① (`docs/design/queue/contracts.md`, ISE-20), 10/30 확정 |
+| 12 | 좌석 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. Gateway가 입장 토큰의 `scheduleId`를 경로와 비교하고 본문은 읽지 않는다 | 6-4, 7-3, 8-1, 11-4, 11-5 | 계약 ①, 좌석 선점 계약, 10/29 확정 |
 
 ### 10/26 바뀐 점
 
@@ -244,9 +320,9 @@ flowchart TD
 ### 4-3. 추첨 배분 상세 (차별화, Should)
 
 - **무엇**: 회차 좌석 일부를 일반 예매와 분리해 추첨용으로 할당한다. 응모할 때 빌링키를 등록하면 당첨 즉시 좌석이 자동 배정되고 결제·발권까지 끝난다.
-- **진행 순서**: 응모 기간 → 응모 마감 → 추첨·자동결제 → 일반 예매 오픈. 추첨과 실시간 선점이 겹치지 않는다.
+- **진행 순서**: 응모 기간 → 응모 마감 → 추첨·자동결제 → 승계 마감(추첨 후 30분) → 종결(최장 추첨 후 60분, 남은 추첨석 반환). 추첨석은 좌석 등급 `LOTTERY`로 분리되어 같은 회차 일반 선점과 좌석이 겹치지 않는다. 추첨 설정은 일반 오픈 전에만 받는다. 추첨 시각은 저트래픽 시간대를 권장한다(10/31).
 - **가치**: 광클·매크로 대신 공정한 기회 / 실패 좌석을 예비자에게 바로 넘겨 판매율 유지 / 수요 일부가 응모 기간으로 분산되어 피크 감소
-- **규칙 (초안)**: 1인 1회차 1응모, 등급별 1–2매, 연석 미보장, 마감 전 응모 취소 가능, 같은 조건 예비자 순번 승계, 승계 마감 후 남은 좌석은 일반 예매로. 추첨 시드를 기록해 재현 가능하게 한다. 세부(실패 유형별 승계·결제수단 확인·늦은 응모)는 추첨 시작 때 확정한다 (U9).
+- **규칙 (10/31 추첨 담당 결정)**: 회차당 추첨 1개(한 등급에서 좌석 수만큼 뗌), 1인 1회차 1응모, 1–2매, 연석 미보장(옆자리 우선), 마감 전 응모 취소 가능·같은 회차 재응모 불가, 순위는 시드 기반 해시 정렬(`SHA-256(seed ‖ entryId)`), 남은 좌석이 매수보다 적으면 건너뜀, 예비자 순번 승계, 승계 마감 후 남은 좌석은 일반 예매로. 응모 때 빌링키는 확인하지 않고 결제 시점에 없으면 실패 → 승계한다. 실패 유형별 처리는 `docs/design/lottery/options.md` D12(U9).
 - 자동결제 방식은 빌링키(잠정)다. 대안이던 가승인은 쓰지 않는다.
 
 ### 4-4. 기능 흐름 팀 결정 (10/23, 이후 변경 반영)
@@ -277,8 +353,8 @@ flowchart TD
 
 | 구분 | 항목 |
 | --- | --- |
-| **Must** | F1 회원·인증(Gateway 인증 필터) · F2 공연·좌석 · F3 대기열 + 입장 토큰 검증 필터 · F4 동기형 선점·만료·확정·발권 · F5-1·2 결제(Mock PG) · H5 SAGA(결제 결과 이벤트 + 보상) · H6 결제 멱등·서버 금액 검증 · H7 타임아웃·CB(UNKNOWN 포함) · 만료 뒤 승인 자동 환불(E8) · H8 Outbox 2경로(결제 결과·환불 요청) + 처리 이력 · H10 Prometheus·Grafana·Zipkin · H11 기준선 측정 + Synthetic Data 1차본 · docker-compose · 배포 1회 |
-| **Should** | 최소 화면(프론트) · H4 접수형 Kafka 접수 → 재측정 · F4-5 취소 + 취소 환불 · H8 나머지 토픽 확장·DLQ 재처리 · F6 추첨 배분 + F5-4·5 빌링키 + H9 · H2 캐싱 · H3 대기열 고도화 · 토스페이먼츠 테스트 모드 어댑터 |
+| **Must** | F1 회원·인증(Gateway 인증 필터) · F2 공연·좌석 · F3 대기열 + 입장 토큰 검증 필터 · F4 동기형 선점·만료·확정·발권 · F5-1·2 결제(Mock PG) · H5 SAGA(결제 결과 이벤트 + 보상) · H6 결제 멱등·서버 금액 검증 · H7 타임아웃·CB(UNKNOWN 포함) · 만료 뒤 승인 자동 환불(E8) · H8 Outbox 2경로(결제 결과·환불 요청) + 처리 이력 · H10 Prometheus·Grafana·Zipkin · H11 기준선 측정 + Synthetic Data 1차본 · F6 추첨 배분 + F5-4·5 빌링키 자동결제 + H9(11/2 팀 합의로 Should → Must) · docker-compose · 배포 1회 |
+| **Should** | 최소 화면(프론트) · H4 접수형 Kafka 접수 → 재측정 · F4-5 취소 + 취소 환불 · H8 나머지 토픽 확장·DLQ 재처리 · H2 캐싱 · H3 대기열 고도화 · 토스페이먼츠 테스트 모드 어댑터 |
 | **Could** | F8 내부 AI 상담 · F7 알림함 · 사전 대기실 + 무작위 순번 · 좌석 자동 배정 · 취소표 지연 공개 · 보안문자 · 팬클럽 선예매 · Loki 로그 수집 |
 | **Won't** | 4-5 제외 범위 |
 
@@ -291,9 +367,9 @@ flowchart TD
 | 기간 | 마일스톤 | 목표 |
 | --- | --- | --- |
 | 10/26~10/29 | M1. 공통 모듈 + 인증 기반 | 10/27 계약 합의(인증 헤더·응답·에러·이벤트 형식·패키지 구조) → 공통 모듈을 각자 구현해 비교 후 하나로 합침 → 인증·Gateway·compose. 완료 기준은 걷는 뼈대: compose 한 번으로 Gateway → User → Prometheus·Zipkin |
-| 10/30~11/3 | M2. 일반 예매 한 흐름 연결 | 입장 → 선점 → 결제 → `payment.result` → 확정·발권을 API 호출로 연결 + 동기형 기준선 1회 측정 |
-| 11/4~11/6 | M3. MVP 완성·배포 | 실패 경로(거절·만료·PG 장애·재확인 스케줄러), Mock PG 장애 주입, Synthetic Data 1차본, EC2 배포 1회, 11/6 MVP 시연 |
-| 11/9~11/16 | M4. 고도화 + 트러블슈팅 | 접수형 → 재측정, 대기열 고도화·입장 속도 역산, 취소·캐싱, 추첨 + 빌링키, 장애 주입·대사 정리 |
+| 10/30~11/3 | M2. 일반 예매 한 흐름 연결 | 입장 → 선점 → 결제 → `payment.result` → 확정·발권을 API 호출로 연결 + 동기형 기준선 1회 측정 + 추첨 기본 기능(설정·응모·추첨·배정·자동결제 요청·승계·종결) |
+| 11/4~11/6 | M3. MVP 완성·배포 | 실패 경로(거절·만료·PG 장애·재확인 스케줄러), Mock PG 장애 주입, 추첨 통합 테스트, Synthetic Data 1차본, EC2 배포 1회, 11/6 MVP 시연 |
+| 11/9~11/16 | M4. 고도화 + 트러블슈팅 | 접수형 → 재측정, 대기열 고도화·입장 속도 역산, 취소·캐싱, 추첨 측정 시나리오·수치 기반 개선, 장애 주입·대사 정리 |
 | 11/16~11/19 | 발표 준비 | 발표 자료 준비(11/16), 제출 마감(11/18), 발표(11/19) |
 
 ### 5-3. 10/26 결정 적용 순서
@@ -317,8 +393,8 @@ flowchart TD
 | 대기열 | 권영은 | 진입·순번·입장 토큰·일정 속도 입장, 입장 토큰 검증 필터, 부하 테스트 기준선 | 대기열 고도화, 부하 테스트·Synthetic Data 주관 |
 | 좌석 선점 | 최권우 | 동기형 일괄 선점·중복 판매 방지·만료·멱등 | 접수형 Kafka 접수 → 재측정 |
 | 공연·좌석 조회 → 예매 흐름 | 반효승 | 공연·좌석 등록·조회 → 예매 상태·확정·발권·결제 토큰·보상 | 예매 취소, 캐싱 (알림함 보류) |
-| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 환불 상태·재확인 스케줄러 | 취소 환불, 토스 테스트 모드 어댑터 |
-| Mock PG → 추첨 | 이강민 | Mock PG·장애 주입·결제 조회 연동, 망취소, 환불 조회·멱등 | 추첨 전체 + 빌링키 자동결제 |
+| 결제 | 안준현 | 결제 승인·장애 처리, 만료 뒤 승인 환불, 이벤트 신뢰성 공통 모듈, 환불 상태·재확인 스케줄러, Mock PG(장애 주입·망취소·환불 조회·멱등) | 취소 환불, 토스 테스트 모드 어댑터 |
+| User·공통 → 추첨 | 이강민 | User·공통 모듈 개선, 추첨 기획·설계 | 추첨 전체 + 빌링키 자동결제 |
 | 프론트 | 안준현 | — | 최소 화면 (AI 도구로 생성) |
 | 내부 AI 상담 | 안준현 | — | Could, 필수 기능과 측정이 끝난 뒤 |
 
@@ -342,7 +418,7 @@ flowchart TD
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
 | MVP | 대기열 진입(계정당 1자리, Lua로 seq 발급), 내 순번·예상 시간·다음 조회 시각 | POST `/api/v1/schedules/{id}/queue` · GET `/api/v1/schedules/{id}/queue/me` |
-| MVP | 서명 입장 토큰 발급(7-3), 전역 카운터로 일정 속도 입장(`seq <= admitted`), 회차 단위 격리 | 위 GET 응답에 입장 토큰 포함 |
+| MVP | 서명 입장 토큰 발급(7-3), 전역 카운터로 일정 속도 입장(`seq <= admitted`), 회차 단위 격리 | 🆕 POST `/api/v1/schedules/{id}/queue/token` (제안, ADR 0031. 이전: 위 GET 응답에 입장 토큰 포함) |
 | MVP | 입장 토큰 검증 필터 (Gateway, 좌석·예매 API 앞) | — |
 | MVP | 부하 테스트 기준선: 가상 사용자 토큰 사전 발급, 좌석 초기화 스크립트, 측정 환경 기록표 | 스크립트 |
 | 이후 | 이탈 판정, 대기 취소 | DELETE `/api/v1/schedules/{id}/queue/me` |
@@ -352,10 +428,10 @@ flowchart TD
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | POST `/api/v1/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` |
+| MVP | 매수 선택 후 좌석 일괄 선점: 매수 한도 행 보장 + 조건부 UPDATE(D1) → 좌석 ID 정렬 조건부 UPDATE(전부 아니면 전부) → 예매 저장 (12-7) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 201 HELD + 결제 토큰 · 409 `SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED` (계약 ① 확정. 이전: POST `/api/v1/reservations`) |
 | MVP | 부분 유니크 인덱스(판매 중 좌석만, D2), 선점 만료 스케줄러(SKIP LOCKED), 좌석 상태·보유 매수 대사 쿼리 | — |
 | MVP | 멱등키 처리 (멱등키 = requestId) | `Idempotency-Key` 헤더 |
-| 이후 | 접수형: API가 `seat_hold_request(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | POST `/api/v1/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
+| 이후 | 접수형: API가 `seat_hold_requests(REQUESTED)`와 outbox를 한 트랜잭션으로 저장 → 소비자가 선점 후 HELD·REJECTED 기록 (회차+구역 키) | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` → 202 · GET `/api/v1/reservations/requests/{requestId}` · 토픽 `seat-hold.request` |
 | 이후 | 동기형 대비 접수형 재측정 (부하 테스트 담당과 함께), 병목 구간 분석(Zipkin) | — |
 
 ### 6-5. 공연·좌석 조회 → 예매 흐름: 반효승
@@ -380,26 +456,27 @@ flowchart TD
 | MVP | 결제 승인(동기): 결제 토큰 서명·`typ`·`aud` 검증, 서버 금액 검증, 멱등키, 같은 예매 중복 결제 방지(D3) | POST `/api/v1/payments` → 200 승인·거절 / 202 UNKNOWN(확인 중) |
 | MVP | PG 호출: 트랜잭션 밖, 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → PG 조회로 확정 | GET `/api/v1/payments/{id}` |
 | MVP | 결제 결과 이벤트 발행(Outbox) | 발행 `payment.result`(PaymentApproved·Declined·Refunded) |
-| MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_event), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
+| MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_events), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
 | MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
 | MVP | 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
+| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
+| MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
 | 이후 | 예매 취소 환불 (같은 처리기 재사용) | 구독 `payment.command`(RefundRequested, reason CANCELED) |
 | 이후 | 토스페이먼츠 테스트 모드 어댑터 | — |
-| 이후 | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
+| MVP | 빌링키 등록·자동결제 (추첨 담당과 함께) | POST `/api/v1/payments/billing-keys` · 구독 `payment.command`(BillingPaymentRequested) |
 
-### 6-7. Mock PG → 추첨: 이강민
+### 6-7. User·공통 → 추첨: 이강민
 
-MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤트 → 예매 확정이 끝까지 돌고 Mock 장애 주입으로 거절·타임아웃이 재현되면 추첨으로 넘어간다(대략 11/3~11/6).
+10/28 역할 변경: Mock PG를 포함한 결제 전부는 결제 담당(6-6)이 맡고, 결제 쪽 지원도 필요 없다고 확인했다. MVP 기간에는 User·공통 모듈을 개선하고 추첨을 기획·설계한다. 11/2 팀 합의로 추첨은 다른 서비스와 같은 필수 기능이다. 기본 기능은 M2, 통합 테스트는 M3, 측정·수치 기반 개선은 M4다(이전: 추첨 구현은 MVP 이후).
 
 | 기간 | 기능 | API · 이벤트 |
 | --- | --- | --- |
-| MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
-| MVP | 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
-| MVP | 결제 재확인 스케줄러 (결제 담당과 함께) | — |
-| 이후 | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
-| 이후 | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
-| 이후 | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
-| 이후 | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
+| MVP | User·공통 모듈 개선: 계층 의존 방향 정리, 토큰 발급 규칙을 도메인으로 이동 (14장 #7 후속) | — |
+| MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
+| MVP | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
+| MVP | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
+| MVP | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
+| MVP | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
 
 ### 6-8. 프론트 + 내부 AI 상담: 안준현
 
@@ -420,7 +497,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 - **10/27 계약 통보**: 형식을 소유한 담당이 정해 공유하고 소비하는 쪽이 리뷰한다. 입장 토큰(대기열 → Gateway·좌석 선점), 선점 결과(좌석 선점 → 예매 흐름), 결제 토큰(예매 흐름 → 결제), 결제 결과 이벤트(결제 → 예매 흐름). 공통 응답·에러 형식은 #19로 결정됨. 진행 방식은 형식을 소유한 서비스 담당자가 정해서 통보하고, 소비하는 쪽이 리뷰한다(10/26 메모).
 - **첫 주 순서**: 공연·좌석 데이터 → 좌석 선점 → 예매 흐름 ↔ 결제, 대기열은 병렬
 - 각자 담당 영역의 AI 검증 항목을 1개 이상 로그에 남긴다.
-- `⚠ 미해결` 안준현 님은 MVP 기간 결제 + 이벤트 공통 모듈(환불·재확인 스케줄러 포함)이라 부담이 크다. 결제가 밀리면 이강민 님이 추첨으로 넘어가는 시점을 늦춰 결제를 돕는다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
+- 결제 담당 부담 (10/28 해소): MVP 기간 결제 + 이벤트 공통 모듈(환불·재확인 스케줄러 포함)이라 부담이 크다는 우려에 "결제가 밀리면 이강민 님이 추첨 시작을 늦추고 결제를 돕는다"고 적어 두었다. 결제 담당이 Mock PG를 포함해 모두 맡고 지원은 필요 없다고 확인해 이 계획을 뺐다. 공통 이슈는 10/29까지 매일 스크럼에서 확인한다.
 
 ---
 
@@ -432,10 +509,10 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 
 | # | 문제 | 반영 | 위치 |
 | --- | --- | --- | --- |
-| D1 | 같은 사용자가 선점 요청을 동시에 보내면 둘 다 매수 검사를 통과해 회차당 매수 제한을 넘음 | 사용자·회차별 보유 수 행(`user_schedule_quota`)을 먼저 보장하고 조건부 UPDATE로 막음 | 12-3, 12-7 |
-| D2 | `schedule_seat.status`와 `reservation_seat` 부분 유니크가 둘 다 좌석 상태를 들고 있어 기준이 두 곳 | 판매 여부의 기준은 `reservation_seat` 부분 유니크. `schedule_seat.status`는 선점 1차 판정·조회용으로 같은 트랜잭션에서 함께 바꾸고, 어긋나면 `reservation_seat` 기준으로 대사 | 12-3, 12-7 |
-| D3 | 멱등키는 같은 요청 재전송만 막아, 다른 키로 같은 예매를 두 번 결제하는 경우를 못 막음 | `payment`에 부분 유니크 `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')` | 12-4 |
-| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | API가 접수 요청 행(`seat_hold_request`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
+| D1 | 같은 사용자가 선점 요청을 동시에 보내면 둘 다 매수 검사를 통과해 회차당 매수 제한을 넘음 | 사용자·회차별 보유 수 행(`user_schedule_quotas`)을 먼저 보장하고 조건부 UPDATE로 막음 | 12-3, 12-7 |
+| D2 | `schedule_seats.status`와 `reservation_seats` 부분 유니크가 둘 다 좌석 상태를 들고 있어 기준이 두 곳 | 판매 여부의 기준은 `reservation_seats` 부분 유니크. `schedule_seats.status`는 선점 1차 판정·조회용으로 같은 트랜잭션에서 함께 바꾸고, 어긋나면 `reservation_seats` 기준으로 대사 | 12-3, 12-7 |
+| D3 | 멱등키는 같은 요청 재전송만 막아, 다른 키로 같은 예매를 두 번 결제하는 경우를 못 막음 | `payments`에 `UNIQUE(reservation_id)` 전체 제약 (v3.3, ADR 0026. 이전: 상태 조건 부분 유니크) | 12-4 |
+| D4 | 접수형에서 예매 행 저장과 Kafka 발행이 원자적이지 않아 "처리 중"으로 남는 행이 생길 수 있음 | API가 접수 요청 행(`seat_hold_requests`)과 outbox를 한 트랜잭션으로 저장하고 릴레이가 발행. 이전 안은 "행 없이 바로 발행"(부록 C) | 10-1, 12-3 |
 
 ## 7. 서비스 구성과 시스템 구조도
 
@@ -446,7 +523,7 @@ MVP 기간에는 결제 쪽 Mock PG를 맡고, 결제 승인 → 결과 이벤�
 | **User** | 회원가입·로그인·권한 | user DB | 모든 서비스가 인증을 쓰지만 회원 데이터는 공유하지 않음 |
 | **Reservation** | 공연·좌석 조회, 대기열, 선점·예매·발권, 추첨, 알림 | reservation DB, Redis | "한 좌석은 한 번만 팔린다"를 한 트랜잭션 경계 안에서 지킴 |
 | **Payment** | 결제·환불·빌링키, PG 연동 | payment DB | 외부 PG 지연·장애 격리 |
-- **5개 → 3개로 줄인 근거**: 응모 → 추첨 → 일반 오픈 순서라 추첨과 실시간 선점이 겹치지 않는다. Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
+- **5개 → 3개로 줄인 근거**: 추첨석은 설정 때 좌석 등급 `LOTTERY`로 떼어 두므로 추첨과 실시간 선점이 같은 좌석을 다투지 않는다(10/31 선반영, 팀 확인 대기. 이전 근거는 "응모 → 추첨 → 일반 오픈 순서라 겹치지 않는다"였다). Queue는 자기 데이터가 없고, 멈추면 예매도 멈춰 장애 격리가 성립하지 않는다(AI 검증 #1).
 - **모듈별 분리 근거 (측정, #10·#14 결정·잠정)**: queue는 순번 조회 부하가 선점 API p95를 늘리면, notification은 알림 채널이 늘면, lottery는 응모·자동결제 처리 중 일반 예매 선점 p95가 늘면 서비스로 분리한다. 그 전까지는 Reservation 안 모듈로 경계를 지킨다.
 - **Reservation 안 모듈 규칙** (결정 기록 #14, 모듈러 모놀리스 방식): reservation·lottery는 직접 호출 허용 / queue는 인터페이스로만 / notification은 Kafka 이벤트로만 / concert 조회는 읽기 직접 허용
 - **공통 인프라** (서비스 수에 미포함): API Gateway, Eureka, Config 서버, Kafka, Kafka-UI, Redis, PostgreSQL ×3, Prometheus, Grafana, Zipkin, Mock PG. 모두 docker-compose로 한 번에 기동한다.
@@ -488,19 +565,23 @@ flowchart LR
 | 발급 | Reservation | Reservation |
 | 검증 | Gateway | Payment |
 | 서명 키 | `ENTRY_TOKEN_SECRET` | `PAYMENT_TOKEN_SECRET` |
-| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 회차 ID, `exp`, `jti` | `typ=payment`, `aud=payment-service`, `sub`(userId), 예매 ID, 금액, `exp`, `jti` |
+| 필수 claim | `typ=entry`, `aud=gateway`, `sub`(userId), 🆕 `scheduleId`(회차 ID, JSON 정수), `exp`, 🆕 `iat`, `jti` (계약 ①) | `typ=payment`, `aud=payment-service`, `sub`(userId), `reservationId`(예매 ID, JSON 정수), `amount`(금액, JSON 정수), `exp`, `jti` |
 | 만료 | 발급 후 10분 `[가정]` | `hold_expires_at - 10초` `[가정]` |
-| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
+| 검증 규칙 | 서명, `typ`, `aud`, `exp` 모두 통과 + 회차 ID가 요청 회차와 같아야 함 (🆕 Gateway가 요청 경로의 `{scheduleId}`와 비교, 본문은 읽지 않음, 계약 ①) + 🆕 `sub`가 JWT 사용자 ID(`X-User-Id`)와 같아야 함 (제안, ADR 0015) | 서명, `typ`, `aud`, `exp`  • 예매 ID·금액을 서버 값과 대조, `sub`가 `X-User-Id`와 달라도 거절 |
 - 키를 분리하면 Gateway는 결제 키를, Payment는 입장 키를 갖지 않아 서로의 토큰을 위조할 수 없다. `typ`·`aud`는 키가 실수로 같아져도 교차 사용을 막는 이중 방어다.
 - HMAC은 검증 키로 서명도 할 수 있다. "Gateway·Payment도 토큰을 만들 수 있다"는 피드백은 이 구조의 한계다. 비대칭 서명(발급자 개인키, 검증자 공개키)으로 풀 수 있으나 키 관리 비용이 늘어 MVP 이후로 둔다.
 - 결제 토큰의 10초는 Gateway 요청 타임아웃 3초 + 결제 결과의 예매 반영 2초 + 여유 5초다. 토큰 검증을 통과한 정상 승인이 선점 만료 뒤에 도착하는 경우를 줄인다. 사용자의 결제 가능 시간은 5분에서 4분 50초로 준다.
 - PG 타임아웃으로 UNKNOWN이 된 결제는 나중에 APPROVED가 될 수 있으므로 만료 뒤 승인(E8)은 사라지지 않는다. 자동 환불은 그대로 필요하다.
 - `jti`는 추적·로그용으로만 쓰고 폐기 목록은 만들지 않는다. 입장 토큰은 좌석 조회·선점에 여러 번 쓰여 1회용이 될 수 없고, 유효 시간이 짧다.
-- claim 이름(예: 회차 ID를 `sid`로 쓸지)은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- 🆕 입장 토큰 `jti`는 `entry:{회차 ID}:{userId}:{발급 시각}`의 SHA-256 앞 16바이트(hex)로 계산한다. 같은 발급 시각으로 다시 서명하면 글자까지 같은 토큰이 나온다 (제안, ADR 0031).
+- claim 이름은 형식을 소유한 담당(입장 토큰: 대기열, 결제 토큰: 예매 흐름)이 정해 통보한다(6-9). 결제 토큰 claim은 10/29 확정했다(`docs/design/payment/contracts.md` 1절, SA 변경 요청 S-15). 이전 안은 입장 `{sub, sid, exp}`, 결제 `{rid, uid, amt, exp=holdExpiresAt}`였다(부록 C).
+- 🆕 입장 토큰 claim은 계약 ①(`docs/design/queue/contracts.md`, ISE-20)으로 정했다: 회차 ID는 `scheduleId`(JSON 정수), `exp`·`iat`는 발급 시각(ms)을 초로 버린 값에서 계산한다 (10/30 확정).
 
 ## 8. 흐름과 상태
 
 ### 8-1. 일반 예매 시퀀스 (동기형)
+
+- 🆕 대기열 부분(READY, 토큰 API)은 제안이다 (ADR 0031).
 
 ```mermaid
 sequenceDiagram
@@ -512,16 +593,19 @@ sequenceDiagram
   participant K as Kafka
   U->>GW: POST /schedules/{id}/queue
   GW->>RS: 대기열 진입 (Lua: seq 발급 → Redis ZSET)
-  loop 다음 조회 시각마다
+  RS-->>U: WAITING + 순번 (차례면 READY)
+  loop WAITING인 동안 다음 조회 시각마다
     U->>GW: GET /schedules/{id}/queue/me
-    GW->>RS: 순번 조회 (seq <= admitted면 입장)
+    GW->>RS: 순번 조회 (읽기 전용, seq <= admitted면 READY)
   end
+  U->>GW: POST /schedules/{id}/queue/token
+  GW->>RS: 입장 토큰 발급 (issued 기록 → waiting 제거)
   RS-->>U: ADMITTED + 입장 토큰
   U->>GW: GET /schedules/{id}/seats (입장 토큰)
   GW->>GW: JWT · 입장 토큰 서명·typ·aud 검증
   GW->>RS: 좌석 조회
   RS-->>U: 200 좌석 목록 (available만)
-  U->>GW: POST /reservations (입장 토큰)
+  U->>GW: POST /schedules/{id}/reservations (입장 토큰)
   GW->>GW: JWT · 입장 토큰 검증
   GW->>RS: 선점
   RS->>RS: 한 트랜잭션: 매수 한도 → 좌석 조건부 UPDATE → 예매 저장
@@ -547,7 +631,7 @@ sequenceDiagram
 ### 8-2. 상태 머신
 
 ```
-접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (seat_hold_request, 동기형·접수형 모두)
+접수 요청   REQUESTED → HELD · REQUESTED → REJECTED              (seat_hold_requests, 동기형·접수형 모두)
 예매        HELD → CONFIRMED
             HELD → EXPIRED (미결제 만료) · HELD → RELEASED (결제 거절)
             CONFIRMED → CANCELED (취소)
@@ -557,11 +641,12 @@ sequenceDiagram
 결제        REQUESTED → APPROVED | DECLINED | UNKNOWN
             REQUESTED(10초 경과) · UNKNOWN → 재조회 → APPROVED | DECLINED | NEEDS_MANUAL_CHECK
             APPROVED → REFUNDED (환불 완료 시)
-환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refund)
+환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refunds)
             UNKNOWN → 재조회 → REFUNDED | FAILED | NEEDS_MANUAL_CHECK
 추첨        OPEN → CLOSED → DRAWN → DONE
 응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
-            WAITLISTED → WON (승계) · WON → PAID | FAILED
+            ENTERED → CANCELED (마감 전 취소, 재응모 불가)
+            WAITLISTED → WON (승계) · WAITLISTED → LOST (승계 마감) · WON → PAID | FAILED
 ```
 
 ### 8-3. 전이 표
@@ -569,8 +654,8 @@ sequenceDiagram
 | 전이 | 함께 바뀌는 것 (한 트랜잭션) | 누가 |
 | --- | --- | --- |
 | 예매 → HELD | 매수 한도 +n → 회차 좌석 HELD → 예매·예매 좌석 HELD | 선점 API (동기형) · 선점 소비자 (접수형) |
-| 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_request` 갱신 + `processed_event` 기록 | 선점 소비자 (접수형) |
-| 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_request`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
+| 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_requests` 갱신 + `processed_events` 기록 | 선점 소비자 (접수형) |
+| 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_requests`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
 | 예매 HELD → CONFIRMED | 예매 좌석 CONFIRMED, 회차 좌석 SOLD, 좌석별 티켓 ISSUED | PaymentApproved 소비자 |
 | 예매 HELD → EXPIRED / RELEASED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 매수 한도 −n | 만료 스케줄러 / PaymentDeclined 소비자 |
 | 예매 CONFIRMED → CANCELED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 티켓 VOID, 매수 한도 −n, RefundRequested(Outbox) | 취소 API |
@@ -632,12 +717,27 @@ flowchart TB
 | Redis · Kafka (KRaft, 브로커 1) · Kafka-UI | compose | compose | compose |
 | Prometheus · Grafana · Zipkin | compose | compose (추적 샘플링 낮춤) | compose |
 | 부하 도구 | — | 다른 기기에서 실행 | — |
-- 기술 스택 (#30 잠정, Config 서버 유지는 10/27 통합 회의에서 확정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈, Groovy DSL)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.8.2 · PostgreSQL 17이다. Lombok은 쓸 수 있다.
+- 기술 스택 (#30, 10/27 통합 회의에서 결정): Java 21 LTS(Temurin) · Spring Boot 4.1.x · Spring Cloud 2025.1.x · Gradle 9.x(툴체인 21), 라이브러리 버전은 BOM을 따른다. 컨테이너 기본 이미지는 `eclipse-temurin:21-jre`. 저장소는 모노레포(Gradle 멀티모듈, Groovy DSL)이고 설정은 Config 서버(9-6)로 관리한다. 구현 버전은 Spring Boot 4.1.2 · Spring Cloud 2025.1.4 · Gradle 9.8.2 · PostgreSQL 17이다. Lombok은 쓸 수 있다.
 - 변경 이력: 2026-10-26 Junhyun An이 Java 25 대신 Java 21을 사용하기로 결정했다. 선택 이유는 미기재다. 팀 전체 합의로 표기하지 않는다.
 - Java 21에서는 가상 스레드가 `synchronized` 안에서 캐리어 스레드에 고정되므로(JDK 24에서 해결) 가상 스레드는 기본으로 끈다. 고도화에서 켜 볼 때는 고정 지점을 먼저 확인한다. Java 22 이후 기능은 쓰지 않는다.
 - 프로필: local · test · loadtest(Mock PG, 요청 제한 완화, 샘플링 낮춤) · prod. 프로필별 값은 `config-repo/{서비스}-{프로필}.yml`에 둔다(9-6).
 - 비밀값(DB 비밀번호, JWT 서명 키, `ENTRY_TOKEN_SECRET`·`PAYMENT_TOKEN_SECRET`)은 `.env`, 저장소에는 `.env.example`만 둔다. `config-repo`에는 `${DB_PASSWORD}` 같은 자리표시자만 쓴다.
-- 포트 번호는 `(팀 확인)` (U12).
+- 포트 (U12, 10/27 통합 코드 기준으로 확인). 앱 포트는 `config-repo/{서비스}.yml`, 관리 포트(Actuator)는 `config-repo/application.yml`의 `MANAGEMENT_PORT`, 로컬 바인딩은 `compose.local.yml`에 있다. 로컬 바인딩은 모두 `127.0.0.1`이다.
+
+| 구성 요소 | 앱 포트 | 관리 포트 (Actuator) | 로컬 호스트 바인딩 |
+| --- | --- | --- | --- |
+| gateway | 8080 | 9080 | 8080, 관리 18080 |
+| user-service | 8081 | 9080 | 8081, 관리 18081 |
+| reservation-service | 8082 | 9080 | 8082, 관리 18082 |
+| payment-service | 8083 | 9080 | 8083, 관리 18083 |
+| mock-pg | 8090 | 9080 | 8090, 관리 18090 |
+| eureka | 8761 | 9080 | 8761, 관리 18761 |
+| config-server | 8888 | 9080 | 8888, 관리 19888 |
+| PostgreSQL user · reservation · payment | 5432 | — | 5433 · 5434 · 5435 |
+| Redis | 6379 | — | 6379 |
+| Kafka | 9092 (내부), 9093 (컨트롤러) | — | 19092 (외부 리스너) |
+| Kafka-UI · Prometheus · Grafana · Zipkin | 8080 · 9090 · 3000 · 9411 | — | 8085 · 9090 · 3000 · 9411 |
+| 테스트용 PostgreSQL · Redis (`compose.test.yml`) | 5432 · 6379 | — | 25433 · 26379 |
 
 ### 9-2. 외부 노출과 접근 (#57)
 
@@ -693,7 +793,7 @@ Java는 서비스마다 힙을 따로 잡으므로 서비스별 상한을 정하
 | 회차당 매수 | 4매 | 결정 기록 #35 |
 | 입장 토큰 유효 시간 T | 10분 | 좌석 고르기 + 결제 5분 |
 | 초당 입장 수 N | 50명 (임시값) | 기준선 측정 후 3-3 식으로 역산 |
-| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초) | 폴링 부하 상한 |
+| 대기열 폴링 간격 | 기본 3초, 순번이 멀수록 길게 (최대 10초). 🆕 서버가 0~+20% jitter를 ms로 더해 `nextPollAfterMillis`로 준다 (제안, ADR 0031) | 폴링 부하 상한. jitter는 같은 시각에 폴링이 몰리지 않게 하고, 더하기만 해서 상한(최소 3초)을 넘지 않는다 |
 | Access / Refresh 토큰 | 30분 / 14일 | 짧은 Access + Refresh |
 | 결제 → 예매 확정 반영 | 2초 이내 (Outbox 폴링 500ms) | 결과 화면 지연 상한 |
 | 접수형 접수 → 처리 완료 | 2초 이내 (outbox 폴링 500ms + 컨슈머 랙) | 202 처리량과 실제 처리량을 함께 봄 |
@@ -751,7 +851,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- | --- | --- |
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
 | `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
-| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_request`와 한 트랜잭션) | 접수형 |
+| `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_requests`와 한 트랜잭션) | 접수형 |
 | `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
 - Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
@@ -777,10 +877,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 이벤트 | 필드 |
 | --- | --- |
-| PaymentApproved | paymentId, reservationId, userId, amount, approvedAt |
+| PaymentApproved | paymentId, reservationId, userId, amount, currency, approvedAt |
 | PaymentDeclined | paymentId, reservationId, userId, reasonCode |
-| PaymentRefunded | paymentId, reservationId, userId, amount, refundedAt |
-| RefundRequested | reservationId, paymentId, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED`) |
+| PaymentRefunded | paymentId, reservationId, userId, amount, currency, refundedAt |
+| RefundRequested | reservationId, paymentId, userId, amount, currency, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED` · `DUPLICATE_APPROVAL` · `NOT_CONFIRMABLE`) |
 | BillingPaymentRequested | reservationId, userId, amount, lotteryEntryId |
 | SeatHoldRequested | requestId, userId, scheduleId, section, seatIds, requestedAt |
 | LotteryEntryRequested | requestId, lotteryId, userId, quantity |
@@ -788,7 +888,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 ### 10-4. 소비 규칙
 
 - 컨슈머 그룹 이름은 `{구독 서비스}.{용도}`다.
-- 소비자는 `processed_event(event_id, consumer_group)` 기록과 업무 변경을 한 트랜잭션으로 처리한다. 이미 기록된 eventId는 건너뛴다.
+- 소비자는 `processed_events(event_id, consumer_group)` 기록과 업무 변경을 한 트랜잭션으로 처리한다. 이미 기록된 eventId는 건너뛴다.
 - 순서는 같은 키 안에서만 보장된다. 상태 전이는 조건부 UPDATE라, 순서가 뒤바뀐 이벤트는 0행 갱신 → 기록만 하고 건너뛴다.
 - 형식 변경은 필드 추가만 허용하고, 의미가 바뀌면 `version`을 올린다.
 
@@ -801,7 +901,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 재확인 스케줄러 하나가 `next_check_at <= now()`인 결제 `REQUESTED`(10초 경과분)·`UNKNOWN`과 환불 `REQUESTED`·`UNKNOWN`을 `SKIP LOCKED`로 집어 처리한다. 간격은 9-4.
 - PG 재조회 결과: 승인이면 `APPROVED`, 거절이면 `DECLINED`, 주문 자체를 모르면(`NOT_FOUND`) 같은 주문번호로 망취소를 보내 PG가 늦게 승인하는 경우를 막은 뒤 `DECLINED`(reasonCode `NOT_SENT`)로 닫는다(docs/sa-review/02).
 - `NEEDS_MANUAL_CHECK`는 종결 상태다. Grafana에 건수 지표와 알림 기준을 두고, 운영자가 PG 콘솔에서 확인해 수동으로 닫는다.
-- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_request`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
+- 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_requests`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
 - 환불이 `FAILED`(PG가 명확히 거절)면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다(#16).
 
 ## 11. API 명세
@@ -864,7 +964,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `VALIDATION_FAILED` | 400 | 요청 형식·값 오류 |
 | `UNAUTHORIZED` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` | 401 | 토큰 없음·만료·로그아웃된 토큰 |
 | `FORBIDDEN` | 403 | 권한 없음 (USER가 운영자 API 호출 등) |
-| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, `typ`·`aud`가 맞지 않는 토큰 (E5, E14) |
+| `ENTRY_TOKEN_INVALID` | 403 | 입장 토큰 없음·위조·만료·다른 회차, `typ`·`aud`가 맞지 않는 토큰 (E5, E14), 🆕 `sub`가 로그인 사용자와 다름 (제안, ADR 0015) |
 | `NOT_FOUND` | 404 | 대상 없음 |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 같은 멱등키에 다른 본문 |
 | `RATE_LIMITED` | 429 | 사용자 단위 요청 제한 |
@@ -872,7 +972,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `EMAIL_DUPLICATED` | 409 | 가입 이메일 중복 |
 | `INVALID_CREDENTIALS` | 401 | 로그인 실패 |
 | `SALE_NOT_OPEN` | 409 | 오픈 전 진입·선점 (E4) |
-| `QUEUE_NOT_JOINED` | 404 | 대기열에 없는 사용자의 순번 조회 |
+| `QUEUE_NOT_JOINED` | 404 | 대기열에 없는 사용자의 순번 조회. 🆕 입장 토큰 요청, 입장 토큰 만료 뒤 조회 포함 (제안, ADR 0031) |
+| 🆕 `QUEUE_NOT_READY` | 409 | 아직 입장 차례가 아닌 사용자의 입장 토큰 요청 (제안, ADR 0031) |
 | `SEAT_COUNT_MISMATCH` | 400 | 좌석 수가 1–4매 범위 밖이거나 중복 |
 | `SEAT_ALREADY_HELD` | 409 | 요청 좌석 중 하나라도 이미 선택됨, 잠금 대기 초과 포함 (E1) |
 | `PURCHASE_LIMIT_EXCEEDED` | 409 | 회차당 매수 초과 (E3, D1) |
@@ -882,7 +983,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `PAYMENT_AMOUNT_MISMATCH` | 400 | 요청 금액 ≠ 토큰 금액 |
 | `PAYMENT_ALREADY_EXISTS` | 409 | 같은 예매에 진행 중·완료된 결제 있음 (D3) |
 | `PG_UNAVAILABLE` | 503 | Circuit Breaker OPEN·Bulkhead 초과 (E10) |
-| `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모 · 빌링키 없음 |
+| `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모(취소 뒤 재응모 포함) · 빌링키 없음(확장안, 1단계는 결제 시점 실패 → 승계) |
+| `LOTTERY_ALREADY_EXISTS` · `LOTTERY_SETUP_CLOSED` · `LOTTERY_SEATS_NOT_ENOUGH` | 409 | 회차에 추첨이 이미 있음 · 일반 오픈이나 응모 시작이 지나 설정·수정 불가 · 원래 등급의 AVAILABLE 좌석이 추첨석 수보다 적음(좌석 변경 없이 롤백) |
 
 ### 11-4. API 목록
 
@@ -898,22 +1000,26 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | MVP | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/seats` | ADMIN | 회차 좌석 생성 (등급별 가격) | 201 | 반효승 |
 | MVP | Reservation | GET `/api/v1/concerts` · `/api/v1/concerts/{concertId}` | — | 공연 목록·상세 (serverTime) | 200 | 반효승 |
 | MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/seats` | 인증 · 입장 | 회차 좌석 배치·상태 | 200 | 반효승 |
-| MVP | Reservation | POST `/api/v1/schedules/{scheduleId}/queue` | 인증 | 대기열 진입 | 200 | 권영은 |
-| MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 순번·입장 토큰 | 200 | 권영은 |
-| MVP | Reservation | POST `/api/v1/reservations` | 인증 · 입장 · 멱등 | 좌석 일괄 선점 | 동기형 201 / 접수형 202 | 최권우 |
+| MVP | Reservation | POST `/api/v1/schedules/{scheduleId}/queue` | 인증 | 대기열 진입, 🆕 순번·상태 응답 | 🆕 새로 섬 201 / 이미 있음 200 | 권영은 |
+| MVP | Reservation | GET `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 🆕 순번·상태 (읽기 전용) | 200 | 권영은 |
+| MVP | Reservation | 🆕 POST `/api/v1/schedules/{scheduleId}/queue/token` | 인증 | 입장 토큰 발급·재발급 (제안, ADR 0031) | 200 | 권영은 |
+| MVP | Reservation | 🆕 POST `/api/v1/schedules/{scheduleId}/reservations` | 인증 · 입장 · 멱등 | 좌석 일괄 선점 (이전: POST `/api/v1/reservations`, 계약 ①) | 동기형 201 / 접수형 202 | 최권우 |
 | 이후 | Reservation | GET `/api/v1/reservations/requests/{requestId}` | 인증 | 접수형 접수 결과 | 200 | 최권우 |
 | MVP | Reservation | GET `/api/v1/reservations/{reservationId}` | 인증 | 예매 상세 (결제 토큰·티켓) | 200 | 반효승 |
 | MVP | Reservation | GET `/api/v1/reservations/me` | 인증 | 내 예매 목록 | 200 | 반효승 |
 | MVP | Payment | POST `/api/v1/payments` | 인증 · 멱등 | 결제 승인 | 200 / 202 (UNKNOWN) | 안준현 |
 | MVP | Payment | GET `/api/v1/payments/{paymentId}` | 인증 | 결제 상태 | 200 | 안준현 |
-| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 이강민 |
-| MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 이강민 |
+| MVP | Mock PG | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` | 내부 | 승인·조회·환불·환불 조회 | 200 | 안준현 |
+| MVP | Mock PG | POST `/mock-pg/faults` | 내부 (test·loadtest 프로필) | 장애 주입 설정 | 200 | 안준현 |
 | 이후 | Reservation | POST `/api/v1/reservations/{reservationId}/cancel` | 인증 · 멱등 | 예매 취소 | 202 | 반효승 |
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
-| 이후 | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정 | 201 | 이강민 |
-| 이후 | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
-| 이후 | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
-| 이후 | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 안준현 |
+| MVP | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만). 응답 `warnings`에 권장 시간대 밖 추첨 경고 | 201 | 이강민 |
+| MVP | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
+| MVP | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
+| MVP | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
+| MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
+| MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}` | 공개 | 추첨 정보·응모 규칙 | 200 | 이강민 |
+| MVP | Payment | POST `/api/v1/payments/billing-keys` | 인증 | 빌링키 등록 | 201 | 이강민 (결제 담당 리뷰, ISE-96) |
 | 보류 | Reservation | GET `/api/v1/notifications` | 인증 | 알림함 | 200 | — |
 | Could | Assistant | POST `/api/v1/assistant/messages` | 인증 | AI 상담 | 200 | 안준현 |
 
@@ -946,7 +1052,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
   "serverTime": "2026-11-02T20:00:03+09:00",
   "sections": [
     { "section": "A", "grade": "VIP", "price": 165000,
-      "seats": [ { "seatId": 1023, "row": "1", "number": 7, "available": true } ] }
+      "seats": [ { "seatId": 1023, "row": 1, "number": 7, "available": true } ] }
   ]
 }
 ```
@@ -956,24 +1062,35 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 **대기열**
 
 ```json
-// POST /api/v1/schedules/31/queue  →  200, data  (이미 줄에 있으면 같은 순번)
-{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterSeconds": 10 }
+// POST /api/v1/schedules/31/queue    →  새로 섬 201 / 이미 줄에 있음 200, data
+// GET  /api/v1/schedules/31/queue/me →  200, data (같은 모양)
+{ "status": "WAITING", "position": 15234, "estimatedWaitSeconds": 305, "nextPollAfterMillis": 10734 }
+{ "status": "READY" }
 
-// GET /api/v1/schedules/31/queue/me  →  200, data
+// 🆕 POST /api/v1/schedules/31/queue/token  →  200, data (처음 발급·재발급 같은 모양)
 { "status": "ADMITTED", "entryToken": "eyJ...", "entryTokenExpiresAt": "2026-11-02T20:15:03+09:00" }
 ```
 
 - `position`은 `max(0, seq - admitted)`로 계산한다(12-8). 이탈자 번호가 포함돼 실제보다 클 수 있다.
 - 입장 토큰 claim은 7-3을 따른다.
+- 🆕 상태(제안, ADR 0031): `WAITING`은 아직 차례가 아님, `READY`는 토큰 API를 부르면 토큰을 받을 수 있음(차례가 됐거나 이미 발급됨), `ADMITTED`는 토큰을 받음이다. `READY`를 받으면 프론트는 폴링을 멈추고 토큰 API를 부른다. 진입 응답이 `READY`면 순번 조회를 거치지 않고 바로 부른다.
+- 🆕 입장 토큰은 토큰 API에서만 준다. 진입과 순번 조회는 같은 판단 규칙으로 같은 모양을 응답하고, 순번 조회는 Redis에 쓰지 않는다. 이전 안은 순번 조회가 `ADMITTED`와 토큰을 줬다.
+- 🆕 프론트는 입장 토큰을 `sessionStorage`에 두고, 만료 전이면 대기열을 건너뛴다. 서버의 `issued`는 그게 안 되는 경우(응답 유실, 새 탭, 다른 기기)를 위한 장치다.
+- 🆕 줄에 없거나 토큰이 만료됐으면 순번 조회·토큰 API는 404 `QUEUE_NOT_JOINED`, 차례 전에 토큰을 요청하면 409 `QUEUE_NOT_READY`다.
+- 🆕 `READY`를 받은 뒤 토큰 API는 `ADMITTED` 또는 404 `QUEUE_NOT_JOINED`만 준다. 404는 이미 발급된 토큰 기록이 그 사이 만료된 경우다(`admitted`는 줄지 않으므로 차례가 돼서 받은 `READY`는 그대로 유효하다). 프론트는 만료를 안내하고 진입 버튼을 다시 보여 준다.
+- 🆕 409 `QUEUE_NOT_READY`는 `READY` 없이 토큰 API를 부를 때만 나온다. 정상 흐름에는 없고, 받으면 순번 조회로 돌아간다.
+- 🆕 다음 조회 시각(제안, ADR 0031): 대기열은 `nextPollAfterMillis`(정수 ms)를 쓴다. 서버가 순번 기반 간격(9-4)에 0~+20% jitter를 섞은 값이라 프론트는 그대로 기다린다. 202 응답의 `nextPollAfterSeconds`(11-2)와 단위가 다르다.
+- 🆕 503 `Retry-After`는 HTTP 규칙상 정수 초라서, 프론트가 0~+20%를 ms로 더해 재시도한다. 장애에서 회복되는 순간 재시도가 한꺼번에 몰리지 않게 한다.
 
 **선점**
 
 ```json
-// POST /api/v1/reservations   X-Entry-Token, Idempotency-Key
-{ "scheduleId": 31, "seatIds": [1023, 1024] }
+// 🆕 POST /api/v1/schedules/31/reservations   X-Entry-Token, Idempotency-Key  (이전: POST /api/v1/reservations, 본문 scheduleId)
+{ "seatIds": [1023, 1024] }
 
 // 동기형 → 201, data
 { "requestId": "c0a8...", "reservationId": 501, "reservationNo": "R20261102-000501",
+  "scheduleId": 31, "seatIds": [1023, 1024],
   "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "totalAmount": 330000,
   "paymentToken": "eyJ...", "paymentTokenExpiresAt": "2026-11-02T20:04:53+09:00" }
 
@@ -982,12 +1099,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 // GET /api/v1/reservations/requests/c0a8...  →  200, data
 { "requestId": "c0a8...", "status": "HELD",
-  "reservation": { "reservationId": 501, "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ..." } }
+  "reservation": { "reservationId": 501, "reservationNo": "R20261102-000501", "scheduleId": 31, "seatIds": [1023, 1024], "status": "HELD", "holdExpiresAt": "...", "totalAmount": 330000, "paymentToken": "eyJ...", "paymentTokenExpiresAt": "..." } }
 // 처리 전: status REQUESTED / 거절: status REJECTED, reasonCode SEAT_ALREADY_HELD
 ```
 
-- 동기형 201과 접수 결과 HELD에 결제 토큰을 함께 준다. 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
-- `requestId`는 멱등키와 같은 값을 쓴다. 같은 요청 재전송이 같은 결과로 이어진다.
+- 동기형 201과 접수 결과 HELD에 결제 토큰과 선점된 좌석 목록(`seatIds`, 오름차순 정렬)을 함께 준다(상세 계약은 `docs/design/reservation/contracts.md`, ADR 0031). 클라이언트는 `data.status`가 HELD(즉시)인지 REQUESTED(접수)인지만 처리한다. 모드는 서버 설정이라 한 시점에는 한 방식만 동작한다.
+- `requestId`는 멱등키와 같은 값을 쓴다. 같은 사용자·같은 회차·같은 좌석 목록 재전송은 기존 결과를 돌려주고, 본문이 다르면 409 `IDEMPOTENCY_KEY_REUSED`, 이미 만료·해제·취소된 선점이면 409 `RESERVATION_NOT_PAYABLE`을 돌려준다. 동기형에서 409 실패 시에는 트랜잭션을 전체 롤백해 실패한 `seat_hold_requests` 행을 남기지 않는다(ADR 0031).
 
 **예매 조회**
 
@@ -996,7 +1113,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 {
   "reservationId": 501, "reservationNo": "R20261102-000501", "scheduleId": 31,
   "status": "HELD", "holdExpiresAt": "2026-11-02T20:05:03+09:00", "totalAmount": 330000,
-  "seats": [ { "seatId": 1023, "section": "A", "row": "1", "number": 7, "grade": "VIP", "price": 165000 } ],
+  "seats": [ { "seatId": 1023, "section": "A", "row": 1, "number": 7, "grade": "VIP", "price": 165000 } ],
   "paymentToken": "eyJ...",
   "tickets": []
 }
@@ -1047,12 +1164,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 | 공통 클래스 | 컬럼 | 적용 테이블 |
 | --- | --- | --- |
-| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venue, venue_seat, concert, schedule, schedule_seat, user_schedule_quota, reservation, reservation_seat, seat_hold_request, ticket, lottery, lottery_entry, payment, refund, billing_key |
-| 없음 | created_at만 | 기록용 테이블: `*_status_history`, outbox, processed_event, idempotency_record |
+| `BaseEntity` | created_at · created_by · updated_at · updated_by · deleted_at · deleted_by | 업무 테이블 전부: users, venues, venue_seats, concerts, schedules, schedule_seats, user_schedule_quotas, reservations, reservation_seats, seat_hold_requests, tickets, lotteries, lottery_entries, payments, refunds, billing_keys |
+| 없음 | created_at만 | 기록용 테이블: `*_status_histories`, outbox_events, processed_events, idempotency_records |
 - 사람 컬럼은 `BIGINT` 사용자 ID다. 요청이면 `X-User-Id`로 채우고(JPA Auditing), Kafka 소비자·스케줄러가 바꾸면 NULL = 시스템이다. 왜 바뀌었는지는 상태 이력의 `reason`에 남긴다.
 - soft delete는 운영자가 내리는 데이터(공연장·공연·회차)에만 쓴다. 조회는 기본 필터(`deleted_at IS NULL`)를 걸고, 유니크가 필요하면 `WHERE deleted_at IS NULL` 부분 유니크로 둔다.
 - 예매·결제·좌석·티켓·응모·환불은 soft delete를 쓰지 않고 상태 전이로만 처리한다. 만료·거절·취소를 구분해야 하고(E8 자동 환불 판단), 취소 내역도 고객에게 보여야 하고, 중복 판매 방지 부분 유니크가 `status` 기준이기 때문이다.
-- **보관 기간**: 결제·계약 기록은 전자상거래법상 5년 보관 대상이라 판매 기록은 지우지 않고 상태로 남긴다(10/26). outbox·processed_event는 7일, idempotency_record는 24시간 뒤 정리한다.
+- **보관 기간**: 결제·계약 기록은 전자상거래법상 5년 보관 대상이라 판매 기록은 지우지 않고 상태로 남긴다(10/26). outbox_events·processed_events는 7일, idempotency_records는 24시간 뒤 정리한다.
 
 ### 12-2. user DB
 
@@ -1065,30 +1182,34 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | password_hash | VARCHAR(100) | NOT NULL | BCrypt |
 | nickname | VARCHAR(30) | NOT NULL |  |
 | role | VARCHAR(10) | NOT NULL, DEFAULT 'USER', CHECK (USER·ADMIN) | 운영자 계정은 시드 |
+| failed_login_count | INT | NOT NULL, DEFAULT 0 | 연속 로그인 실패 횟수. 5회면 잠금 (ADR 0007) |
+| locked_at | TIMESTAMPTZ |  | 잠긴 시각. 관리자 비밀번호 초기화로 풀림 |
+| password_change_required | BOOLEAN | NOT NULL, DEFAULT FALSE | 임시 비밀번호 발급 뒤 변경 전까지 토큰 발급 금지 |
+- `failed_login_count`·`locked_at`·`password_change_required`는 10/27 회의에서 채택한 로그인 잠금·관리자 초기화(ADR 0007)로 추가했다(user-service V2 마이그레이션). v3.3에서 명세에 반영했다.
 - Refresh 토큰과 로그아웃 블랙리스트는 Redis에 둔다(12-8).
 
 ### 12-3. reservation DB
 
-**venue** (공연장, 시드 데이터)
+**venues** (공연장, 시드 데이터)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | name | VARCHAR(100) | NOT NULL | 예: KSPO DOME |
 
-**venue_seat** (공연장 좌석 배치, 시드 데이터)
+**venue_seats** (공연장 좌석 배치, 시드 데이터)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | venue_id | BIGINT | NOT NULL, FK |  |
 | section | VARCHAR(10) | NOT NULL | 구역 (접수형 파티션 키에 쓰임) |
-| row_no | VARCHAR(5) | NOT NULL | 열 |
+| row_no | INT | NOT NULL | 열 (ADR 0033) |
 | seat_no | INT | NOT NULL | 번호 |
 | grade | VARCHAR(10) | NOT NULL | VIP·R·S 등 |
 |  |  | UNIQUE(venue_id, section, row_no, seat_no) |  |
 
-**concert**
+**concerts**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1097,7 +1218,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | description | TEXT |  |  |
 | version | BIGINT | NOT NULL | 운영자 동시 수정 방지 |
 
-**schedule** (회차)
+**schedules** (회차)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1110,7 +1231,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | hold_minutes | SMALLINT | NOT NULL, DEFAULT 5 | 선점 유지 |
 | version | BIGINT | NOT NULL |  |
 
-**schedule_seat** (회차 좌석: 선점 1차 판정·조회용)
+**schedule_seats** (회차 좌석: 선점 1차 판정·조회용)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1118,12 +1239,12 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | schedule_id | BIGINT | NOT NULL, FK |  |
 | venue_seat_id | BIGINT | NOT NULL, FK |  |
 | section | VARCHAR(10) | NOT NULL | 조회·파티션용 복사 |
-| grade | VARCHAR(10) | NOT NULL |  |
+| grade | VARCHAR(10) | NOT NULL | `LOTTERY`는 추첨석. 추첨 설정 API만 쓰고 일반 선점은 잡지 않는다(4-3) |
 | price | NUMERIC(15,0) | NOT NULL | 등급별 가격 |
 | status | VARCHAR(10) | NOT NULL, CHECK (AVAILABLE·HELD·SOLD) | 선점 조건부 UPDATE 대상 |
 |  |  | UNIQUE(schedule_id, venue_seat_id), INDEX(schedule_id, section) |  |
 
-**user_schedule_quota** (D1: 사용자·회차별 보유 매수)
+**user_schedule_quotas** (D1: 사용자·회차별 보유 매수)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1131,7 +1252,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | schedule_id | BIGINT | FK |  |
 | held_count | SMALLINT | NOT NULL, DEFAULT 0, CHECK (held_count ≥ 0) | HELD + CONFIRMED 좌석 수 |
 
-**reservation**
+**reservations**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1140,16 +1261,16 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | request_id | UUID | NOT NULL, UNIQUE | 멱등키 = 접수 ID |
 | user_id | BIGINT | NOT NULL | User 서비스 ID |
 | schedule_id | BIGINT | NOT NULL, FK |  |
-| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | REJECTED는 `seat_hold_request`로 옮김 (#13) |
+| status | VARCHAR(20) | NOT NULL, CHECK (HELD·CONFIRMED·EXPIRED·RELEASED·CANCELED) | REJECTED는 `seat_hold_requests`로 옮김 (#13) |
 | quantity | SMALLINT | NOT NULL |  |
 | total_amount | NUMERIC(15,0) | NOT NULL | 서버가 좌석 가격으로 계산 |
 | hold_expires_at | TIMESTAMPTZ |  | HELD일 때 |
 | payment_id | BIGINT |  | 승인된 결제 (환불 요청에 사용) |
 | source | VARCHAR(10) | NOT NULL, DEFAULT 'GENERAL', CHECK (GENERAL·LOTTERY) | 일반·추첨 |
 |  |  | INDEX(status, hold_expires_at), INDEX(user_id, created_at) | 만료 스케줄러, 내 예매 |
-- 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블로 옮겨 제거했다. 거절은 예매 행을 만들지 않고 `seat_hold_request`에 기록한다 (U15).
+- 이전 안의 `reject_code` 컬럼과 REJECTED 상태는 접수 요청 테이블로 옮겨 제거했다. 거절은 예매 행을 만들지 않고 `seat_hold_requests`에 기록한다 (U15).
 
-**reservation_seat**
+**reservation_seats**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1160,7 +1281,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | status | VARCHAR(10) | NOT NULL, CHECK (HELD·CONFIRMED·RELEASED) |  |
 |  |  | UNIQUE(schedule_seat_id) WHERE status IN ('HELD','CONFIRMED') | 판매 여부의 기준 (D2) |
 
-**seat_hold_request** (선점 접수 요청, 동기형·접수형 공통, #33)
+**seat_hold_requests** (선점 접수 요청, 동기형·접수형 공통, #33)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1172,13 +1293,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | reservation_id | BIGINT | FK | HELD일 때 |
 | reason_code | VARCHAR(40) |  | REJECTED일 때 (예: SEAT_ALREADY_HELD, PROCESSING_FAILED, TIMEOUT) |
 |  |  | INDEX(status, created_at) | 30초 넘은 REQUESTED 정리 |
-- API 한 트랜잭션: `seat_hold_request(REQUESTED)` INSERT + `outbox(SeatHoldRequested)` INSERT. 이 경로에서는 좌석 행을 잠그지 않는다.
-- 소비자 한 트랜잭션: 선점 시도(quota → 좌석 → 예매) 후 `seat_hold_request`를 HELD 또는 REJECTED로 갱신하고 `processed_event`를 기록한다.
+- API 한 트랜잭션: `seat_hold_requests(REQUESTED)` INSERT + `outbox_events(SeatHoldRequested)` INSERT. 이 경로에서는 좌석 행을 잠그지 않는다.
+- 소비자 한 트랜잭션: 선점 시도(quota → 좌석 → 예매) 후 `seat_hold_requests`를 HELD 또는 REJECTED로 갱신하고 `processed_events`를 기록한다.
 - 동기형도 같은 행을 남긴다. 조회·멱등 경로가 하나가 되고, 선점 API의 멱등은 이 행의 PK가 맡는다(#17).
 - REQUESTED가 30초 `[가정]` 넘으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫는다. 소비자는 `WHERE status='REQUESTED'` 조건부로 갱신하므로 닫힌 뒤 늦게 온 메시지는 좌석을 잡지 않는다.
 - 대가: API 경로에 INSERT 2건(접수형), 1건(동기형)이 생긴다. 처리량 영향은 측정 전이다(10-1).
 
-**reservation_status_history**
+**reservation_status_histories**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1187,7 +1308,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | from_status · to_status | VARCHAR(20) | to NOT NULL |  |
 | reason | VARCHAR(50) |  | 예: PAYMENT_DECLINED |
 
-**ticket** (좌석당 1장)
+**tickets** (좌석당 1장)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1196,21 +1317,22 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | reservation_seat_id | BIGINT | NOT NULL, FK, UNIQUE |  |
 | status | VARCHAR(10) | NOT NULL, CHECK (ISSUED·VOID) |  |
 
-**lottery** (이후)
+**lotteries** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | schedule_id | BIGINT | NOT NULL, FK |  |
-| grade | VARCHAR(10) | NOT NULL | 등급별 추첨 |
+| source_grade | VARCHAR(10) | NOT NULL | 추첨석을 떼어 온 등급(기본 S), 종결 때 되돌릴 등급 |
 | seat_count | INT | NOT NULL | 추첨 배정 좌석 수 |
+| waitlist_count | INT | NOT NULL | 예비자 수 |
 | max_per_entry | SMALLINT | NOT NULL, CHECK (1–2) |  |
 | entry_start_at · entry_end_at · draw_at | TIMESTAMPTZ | NOT NULL |  |
-| seed | BIGINT |  | 추첨 재현용 |
+| seed | BYTEA | NOT NULL, CHECK (32바이트) | 추첨 재현용. 설정 때 `SecureRandom` 32바이트로 채우고 바꾸지 않는다(ADR 0041) |
 | status | VARCHAR(10) | NOT NULL, CHECK (OPEN·CLOSED·DRAWN·DONE) | 재실행 방지 |
-|  |  | UNIQUE(schedule_id, grade) |  |
+|  |  | UNIQUE(schedule_id) | 회차당 추첨 1개 |
 
-**lottery_entry** (이후)
+**lottery_entries** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1219,40 +1341,55 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | request_id | UUID | NOT NULL, UNIQUE | 접수 ID |
 | user_id | BIGINT | NOT NULL |  |
 | quantity | SMALLINT | NOT NULL |  |
-| status | VARCHAR(12) | NOT NULL, CHECK (ENTERED·WON·WAITLISTED·LOST·PAID·FAILED) |  |
+| status | VARCHAR(12) | NOT NULL, CHECK (ENTERED·CANCELED·WON·WAITLISTED·LOST·PAID·FAILED) |  |
 | draw_rank | INT |  | 추첨 순위 (예비 승계 순서) |
 | reservation_id | BIGINT | FK | 당첨 시 만든 예매 |
-|  |  | UNIQUE(lottery_id, user_id) | 1인 1응모 |
-- 당첨 배정으로 만드는 예매도 일반 예매와 같은 매수 한도(`user_schedule_quota`)를 거친다.
+| payment_attempts | SMALLINT | NOT NULL, DEFAULT 0 | 우리 책임 실패(`NOT_SENT`) 재시도 횟수 |
+| fail_reason | VARCHAR(30) |  | FAILED 사유 |
+|  |  | UNIQUE(lottery_id, user_id) | 1인 1응모. 취소한 행도 남아 재응모를 막는다 |
+- 당첨 배정으로 만드는 예매도 일반 예매와 같은 매수 한도(`user_schedule_quotas`)를 거친다.
 
-**notification** (보류): user_id, type, message, read_at
+**notifications** (보류): user_id, type, message, read_at
 
 ### 12-4. payment DB
 
-**payment**
+**payments**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | payment_no | VARCHAR(20) | NOT NULL, UNIQUE | 고객용 번호 |
-| reservation_id | BIGINT | NOT NULL | Reservation 서비스 ID |
+| reservation_id | BIGINT | NOT NULL, UNIQUE | Reservation 서비스 ID. 예매당 결제 하나 (D3, ADR 0026) |
 | user_id | BIGINT | NOT NULL |  |
-| amount | NUMERIC(15,0) | NOT NULL | 토큰 금액과 검증한 값 |
+| amount | NUMERIC(15,0) | NOT NULL, CHECK (amount > 0) | 토큰 금액과 검증한 값 |
+| 🆕 currency | CHAR(3) | NOT NULL, DEFAULT 'KRW', CHECK (KRW) | 통화 (S-3) |
 | method | VARCHAR(10) | NOT NULL, CHECK (CARD·BILLING) |  |
 | status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·APPROVED·DECLINED·UNKNOWN·REFUNDED·NEEDS_MANUAL_CHECK) |  |
 | pg_order_id | UUID | NOT NULL, UNIQUE | PG에 보내는 주문 ID (PG 멱등·조회 키). PG 호출 전에 저장 |
-| pg_tx_id | VARCHAR(64) |  | PG 거래 ID |
-| decline_code | VARCHAR(30) |  | 응답에서는 `reasonCode`로 내보냄. 미전송(망취소 후)은 `NOT_SENT` |
+| pg_tx_id | VARCHAR(200) | UNIQUE | PG 거래 ID. 한 PG 거래가 두 결제에 연결되지 않게 함 (S-3, S-11) |
+| 🆕 pg_approved_amount | NUMERIC(15,0) |  | PG가 승인한 금액. 승인 때 `amount`와 같아야 함 (S-3) |
+| decline_code | VARCHAR(30) |  | 우리 `DeclineReason` 값(PG 원본 코드 아님). 응답에서는 `reasonCode`로 내보냄. 미전송(망취소 후)은 `NOT_SENT` (S-11) |
 | unknown_retry_count | SMALLINT | NOT NULL, DEFAULT 0 | 재조회 횟수 (REQUESTED 경과분 포함) |
 | next_check_at | TIMESTAMPTZ |  | 다음 재조회 시각 |
 | approved_at · refunded_at | TIMESTAMPTZ |  |  |
-|  |  | UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED') | 같은 예매 중복 결제 방지 (D3) |
+|  |  | CHECK: REQUESTED·UNKNOWN이면 `next_check_at` 필수 / APPROVED면 `pg_tx_id`·`approved_at` 필수이고 `pg_approved_amount = amount` / REFUNDED면 `pg_tx_id`·`refunded_at` 필수 / DECLINED면 `decline_code` 필수 | 상태별 필수 값 (S-3) |
 |  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 (이전: INDEX(status, updated_at)) |
-- `NEEDS_MANUAL_CHECK`도 D3 부분 유니크에 넣는다. 결과가 확정되지 않은 결제라, 확인 전에 같은 예매로 새 결제가 시작되면 이중 결제가 될 수 있다(#58).
+|  |  | INDEX(status, created_at) WHERE status IN ('REQUESTED','UNKNOWN','NEEDS_MANUAL_CHECK') | 미확정 결제 최고령 지표 (ADR 0024) |
+- 🆕 v3.3: D3를 상태 조건 부분 유니크(`WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안)에서 `reservation_id` 전체 UNIQUE로 바꿨다. 거절·환불된 예매도 두 번째 결제 행을 만들 수 없다(ADR 0026). payment-service V1 마이그레이션에 이미 구현된 구조를 문서에 맞춘 것이다(S-3). 같은 예매 재결제가 필요한지는 U9(추첨 결제 실패 재시도) 확인 뒤 S-16에서 다시 본다.
 
-**payment_status_history**: id, payment_id(FK), from_status, to_status, reason
+**payment_status_histories**
 
-**refund** (#16)
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| id | BIGINT | PK |  |
+| payment_id | BIGINT | NOT NULL, FK | INDEX(payment_id, id) |
+| 🆕 target_type | VARCHAR(10) | NOT NULL, CHECK (PAYMENT·REFUND) | 결제 전이인지 환불 전이인지 (U22 관련) |
+| from_status · to_status | VARCHAR(20) | to NOT NULL |  |
+| reason | VARCHAR(50) |  |  |
+| 🆕 actor | VARCHAR(40) | NOT NULL | 전이를 일으킨 주체 |
+- `target_type`·`actor`는 V1 마이그레이션에 있으나 SA 변경 요청 목록에는 없다. 의미는 결제 담당 확인이 필요하다 `(팀 확인)`.
+
+**refunds** (#16)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1267,10 +1404,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 |  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 |
 - 멱등: `RefundRequested`를 소비할 때 `INSERT ... ON CONFLICT (payment_id) DO NOTHING`. 만료 뒤 승인(E8)과 사용자 취소가 같은 결제에 동시에 환불을 요청해도 한 건만 생긴다(E13).
 - 환불은 결제가 APPROVED로 확정된 뒤에만 시작한다. 결제가 UNKNOWN인 동안 만료되면 나중에 PaymentApproved가 오고 Reservation이 RefundRequested를 내므로 순서가 지켜진다.
-- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_history`에 reason과 함께 남긴다 `(팀 확인)`.
+- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_histories`에 reason과 함께 남긴다 `(팀 확인)`.
 - 환불 `FAILED`(PG가 명확히 거절)는 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다.
 
-**billing_key** (이후)
+**billing_keys** (이후)
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1283,7 +1420,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 
 ### 12-5. 공통 테이블 (reservation·payment DB 각각)
 
-**outbox**
+**outbox_events**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1293,10 +1430,16 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | payload | JSONB | NOT NULL | 10-2 봉투 전체 |
 | status | VARCHAR(10) | NOT NULL, CHECK (PENDING·SENT·FAILED) |  |
 | attempts | SMALLINT | NOT NULL, DEFAULT 0 |  |
-| sent_at | TIMESTAMPTZ |  |  |
+| 🆕 next_attempt_at | TIMESTAMPTZ | NOT NULL | 다음 발행 시도 시각(백오프) (S-10) |
+| 🆕 claimed_until | TIMESTAMPTZ |  | 릴레이가 행을 잡아 둔 임대 만료 시각. 인스턴스가 여러 개여도 한 곳만 발행 (S-10) |
+| 🆕 last_error | VARCHAR(500) |  | 마지막 발행 실패 사유 (S-10) |
+| sent_at | TIMESTAMPTZ |  | `SENT`는 Kafka 발행 성공만 뜻함 |
 |  |  | INDEX(id) WHERE status = 'PENDING' | 릴레이 폴링 |
+|  |  | INDEX(next_attempt_at, id) · INDEX(message_key, id) WHERE status = 'PENDING' | 재시도 대상, 같은 키의 앞선 미발행 행 확인 (S-10) |
+|  |  | INDEX(sent_at) WHERE status = 'SENT' · INDEX(created_at) | 보관 기간 정리 |
+- 🆕 v3.3: `next_attempt_at`·`claimed_until`·`last_error`는 공통 모듈(`common` messaging)의 Outbox 릴레이가 쓰는 컬럼이라 reservation DB의 outbox도 같은 구조가 된다. 재시도 간격·보관 기간·임대 시간 값(S-10의 나머지)과 Reservation의 `payment.result` DLQ 처리기는 이번에 반영하지 않았다.
 
-**processed_event**
+**processed_events**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -1304,114 +1447,307 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | consumer_group | VARCHAR(100) |  |  |
 | processed_at | TIMESTAMPTZ | NOT NULL |  |
 
-**idempotency_record**
+**idempotency_records**
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | user_id | BIGINT | PK(user_id, idem_key) | 사용자 단위로 키 구분 |
 | idem_key | UUID |  |  |
 | request_hash | CHAR(64) | NOT NULL | 본문 SHA-256 (다른 본문 판별) |
+| 🆕 resource_id | BIGINT | NOT NULL, INDEX | 이 키가 연결된 자원(결제 ID) (S-4) |
+| 🆕 link_type | VARCHAR(10) | NOT NULL, CHECK (ORIGIN·ALIAS) | ORIGIN은 자원을 만든 키, ALIAS는 기존 자원에 연결된 새 키 (S-4, ADR 0019) |
 | response_status | SMALLINT |  | 처리 중이면 NULL |
 | response_body | JSONB |  |  |
 | expires_at | TIMESTAMPTZ | NOT NULL | 24시간 |
+- 🆕 v3.3: `resource_id`·`link_type`은 payment-service에 구현된 컬럼이다(S-4). 멱등 처리는 공통 모듈이 아니라 서비스 코드라, reservation DB(응모·취소)에도 같은 컬럼을 둘지는 예매 담당이 구현할 때 정한다 `(팀 확인)`.
 - 결제는 멱등 기록과 결제 저장을 같은 트랜잭션으로 처리한다(결정 기록 #17).
-- 선점의 멱등은 동기형·접수형 모두 `seat_hold_request` PK가 맡는다. 결제·응모·취소는 `idempotency_record`.
+- 선점의 멱등은 동기형·접수형 모두 `seat_hold_requests` PK가 맡는다. 결제·응모·취소는 `idempotency_records`.
 
 ### 12-6. ERD
 
+테이블 명세(12-2~12-5)의 모든 테이블과 컬럼을 그렸다. 명세를 보지 않고 ERD만 봐도 구조를 알 수 있게 하는 것이 목적이다.
+
+- 그림 1~5는 DB 단위다. user·reservation·payment DB 사이에는 FK가 없고 ID 값으로만 잇는다(속성 설명 "서비스 간 ID").
+- 업무 테이블은 `BaseEntity` 감사 컬럼 6개(created_at · created_by · updated_at · updated_by · deleted_at · deleted_by)를 모두 가진다. 그림에서는 생략했다. 기록용 테이블(`*_status_histories`, `outbox_events`, `processed_events`, `idempotency_records`)은 `created_at`만 가진다(12-1).
+- 부분 유니크와 인덱스는 속성 설명에 요약했다. 정확한 조건은 테이블 명세를 따른다.
+- 테이블 이름은 snake_case 복수형이다(v3.3, ADR 0030). 컬럼과 FK 컬럼은 단수형이다.
+
+**그림 1. user DB**
+
 ```mermaid
 erDiagram
-  VENUE ||--o{ VENUE_SEAT : has
-  VENUE ||--o{ SCHEDULE : hosts
-  CONCERT ||--o{ SCHEDULE : has
-  SCHEDULE ||--o{ SCHEDULE_SEAT : has
-  VENUE_SEAT ||--o{ SCHEDULE_SEAT : "per schedule"
-  SCHEDULE ||--o{ USER_SCHEDULE_QUOTA : limits
-  SCHEDULE ||--o{ RESERVATION : has
-  SCHEDULE ||--o{ SEAT_HOLD_REQUEST : "접수형"
-  SEAT_HOLD_REQUEST |o--o| RESERVATION : "HELD 시"
-  RESERVATION ||--|{ RESERVATION_SEAT : contains
-  SCHEDULE_SEAT ||--o{ RESERVATION_SEAT : "held by"
-  RESERVATION_SEAT ||--o| TICKET : issues
-  RESERVATION ||--o{ RESERVATION_STATUS_HISTORY : logs
-  SCHEDULE ||--o{ LOTTERY : "이후"
-  LOTTERY ||--o{ LOTTERY_ENTRY : receives
-  LOTTERY_ENTRY |o--o| RESERVATION : "당첨 시"
+  users {
+    bigint id PK
+    varchar email UK "로그인 ID"
+    varchar password_hash "BCrypt"
+    varchar nickname
+    varchar role "USER, ADMIN"
+    int failed_login_count "5회면 잠금"
+    timestamptz locked_at
+    boolean password_change_required "임시 비밀번호 뒤 true"
+  }
+```
 
-  SCHEDULE { bigint id PK
+**그림 2. reservation DB (공연·좌석·예매)**
+
+```mermaid
+erDiagram
+  venues ||--o{ venue_seats : has
+  venues ||--o{ schedules : hosts
+  concerts ||--o{ schedules : has
+  schedules ||--o{ schedule_seats : has
+  venue_seats ||--o{ schedule_seats : "per schedule"
+  schedules ||--o{ user_schedule_quotas : limits
+  schedules ||--o{ seat_hold_requests : receives
+  schedules ||--o{ reservations : has
+  seat_hold_requests |o--o| reservations : "HELD 시"
+  reservations ||--|{ reservation_seats : contains
+  schedule_seats ||--o{ reservation_seats : "held by"
+  reservation_seats ||--o| tickets : issues
+  reservations ||--o{ reservation_status_histories : logs
+
+  venues {
+    bigint id PK
+    varchar name "예: KSPO DOME"
+  }
+  venue_seats {
+    bigint id PK
+    bigint venue_id FK
+    varchar section "구역, 접수형 파티션 키"
+    int row_no
+    int seat_no
+    varchar grade "VIP, R, S"
+  }
+  concerts {
+    bigint id PK
+    varchar title
+    text description
+    bigint version "운영자 동시 수정 방지"
+  }
+  schedules {
+    bigint id PK
     bigint concert_id FK
     bigint venue_id FK
-    timestamptz open_at
-    smallint max_per_user }
-  SCHEDULE_SEAT { bigint id PK
+    timestamptz starts_at
+    timestamptz open_at "예매 오픈"
+    smallint max_per_user "기본 4"
+    smallint hold_minutes "기본 5"
+    bigint version
+  }
+  schedule_seats {
+    bigint id PK "API의 seatId"
     bigint schedule_id FK
+    bigint venue_seat_id FK
     varchar section
-    bigint price
-    varchar status }
-  USER_SCHEDULE_QUOTA { bigint user_id PK
-    bigint schedule_id PK
-    smallint held_count }
-  SEAT_HOLD_REQUEST { uuid request_id PK
-    bigint user_id
-    varchar status
-    bigint reservation_id FK }
-  RESERVATION { bigint id PK
-    uuid request_id UK
-    bigint user_id
-    varchar status
-    timestamptz hold_expires_at }
-  RESERVATION_SEAT { bigint id PK
+    varchar grade
+    numeric price
+    varchar status "AVAILABLE, HELD, SOLD"
+  }
+  user_schedule_quotas {
+    bigint user_id PK "서비스 간 ID"
+    bigint schedule_id PK, FK
+    smallint held_count "HELD + CONFIRMED 좌석 수"
+  }
+  seat_hold_requests {
+    uuid request_id PK "Idempotency-Key 파생"
+    bigint user_id "서비스 간 ID"
+    bigint schedule_id FK
+    bigint_array seat_ids "BIGINT[]"
+    varchar status "REQUESTED, HELD, REJECTED"
+    bigint reservation_id FK "HELD일 때"
+    varchar reason_code "REJECTED일 때"
+  }
+  reservations {
+    bigint id PK
+    varchar reservation_no UK "고객용 번호"
+    uuid request_id UK "접수 ID"
+    bigint user_id "서비스 간 ID"
+    bigint schedule_id FK
+    varchar status "HELD, CONFIRMED, EXPIRED, RELEASED, CANCELED"
+    smallint quantity
+    numeric total_amount
+    timestamptz hold_expires_at "HELD일 때"
+    bigint payment_id "서비스 간 ID"
+    varchar source "GENERAL, LOTTERY"
+  }
+  reservation_seats {
+    bigint id PK
     bigint reservation_id FK
-    bigint schedule_seat_id FK
-    varchar status }
-  TICKET { bigint id PK
-    bigint reservation_seat_id FK
-    varchar ticket_no UK }
+    bigint schedule_seat_id FK "HELD, CONFIRMED 중 부분 유니크 D2"
+    numeric price "선점 시점 가격"
+    varchar status "HELD, CONFIRMED, RELEASED"
+  }
+  tickets {
+    bigint id PK
+    varchar ticket_no UK
+    bigint reservation_seat_id FK, UK
+    varchar status "ISSUED, VOID"
+  }
+  reservation_status_histories {
+    bigint id PK
+    bigint reservation_id FK
+    varchar from_status
+    varchar to_status
+    varchar reason "예: PAYMENT_DECLINED"
+  }
 ```
+
+**그림 3. reservation DB (추첨·알림, 이후·보류)**
 
 ```mermaid
 erDiagram
-  PAYMENT ||--o{ PAYMENT_STATUS_HISTORY : logs
-  PAYMENT ||--o| REFUND : "환불"
-  PAYMENT { bigint id PK
-    bigint reservation_id "서비스 간 ID 참조"
-    bigint user_id
-    bigint amount
-    varchar status
-    uuid pg_order_id UK
-    timestamptz next_check_at }
-  REFUND { bigint id PK
-    bigint payment_id UK
-    uuid pg_refund_id UK
-    varchar status
-    timestamptz next_check_at }
-  BILLING_KEY { bigint id PK
-    bigint user_id
-    varchar status }
-  USERS { bigint id PK
-    varchar email UK
-    varchar role }
+  schedules ||--o{ lotteries : "이후"
+  lotteries ||--o{ lottery_entries : receives
+  lottery_entries |o--o| reservations : "당첨 시"
+
+  schedules {
+    bigint id PK
+  }
+  reservations {
+    bigint id PK
+  }
+  lotteries {
+    bigint id PK
+    bigint schedule_id FK "schedule_id 유니크"
+    varchar source_grade "추첨석을 떼어 온 등급"
+    int seat_count
+    int waitlist_count
+    smallint max_per_entry "1~2"
+    timestamptz entry_start_at
+    timestamptz entry_end_at
+    timestamptz draw_at
+    bytea seed "추첨 재현용, 32바이트"
+    varchar status "OPEN, CLOSED, DRAWN, DONE"
+  }
+  lottery_entries {
+    bigint id PK
+    bigint lottery_id FK "lottery_id, user_id 유니크"
+    uuid request_id UK "접수 ID"
+    bigint user_id "서비스 간 ID"
+    smallint quantity
+    varchar status "ENTERED, CANCELED, WON, WAITLISTED, LOST, PAID, FAILED"
+    int draw_rank "예비 승계 순서"
+    bigint reservation_id FK "당첨 시"
+    smallint payment_attempts
+    varchar fail_reason
+  }
+  notifications {
+    bigint id PK "보류"
+    bigint user_id "서비스 간 ID"
+    varchar type
+    varchar message
+    timestamptz read_at
+  }
 ```
 
-- user DB(USERS)와 payment DB는 서로, 그리고 reservation DB와 FK 없이 ID 값으로만 이어진다. outbox·processed_event·idempotency_record는 그림에서 생략했다.
+**그림 4. payment DB**
+
+```mermaid
+erDiagram
+  payments ||--o{ payment_status_histories : logs
+  payments ||--o| refunds : "환불"
+
+  payments {
+    bigint id PK
+    varchar payment_no UK "고객용 번호"
+    bigint reservation_id UK "서비스 간 ID, 예매당 하나 D3"
+    bigint user_id "서비스 간 ID"
+    numeric amount "토큰 금액과 검증"
+    char currency "KRW"
+    varchar method "CARD, BILLING"
+    varchar status "REQUESTED, APPROVED, DECLINED, UNKNOWN, REFUNDED, NEEDS_MANUAL_CHECK"
+    uuid pg_order_id UK "PG 호출 전 저장"
+    varchar pg_tx_id UK "PG 거래 ID"
+    numeric pg_approved_amount "승인 때 amount와 같음"
+    varchar decline_code "DeclineReason"
+    smallint unknown_retry_count
+    timestamptz next_check_at "재조회 시각"
+    timestamptz approved_at
+    timestamptz refunded_at
+  }
+  payment_status_histories {
+    bigint id PK
+    bigint payment_id FK
+    varchar target_type "PAYMENT, REFUND"
+    varchar from_status
+    varchar to_status
+    varchar reason
+    varchar actor
+  }
+  refunds {
+    bigint id PK
+    bigint payment_id FK, UK "결제 1건당 1건"
+    uuid pg_refund_id UK "PG 멱등키"
+    numeric amount
+    varchar reason "EXPIRED_AFTER_APPROVAL, CANCELED"
+    varchar status "REQUESTED, REFUNDED, FAILED, UNKNOWN, NEEDS_MANUAL_CHECK"
+    smallint attempt
+    timestamptz next_check_at
+  }
+  billing_keys {
+    bigint id PK "이후"
+    bigint user_id "서비스 간 ID, ACTIVE 1개"
+    varchar billing_key_enc "암호화 저장"
+    char card_last4
+    varchar status "ACTIVE, REVOKED"
+  }
+```
+
+**그림 5. 공통 테이블 (reservation·payment DB에 각각)**
+
+```mermaid
+erDiagram
+  outbox_events {
+    bigint id PK "릴레이 순서"
+    uuid event_id UK
+    varchar topic
+    varchar message_key
+    varchar event_type
+    jsonb payload "10-2 봉투 전체"
+    varchar status "PENDING, SENT, FAILED"
+    smallint attempts
+    timestamptz next_attempt_at "백오프"
+    timestamptz claimed_until "릴레이 임대"
+    varchar last_error
+    timestamptz sent_at "Kafka 발행 성공"
+  }
+  processed_events {
+    uuid event_id PK
+    varchar consumer_group PK
+    timestamptz processed_at
+  }
+  idempotency_records {
+    bigint user_id PK "사용자 단위"
+    uuid idem_key PK
+    char request_hash "본문 SHA-256"
+    bigint resource_id "연결된 결제 ID"
+    varchar link_type "ORIGIN, ALIAS"
+    smallint response_status "처리 중이면 NULL"
+    jsonb response_body
+    timestamptz expires_at "24시간"
+  }
+```
+
+- 그림 3은 그림 2의 `schedules`·`reservations`를 ID만 다시 그려 관계를 보였다.
+- 그림 4·5의 결제·공통 테이블은 v3.3에서 이미 구현된 마이그레이션에 맞췄다(SA 변경 요청 S-3·S-4·S-10 컬럼·S-11). 결제 상세 설계에만 있는 M3 테이블(`dead_letter`, `manual_action_log`, `reconciliation_mismatch`)과 `refunds` 추가 컬럼은 아직 구현 전이라 SA 변경 요청 S-8 등이 승인되면 반영한다.
 
 ### 12-7. 핵심 쿼리: 동기형 선점 (D1·D2)
 
 ```sql
 -- 한 트랜잭션, SET LOCAL lock_timeout = '500ms'
 -- ① 매수 한도 (D1): 행을 먼저 보장한 뒤 같은 사용자의 동시 요청을 이 행 하나에서 줄 세움
-INSERT INTO user_schedule_quota (user_id, schedule_id, held_count)
+INSERT INTO user_schedule_quotas (user_id, schedule_id, held_count)
 VALUES (:userId, :scheduleId, 0) ON CONFLICT (user_id, schedule_id) DO NOTHING;
 
-UPDATE user_schedule_quota
+UPDATE user_schedule_quotas
    SET held_count = held_count + :n, updated_at = now()
  WHERE user_id = :userId AND schedule_id = :scheduleId
    AND held_count + :n <= :maxPerUser;
 -- 0행 → 롤백, 409 PURCHASE_LIMIT_EXCEEDED (행은 위에서 보장되므로 0행은 한도 초과만 뜻함)
 
 -- ② 좌석 조건부 UPDATE: 좌석 ID 오름차순으로 잠가 교착 방지
-UPDATE schedule_seat SET status = 'HELD', updated_at = now()
- WHERE id IN (SELECT id FROM schedule_seat
+UPDATE schedule_seats SET status = 'HELD', updated_at = now()
+ WHERE id IN (SELECT id FROM schedule_seats
                WHERE schedule_id = :scheduleId AND id = ANY(:seatIds)
                  AND status = 'AVAILABLE'
                ORDER BY id FOR UPDATE);
@@ -1419,11 +1755,11 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 -- lock_timeout 초과도 409 SEAT_ALREADY_HELD
 
 -- ③ reservation(HELD) · reservation_seat(HELD) INSERT
---    reservation_seat 부분 유니크가 ②를 비켜 간 경우의 마지막 방어선 (D2)
+--    reservation_seats 부분 유니크가 ②를 비켜 간 경우의 마지막 방어선 (D2)
 ```
 
 - 같은 사용자의 동시 요청이 INSERT에서 부딪혀도 한쪽은 대기 후 `DO NOTHING`이 되고, 이어지는 UPDATE의 행 락이 직렬화한다.
-- 대사 쿼리 (D2): `schedule_seat.status`와 활성 `reservation_seat`가 어긋난 좌석을 찾아 `reservation_seat` 기준으로 고친다. `held_count`와 활성 `reservation_seat` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
+- 대사 쿼리 (D2): `schedule_seats.status`와 활성 `reservation_seats`가 어긋난 좌석을 찾아 `reservation_seats` 기준으로 고친다. `held_count`와 활성 `reservation_seats` 수의 불일치도 검사한다(만료·취소·거절 때 감소가 빠지면 한도가 새기 때문). 장애 주입 후 검증(3장 메시지 신뢰성)에 함께 쓴다.
 
 ### 12-8. Redis 키
 
@@ -1432,6 +1768,8 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 | `queue:{scheduleId}:seq` | 문자열 (카운터) | 회차 판매 종료까지 | 진입 순번 발급 (INCR) | 권영은 |
 | `queue:{scheduleId}:waiting` | ZSET (점수 = 진입 순번 seq) | 같음 | 계정당 1자리, 이탈 제거(ZREM) | 권영은 |
 | `queue:{scheduleId}:admitted` | 문자열 (카운터) | 같음 | 지금까지 입장시킨 순번 (전역 카운터, 초당 N씩 증가) | 권영은 |
+| 🆕 `queue:{scheduleId}:lastTick` | 문자열 | 회차 판매 종료까지 | 마지막으로 `admitted`를 올린 초(Redis `TIME` 기준). 인스턴스가 여러 개여도 1초에 한 번만 증가 (제안, ADR 0015) | 권영은 |
+| 🆕 `queue:{scheduleId}:issued` | ZSET (점수 = 입장 토큰 발급 시각) | 회차 판매 종료까지, 항목은 토큰 유효 시간 T가 지나면 입장 처리 Lua가 정리 | 입장 토큰을 받은 사용자. 토큰 API를 다시 부르면 같은 발급 시각으로 다시 서명 (제안, ADR 0015·0031) | 권영은 |
 | `auth:refresh:{userId}` | 문자열 | 14일 | Refresh 토큰 | 공통 |
 | `auth:blacklist:{jti}` | 문자열 | Access 남은 시간 | 로그아웃된 Access | 공통 |
 | `ratelimit:{userId}` | 문자열 (카운터) | 1초 | 사용자 단위 요청 제한 | 공통 |
@@ -1440,6 +1778,12 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 - 입장 판정: `seq <= admitted`로 확정했다(#27). 이탈한 사람이 줄에서 빠지면 ZRANK는 앞당겨지지만 `admitted`는 입장시킨 번호까지만 올라가므로 ZRANK와 비교하면 어긋난다(10/26 피드백: "현 구조라면 seq 기준이 맞다").
 - 표시용 순번은 `max(0, seq - admitted)`로 O(1) 계산한다.
 - 알려진 비용: 이탈자의 번호도 `admitted`가 지나가므로 그 슬롯만큼 실제 입장 속도가 N보다 낮아진다. 이탈이 많으면 N을 높여 보정한다.
+- 🆕 입장 처리(제안, ADR 0015): 스케줄러가 1초마다 Lua 하나로 처리한다. `lastTick`이 현재 초(Redis `TIME`)면 건너뛰고, 아니면 `admitted = min(admitted + N, seq)`로 올린다. 인스턴스마다 스케줄러가 돌아도 입장 속도가 N을 넘지 않고, 줄이 빈 동안 카운터가 발급된 번호를 앞질러 가지 않는다.
+- 🆕 역할 나누기(제안, ADR 0031): 대기열 Lua는 Redis 값을 원자적으로 읽고 쓴 결과(`issued` 발급 시각, seq, admitted)만 돌려준다. `WAITING`·`READY` 판단과 순번 계산은 앱의 도메인 메서드 한 곳에서 하고, 진입과 순번 조회가 같이 쓴다. 토큰 서명도 앱이 한다. 현재 시각은 모든 Lua에서 Redis `TIME`을 쓰고, T와 오픈 시각은 인자로 넘긴다.
+- 🆕 대기열 진입(제안, ADR 0015·0031): ① 오픈 전이면 `SALE_NOT_OPEN` ② `issued`에 T 안의 기록이 있으면 `waiting` 잔여를 지우고 `READY` ③ T가 지난 기록이 있으면 `issued`·`waiting`에서 지우고 ⑤로 간다 ④ `waiting`에 있으면 기존 자리를 그대로 두고 `seq <= admitted`면 `READY`, 아니면 `WAITING` ⑤ 없으면 seq를 INCR해 ZADD하고 201 `WAITING`. 새 seq는 항상 `admitted`보다 크다. 한 사람이 입장 상태와 대기 자리를 동시에 갖지 않고, 만료 뒤 옛 자리로 바로 입장하지 않는다.
+- 🆕 순번 조회(제안, ADR 0031): 읽기 전용이다. 나중에 폴링을 Redis 복제본으로 나눌 수 있게 쓰기를 두지 않는다. `issued`에 T 안의 기록이 있으면 `READY`, T가 지난 기록이 있으면 `waiting`을 보지 않고 `QUEUE_NOT_JOINED`, `waiting`에 없으면 `QUEUE_NOT_JOINED`, `seq <= admitted`면 `READY`, 아니면 `WAITING`이다. T가 지난 기록이 남아 있으면 그 사용자는 만료 뒤 다시 진입하지 않은 사람이다(다시 진입하면 진입 Lua가 기록을 지운다).
+- 🆕 입장 토큰 발급(제안, ADR 0015·0031): 토큰 API의 Lua가 한다. `issued`에 T 안의 기록이 있으면 `waiting` 잔여를 지우고 그 발급 시각을 돌려준다(재발급, 만료 = 발급 시각 + T 그대로). T가 지난 기록이면 `issued`·`waiting`에서 지우고 `QUEUE_NOT_JOINED`. `waiting`에 없으면 `QUEUE_NOT_JOINED`, `seq > admitted`면 `QUEUE_NOT_READY`. 그 밖에는 `issued`에 현재 시각을 기록한 뒤 `waiting`에서 뺀다. 이 순서라 중간에 끊겨도 `issued`가 남아 다음 요청에서 정리된다. 응답 전에 앱이 끊겨도 같은 발급 시각으로 같은 토큰을 다시 만든다.
+- 🆕 만료 기록 정리(제안, ADR 0031): ZSET 항목에는 TTL을 걸 수 없어 직접 지운다. 입장 처리 Lua가 1초마다 `issued`에서 T가 지난 항목을 최대 500개 꺼내 `issued`·`waiting`에서 함께 지운다. 만료 뒤 다시 진입하면 새 seq로 맨 뒤에 선다.
 - Redis 장애·느려짐 정책은 9-5다.
 
 ### 12-9. 적재량 추정 `[가정]`
@@ -1448,22 +1792,22 @@ UPDATE schedule_seat SET status = 'HELD', updated_at = now()
 
 | 테이블 | 추정 행 수 | 산식 |
 | --- | --- | --- |
-| venue_seat | 15,000 | 시드 |
-| schedule_seat | 30,000 | 15,000 × 2회차 |
-| reservation | 12,000~40,000 | 확정 약 12,000(30,000석 ÷ 평균 2.5매) + 만료·실패는 확정의 최대 2배 |
-| reservation_seat | 30,000~100,000 | reservation × 평균 2.5매 |
-| reservation_status_history | 36,000~120,000 | reservation × 평균 3회 전이 |
-| ticket | 30,000 이하 | 확정 좌석 수 |
-| user_schedule_quota | 입장자 수 × 회차 | 입장자 50,000명이면 100,000행 |
-| seat_hold_request | 선점 요청 수 | 선점 시도 수와 같음 |
-| payment / history | 15,000 / 45,000 | 확정 + 거절·UNKNOWN 소수, 이력 평균 3건 |
-| outbox, processed_event, idempotency_record | 수만 건 | 7일(멱등 24시간) 후 정리하므로 보관 기간치 이벤트 수 |
+| venue_seats | 15,000 | 시드 |
+| schedule_seats | 30,000 | 15,000 × 2회차 |
+| reservations | 12,000~40,000 | 확정 약 12,000(30,000석 ÷ 평균 2.5매) + 만료·실패는 확정의 최대 2배 |
+| reservation_seats | 30,000~100,000 | reservations × 평균 2.5매 |
+| reservation_status_histories | 36,000~120,000 | reservations × 평균 3회 전이 |
+| tickets | 30,000 이하 | 확정 좌석 수 |
+| user_schedule_quotas | 입장자 수 × 회차 | 입장자 50,000명이면 100,000행 |
+| seat_hold_requests | 선점 요청 수 | 선점 시도 수와 같음 |
+| payments / payment_status_histories | 15,000 / 45,000 | 확정 + 거절·UNKNOWN 소수, 이력 평균 3건 |
+| outbox_events, processed_events, idempotency_records | 수만 건 | 7일(멱등 24시간) 후 정리하므로 보관 기간치 이벤트 수 |
 - 이 규모의 용량은 1GB를 넘지 않을 것으로 보인다(행 크기는 미측정). 적재량 추정의 용도는 용량보다 보관·정리 정책과 인덱스 크기 확인이다. 병목은 용량이 아니라 같은 좌석 행에 몰리는 쓰기 동시성이다.
 - 회차 좌석 3만 행은 `INDEX(schedule_id, section)`으로 구역 단위 조회가 돼서 좌석 상태 조회에 별도 집계 테이블은 두지 않는다. 측정에서 좌석 조회가 병목이면 H2 캐시로 간다.
 
 ## 13. 패키지 구조 (4계층)
 
-결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈).
+결정 기록 #22 계층 구조 (10/26 결정): 표현·응용·도메인·인프라 4계층, 도메인 엔티티에 JPA 직접 사용, Kafka 발행·구독은 인프라 계층. 저장소는 모노레포(Gradle 멀티모듈). 그중 "구독은 인프라 계층"은 2026-11-03 회의에서 [ADR 0043](../decisions/0043-inbound-adapters-in-presentation.md)으로 바꿨다: Kafka 소비자·스케줄러 같은 입구는 presentation에 둔다(Notion 결정 기록 #22의 해당 부분을 대체).
 
 ```
 high-quality-ticketing-system/
@@ -1472,7 +1816,7 @@ high-quality-ticketing-system/
 │  ├─ auth/                 JWT 검증 (Gateway·User)
 │  ├─ web/                  MVC 예외 처리기, 사용자 헤더 필터, @RequireRole (Gateway 제외)
 │  ├─ persistence/ event/   BaseEntity·감사, 이벤트 봉투
-│  └─ messaging/            Kafka 설정. Outbox 릴레이, processed_event, 재시도·DLQ는 결제 담당이 추가
+│  └─ messaging/            Kafka 설정. Outbox 릴레이, processed_events, 재시도·DLQ는 결제 담당이 추가
 ├─ gateway/  eureka/  config-server/  mock-pg/
 ├─ config-repo/         Config 서버가 읽는 설정 파일 (application.yml, {서비스}-{프로필}.yml)
 ├─ user-service/
@@ -1485,19 +1829,19 @@ high-quality-ticketing-system/
       │  ├─ domain/           Concert, Schedule, ScheduleSeat, 저장소 인터페이스
       │  └─ infrastructure/   JPA 저장소 구현
       ├─ queue/               presentation · application · domain · infrastructure(Redis)
-      ├─ reservation/         … infrastructure/messaging (PaymentResultConsumer, SeatHoldConsumer)
+      ├─ reservation/         … presentation/messaging (PaymentResultConsumer, SeatHoldConsumer)
       ├─ lottery/
       └─ global/              보안 헤더 해석, 설정
 ```
 
 | 계층 | 담는 것 | 의존 |
 | --- | --- | --- |
-| presentation | 컨트롤러, 요청·응답 DTO, 입력 검증 | → application |
+| presentation | 밖에서 들어오는 입구: 컨트롤러(HTTP), Kafka 소비자(`presentation/messaging`), 스케줄러(`presentation/scheduling`). 요청·응답·메시지 DTO, 입력 검증 | → application |
 | application | 유스케이스, 트랜잭션 경계, 다른 모듈 호출 | → domain |
 | domain | 엔티티와 규칙 (상태 전이, 금액 계산, 매수 한도), 저장소 인터페이스 | 아무것도 의존하지 않음 (JPA 애너테이션만 예외) |
-| infrastructure | JPA 구현, Redis, Kafka Producer·Consumer, PG 클라이언트 | → domain 인터페이스 구현 |
+| infrastructure | 밖으로 나가는 구현: JPA, Redis, Kafka Producer·Outbox 릴레이, PG 클라이언트, 캐시 | → domain 인터페이스 구현 |
 - 엔티티를 응답으로 바로 내보내지 않는다(DTO 분리).
-- 발행: 도메인 이벤트 → 인프라의 Outbox 저장. 구독: 인프라 Consumer → application 서비스 호출. Kafka 코드는 domain·application에 들어가지 않는다.
+- 발행: 도메인 이벤트 → 인프라의 Outbox 저장. 구독: presentation의 Consumer가 메시지를 파싱해 application 서비스를 한 번 호출한다. 스케줄러도 같다. Kafka 코드는 domain·application에 들어가지 않는다([ADR 0043](../decisions/0043-inbound-adapters-in-presentation.md)).
 - 서비스 모듈끼리 직접 의존 금지, `common`에는 형식·유틸만 둔다.
 - 공통 모듈은 2026-10-27 통합 회의에서 하나로 정했다([ADR 0013](../decisions/0013-single-common-module.md)). 웹·JPA·Kafka 라이브러리는 `compileOnly`로 두고 쓰는 서비스가 직접 선언하며, 설정은 서비스가 `@Import`로 가져온다. Gateway가 이 라이브러리를 받지 않는지는 `GatewayClasspathTest`가 확인한다.
 - 패키지 이름은 `com.iseonjwa`다(2026-10-27 통합 회의, U12 해소).
@@ -1521,11 +1865,11 @@ high-quality-ticketing-system/
 | 4 | 응모 처리 | 응모 Kafka 접수·자동결제 파티셔닝은 과하다, 1인 1응모는 유니크 제약으로 충분 | 유니크 제약 **수용** / 응모 동기 처리 **거부** | 응모는 결과가 바로 필요 없고 마감 직전에 몰림. 접수만 받고 나중에 처리하는 편이 안정적이고, 같은 패턴을 결제 결과와 공유함 |
 | 5 | Kafka 파티션 키 | 파티션 순서를 정합성 수단으로 쓰지 말고 키는 userId/reservationId로 | 원칙 **수용** / 키 선택 **부분 거부** | 정합성은 DB 조건부 UPDATE가 지킴(수용). 다만 접수형 선점 키는 회차 + 구역: 같은 구역 요청을 한 줄로 처리해 락 경합을 줄이려는 목적이고, 인기 회차 하나가 파티션 하나에 몰리지 않게 구역까지 포함 |
 | 6 | Outbox·DLQ 범위 | Outbox·DLQ 전부를 필수로 볼 필요는 없다, 최소 경로부터 | **부분 거부** | 결제 결과가 사라지면 돈과 예매가 어긋나 고객 피해가 가장 큼. 수신 실패를 보관(DLQ)하지 않으면 원인 추적도 못 함 → 공통 모듈로 한 번 만들어 모든 토픽에 적용 |
-| 7 | [필수] 계층형 아키텍처 | (실행 예정) 도메인 응집, 의존 역전, DTO-엔티티 분리, Fat Service, Kafka·Redis 인프라 격리 | 예정 | 4계층은 10/26 확정(#22). M1 공통 모듈의 패키지 예시가 나오면 아래 토글의 #7 프롬프트 실행 |
+| 7 | [필수] 계층형 아키텍처 | (10/27 실행, user-service 코드 기준) 규칙이 `AuthService`에 몰려 도메인이 빈약함, 인프라 → 응용 의존 1곳·응용의 영속 예외 의존 1곳, 토큰 응답이 도메인 레코드를 그대로 씀, `AuthService`는 Fat Service 경계선. Reservation은 클래스가 없어 패키지 구조만 확인 | **부분 수용** (의존 방향 2곳·재실행 수용, 규칙 이동 부분 수용, 응답 레코드 분리 **거부**, 서비스 분리 보류) | 인프라 → 응용 의존과 응용의 DB 예외 의존은 SA 13장 의존 방향을 직접 어겨 고친다. 토큰 발급 가능 여부·이메일 정규화는 `User`로 옮기고, 비밀번호 72바이트 제한은 BCrypt 기술 제약이라 서비스에 둔다. 토큰 응답 레코드 분리는 응답 형식과 포트 필드가 같고 바꿀 계획이 없어 클래스만 늘어나므로 거부. `AuthService`(239줄)는 회원 기능이 늘면 나눈다. 선점 규칙은 이번에 검증하지 못해 Reservation 선점 코드가 생기면 재실행. 상세는 저장소 `docs/sa-review/06-layered-architecture-check.md` |
 | 8 | 2차 설계 자체 검수 (10/25) | 동시 요청으로 매수 제한 우회(D1), 좌석 상태 기준 두 곳(D2), 다른 멱등키로 중복 결제(D3), 접수형 저장·발행 비원자(D4) | **수용** | 네 건 모두 중복 판매·이중 결제·유실로 이어지는 정합성 문제라 구현 전에 막음. D4는 당시 Outbox 대신 "행 없이 바로 발행"을 골라 측정에 폴링 지연이 섞이지 않게 했으나, 10/26 피드백으로 접수 요청 행 + outbox로 바꿈(#33, 10-1) |
 | 9 | API 응답 형식 (10/26) | 기존 형식 유지(성공 본문 그대로 + ProblemDetail) 추천 → 균일 형식 요청에 성공·실패 공통 6키 제안. 두 형태 래퍼 검토 시 실패 응답에 traceId·Gateway 처리기·HTTP 코드 유지 지적 | 유지·6키 **거부** / 검토 지적 **수용** | 한 형식이면 개발자가 실수로 잘못 감싼 응답을 받는 쪽이 판단하기 어려움 → 성공·실패 다른 형태 + 둘 다 traceId (#19) |
 | 10 | 대기열 순번 (10/26) | 팀원이 지적한 진입 시각 동점 문제를 검증: 동점은 멤버 사전순, 인스턴스 시계 차이 → seq 카운터 + Lua 추천 | **수용** | 같은 ms 요청이 정상인 오픈 정각에 순번 공정성을 지키려면 Redis 도착 순서 하나를 기준으로 (#27) |
-- 거부 사례 4건(#1 Queue, #3, #4, #9) · 부분 거부 2건(#5, #6) · 수용 4건 · 예정 1건
+- 거부 사례 4건(#1 Queue, #3, #4, #9) · 부분 거부 2건(#5, #6) · 수용 4건 · 부분 수용 1건(#7, 그중 응답 레코드 분리 거부)
 - 발표용 대표 사례 후보: #1(교차 검토 → 원문 대조 → 종합 과정), #3(권고를 근거를 갖고 거부), #9(AI 제안 두 번을 받지 않고 검토 지적만 수용). 개인 판단 기록 원문은 저장소 `docs/ai-judgments/`
 - 이전 #0(작성 요청)은 검증이 아니라 작성 요청이어서 제외하고, 1차 AI SA 피드백을 검증 1회차로 재구성했다.
 - 10/26 멘토 피드백은 AI 검증이 아니라 사람 피드백이라 이 표에 넣지 않고 부록 B에 둔다.
@@ -1600,7 +1944,7 @@ high-quality-ticketing-system/
 | #13 상태 머신 | 접수 요청·환불·NEEDS_MANUAL_CHECK 상태, 중간 상태 정리표 | 8-2, 8-3 |
 | #14 모듈 경계·분리 조건 | 모듈러 모놀리스, 모듈별 분리 근거(lottery 포함) | 7-1 |
 | #15 데이터 공통 규칙 | 법정 보관(전자상거래 5년) 근거, 고객용 번호의 열거형 공격 방어 | 12-1 |
-| #16 취소·환불 정책 | refund 테이블·상태 5개·멱등, FAILED → 수동 확인 | 12-4 |
+| #16 취소·환불 정책 | refunds 테이블·상태 5개·멱등, FAILED → 수동 확인 | 12-4 |
 | #17 멱등키 | 선점 멱등은 접수 요청 행 PK | 12-3, 12-5 |
 | #28 PG 장애 처리 | 10초 넘은 REQUESTED 재조회, 단계별 간격, NOT_FOUND 망취소 | 10-5, 12-4 |
 | #33 좌석 선점 | 접수 요청 행 + outbox, 동기형도 요청 행, 30초 시한, 선점 응답에 결제 토큰 | 8-1, 12-3, 12-7 |
@@ -1620,7 +1964,8 @@ high-quality-ticketing-system/
 | 분산락(Redis 등) | DB 접근 전에 경합을 거를 수 있음 | 락 획득·해제 왕복, 락 만료와 장애 시 정합성 위험, 결국 DB 제약이 필요 |
 | Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
 
-**부분 유니크 인덱스 (#58)**: `reservation_seat`(D2: HELD·CONFIRMED)와 `payment`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
+**부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)와 `payments`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
+- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 이 문단의 "재결제가 가능하다"를 고치는 것(S-16)은 U9 확인 뒤 결정 기록 #58과 함께 정정한다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 
@@ -1647,10 +1992,10 @@ high-quality-ticketing-system/
 | 순서 | 안건 | 위치 | 제안 담당 |
 | --- | --- | --- | --- |
 | 1 | 계약 4종 형식 통보: 입장 토큰 claim(대기열), 선점 결과(좌석 선점), 결제 토큰 claim(예매 흐름), 결제 결과 이벤트(결제). 형식 소유 담당이 정해 공유하고 소비하는 쪽이 리뷰 | 6-9, 7-3, 10-3, 11-5 | 각 담당 |
-| 2 | 공통 모듈 범위와 합치는 방식(M1): `common`·`common-response`·`common-web`·`common-messaging` 경계, 각자 구현 후 비교·병합 기준. Config 서버·`config-repo` 구성(9-6)도 M1에 포함 | 13장, 11-2, 9-6 | 다 같이 |
+| 2 | 공통 모듈 범위와 합치는 방식(M1): `common`·`common-response`·`common-web`·`common-messaging` 경계, 각자 구현 후 비교·병합 기준. Config 서버·`config-repo` 구성(9-6)도 M1에 포함. **10/27 결정: `common` 하나 + 패키지 분리, Config 서버 유지** | 13장, 11-2, 9-6 | 다 같이 |
 | 3 | 잠정 결정 중 팀이 확인할 것 고르기: 특히 #33·#46 접수형 outbox. #30 기술 스택(Java 21, 팀 합의 전)은 합의 여부와 M1 첫 빌드로 의존성 호환 확인 | 15장 | 다 같이 |
 | 4 | 보안그룹 규칙표·배포 이슈 담당 | 9-2 | 배포 이슈 담당 |
-| 5 | 브랜치 전략·Git 컨벤션(브랜치 이름, 보호 규칙, 병합 방식), Linear 범위 | 저장소 `docs/guides/git-workflow.md` | 다 같이 |
+| 5 | 브랜치 전략·Git 컨벤션(브랜치 이름, 보호 규칙, 병합 방식), Linear 범위 | 저장소 `docs/guides/git-workflow.md` | 다 같이. **10/27 결정: git-workflow 5절** |
 
 ### 17-2. 미해결 목록
 
@@ -1658,15 +2003,15 @@ high-quality-ticketing-system/
 | --- | --- | --- | --- |
 | U1 | 계약 4종 형식 통보 (17-1 #1) | 10/27 | 각 담당 |
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
-| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) | 추첨 시작 때 | 이강민 |
+| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 `contracts.md`에 "추첨은 사유별로 분기한다"와 `NOT_SENT` 보장 문구를 선반영했다(ADR 0038). 결제 담당 확인 대기(ISE-89) | 결제 담당 확인 뒤 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
-| U12 | 포트(config-server 8888 포함) 확인. 패키지 이름은 `com.iseonjwa`로 확정(10/27) | 10/27 | 다 같이 |
-| U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 이강민 |
+| U12 | ~~포트·패키지 이름 확인~~ 해소(10/27): 패키지 `com.iseonjwa`, 포트는 9-1 표(통합 코드 기준) | 10/27 | 다 같이 |
+| U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
 | U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
-| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 | 추첨 시작 때 | 이강민 |
+| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 — 10/31: 동기 INSERT를 기준선으로 구현하고 측정 시나리오 1(마감 직전 초당 100건, p95 300ms)로 정한다. 4-2 ③·10-1·10-3·11장 202는 그 뒤에 고친다 | 측정 시나리오 1 뒤 (ISE-87) | 이강민 |
 | U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
-| U22 | 환불 상태 이력을 `payment_status_history`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
+| U22 | 환불 상태 이력을 `payment_status_histories`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
 
 해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58)
 
@@ -1678,7 +2023,7 @@ high-quality-ticketing-system/
 - [x]  대기열 입장 판정 기준 `seq <= admitted` 확정 → #27
 - [x]  10/26 피드백을 결정 기록에 반영 (#13~#48 수정, #56~#59 생성)
 - [x]  ADR 후보 2건 → #58 부분 유니크 인덱스, #59 레이스 컨디션 해결 방식
-- [ ]  AI 검증 #7 계층형 아키텍처 프롬프트 실행 (M1 패키지 예시 후)
+- [x]  AI 검증 #7 계층형 아키텍처 프롬프트 실행 (10/27 실행·판단, Reservation 선점 코드가 생기면 재실행)
 - [ ]  10/27 SA 2차 피드백 전 담당별 2차 설계 확인
 - [ ]  잠정 결정 37건 중 팀 확인이 끝난 것부터 결정으로 전환
 
@@ -1706,7 +2051,7 @@ high-quality-ticketing-system/
 | AI 로그 #0 | 작성 요청은 검증이 아님 → 재구성 | ✅ | 14장 |
 | C1 | PG 타임아웃 = 결과 모름, UNKNOWN, 만료 뒤 승인 자동 환불 | ✅ | 8-1 · 8-2 |
 | C1 | 결제 진행 중(PAYING) 만료 제외 + 별도 결제 마감 | 🔀 만료 우선 + 자동 환불, 결제 토큰 10초 앞당김(#35) | 8-4 · 7-3 |
-| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (환불 조회·망취소 추가, #16·#28) | 6-7 · 11-5 |
+| C1 | Mock PG 결제 조회 API · 승인 후 응답 유실 모드 · 멱등 승인·환불 | ✅ (환불 조회·망취소 추가, #16·#28) | 6-6 · 11-5 |
 | C2 | 우선순위 재배치 (토큰 검증·CB·멱등·Outbox 1경로·Synthetic·배포를 Must로) | ✅ | 5-1 |
 | C2 | 비동기 접수는 API 계약을 바꾸니 처음부터 최종형으로 | 🔀 동기형·접수형 응답을 `data.status` 하나로 구분해 화면이 두 경우를 모두 처리 | 11-5 |
 | C3 | 조건부 전이, 부분 유니크 인덱스, 전부 아니면 전부, DB 기준, SKIP LOCKED 만료 | ✅ | 8-4 · 12-7 |
@@ -1798,10 +2143,18 @@ high-quality-ticketing-system/
 | 테이블 크기 | reservation 15,000–30,000행(판매 좌석 ÷ 평균 2매 + 만료·거절) (SA v2 14-9) | 전 테이블 추정, 평균 2.5매 (개선안 2-12) | 반영 (추정치) |
 | 페르소나 | 상황·바라는 것·대응 (SA v2 2장), 유저스토리 열은 비어 있음 ([5조]) | 유저스토리 초안 채움 (개선안 2-12) | 반영 |
 | 로그아웃·대기 취소 응답 | 204 (SA v2 12-3) | 200 + `data: null` ([5조] 3장) | 반영 (#19) |
+| 공통 모듈 경계 | `common`·`common-response`·`common-web`·`common-messaging` 4모듈 (v3.1 13장), 통합 기준 브랜치는 5모듈(`common-auth` 포함) | `common` 하나 + 패키지 분리, 웹·JPA·Kafka·JWT는 `compileOnly` (10/27 회의 D6, ADR 0013) | 반영 (v3.2) |
+| 패키지 이름 | `iseonjwa` `(팀 확인)` (v3.1 13장, U12) | `com.iseonjwa` (10/27 회의 D4, ADR 0014) | 반영 (v3.2) |
+| 블랙리스트 Redis 장애 | open: 로그아웃된 토큰이 최대 30분 통함 (#48 잠정), 이후 closed 잠정 구현 (ADR 0005 제안) | closed 확정 (10/27 회의 D14, ADR 0005 채택) | 반영 (v3.2) |
+| 구현 버전 | Gradle 9.1.0 (통합 기준 브랜치) | Gradle 9.8.2, Groovy DSL, PostgreSQL 17, Lombok 사용 (10/27 회의 D2·D3·D12·D13) | 반영 (v3.2) |
+| Mock PG 담당과 결제 지원 | Mock PG·장애 주입·망취소·환불 조회는 이강민, 결제가 밀리면 이강민이 추첨 시작을 늦추고 돕는다 (v3.2 6-1·6-7·6-9) | Mock PG 포함 결제 전부 안준현, 지원 불필요. 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 (10/28 결제 담당 확인) | 반영 (10/28) |
+| 테이블 이름 | `users`만 복수형, 나머지 단수형(`payment`, `outbox`, `reservation_status_history` 등) (v3.2 12장) | 모두 snake_case 복수형, `outbox` → `outbox_events` (ADR 0030 제안) | 반영 (v3.3, 결제 코드는 ISE-67) |
+| ERD | 예매 흐름 테이블 위주 2개 그림, 공통 테이블·빌링키·이력 속성 생략 (v3.2 12-6) | DB별 그림 5개, 명세의 모든 테이블·컬럼 | 반영 (v3.3) |
+| 같은 예매 중복 결제 방지 (D3) | `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안 (v3.2 12-4, #58) | `UNIQUE(reservation_id)` 전체, 예매당 결제 하나 (ADR 0026, payment-service V1) | 반영 (v3.3, #58 문장 정정은 U9 뒤 S-16) |
 
 **본문에서 뺀 내용**
 
-- SA v2 12장의 "응답 형식 추천(이전 프로젝트 내용)" 토글: 다른 프로젝트의 클래스 이름(`ApiResponse`, `ErrorResponse`, `FeignErrorDecoder` 등)을 그대로 옮긴 참고 자료라 11-2 제안으로 대체했다. 원문은 SA v2에 남아 있다.
+- SA v2 12장의 응답 형식 추천은 11-2 제안으로 대체했다. 원문은 SA v2에 남아 있다.
 - 이전 안의 ProblemDetail 실패 응답 예시 (참고용, 10/26 #19 결정으로 쓰지 않음):
 
 ```json

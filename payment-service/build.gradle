@@ -4,6 +4,13 @@ dependencies {
     implementation 'org.springframework.retry:spring-retry'
     implementation 'org.springframework:spring-aspects'
     implementation project(':common')
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
+    // Note: 버전은 spring-cloud-dependencies BOM이 관리한다. 애노테이션 AOP는 "TX1 앞에서 허가를 얻고 PG 호출 결과로
+    // 정산"하는 흐름을 표현하지 못해 Spring 통합 모듈 없이 코어를 직접 쓴다
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+    implementation 'io.github.resilience4j:resilience4j-bulkhead'
+    // Note: 버전은 resilience4j-bom(spring-cloud-dependencies)이 관리한다. CB·Bulkhead 지표는 이 모듈의 Tagged*Metrics를 쓴다
+    implementation 'io.github.resilience4j:resilience4j-micrometer'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -11,4 +18,21 @@ dependencies {
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
+    // 지표 이름 테스트가 PrometheusMeterRegistry.scrape()를 쓴다(운영 classpath에는 runtimeOnly로 이미 있다)
+    testImplementation 'io.micrometer:micrometer-registry-prometheus'
+}
+
+// Note: 결제 통합 테스트는 compose.test.yml의 PostgreSQL(payment_test)을 쓴다.
+// ./gradlew build나 IDE의 Gradle 테스트 실행만으로도 테스트 인프라가 먼저 뜨게 한다(Docker 필요)
+// Note: Mock PG 계약 테스트는 실제 mock-pg 앱(bootJar)을 별도 JVM으로 띄운다(mock-pg.md 7절 #2).
+// jar 내용이 바뀌면 테스트를 다시 돌리도록 입력으로 등록한다. 경로는 기기마다 다른 절대 경로라 입력 지문에 넣지 않으려고
+// 실행 직전(doFirst)에 시스템 속성으로 넘긴다
+def mockPgJar = project(':mock-pg').tasks.named('bootJar').flatMap { it.archiveFile }
+
+tasks.named('test') {
+    dependsOn ':prepareTestInfra', ':mock-pg:bootJar'
+    inputs.file(mockPgJar).withPropertyName('mockPgJar').withPathSensitivity(PathSensitivity.NONE)
+    doFirst {
+        systemProperty 'mockPg.jar', mockPgJar.get().asFile.absolutePath
+    }
 }

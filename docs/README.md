@@ -10,11 +10,14 @@
 | 개인 질문 노트, 하루 정리 | [`learning/<이름>/`](learning/README.md) | `learning-note` 스킬 |
 | 되돌리기 어려운 결정 | [`decisions/`](decisions/README.md) | `adr` 스킬 |
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
+| 발표·시연용 스크린샷, 이미지, 아이콘 | [`presentation/`](presentation/README.md) | 파일 이름 `YYYY-MM-DD-<내용>`, 표에 한 줄 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
+| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/hold-expiry.md`](design/reservation/hold-expiry.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/frontend/`](design/frontend/README.md), [`design/infra/`](design/infra/README.md)(배포·관측·부하 측정) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
-| 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 팀 합의 전 (AGENTS.md 반영은 별도 PR) |
+| 서비스 간 접점(contract) 변경 알림과 작업 전 확인 | [`guides/contract-issues.md`](guides/contract-issues.md) | Linear 라벨 `contract` |
+| 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 코드 작성·수정·리뷰 때 적용 |
 | Java·JUnit 테스트 위치와 기본·시스템 검증 실행 | [`guides/testing.md`](guides/testing.md) | 테스트 작성·실행 때 적용 |
 | 공통 모듈의 사용 계약(응답·예외·사용자 컨텍스트·토큰·감사·이벤트) | [`guides/common-modules.md`](guides/common-modules.md) | 팀 합의 전 |
 | 전체 Boot 앱·Config·인프라·인증 실행과 검증 | [`guides/workspace.md`](guides/workspace.md) | 현재 개발 워크스페이스 |
@@ -31,12 +34,14 @@
 | [sa-review/03-seat-hold-kafka-design.md](sa-review/03-seat-hold-kafka-design.md) | M1 상세: Kafka 파티션 키, 결과 전달, 발신 유실, Redis + Kafka 혼합형 좌석 선점 |
 | [sa-review/04-mentor-feedback-1026.md](sa-review/04-mentor-feedback-1026.md) | SA 1차 피드백(10/26) 28건 정리(피드백 메모 + SA 문서 코멘트 19개)와 팀 논의 사항 12건. v2 상태 저장, 환불 상태 모델, 토큰 키 분리, Redis 장애 정책, 보안그룹, 숫자 근거 |
 | [sa-review/05-feedback-improvement-proposal.md](sa-review/05-feedback-improvement-proposal.md) | 04의 논의 사항을 SA 문서에 반영하는 구체 개선안. 토큰 규칙, v2 접수 요청 테이블, 환불 모델과 재확인 스케줄러, Redis 정책, 보안그룹, 메모리 예산, 새 테스트 케이스(E11~E16) |
+| [sa-review/06-layered-architecture-check.md](sa-review/06-layered-architecture-check.md) | AI 설계 검증 #7 계층형 아키텍처를 M1 코드(user-service)로 실행한 결과. 질문 4개 판정과 팀이 판단할 제안 7건 |
+| [sa-review/2026-10-27-branch-integration/](sa-review/2026-10-27-branch-integration/README.md) | 구현 브랜치 5개의 공통·인증·실행 환경 비교, 기준 브랜치 제안, Git·계약 충돌, 팀 논의 입력표와 조건부 dev 통합 계획. 팀 결정 전 검토 |
 | [sa-review/assets/seat-hold-kafka.html](sa-review/assets/seat-hold-kafka.html) | 03 문서의 시각화 페이지 로컬 사본 (브라우저로 열기) |
 | [sa-review/raw/codex-review.md](sa-review/raw/codex-review.md) | codex 리뷰 원문 |
 
 ## 외부 원본
 
-- Notion [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb) — 설계 정본 (10/26 SA v2·SA MASTER·[5조] SA 문서·피드백 모음·개선안을 통합, 충돌은 최신 우선). 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)는 v3.1로, 10/26 결정 기록 수정을 반영해 `🆕 제안` 표시를 없애고 결정 기록 번호를 붙였다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따른다
+- Notion [SA MASTER v3.3](https://app.notion.com/p/6867bd823b7583f9896c81d8881f0004) — 설계 정본. 저장소 사본 [`core/SA MASTER.md`](core/SA%20MASTER.md)를 가져온 판이다(11/1, 10/31 추첨 결정까지). 이전 판인 [SA MASTER v3.2 (통합 회의 반영)](https://app.notion.com/p/94a7bd823b7582f1a2a50125bc85ca2d)(10/27), [SA MASTER v3 (통합)](https://app.notion.com/p/4057bd823b75816fa131f478bd7faacb)(10/26 문서 통합)과 v3.1(10/26 결정 기록 반영)은 근거로 남긴다. 각 결정의 확정 여부는 Notion 「SA 기획·설계 결정 기록」 DB 상태를 따르되, 저장소 `decisions/`가 대체한 결정은 저장소 기록을 따른다(`AGENTS.md` 대전제 4)
 - Notion [SA MASTER](https://app.notion.com/p/4027bd823b75808bb67efd7dbd1f7c53) — 10/26 이전 정본, 근거 보관용
 - Notion [1차 SA 피드백](https://app.notion.com/p/4027bd823b758034966df87b7622c9b1) — sa-review/01과 같은 내용
 - Notion [발제문 원본](https://app.notion.com/p/4027bd823b758019a04dda70d6ae39ab), [첫날 회의](https://app.notion.com/p/4027bd823b7580b19317f4c4c8df4a08)

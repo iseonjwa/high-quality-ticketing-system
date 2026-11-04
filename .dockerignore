@@ -6,3 +6,9 @@
 !.env.example
 .idea
 .claude
+# 자바 이미지 빌드에 프론트 소스가 필요 없고, 프론트만 바뀌어도 자바 빌드 캐시가 깨지지 않게 한다
+frontend
+# 이미지 워크플로(.github/workflows/images.yml)가 저장소 루트에 푸는 의존성 캐시와 cache-dance 작업 폴더.
+# 빼지 않으면 루트 Dockerfile의 COPY . .가 수백 MB를 빌드 컨텍스트로 보낸다.
+build-cache
+scratch

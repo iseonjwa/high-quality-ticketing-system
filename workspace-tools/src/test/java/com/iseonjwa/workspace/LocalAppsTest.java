@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,6 +42,32 @@ class LocalAppsTest {
         }
         var gateway = LocalApps.environment(WorkspacePaths.root(), LocalApps.named("gateway"), values(), Map.of());
         assertTrue(gateway.containsKey("JWT_ACCESS_SECRET"));
+    }
+
+    @Test
+    void 결제_토큰_키는_발급하는_예매_서비스와_검증하는_결제_서비스에만_전달한다() {
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
+            var needsKey = Set.of("reservation-service", "payment-service").contains(app.name());
+            assertEquals(needsKey, environment.containsKey("PAYMENT_TOKEN_SECRET"), app.name());
+        }
+    }
+
+    @Test
+    void 입장_토큰_키는_발급하는_예매_서비스와_검증하는_Gateway에만_전달한다() {
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
+            var needsKey = Set.of("reservation-service", "gateway").contains(app.name());
+            assertEquals(needsKey, environment.containsKey("ENTRY_TOKEN_SECRET"), app.name());
+        }
+    }
+
+    @Test
+    void 빌링키_암호화_키는_결제_서비스에만_전달한다() {
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
+            assertEquals(app.name().equals("payment-service"), environment.containsKey("BILLING_KEY_SECRET"), app.name());
+        }
     }
 
     @Test

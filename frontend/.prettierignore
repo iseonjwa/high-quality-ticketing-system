@@ -1,0 +1,5 @@
+dist
+node_modules
+package-lock.json
+# 문서는 팀 문서 작성 가이드(docs/guides/writing.md)를 따른다
+*.md

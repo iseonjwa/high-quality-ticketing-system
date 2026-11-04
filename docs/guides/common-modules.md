@@ -9,10 +9,12 @@
 | 패키지 (`com.iseonjwa.common.`) | 제공 내용 | 서비스가 직접 선언·적용 조건 |
 |---|---|---|
 | `response`, `identity` | SuccessResponse, FailureResponse, FieldError, ErrorCode, CommonErrorCode, BusinessException, IdentityHeaders, Roles | 없음(Spring 의존 없음). 성공의 data는 null이어도 내보내고 실패의 errors는 검증 실패일 때만 내보내는 Jackson 애너테이션 사용 |
-| `auth` | TokenType, TokenDecoders | spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증 |
+| `auth` | TokenType, TokenDecoders, EntryTokenClaims, EntryTokenDecoder | spring-security-oauth2-jose. Gateway와 User가 같은 JWT 계약으로 검증. 입장 토큰은 Reservation이 발급하고 Gateway가 검증 |
 | `web` | CommonWebConfiguration, CommonExceptionHandler, GatewayIdentityFilter, RequireRole | spring-boot-starter-webmvc. `@Import(CommonWebConfiguration.class)` |
 | `messaging` | CommonMessagingConfiguration | spring-boot-starter-kafka. `@Import(CommonMessagingConfiguration.class)` |
 | `persistence`, `event` | EventEnvelope, BaseEntity, CurrentActorProvider, CommonJpaConfiguration | spring-boot-starter-data-jpa. `@Import(CommonJpaConfiguration.class)`. 이벤트는 일반 DTO. 감사는 JPA 콜백과 Spring 빈 주입 사용 |
+| `messaging.outbox`, `messaging.inbox` | OutboxWriter·OutboxRelay·OutboxEventSender, ProcessedEventService | spring-jdbc, spring-kafka. `@Import(CommonOutboxConfiguration.class)`(`CommonJpaConfiguration`도 함께). 서비스 Flyway가 `outbox_events`·`processed_events` 테이블을 만든다 |
+| `messaging.consumer` | ConsumerErrorHandlers, ConsumerContainerFactories, NonRetryableMessageException | spring-boot-starter-kafka. 빈 등록 없이 서비스 `@Configuration`에서 static 메서드로 사용("소비 재시도와 DLQ" 절) |
 
 ### MVC 응답
 
@@ -52,9 +54,91 @@ Hibernate가 리스너를 Spring 빈으로 만들도록 SpringBeanContainer를 �
 
 논리 삭제는 허용된 도메인이 markDeleted를 호출한다. 공통 삭제 필터와 version 필드는 없다. 예매·결제 등 상태로 관리하는 도메인에서 삭제 기능을 호출하지 않는다. 기록용 테이블은 SA대로 BaseEntity를 상속하지 않는다.
 
-EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·traceId·payload를 제공한다. 전송·소비, 도메인별 이벤트 payload, Outbox·멱등 처리·재시도·DLQ는 구현하지 않았다.
+EventEnvelope는 SA 10-2의 eventId·eventType·version·occurredAt·producer·traceId·payload를 제공한다. 전송·소비, 도메인별 이벤트 payload, Outbox·멱등 처리는 "Outbox와 처리 이력" 절, 소비 재시도·DLQ는 "소비 재시도와 DLQ" 절에 있다.
 
 ## 팀 비교 때 확인할 질문
 
 1. 공통 응답은 어디까지 통일하고 MVC·WebFlux의 예외 처리는 왜 분리하는가?
 2. 시스템 작업이 사용자 요청 뒤 엔티티를 수정하면 감사 사용자 ID는 무엇으로 남아야 하는가?
+
+### 소비 재시도와 DLQ
+
+`com.iseonjwa.common.messaging.consumer` 패키지가 이벤트 소비 리스너의 오류 처리 부품을 제공한다. 빈을 자동 등록하지 않는다. 서비스가 자기 `@Configuration`에서 리스너별 컨테이너 팩토리를 만들 때 static 메서드로 가져다 쓴다.
+
+**전역 `CommonErrorHandler` 빈을 만들지 않는 이유**: 리스너마다 오류 규칙이 다르다. 일반 소비자는 재시도 뒤 DLQ로 보내지만, DLQ 처리기는 건너뛰면 의무가 사라지므로 무제한 재시도한다. 전역 빈 하나가 모든 리스너에 적용되면 DLQ 처리기가 메시지를 건너뛸 수 있다.
+
+**언제 무엇을 쓰나**
+
+| 소비자 | 처리기 | 동작 |
+|---|---|---|
+| 일반 소비자(예: `payment.command`, 예매의 `payment.result`) | `ConsumerErrorHandlers.retryThenDeadLetter(template)` | 일시 오류는 1·2·4초 간격 3회 재시도 뒤 `<토픽>.dlq`로 보낸다. `NonRetryableMessageException`은 재시도 없이 바로 보낸다. DLQ 전송이 실패하면 원 메시지를 다시 처리하고 오프셋을 올리지 않는다 |
+| 건너뛰면 의무가 사라지는 소비자(DLQ 처리기) | `ConsumerErrorHandlers.retryForever()` | 복구기 없이 1초에서 2배씩 최대 60초 간격으로 횟수 제한 없이 재시도한다. 모든 예외를 재시도하고 오프셋을 커밋하지 않는다 |
+
+**사용 예**
+
+```java
+@Configuration(proxyBeanMethods = false)
+class PaymentResultKafkaConfiguration {
+    @Bean(PaymentResultListener.CONTAINER_FACTORY)
+    ConcurrentKafkaListenerContainerFactory<Object, Object> paymentResultListenerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
+            KafkaTemplate<String, String> kafkaTemplate) {
+        return ConsumerContainerFactories.recordAck(configurer, consumerFactory,
+                ConsumerErrorHandlers.retryThenDeadLetter(kafkaTemplate));
+    }
+}
+```
+
+`recordAck`는 Boot 공통 설정을 먼저 적용한 뒤 ack-mode `RECORD`, 오류 처리기, 동시성 1로 고정한다. 공유 설정(config-repo)이 바뀌어도 오프셋 보존이 흔들리지 않게 하려고 RECORD를 여기서 다시 고정한다. 리스너는 `@KafkaListener(containerFactory = ...)`로 이 팩토리를 지정한다.
+
+**영구 오류 표시**: 검증 실패, 깨진 JSON처럼 다시 처리해도 결과가 같은 오류는 `NonRetryableMessageException`을 던진다. DB·네트워크처럼 다시 시도하면 풀릴 수 있는 오류에는 쓰지 않는다.
+
+**DLQ 토픽 이름과 적재 내용**
+- 이름은 `원본토픽 + ".dlq"`다(`ConsumerErrorHandlers.deadLetterTopic`). `payment.command`는 `payment.command.dlq`다.
+- 키와 값 원문을 그대로 싣는다. 파티션은 지정하지 않아(키 기반 배정) DLQ 토픽의 파티션 수가 원본과 달라도 전송이 실패하지 않는다.
+- Spring의 `kafka_dlt-*` 헤더가 붙는다: 원본 토픽(`kafka_dlt-original-topic`)·파티션·오프셋, 예외 클래스(`kafka_dlt-exception-fqcn`)·메시지·스택트레이스.
+- 토픽은 서비스(compose)가 만든다. 이 부품은 만들지 않는다.
+
+**확인 방법**
+- Kafka-UI에서 `*.dlq` 토픽의 메시지와 `kafka_dlt-*` 헤더를 본다.
+- DLQ로 보낼 때마다 ERROR 로그 한 줄이 남는다: `event=MESSAGE_DEAD_LETTERED topic partition offset key dlqTopic cause`. 전송이 성공한 뒤에만 남고, 값 원문은 넣지 않는다.
+- 소비자 그룹 랙은 Kafka-UI로 본다. 랙이 늘면 재시도 중이거나 DLQ 전송이 막힌 것이다.
+- 대시보드·알림은 결제 ISE-157에서 만든다. 이 부품은 로그까지만 남긴다.
+
+### Outbox와 처리 이력
+
+`CommonOutboxConfiguration`을 `@Import`하면 발행기(`OutboxWriter`), 릴레이(`OutboxRelay`와 스케줄러), 처리 이력(`ProcessedEventService`)이 생긴다. 스캔하지 않으므로 Kafka가 없는 서비스에는 빈이 없다([ADR 0013](../decisions/0013-single-common-module.md)).
+
+- **쓰기**: `OutboxWriter.write(topic, key, eventType, payload)`는 업무 변경과 같은 트랜잭션 안에서만 부를 수 있다(없으면 예외). 공통 봉투(`EventEnvelope`)를 만들어 `outbox_events` 행으로 쓰고, 상태 변경이 실제로 일어났을 때만 호출한다. 이벤트 페이로드와 발행기는 서비스가 만든다(예: 결제의 `PaymentResultPublisher`).
+- **저장소는 JDBC**: 엔티티 없이 `JdbcTemplate`으로 쓰므로 서비스가 `@EntityScan`을 바꿀 필요가 없고, JPA 트랜잭션과 같은 연결을 쓴다. 테이블은 서비스 Flyway가 만든다(스키마는 [결제 데이터 모델](../design/payment/data-model.md) 6·7절). `ddl-auto: validate`는 이 테이블을 검증하지 않으므로 서비스가 마이그레이션 테스트로 확인한다.
+- **릴레이**: 같은 키의 앞선 PENDING·FAILED가 있으면 집지 않아 키별 순서를 지키고, 임대(`claimed_until`)와 `SKIP LOCKED`로 중복 집기를 막는다. 설정은 `messaging.outbox.batch-size`(20), `lease`(30s), `send-timeout`(12s), `interval`(500ms), `relay-enabled`다. `lease`는 `send-timeout`의 2배 이상이어야 하고, 프로듀서의 `max.block.ms + delivery.timeout.ms`(결제는 2초 + 10초)는 `send-timeout` 안에 들어와야 한다. 어긋나면 기동이 실패한다. 프로듀서 설정(`spring.kafka.producer.properties`)은 쓰는 서비스가 정한다.
+- **재시도와 FAILED**: 일시 오류는 횟수로 포기하지 않고 계속 재시도한다. 실패 기록은 `attempts`를 올리고 `next_attempt_at = 지금 + min(500ms × 2^(k-1), 60s)`의 50~100%(equal jitter)로 정하며 임대를 바로 푼다. 영구 오류(`SerializationException`, `RecordTooLargeException`, `RecordBatchTooLargeException`, `InvalidTopicException`이 원인 사슬에 있을 때)만 `FAILED`로 바꾸고 ERROR 로그(`event=OUTBOX_FAILED`)를 남긴다. 그 밖의 예외는 모두 일시 오류다. `FAILED`는 같은 키의 뒤 행을 막고, 복구는 Ops `outbox requeue`(ISE-42)다.
+- **실행기**: `OutboxRelayScheduler`가 단일 스레드 실행기(`outbox-relay`)를 `SmartLifecycle`로 소유한다. `@Scheduled`와 `@EnableScheduling`을 쓰지 않으므로, 쓰는 서비스가 다른 `@Scheduled`를 쓰려면 자기 설정에서 `@EnableScheduling`을 켠다. `TaskScheduler`·`ScheduledExecutorService` 빈은 만들지 않는다(Boot 기본 스케줄러가 빠진다). `relay-enabled=false`면 실행기를 만들지 않는다.
+- **지표**: `OutboxRelayScheduler`는 라운드 반복이 예외 없이 끝나면 `outbox_relay_last_success_timestamp`(epoch 초)를 갱신하고, `Throwable`로 끝나면 `outbox_relay_failures_total`을 올린다. `OutboxRelay`는 행을 `FAILED`로 바꿀 때 `outbox_events_failed_total`을 올린다(`OutboxMetrics`, 라벨 없음). Micrometer는 `compileOnly`라 쓰는 서비스가 자기 의존성에 두고(actuator), `MeterRegistry` 빈이 없으면 `CommonOutboxConfiguration`이 지표 없이 만든다(`OutboxMetrics.disabled()`). Gateway 클래스패스 테스트는 그대로 통과한다. 주의: "마지막 성공"은 릴레이 스레드가 살아서 돈다는 신호일 뿐이다. Kafka가 죽어 전송이 실패해도 라운드는 정상으로 끝나므로 이 값은 계속 갱신된다. 브로커 장애와 발행 지연은 DB 집계(`PENDING` 최고령)로 본다. 서비스 구분은 이름이 아니라 공통 설정의 `application` 태그다. 이름과 해석은 [결제 관측 지표](../design/payment/observability.md)에 있다.
+- **처리 이력**: `ProcessedEventService.processOnce(eventId, consumerGroup, action)`가 기록과 업무를 한 트랜잭션으로 묶는다. 이미 처리했으면 업무를 실행하지 않는다.
+- **보관 정리**: `RetentionCleanup`(`messaging.retention`)이 `deleteSentOutbox(cutoff, batchSize)`(`SENT`이고 `sent_at < cutoff`만. `PENDING`·`FAILED`는 지우지 않는다)와 `deleteProcessedEvents(cutoff, batchSize)`를 준다. 호출 한 번이 배치 하나·트랜잭션 하나이고 지운 행 수를 돌려준다. **빈으로 자동 등록되지 않는다**(`CommonOutboxConfiguration`에 없다). 정리가 필요한 서비스가 `new RetentionCleanup(jdbc, transactionManager)`를 직접 빈으로 등록하고, 주기 실행(배치 반복, 사이 쉼, 상한)은 서비스의 작업 실행기에서 한다(결제의 `CleanupJobs`·`HousekeepingConfiguration`). 배치 트랜잭션 안에서 `pg_try_advisory_xact_lock`을 잡아 다른 인스턴스가 쥐고 있으면 0을 돌려주므로, 지운 수가 배치 크기보다 작으면 멈추면 된다. `outbox_events.sent_at`과 `processed_events.processed_at`에 인덱스가 있어야 한다(아래 DDL). 서비스 고유 테이블의 정리는 `deleteBatch(lockKey, sql, args...)`로 같은 방식을 쓰고, 잠금 키는 작업마다 달라야 한다. 쓰는 서비스는 보관 기간과 토픽 보관 기간을 비교하는 기동 검증을 직접 둔다(결제의 `HousekeepingProperties`).
+- **테스트**: 릴레이·처리 이력은 PostgreSQL 문법(`SKIP LOCKED`, `RETURNING`, `ON CONFLICT`)을 써서 `common`의 H2 테스트로는 검증하지 못한다. 쓰는 서비스의 PostgreSQL 통합 테스트로 확인한다(예: `payment-service`의 `messaging` 테스트).
+- **전제**: 키별 순서는 같은 키의 쓰기가 업무 행 잠금으로 줄을 서서 id 순서와 커밋 순서가 같다는 전제에 기댄다.
+
+표준 DDL(서비스 Flyway에 복사한다. 정본은 [결제 데이터 모델](../design/payment/data-model.md) 6·7절과 `payment-service`의 V1·V2·V5):
+
+```sql
+CREATE TABLE outbox_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id UUID NOT NULL UNIQUE,
+    topic VARCHAR(100) NOT NULL, message_key VARCHAR(100) NOT NULL, event_type VARCHAR(100) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(10) NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
+    attempts SMALLINT NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL, claimed_until TIMESTAMPTZ, last_error VARCHAR(500),
+    created_at TIMESTAMPTZ NOT NULL, sent_at TIMESTAMPTZ);
+CREATE INDEX idx_outbox_events_pending_next_attempt ON outbox_events (next_attempt_at, id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_events_pending_message_key ON outbox_events (message_key, id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_events_pending_id ON outbox_events (id) WHERE status = 'PENDING';
+CREATE INDEX idx_outbox_events_failed_message_key ON outbox_events (message_key, id) WHERE status = 'FAILED';
+CREATE INDEX idx_outbox_events_sent_at ON outbox_events (sent_at) WHERE status = 'SENT';
+CREATE TABLE processed_events (
+    event_id UUID NOT NULL, consumer_group VARCHAR(100) NOT NULL, processed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (event_id, consumer_group));
+CREATE INDEX idx_processed_events_processed_at ON processed_events (processed_at);
+```

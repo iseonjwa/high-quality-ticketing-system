@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.global;
 
 import com.iseonjwa.common.messaging.CommonMessagingConfiguration;
+import com.iseonjwa.common.messaging.CommonOutboxConfiguration;
 import com.iseonjwa.common.persistence.CommonJpaConfiguration;
 import com.iseonjwa.common.persistence.CurrentActorProvider;
 import com.iseonjwa.common.web.CommonWebConfiguration;
@@ -14,7 +15,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.Optional;
 
 @Configuration(proxyBeanMethods = false)
-@Import({CommonJpaConfiguration.class, CommonWebConfiguration.class, CommonMessagingConfiguration.class})
+@Import({CommonJpaConfiguration.class, CommonWebConfiguration.class, CommonMessagingConfiguration.class,
+        CommonOutboxConfiguration.class})
 public class ServiceConfiguration {
     @Bean
     CurrentActorProvider currentActorProvider() {

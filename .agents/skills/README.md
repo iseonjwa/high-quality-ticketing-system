@@ -14,4 +14,3 @@ Claude Code와 Codex가 함께 쓰는 스킬의 정본이다. 스킬마다 `<이
 - **머리말**: `name`(폴더 이름과 같게)과 `description`(언제 쓰는지, 예시 요청 포함)을 쓴다. 본문 절차는 어느 도구에서도 읽히게 쓴다.
 - **추가·수정·삭제는 PR에서 판단한다.** PR 본문에 이유를 쓴다.
 - **연결**: Codex는 이 폴더를 직접 읽는다. Claude Code는 `script/setup-agents.sh`를 실행하면 `.claude/skills/`에서 찾는다. 스킬을 바꾼 변경을 pull하면 다시 실행한다.
-- 이 구성은 같은 부트캠프의 `logistics-management` 저장소 문서화 체계를 옮겨 온 것이다. `ai-judgment`는 이 프로젝트에서 새로 만들었다.

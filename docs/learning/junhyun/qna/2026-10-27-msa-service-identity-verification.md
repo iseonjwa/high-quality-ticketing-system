@@ -15,7 +15,7 @@ tags: [msa, authentication, authorization, jwt, gateway, security]
 > D1: 서비스가 사용자 신원을 어떻게 믿게 할까요?
 > C. 서비스가 JWT 직접 검증: Authorization을 서비스까지 전달하고 서비스가 서명·exp·aud를 검증한다. X-User-* 헤더 신뢰를 없앤다. 이미 만든 TokenDecoders를 재사용해 구현량이 가장 적다.
 > B. Gateway가 서명한 내부 신원: Gateway가 짧은 내부 토큰을 붙이고 서비스가 검증한다. 내부 키와 토큰 형식이 추가로 생긴다.
-> 각각의 방식에 대해 설명해줘. 이전 프로젝트에서는 헤더를 떼고 user서비스에서 권한만 다시 받아와서 검증했었는데
+> 각각의 방식에 대해 설명해줘.
 
 후속 질문:
 
@@ -30,7 +30,6 @@ tags: [msa, authentication, authorization, jwt, gateway, security]
 ## 짧은 답
 
 C는 서비스가 User 발급 Access JWT를 검증하고, B는 Gateway 발급 내부 토큰을 검증한다. 둘 다 서명된 증거에서 사용자 신원을 얻는다.
-이전 물류 프로젝트는 Gateway에서 JWT를 검증하고 사용자 상태를 재조회한 뒤, 업무 서비스에 일반 헤더를 전달했다.
 신원 전달의 위조 방지와 최신 권한·탈퇴 상태 확인은 별개의 문제다. C나 B에 사용자 상태 재조회를 추가할 수 있다.
 첫 답변에서는 C와 비대칭 서명의 조합을 우선 제안했다. 후속 비교에서는 이중 검증이 필수 조건이 아니며, 현재 MVP의 내부 신뢰 범위와 운영 비용을 함께 선택해야 한다고 보완했다.
 사용자·팀의 설계 결정이나 구현 완료를 뜻하지 않는다.
@@ -82,25 +81,16 @@ Gateway가 내부 토큰의 발급자이므로 Gateway의 서명 권한이 침�
 내부 검증 키로 HMAC 비밀키를 공유하면 검증 서비스도 내부 토큰을 만들 수 있으므로, 이 경우에도 키의 신뢰 범위를 정해야 한다.
 수명이 짧아도 만료 전 탈취 토큰의 재사용이 자동으로 차단되지는 않는다.
 
-### 이전 물류 프로젝트의 실제 흐름
+### 사용자 상태 재조회와 신원 검증
 
-2026-10-27에 `/Users/alloy/Desktop/bootcamp/logistics-management`의 로컬 소스를 읽어 확인했다. 실행 환경에서의 동작은 이번에 검증하지 않았다.
-
-1. `UserHeaderSanitizingFilter`가 외부 요청의 `X-User-*` 헤더를 제거한다.
-2. Gateway의 Spring Security와 JWT decoder가 JWT 서명·만료·필수 claim을 검증한다.
-3. `UserVerifyingJwtConverter`가 검증된 JWT의 `sub`로 사용자를 조회한다. 저장된 역할과 JWT 역할을 비교하고, 조회되지 않거나 일치하지 않으면 거절한다.
-4. 사용자 조회는 `UserServiceClient`의 `/internal/users/{userId}` 호출을 사용한다. 캐시 종류는 설정에 따라 local 또는 Redis이며, `AuthProperties`의 기본 TTL은 60초다.
-5. `UserHeaderInjectionFilter`가 확인한 사용자 정보로 `X-User-*` 헤더를 다시 넣어 업무 서비스로 전달한다.
-
-따라서 JWT 인증 뒤에 사용자 상태 재확인을 더한 구조다. 단순히 클라이언트가 제출한 `userId`로 권한만 조회한 구조는 아니다.
-다만 Gateway와 업무 서비스 사이의 신원 전달은 일반 헤더이므로, 그 구간은 네트워크 격리 등으로 Gateway를 거치지 않은 요청을 막아야 한다.
+Gateway가 JWT 인증 뒤에 사용자 상태를 재확인하더라도, 업무 서비스에 일반 헤더로 신원을 전달하면 그 구간은 네트워크 격리 등으로 Gateway를 거치지 않은 요청을 막아야 한다.
 
 권한 재조회는 `X-User-Role`만 위조하는 공격과, 탈퇴·역할 변경 뒤에도 토큰이 남아 있는 문제에 대응한다.
 그러나 공격자가 `X-User-Id`를 관리자 ID로 바꾸어 서비스에 직접 도달할 수 있다면, 그 ID의 실제 역할을 조회해도 호출자가 그 관리자인지는 증명되지 않는다.
 조회할 사용자 ID는 검증한 토큰 또는 인증된 전달 경로에서 얻어야 한다.
 
 캐시된 조회는 TTL이나 무효화 정책만큼 변경 반영이 늦어질 수 있다. 캐시 미적중 시에는 User 서비스 통신 지연과 장애에 영향을 받는다.
-이전 프로젝트의 사용자 ID 기반 상태 조회를 표준 OAuth 토큰 introspection과 동일시하지 않는다. RFC 7662의 introspection은 토큰 자체를 전달해 활성 상태와 메타데이터를 조회하는 프로토콜이다.
+사용자 ID 기반 상태 조회를 표준 OAuth 토큰 introspection과 동일시하지 않는다. RFC 7662의 introspection은 토큰 자체를 전달해 활성 상태와 메타데이터를 조회하는 프로토콜이다.
 
 ### 두 질문은 독립적으로 결정한다
 
@@ -211,4 +201,3 @@ Gateway는 진입 정책·블랙리스트·요청 제한을 맡고, 서비스는
 - [NIST SP 800-204 4.1](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-204.pdf): Gateway의 인증 집중과 서비스 직접 연결을 막는 보완 통제, 서비스별 정책의 운영·성능 비용.
 - [RFC 7515 10.5](https://www.rfc-editor.org/rfc/rfc7515.html#section-10.5): 비대칭 서명과 공유키 MAC의 신뢰 범위 차이.
 - [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): Bearer 토큰은 보유자가 키를 증명하지 않고 사용할 수 있으므로 토큰 자체의 노출 방지도 필요하다.
-- 이전 물류 프로젝트 로컬 소스: `gateway-service/src/main/java/com/sparta/logistics/gateway/security/`의 `SecurityConfig`, `UserVerifyingJwtConverter`, `UserHeaderSanitizingFilter`, `UserHeaderInjectionFilter`, `UserServiceClient`, `AuthConfig`, `AuthProperties`.

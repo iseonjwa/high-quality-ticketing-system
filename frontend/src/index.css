@@ -1,0 +1,305 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
+/* Note: 다크 모드는 만들지 않는다(디자인 결정 9-4). 이 변형을 지우면 Tailwind 기본(OS 다크 모드)으로
+   바뀌어 shadcn 컴포넌트의 `dark:` 클래스가 켜진다. `.dark` 클래스를 어디에도 붙이지 않으므로 `dark:`는 적용되지 않는다. */
+@custom-variant dark (&:is(.dark *));
+
+/* 값의 정본은 docs/design/frontend/design-system.md 2절이고 샘플 화면과 같다. */
+:root {
+  --gray-0: #ffffff;
+  --gray-25: #fbfbfd;
+  --gray-50: #f4f5f8;
+  --gray-100: #e9ebf0;
+  --gray-200: #d7dae2;
+  --gray-300: #b9bdc9;
+  --gray-400: #8d92a3;
+  --gray-500: #676c7e;
+  --gray-600: #4d5263;
+  --gray-700: #373b4a;
+  --gray-800: #232631;
+  --gray-900: #14161e;
+
+  --primary-50: #eef0ff;
+  --primary-100: #dde1ff;
+  --primary-300: #a9b0ff;
+  --primary-500: #5b5bf0;
+  --primary-600: #3b3bd4;
+  --primary-700: #2f2fae;
+
+  --success-50: #e8f6ee;
+  --success-600: #1e7f4f;
+  --warning-50: #fff4e5;
+  --warning-500: #f59f00;
+  --warning-700: #9a5200;
+  --danger-50: #fdecee;
+  --danger-600: #d12b3a;
+  --info-50: #eaf2fd;
+  --info-600: #1f6fd1;
+
+  --seat-vip: #c2255c;
+  --seat-r: #d9480f;
+  --seat-s: #2b8a3e;
+  --seat-a: #1971c2;
+  --seat-selected: var(--gray-900);
+  --seat-unavailable: var(--gray-200);
+  --seat-lottery-line: #6e6ef0;
+  --seat-lottery-a: var(--primary-100);
+  --seat-lottery-b: var(--primary-50);
+
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+
+  /* shadcn 의미 변수 */
+  --background: var(--gray-25);
+  --foreground: var(--gray-700);
+  --card: var(--gray-0);
+  --card-foreground: var(--gray-700);
+  --popover: var(--gray-0);
+  --popover-foreground: var(--gray-700);
+  --primary: var(--primary-600);
+  --primary-foreground: #ffffff;
+  --secondary: var(--gray-50);
+  --secondary-foreground: var(--gray-900);
+  --muted: var(--gray-50);
+  --muted-foreground: var(--gray-500);
+  --accent: var(--primary-50);
+  --accent-foreground: var(--primary-700);
+  --destructive: var(--danger-600);
+  --border: var(--gray-100);
+  --input: var(--gray-200);
+  --ring: var(--primary-600);
+}
+
+@theme inline {
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Noto Sans KR', system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-gray-0: var(--gray-0);
+  --color-gray-25: var(--gray-25);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-300: var(--primary-300);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+
+  --color-success-50: var(--success-50);
+  --color-success-600: var(--success-600);
+  --color-warning-50: var(--warning-50);
+  --color-warning-500: var(--warning-500);
+  --color-warning-700: var(--warning-700);
+  --color-danger-50: var(--danger-50);
+  --color-danger-600: var(--danger-600);
+  --color-info-50: var(--info-50);
+  --color-info-600: var(--info-600);
+
+  --color-seat-vip: var(--seat-vip);
+  --color-seat-r: var(--seat-r);
+  --color-seat-s: var(--seat-s);
+  --color-seat-a: var(--seat-a);
+  --color-seat-selected: var(--seat-selected);
+  --color-seat-unavailable: var(--seat-unavailable);
+  --color-seat-lottery-line: var(--seat-lottery-line);
+  --color-seat-lottery-a: var(--seat-lottery-a);
+  --color-seat-lottery-b: var(--seat-lottery-b);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* xl 이상을 lg와 같게 둬 shadcn 컴포넌트가 설계(최대 14px)보다 둥글어지지 않게 한다 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+  --radius-2xl: 14px;
+  --radius-3xl: 14px;
+  --radius-4xl: 14px;
+  --radius-pill: 9999px;
+
+  --shadow-sm: 0 1px 2px rgba(20, 22, 30, 0.06);
+  --shadow-md: 0 4px 12px rgba(20, 22, 30, 0.08);
+  --shadow-lg: 0 12px 32px rgba(20, 22, 30, 0.18);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Note: 글자 토큰은 `text-*`가 아니라 `type-*`로 둔다. `cn`(클래스 합치기)이 `text-body` 같은 사용자 `text-` 토큰을
+   글자 색으로 보고, 함께 쓴 `text-primary-foreground` 같은 색 클래스를 지운다. 값은 design-system.md 2-2절이다. */
+@utility type-display {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+}
+@utility type-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+@utility type-heading {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+@utility type-body {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+@utility type-body-sm {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+@utility type-caption {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 16px;
+    line-height: 24px;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* 좌석(design-system.md 3절). 등급 색은 --c로 받는다. */
+@layer components {
+  .seat {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px 5px 3px 3px;
+    background: var(--c, var(--primary-600));
+    cursor: pointer;
+    transition:
+      transform var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast);
+  }
+  .seat:hover:not(:disabled) {
+    transform: scale(1.18);
+    box-shadow: var(--shadow-md);
+    z-index: 1;
+  }
+  .seat:focus-visible {
+    outline: 2px solid var(--primary-600);
+    outline-offset: 2px;
+  }
+  .seat[data-state='selected'] {
+    display: grid;
+    place-items: center;
+    background: var(--seat-selected);
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--primary-500);
+  }
+  .seat[data-state='selected']:focus-visible {
+    outline-offset: 5px;
+  }
+  .seat[data-state='unavailable'] {
+    background: var(--seat-unavailable);
+    cursor: not-allowed;
+  }
+  .seat[data-state='lottery'] {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--seat-lottery-a) 0 3px,
+      var(--seat-lottery-b) 3px 6px
+    );
+    box-shadow: inset 0 0 0 1px var(--seat-lottery-line);
+    cursor: not-allowed;
+  }
+  .seat[data-flashing] {
+    animation: seat-taken 1.6s var(--ease-out);
+  }
+  /* 샘플 .seat-map.is-locked: 입장 만료 뒤 좌석표 잠금 */
+  [data-slot='seat-map'][data-locked] .seat {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+}
+
+@keyframes seat-taken {
+  0%,
+  40% {
+    background: var(--danger-600);
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--danger-600);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* 깜빡임 대신 1.6초 동안 위험색 고리를 고정으로 보여 어느 좌석이 겹쳤는지 구분을 남긴다 */
+  .seat[data-flashing] {
+    box-shadow:
+      0 0 0 2px var(--gray-0),
+      0 0 0 4px var(--danger-600);
+  }
+}
+
+/* 시연 모드 요청 로그 패널(src/demo/RequestLogPanel.tsx)이 오른쪽을 차지하면 토스트를 패널을 뺀 앱 화면 가운데에 둔다.
+   패널은 640px 이상에서만 그려지고, 600px 이하에서는 sonner의 휴대폰 배치가 따로 있어 넓은 화면에만 건다.
+   Note: sonner는 실행 중에 같은 선택자로 CSS를 넣어서 순서로 이기지 못한다. `:root`를 붙여 우선순위를 높인다. */
+@media (min-width: 640px) {
+  :root [data-sonner-toaster][data-x-position='center'] {
+    left: calc(50% - var(--demo-panel-width, 0px) / 2);
+  }
+}

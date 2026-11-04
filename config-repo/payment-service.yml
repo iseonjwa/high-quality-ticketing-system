@@ -6,7 +6,76 @@ spring:
     username: ${DB_USER:iseonjwa}
     password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 5
+      # Note: SA 9-4의 서비스당 20. 연결 대기는 1초로 줄여 요청 스레드가 Gateway 3초 제한을 넘겨 기다리지 않게 한다
+      maximum-pool-size: 20
+      connection-timeout: 1000
+      # Note: 0.5초 넘게 쉰 연결을 빌려줄 때 하는 생존 검사의 시한. 기본값 5초면 DB가 멈췄을 때 검사만으로 Gateway 3초를 넘긴다.
+      # HikariCP 7은 이 값을 connection-timeout으로 줄여 주지 않으므로 직접 맞춘다
+      validation-timeout: 1000
+      data-source-properties:
+        # Note: 위 두 값은 연결을 빌릴 때만 걸린다. 이미 빌린 연결의 쿼리는 아래 두 값이 끊는다. 시한은 문장마다 걸리므로 DB가 멈추면
+        # 첫 문장에서 끊겨 PG 호출 전 구간이 Gateway 3초 안에 503으로 끝난다. 느린 문장이 여러 번 이어지면 합이 3초를 넘을 수 있다
+        # 소켓 시한(초): DB가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 못 오는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다
+        socketTimeout: 2
+        # 문장 시한(ms): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState 57014). 서버에서 끝나므로 잠금을 쥔 쿼리가 남지 않고 연결도 다시 쓴다
+        options: "-c statement_timeout=1500"
   kafka:
+    producer:
+      properties:
+        # Note: Outbox 릴레이가 브로커 확인을 기다리는 시간의 기준이다. 임대(30초)는 이 값의 2배 이상으로 둔다
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        # 메타데이터를 못 받을 때 send 호출이 막히는 시간. 릴레이의 실행 시한(12초) 안에 들어오게 짧게 둔다
+        max.block.ms: 2000
+        linger.ms: 0
     consumer:
       group-id: payment-service.bootstrap
+messaging:
+  outbox:
+    # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
+    batch-size: 20
+    lease: 30s
+    send-timeout: 12s
+payment:
+  token:
+    # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
+    secret: ${PAYMENT_TOKEN_SECRET:}
+  billing-key:
+    # 빌링키 암호화 키(AES-256-GCM, ADR 0042). 환경변수로만 주입하고 저장소에는 이름만 둔다
+    secret: ${BILLING_KEY_SECRET:}
+  ops:
+    # Ops 명령을 실행·승인할 수 있는 팀원 ID(docs/ai-judgments 아래 사람별 폴더 이름). 비밀값이 아니다.
+    # 이 ID는 --operator로 받는 자기 신고라 신원 증명이 아니다. 감사 기록의 정확성은 호스트의 SSH 접근 통제에 기댄다(ADR 0028 결정 7)
+    operators:
+      - hyoseung
+      - junhyun
+      - kangmin
+      - kwonwoo
+      - youngeun
+  pg:
+    protection:
+      # 값은 모두 [가정]이며 부하 측정 뒤 조정한다(pg-integration.md 5절, ADR 0018).
+      # 승인: 사용자가 기다리는 신규 승인. 복구: 조회·늦은 승인 방지·환불(복구 실행기 스레드 수와 같은 2)
+      approve:
+        max-concurrent-calls: 10
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        open-duration: 10s
+        half-open-permitted-calls: 3
+      recovery:
+        max-concurrent-calls: 2
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        open-duration: 10s
+        half-open-permitted-calls: 3
+    # 현재 어댑터는 mock뿐이다. toss는 M4에서 추가한다(ADR 0023)
+    provider: mock
+    mock:
+      base-url: ${MOCK_PG_URL:http://localhost:8090}
+  reconciliation:
+    reservation:
+      # 예매 내부 조회 API(ISE-75)가 생기면 켠다. API가 없는 채로 켜면 회차마다 RC-1~RC-6이 실패해 대사 정체 알림이 울린다.
+      # 켜면 RC-7·RC-8은 그대로 돌고 RC-1~RC-6이 더해진다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
+      enabled: false

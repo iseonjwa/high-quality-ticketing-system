@@ -1,0 +1,195 @@
+package com.iseonjwa.payment.payment.application;
+
+import com.iseonjwa.payment.observability.PaymentMetrics;
+import com.iseonjwa.payment.observability.PgOperation;
+import com.iseonjwa.payment.observability.TransitionOperation;
+import com.iseonjwa.payment.payment.domain.DeclineReason;
+import com.iseonjwa.payment.payment.domain.IdempotencyRecord;
+import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
+import com.iseonjwa.payment.payment.domain.Payment;
+import com.iseonjwa.payment.payment.domain.PaymentMethod;
+import com.iseonjwa.payment.payment.domain.PaymentRepository;
+import com.iseonjwa.payment.payment.domain.PaymentStatus;
+import com.iseonjwa.payment.payment.domain.StatusActor;
+import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.UnknownCause;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.util.UUID;
+
+/**
+ * 승인 요청의 트랜잭션 구간(TX1·TX2). 승인 흐름이 PG 호출을 트랜잭션 밖에 두려고 구간마다 따로 커밋하므로,
+ * 흐름을 맡은 {@link PaymentApprovalService}와 다른 빈으로 둔다(같은 빈 안에서 부르면 트랜잭션 프록시가 걸리지 않는다).
+ */
+@Component
+public class PaymentTx {
+    // UNKNOWN이 된 결제를 재확인 스케줄러가 처음 다시 조회하는 시점(SA 9-4의 첫 간격)
+    private static final Duration FIRST_RECHECK_DELAY = Duration.ofSeconds(10);
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentTx.class);
+
+    private final PaymentRepository payments;
+    private final IdempotencyRecordRepository idempotency;
+    private final PaymentTransitionService transitions;
+    private final PaymentNoGenerator paymentNos;
+    private final PaymentMetrics metrics;
+    private final ObjectMapper mapper;
+    private final Clock clock;
+
+    public PaymentTx(PaymentRepository payments, IdempotencyRecordRepository idempotency,
+            PaymentTransitionService transitions, PaymentNoGenerator paymentNos, PaymentMetrics metrics, ObjectMapper mapper,
+            @Qualifier("commonAuditingClock") Clock clock) {
+        this.payments = payments;
+        this.idempotency = idempotency;
+        this.transitions = transitions;
+        this.paymentNos = paymentNos;
+        this.metrics = metrics;
+        this.mapper = mapper;
+        this.clock = clock;
+    }
+
+    /**
+     * TX1: 결제 {@code REQUESTED}와 멱등 기록(ORIGIN)을 한 트랜잭션으로 저장한다.
+     * 같은 예매의 결제나 같은 키의 기록이 이미 있으면 유니크 위반(DataIntegrityViolationException)이고,
+     * 호출한 쪽이 이를 정상 흐름으로 보고 다시 조회한다(0017·0026).
+     *
+     * <p>Note: 설계 문서(api.md 7단계)는 멱등 기록을 먼저 쓰라고 하지만 {@code resource_id}가 NOT NULL이라
+     * 결제 ID를 알아야 해서 결제를 먼저 쓴다. 두 쓰기는 한 트랜잭션이고, 어느 쪽 위반이든 전체가 롤백돼 결과는 같다.
+     */
+    @Transactional
+    public Payment createRequested(ApprovePaymentCommand command, PaymentToken token, String requestHash) {
+        var now = clock.instant();
+        var payment = payments.save(Payment.request(paymentNos.next(), token.reservationId(), command.userId(),
+                token.amount(), PaymentMethod.CARD, UUID.randomUUID(), now));
+        idempotency.save(IdempotencyRecord.origin(command.userId(), command.idempotencyKey(), requestHash,
+                payment.getId(), now));
+        return payment;
+    }
+
+    /** 새 키를 기존 결제에 연결한다(ALIAS). 같은 키가 동시에 오면 한쪽만 저장되고 진 쪽은 false다(호출한 쪽이 다시 읽어 대조). */
+    @Transactional
+    public boolean linkAlias(ApprovePaymentCommand command, String requestHash, Payment existing) {
+        return idempotency.linkAlias(command.userId(), command.idempotencyKey(), requestHash, existing.getId(),
+                clock.instant());
+    }
+
+    /**
+     * TX2(승인): 금액·통화가 결제와 같으면 {@code APPROVED}, 다르면 {@code NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)}로
+     * 둔다(INV-3). 승인이면 이력·Outbox·멱등 응답을 같은 트랜잭션에 쓴다.
+     */
+    @Transactional
+    public PaymentOutcome settleApproved(Payment payment, ApprovePaymentCommand command, PgClient.Approved result) {
+        return outcomeAfterTransition(payment, command, applyApproved(payment, result));
+    }
+
+    /** TX2(거절). PG 호출 전 토큰 만료로 닫는 경우({@code TOKEN_EXPIRED})도 같은 경로다. */
+    @Transactional
+    public PaymentOutcome settleDeclined(Payment payment, ApprovePaymentCommand command, DeclineReason reason) {
+        var changed = transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM);
+        recordConflict(changed);
+        return outcomeAfterTransition(payment, command, changed);
+    }
+
+    /** TX2(결과 불확실). 재확인 스케줄러가 이어받도록 {@code UNKNOWN}으로 두고 202로 응답한다. */
+    @Transactional
+    public PaymentOutcome settleUnknown(Payment payment, ApprovePaymentCommand command, UnknownCause cause) {
+        return outcomeAfterTransition(payment, command, applyUnknown(payment, cause));
+    }
+
+    /**
+     * 자동결제 TX1(추첨, ISE-96): {@code method = BILLING} 결제를 {@code REQUESTED}로 저장한다. 사용자 멱등 키가 없어 멱등 기록은
+     * 남기지 않고, 같은 예매의 중복 요청은 {@code UNIQUE(reservation_id)} 위반으로 막는다(0026). 호출한 쪽이 다시 읽는다.
+     */
+    @Transactional
+    public Payment createBillingRequested(BillingPaymentCommand command) {
+        return payments.save(Payment.request(paymentNos.next(), command.reservationId(), command.userId(),
+                command.amount(), PaymentMethod.BILLING, UUID.randomUUID(), clock.instant()));
+    }
+
+    /** 자동결제 TX2. 승인 API와 같은 전이·이력·Outbox를 쓰고 멱등 응답만 저장하지 않는다. */
+    @Transactional
+    public Payment settleBillingApproved(Payment payment, PgClient.Approved result) {
+        applyApproved(payment, result);
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    @Transactional
+    public Payment settleBillingDeclined(Payment payment, DeclineReason reason) {
+        recordConflict(transitions.decline(payment.getId(), PaymentStatus.REQUESTED, reason, StatusActor.SYSTEM));
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    @Transactional
+    public Payment settleBillingUnknown(Payment payment, UnknownCause cause) {
+        applyUnknown(payment, cause);
+        return payments.findById(payment.getId()).orElseThrow();
+    }
+
+    private boolean applyApproved(Payment payment, PgClient.Approved result) {
+        boolean changed;
+        if (result.matches(payment.getAmount(), payment.getCurrency())) {
+            changed = transitions.approve(payment.getId(), PaymentStatus.REQUESTED, result.paymentRef().value(),
+                    result.amount(), result.approvedAt(), StatusActor.SYSTEM);
+        } else {
+            // 즉시 알림은 PaymentPgAmountMismatch 규칙(infra/prometheus/rules/payment-alerts.yml)이 낸다(INV-3, N16)
+            metrics.pgAmountMismatch(PgOperation.APPROVE);
+            log.error("event=PG_AMOUNT_MISMATCH paymentId={} expectedAmount={} pgAmount={} pgTxId={}", payment.getId(),
+                    payment.getAmount(), result.amount(), result.paymentRef().value());
+            changed = transitions.markAmountMismatch(payment.getId(), PaymentStatus.REQUESTED,
+                    result.paymentRef().value(), result.amount(), result.approvedAt(), StatusActor.SYSTEM);
+        }
+        recordConflict(changed);
+        if (!changed) warnIfApprovalNotRecorded(payment, result);
+        return changed;
+    }
+
+    private boolean applyUnknown(Payment payment, UnknownCause cause) {
+        var changed = transitions.markUnknown(payment.getId(), PaymentStatus.REQUESTED,
+                clock.instant().plus(FIRST_RECHECK_DELAY), cause.name(), StatusActor.SYSTEM);
+        recordConflict(changed);
+        return changed;
+    }
+
+    // 0행이면 다른 경로(재확인)가 먼저 상태를 바꾼 것이다. 정상 경합이므로 로그 없이 건수만 센다
+    private void recordConflict(boolean changed) {
+        if (!changed) metrics.transitionConflict(TransitionOperation.TX2);
+    }
+
+    // 다른 경로가 먼저 상태를 바꾼 사이 PG가 승인했고 TX2가 0행이 됐다. 0행이면 후속 쓰기를 하지 않는다는 규칙은 바꾸지 않는다.
+    // 재확인이 REQUESTED를 UNKNOWN으로 바꾼 경우는 재확인이 다음 간격에 PG를 조회해 APPROVED로 확정하므로 승인이 사라지지 않는다.
+    // 같은 승인이 이미 APPROVED로 기록됐으면 정상 경합이다. DECLINED는 PG가 늦은 승인 방지(Prevented)를 약속한 뒤에만 들어가고
+    // 그 뒤 도착한 승인은 PG가 ORDER_CANCELED로 거절하므로 여기까지 오지 않는다. 그 밖의 상태(다른 거래로 승인, 거절, 확인 필요)면
+    // 우리 기록과 PG가 어긋난 것이라 ERROR로 알린다(INV-8)
+    private void warnIfApprovalNotRecorded(Payment payment, PgClient.Approved result) {
+        var current = payments.findById(payment.getId()).orElseThrow();
+        var recordedSameApproval = current.getStatus() == PaymentStatus.APPROVED
+                && result.paymentRef().value().equals(current.getPgTxId());
+        if (recordedSameApproval) return;
+        if (current.getStatus() == PaymentStatus.UNKNOWN) {
+            log.warn("event=PG_APPROVED_RECHECK_PENDING paymentId={} pgTxId={} nextCheckAt={}", payment.getId(),
+                    result.paymentRef().value(), current.getNextCheckAt());
+            return;
+        }
+        log.error("event=PG_APPROVED_NOT_RECORDED paymentId={} pgTxId={} pgAmount={} currentStatus={}",
+                payment.getId(), result.paymentRef().value(), result.amount(), current.getStatus());
+    }
+
+    // 전이가 실제로 일어났을 때만 응답을 저장한다. 0행이면 다른 경로가 먼저 바꾼 것이라 현재 상태로 답한다(INV-5)
+    private PaymentOutcome outcomeAfterTransition(Payment payment, ApprovePaymentCommand command, boolean changed) {
+        var current = payments.findById(payment.getId()).orElseThrow();
+        var outcome = PaymentOutcome.of(current);
+        // 저장하는 응답은 200·202뿐이다. 확인 필요(409)는 저장하지 않는다(0017)
+        if (changed && !outcome.isError()) {
+            idempotency.saveResponse(command.userId(), command.idempotencyKey(), current.getId(),
+                    outcome.httpStatus(), mapper.writeValueAsString(outcome.data()));
+        }
+        return outcome;
+    }
+}

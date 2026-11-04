@@ -18,3 +18,36 @@
 | 0012 | [개발 도구와 검증을 Java·Gradle로 통일한다](0012-java-gradle-workspace-tools.md) | 채택 (브랜치 구현) | 2026-10-27 |
 | 0013 | [공통 모듈은 common 하나로 두고, 메시징만 만들 때 common-messaging으로 분리한다](0013-single-common-module.md) | 채택 (10/27 통합 회의. 메시징도 common에 두는 것으로 조정) | 2026-10-27 |
 | 0014 | [패키지 이름은 com.iseonjwa로 한다](0014-package-name-com-iseonjwa.md) | 채택 | 2026-10-27 |
+| 0015 | [대기열 입장 처리와 입장 토큰 발급의 안전장치](0015-queue-admission-guards.md) | 제안 (결정 4번의 토큰 응답 위치·쓰기 순서는 0031로 변경) | 2026-10-27 |
+| 0016 | [거절된 결제의 토큰 재사용은 Payment와 Reservation이 함께 막는다](0016-payment-declined-token-reuse.md) | 제안 (SA 변경 요청·반효승 협의 필요, 10/28 개정) | 2026-10-27 |
+| 0017 | [같은 멱등키 요청이 처리 중이면 202와 기존 paymentId를 돌려준다](0017-payment-idempotency-in-progress.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0018 | [신규 승인 시도만 PG 호출 허가를 TX1 앞에서 얻고, PG 호출 자원은 승인과 복구 두 그룹으로 나눈다](0018-payment-pg-permit-before-tx1.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0019 | [같은 예매에 다른 멱등키로 재요청하면 기존 결제로 응답하고 새 키는 별칭으로 기록한다](0019-payment-new-key-existing-payment.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0020 | [환불 요청은 DB에 영속화해 자동 환불 워커가 처리하고, DLQ에 온 요청도 같은 경로로 복구한다](0020-payment-refund-dlq-manual-check.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0021 | [결제 조회는 소유자 또는 ADMIN만 허용하고 타인 결제는 404로 숨긴다](0021-payment-object-level-authorization.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0022 | [Outbox는 지속 재시도하고, 실제로 바뀐 전이만 이벤트를 만들며, 정리는 미처리 건을 지우지 않는 배치로 한다](0022-outbox-retry-and-retention.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0023 | [PG 호출은 PgClient 포트와 PG 독립 결과 타입으로 나누고, 어댑터는 같은 계약 테스트를 통과한다](0023-payment-pg-client-port.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0024 | [결제는 핵심 지표와 대시보드 1장, 금전 정합성 알림을 MVP에 둔다](0024-payment-observability-metrics.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0025 | [결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다](0025-payment-token-secret-injection.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0026 | [결제 행은 예매당 하나인 논리적 결제로 두고 reservation_id 전체 UNIQUE로 강제한다](0026-payment-one-per-reservation.md) | 제안 (SA 변경 요청 필요, U9 결과에 따라 재검토) | 2026-10-28 |
+| 0027 | [예매 서비스는 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리한다](0027-reservation-payment-event-contract.md) | 채택 | 2026-10-28 |
+| 0028 | [운영자 복구는 감사되는 Ops 명령으로만 하고 상태를 바꾸는 직접 SQL을 금지한다](0028-payment-ops-commands.md) | 제안 (SA 변경 요청 필요) | 2026-10-28 |
+| 0029 | [결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다](0029-payment-reservation-reconciliation.md) | 제안 (예매 쪽 API 구현, 대사 작업 남음) | 2026-10-28 |
+| 0030 | [테이블 이름은 snake_case 복수형으로 통일한다](0030-table-naming-plural.md) | 제안 (팀 확인 필요, 결제 코드 적용은 ISE-67) | 2026-10-28 |
+| 0031 | [대기열 입장 토큰은 토큰 API에서만 발급하고 READY 상태를 둔다](0031-queue-token-api-and-ready-status.md) | 제안 (Gateway·프론트·좌석 선점 확인 필요) | 2026-10-29 |
+| 0032 | [좌석 선점 결과 응답에 seatIds를 포함하고 동기형 멱등 재요청 규칙을 고정한다](0032-seat-hold-result-and-idempotency-contract.md) | 채택 (11/1 통합 담당 확정, 예매 흐름 담당 확인 없이) | 2026-10-29 |
+| 0033 | [공연장 좌석의 열 번호(row_no)는 정수로 둔다](0033-venue-seat-row-no-int.md) | 제안 (좌석 응답 `row` 형식 변경, 좌석 선점 담당 확인 필요) | 2026-10-30 |
+| 0034 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0034-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
+| 0035 | [포트폴리오 트러블슈팅 검증을 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 M4 고도화 단계로 분리한다](0035-defer-seathold-concurrency-and-reconciliation-to-m4.md) | 채택 | 2026-10-30 |
+| 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
+| 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
+| 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
+| 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
+| 0040 | [프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다](0040-frontend-react-spa-in-monorepo.md) | 채택 (프론트 담당 결정, Notion 결정 #7을 저장소 기록으로 대체. 연결은 nginx 중계) | 2026-11-02 |
+| 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
+| 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |
+| 0043 | [Kafka 소비자·스케줄러 같은 입구는 presentation 계층에 둔다](0043-inbound-adapters-in-presentation.md) | 채택 (11/3 팀 회의, 이동은 ISE-166) | 2026-11-03 |
+| 0044 | [배포는 GitHub Actions가 이미지를 GHCR에 올리고, 별도 EC2의 Jenkins가 main 머지 때 배포 EC2에 반영한다](0044-deploy-actions-ghcr-jenkins.md) | 제안 (팀 공유 필요, AWS 계정·인스턴스 크기 미정) | 2026-11-03 |
+| 0045 | [로그는 Grafana Alloy로 모아 Loki에 두고 요청마다 한 줄을 남기며, Prometheus 알림은 Alertmanager로 팀 슬랙에 보낸다](0045-logs-loki-alerts-slack.md) | 제안 (팀 공유 필요, 공통 요청 로그는 contract 이슈 ISE-182) | 2026-11-03 |
+| 0046 | [부하 측정은 k6를 같은 리전의 임시 EC2에서 돌리고, 오픈 피크 전체 시나리오와 공통 측정 기반을 함께 만든다](0046-load-test-k6.md) | 제안 (팀 공유 필요, ISE-25 분담 확인) | 2026-11-03 |
+| 0047 | [배포는 EC2 한 대에 DB·캐시·브로커까지 띄워 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토한다](0047-single-ec2-first-managed-split-review.md) | 채택 (분리는 11/7~11/12 검토) | 2026-11-04 |
