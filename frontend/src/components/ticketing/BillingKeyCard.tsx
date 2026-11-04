@@ -1,15 +1,15 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { registerBillingKey, revokeBillingKey } from '@/api/billingKeys'
-import {
-  readBillingKeyRecord,
-  removeBillingKeyRecord,
-  saveBillingKeyRecord,
-  type BillingKeyRecord,
-} from '@/auth/billingKeyRecord'
+import { removeBillingKeyRecord, saveBillingKeyRecord } from '@/auth/billingKeyRecord'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
+import {
+  BILLING_KEY_CARD_ID,
+  notifyBillingKeyRecordChanged,
+  useBillingKeyRecord,
+} from '@/components/ticketing/useBillingKeyRecord'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,22 +24,6 @@ import {
 
 // 자동결제 카드(빌링키) 카드. 내 정보와 추첨 응모 화면에 둔다.
 // 서버에 보유 여부를 묻는 API가 없어 이 브라우저에서 등록한 기록(billingKeyRecord)으로 보인다.
-
-// 같은 화면의 다른 카드(내 정보·추첨)가 기록 변경을 바로 보도록 알린다
-const listeners = new Set<() => void>()
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-function notifyRecordChanged() {
-  listeners.forEach((listener) => listener())
-}
-
-function useBillingKeyRecord(userId: number): BillingKeyRecord | null {
-  // 문자열로 비교해야 렌더마다 새 객체로 다시 그리지 않는다
-  const raw = useSyncExternalStore(subscribe, () => JSON.stringify(readBillingKeyRecord(userId)))
-  return JSON.parse(raw) as BillingKeyRecord | null
-}
 
 // 시연 결제(Mock PG)에 보낼 인증 값. 실제 PG라면 결제창이 준다(ISE-125)
 function demoAuthKey(): string {
@@ -64,7 +48,7 @@ export function BillingKeyCard({
         cardLast4: key.cardLast4,
         registeredAt: new Date().toISOString(),
       })
-      notifyRecordChanged()
+      notifyBillingKeyRecordChanged()
       toast('자동결제 카드를 등록했어요')
     },
   })
@@ -72,7 +56,7 @@ export function BillingKeyCard({
     mutationFn: revokeBillingKey,
     onSuccess: ({ revoked }) => {
       removeBillingKeyRecord(userId)
-      notifyRecordChanged()
+      notifyBillingKeyRecordChanged()
       setConfirmOpen(false)
       toast(revoked ? '자동결제 카드를 해지했어요' : '등록된 카드가 없었어요')
     },
@@ -80,7 +64,12 @@ export function BillingKeyCard({
   const busy = register.isPending || revoke.isPending
 
   return (
-    <section aria-labelledby="billing-key-title">
+    <section
+      id={BILLING_KEY_CARD_ID}
+      tabIndex={-1}
+      aria-labelledby="billing-key-title"
+      className="scroll-mt-24 outline-none"
+    >
       <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Title id="billing-key-title" className="type-heading text-gray-900">
