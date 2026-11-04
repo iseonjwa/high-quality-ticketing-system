@@ -1,4 +1,5 @@
 import { http } from 'msw'
+import { isoDateTime } from '@/api/envelope'
 import { createSeats, mockDb, nextMockId, type MockUser } from '@/mocks/db'
 import { fail, ok, readBody, requireUser } from '@/mocks/respond'
 
@@ -31,9 +32,10 @@ function isIntegerInRange(value: unknown, min: number, max: number): value is nu
   return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
 }
 
-// Instant(ISO-8601) 문자열만 받는다. 시각 밀리초를 돌려주고, 아니면 null이다
+// Instant(ISO-8601) 문자열만 받는다. 서버(Jackson Instant)는 오프셋(Z, ±hh:mm)이 없는 값을 400으로 거절한다.
+// 시각 밀리초를 돌려주고, 아니면 null이다
 function parseInstant(value: unknown): number | null {
-  if (typeof value !== 'string') {
+  if (typeof value !== 'string' || !isoDateTime.safeParse(value).success) {
     return null
   }
   const millis = Date.parse(value)
@@ -55,9 +57,9 @@ export const adminHandlers = [
       return validationFailed('description', '문자열이어야 합니다')
     }
     const concertId = nextMockId()
-    // 서버(Concert.description)는 설명이 없으면 null로 저장한다. 공백만 있는 값도 비운 것으로 본다
+    // 서버(Concert.description)는 설명을 trim하지 않고 그대로 저장한다. 없음·빈 문자열만 null이다
     const storedDescription =
-      typeof description === 'string' && description.trim() !== '' ? description : null
+      typeof description === 'string' && description !== '' ? description : null
     mockDb.concerts.push({ concertId, title, description: storedDescription })
     return ok({ concertId }, { status: 201 })
   }),
@@ -85,16 +87,17 @@ export const adminHandlers = [
         return validationFailed(field, `1 이상 ${SMALLINT_MAX} 이하여야 합니다`)
       }
     }
-    if (openAtMillis >= startsAtMillis) {
-      return validationFailed('openAt', '오픈 시각은 공연 시작보다 앞서야 합니다')
-    }
 
+    // 서버는 공연·공연장 404를 먼저 보고, Schedule.create에서 오픈 순서를 검사한다
     const concert = mockDb.concerts.find(
       (candidate) => candidate.concertId === Number(params.concertId),
     )
     const venue = mockDb.venues.find((candidate) => candidate.venueId === venueId)
     if (concert === undefined || venue === undefined) {
       return fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')
+    }
+    if (openAtMillis >= startsAtMillis) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
     }
 
     const scheduleId = nextMockId()
@@ -147,7 +150,8 @@ export const adminHandlers = [
       venueGrades.length === priceByGrade.size &&
       venueGrades.every((grade) => priceByGrade.has(grade))
     if (!sameGrades) {
-      return validationFailed('prices', '가격 등급이 공연장 좌석의 등급과 달라요')
+      // 서버는 BusinessException이라 칸별 errors가 없다
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
     }
 
     let createdSeats = 0

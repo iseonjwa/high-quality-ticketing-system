@@ -57,14 +57,15 @@ describe('운영자 등록 API', () => {
     expect(await requests[0].text()).toBe(JSON.stringify({ title: '제목만' }))
   })
 
-  it('설명 없이 등록하면 공연 상세 description은 null이다', async () => {
+  it('설명을 비우면 description은 null이고 공백은 그대로 저장된다', async () => {
     await signInAsAdmin()
     const empty = await createConcert({ title: '설명 없음' })
     const blank = await createConcert({ title: '공백 설명', description: '   ' })
     const filled = await createConcert({ title: '설명 있음', description: '설명' })
 
     expect((await getConcert(empty.concertId)).description).toBeNull()
-    expect((await getConcert(blank.concertId)).description).toBeNull()
+    // 서버는 trim하지 않고 그대로 저장한다
+    expect((await getConcert(blank.concertId)).description).toBe('   ')
     expect((await getConcert(filled.concertId)).description).toBe('설명')
   })
 
@@ -84,6 +85,23 @@ describe('운영자 등록 API', () => {
     await expect(
       createSchedule(7, { venueId: 1, startsAt: OPEN_AT, openAt: STARTS_AT }),
     ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' })
+  })
+
+  it('회차: 오프셋 없는 시각은 400이고 오프셋이 있으면 받는다', async () => {
+    await signInAsAdmin()
+    await expect(
+      createSchedule(7, { venueId: 1, startsAt: '2099-12-20T19:00', openAt: OPEN_AT }),
+    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' })
+    await expect(
+      createSchedule(7, { venueId: 1, startsAt: '2099-12-20T10:00:00Z', openAt: OPEN_AT }),
+    ).resolves.toHaveProperty('scheduleId')
+  })
+
+  it('회차: 없는 공연이면 시각 순서가 틀려도 404가 먼저다', async () => {
+    await signInAsAdmin()
+    await expect(
+      createSchedule(9999, { venueId: 1, startsAt: OPEN_AT, openAt: STARTS_AT }),
+    ).rejects.toMatchObject({ status: 404 })
   })
 
   it('회차: 없는 공연이나 공연장은 404이다', async () => {
@@ -114,6 +132,10 @@ describe('운영자 등록 API', () => {
         { grade: 'R', price: 143000 },
       ]),
     ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' })
+    // 서버는 BusinessException이라 칸별 errors가 없다
+    await expect(
+      createScheduleSeats(scheduleId, [{ grade: 'VIP', price: 1 }]), // 등급 불일치
+    ).rejects.toMatchObject({ status: 400, fieldErrors: [] })
     await expect(
       createScheduleSeats(scheduleId, [...PRICES, { grade: 'LOTTERY', price: 1000 }]),
     ).rejects.toMatchObject({ status: 400 })
