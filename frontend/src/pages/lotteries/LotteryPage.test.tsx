@@ -211,8 +211,9 @@ describe('LotteryPage 단계 배지', () => {
     renderLottery(`/lotteries/${BEFORE_START}`)
 
     await screen.findByText('응모 시작 전')
+    // 안내는 내 응모 조회가 끝난 뒤 그리는 응모 폼에 있다. 추첨 정보보다 늦게 올 수 있어 기다린다(CI에서 실패)
     expect(
-      screen.getByText(`${timeText(lottery.entryStartAtMillis)}부터 응모할 수 있어요.`),
+      await screen.findByText(`${timeText(lottery.entryStartAtMillis)}부터 응모할 수 있어요.`),
     ).toBeInTheDocument()
     expect(await enterButton('1매 응모하기')).toBeDisabled()
 
