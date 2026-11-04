@@ -48,8 +48,23 @@ function positionOf(entry: QueueEntry) {
   }
 }
 
+// Gateway가 503에 Retry-After: 1을 준다(GatewayErrorWriter). 인증보다 앞에서 막으므로 요청마다 먼저 부른다
+function unavailableOnce() {
+  if (mockScenario().queue !== 'unavailable' || mockDb.queueUnavailableLeft <= 0) {
+    return null
+  }
+  mockDb.queueUnavailableLeft -= 1
+  return fail(503, 'SERVICE_UNAVAILABLE', '잠시 후 다시 시도해 주세요', {
+    headers: { 'Retry-After': '1' },
+  })
+}
+
 export const queueHandlers = [
   http.post('/api/v1/schedules/:scheduleId/queue', ({ request, params }) => {
+    const unavailable = unavailableOnce()
+    if (unavailable !== null) {
+      return unavailable
+    }
     const scheduleId = Number(params.scheduleId)
     const user = requireUser(request)
     const schedule = requireSchedule(scheduleId)
@@ -74,6 +89,10 @@ export const queueHandlers = [
   }),
 
   http.get('/api/v1/schedules/:scheduleId/queue/me', ({ request, params }) => {
+    const unavailable = unavailableOnce()
+    if (unavailable !== null) {
+      return unavailable
+    }
     const scheduleId = Number(params.scheduleId)
     const user = requireUser(request)
     const entry = currentEntry(scheduleId, user.userId)
@@ -85,6 +104,10 @@ export const queueHandlers = [
   }),
 
   http.post('/api/v1/schedules/:scheduleId/queue/token', ({ request, params }) => {
+    const unavailable = unavailableOnce()
+    if (unavailable !== null) {
+      return unavailable
+    }
     const scheduleId = Number(params.scheduleId)
     const user = requireUser(request)
     const entry = currentEntry(scheduleId, user.userId)
@@ -93,6 +116,11 @@ export const queueHandlers = [
     }
     if (entry.pollsUntilReady > 0) {
       return fail(409, 'QUEUE_NOT_READY', '아직 입장 차례가 아닙니다')
+    }
+    if (mockScenario().queue === 'expired' && !mockDb.queueExpiredUsed) {
+      mockDb.queueExpiredUsed = true
+      mockDb.queueEntries.delete(entryKey(scheduleId, user.userId))
+      return fail(404, 'QUEUE_NOT_JOINED', '대기열에 없습니다. 다시 진입해 주세요')
     }
 
     // 재발급은 같은 토큰을 준다(ADR 0031 결정 9)

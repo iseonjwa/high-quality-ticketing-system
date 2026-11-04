@@ -1,6 +1,6 @@
 # junhyun 학습 노트
 
-질문 노트는 `qna/YYYY-MM-DD-<slug>.md`, 하루 정리는 `daily/YYYY-MM-DD.md`에 쓴다. 최신이 위로 온다.
+질문 노트는 `qna/YYYY-MM-DD-<slug>.md`, 하루 정리는 `daily/YYYY-MM-DD.md`, 작업 범위 보고서(PDF)는 `reports/YYYY-MM-DD-<slug>.pdf`에 둔다. 최신이 위로 온다.
 
 ## 하루 정리
 
@@ -9,6 +9,12 @@
 | 2026-11-03 | [결제 운영 신뢰성을 끝낸 날: Outbox 재시도·DLQ·보관 정리, 지표와 알림, 감사되는 Ops 명령, 장애 시나리오 테스트](daily/2026-11-03.md) |
 | 2026-11-02 | [프론트를 세운 날: 서버 시각 보정, 토큰 보관과 재발급, Query 캐시, 빌드 상수 접기, 접근성, 되돌림 검사](daily/2026-11-02.md) |
 | 2026-10-23 | [프로젝트 첫날: SA 1차 범위, 서비스 경계, 교차 검토, 문서화 체계](daily/2026-10-23.md) |
+
+## 보고서
+
+| 날짜 | 보고서 | 범위 |
+|---|---|---|
+| 2026-11-03 | [결제 운영 신뢰성 작업 보고서 (PDF, 15쪽)](reports/2026-11-03-payment-ops-reliability.pdf) | ISE-40·41·42·44, PR 12개. 같은 날 [하루 정리](daily/2026-11-03.md)의 내용을 구조 그림 2장, 장애 시나리오 결과 표, 면접 답변으로 다시 묶었다 |
 
 ## 블로그 초안
 
@@ -20,6 +26,12 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | 배포 EC2 요금은 얼마이고, DB까지 한 인스턴스에 띄우는 설계인가 | [qna/2026-11-04-deploy-cost-and-single-host-db.md](qna/2026-11-04-deploy-cost-and-single-host-db.md) |
+| 2026-11-04 | GHCR(GitHub Container Registry)은 무엇이고 왜 쓰나 | [qna/2026-11-04-what-is-ghcr.md](qna/2026-11-04-what-is-ghcr.md) |
+| 2026-11-04 | Grafana Alloy는 무엇이고 왜 쓰나 | [qna/2026-11-04-grafana-alloy-what-is.md](qna/2026-11-04-grafana-alloy-what-is.md) |
+| 2026-11-04 | GitHub Actions로 배포 이미지를 만들어 GHCR에 올리는 워크플로는 어떻게 읽나 | [qna/2026-11-04-github-actions-ghcr-image-workflow.md](qna/2026-11-04-github-actions-ghcr-image-workflow.md) |
+| 2026-11-04 | 배포용 AWS 계정을 만든 뒤 무엇을 어떤 순서로 설정하나 | [qna/2026-11-04-aws-account-initial-setup.md](qna/2026-11-04-aws-account-initial-setup.md) |
+| 2026-11-04 | 배포·알림용 슬랙 채널을 만든 뒤 무엇을 설정해야 하나 | [qna/2026-11-04-slack-incoming-webhook-setup.md](qna/2026-11-04-slack-incoming-webhook-setup.md) |
 | 2026-11-02 | 실제 PG(토스페이먼츠)를 붙여도 Mock PG가 필요한가 | [qna/2026-11-02-mock-pg-with-real-pg.md](qna/2026-11-02-mock-pg-with-real-pg.md) |
 | 2026-11-02 | 토스페이먼츠 테스트 연동을 위해 미리 준비해 둘 것은 무엇인가 | [qna/2026-11-02-toss-payments-test-setup.md](qna/2026-11-02-toss-payments-test-setup.md) |
 | 2026-11-02 | Gateway는 왜 만료된 Access 토큰에 TOKEN_EXPIRED가 아니라 UNAUTHORIZED를 주는가 (보안상 숨긴 것인가) | [qna/2026-11-02-gateway-expired-token-error-code.md](qna/2026-11-02-gateway-expired-token-error-code.md) |

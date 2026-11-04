@@ -1,10 +1,6 @@
 package com.iseonjwa.reservation.queue.application;
 
-import com.iseonjwa.reservation.queue.domain.EnterOutcome;
-import com.iseonjwa.reservation.queue.domain.PositionOutcome;
-import com.iseonjwa.reservation.queue.domain.QueueRepository;
-import com.iseonjwa.reservation.queue.domain.ScheduleReader;
-import com.iseonjwa.reservation.queue.domain.ScheduleTimes;
+import com.iseonjwa.reservation.queue.domain.*;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -91,12 +87,17 @@ class QueueAdmissionServiceTest {
         }
 
         @Override
-        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
             throw new UnsupportedOperationException();
         }
     }

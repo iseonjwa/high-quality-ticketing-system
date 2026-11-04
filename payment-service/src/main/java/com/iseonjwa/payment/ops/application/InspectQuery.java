@@ -36,6 +36,7 @@ import java.util.Set;
 public class InspectQuery implements OpsQuery {
     public static final String NAME = "inspect";
     private static final String NONE = "-";
+    private static final int RECENT_RESOLVED_DAYS = 7;
 
     private final OpsInspectionRepository inspection;
     private final ObjectProvider<PgClient> pgClient;
@@ -98,8 +99,7 @@ public class InspectQuery implements OpsQuery {
         addOutbox(lines, outbox);
         addDeadLetters(lines, deadLetters);
         addManualActionLogs(lines, payment, refund, outbox, deadLetters);
-        // TODO(ISE-43): 대사 불일치(reconciliation_mismatches)는 테이블이 생기면 여기서 읽는다
-        lines.add("[대사 불일치] 아직 조회하지 않는다(대사 테이블 없음, ISE-43)");
+        addMismatches(lines, payment, reservationId != null ? reservationId : payment != null ? payment.reservationId() : null);
         if (arguments.flag("with-pg")) {
             addPgComparison(lines, payment, refund);
         }
@@ -170,6 +170,18 @@ public class InspectQuery implements OpsQuery {
             lines.add("  #" + log.id() + " " + log.performedAt() + " " + log.command() + " " + log.targetType() + " "
                     + log.targetId() + " " + log.result() + " " + or(log.fromStatus()) + " -> " + or(log.toStatus())
                     + " 실행자=" + log.operator() + " 승인자=" + or(log.approver()) + " 메모=" + log.reason());
+        }
+    }
+
+    private void addMismatches(List<String> lines, PaymentView payment, Long reservationId) {
+        var mismatches = inspection.findMismatches(payment == null ? null : payment.id(), reservationId,
+                RECENT_RESOLVED_DAYS);
+        lines.add("[대사 불일치] " + mismatches.size() + "건(OPEN과 최근 " + RECENT_RESOLVED_DAYS + "일 안에 닫힌 RESOLVED)");
+        for (var mismatch : mismatches) {
+            lines.add("  #" + mismatch.id() + " " + mismatch.rule() + " " + mismatch.status() + " 처음 발견="
+                    + mismatch.firstDetectedAt() + " 마지막 확인=" + mismatch.lastSeenAt() + " 닫힘="
+                    + or(mismatch.resolvedAt()));
+            lines.add("    상세: " + singleLine(mismatch.detail()));
         }
     }
 

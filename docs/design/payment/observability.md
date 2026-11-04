@@ -1,6 +1,6 @@
 # 결제 관측 지표와 알림
 
-Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보드 1장과 알림 규칙으로 본다. 결정과 근거는 [0024](../../decisions/0024-payment-observability-metrics.md)에 있다. 결제 지표는 "돈이 확정되지 않은 채 남은 건과 그 나이"를 먼저 본다(INV-4·INV-6, [invariants.md](invariants.md)). 아래 이름은 ISE-156에서 구현하고 `PrometheusMeterRegistry.scrape()`로 확인한 실제 이름이다(`PrometheusNamesTest`, `DbAggregateGaugesTest`). 대사(ISE-43) 지표는 아직 없다. Ops 명령 지표는 ISE-158에서 `payment_ops_actions`로 구현했다(아래).
+Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보드 1장과 알림 규칙으로 본다. 결정과 근거는 [0024](../../decisions/0024-payment-observability-metrics.md)에 있다. 결제 지표는 "돈이 확정되지 않은 채 남은 건과 그 나이"를 먼저 본다(INV-4·INV-6, [invariants.md](invariants.md)). 아래 이름은 ISE-156에서 구현하고 `PrometheusMeterRegistry.scrape()`로 확인한 실제 이름이다(`PrometheusNamesTest`, `DbAggregateGaugesTest`). 대사 지표 `reconciliation_mismatch_open`은 ISE-167에서 구현했다(규칙별 `OPEN` 건수, 8개 규칙을 0으로 미리 등록). Ops 명령 지표는 ISE-158에서 `payment_ops_actions`로 구현했다(아래).
 
 ## 1. 지표
 
@@ -24,8 +24,8 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | DLQ | `payment_dlq_handler_failures_total` | Counter | `topic` |
 | DLQ | `dead_letter_open_count`, `dead_letter_open_oldest_seconds` | Gauge | `topic`(원본 토픽) |
 | DLQ | 컨슈머 랙 | Kafka 클라이언트 제공 지표 | 그룹 |
-| 대사 | `reconciliation_mismatch_open` | Gauge | `rule`(RC-1~RC-8) — ISE-43 |
-| 작업 | `payment_job_last_success_timestamp`, `payment_job_failures_total` | Gauge(epoch 초), Counter | `job`(recheck·refund-worker·outbox-cleanup·processed-events-cleanup·idempotency-cleanup·gauge-refresh) |
+| 대사 | `reconciliation_mismatch_open` | Gauge | `rule`(RC-1~RC-8). `DbAggregateGauges`가 `gauge-refresh`마다 `OPEN` 건수를 세고 여덟 규칙을 늘 0으로 보인다(ISE-167, `DbAggregateGaugesTest`) |
+| 작업 | `payment_job_last_success_timestamp`, `payment_job_failures_total` | Gauge(epoch 초), Counter | `job`(recheck·refund-worker·outbox-cleanup·processed-events-cleanup·idempotency-cleanup·gauge-refresh·reconciliation) |
 | DB 연결 | Hikari 대기 수, 연결 대기 시간 초과 | 제공 지표 사용 | 풀 이름 |
 | Ops | `payment_ops_actions` | Gauge(누적 건수) | `command`, `result`(`APPLIED`·`REJECTED`) |
 
@@ -36,7 +36,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - 승인 결과별 건수는 별도 Counter(`payment_approve_total`)가 아니라 `payment_approve_seconds_count{outcome}`로 본다. `outcome`에 `unavailable`(승인 허가 거절 503)과 `error`(그 밖의 예외)를 더했다.
 - 이름이 `payment_approve_duration`·`payment_pg_call_duration`에서 `..._seconds_*`로 바뀌었다(Micrometer Timer의 Prometheus 이름).
 - 전이 충돌 이름이 `payment_transition_conflict_total`로 같고 `operation`의 `ops`는 Ops 명령 구현 이슈(ISE-159·160) 때 더한다. 이전 초안의 `dlq_handler_failures_total`은 `payment_dlq_handler_failures_total`이다.
-- `payment_job_*`의 `job` 값은 등록된 작업 이름이다(초안의 `outbox_relay`·`payment_recheck`·`refund_worker`·`cleanup`·`gauge_refresh`·`reconciliation`을 대체). Outbox 릴레이는 결제 공통 작업 실행기가 아니라 common의 전용 실행기라 `payment_job_*`가 아니라 `outbox_relay_*`로 따로 남긴다. `cleanup` 하나였던 값은 정리 작업 셋의 이름으로 나뉜다. `reconciliation`은 ISE-43에서 더한다.
+- `payment_job_*`의 `job` 값은 등록된 작업 이름이다(초안의 `outbox_relay`·`payment_recheck`·`refund_worker`·`cleanup`·`gauge_refresh`·`reconciliation`을 대체). Outbox 릴레이는 결제 공통 작업 실행기가 아니라 common의 전용 실행기라 `payment_job_*`가 아니라 `outbox_relay_*`로 따로 남긴다. `cleanup` 하나였던 값은 정리 작업 셋의 이름으로 나뉜다. `reconciliation`은 ISE-167에서 더했다.
 - PG 호출의 `operation`에 `approve_billing`·`issue_billing_key`를 더했다. 자동결제(빌링키)도 같은 PG 클라이언트를 지나므로 지표 구멍이 되지 않게 했다.
 - 건수 Gauge의 `_count` 접미사는 Prometheus 클라이언트가 거부하지 않아 목표 이름 그대로 쓴다(`payment_unknown_count` 등).
 - `resilience4j_*`의 정확한 이름 목록은 Resilience4j 2.3.0 `Tagged*Metrics`가 정한다. 직접 만들지 않았다.
@@ -71,7 +71,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 경고 | 환불 대기 장기 체류 | 최고령 > 30분(심각 2시간) | 같은 문서 5절 |
 | 경고 | PG Circuit Breaker OPEN | `pg-approve` 또는 `pg-recovery` OPEN | 같은 문서 5절 |
 | 경고 | Outbox 발행 지연 | `PENDING` 최고령 > 5분(심각 30분) | 같은 문서 4절 |
-| 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`job="gauge-refresh"` 1분, `job="recheck"`·`"refund-worker"` 2분, `reconciliation` 15분(ISE-43), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
+| 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`job="gauge-refresh"` 1분, `job="recheck"`·`"refund-worker"` 2분, `job="reconciliation"` 15분(ISE-167), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
 | 경고 | DB 연결 대기 초과 | Hikari 연결 대기 시간 초과 증가 | 같은 문서 7절 |
 
 - 즉시 확인은 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태다. 경고는 자동 복구가 아직 진행 중이지만 늦어지는 상태다.
@@ -79,11 +79,11 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - `REQUESTED` 60초 기준은 TX1이 `next_check_at`을 10초 뒤로 채우고 재확인이 그 시각에 집는다는 전제다. 넘으면 스케줄러 정지나 `next_check_at` 누락을 의심한다(CHECK 제약이 누락을 막는다).
 
 ### 구현 메모 (ISE-157, 알림)
-- **위치**: Prometheus 규칙 파일 `infra/prometheus/rules/payment-alerts.yml`(그룹 `payment-immediate` 7개, `payment-threshold` 14개). compose가 `infra/prometheus/rules`를 `/etc/prometheus/rules`에 마운트하고 `infra/prometheus.yml`·`prometheus-local.yml`의 `rule_files`가 `*.yml`을 읽는다. Grafana 알림이 아니라 Prometheus 규칙을 고른 이유는 규칙을 파일로 리뷰하고 `promtool`로 단위 테스트할 수 있어서다. 알림 전송(Alertmanager·메신저)은 두지 않았다. 지금은 Prometheus `/alerts`와 대시보드 맨 위 표(`ALERTS{service="payment"}`)로 본다.
+- **위치**: Prometheus 규칙 파일 `infra/prometheus/rules/payment-alerts.yml`(그룹 `payment-immediate` 8개, `payment-threshold` 14개). compose가 `infra/prometheus/rules`를 `/etc/prometheus/rules`에 마운트하고 `infra/prometheus.yml`·`prometheus-local.yml`의 `rule_files`가 `*.yml`을 읽는다. Grafana 알림이 아니라 Prometheus 규칙을 고른 이유는 규칙을 파일로 리뷰하고 `promtool`로 단위 테스트할 수 있어서다. Alertmanager가 이 알림을 슬랙 `#이선좌-성능-모니터링`으로 보낸다(ISE-179, [infra/observability.md](../infra/observability.md) 3절). Prometheus `/alerts`와 대시보드 맨 위 표(`ALERTS{service="payment"}`)로도 볼 수 있다.
 - **라벨**: 모든 규칙에 `service=payment`, `urgency`(immediate·threshold), `severity`(critical·warning)를 붙인다. 경고와 심각 기준이 둘인 항목(NMC 장기 미해결, 환불 대기, Outbox 지연)은 같은 이름의 규칙 두 개로 두고 `severity`만 다르다. 주석 `runbook`에 `manual-recovery.md`의 절을 적는다.
 - **식의 선택**: 건수는 DB 집계 Gauge가 0보다 큰지, 금액 불일치·DLQ 처리기 실패·DB 연결 시간 초과는 Counter가 5분 안에 늘었는지(`increase(...[5m]) > 0`, 늘지 않은 채 5분이 지나면 풀린다)를 본다. 작업 정체는 `time() - 마지막 성공 시각`을 작업별 기준과 비교한다. 모든 식은 `application="payment-service"`로 좁혀 다른 서비스의 같은 이름 지표를 보지 않는다.
 - **DLQ 그룹 랙**: Spring Kafka가 내보내는 `kafka_consumer_fetch_manager_records_lag_max`의 `client_id`가 `consumer-<그룹>-<번호>`라 `consumer-payment\.command-dlq-.*`로 DLQ 그룹만 고른다. 랙 > 0이 5분 지속(`for: 5m`)이면 울린다(compose에서 실제 이름과 라벨을 확인했다).
-- **알아 둘 점**: DB 집계 Gauge는 15초 주기 값이라 갱신이 멈추면 값이 굳는다. 그래서 `gauge-refresh` 정체 알림(1분)이 함께 있다. 결제 서비스가 내려가면 시계열이 사라져 건수 알림도 풀린다(서비스 다운 알림은 범위 밖). 대사 불일치 규칙은 ISE-43에서 더한다.
+- **알아 둘 점**: DB 집계 Gauge는 15초 주기 값이라 갱신이 멈추면 값이 굳는다. 그래서 `gauge-refresh` 정체 알림(1분)이 함께 있다. 결제 서비스가 내려가면 시계열이 사라져 건수 알림도 풀린다(서비스 다운 알림은 범위 밖). 대사 불일치 알림(`PaymentReconciliationMismatch`, 규칙별로 0보다 크면 즉시)은 ISE-167에서 더했다. 대사 한 회차가 길면 같은 실행기의 `gauge-refresh`가 밀려 그 정체 알림이 먼저 울릴 수 있다([events-and-reliability.md](events-and-reliability.md) 10절).
 - **테스트**: `infra/prometheus/tests/payment-alerts.test.yml`이 규칙마다 입력 시계열을 주고 울리는 시각·라벨·문구를 확인한다(기준값 경계, 다른 서비스 지표 무시, 경고·심각 동시 발화, Counter 알림의 해제 포함). 실행은 `script/check-prometheus-rules.sh`(compose와 같은 Prometheus 이미지로 `promtool check rules`·`test rules`)이고, 규칙 파일이 바뀌는 PR에서 `prometheus-rules` 워크플로가 같은 스크립트를 돌린다. 테스트 파일을 `rules/`에 두면 Prometheus가 `*.yml` 패턴으로 테스트 파일까지 규칙으로 읽어 기동에 실패한다(compose에서 실제로 겪었다). 그래서 `tests/`에 따로 둔다.
 
 ## 3. 대시보드 구성 (1장)
@@ -101,7 +101,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 ### 구현 메모 (ISE-157, 대시보드)
 - 맨 위에 "지금 울리는 결제 알림" 표(`ALERTS{service="payment"}`)를 두고, 그 아래 위 표의 다섯 줄을 그대로 둔다. 1줄은 숫자 칸(stat)이라 한눈에 0인지 본다. 최고령 칸은 경고(노랑)·심각(빨강) 기준을 알림 규칙과 같게 칠한다.
 - 승인 지연 p50·p95·p99는 `payment_approve_seconds_bucket`의 `histogram_quantile`이다. PG 호출 지연은 작업별 평균(`_sum / _count`)이다(PG 호출 Timer는 히스토그램을 켜지 않았다).
-- 대사 불일치 칸은 ISE-43에서 더한다. Ops 명령 실행 수는 5줄의 `payment_ops_actions{command,result}` 패널이다(ISE-158). DLQ 랙은 알림만 두고 패널은 DLQ OPEN·처리기 실패로 대신한다.
+- 대사 불일치 칸(규칙별 `OPEN` 건수, 1줄 "돈이 걸린 미해결" 아래 한 줄 전체 폭)은 ISE-167에서 더했다. Ops 명령 실행 수는 5줄의 `payment_ops_actions{command,result}` 패널이다(ISE-158). DLQ 랙은 알림만 두고 패널은 DLQ OPEN·처리기 실패로 대신한다.
 
 ## 4. 산출물 위치
 - 대시보드: `infra/grafana/dashboards/payment.json`(uid `iseonjwa-payment`, 제목 "결제"). Grafana 프로비저닝(`infra/grafana/provisioning/dashboards/default.yml`)이 기동 때 자동으로 올린다.

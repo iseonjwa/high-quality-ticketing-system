@@ -59,3 +59,7 @@ eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}:${random.uuid}
+iseonjwa:
+  request-log:
+    # 요청마다 한 줄(메서드·경로·상태·시간)을 남긴다(ISE-182). 부하 측정 때 로그 양을 줄이려면 false로 둔다.
+    enabled: true

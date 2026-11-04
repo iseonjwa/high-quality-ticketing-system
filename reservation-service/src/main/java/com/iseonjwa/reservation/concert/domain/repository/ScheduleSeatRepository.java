@@ -4,6 +4,7 @@ import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.global.vo.Money;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +35,12 @@ public interface ScheduleSeatRepository {
 
     // 추첨 배정(D10). 회차의 LOTTERY 좌석 중 AVAILABLE인 것만. 배정 워커가 당첨자 좌석을 고를 때 쓴다
     List<LotterySeatRow> findAvailableLotterySeats(Long scheduleId);
+
+    // 결제 승인(SA 8-3). HELD인 좌석만 SOLD로 바꾸고 바꾼 수를 돌려준다
+    int sellHeldSeats(Long scheduleId, List<Long> seatIds, Instant now);
+
+    // 결제 거절·승인 뒤 만료(SA 8-3). HELD인 좌석만 AVAILABLE로 되돌리고 되돌린 수를 돌려준다
+    int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now);
 
     record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
 }

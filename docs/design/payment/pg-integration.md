@@ -65,7 +65,7 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 - 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate`다. `tryAcquire`는 허가만 얻고(못 얻으면 빈 값) 호출한 쪽이 `callStarted`·`settle`·`close`를 맡으며, `execute`는 그 위에서 허가·호출·정산을 한 번에 묶는다. 허가를 못 얻으면 호출하지 않고 시도 횟수를 세지 않는다. 재확인 스케줄러는 `tryAcquire`로 "허가 먼저, claim 나중"을 지킨다([events-and-reliability.md](events-and-reliability.md) 6절). 설정은 `payment.pg.protection.{approve,recovery}.*`다. 복구 그룹의 호출자 중 재확인 스케줄러는 ISE-38에서, 환불 워커는 ISE-137에서 붙였다.
 - PG 호출은 트랜잭션 밖이고 TX1 커밋 뒤에 한다.
 
-시간 예산: 승인 요청 한 건은 TX1(연결 대기 1초 이내) + PG 최대 2.5초 + TX2(연결 대기 1초 이내)라 Gateway 응답 시한 3초를 넘을 수 있다. 넘으면 클라이언트는 504를 받고 서버는 처리를 계속한다. 같은 키 재시도로 결과를 받는다([api.md](api.md) 응답 절, N29).
+시간 예산: 승인 요청 한 건은 TX1(연결 대기 1초 이내) + PG 최대 2.5초 + TX2(연결 대기 1초 이내)라 Gateway 응답 시한 3초를 넘을 수 있다. 넘으면 클라이언트는 504를 받고 서버는 처리를 계속한다. 같은 키 재시도로 결과를 받는다([api.md](api.md) 응답 절, N29). PG 호출 전 구간(TX1까지)은 DB가 응답 없이 멈춰도 연결을 빌릴 때 1초(대기·생존 검사), 빌린 연결의 첫 문장에서 2초(소켓 시한) 안에 끝나 503으로 응답한다. DB가 멈추지 않고 느리기만 하면 문장마다 1.5초까지 걸려 3초를 넘을 수 있다([events-and-reliability.md](events-and-reliability.md) 7절 DB 시한). TX2 쪽은 위 설명 그대로다(3초를 넘으면 504, 같은 키 재시도).
 
 ## 6. 어댑터와 계약 테스트
 

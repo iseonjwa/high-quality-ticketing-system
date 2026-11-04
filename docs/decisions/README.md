@@ -30,9 +30,9 @@
 | 0024 | [결제는 핵심 지표와 대시보드 1장, 금전 정합성 알림을 MVP에 둔다](0024-payment-observability-metrics.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
 | 0025 | [결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다](0025-payment-token-secret-injection.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
 | 0026 | [결제 행은 예매당 하나인 논리적 결제로 두고 reservation_id 전체 UNIQUE로 강제한다](0026-payment-one-per-reservation.md) | 제안 (SA 변경 요청 필요, U9 결과에 따라 재검토) | 2026-10-28 |
-| 0027 | [예매 서비스는 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리한다](0027-reservation-payment-event-contract.md) | 제안 (반효승 협의·SA 변경 요청 필요) | 2026-10-28 |
+| 0027 | [예매 서비스는 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리한다](0027-reservation-payment-event-contract.md) | 채택 | 2026-10-28 |
 | 0028 | [운영자 복구는 감사되는 Ops 명령으로만 하고 상태를 바꾸는 직접 SQL을 금지한다](0028-payment-ops-commands.md) | 제안 (SA 변경 요청 필요) | 2026-10-28 |
-| 0029 | [결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다](0029-payment-reservation-reconciliation.md) | 제안 (반효승 협의·SA 변경 요청 필요) | 2026-10-28 |
+| 0029 | [결제·예매 대사는 결제 서비스가 예매 서비스의 내부 조회 API로 하고, MVP는 기록과 알림만 한다](0029-payment-reservation-reconciliation.md) | 제안 (예매 쪽 API 구현, 대사 작업 남음) | 2026-10-28 |
 | 0030 | [테이블 이름은 snake_case 복수형으로 통일한다](0030-table-naming-plural.md) | 제안 (팀 확인 필요, 결제 코드 적용은 ISE-67) | 2026-10-28 |
 | 0031 | [대기열 입장 토큰은 토큰 API에서만 발급하고 READY 상태를 둔다](0031-queue-token-api-and-ready-status.md) | 제안 (Gateway·프론트·좌석 선점 확인 필요) | 2026-10-29 |
 | 0032 | [좌석 선점 결과 응답에 seatIds를 포함하고 동기형 멱등 재요청 규칙을 고정한다](0032-seat-hold-result-and-idempotency-contract.md) | 채택 (11/1 통합 담당 확정, 예매 흐름 담당 확인 없이) | 2026-10-29 |
@@ -47,3 +47,7 @@
 | 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
 | 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |
 | 0043 | [Kafka 소비자·스케줄러 같은 입구는 presentation 계층에 둔다](0043-inbound-adapters-in-presentation.md) | 채택 (11/3 팀 회의, 이동은 ISE-166) | 2026-11-03 |
+| 0044 | [배포는 GitHub Actions가 이미지를 GHCR에 올리고, 별도 EC2의 Jenkins가 main 머지 때 배포 EC2에 반영한다](0044-deploy-actions-ghcr-jenkins.md) | 제안 (팀 공유 필요, AWS 계정·인스턴스 크기 미정) | 2026-11-03 |
+| 0045 | [로그는 Grafana Alloy로 모아 Loki에 두고 요청마다 한 줄을 남기며, Prometheus 알림은 Alertmanager로 팀 슬랙에 보낸다](0045-logs-loki-alerts-slack.md) | 제안 (팀 공유 필요, 공통 요청 로그는 contract 이슈 ISE-182) | 2026-11-03 |
+| 0046 | [부하 측정은 k6를 같은 리전의 임시 EC2에서 돌리고, 오픈 피크 전체 시나리오와 공통 측정 기반을 함께 만든다](0046-load-test-k6.md) | 제안 (팀 공유 필요, ISE-25 분담 확인) | 2026-11-03 |
+| 0047 | [배포는 EC2 한 대에 DB·캐시·브로커까지 띄워 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토한다](0047-single-ec2-first-managed-split-review.md) | 채택 (분리는 11/7~11/12 검토) | 2026-11-04 |

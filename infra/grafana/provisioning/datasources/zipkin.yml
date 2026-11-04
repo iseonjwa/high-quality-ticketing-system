@@ -1,0 +1,7 @@
+apiVersion: 1
+datasources:
+  - name: Zipkin
+    uid: zipkin
+    type: zipkin
+    access: proxy
+    url: http://zipkin:9411

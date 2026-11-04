@@ -29,29 +29,86 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "운영자 확인이 필요한 결제가 1건 있다(NEEDS_MANUAL_CHECK)"
+              summary: "확인이 필요한 결제가 1건 있습니다(NEEDS_MANUAL_CHECK). 운영자 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 2절"
       - eval_time: 45s
         alertname: RefundNeedsManualCheck
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "운영자 확인이 필요한 환불이 2건 있다(NEEDS_MANUAL_CHECK)"
+              summary: "확인이 필요한 환불이 2건 있습니다(NEEDS_MANUAL_CHECK). 운영자 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 2절"
       - eval_time: 15s
         alertname: PaymentOutboxFailed
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "영구 오류로 멈춘 Outbox 이벤트가 1건 있다(FAILED). 같은 키의 뒤 이벤트도 멈춘다"
+              summary: "영구 오류로 멈춘 Outbox 이벤트가 1건 있습니다(FAILED). 같은 키의 뒤 이벤트도 멈추므로 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 4절"
       - eval_time: 45s
         alertname: PaymentDeadLetterOpen
         exp_alerts:
           - exp_labels: {application: payment-service, topic: payment.command, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "처리하지 못한 DLQ 메시지가 1건 있다(dead_letters OPEN, topic=payment.command)"
+              summary: "처리하지 못한 DLQ 메시지가 1건 있습니다(dead_letters OPEN, topic=payment.command). 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 3절"
+
+  # 대사 불일치는 규칙마다 따로 울린다. 0이면 조용하고, 다른 서비스의 같은 이름 지표는 보지 않는다
+  - interval: 15s
+    input_series:
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7"}'
+        values: '0 0 1 1 0'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-8"}'
+        values: '0 0 0 3 3'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-1"}'
+        values: '0 0 0 0 0'
+      - series: 'reconciliation_mismatch_open{application="other-service", rule="RC-7"}'
+        values: '9 9 9 9 9'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts: []
+      - eval_time: 30s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 1건 있습니다(규칙 RC-7, OPEN). 확인이 필요합니다"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+      - eval_time: 45s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 1건 있습니다(규칙 RC-7, OPEN). 확인이 필요합니다"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+          - exp_labels: {application: payment-service, rule: RC-8, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 3건 있습니다(규칙 RC-8, OPEN). 확인이 필요합니다"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+      - eval_time: 60s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-8, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 3건 있습니다(규칙 RC-8, OPEN). 확인이 필요합니다"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
+
+  # 인스턴스가 둘이고 같은 값을 내도(DB 집계 Gauge) 건수가 두 배가 되지 않는다
+  - interval: 15s
+    input_series:
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7", instance="a"}'
+        values: '2 2'
+      - series: 'reconciliation_mismatch_open{application="payment-service", rule="RC-7", instance="b"}'
+        values: '2 2'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: PaymentReconciliationMismatch
+        exp_alerts:
+          - exp_labels: {application: payment-service, rule: RC-7, service: payment, urgency: immediate, severity: critical}
+            exp_annotations:
+              summary: "결제·예매 대사 불일치가 2건 있습니다(규칙 RC-7, OPEN). 확인이 필요합니다"
+              runbook: "docs/design/payment/manual-recovery.md 6절"
 
   # 카운터 알림은 5분 안에 늘어난 적이 있으면 울리고, 늘지 않은 채 5분이 지나면 풀린다
   - interval: 1m
@@ -71,7 +128,7 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, operation: approve, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "PG가 응답한 금액·통화가 결제·환불과 다르다(operation=approve)"
+              summary: "PG가 응답한 금액·통화가 결제·환불 금액과 다릅니다(operation=approve). 바로 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 2절"
       - eval_time: 9m
         alertname: PaymentPgAmountMismatch
@@ -81,14 +138,14 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, topic: payment.command.dlq, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "DLQ 처리기가 실패하고 있다(topic=payment.command.dlq). 오프셋을 넘기지 않고 다시 시도하는 중이다"
+              summary: "DLQ 처리기가 실패하고 있습니다(topic=payment.command.dlq). 오프셋을 넘기지 않고 다시 시도하는 중입니다"
               runbook: "docs/design/payment/manual-recovery.md 3절"
       - eval_time: 5m
         alertname: PaymentDbConnectionTimeout
         exp_alerts:
           - exp_labels: {application: payment-service, pool: HikariPool-1, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "결제 DB 연결을 기다리다 시간 초과가 났다(pool=HikariPool-1)"
+              summary: "결제 DB 연결 Timeout이 났습니다(pool=HikariPool-1). 이 시간의 결제 요청이 503으로 실패했을 수 있어 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 7절"
 
   # DLQ 그룹 랙은 5분 지속돼야 울린다. 일반 소비 그룹의 랙은 보지 않는다
@@ -107,7 +164,7 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: immediate, severity: critical}
             exp_annotations:
-              summary: "DLQ 처리기가 5분 넘게 밀려 있다(랙 2)"
+              summary: "DLQ 처리기가 5분 넘게 밀려 있습니다(랙 2)"
               runbook: "docs/design/payment/manual-recovery.md 3절"
       - eval_time: 8m
         alertname: PaymentDlqConsumerLag
@@ -135,18 +192,18 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있다(최고령 6m 40s). 브로커 상태를 본다"
+              summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있습니다(가장 오래된 건 6m 40s 경과). 브로커 상태 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 4절"
       - eval_time: 3m
         alertname: PaymentOutboxDelayed
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있다(최고령 33m 20s). 브로커 상태를 본다"
+              summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있습니다(가장 오래된 건 33m 20s 경과). 브로커 상태 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 4절"
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: critical}
             exp_annotations:
-              summary: "발행되지 않은 Outbox 이벤트가 30분 넘게 남아 있다(최고령 33m 20s)"
+              summary: "발행되지 않은 Outbox 이벤트가 30분 넘게 남아 있습니다(가장 오래된 건 33m 20s 경과). 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 4절"
       # 30분과 같으면 아직 울리지 않는다(초과일 때만)
       - eval_time: 1m
@@ -157,11 +214,11 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "환불 대기가 30분 넘게 남아 있다(최고령 2h 1m 40s)"
+              summary: "환불 대기가 30분 넘게 남아 있습니다(가장 오래된 건 2h 1m 40s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 5절"
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: critical}
             exp_annotations:
-              summary: "환불 대기가 2시간 넘게 남아 있다(최고령 2h 1m 40s)"
+              summary: "환불 대기가 2시간 넘게 남아 있습니다(가장 오래된 건 2h 1m 40s 경과). 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 5절"
       - eval_time: 1m
         alertname: PaymentManualCheckAging
@@ -171,11 +228,11 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "운영자 확인 결제가 30분 넘게 남아 있다(최고령 1d 1h 0m 0s)"
+              summary: "운영자 확인 결제가 30분 넘게 처리되지 않았습니다(가장 오래된 건 1d 1h 0m 0s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 2절"
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: critical}
             exp_annotations:
-              summary: "운영자 확인 결제가 24시간 넘게 남아 있다(최고령 1d 1h 0m 0s)"
+              summary: "운영자 확인 결제가 24시간 넘게 처리되지 않았습니다(가장 오래된 건 1d 1h 0m 0s 경과). 바로 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 2절"
       - eval_time: 1m
         alertname: PaymentRequestedStuck
@@ -185,7 +242,7 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "재확인이 집지 못한 REQUESTED 결제가 있다(최고령 1m 30s). 재확인 스케줄러를 본다"
+              summary: "재확인 작업이 집지 못한 REQUESTED 결제가 있습니다(가장 오래된 건 1m 30s 경과). 재확인 스케줄러 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 5절"
       - eval_time: 1m
         alertname: PaymentUnknownAging
@@ -195,7 +252,7 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "결과를 모르는 UNKNOWN 결제가 5분 넘게 남아 있다(최고령 5m 1s)"
+              summary: "결과를 모르는 UNKNOWN 결제가 5분 넘게 남아 있습니다(가장 오래된 건 5m 1s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 5절"
 
   # 작업 정체는 작업마다 기준 시간이 다르다. 마지막 성공 시각이 0(테스트 시작)에 멈춰 있다
@@ -218,18 +275,18 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, job: gauge-refresh, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "결제 배경 작업 gauge-refresh이 기준 시간 넘게 성공하지 못했다(마지막 성공 뒤 2m 0s)"
+              summary: "결제 배경 작업 gauge-refresh이 기준 시간 넘게 성공하지 못했습니다(마지막 성공 뒤 2m 0s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 7절"
       - eval_time: 3m
         alertname: PaymentJobStalled
         exp_alerts:
           - exp_labels: {application: payment-service, job: gauge-refresh, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "결제 배경 작업 gauge-refresh이 기준 시간 넘게 성공하지 못했다(마지막 성공 뒤 3m 0s)"
+              summary: "결제 배경 작업 gauge-refresh이 기준 시간 넘게 성공하지 못했습니다(마지막 성공 뒤 3m 0s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 7절"
           - exp_labels: {application: payment-service, job: recheck, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "결제 배경 작업 recheck이 기준 시간 넘게 성공하지 못했다(마지막 성공 뒤 3m 0s)"
+              summary: "결제 배경 작업 recheck이 기준 시간 넘게 성공하지 못했습니다(마지막 성공 뒤 3m 0s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 7절"
       - eval_time: 2m
         alertname: PaymentOutboxRelayStalled
@@ -239,8 +296,34 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "Outbox 릴레이가 1분 넘게 한 바퀴도 돌지 못했다(마지막 성공 뒤 2m 0s)"
+              summary: "Outbox 릴레이가 1분 넘게 한 바퀴도 돌지 못했습니다(마지막 성공 뒤 2m 0s 경과)"
               runbook: "docs/design/payment/manual-recovery.md 4절"
+
+  # 대사 작업은 마지막 성공 뒤 15분(900초)을 넘겨야 울린다. 정확히 900초는 울리지 않는다
+  - interval: 5m
+    input_series:
+      - series: 'payment_job_last_success_timestamp{application="payment-service", job="reconciliation"}'
+        values: '0x4'
+      # 다른 서비스의 같은 이름 지표는 보지 않는다
+      - series: 'payment_job_last_success_timestamp{application="other-service", job="reconciliation"}'
+        values: '0x4'
+      # 계속 성공하는 작업은 울리지 않는다
+      - series: 'payment_job_last_success_timestamp{application="payment-service", job="recheck"}'
+        values: '0 300 600 900 1200'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PaymentJobStalled
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: PaymentJobStalled
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PaymentJobStalled
+        exp_alerts:
+          - exp_labels: {application: payment-service, job: reconciliation, service: payment, urgency: threshold, severity: warning}
+            exp_annotations:
+              summary: "결제 배경 작업 reconciliation이 기준 시간 넘게 성공하지 못했습니다(마지막 성공 뒤 20m 0s 경과)"
+              runbook: "docs/design/payment/manual-recovery.md 7절"
 
   # Circuit Breaker는 열린 상태 시계열이 1이면 울린다
   - interval: 1m
@@ -260,5 +343,5 @@ tests:
         exp_alerts:
           - exp_labels: {application: payment-service, name: pg-approve, state: open, service: payment, urgency: threshold, severity: warning}
             exp_annotations:
-              summary: "PG 호출 그룹 pg-approve의 Circuit Breaker가 열렸다"
+              summary: "PG 호출 그룹 pg-approve의 Circuit Breaker가 열렸습니다. PG 장애 여부 확인이 필요합니다"
               runbook: "docs/design/payment/manual-recovery.md 5절"

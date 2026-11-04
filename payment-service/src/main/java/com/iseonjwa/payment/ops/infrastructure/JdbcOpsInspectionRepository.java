@@ -140,6 +140,32 @@ public class JdbcOpsInspectionRepository implements OpsInspectionRepository {
         conditions.add("(target_type = '" + type + "' AND target_id IN (" + list + "))");
     }
 
+    @Override
+    public List<MismatchView> findMismatches(Long paymentId, Long reservationId, int recentResolvedDays) {
+        var targets = new ArrayList<String>();
+        var args = new ArrayList<Object>();
+        if (paymentId != null) {
+            targets.add("payment_id = ?");
+            args.add(paymentId);
+        }
+        if (reservationId != null) {
+            targets.add("reservation_id = ?");
+            args.add(reservationId);
+        }
+        if (targets.isEmpty()) return List.of();
+        args.add(recentResolvedDays);
+        return jdbc.query("""
+                SELECT id, rule, reservation_id, payment_id, status, detail::text AS detail, first_detected_at,
+                       last_seen_at, resolved_at
+                FROM reconciliation_mismatches
+                WHERE (%s) AND (status = 'OPEN' OR resolved_at >= now() - make_interval(days => ?))
+                ORDER BY id
+                """.formatted(String.join(" OR ", targets)), (rs, row) -> new MismatchView(rs.getLong("id"),
+                rs.getString("rule"), (Long) rs.getObject("reservation_id"), (Long) rs.getObject("payment_id"),
+                rs.getString("status"), rs.getString("detail"), instant(rs, "first_detected_at"),
+                instant(rs, "last_seen_at"), instant(rs, "resolved_at")), args.toArray());
+    }
+
     private static final String OUTBOX = """
             SELECT id, event_id, topic, message_key, event_type, status, attempts, next_attempt_at, last_error,
                    created_at, sent_at

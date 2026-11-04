@@ -4,6 +4,7 @@ import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.reservation.queue.application.QueueEnterResult;
 import com.iseonjwa.reservation.queue.application.QueuePositionResult;
 import com.iseonjwa.reservation.queue.application.QueueService;
+import com.iseonjwa.reservation.queue.application.QueueTokenResult;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +49,17 @@ public class QueueController {
                 200,
                 "대기 상태를 조회했습니다",
                 queuePositionResult,
+                MDC.get("traceId")));
+    }
+
+    @PostMapping("/token")
+    public ResponseEntity<SuccessResponse<QueueTokenResult>> issueToken(@PathVariable Long scheduleId,
+                                                         @RequestAttribute Long currentUserId) {
+        QueueTokenResult queueTokenResult = queueService.issueToken(scheduleId, currentUserId);
+        return ResponseEntity.ok(SuccessResponse.of(
+                200,
+                "입장 토큰을 발급했습니다",
+                queueTokenResult,
                 MDC.get("traceId")));
     }
 }

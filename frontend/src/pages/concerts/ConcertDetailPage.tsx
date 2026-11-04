@@ -3,7 +3,12 @@ import { ChevronLeft } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
-import { concertQueryKeys, getConcert, type ScheduleSummary } from '@/api/concerts'
+import {
+  concertQueryKeys,
+  getConcert,
+  type ConcertDetail,
+  type ScheduleSummary,
+} from '@/api/concerts'
 import { paths, queuePath } from '@/app/paths'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { Countdown } from '@/components/ticketing/Countdown'
@@ -15,19 +20,12 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/lib/format'
 import { saleStatusAt } from '@/lib/saleStatus'
+import { readRouteId } from '@/lib/routeId'
 import { createServerClock, type ServerClock } from '@/lib/serverClock'
-
-// `0x10`, `1e3`처럼 Number가 받아 주는 다른 표기와 안전 범위를 넘는 수는 없는 공연으로 본다
-function readConcertId(value: string | undefined): number | null {
-  if (value === undefined || !/^\d+$/.test(value)) {
-    return null
-  }
-  const id = Number(value)
-  return Number.isSafeInteger(id) && id > 0 ? id : null
-}
+import { queueNavigationState } from '@/pages/queue/queueNavigation'
 
 export function ConcertDetailPage() {
-  const concertId = readConcertId(useParams().concertId)
+  const concertId = readRouteId(useParams().concertId)
   const concert = useQuery({
     queryKey: concertQueryKeys.detail(concertId ?? 0),
     queryFn: () => getConcert(concertId ?? 0),
@@ -89,7 +87,7 @@ export function ConcertDetailPage() {
               <ul className="grid gap-3">
                 {concert.data.schedules.map((schedule) => (
                   <li key={schedule.scheduleId}>
-                    <ScheduleCard schedule={schedule} clock={clock} />
+                    <ScheduleCard concert={concert.data} schedule={schedule} clock={clock} />
                   </li>
                 ))}
               </ul>
@@ -105,14 +103,22 @@ export function ConcertDetailPage() {
 // 오픈 전이면 카운트다운이 0이 되는 순간 onComplete로 다시 그려 [예매하기]를 켠다. 같은 0을 보는 카운트다운이
 // 다시 그리게 해서 "00:00"이 보이는 순간과 버튼이 켜지는 순간이 같다(남은 시간 올림, design-system.md 7절).
 // 서버가 CLOSED라고 하면 시각과 상관없이 따른다.
-function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: ServerClock }) {
+function ScheduleCard({
+  concert,
+  schedule,
+  clock,
+}: {
+  concert: Pick<ConcertDetail, 'concertId' | 'title'>
+  schedule: ScheduleSummary
+  clock: ServerClock
+}) {
   // 보는 중에 오픈했는지. 카드를 다시 그리고, 화면 낭독기에 열렸다고 알린다
   const [openedWhileViewing, setOpenedWhileViewing] = useState(false)
   const status = schedule.saleStatus === 'CLOSED' ? 'CLOSED' : saleStatusAt(schedule, clock.now())
   const openAtId = `open-at-${schedule.scheduleId}`
 
   return (
-    <Card className="gap-4 px-5 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="gap-4 px-5 @min-[40rem]:flex-row @min-[40rem]:items-center @min-[40rem]:justify-between">
       <div className="grid min-w-0 gap-2">
         <div>
           <SaleStatusBadge status={status} />
@@ -125,7 +131,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
         </p>
       </div>
 
-      <div className="grid shrink-0 gap-2 sm:min-w-[200px] sm:justify-items-end sm:text-right">
+      <div className="grid shrink-0 gap-2 @min-[40rem]:min-w-[200px] @min-[40rem]:justify-items-end @min-[40rem]:text-right">
         {status === 'BEFORE_OPEN' ? (
           <>
             <span className="type-caption text-gray-500">오픈까지</span>
@@ -135,7 +141,7 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
               className="type-title"
               onComplete={() => setOpenedWhileViewing(true)}
             />
-            <Button disabled className="w-full sm:w-auto" aria-describedby={openAtId}>
+            <Button disabled className="w-full @min-[40rem]:w-auto" aria-describedby={openAtId}>
               예매하기
             </Button>
             <span id={openAtId} className="type-caption tabular-nums text-gray-500">
@@ -143,8 +149,18 @@ function ScheduleCard({ schedule, clock }: { schedule: ScheduleSummary; clock: S
             </span>
           </>
         ) : status === 'ON_SALE' ? (
-          <Button asChild className="w-full sm:w-auto">
-            <Link to={queuePath(schedule.scheduleId)}>예매하기</Link>
+          <Button asChild className="w-full @min-[40rem]:w-auto">
+            <Link
+              to={queuePath(schedule.scheduleId)}
+              state={queueNavigationState({
+                concertId: concert.concertId,
+                title: concert.title,
+                startsAt: schedule.startsAt,
+                venueName: schedule.venueName,
+              })}
+            >
+              예매하기
+            </Link>
           </Button>
         ) : (
           <span className="type-body-sm text-gray-500">판매가 끝났어요</span>

@@ -2,7 +2,8 @@
 # - urgency=immediate: 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태. 건수가 0보다 크면 바로 울린다.
 # - urgency=threshold: 자동 복구가 진행 중이지만 늦어지는 상태. 최고령·정체 시간이 기준을 넘으면 울린다.
 # 복구 절차는 runbook 주석의 docs/design/payment/manual-recovery.md 절을 따른다.
-# 대사 불일치(reconciliation_mismatch_open)는 ISE-43에서 더한다.
+# 대사 불일치(reconciliation_mismatch_open{rule})는 규칙마다 시계열이 하나이고, 0보다 크면 즉시 울린다(ISE-167). 대사 작업의 정체는
+# PaymentJobStalled의 job="reconciliation"이 본다.
 #
 # Note: DB 집계 Gauge(*_count, *_oldest_seconds)는 결제 서비스의 gauge-refresh 작업이 15초마다 갱신한 값이다. 갱신이 멈추면 값이
 # 굳으므로 PaymentJobStalled(gauge-refresh 1분)가 함께 봐야 한다. 결제 서비스가 내려가면 시계열이 사라져 건수 알림도 풀린다.
@@ -13,31 +14,31 @@ groups:
         expr: payment_manual_check_count{application="payment-service"} > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "운영자 확인이 필요한 결제가 {{ $value }}건 있다(NEEDS_MANUAL_CHECK)"
+          summary: "확인이 필요한 결제가 {{ $value }}건 있습니다(NEEDS_MANUAL_CHECK). 운영자 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: RefundNeedsManualCheck
         expr: refund_manual_check_count{application="payment-service"} > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "운영자 확인이 필요한 환불이 {{ $value }}건 있다(NEEDS_MANUAL_CHECK)"
+          summary: "확인이 필요한 환불이 {{ $value }}건 있습니다(NEEDS_MANUAL_CHECK). 운영자 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: PaymentPgAmountMismatch
         expr: sum by (application, operation) (increase(payment_pg_amount_mismatch_total{application="payment-service"}[5m])) > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "PG가 응답한 금액·통화가 결제·환불과 다르다(operation={{ $labels.operation }})"
+          summary: "PG가 응답한 금액·통화가 결제·환불 금액과 다릅니다(operation={{ $labels.operation }}). 바로 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: PaymentDeadLetterOpen
         expr: dead_letter_open_count{application="payment-service"} > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "처리하지 못한 DLQ 메시지가 {{ $value }}건 있다(dead_letters OPEN, topic={{ $labels.topic }})"
+          summary: "처리하지 못한 DLQ 메시지가 {{ $value }}건 있습니다(dead_letters OPEN, topic={{ $labels.topic }}). 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 3절"
       - alert: PaymentDlqHandlerFailing
         expr: sum by (application, topic) (increase(payment_dlq_handler_failures_total{application="payment-service"}[5m])) > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "DLQ 처리기가 실패하고 있다(topic={{ $labels.topic }}). 오프셋을 넘기지 않고 다시 시도하는 중이다"
+          summary: "DLQ 처리기가 실패하고 있습니다(topic={{ $labels.topic }}). 오프셋을 넘기지 않고 다시 시도하는 중입니다"
           runbook: "docs/design/payment/manual-recovery.md 3절"
       # Note: Spring Kafka 소비자 지표의 client_id는 "consumer-<그룹>-<번호>"다. DLQ 그룹(payment.command-dlq)이 5분 넘게 밀려 있으면
       # 처리기가 같은 메시지를 계속 다시 시도하고 있다는 뜻이다(DB 장애 등). 실패 수 알림이 놓치는 오래 막힌 경우를 잡는다
@@ -46,14 +47,22 @@ groups:
         for: 5m
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "DLQ 처리기가 5분 넘게 밀려 있다(랙 {{ $value }})"
+          summary: "DLQ 처리기가 5분 넘게 밀려 있습니다(랙 {{ $value }})"
           runbook: "docs/design/payment/manual-recovery.md 3절"
       - alert: PaymentOutboxFailed
         expr: outbox_failed_count{application="payment-service"} > 0
         labels: {service: payment, urgency: immediate, severity: critical}
         annotations:
-          summary: "영구 오류로 멈춘 Outbox 이벤트가 {{ $value }}건 있다(FAILED). 같은 키의 뒤 이벤트도 멈춘다"
+          summary: "영구 오류로 멈춘 Outbox 이벤트가 {{ $value }}건 있습니다(FAILED). 같은 키의 뒤 이벤트도 멈추므로 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 4절"
+      # Note: DB 집계 Gauge라 인스턴스마다 같은 값을 내므로 합(sum)이 아니라 max로 모은다(합치면 인스턴스 수만큼 부풀려진다).
+      # rule 라벨(RC-1~RC-8)마다 알림이 따로 선다. RC-7·RC-8은 결제 DB만으로, RC-1~RC-6은 예매 서비스 조회로 판단한다
+      - alert: PaymentReconciliationMismatch
+        expr: max by (application, rule) (reconciliation_mismatch_open{application="payment-service"}) > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: "결제·예매 대사 불일치가 {{ $value }}건 있습니다(규칙 {{ $labels.rule }}, OPEN). 확인이 필요합니다"
+          runbook: "docs/design/payment/manual-recovery.md 6절"
 
   - name: payment-threshold
     rules:
@@ -61,86 +70,87 @@ groups:
         expr: payment_manual_check_oldest_seconds{application="payment-service"} > 1800
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "운영자 확인 결제가 30분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "운영자 확인 결제가 30분 넘게 처리되지 않았습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: PaymentManualCheckAging
         expr: payment_manual_check_oldest_seconds{application="payment-service"} > 86400
         labels: {service: payment, urgency: threshold, severity: critical}
         annotations:
-          summary: "운영자 확인 결제가 24시간 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "운영자 확인 결제가 24시간 넘게 처리되지 않았습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 바로 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: RefundManualCheckAging
         expr: refund_manual_check_oldest_seconds{application="payment-service"} > 1800
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "운영자 확인 환불이 30분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "운영자 확인 환불이 30분 넘게 처리되지 않았습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: RefundManualCheckAging
         expr: refund_manual_check_oldest_seconds{application="payment-service"} > 86400
         labels: {service: payment, urgency: threshold, severity: critical}
         annotations:
-          summary: "운영자 확인 환불이 24시간 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "운영자 확인 환불이 24시간 넘게 처리되지 않았습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 바로 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 2절"
       - alert: PaymentRequestedStuck
         expr: payment_requested_oldest_seconds{application="payment-service"} > 60
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "재확인이 집지 못한 REQUESTED 결제가 있다(최고령 {{ $value | humanizeDuration }}). 재확인 스케줄러를 본다"
+          summary: "재확인 작업이 집지 못한 REQUESTED 결제가 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 재확인 스케줄러 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 5절"
       - alert: PaymentUnknownAging
         expr: payment_unknown_oldest_seconds{application="payment-service"} > 300
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "결과를 모르는 UNKNOWN 결제가 5분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "결과를 모르는 UNKNOWN 결제가 5분 넘게 남아 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 5절"
       - alert: RefundPendingAging
         expr: refund_pending_oldest_seconds{application="payment-service"} > 1800
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "환불 대기가 30분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "환불 대기가 30분 넘게 남아 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 5절"
       - alert: RefundPendingAging
         expr: refund_pending_oldest_seconds{application="payment-service"} > 7200
         labels: {service: payment, urgency: threshold, severity: critical}
         annotations:
-          summary: "환불 대기가 2시간 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "환불 대기가 2시간 넘게 남아 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 5절"
       - alert: PaymentPgCircuitOpen
         expr: resilience4j_circuitbreaker_state{application="payment-service", state=~"open|forced_open"} == 1
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "PG 호출 그룹 {{ $labels.name }}의 Circuit Breaker가 열렸다"
+          summary: "PG 호출 그룹 {{ $labels.name }}의 Circuit Breaker가 열렸습니다. PG 장애 여부 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 5절"
       - alert: PaymentOutboxDelayed
         expr: outbox_pending_oldest_seconds{application="payment-service"} > 300
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }}). 브로커 상태를 본다"
+          summary: "발행되지 않은 Outbox 이벤트가 5분 넘게 남아 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 브로커 상태 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 4절"
       - alert: PaymentOutboxDelayed
         expr: outbox_pending_oldest_seconds{application="payment-service"} > 1800
         labels: {service: payment, urgency: threshold, severity: critical}
         annotations:
-          summary: "발행되지 않은 Outbox 이벤트가 30분 넘게 남아 있다(최고령 {{ $value | humanizeDuration }})"
+          summary: "발행되지 않은 Outbox 이벤트가 30분 넘게 남아 있습니다(가장 오래된 건 {{ $value | humanizeDuration }} 경과). 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 4절"
       - alert: PaymentJobStalled
         expr: |
           (time() - payment_job_last_success_timestamp{application="payment-service", job="gauge-refresh"}) > 60
           or (time() - payment_job_last_success_timestamp{application="payment-service", job=~"recheck|refund-worker"}) > 120
+          or (time() - payment_job_last_success_timestamp{application="payment-service", job="reconciliation"}) > 900
           or (time() - payment_job_last_success_timestamp{application="payment-service", job=~".+-cleanup"}) > 3600
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "결제 배경 작업 {{ $labels.job }}이 기준 시간 넘게 성공하지 못했다(마지막 성공 뒤 {{ $value | humanizeDuration }})"
+          summary: "결제 배경 작업 {{ $labels.job }}이 기준 시간 넘게 성공하지 못했습니다(마지막 성공 뒤 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 7절"
       - alert: PaymentOutboxRelayStalled
         expr: (time() - outbox_relay_last_success_timestamp{application="payment-service"}) > 60
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "Outbox 릴레이가 1분 넘게 한 바퀴도 돌지 못했다(마지막 성공 뒤 {{ $value | humanizeDuration }})"
+          summary: "Outbox 릴레이가 1분 넘게 한 바퀴도 돌지 못했습니다(마지막 성공 뒤 {{ $value | humanizeDuration }} 경과)"
           runbook: "docs/design/payment/manual-recovery.md 4절"
       - alert: PaymentDbConnectionTimeout
         expr: sum by (application, pool) (increase(hikaricp_connections_timeout_total{application="payment-service"}[5m])) > 0
         labels: {service: payment, urgency: threshold, severity: warning}
         annotations:
-          summary: "결제 DB 연결을 기다리다 시간 초과가 났다(pool={{ $labels.pool }})"
+          summary: "결제 DB 연결 Timeout이 났습니다(pool={{ $labels.pool }}). 이 시간의 결제 요청이 503으로 실패했을 수 있어 확인이 필요합니다"
           runbook: "docs/design/payment/manual-recovery.md 7절"

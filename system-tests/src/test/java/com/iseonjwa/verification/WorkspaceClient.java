@@ -57,7 +57,12 @@ final class WorkspaceClient implements AutoCloseable {
 
     Response request(String method, String url, Object body, String token, Map<String, String> headers)
             throws Exception {
-        var builder = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(8))
+        return request(method, url, body, token, headers, Duration.ofSeconds(8));
+    }
+
+    Response request(String method, String url, Object body, String token, Map<String, String> headers,
+            Duration timeout) throws Exception {
+        var builder = HttpRequest.newBuilder(URI.create(url)).timeout(timeout)
                 .header("Content-Type", "application/json");
         var supplied = new LinkedHashMap<>(headers);
         supplied.putIfAbsent("traceparent", "00-" + randomHex() + "-" + randomHex().substring(0, 16) + "-01");
@@ -88,7 +93,12 @@ final class WorkspaceClient implements AutoCloseable {
 
     JsonNode check(String label, String method, String path, int expected, Object body, String token,
             Map<String, String> headers) throws Exception {
-        var response = request(method, BASE + path, body, token, headers);
+        return check(label, method, path, expected, body, token, headers, Duration.ofSeconds(8));
+    }
+
+    JsonNode check(String label, String method, String path, int expected, Object body, String token,
+            Map<String, String> headers, Duration timeout) throws Exception {
+        var response = request(method, BASE + path, body, token, headers, timeout);
         assertEquals(expected, response.status(), label);
         var json = response.body();
         assertNotNull(json, label + ": JSON 응답이 필요하다");
@@ -128,6 +138,27 @@ final class WorkspaceClient implements AutoCloseable {
                 "role", "USER", "iss", "iseonjwa-auth", "aud", List.of("iseonjwa-api"), "token_type", "access",
                 "iat", Instant.now().getEpochSecond() - 5, "exp", Instant.now().getEpochSecond() + 1800));
         claims.putAll(overrides);
+        return sign(claims, secret);
+    }
+
+    /**
+     * 대기열 서비스가 발급할 입장 토큰(계약 ①)을 같은 비밀값으로 직접 서명한다.
+     * Note: 발급 API(POST /schedules/{id}/queue/token, ISE-69)가 나오면 이 도우미 대신 그 API를 쓴다.
+     */
+    String entryToken(long userId, long scheduleId, String secret) throws Exception {
+        var now = Instant.now().getEpochSecond();
+        var claims = new LinkedHashMap<String, Object>();
+        claims.put("typ", "entry");
+        claims.put("aud", List.of("gateway"));
+        claims.put("sub", Long.toString(userId));
+        claims.put("scheduleId", scheduleId);
+        claims.put("iat", now);
+        claims.put("exp", now + 600);
+        claims.put("jti", UUID.randomUUID().toString());
+        return sign(claims, secret);
+    }
+
+    private String sign(Map<String, Object> claims, String secret) throws Exception {
         var encoder = Base64.getUrlEncoder().withoutPadding();
         var input = encoder.encodeToString(JSON.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")))
                 + "." + encoder.encodeToString(JSON.writeValueAsBytes(claims));

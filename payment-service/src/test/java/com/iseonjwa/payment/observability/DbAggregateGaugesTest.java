@@ -60,6 +60,7 @@ class DbAggregateGaugesTest {
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM outbox_events");
         jdbc.update("DELETE FROM payments");
+        jdbc.update("DELETE FROM reconciliation_mismatches");
         gauges = new DbAggregateGauges(meters, jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -75,6 +76,28 @@ class DbAggregateGaugesTest {
             assertEquals(0, value(name), name);
         }
         assertNull(meters.find("dead.letter.open.count").gauge(), "토픽을 본 적이 없으면 시계열이 없다");
+    }
+
+    @Test
+    void 대사_불일치는_규칙별_OPEN_건수만_센다_8개_규칙은_0으로_미리_등록한다() {
+        gauges.refresh();
+        for (var rule : new String[] {"RC-1", "RC-2", "RC-3", "RC-4", "RC-5", "RC-6", "RC-7", "RC-8"}) {
+            assertEquals(0, reconciliation(rule), rule + "은 첫 갱신 뒤에도 0으로 있어야 한다");
+        }
+
+        mismatch("RC-7", "OPEN");
+        mismatch("RC-7", "OPEN");
+        mismatch("RC-2", "OPEN");
+        mismatch("RC-7", "RESOLVED");
+        gauges.refresh();
+
+        assertEquals(2, reconciliation("RC-7"));
+        assertEquals(1, reconciliation("RC-2"));
+        assertEquals(0, reconciliation("RC-8"));
+
+        jdbc.update("UPDATE reconciliation_mismatches SET status = 'RESOLVED', resolved_at = now() WHERE rule = 'RC-2'");
+        gauges.refresh();
+        assertEquals(0, reconciliation("RC-2"), "닫으면 시계열이 사라지지 않고 0이 된다");
     }
 
     @Test
@@ -241,6 +264,18 @@ class DbAggregateGaugesTest {
 
     private static double value(MeterRegistry registry, String name) {
         return registry.get(name).gauge().value();
+    }
+
+    private double reconciliation(String rule) {
+        return meters.find("reconciliation.mismatch.open").tag("rule", rule).gauge().value();
+    }
+
+    private void mismatch(String rule, String status) {
+        jdbc.update("""
+                INSERT INTO reconciliation_mismatches (rule, reservation_id, payment_id, detail, status, first_detected_at,
+                                                       last_seen_at, resolved_at)
+                VALUES (?, ?, ?, '{}'::jsonb, ?, now(), now(), CASE WHEN ? = 'RESOLVED' THEN now() END)""",
+                rule, SEQUENCE.incrementAndGet(), SEQUENCE.incrementAndGet(), status, status);
     }
 
     private double opsValue(String command, String result) {

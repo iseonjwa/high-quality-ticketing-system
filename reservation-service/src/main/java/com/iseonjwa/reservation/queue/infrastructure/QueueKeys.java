@@ -20,4 +20,8 @@ public record QueueKeys(String prefix) {
     List<String> admitKeys() {
         return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "lastTick");
     }
+
+    List<String> issueTokenKeys() {
+        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued");
+    }
 }

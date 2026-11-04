@@ -76,7 +76,7 @@ export function ConcertListPage() {
         <ul
           aria-busy={concerts.isPlaceholderData || undefined}
           className={cn(
-            'grid gap-4 transition-opacity md:grid-cols-2',
+            'grid gap-4 transition-opacity @min-[48rem]:grid-cols-2',
             concerts.isPlaceholderData && 'opacity-60',
           )}
         >
@@ -138,7 +138,7 @@ function ConcertCard({ concert }: { concert: ConcertSummary }) {
 
 function ConcertListSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2" role="status">
+    <div className="grid gap-4 @min-[48rem]:grid-cols-2" role="status">
       <span className="sr-only">공연 목록을 불러오고 있어요</span>
       {[0, 1, 2, 3].map((key) => (
         <Card key={key} className="flex-row gap-4 px-5">

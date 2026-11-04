@@ -1,11 +1,12 @@
-import { screen } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { routes } from '@/app/routes'
 import { sessionStore } from '@/auth/session'
+import { enableDemoMode } from '@/demo/demoMode'
 import { mockServer } from '@/mocks/server'
 import { recordRequests, requestStarted, signInAsDemo } from '@/test/api'
 import { renderRoutes } from '@/test/render'
@@ -109,11 +110,63 @@ describe('AppLayout', () => {
     expect(router.state.location.pathname).toBe('/')
   })
 
+  it('예매 흐름 화면(대기열)에서는 헤더에 예매 단계를 보이고 대기열을 현재 단계로 표시한다', async () => {
+    await signInAsDemo()
+    renderRoutes(routes, '/schedules/31/queue')
+
+    const steps = await screen.findByRole('list', { name: '예매 단계' })
+    const current = within(steps).getByRole('listitem', { current: 'step' })
+    expect(current).toHaveTextContent('대기열')
+  })
+
+  it('공연 목록에서는 예매 단계를 보이지 않는다', async () => {
+    renderRoutes(routes, '/')
+
+    await screen.findByRole('heading', { level: 1, name: '공연' })
+    expect(screen.queryByRole('list', { name: '예매 단계' })).not.toBeInTheDocument()
+  })
+
   it('워드마크는 제목 요소가 아니라 홈 링크다', () => {
     renderRoutes(routes, '/')
 
     expect(screen.getByRole('link', { name: '이선좌' })).toHaveAttribute('href', '/')
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+})
+
+describe('AppLayout 시연 모드', () => {
+  const root = document.documentElement
+  const originalClientWidth = Object.getOwnPropertyDescriptor(root, 'clientWidth')
+
+  afterEach(() => {
+    if (originalClientWidth === undefined) {
+      Reflect.deleteProperty(root, 'clientWidth')
+    } else {
+      Object.defineProperty(root, 'clientWidth', originalClientWidth)
+    }
+  })
+
+  // 패널은 lazy라 렌더 직후에는 켜져 있어도 없다. 화면이 다 그려진 뒤에 확인한다
+  it('시연 모드가 꺼져 있으면 요청 로그 패널이 없다', async () => {
+    Object.defineProperty(root, 'clientWidth', { configurable: true, value: 1440 })
+    renderRoutes(routes, '/')
+
+    expect(await screen.findByRole('heading', { level: 1, name: '공연' })).toBeInTheDocument()
+    // 켜져 있었다면 패널 모듈을 받은 뒤 그려진다. 같은 모듈을 기다린 뒤 확인해 시점에 기대지 않는다
+    await act(async () => {
+      await import('@/demo/RequestLogPanel')
+    })
+    expect(screen.queryByRole('complementary', { name: '요청 로그 (시연 모드)' })).toBeNull()
+  })
+
+  it('시연 모드가 켜져 있으면 요청 로그 패널이 나타난다', async () => {
+    Object.defineProperty(root, 'clientWidth', { configurable: true, value: 1440 })
+    enableDemoMode()
+    renderRoutes(routes, '/')
+
+    expect(
+      await screen.findByRole('complementary', { name: '요청 로그 (시연 모드)' }),
+    ).toBeInTheDocument()
   })
 })
 

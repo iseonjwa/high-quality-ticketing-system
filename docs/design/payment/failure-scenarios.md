@@ -41,14 +41,14 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N20 | PG가 환불을 명확히 거절 | 환불 `NEEDS_MANUAL_CHECK(REFUND_REJECTED)`(`FAILED` 아님), 알림 | 4 | 0020 | I |
 | N21 | Ops `payment resolve`로 NMC 결제 확인 | PG 승인·금액 일치면 `APPROVED` + `PaymentApproved` + 이력(actor OPS) + `manual_action_logs`(APPLIED + `pg_evidence`). PG 승인·금액 불일치면 환불 `REQUESTED`(금액 = PG 승인 금액)를 만들고 결제는 NMC 유지. PG가 `Unknown`이면 거부·상태 유지. `manual_action_logs`·이력의 UPDATE·DELETE는 트리거가 거부. 구현: `PaymentResolveCommand`, 테스트: `PaymentResolveTest`(실제 PostgreSQL + 가짜 `PgClient`. 트리거 거부는 `PaymentMigrationTest`) | 7 | 0028 | I |
 | N22 | 예매 계약 | `CONFIRMED` + 같은 paymentId 재전달은 변화 없음. 다른 paymentId는 `RefundRequested(DUPLICATE_APPROVAL)`. `CONFIRMED` + `PaymentRefunded`는 좌석 유지·이상 격리·알림. 사용자·금액·통화 불일치 승인은 확정하지 않음 | 2, 3 | 0027 | I, S(반효승) |
-| N23 | `RefundRequested`가 발행되지 않음(Reservation 소비 실패 모의) | 허용 지연 뒤 대사 RC-2 기록·알림. 자동 수정 없음 | 4, 6 | 0029 | I, S |
+| N23 | `RefundRequested`가 발행되지 않음(Reservation 소비 실패 모의) | 허용 지연 뒤 대사 RC-2 기록·알림. 자동 수정 없음. 테스트: `ReconciliationReservationScenarioTest`(실제 승인 → 가짜 예매 서버가 `EXPIRED` 응답 → 허용 지연 안에서는 기록 없음 → L 뒤 RC-2 `OPEN`·Gauge는 DB의 `OPEN` 건수와 같고 1 이상 → 환불 행이 생기면 다음 회차 `RESOLVED`), 규칙별 판정·조회 실패는 `ReservationRulesTest` | 4, 6 | 0029 | I, S |
 | N24 | 새 키 ALIAS | 같은 새 키 재요청은 PG 호출 0회로 현재 상태. 만료 토큰 + 새 키는 기존 결제가 있으면 조회만, 없으면 403 | 1 | 0019 | I |
 | N25 | 그룹 분리 | `pg-approve` OPEN 중에도 재확인·환불 진행, `pg-recovery` OPEN 중에도 신규 승인 진행. 복구 CB OPEN 동안 시도 횟수 불변 | 4 | 0018 | I |
 | N26 | 재확인 중 PG 지연 | Outbox 릴레이·Gauge 갱신이 늦어지지 않음(실행기 분리) | 5 | 0022 | I |
 | N27 | Kafka-UI로 메시지 발행 시도 | READONLY로 거부 | 9 | 0020, S-24 | S |
 | N28 | `RefundRequested` 교차 검증 실패(결제 없음, 예매·사용자·금액 불일치, 미지정 사유) | 재시도 없이 DLQ, `dead_letters` `OPEN`, PG 호출 0회, 즉시 알림 | 3, 4, 9 | 0020 | I |
 | N29 | Gateway 504 뒤 같은 키 재시도 | 서버 처리 계속, PG 승인 1회, 재시도는 결과 응답 | 1 | 0018 | S |
-| N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림 | 6, 7 | 0028, 0029 | I |
+| N30 | 결제 상태를 직접 SQL로 변경(모의) | 대사 RC-7(이력 불일치) 기록·알림. 테스트: `ReconciliationScenarioTest`(직접 SQL → L 뒤 RC-7 `OPEN`·Gauge 1 → 이력과 맞추면 `RESOLVED`·Gauge 0), `ReconciliationServiceTest`(환불 쪽 어긋남, RC-8) | 6, 7 | 0028, 0029 | I |
 | N31 | 긴급 콘솔 환불 뒤 `refund resolve` | PG API로 환불 확인되면 `REFUNDED` + `PaymentRefunded` + `external_ref`. 확인 불가면 거부·NMC 유지. 한계: 콘솔 환불은 우리 `pg_refund_id` 없이 일어나 지금의 `findRefund`로는 확인되지 않으므로 `NotFound`로 거부되고 NMC로 남는다(토스 어댑터 M4 때 콘솔 환불 확인용 조회를 다시 본다). 구현: `RefundResolveCommand`, 테스트: `RefundResolveTest`(PG가 환불을 확인하는 경우와 `NotFound` 거부) | 2, 7 | 0028 | I |
 | N32 | Ops 명령 통제 | 승인자 없음·실행자와 같음·허용 목록 밖·계획 해시 불일치는 거부(REJECTED 기록) | 7, 9 | 0028 | U, I |
 
@@ -66,7 +66,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 |---|---|---|
 | V1 결제 승인 중복 없음 | 결제 DB `reservation_id`별 행 수, Mock PG 원장의 주문별 승인 호출 수(`approveCalls`), PG 승인 주문 집합과 `pg_tx_id`가 있는 결제 집합 | 예매당 결제 ≤ 1, 주문당 승인 호출 ≤ 1, PG에만 있는 승인 0 |
 | V2 환불 중복 없음 | `payment_id`별 환불 행 수, Mock PG 원장의 결제별 환불 수·금액 | 결제당 환불 ≤ 1, PG 환불 합계 ≤ 승인 금액 |
-| V3 결제↔예매 최종 정합 | 강제 대사 결과, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
+| V3 결제↔예매 최종 정합 | 강제 대사 한 회차 뒤 이 시나리오 범위의 RC-7·RC-8 `OPEN` 0, 결제·예매 상태 쌍 | `reconciliation_mismatches` OPEN 0. 모든 결제가 정상 쌍(`APPROVED`↔`CONFIRMED`, `DECLINED`↔`RELEASED`, `REFUNDED`↔`EXPIRED`·`RELEASED`·`CANCELED`)이거나 명시적 미해결 상태(`UNKNOWN`·NMC·환불 대기·`dead_letters` OPEN)이고 그 지표가 0보다 크다 |
 
 Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하다(결제 담당이 Mock PG에 구현, S-28, [mock-pg.md](mock-pg.md) 9절). 배경 작업(재확인 스케줄러, 환불 워커)이 PG를 함께 부르므로 장애 주입은 `orderId`·`refundId`로 대상을 지정한다.
 
@@ -93,7 +93,7 @@ Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하
 
 - 기다림은 시계를 앞으로 당겨 없앤다. 시나리오의 재확인·환불·Outbox 다음 시도 시각과 임대 만료를 과거로 당긴다(기존 통합 테스트와 같은 방식이고 운영 시계 빈은 바꾸지 않는다). `sleep`을 쓰지 않는다.
 - 장애는 `orderId`·`refundId`로 한정해 건다. 승인의 주문 ID는 TX1이 정하므로 `PgClient` 스파이로 승인 호출 직전에 그 주문의 장애를 건다. 환불은 환불 행의 `pg_refund_id`를 읽어 건다.
-- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조와 대사(RC-1~8)는 ISE-43이 맡고 이 검증기에는 없다. Gauge는 DB 전체를 세므로 "0보다 크다"는 하한 확인이다.
+- 결제 쪽 V3의 범위: 모든 결제가 정상 종결(`APPROVED`·`DECLINED`·`REFUNDED`)이거나 명시적 미해결(`UNKNOWN`·NMC 결제, `REQUESTED`·`UNKNOWN`·NMC 환불, `OPEN` `dead_letters`)이고, 미해결이면 `DbAggregateGauges.refresh()` 뒤 해당 Gauge가 0보다 크다. `REQUESTED`로 남은 결제는 위반이다. 결제↔예매 상태 대조(RC-1~RC-6)는 예매 내부 조회 API(ISE-75)가 있어야 해서 테스트 프로필에서 꺼져 있고(`payment.reconciliation.reservation.enabled=false`) 검증기는 보지 않는다. 이 규칙은 가짜 예매 서버를 쓰는 `ReservationRulesTest`와 N23 시나리오가 확인한다. 결제 DB만으로 보는 RC-7·RC-8은 `assertHolds()`가 강제 대사 한 회차(기준 시각을 허용 지연 10분 뒤로 줌)를 돌린 뒤 이 시나리오 예매 ID 범위의 `OPEN` 불일치가 0인지 확인한다(`v3Reconciliation()`). `ScenarioInvariantsTest`의 위반 없음 고정 데이터는 승인 이력과 `PaymentApproved` Outbox 행을 운영 코드(`PaymentStatusHistory.of`, `PaymentResultPublisher`)로 같은 트랜잭션에 써서 운영과 같은 모양으로 둔다. `ReconciliationScenarioTest`는 같은 기반 위에서 승인·환불·응답 유실 복구·재시작 뒤 거절 흐름과 N30을 따로 확인한다.
 - V1의 "PG에만 있는 승인 0"은 PG가 승인한 모든 주문에 같은 `pg_tx_id`의 결제가 있어야 한다. 결제가 아직 결과를 모르는 미해결(`UNKNOWN`·NMC이고 `pg_tx_id` 없음)이면 예외로 둔다.
 
 FT-1 (a)~(c)와 FT-2 결과(모두 V1~V3 통과):
@@ -122,6 +122,7 @@ FT-3 재시작, FT-4 DB 일시 장애, FT-5 환불 중단을 구현했다. ISE-1
 |---|---|
 | `Ft3RestartScenarioTest` | FT-3 (a)~(f) |
 | `Ft4DbOutageScenarioTest` | FT-4 (a)~(d). 테스트 설정에서만 `DataSource`를 감싸는 스위치를 둔다 |
+| `Ft4DbFreezeScenarioTest` | FT-4 (e)~(h). 테스트 DB 앞의 `FreezableTcpProxy`가 연결을 닫지 않고 전달만 멈춘다. 연결 대기·생존 검사·소켓·문장 시한은 `config-repo/payment-service.yml`에서 읽어 이 테스트에만 적용한다 |
 | `Ft5RefundInterruptionScenarioTest` | FT-5 (a)~(d). Ops 명령은 4-eyes 절차대로 부른다 |
 | `Ft6AmountMismatchScenarioTest` | FT-6 금액 불일치 → NMC → Ops `payment resolve` → 환불 |
 | `ScenarioOps` | `refund retry`·`refund resolve`·`payment resolve`를 `OpsRunner`로 부르는 도우미. dry-run 출력에서 계획 해시를 읽어 적용한다 |
@@ -130,8 +131,8 @@ FT-3 재시작, FT-4 DB 일시 장애, FT-5 환불 중단을 구현했다. ISE-1
 
 - FT-3은 "재시작 직후의 DB·PG 상태"를 만들고 복구 경로를 돌린다. 상태는 운영 코드를 실제로 실행하다 `ProcessCrash`(`Error`)로 끊어서 만든다. 운영 코드는 `RuntimeException`만 PG 결과 모름으로 다루고 `Error`는 통과시키므로 끊긴 뒤 단계(TX2, 결과 반영, 임대 해제)는 실행되지 않는다. 컨트롤러 예외 처리기가 이 `Error`를 500 응답으로 바꾸지만, 실제로 죽었다면 클라이언트는 응답을 받지 못하므로 테스트는 그 응답을 쓰지 않는다.
 - 실제 프로세스를 강제 종료하는 확인은 테스트로 하지 않는다. compose에서 `payment-service`를 `kill -9`로 죽였다가 다시 띄워 메인이 수동으로 확인한다. 테스트가 보장하는 것은 "그 순간의 DB·PG 상태에서 복구 경로가 맞다"까지다.
-- compose 확인(2026-11-03): `docker pause`로 결제 Postgres를 얼린 채 승인을 보냈다. 테스트의 DB 스위치(새 연결을 거절)와 달리 연결이 거절되지 않고 쿼리가 멈췄다. 그래서 N5의 503이 아니라 Gateway 시한(3초)을 넘긴 504가 났다. DB가 풀린 뒤 처리가 이어져 결제 1건이 `APPROVED`가 됐고, 같은 키 재시도는 200으로 같은 결과를 받았다(N29 경로, 결제·이력·Outbox 각 1건). 커넥션 풀 대기 시한은 빈 연결이 없을 때만 걸리고 빌린 연결의 쿼리에는 시한이 없어서다. 소켓·문장 시한은 ISE-163에서 정한다. 컨테이너를 `kill -9`로 죽이는 확인은 compose Mock PG의 장애 주입이 닫혀 있어(local 프로필) PG 호출 도중을 만들 수 없어 하지 않았다.
-- FT-4의 스위치는 `getConnection` 시점만 막는다. Hikari 풀에서 이미 빌려 간 연결은 영향을 받지 않으므로, 트랜잭션이 시작되기 전의 장애만 만든다. 진행 중이던 쿼리가 끊기는 경우는 `postgres-payment`를 실제로 멈추는 수동 확인이 맡는다.
+- compose 확인(2026-11-03): `docker pause`로 결제 Postgres를 얼린 채 승인을 보냈다. 테스트의 DB 스위치(새 연결을 거절)와 달리 연결이 거절되지 않고 쿼리가 멈췄다. 그래서 N5의 503이 아니라 Gateway 시한(3초)을 넘긴 504가 났다. DB가 풀린 뒤 처리가 이어져 결제 1건이 `APPROVED`가 됐고, 같은 키 재시도는 200으로 같은 결과를 받았다(N29 경로, 결제·이력·Outbox 각 1건). 커넥션 풀 대기 시한은 빈 연결이 없을 때만 걸리고 빌린 연결의 쿼리에는 시한이 없어서다. 이 문제는 ISE-163에서 소켓 시한 2초와 문장 시한 1.5초로 막았다([events-and-reliability.md](events-and-reliability.md) 7절). ISE-163 뒤 같은 방법으로 다시 확인했다(2026-11-03, 세 번). 세 번 모두 Gateway를 거쳐 2.0초 만에 503 `SERVICE_UNAVAILABLE`이 왔고 로그의 원인은 `SocketTimeoutException`이었다. 그사이 결제 행은 생기지 않았고, 풀린 뒤 같은 키 재시도는 200 `APPROVED`, 결제·Outbox 각 1건이었다. compose에서는 릴레이 같은 배경 작업이 연결을 0.5초 안에 계속 써서 Hikari의 생존 검사를 건너뛰었을 가능성이 크다. 검사를 거치는 경로(기본 5초)는 테스트 (h)가 맡는다. 컨테이너를 `kill -9`로 죽이는 확인은 compose Mock PG의 장애 주입이 닫혀 있어(local 프로필) PG 호출 도중을 만들 수 없어 하지 않았다.
+- FT-4 (a)~(d)의 스위치는 `getConnection` 시점만 막는다. Hikari 풀에서 이미 빌려 간 연결은 영향을 받지 않으므로, 트랜잭션이 시작되기 전의 장애만 만든다. 진행 중이던 쿼리가 멈추는 경우와 쉬던 연결의 생존 검사가 멈추는 경우는 (e)~(h)의 멈춤 프록시가 맡는다. 프록시는 연결을 닫지 않고 양방향 전달만 멈추므로 `docker pause`와 같은 모양이다. 실제 컨테이너로 확인하는 일은 compose 수동 확인이 맡는다.
 - FT-4의 장애 시작 지점은 타이밍에 기대지 않고 호출 경계의 훅으로 정했다. (a)는 승인 허가를 얻은 직후, (b)·(d)는 PG 승인·환불이 끝난 직후, (c)는 호출 전이다. (b)를 Mock PG 지연과 별도 스레드로 만드는 방식은 쓰지 않았다.
 - FT-5 (c)는 거절 뒤 조회 결과를 `PgClient` 스파이로 정한다. Mock PG는 거절한 환불을 저장하지 않아 그 환불 ID를 조회하면 항상 `NotFound`이므로, 실제 Mock PG만으로는 `refund resolve --close-failed`의 종결 분기에 닿지 못한다. 환불 거절 자체는 실제 Mock PG가 낸다. 실제 Mock PG 그대로의 결과는 (d)가 확인한다.
 - V3는 환불 `FAILED`를 정상 종결로 본다. `FAILED`는 운영자가 PG로는 환불할 수 없음을 확인하고 외부 조치로 넘긴 종결이고, 결제는 `APPROVED`로 남으며 환불 행이 있어 대사 RC-2의 대상도 아니다([domain-and-states.md](domain-and-states.md) 2절). 검증기 규칙은 바꾸지 않았다.
@@ -156,6 +157,15 @@ FT-4 결과(모두 V1~V3 통과):
 | (b) TX2 | PG 승인 직후 스위치 켬 | 202 `REQUESTED`, 결제 `REQUESTED`·`pg_tx_id` 없음, PG `APPROVED`. 스위치를 끄고 재확인 → `APPROVED`, `approveCalls` 1, `PaymentApproved` 1건 |
 | (c) `payment.command` 소비 중 | 스위치 켠 채 리스너 1회, DLQ 처리기 2회 | 세 호출 모두 DB 오류 예외(내용 문제가 아님), 아무것도 남지 않음. 끄고 DLQ 처리기 → 환불 `REQUESTED` 1건, `dead_letters` `AUTO_PERSISTED` 1건 → 워커 → `REFUNDED`(N7·N8) |
 | (d) 환불 결과 기록 중 | PG 환불 직후 스위치 켬 | 워커가 DB 오류로 중단, 환불 `REQUESTED`·임대 중, PG `refundCount` 1. 임대 만료 뒤 `findRefund` → `REFUNDED`, `refundCalls` 1 |
+
+FT-4 (e)~(h) 결과(모두 V1~V3 통과, 경과 시간은 한 번 실행한 값이다):
+
+| 시나리오 | 주입 | 최종 상태 |
+|---|---|---|
+| (e) TX1 멈춤 | 허가 획득 직후 프록시 `freeze()` | 503 `SERVICE_UNAVAILABLE`, 경과 2.3초(Gateway 시한 3초 안). `thaw()` 뒤 결제 행·멱등 기록 없음, 허가 반환, PG 승인 호출 0. 같은 키·같은 토큰으로 다시 호출하면 200 `APPROVED`, `approveCalls` 1 |
+| (f) TX2 멈춤 | PG 승인 직후 프록시 `freeze()` | 202 `REQUESTED`, 경과 2.0초(멈추지 않고 돌아옴). `thaw()` 뒤 재확인 → `APPROVED`, `approveCalls` 1, `PaymentApproved` 1건 |
+| (g) 문장 시한 | 같은 `DataSource`로 `SELECT pg_sleep(3)` | SQLState `57014`로 실패, 경과 1.5초(문장 시한 근처). 이어서 `SELECT 1`이 같은 풀에서 성공 |
+| (h) 생존 검사 중 멈춤 | 허가 획득 뒤 0.6초 쉬고(연결이 검사 대상이 됨) 프록시 `freeze()` | 503 `SERVICE_UNAVAILABLE`, Gateway 시한 3초 안. 결제 행 없음, 허가 반환, PG 호출 0. 같은 키 재시도 200 `APPROVED`. 변이 확인: `validation-timeout`을 기본값 5000으로 두면 5.9초로 실패한다 |
 
 (b)의 응답은 `UNKNOWN`이 아니라 `REQUESTED`다. TX2가 롤백돼 상태를 `UNKNOWN`으로 바꾸지 못하고, 202 응답은 메모리의 `REQUESTED` 결제로 만든다(`PaymentApprovalService.settle`).
 

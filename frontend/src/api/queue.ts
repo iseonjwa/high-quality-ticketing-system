@@ -27,31 +27,41 @@ export const entryTokenSchema = z.object({
 })
 export type EntryToken = z.infer<typeof entryTokenSchema>
 
+export interface QueueRequestOptions {
+  signal?: AbortSignal
+}
+
 // 새로 섬 201, 이미 줄에 있음 200. 화면은 둘을 구분하지 않는다
-export function joinQueue(scheduleId: number) {
+export function joinQueue(scheduleId: number, options: QueueRequestOptions = {}) {
   return apiRequest({
     method: 'POST',
     path: `/schedules/${scheduleId}/queue`,
     schema: queuePositionSchema,
+    signal: options.signal,
   })
 }
 
 // 읽기 전용 순번 조회. 줄에 없으면 404 QUEUE_NOT_JOINED
-export function getQueuePosition(scheduleId: number) {
+export function getQueuePosition(scheduleId: number, options: QueueRequestOptions = {}) {
   return apiRequest({
     method: 'GET',
     path: `/schedules/${scheduleId}/queue/me`,
     schema: queuePositionSchema,
+    signal: options.signal,
   })
 }
 
 // 입장 토큰을 받아 회차별로 저장한다. 처음 발급과 재발급이 같은 모양이다.
 // READY 전이면 409 QUEUE_NOT_READY, 발급 기록이 만료됐으면 404 QUEUE_NOT_JOINED다.
-export async function issueEntryToken(scheduleId: number): Promise<EntryToken> {
+export async function issueEntryToken(
+  scheduleId: number,
+  options: QueueRequestOptions = {},
+): Promise<EntryToken> {
   const admitted = await apiRequest({
     method: 'POST',
     path: `/schedules/${scheduleId}/queue/token`,
     schema: entryTokenSchema,
+    signal: options.signal,
   })
   saveEntryToken(scheduleId, {
     token: admitted.entryToken,
