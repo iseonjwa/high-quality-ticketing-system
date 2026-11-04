@@ -97,11 +97,12 @@ export function holdSeats(
   })
 }
 
-export function getReservation(reservationId: number) {
+export function getReservation(reservationId: number, options: { signal?: AbortSignal } = {}) {
   return apiRequest({
     method: 'GET',
     path: `/reservations/${reservationId}`,
     schema: reservationDetailSchema,
+    signal: options.signal,
   })
 }
 
