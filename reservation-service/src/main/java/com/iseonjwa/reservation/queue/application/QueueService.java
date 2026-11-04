@@ -29,11 +29,13 @@ public class QueueService {
                 scheduleId,
                 userId,
                 scheduleTimes.openAt().toEpochMilli(),
+                scheduleTimes.startsAt().toEpochMilli(),
                 queueProperties.entryTokenTtl().toMillis(),
                 scheduleTimes.startsAt().plus(queueProperties.keyRetentionAfterStart()).getEpochSecond());
 
         // 아직 판매시간이 되지 않음
-        if (enterOutcome.type() == EnterOutcome.Type.SALE_NOT_OPEN) {
+        if (enterOutcome.type() == EnterOutcome.Type.SALE_NOT_OPEN
+                || enterOutcome.type() == EnterOutcome.Type.SALE_CLOSED) {
             throw new BusinessException(QueueErrorCode.SALE_NOT_OPEN);
         }
 
