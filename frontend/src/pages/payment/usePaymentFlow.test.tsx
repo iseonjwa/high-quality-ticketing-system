@@ -63,7 +63,7 @@ describe('usePaymentFlow', () => {
     )
   })
 
-  it('결제 토큰이 바뀌면 새 멱등키를 쓴다', async () => {
+  it('결제를 시작한 뒤 화면이 받은 토큰이 바뀌어도 처음 토큰·키로 보낸다', async () => {
     mockServer.use(http.post(PAYMENTS_PATH, () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')))
     const held = await hold()
     const requests = recordRequests(PAYMENTS_PATH)
@@ -77,8 +77,11 @@ describe('usePaymentFlow', () => {
     act(() => result.current.submit())
     await waitFor(() => expect(requests).toHaveLength(2))
 
-    expect(requests[1].headers.get('Idempotency-Key')).not.toBe(
+    expect(requests[1].headers.get('Idempotency-Key')).toBe(
       requests[0].headers.get('Idempotency-Key'),
+    )
+    expect(((await requests[1].clone().json()) as { paymentToken: string }).paymentToken).toBe(
+      held.paymentToken,
     )
   })
 
@@ -168,19 +171,21 @@ describe('usePaymentFlow', () => {
     second.unmount()
   })
 
-  it('저장한 시도의 토큰이 다르면 이어 보내지 않고 저장한 시도를 지운다', async () => {
+  it('저장한 시도의 토큰이 화면이 받은 토큰과 달라도 저장한 토큰·키로 이어 보낸다', async () => {
     const held = await hold()
-    savePaymentAttempt(held.reservationId, {
-      token: `${held.paymentToken}.old`,
-      key: newIdempotencyKey(),
-    })
+    const stored = { token: held.paymentToken, key: newIdempotencyKey() }
+    savePaymentAttempt(held.reservationId, stored)
     const requests = recordRequests(PAYMENTS_PATH)
 
-    const { result } = renderHook(() => usePaymentFlow(held))
+    // 예매 상세로 다시 열면 조회마다 새로 서명한 토큰을 받는다
+    renderHook(() => usePaymentFlow({ ...held, paymentToken: `${held.paymentToken}.resigned` }))
 
-    await waitFor(() => expect(readPaymentAttempt(held.reservationId)).toBeNull())
-    expect(result.current.state).toEqual({ step: 'ready' })
-    expect(requests).toHaveLength(0)
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0].headers.get('Idempotency-Key')).toBe(stored.key)
+    expect(((await requests[0].clone().json()) as { paymentToken: string }).paymentToken).toBe(
+      stored.token,
+    )
+    expect(readPaymentAttempt(held.reservationId)?.key ?? stored.key).toBe(stored.key)
   })
 
   it('저장한 시도가 없으면 눌러야 보낸다', async () => {
