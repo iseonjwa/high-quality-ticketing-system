@@ -15,6 +15,9 @@ export const paths = {
   admin: '/admin',
   adminConcertNew: '/admin/concerts/new',
   adminConcert: '/admin/concerts/:concertId',
+  adminLotteryNew: '/admin/concerts/:concertId/schedules/:scheduleId/lottery',
+  adminLottery: '/admin/lotteries/:lotteryId',
+  adminPasswordReset: '/admin/users/password-reset',
 } as const
 
 export function concertPath(concertId: number): string {
@@ -23,6 +26,15 @@ export function concertPath(concertId: number): string {
 
 export function adminConcertPath(concertId: number): string {
   return `/admin/concerts/${concertId}`
+}
+
+// 회차에 추첨을 설정하는 화면. 회차 시각을 공연 상세 조회로 받으므로 공연 번호도 경로에 둔다
+export function adminLotteryNewPath(concertId: number, scheduleId: number): string {
+  return `/admin/concerts/${concertId}/schedules/${scheduleId}/lottery`
+}
+
+export function adminLotteryPath(lotteryId: number): string {
+  return `/admin/lotteries/${lotteryId}`
 }
 
 export function queuePath(scheduleId: number): string {
