@@ -83,6 +83,16 @@ flowchart LR
 - 검사: `script/check-prometheus-rules.sh`가 promtool 규칙 검사·테스트, Prometheus 설정 두 개의 `promtool check config`, `amtool check-config`, 경로 검사, 템플릿 렌더 검사를 한다. 경로 검사는 `--tree` 출력으로 즉시 확인 알림만 1시간 반복 하위 경로를 타는지 확인한다. 수신자가 하나라 수신자 이름만으로는 틀린 설정을 못 잡기 때문이다. CI `prometheus-rules` 워크플로의 paths에 `infra/alertmanager/**`와 이 스크립트를 더했다.
 - 확인 방법: Alertmanager UI(http://localhost:9093)에서 수신자와 알림 상태를 보고, `curl -s localhost:9090/api/v1/alertmanagers`로 Prometheus가 Alertmanager를 찾았는지 본다. 미리보기는 `docker exec iseonjwa-alertmanager-1 amtool --alertmanager.url=http://localhost:9093 alert add alertname=... env=preview ...`로 가짜 알림을 넣어 볼 수 있다(제목에 "미리보기"가 붙는다). 팀 채널에 올라가니 필요할 때만 쓴다.
 - 확인 결과(2026-11-04, 로컬 compose): (1) 이미 울리던 환불 확인 알림 2건이 슬랙으로 갔다. (2) 결제 DB를 12초 멈춰 `PaymentDbConnectionTimeout`을 울리자 발생 메시지와 약 10분 뒤 해결 메시지가 갔다. (3) 새 모양의 미리보기 알림(발생, 발생·해결 섞임, 해결)이 갔다. 전송 실패는 0건이었다(`alertmanager_notifications_failed_total`).
+- 알림 문구(2026-11-04 사용자 요청): 결제 규칙의 `summary`를 합니다체로 바꾸고 해야 할 일을 끝에 붙였다(예: "결제 DB 연결 Timeout이 났습니다(pool=…). 이 시간의 결제 요청이 503으로 실패했을 수 있어 확인이 필요합니다"). 규칙 단위 테스트의 기대 문구도 함께 바꿨다.
+
+### 건별 알림(후속, ISE-183)
+
+사용자는 "몇 번 유저가 언제 결제한 건인지"까지 알림에 담기를 원했다(2026-11-04). 지표 알림은 건수·최고령·횟수만 있어 결제 건 정보가 없고, DB 연결 시간 초과는 결제 한 건에 묶이지 않는다. 세 안(Loki 로그 알림, 결제 서비스가 슬랙에 직접 전송, 말투만 바꾸고 상세는 링크) 중 Loki 로그 알림을 골랐다.
+
+- 결제 서비스가 건별 사건(NEEDS_MANUAL_CHECK 전환, 금액 불일치, 대사 불일치 OPEN, DLQ OPEN)을 `event=… paymentId=… userId=… occurredAt=…` 한 줄로 남긴다.
+- Loki 규칙이 이 줄로 알림을 만들어 같은 Alertmanager로 보낸다. 경로가 하나라 묶기·반복·해결 알림과 메시지 모양을 그대로 쓴다.
+- 슬랙에는 내부 ID만 싣는다(이메일·이름 금지). 채널이 큰 워크스페이스의 공개 채널이기 때문이다.
+- Loki·Alloy(ISE-178) 뒤에 한다. 결제 한 건에 묶이지 않는 알림(DB 시간 초과, 작업 정체 등)은 지표 알림으로 둔다.
 
 ## 4. 메모리 추가분
 
@@ -132,6 +142,7 @@ ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 | 요청 단위 로그 부족 문제 | 공통 요청 로그 필터로 해결(사용자 결정, contract 이슈) |
 | Kafka 소비자 처리의 로그·트레이스 전파 | 구현 이슈에서 확인 |
 | 서비스 다운·Alertmanager 장애 알림 | 미정 |
+| 건별 결제 알림(유저·결제 시각) | Loki 로그 알림으로 정함(사용자, 2026-11-04), ISE-183 |
 | 프론트 안 로그 패널(M4) | 후보 |
 
 ## SA와 다른 점/더한 점 (SA 변경 요청 대상)
