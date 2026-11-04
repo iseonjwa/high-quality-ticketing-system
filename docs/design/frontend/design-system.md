@@ -237,6 +237,12 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 |---|---|---|
 | ![순번 15,234번과 예상 대기 약 5분, 진행 막대](samples/screens/queue-waiting.png) | ![위 표시만 경고색으로 바뀌고 순번은 그대로인 상태](samples/screens/queue-unstable.png) | ![입장 시간이 지나 줄에서 빠졌다는 안내와 다시 줄 서기](samples/screens/queue-expired.png) |
 
+[`samples/seat-sections.html`](samples/seat-sections.html)은 좌석 선택을 "구역 먼저 고르기"로 바꾼 샘플이다(ISE-115, 2026-11-04 사용자 선택). 로컬 공연장(KSPO DOME)이 25구역 × 600석 = 15,000석이라 위 샘플처럼 전부 그리면 페이지가 1만 px를 넘는다. 구역 배치도(응답 순서대로 5칸, 좁으면 4칸)에서 구역을 고르면 그 구역 좌석만 그리고, 고른 좌석은 구역을 옮겨도 요약과 배치도(구역별 고른 수)에 남는다. 상단 바의 입장 유효 시간은 좁은 화면에서 본문 맨 위로 내려온다. 조작판과 `#demo=` 값은 위 샘플과 같다.
+
+| 두 구역에서 2석 선택 | 409 이선좌 뒤 | 375px |
+|---|---|---|
+| ![A·F구역에서 한 석씩 고르고 F구역 좌석을 보이는 상태, C구역은 매진](samples/screens/seat-sections-selected.png) | ![겹친 좌석을 빼고 남은 한 석을 유지한 채 경고를 보인 상태](samples/screens/seat-sections-conflict.png) | ![구역 4칸, 입장 시간이 본문 위로 내려온 좁은 화면](samples/screens/seat-sections-375.png) |
+
 ## 9. 확정한 방향
 
 샘플을 보고 초안 그대로 확정했다(2026-11-02, [판단 기록](../../ai-judgments/junhyun/2026-11-02-design-system-sample-accepted.md)).

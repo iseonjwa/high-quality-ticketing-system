@@ -76,12 +76,12 @@ src/
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
   app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 운영자는 pages/admin/
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제 화면 이동 값은 pages/payment/, 운영자는 pages/admin/
   admin/          운영자 입력 검사(formSchemas.ts)
   components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
   components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)
-  components/layout/  공통 레이아웃(헤더·토스트, AppLayout)과 경로 에러 화면
+  components/layout/  공통 레이아웃(헤더·토스트, AppLayout), 화면이 헤더 오른쪽을 채우는 HeaderSlot, 경로 에러 화면
   pages/DesignSystemPage.tsx  `npm run dev`에서 `/_design`으로 여는 컴포넌트 확인 화면(운영 빌드에는 없다)
   lib/            공통 함수
   api/            API 클라이언트(client.ts)와 도메인별 요청 함수·응답 스키마, 에러 문구 표
