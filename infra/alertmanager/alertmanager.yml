@@ -21,15 +21,32 @@ inhibit_rules:
     target_matchers: ['severity="warning"']
     equal: [env, service, alertname]
 
+# 메시지 모양(제목·본문·색·필드)은 templates/slack.tmpl에 둔다.
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
 receivers:
   - name: slack-monitoring
     slack_configs:
       - api_url_file: /etc/alertmanager/slack-monitoring-url
         # 슬랙은 기본값이 false라 켜야 해결 알림이 간다.
         send_resolved: true
-        title: |-
-          {{ if eq .Status "firing" }}[발생]{{ else }}[해결]{{ end }} {{ .CommonLabels.env }} · {{ .CommonLabels.service }} {{ .CommonLabels.severity }}{{ if eq .Status "firing" }} {{ .Alerts.Firing | len }}건{{ end }}
-        text: |-
-          {{ range .Alerts.Firing }}• *{{ .Labels.alertname }}* {{ .Annotations.summary }}{{ if .Annotations.runbook }} (대응: {{ .Annotations.runbook }}){{ end }}
-          {{ end }}{{ range .Alerts.Resolved }}• {{ .Labels.alertname }} 해결됨
-          {{ end }}
+        color: '{{ template "iseonjwa.slack.color" . }}'
+        title: '{{ template "iseonjwa.slack.title" . }}'
+        fallback: '{{ template "iseonjwa.slack.fallback" . }}'
+        text: '{{ template "iseonjwa.slack.text" . }}'
+        footer: '{{ template "iseonjwa.slack.footer" . }}'
+        mrkdwn_in: [text, fields, pretext]
+        short_fields: true
+        fields:
+          - title: 환경
+            value: '{{ template "iseonjwa.env" .CommonLabels.env }}'
+          - title: 긴급도
+            value: '{{ with .CommonLabels.urgency }}{{ template "iseonjwa.urgency" . }}{{ else }}여러 단계{{ end }}'
+          - title: 발생 중
+            value: '{{ .Alerts.Firing | len }}건'
+          - title: 해결
+            value: '{{ .Alerts.Resolved | len }}건'
+          - title: 바로 가기
+            value: '<http://localhost:3000/d/iseonjwa-payment|결제 대시보드> · <http://localhost:9090/alerts|Prometheus 알림> · <http://localhost:9093|Alertmanager>'
+            short: false
