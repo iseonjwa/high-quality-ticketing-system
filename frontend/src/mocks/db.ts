@@ -311,6 +311,17 @@ function createInitialState(nowMillis = Date.now()): MockState {
         rows: 3,
         perRow: 10,
       }),
+      // 처음부터 매진인 구역. 좌석 화면의 매진 구역 표시와 건너뛰기를 확인한다
+      ...createSeats({
+        scheduleId: 31,
+        firstSeatId: 1201,
+        section: 'C',
+        grade: 'S',
+        price: 99000,
+        rows: 1,
+        perRow: 6,
+        available: false,
+      }),
     ],
     accessTokens: new Map(),
     expiredAccessTokens: new Set(),
@@ -337,6 +348,7 @@ export function createSeats(spec: {
   price: number
   rows: number
   perRow: number
+  available?: boolean
 }): MockSeat[] {
   const seats: MockSeat[] = []
   for (let row = 1; row <= spec.rows; row++) {
@@ -349,7 +361,7 @@ export function createSeats(spec: {
         price: spec.price,
         row,
         number,
-        available: true,
+        available: spec.available ?? true,
       })
     }
   }

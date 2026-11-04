@@ -23,8 +23,6 @@ import { mockScenario } from '@/mocks/scenario'
 
 // 동기형 선점(`docs/design/reservation/contracts.md`)과 예매 조회(SA 11-5).
 
-const MAX_SEATS_PER_REQUEST = 4
-
 // 결제 토큰 `mock-payment.{reservationId}.{발급 번호}`. 실제 발급기처럼 발급마다 값이 달라진다(무작위 jti).
 // 결제 서버는 토큰 원문까지 멱등 비교에 넣으므로, 다시 받은 토큰을 옛 멱등키로 보내면 409 IDEMPOTENCY_KEY_REUSED다.
 export function issuePaymentToken(reservation: MockReservation) {
@@ -52,16 +50,14 @@ function holdResponse(reservation: MockReservation) {
   )
 }
 
+// 서버 SyncSeatHoldService.sortedDistinctSeatIds(:143-148): 형식 검증(양수 정수) 뒤 빈 배열·중복은 SEAT_COUNT_MISMATCH,
+// 정렬한 목록이 응답과 멱등 본문 비교의 기준이다. 회차의 1인 최대 매수 검사는 같은 키 재요청 확인 뒤에 따로 한다(:85).
 function parseSeatIds(value: unknown): number[] {
   if (!Array.isArray(value) || !value.every((id) => Number.isInteger(id) && id > 0)) {
     throw fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
   }
   const seatIds = [...new Set(value as number[])].sort((left, right) => left - right)
-  if (
-    seatIds.length !== value.length ||
-    seatIds.length < 1 ||
-    seatIds.length > MAX_SEATS_PER_REQUEST
-  ) {
+  if (seatIds.length !== value.length || seatIds.length < 1) {
     throw fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
   }
   return seatIds
@@ -127,9 +123,9 @@ export const reservationHandlers = [
     requireEntryToken(request, user.userId, scheduleId)
     const key = requireIdempotencyKey(request)
     const seatIds = parseSeatIds((await readBody(request)).seatIds)
-    const schedule = requireSchedule(scheduleId)
     settleExpiredHolds()
 
+    // 서버는 같은 키 재요청을 회차 조회·판매 기간 검사보다 먼저 본다(SyncSeatHoldService:79-82)
     const replayed = replayHold(key, {
       userId: user.userId,
       scheduleId,
@@ -137,6 +133,10 @@ export const reservationHandlers = [
     })
     if (replayed !== null) {
       return replayed
+    }
+    const schedule = requireSchedule(scheduleId)
+    if (seatIds.length > schedule.maxPerUser) {
+      return fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
     }
     if (saleStatusOf(schedule) !== 'ON_SALE') {
       return fail(409, 'SALE_NOT_OPEN', '판매 중인 회차가 아닙니다')
