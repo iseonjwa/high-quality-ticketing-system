@@ -131,6 +131,8 @@ interface MockState {
     }
   >
   seatConflictUsed: boolean
+  // hold-unknown이 이미 504를 줬는지
+  holdUnknownUsed: boolean
   // queue-unavailable이 아직 503을 줘야 하는 남은 횟수
   queueUnavailableLeft: number
   // queue-expired가 이미 줄 기록을 지웠는지
@@ -311,6 +313,7 @@ function createInitialState(nowMillis = Date.now()): MockState {
     payments: new Map(),
     paymentRequests: new Map(),
     seatConflictUsed: false,
+    holdUnknownUsed: false,
     queueUnavailableLeft: 1,
     queueExpiredUsed: false,
   }

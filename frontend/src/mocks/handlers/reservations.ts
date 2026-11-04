@@ -181,6 +181,11 @@ export const reservationHandlers = [
       seatKey: seatIds.join(','),
       reservationId,
     })
+    if (mockScenario().seatHold === 'hold-unknown' && !mockDb.holdUnknownUsed) {
+      // 서버는 선점을 마쳤지만 Gateway가 응답 시한을 넘겨 504를 준 경우. 코드는 실제 Gateway처럼 INTERNAL_SERVER_ERROR다
+      mockDb.holdUnknownUsed = true
+      return fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+    }
     return holdResponse(reservation)
   }),
 

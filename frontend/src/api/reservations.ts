@@ -75,7 +75,12 @@ export const myReservationSchema = z.object({
 // 좌석 일괄 선점. 입장 토큰과 멱등키가 필요하다.
 // 409 SEAT_ALREADY_HELD면 좌석을 다시 조회해 고르고, 좌석이 바뀌었으니 새 멱등키로 보낸다.
 // Note: 접수형 202(`REQUESTED`)는 M4 고도화 모드라 ISE-120에서 응답 스키마에 더한다.
-export function holdSeats(scheduleId: number, seatIds: number[], idempotencyKey: string) {
+export function holdSeats(
+  scheduleId: number,
+  seatIds: number[],
+  idempotencyKey: string,
+  options: { signal?: AbortSignal } = {},
+) {
   return apiRequest({
     method: 'POST',
     path: `/schedules/${scheduleId}/reservations`,
@@ -83,6 +88,7 @@ export function holdSeats(scheduleId: number, seatIds: number[], idempotencyKey:
     schema: seatHoldSchema,
     idempotencyKey,
     entryScheduleId: scheduleId,
+    signal: options.signal,
   })
 }
 

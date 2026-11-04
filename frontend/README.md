@@ -36,6 +36,7 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `queue-unavailable` | 대기열 요청 첫 1번이 503(`Retry-After: 1`), 그다음부터 기본과 같다 |
 | `queue-expired` | READY 뒤 첫 토큰 요청이 줄 기록을 지우고 404 `QUEUE_NOT_JOINED`. 다시 진입하면 기본처럼 돈다 |
 | `seat-conflict` | 첫 선점이 409 이선좌로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다 |
+| `hold-unknown` | 첫 선점이 서버에서는 성립하지만 응답 대신 504를 준다. 같은 멱등키로 다시 보내면 처음 결과(201)를 준다 |
 | `payment-declined` | 결제 200 `DECLINED`(한도 초과) |
 | `payment-unknown` | 결제 202 `UNKNOWN`, 첫 결제 조회에서 `APPROVED` |
 | `pg-unavailable` | 결제 503 `PG_UNAVAILABLE`, 좌석은 유지 |
