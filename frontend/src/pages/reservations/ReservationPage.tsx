@@ -358,7 +358,7 @@ function TicketsCard({
               />
               <div className="relative grid gap-3 p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="type-caption tracking-[0.18em] text-white/50 uppercase tabular-nums">
+                  <span className="type-caption tracking-[0.18em] text-white/70 uppercase tabular-nums">
                     Ticket {index + 1}/{total}
                   </span>
                   <GradeBadge grade={seat.grade} />
@@ -389,7 +389,7 @@ function TicketsCard({
                   {ticketNo ? (
                     <span className="type-caption text-white/60 tabular-nums">
                       티켓 번호{' '}
-                      <b className="block type-body-sm font-semibold whitespace-nowrap text-white">
+                      <b className="block type-body-sm font-semibold break-all text-white">
                         {ticketNo}
                       </b>
                     </span>

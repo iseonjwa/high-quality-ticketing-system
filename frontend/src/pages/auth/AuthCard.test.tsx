@@ -34,6 +34,14 @@ describe('AuthCard', () => {
     expect(img).toHaveAttribute('height')
   })
 
+  it('화면 낭독기가 제목부터 읽도록 폼이 그림 패널보다 DOM에서 먼저 온다', () => {
+    renderCard()
+
+    const heading = screen.getByRole('heading', { level: 1 })
+    const intro = screen.getByText('대기열로 들어온 순서를 지켜요')
+    expect(heading.compareDocumentPosition(intro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('그림 패널에 서비스 소개 세 줄이 있다', () => {
     renderCard()
 

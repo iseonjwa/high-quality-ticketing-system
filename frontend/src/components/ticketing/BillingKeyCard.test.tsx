@@ -93,7 +93,7 @@ describe('BillingKeyCard: 카드 모양', () => {
     expect(screen.getByText('11.05 등록')).toBeInTheDocument()
   })
 
-  it('카드 옆에 해지 안내와 [해지]가 있고, 기록이 없으면 카드 모양 자체가 없다', () => {
+  it('카드 옆에 해지 안내와 [해지]가 있다', () => {
     saveBillingKeyRecord(USER_ID, { cardLast4: '4242', registeredAt: '2026-11-04T03:00:00.000Z' })
     renderCards()
 
