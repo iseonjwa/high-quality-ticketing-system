@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | K1 측정의 Stop-the-World는 부하 테스트 환경 탓인가, 실제 환경에서도 생기는가 | [qna/2026-11-04-seat-map-gc-stop-the-world.md](qna/2026-11-04-seat-map-gc-stop-the-world.md) |
+| 2026-11-04 | 좌석 선점 부하 계획(P1~P7) 밖에서 더 해 볼 수 있는 성능 개선은 무엇인가 | [qna/2026-11-04-seathold-performance-beyond-plan.md](qna/2026-11-04-seathold-performance-beyond-plan.md) |
 | 2026-11-03 | 접수형 선점에 Kafka를 도입할 때 코드를 infrastructure에 넣으면 되는가 | [qna/2026-11-03-seathold-kafka-placement.md](qna/2026-11-03-seathold-kafka-placement.md) |
 | 2026-10-30 | reservation-service 내부에서 좌석 선점(seathold)과 예매(reservation)를 별도 도메인 패키지로 나누는 설계의 장단점 | [qna/2026-10-30-reservation-seathold-module-boundary.md](qna/2026-10-30-reservation-seathold-module-boundary.md) |
 | 2026-10-29 | 입장 토큰의 회차 ID와 요청 회차 ID 비교를 Gateway와 서비스 중 어디서 할까 | [qna/2026-10-29-entry-token-schedule-check-placement.md](qna/2026-10-29-entry-token-schedule-check-placement.md) |
