@@ -9,6 +9,7 @@ import {
   saveBillingKeyRecord,
   useBillingKeyRecord,
 } from '@/auth/billingKeyRecord'
+import { LogoMark } from '@/components/layout/Logo'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -101,21 +102,44 @@ export function BillingKeyCard({
           <RegisterError error={register.error} busy={busy} onRevoke={openRevoke} />
         ) : null}
         {record ? (
-          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md bg-gray-50 p-4">
-            <span
-              aria-hidden="true"
-              className="relative h-[30px] w-11 rounded-[6px] bg-linear-135 from-gray-700 to-gray-900 after:absolute after:top-2 after:left-1.5 after:h-2 after:w-2.5 after:rounded-[2px] after:bg-[#e9c46a]"
-            />
-            <div className="min-w-0">
-              <p className="type-body font-semibold text-gray-900">시연용 카드</p>
-              <p className="type-body-sm text-gray-500 tabular-nums">
-                {record.cardLast4 ? `•••• ${record.cardLast4} · ` : ''}
-                {formatDate(record.registeredAt)} 등록
-              </p>
+          <div className="grid items-center gap-4 @min-[40rem]:grid-cols-[minmax(0,300px)_1fr] @min-[40rem]:gap-6">
+            {/* 실물 카드 모양. 카드사·카드 이름은 응답에 없어 "시연용 카드"로 쓴다 */}
+            <div className="relative aspect-[1.586/1] w-full max-w-[300px] overflow-hidden rounded-lg bg-linear-135 from-gray-800 via-gray-900 to-primary-700 p-5 text-white shadow-lg">
+              <span
+                aria-hidden="true"
+                className="absolute -right-12 -bottom-16 size-48 rounded-full border-[22px] border-white/5"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute -top-10 -right-6 size-28 rounded-full bg-primary-500/30 blur-2xl"
+              />
+              <div className="relative flex h-full flex-col justify-between">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="type-body-sm font-semibold">시연용 카드</p>
+                  <LogoMark className="size-6" />
+                </div>
+                <span
+                  aria-hidden="true"
+                  className="h-7 w-9 rounded-md bg-linear-135 from-[#f3d27a] to-[#c9a243]"
+                />
+                <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                  <p className="text-[18px] leading-6 font-semibold tracking-[0.12em] tabular-nums">
+                    {record.cardLast4 ? `•••• ${record.cardLast4}` : '•••• ••••'}
+                  </p>
+                  <p className="type-caption text-white/70 tabular-nums">
+                    {formatDate(record.registeredAt)} 등록
+                  </p>
+                </div>
+              </div>
             </div>
-            <Button variant="outline" disabled={busy} onClick={openRevoke}>
-              해지
-            </Button>
+            <div className="grid content-center gap-3">
+              <p className="type-body-sm text-gray-500">
+                쓰지 않으려면 해지해 주세요. 해지하면 당첨돼도 결제되지 않아 다음 순번으로 넘어가요.
+              </p>
+              <Button variant="outline" className="w-fit" disabled={busy} onClick={openRevoke}>
+                해지
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-gray-200 px-4 py-5 text-center">

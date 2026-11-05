@@ -77,6 +77,7 @@ export const myReservationSchema = z.object({
   status: reservationStatusSchema,
   totalAmount: won,
 })
+export type MyReservation = z.infer<typeof myReservationSchema>
 
 // 좌석 일괄 선점. 입장 토큰과 멱등키가 필요하다.
 // 409 SEAT_ALREADY_HELD면 좌석을 다시 조회해 고르고, 좌석이 바뀌었으니 새 멱등키로 보낸다.
