@@ -5,6 +5,9 @@ import { MyInfoPage } from '@/pages/MyInfoPage'
 import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
 import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
+import { AdminLotteryNewPage } from '@/pages/admin/AdminLotteryNewPage'
+import { AdminLotteryPage } from '@/pages/admin/AdminLotteryPage'
+import { AdminPasswordResetPage } from '@/pages/admin/AdminPasswordResetPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
@@ -74,6 +77,9 @@ export const routes: RouteObject[] = [
                   { path: paths.admin, element: <AdminHomePage /> },
                   { path: paths.adminConcertNew, element: <AdminConcertNewPage /> },
                   { path: paths.adminConcert, element: <AdminConcertPage /> },
+                  { path: paths.adminLotteryNew, element: <AdminLotteryNewPage /> },
+                  { path: paths.adminLottery, element: <AdminLotteryPage /> },
+                  { path: paths.adminPasswordReset, element: <AdminPasswordResetPage /> },
                 ],
               },
             ],

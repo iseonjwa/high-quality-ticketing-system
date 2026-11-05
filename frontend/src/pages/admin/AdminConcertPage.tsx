@@ -19,7 +19,8 @@ import {
 import { createSchedule, createScheduleSeats } from '@/api/admin'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { concertQueryKeys, getConcert, type ScheduleSummary } from '@/api/concerts'
-import { concertPath, paths } from '@/app/paths'
+import { useRecordedLottery } from '@/admin/adminLotteryRecords'
+import { adminLotteryNewPath, adminLotteryPath, concertPath, paths } from '@/app/paths'
 import { applyFieldErrors } from '@/components/form/applyFieldErrors'
 import { TextField } from '@/components/form/TextField'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
@@ -133,6 +134,7 @@ export function AdminConcertPage() {
                 {concert.data.schedules.map((schedule) => (
                   <li key={schedule.scheduleId}>
                     <ScheduleRow
+                      concertId={concert.data.concertId}
                       schedule={schedule}
                       seats={seatsByScheduleId[schedule.scheduleId]}
                       focusRef={(node) => {
@@ -171,11 +173,13 @@ export function AdminConcertPage() {
 }
 
 function ScheduleRow({
+  concertId,
   schedule,
   seats,
   focusRef,
   onCreateSeats,
 }: {
+  concertId: number
   schedule: ScheduleSummary
   // undefined: 이 화면에서 모름, number: 방금 만든 좌석 수, null: 이미 있다고 확인함
   seats: number | null | undefined
@@ -199,7 +203,8 @@ function ScheduleRow({
           {schedule.maxPerUser}매
         </p>
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <LotteryAction concertId={concertId} schedule={schedule} />
         {seats === undefined ? (
           <Button ref={focusRef} variant="outline" onClick={onCreateSeats}>
             좌석 만들기
@@ -217,6 +222,30 @@ function ScheduleRow({
         )}
       </div>
     </Card>
+  )
+}
+
+// 추첨은 회차마다 하나다. 이 브라우저에서 설정한 추첨이면 그 설정으로, 아니면 오픈 전 회차에만 설정 버튼을 둔다.
+// Note: 운영자용 추첨 조회 API가 없어 다른 브라우저에서 설정한 추첨은 모른다. 설정 화면에서 409로 알게 된다
+function LotteryAction({ concertId, schedule }: { concertId: number; schedule: ScheduleSummary }) {
+  const recorded = useRecordedLottery(schedule.scheduleId)
+  if (recorded.state === 'checking') {
+    return null
+  }
+  if (recorded.state === 'found') {
+    return (
+      <Button asChild variant="ghost">
+        <Link to={adminLotteryPath(recorded.lotteryId)}>추첨 #{recorded.lotteryId}</Link>
+      </Button>
+    )
+  }
+  if (schedule.saleStatus !== 'BEFORE_OPEN') {
+    return null
+  }
+  return (
+    <Button asChild variant="ghost">
+      <Link to={adminLotteryNewPath(concertId, schedule.scheduleId)}>추첨 설정</Link>
+    </Button>
   )
 }
 

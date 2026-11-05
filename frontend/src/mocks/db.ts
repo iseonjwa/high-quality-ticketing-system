@@ -123,6 +123,12 @@ export interface MockLottery {
   entryEndAtMillis: number
   drawAtMillis: number
   maxPerEntry: number
+  // 운영자 설정(ISE-124). 추첨석으로 뗀 등급과 예비 순번 수. 공개 조회(GET /lotteries/{id})에는 나오지 않는다
+  sourceGrade: 'VIP' | 'R' | 'S'
+  waitlistCount: number
+  // 설정이 추첨석으로 바꾼 좌석. 서버는 좌석 등급을 LOTTERY로 바꾸지만 좌석 조회는 구역 등급을 공연장 원래 등급으로
+  // 주고 추첨석을 팔 수 없는 좌석으로만 보인다. 목은 등급을 건드리지 않고 이 좌석들을 못 잡는 상태로 둔다
+  convertedSeatIds: number[]
 }
 
 export type MockEntryStatus =
@@ -397,6 +403,9 @@ function createInitialState(nowMillis = Date.now()): MockState {
         entryEndAtMillis: nowMillis + DAY,
         drawAtMillis: nowMillis + DAY + 60 * MINUTE,
         maxPerEntry: 2,
+        sourceGrade: 'VIP',
+        waitlistCount: 5,
+        convertedSeatIds: [],
       },
       // 응모 시작 전(OPEN)
       {
@@ -408,6 +417,9 @@ function createInitialState(nowMillis = Date.now()): MockState {
         entryEndAtMillis: nowMillis + 2 * DAY,
         drawAtMillis: nowMillis + 2 * DAY + 60 * MINUTE,
         maxPerEntry: 1,
+        sourceGrade: 'R',
+        waitlistCount: 5,
+        convertedSeatIds: [],
       },
       // 추첨 완료(DRAWN). 데모 사용자가 1매 응모한 결과를 본다
       {
@@ -419,6 +431,9 @@ function createInitialState(nowMillis = Date.now()): MockState {
         entryEndAtMillis: nowMillis - DAY,
         drawAtMillis: nowMillis - MINUTE,
         maxPerEntry: 2,
+        sourceGrade: 'VIP',
+        waitlistCount: 5,
+        convertedSeatIds: [],
       },
     ],
     lotteryEntries: [

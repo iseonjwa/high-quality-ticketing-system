@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
-import { logout } from '@/api/auth'
+import { createSchedule, createScheduleSeats } from '@/api/admin'
+import { createLottery } from '@/api/adminLotteries'
+import { resetUserPassword } from '@/api/adminUsers'
+import { changePassword, login, logout } from '@/api/auth'
 import { registerBillingKey } from '@/api/billingKeys'
 import { getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
 import { describeError } from '@/api/errorMessages'
@@ -11,6 +14,7 @@ import { getQueuePosition, issueEntryToken, joinQueue } from '@/api/queue'
 import { getMyReservations, getReservation, holdSeats, type SeatHold } from '@/api/reservations'
 import { readEntryToken } from '@/auth/entryTokens'
 import { sessionStore } from '@/auth/session'
+import { DEMO_USER, mockDb } from '@/mocks/db'
 import { setMockScenario } from '@/mocks/scenario'
 import {
   admitTo,
@@ -20,8 +24,10 @@ import {
   SEAT_A1,
   SEAT_A2,
   SEAT_A3,
+  signInAsAdmin,
   signInAsDemo,
 } from '@/test/api'
+import { DAY, HOUR, iso, kstTimeAfterDays } from '@/test/adminLotteries'
 
 // 화면 없이 MSW 목만으로 일반 예매 흐름(SA 2-4)과 실패 분기를 확인한다.
 
@@ -357,6 +363,66 @@ describe('추첨 흐름', () => {
       reservationId,
       status: 'CONFIRMED',
     })
+  })
+})
+
+describe('운영자 흐름', () => {
+  it('운영자가 새 회차에 좌석을 만들고 추첨을 설정하면 사용자가 그 추첨에 응모한다', async () => {
+    await signInAsAdmin()
+    const now = Date.now()
+    const { scheduleId } = await createSchedule(CONCERT_ID, {
+      venueId: 1,
+      startsAt: iso(now + 30 * DAY),
+      openAt: iso(now + 2 * DAY),
+    })
+    await createScheduleSeats(scheduleId, [
+      { grade: 'VIP', price: 165000 },
+      { grade: 'R', price: 132000 },
+      { grade: 'S', price: 99000 },
+    ])
+    const lottery = await createLottery(scheduleId, {
+      sourceGrade: 'VIP',
+      seatCount: 4,
+      waitlistCount: 2,
+      maxPerEntry: 2,
+      entryStartAt: iso(now + DAY),
+      entryEndAt: iso(now + 2 * DAY - HOUR),
+      drawAt: iso(kstTimeAfterDays(3, 4)),
+    })
+    expect(lottery).toMatchObject({ status: 'OPEN', warnings: [] })
+    // 추첨석으로 뗀 만큼 그 회차의 VIP 좌석이 팔 수 없는 상태가 된다
+    const seats = mockDb.seats.filter((seat) => seat.scheduleId === scheduleId)
+    expect(seats.filter((seat) => seat.grade === 'VIP' && !seat.available)).toHaveLength(4)
+
+    // 응모 시작 시각이 지났다고 보고 사용자가 응모한다
+    mockDb.lotteries.find((item) => item.lotteryId === lottery.lotteryId)!.entryStartAtMillis =
+      now - 1000
+    await logout()
+    await signInAsDemo()
+    const info = await getLottery(lottery.lotteryId)
+    expect(info).toMatchObject({ scheduleId, status: 'OPEN', seatCount: 4 })
+    const entry = await enterLottery(lottery.lotteryId, 2, newIdempotencyKey())
+    expect(entry).toMatchObject({ lotteryId: lottery.lotteryId, status: 'ENTERED', quantity: 2 })
+    await expect(getMyEntry(lottery.lotteryId)).resolves.toEqual(entry)
+  })
+
+  it('운영자가 회원 비밀번호를 초기화하면 그 회원은 임시 비밀번호로 로그인하지 못하고 비밀번호를 바꿔야 한다', async () => {
+    await signInAsAdmin()
+    const { temporaryPassword } = await resetUserPassword(42)
+    await logout()
+
+    const blocked = await rejectionOf(
+      login({ email: DEMO_USER.email, password: temporaryPassword }),
+    )
+    expect([blocked.status, blocked.code]).toEqual([403, 'PASSWORD_CHANGE_REQUIRED'])
+
+    await changePassword({
+      email: DEMO_USER.email,
+      currentPassword: temporaryPassword,
+      newPassword: 'new-password-1234',
+    })
+    await login({ email: DEMO_USER.email, password: 'new-password-1234' })
+    expect(sessionStore.getState().accessToken).not.toBeNull()
   })
 })
 

@@ -128,6 +128,18 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
 
   // 운영자
   SCHEDULE_SEATS_ALREADY_CREATED: { tone: 'warning', message: '이미 좌석을 만든 회차예요' },
+  LOTTERY_ALREADY_EXISTS: {
+    tone: 'warning',
+    message: '이 회차에는 이미 추첨이 있어요. 회차마다 추첨은 하나예요',
+  },
+  LOTTERY_SETUP_CLOSED: {
+    tone: 'warning',
+    message: '예매 오픈이나 응모 시작이 지나 추첨 설정을 바꿀 수 없어요',
+  },
+  LOTTERY_SEATS_NOT_ENOUGH: {
+    tone: 'warning',
+    message: '추첨석으로 뗄 좌석이 모자라요. 좌석을 만들었는지, 추첨석 수를 확인해 주세요',
+  },
 }
 
 // 표에 없는 코드(METHOD_NOT_ALLOWED, INTERNAL_SERVER_ERROR, 응답 형식 어긋남 등)와 ApiError가 아닌 오류는
