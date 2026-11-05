@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.lottery.application;
 
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
-import com.iseonjwa.reservation.lottery.domain.LotterySeat;
+import com.iseonjwa.reservation.lottery.domain.policy.LotterySeat;
 
 import java.util.List;
 

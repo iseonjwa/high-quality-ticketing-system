@@ -1,12 +1,12 @@
 package com.iseonjwa.reservation.lottery.application;
 
 import com.iseonjwa.common.response.BusinessException;
-import com.iseonjwa.reservation.lottery.domain.DrawEntrant;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository.UnassignedWinner;
-import com.iseonjwa.reservation.lottery.domain.LotterySeat;
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator;
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator.SeatAssignment;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawEntrant;
+import com.iseonjwa.reservation.lottery.domain.policy.LotterySeat;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator.SeatAssignment;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository.UnassignedWinner;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

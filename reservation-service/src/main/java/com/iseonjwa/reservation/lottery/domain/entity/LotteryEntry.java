@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.entity;
 
 import com.iseonjwa.common.persistence.BaseEntity;
 import jakarta.persistence.Column;

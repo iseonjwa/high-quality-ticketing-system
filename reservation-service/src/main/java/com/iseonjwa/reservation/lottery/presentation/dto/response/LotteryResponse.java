@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.lottery.presentation.dto.response;
 
 import com.iseonjwa.reservation.lottery.application.LotteryResult;
-import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery.LotterySettings;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

@@ -1,9 +1,11 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.entity;
 
 import com.iseonjwa.common.persistence.BaseEntity;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
+import com.iseonjwa.reservation.lottery.domain.LotteryErrorCode;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawRanker;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

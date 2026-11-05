@@ -1,8 +1,8 @@
 package com.iseonjwa.reservation.lottery.application;
 
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
-import com.iseonjwa.reservation.lottery.domain.LotteryRepository;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
