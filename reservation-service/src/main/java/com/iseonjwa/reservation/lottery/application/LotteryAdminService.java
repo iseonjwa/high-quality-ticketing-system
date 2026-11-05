@@ -101,6 +101,11 @@ public class LotteryAdminService {
         if (converted < count) {
             throw new BusinessException(LotteryErrorCode.LOTTERY_SEATS_NOT_ENOUGH);
         }
+        // 좌석이 모자란 것이 아니라 쿼리가 어긋난 것이므로 운영자 요청 오류로 답하지 않고 예외로 되돌린다
+        if (converted != count) {
+            throw new IllegalStateException("추첨석 전환 수가 요청과 다르다: scheduleId=" + scheduleId
+                    + ", expected=" + count + ", converted=" + converted);
+        }
     }
 
     private void revert(Long scheduleId, SeatGrade sourceGrade, int count) {
