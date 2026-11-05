@@ -11,9 +11,10 @@ import { paths, reservationPath } from '@/app/paths'
 import { EmptyState } from '@/components/ticketing/EmptyState'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { ReservationStatusBadge } from '@/components/ticketing/ReservationStatusBadge'
+import { reservationStatusLabel } from '@/components/ticketing/reservationStatus'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatWon, kstParts } from '@/lib/format'
+import { formatDateTime, formatWon, kstParts } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { reservationNavigationState } from '@/pages/reservations/reservationNavigation'
 
@@ -97,6 +98,7 @@ export function MyReservationsPage() {
                     startsAt: item.startsAt,
                     venueName: null,
                   })}
+                  aria-label={ticketLinkName(item)}
                   className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <TicketRow item={item} />
@@ -126,32 +128,50 @@ export function MyReservationsPage() {
   )
 }
 
-// 상태에 따라 티켓 왼쪽 날짜 칸의 색을 바꾼다. 색만으로 구분하지 않도록 오른쪽에 상태 배지를 함께 둔다
-const STUB_TONE: Record<ReservationStatus, string> = {
-  CONFIRMED: 'bg-primary-600 text-white',
-  HELD: 'bg-warning-50 text-warning-700',
-  EXPIRED: 'bg-gray-100 text-gray-500',
-  RELEASED: 'bg-gray-100 text-gray-500',
-  CANCELED: 'bg-gray-100 text-gray-500',
+// 상태에 따라 티켓 왼쪽 날짜 칸의 색을 바꾼다. 색만으로 구분하지 않도록 오른쪽에 상태 배지를 함께 둔다.
+// 작은 글자(연.월, 요일 시:분)도 4.5:1을 넘기도록 바탕마다 글자 색을 따로 둔다(셀프 리뷰: 흐리게 해 3.1~3.7:1이었다)
+const STUB_TONE: Record<ReservationStatus, { box: string; caption: string }> = {
+  CONFIRMED: { box: 'bg-primary-600 text-white', caption: 'text-white/85' },
+  HELD: { box: 'bg-warning-50 text-warning-700', caption: 'text-warning-700' },
+  EXPIRED: { box: 'bg-gray-100 text-gray-600', caption: 'text-gray-600' },
+  RELEASED: { box: 'bg-gray-100 text-gray-600', caption: 'text-gray-600' },
+  CANCELED: { box: 'bg-gray-100 text-gray-600', caption: 'text-gray-600' },
+}
+
+// "노을섬 콘서트, 2026.11.23 (월) 19:00, 예매 확정, 예매 번호 R…, 330,000원"
+function ticketLinkName(item: MyReservation): string {
+  return [
+    item.concertTitle,
+    formatDateTime(item.startsAt),
+    reservationStatusLabel(item.status),
+    `예매 번호 ${item.reservationNo}`,
+    formatWon(item.totalAmount),
+  ].join(', ')
 }
 
 // 티켓 모양 한 줄: 왼쪽 공연 날짜 칸, 절취선, 오른쪽 공연 제목·예매 번호·상태·금액
+// Note: 링크 안에 <article>을 두지 않는다. Chrome은 링크 이름을 내용으로 계산할 때 article 안 글을 빼서 이름이 빈
+// 링크가 됐다(셀프 리뷰, jsdom은 이름을 계산해 테스트로 잡히지 않는다). 내용으로 이름을 만들면 브라우저마다 칸 사이
+// 띄어쓰기가 달라 링크 이름(ticketLinkName)을 따로 준다. 날짜 칸("23 월")은 숨긴다
 function TicketRow({ item }: { item: MyReservation }) {
   const date = kstParts(item.startsAt)
   const ended = item.status !== 'CONFIRMED' && item.status !== 'HELD'
+  const tone = STUB_TONE[item.status]
   return (
-    <article className="relative grid grid-cols-[84px_minmax(0,1fr)] overflow-hidden rounded-lg border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) group-hover:shadow-md @min-[40rem]:grid-cols-[104px_minmax(0,1fr)]">
+    <div className="relative grid grid-cols-[84px_minmax(0,1fr)] overflow-hidden rounded-lg border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) group-hover:shadow-md @min-[40rem]:grid-cols-[104px_minmax(0,1fr)]">
       <div
+        aria-hidden="true"
+        data-slot="ticket-stub"
         className={cn(
           'grid content-center justify-items-center gap-0.5 py-4 tabular-nums',
-          STUB_TONE[item.status],
+          tone.box,
         )}
       >
-        <span className="type-caption opacity-80">
+        <span className={cn('type-caption', tone.caption)}>
           {date.year}.{date.month}
         </span>
         <span className="text-[28px] leading-8 font-extrabold">{date.day}</span>
-        <span className="type-caption opacity-80">
+        <span className={cn('type-caption', tone.caption)}>
           {date.weekday} {date.hour}:{date.minute}
         </span>
       </div>
@@ -186,6 +206,6 @@ function TicketRow({ item }: { item: MyReservation }) {
           </span>
         </div>
       </div>
-    </article>
+    </div>
   )
 }

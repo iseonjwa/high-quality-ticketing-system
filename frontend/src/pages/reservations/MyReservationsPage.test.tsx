@@ -44,7 +44,7 @@ const itemList = () => within(screen.getByRole('main')).getByRole('list')
 const itemLinks = () => within(itemList()).getAllByRole('link')
 
 // 날짜 칸(티켓 왼쪽)과 공연 제목 글자
-const stubOf = (link: HTMLElement) => link.querySelector('article > div')!
+const stubOf = (link: HTMLElement) => link.querySelector('[data-slot="ticket-stub"]')!
 const titleOf = (link: HTMLElement) => within(link).getByText(CONCERT_TITLE, { selector: 'span' })
 
 function seedMany(count: number) {
@@ -171,6 +171,37 @@ describe('MyReservationsPage', () => {
       '21',
       '토 00:30',
     ])
+  })
+
+  it('링크 이름은 공연 제목·일시·상태·예매 번호·금액 순서이고, 숨긴 날짜 칸 글자는 넣지 않는다', async () => {
+    seedReservation({ status: 'CONFIRMED' })
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    const [link] = itemLinks()
+    // Chrome은 링크 안 <article> 글을 이름에서 빼서 이름이 빈 링크가 됐다(셀프 리뷰). 링크 안에 article을 두지 않는다
+    expect(link.querySelector('article')).toBeNull()
+    expect(stubOf(link)).toHaveAttribute('aria-hidden', 'true')
+    expect(link).toHaveAccessibleName(
+      new RegExp(
+        `^${CONCERT_TITLE}, \\d{4}\\.\\d{2}\\.\\d{2} \\(.\\) \\d{2}:\\d{2}, 예매 확정, 예매 번호 \\S+, [\\d,]+원$`,
+      ),
+    )
+  })
+
+  it('날짜 칸의 작은 글자는 바탕마다 4.5:1을 넘는 색이다(흐리게 하지 않는다)', async () => {
+    for (const status of ['CONFIRMED', 'HELD', 'EXPIRED'] as const) {
+      seedReservation({ status })
+    }
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    const captions = itemLinks().map((link) => stubOf(link).children[0].className)
+    expect(captions.every((name) => !name.includes('opacity'))).toBe(true)
+    // 최신순: 만료, 결제 대기, 확정
+    expect(captions[0]).toContain('text-gray-600')
+    expect(captions[1]).toContain('text-warning-700')
+    expect(captions[2]).toContain('text-white/85')
   })
 
   it('끝난 예매(만료·반환·취소)의 제목은 흐린 색이고 확정·결제 대기는 진한 색이다', async () => {
