@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -30,10 +30,16 @@ beforeEach(async () => {
 
 async function openFromConcertDetail() {
   const rendered = renderRoutes(routes, `/concerts/${CONCERT_ID}`)
-  const cards = await screen.findAllByRole('listitem')
-  const onSale = cards.find((card) => card.querySelector('a[href$="/schedules/31/queue"]'))
+  // 예매 패널에서 판매 중인 회차를 고르고 [예매하기] 링크를 누른다
+  const radios = await screen.findAllByRole('radio')
+  const onSale = radios.find((radio) => (radio as HTMLInputElement).value === '31')
   expect(onSale).toBeDefined()
-  await userEvent.click(onSale!.querySelector('a[href$="/schedules/31/queue"]')!)
+  await userEvent.click(onSale!)
+  const reserve = within(screen.getByRole('main'))
+    .getAllByRole('link', { name: '예매하기' })
+    .find((link) => link.getAttribute('href')?.endsWith('/schedules/31/queue'))
+  expect(reserve).toBeDefined()
+  await userEvent.click(reserve!)
   return rendered
 }
 

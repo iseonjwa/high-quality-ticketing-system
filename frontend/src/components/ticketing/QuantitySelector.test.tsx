@@ -41,4 +41,16 @@ describe('QuantitySelector', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('radio', { name: '2매' })).toBeChecked()
   })
+
+  it('disabled면 매수를 바꿀 수 없다', async () => {
+    const onChange = vi.fn()
+    render(<QuantitySelector value={2} max={4} onChange={onChange} disabled />)
+
+    const radios = screen.getAllByRole('radio')
+    radios.forEach((radio) => expect(radio).toBeDisabled())
+    await userEvent.click(screen.getByRole('radio', { name: '3매' }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('radio', { name: '2매' })).toBeChecked()
+  })
 })

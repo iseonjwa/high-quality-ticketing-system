@@ -89,11 +89,14 @@ pipeline {
                             ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes "ubuntu@${DEPLOY_HOST}" \
                               "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach ${SHA} && script/deploy/deploy.sh ${SHA}" 2>&1 | tee deploy.log
                             code=${PIPESTATUS[0]}
-                            # deploy.sh가 "== 되돌림 성공: <SHA>"를 남긴다. 짧은 SHA만 뽑아 둔다.
+                            # deploy.sh가 "== 배포 시작: <SHA> (직전 성공: <SHA>|없음)"과 "== 되돌림 성공: <SHA>"를 남긴다.
+                            # 직전 버전(40자, 없으면 "없음")과 되돌린 버전(짧은 SHA)을 뽑아 슬랙 메시지에 쓴다. Groovy 문자열이라 백슬래시를 쓰지 않는다.
+                            awk '/^== 배포 시작: /{gsub(/[()]/, ""); print $7; exit}' deploy.log > previous.txt
                             awk '/^== 되돌림 성공: /{print substr($4,1,7)}' deploy.log | tail -1 > rollback.txt
                             exit "$code"
                         ''')
                     }
+                    env.PREVIOUS_SHA = readFile('previous.txt').trim()
                     if (rc == 0) {
                         env.RESULT = 'success'
                     } else if (rc == 1) {
@@ -115,33 +118,28 @@ pipeline {
     post {
         always {
             script {
-                def commit = env.SHA ? "${env.SHORT_SHA} ${env.COMMIT_TITLE}" : '(커밋을 정하기 전)'
-                def build = "(#${env.BUILD_NUMBER})"
-                def message
-                switch (env.RESULT) {
-                    case 'success':
-                        message = "[배포 성공] ${commit} ${build}"
-                        break
-                    case 'rolledback':
-                        def previous = env.ROLLBACK_SHA ? "(${env.ROLLBACK_SHA})" : ''
-                        message = "[배포 실패] ${commit} ${build} 직전 버전${previous}으로 되돌렸습니다"
-                        break
-                    case 'rollbackfailed':
-                        message = "[배포 실패] ${commit} ${build} 되돌림도 실패했습니다. 서버 확인이 필요합니다"
-                        break
-                    case 'aborted':
-                        message = "[배포 중단] ${commit} ${build} 이미지가 20분 안에 GHCR에 올라오지 않았습니다"
-                        break
-                    default:
-                        message = "[배포 오류] ${commit} ${build} 파이프라인이 실패했습니다. Jenkins 로그를 확인해 주세요"
+                // 메시지 모양은 script/deploy/slack-payload.sh가 정한다(색 띠, 결과 한 줄, 커밋·직전 버전·계기·걸린 시간, 비교·바로 가기 링크).
+                // RESULT가 없으면 단계 밖에서 끝난 것이다: 사람이 멈췄거나 40분 제한이면 ABORTED, 그 밖은 오류다.
+                def result = env.RESULT ?: (currentBuild.currentResult == 'ABORTED' ? 'cancelled' : 'error')
+                def trigger
+                if (params.TAG?.trim()) {
+                    trigger = '수동 재배포(TAG)'
+                } else if (currentBuild.getBuildCauses('hudson.triggers.SCMTrigger$SCMTriggerCause')) {
+                    trigger = 'main 새 커밋'
+                } else {
+                    trigger = '수동 실행(main 최신)'
                 }
                 // 웹훅 주소는 환경 변수로만 다룬다(Groovy 문자열에 넣지 않고 셸 추적도 끈다). 전송 실패가 빌드 결과를 바꾸지 않는다.
+                // 메시지를 만들지 못하면(체크아웃 실패 등) 한 줄짜리로 보낸다.
                 withCredentials([string(credentialsId: 'slack-webhook-deploy', variable: 'SLACK_URL')]) {
-                    withEnv(["MESSAGE=${message}"]) {
+                    withEnv(["RESULT=${result}", "TRIGGER=${trigger}", "START_MS=${currentBuild.startTimeInMillis}"]) {
                         sh '''#!/usr/bin/env bash
                             set +x
-                            jq -n --arg t "$MESSAGE" '{text: $t}' \
-                              | curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' --data-binary @- "$SLACK_URL" > /dev/null \
+                            DURATION_SEC=$(( $(date +%s) - START_MS / 1000 )) PUBLIC_URL="${PUBLIC_URL:-}" \
+                              script/deploy/slack-payload.sh > slack.json 2>/dev/null \
+                              || jq -n --arg t "[배포 알림] ${RESULT} ${SHA:0:7} (#${BUILD_NUMBER}) 메시지를 만들지 못했습니다. Jenkins 로그를 확인해 주세요" \
+                                   '{text: $t}' > slack.json
+                            curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' --data-binary @slack.json "$SLACK_URL" > /dev/null \
                               || echo "슬랙 전송에 실패했습니다"
                         '''
                     }

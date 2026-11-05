@@ -204,7 +204,6 @@ SA의 `(REQUESTED: 응답 상태)`는 D3에서 동기 INSERT를 고르면 없어
 - 30,000행 순위 갱신을 한 트랜잭션으로 10초 안에 끝낼 수 있는지.
 - 토스 테스트 모드의 빌링 API 동시 호출 한도와 실제 빌링키 결제 응답 시간. 측정은 Mock PG로 하므로 테스트 모드에 붙일 때 확인한다(D6).
 - payment-service 인스턴스 수와 `payment.command` 파티션 수. Bulkhead 동시 수는 인스턴스당이고 리스너 동시성은 파티션 수를 넘지 못한다(D6).
-- 예매 흐름 담당의 `payment.result` 소비자 구조(아직 코드가 없다. reservation-service는 패키지 뼈대만 있다).
 
 ## 근거
 SA MASTER v3.3 4-2·4-3·6-7·7-1·8-2·9-4·10-1·10-3·12-3·12-4·17-2(U9·U19), AI 검증 `#4`, 결정 기록 `#14`·`#18`·`#36`·`#39`, ADR 0018·0026·0027·0036·0037·0038·0039, `docs/design/payment/pg-integration.md` 3·5절, `contracts.md`, 학습 노트 [결제 담당과 합의할 것](../../learning/kangmin/qna/2026-10-29-lottery-payment-agreement-items.md)

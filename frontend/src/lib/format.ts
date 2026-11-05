@@ -69,8 +69,54 @@ const dateTimeParts = new Intl.DateTimeFormat('ko-KR', {
 })
 
 export function formatDateTime(iso: string): string {
+  const parts = kstParts(iso)
+  return `${parts.year}.${parts.month}.${parts.day} (${parts.weekday}) ${parts.hour}:${parts.minute}`
+}
+
+// 한국 시각의 연·월·일·요일·시·분. 홈의 오픈 달력처럼 날짜를 나눠 그릴 때 쓴다
+export interface KstParts {
+  year: string
+  month: string
+  day: string
+  weekday: string
+  hour: string
+  minute: string
+}
+
+export function kstParts(iso: string): KstParts {
   const parts = Object.fromEntries(
     dateTimeParts.formatToParts(instantMillis(iso)).map((part) => [part.type, part.value]),
   )
-  return `${parts.year}.${parts.month}.${parts.day} (${parts.weekday}) ${parts.hour}:${parts.minute}`
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    weekday: parts.weekday,
+    hour: parts.hour,
+    minute: parts.minute,
+  }
+}
+
+// 날짜만 "2026.11.20 (금)"
+export function formatDate(iso: string): string {
+  const parts = kstParts(iso)
+  return `${parts.year}.${parts.month}.${parts.day} (${parts.weekday})`
+}
+
+// 카드처럼 좁은 곳에 쓰는 "11.20 (금) 19:00". 연도는 뺀다
+export function formatShortDateTime(iso: string): string {
+  const parts = kstParts(iso)
+  return `${parts.month}.${parts.day} (${parts.weekday}) ${parts.hour}:${parts.minute}`
+}
+
+// 한국 날짜로 며칠 남았는지. 같은 날이면 0, 지났으면 음수다. "D-3" 같은 표시에 쓴다
+export function kstDaysUntil(iso: string, nowMillis: number): number {
+  return kstDayNumber(instantMillis(iso)) - kstDayNumber(nowMillis)
+}
+
+const KST_OFFSET_MILLIS = 9 * 60 * 60 * 1000
+const DAY_MILLIS = 24 * 60 * 60 * 1000
+
+function kstDayNumber(millis: number): number {
+  return Math.floor((millis + KST_OFFSET_MILLIS) / DAY_MILLIS)
 }

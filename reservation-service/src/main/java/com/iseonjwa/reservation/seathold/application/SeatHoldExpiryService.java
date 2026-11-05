@@ -74,8 +74,9 @@ public class SeatHoldExpiryService {
     @Transactional
     public boolean expire(Long reservationId) {
         var now = clock.instant();
-        // Note: 추첨 예매가 HELD인 채 기한을 넘겼다면 결제 결과를 받지 못한 것이다(결과가 오면 HELD가 아니다).
-        // outbox·Kafka·결제 장애일 수 있어 당첨자를 바로 떨어뜨리지 않고 같은 예매로 한 번 더 기다린다(D12)
+        // Note: 추첨 예매가 HELD인 채 기한을 넘겼다면 보통 결제 결과를 받지 못한 것이다.
+        // outbox·Kafka·결제 장애일 수 있어 당첨자를 바로 떨어뜨리지 않고 같은 예매로 한 번 더 기다린다(D12).
+        // 대조 실패한 승인이나 사용자가 다른 거절로 HELD에 남은 예매도 구분하지 않고 같이 연장된다(details.md 6절)
         var lotteryLimit = lotteryHook.extensionLimit(reservationId);
         if (lotteryLimit.isPresent()
                 && reservations.extendLotteryHoldOnce(reservationId, now, lotteryLimit.get(), SYSTEM_ACTOR) == 1) {

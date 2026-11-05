@@ -141,10 +141,11 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 |---|---|
 | `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 8개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
 | `script/deploy/deploy.sh <SHA>` | 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
-| `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 데이터를 만들지 않는다 |
+| `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
 | `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
 | `script/deploy/install-docker.sh` | Ubuntu에 Docker 공식 apt 저장소로 Docker와 compose 플러그인을 설치한다 |
+| `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
 
 - 앱 프로필은 `prod`다. `local` 전용 컨트롤러(`LocalIdentityController` 등)가 배포 서버에 뜨지 않게 하려는 것이다. `application-prod.yml`의 샘플링은 `${TRACING_SAMPLE_RATE:0.1}`로 바꾸고 배포 compose가 1.0을 넣는다(시연에서 traceId로 트레이스를 본다). 부하 측정 때는 0.01(`loadtest`)로 바꿀지 측정 이슈에서 정한다.
 - 상한 합계는 약 12.1GB(앱 4.8GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 77%로 SA 9-3의 75% 기준을 조금 넘는다. 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
@@ -185,11 +186,16 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 1. 커밋 정하기: 매개변수 `TAG`가 비면 checkout한 main의 HEAD SHA, 있으면 그 40자 SHA(16진이 아니면 실패)를 쓴다. 커밋 제목도 함께 읽는다.
 2. 이미지 기다리기: 8개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend)에 그 SHA 태그가 모두 생길 때까지 30초마다 확인하고 최대 20분 기다린다. 익명 토큰(`https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull`)으로 매니페스트에 HEAD 요청을 보내 200을 본다. 이 방식은 패키지가 공개일 때만 동작한다(아래 "GHCR 패키지 공개"). 아직 올라오지 않은 이미지는 토큰 요청이 403(`DENIED`)으로 끝나는데, 이것도 "없음"으로 센다.
 3. 배포: `sshagent(['deploy-ssh'])` 안에서 `ssh ubuntu@${DEPLOY_HOST} "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach <SHA> && script/deploy/deploy.sh <SHA>"`를 실행한다. 종료 코드 0은 성공, 1은 실패(되돌림 성공), 3은 되돌림도 실패, 그 밖(예: SSH 접속 실패 255)은 오류다.
-4. 슬랙: 결과를 `#이선좌-배포상태알림`에 한 줄로 보낸다. 예: `[배포 성공] abc1234 커밋 제목 (#12)`, `[배포 실패] … 직전 버전(def5678)으로 되돌렸습니다`, `[배포 실패] … 되돌림도 실패했습니다. 서버 확인이 필요합니다`, `[배포 중단] … 이미지가 20분 안에 GHCR에 올라오지 않았습니다`. 웹훅 주소는 `withCredentials` 환경 변수로만 다루고 로그에 찍지 않는다. 전송이 실패해도 빌드 결과는 바뀌지 않는다.
+4. 슬랙: 결과를 `#이선좌-배포상태알림`에 보낸다. 메시지는 `script/deploy/slack-payload.sh`가 만들고 모양은 Alertmanager 알림(`infra/alertmanager/templates/slack.tmpl`)과 맞췄다(2026-11-04, 처음의 한 줄 메시지는 커밋·직전 버전을 찾기 어려워 바꿨다).
+   - 왼쪽 색 띠와 제목 한 줄: 성공 초록 `[배포 성공] 배포 서버에 새 버전을 올렸습니다`, 되돌림 주황 `[배포 실패] 새 버전이 확인을 통과하지 못해 직전 버전(def5678)으로 되돌렸습니다`, 되돌림도 실패 빨강 `[배포 실패] 배포와 되돌림이 모두 실패했습니다. 서버 확인이 필요합니다`, 이미지 대기 초과 회색 `[배포 중단] …`, 사람이 멈췄거나 40분 제한 회색 `[배포 멈춤] …`, 그 밖 빨강 `[배포 오류] …`. 제목은 GitHub 커밋 페이지로 이어진다.
+   - 본문: 굵은 커밋 제목, 그리고 짧은 필드 커밋(링크)·직전 버전(링크, 처음 배포면 "없음")·계기(`main 새 커밋`, `수동 재배포(TAG)`, `수동 실행(main 최신)`)·걸린 시간·바뀐 내용(직전 버전과 새 버전의 GitHub 비교 링크)·바로 가기(`PUBLIC_URL`이 있을 때 서비스 링크). 꼬리말은 `이선좌 Jenkins #<빌드 번호> · 배포 서버`다.
+   - 직전 버전은 `deploy.sh`가 남기는 `== 배포 시작: <SHA> (직전 성공: <SHA>|없음)` 줄에서 뽑는다. 휴대폰 푸시 알림에는 제목, 짧은 SHA, 커밋 제목이 한 줄로 보인다.
+   - 웹훅 주소는 `withCredentials` 환경 변수로만 다루고 로그에 찍지 않는다. 메시지를 만들지 못하면(체크아웃 실패 등) 한 줄짜리로 보낸다. 전송이 실패해도 빌드 결과는 바뀌지 않는다.
+   - 모양 확인: `RESULT=success SHA=<40자> COMMIT_TITLE=제목 PREVIOUS_SHA=<40자> TRIGGER='main 새 커밋' DURATION_SEC=95 BUILD_NUMBER=1 script/deploy/slack-payload.sh | jq .`
 
 옵션은 동시 실행 금지, 타임스탬프, 전체 40분 제한이다. 되돌리기·재배포는 Jenkins에서 `TAG`에 이전 커밋 SHA를 넣고 실행한다. `BookingFlowSystemTest`를 고르는 매개변수는 이번에 넣지 않았다(후속).
 
-**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
+**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`, 선택 `PUBLIC_URL`=슬랙 바로 가기 주소, 서버는 `http://52.63.10.174`)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
 
 **`DEPLOY_HOST`는 배포 EC2의 사설 IP다.** 배포 서버 보안 그룹은 "Jenkins 보안 그룹에서 오는 22"만 허용하는데, 이 규칙은 VPC 안 사설 IP로 온 연결에만 맞는다. 공인 IP(Elastic IP)로 붙으면 출발지가 Jenkins 보안 그룹이 아닌 공인 주소로 보여 막힌다. 두 EC2는 같은 VPC에 둔다.
 
@@ -212,6 +218,23 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 - 파이프라인 시험: Jenkinsfile을 인라인 잡으로 옮겨 단계마다 확인했다. 20분 대기를 12초로 줄이면 "[배포 중단]" 경로로 가고 슬랙 전송 실패는 빌드를 바꾸지 않았다. 이미지 확인을 건너뛰면 SSH 단계까지 가서 ssh-agent가 키를 읽고 `127.0.0.1:22`에 접속을 시도했다(연결 거부, 오류 경로). `ssh`를 종료 코드 0·1·3으로 흉내 내면 슬랙 메시지가 각각 성공, "직전 버전(aaaaaaa)으로 되돌렸습니다", "되돌림도 실패했습니다"로 나왔다.
 - 실제 GHCR 이미지 확인, 실제 배포 EC2 SSH, 실제 슬랙 전송은 하지 않았다(이미지는 아직 올라오지 않았다).
 
+### 첫 배포 기록 (2026-11-04)
+
+- 서버: 배포 `m7i-flex.xlarge`(Ubuntu 24.04, 4 vCPU, 15.7GiB, 디스크 40GB, 탄력적 IP `52.63.10.174`, 사설 IP `172.31.4.93`), Jenkins `t3.small`(사설 IP `172.31.38.150`). 공개 주소는 `http://52.63.10.174/`다.
+  - 2026-11-05: 부하 측정에 대비해 배포 서버를 같은 크기의 일반 인스턴스 `m7i.xlarge`로 바꿨다.
+    - 이유: flex는 vCPU당 40% 기준 성능에 "대부분의 시간" 최대 성능이라, 지속 부하에서 CPU 성능이 보장되지 않는다.
+    - 요금: 시드니 시간당 0.2394달러에서 0.252달러가 됐다.
+    - 방법: 중지 → 유형 변경 → 시작. 탄력적 IP, 사설 IP, EBS 데이터는 그대로다.
+    - 근거: [판단 기록](../../ai-judgments/junhyun/2026-11-05-deploy-ec2-m7i-standard-for-load-test.md)
+- 막혔던 것: 두 보안 그룹에 아웃바운드 규칙이 없어 서버에서 GitHub·GHCR·Docker 저장소로 나가지 못했다(DNS와 들어오는 SSH는 됨). 아웃바운드 "모든 트래픽 0.0.0.0/0"을 더해 풀었다. 보안 그룹을 만들 때 아웃바운드 기본 규칙이 있는지 확인한다.
+- 릴리스: dev → main을 merge commit으로 반영(#315, `e27d54e`). `images` 워크플로가 이미지 8개를 올렸고, 사용자가 패키지 8개를 공개로 바꾼 뒤 익명으로 받아지는 것(200)을 확인했다.
+- 배포 서버 준비: `install-docker.sh`(Docker 29.9, Compose 5.7), `init-env.sh`(키 15개, 0600), 슬랙 알림 웹훅은 로컬 `.env`에서 출력 없이 옮겼다.
+- 첫 `deploy.sh e27d54e…`: 컨테이너 20개가 모두 떴고(`--wait` 통과) `prod` 프로필 기동과 요청 로그(traceId 포함)를 확인했다. 그런데 스모크의 공연 목록이 503으로 실패했다. reservation-service가 뜬 뒤 약 35초 동안 Gateway가 Eureka에서 서비스를 찾지 못했다(`No servers available for service: reservation-service`). 직전 성공 커밋이 없어 되돌리지 않았고, 다시 돌린 스모크가 통과해 `.deploy/current`에 기록했다. 이 지연을 기다리도록 `smoke.sh`를 항목마다 최대 120초 다시 확인하게 고쳤다(`SMOKE_WAIT_SECONDS`).
+- 외부에서 `http://52.63.10.174/` 화면 200, `/api/v1/concerts` 200, `:8080`은 막힘(보안 그룹)을 확인했다.
+- 시드: `seed-demo.sh`(Ubuntu, GNU date)로 공연 1, 회차 1(판매 중)·2(오픈 시연), 각 15,000석, 샘플 사용자를 만들었다.
+- Jenkins: Jenkins 서버에서 만든 배포 전용 키(`/opt/jenkins/deploy_ssh_key`, ed25519)를 배포 서버 `authorized_keys`에 더하고, Jenkins 서버에서 배포 서버 사설 IP로 SSH가 되는 것(보안 그룹 참조 규칙)을 확인했다. `/opt/jenkins/jenkins.env`(관리자 비밀번호 무작위, 배포 웹훅은 로컬 `.env`에서 출력 없이)로 띄우자 폴링이 첫 빌드를 시작했다. 빌드 #1은 커밋 확인 → 이미지 8개 확인 → SSH 배포 → 스모크 4개 통과로 23초 만에 SUCCESS였다.
+- 유휴 메모리(배포 직후, `docker stats`): 사용 약 4.7GB / 15.7GB. 큰 것부터 reservation 505MiB(상한 1,152m의 44%), kafka 429MiB, payment 404MiB, user 384MiB(60%), gateway 347MiB, grafana 278MiB(384m의 72%), eureka 273MiB. 부하 중 측정은 ISE-176·181에서 한다. Loki에 앱 7개 라벨이 모두 들어왔다.
+
 ## 6. 인스턴스 크기 결정 방법 (SA U10)
 
 결정(2026-11-04, 사용자): 16GB급. 금요일(11/6) 리허설에 맞추려고 측정을 기다리지 않고 SA 9-3 합계(관측 추가분 포함 약 12GB)로 정했다. Free plan은 8GB급까지라 Paid plan으로 바꿨다. 측정(ISE-176)은 배포 서버의 실제 사용량으로 대신하고, 아래 근거는 결정 전 기록이다.
@@ -228,8 +251,9 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | 항목 | 상태 |
 |---|---|
 | AWS 계정 | 정함(2026-11-04): 안준현 계정, 새 가입 방식, 리전 시드니 `ap-southeast-2` |
-| 배포 EC2 크기 | 정함(2026-11-04, 사용자): 16GB급, AWS Paid plan. 측정은 배포 뒤 실제 사용량으로(ISE-176) |
+| 배포 EC2 크기 | 정함(2026-11-04, 사용자): 16GB급, AWS Paid plan. 측정은 배포 뒤 실제 사용량으로(ISE-176). 유형은 2026-11-05에 `m7i-flex.xlarge`에서 `m7i.xlarge`로 바꿨다(부하 측정 때문) |
 | Jenkins EC2 크기 | t3.small 2GB급 `[가정]` |
+| 앱 JVM GC | 정함(2026-11-05, 사용자): 리허설(11/6)까지는 지금처럼 JVM 자동 선택(Serial)을 둔다. 컨테이너 상한이 모두 약 1,792MB보다 작아 Serial이 골라진다. 다음 주 부하 측정 전에 contract 이슈로 알리고, 앱 7개 `JAVA_TOOL_OPTIONS`에 `-XX:+UseG1GC`를 명시한다. 근거는 ISE-79 측정과 [판단 기록](../../ai-judgments/junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
 | Jenkins 구성·파이프라인 | 정함(ISE-175): JCasC 이미지 + `Jenkinsfile`(폴링 → 이미지 대기 20분 → SSH 배포 → 슬랙). 서버 설치는 EC2 준비 뒤 |
 | 슬랙 채널 이름 | 확정: 배포 결과 `#이선좌-배포상태알림`, 알림 `#이선좌-성능-모니터링`(2026-11-04 생성) |
 | GHCR 소유자·이미지 이름 규칙 | 정함(ISE-173): `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` |

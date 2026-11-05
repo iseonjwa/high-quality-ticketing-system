@@ -26,6 +26,20 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-05 | 팀원에게 받은 공개 키와 IP로 배포 서버 SSH 접속을 열어 주는 방법 | [qna/2026-11-05-team-ssh-access-to-deploy-server.md](qna/2026-11-05-team-ssh-access-to-deploy-server.md) |
+| 2026-11-05 | 팀원이 가비지 컬렉터를 Serial에서 G1으로 바꿔 잰 내용은 무엇이고, 배포 서버에는 어떤 의미인가 | [qna/2026-11-05-gc-serial-to-g1-seathold-measurement.md](qna/2026-11-05-gc-serial-to-g1-seathold-measurement.md) |
+| 2026-11-05 | 부하 테스트를 로컬(노트북)에서 배포 서버로 쏘면 안 되나 | [qna/2026-11-05-load-test-from-local-machine.md](qna/2026-11-05-load-test-from-local-machine.md) |
+| 2026-11-05 | 부하 테스트(k6)는 어디에서 돌리고, k6도 컨테이너로 띄우나 | [qna/2026-11-05-where-to-run-k6-load-generator.md](qna/2026-11-05-where-to-run-k6-load-generator.md) |
+| 2026-11-05 | 배포 서버에 컨테이너가 왜 20개나 뜨나 | [qna/2026-11-05-why-20-containers-in-deploy.md](qna/2026-11-05-why-20-containers-in-deploy.md) |
+| 2026-11-05 | 부하 테스트 때문에 EC2를 flex 인스턴스에서 일반 인스턴스로 바꾸려면 어떻게 하나 | [qna/2026-11-05-ec2-change-instance-type-flex-to-standard.md](qna/2026-11-05-ec2-change-instance-type-flex-to-standard.md) |
+| 2026-11-05 | 프론트 테스트의 "8×8 동시 실행"은 무엇이고 왜 메모리를 다 쓰나 | [qna/2026-11-05-vitest-8x8-concurrency-memory.md](qna/2026-11-05-vitest-8x8-concurrency-memory.md) |
+| 2026-11-04 | Kafka는 무엇이고 어떻게 동작하며, 이 프로젝트에서는 어떻게 쓰는가 | [qna/2026-11-04-kafka-basics.md](qna/2026-11-04-kafka-basics.md) |
+| 2026-11-04 | DLQ(Dead Letter Queue)는 무엇이고 이 프로젝트에서는 어떻게 쓰는가 (2026-10-26 노트 보강) | [qna/2026-10-26-dlq-dead-letter-queue.md](qna/2026-10-26-dlq-dead-letter-queue.md) |
+| 2026-11-04 | 대기열 진입 API는 멱등한가, Lua 스크립트가 멱등을 만들어 주는가 | [qna/2026-11-04-queue-enter-idempotency-lua.md](qna/2026-11-04-queue-enter-idempotency-lua.md) |
+| 2026-11-04 | 배포 비밀값을 Jenkins Credentials나 GitHub Secrets에 두고 관리하는 방법 | [qna/2026-11-04-deploy-secrets-jenkins-github.md](qna/2026-11-04-deploy-secrets-jenkins-github.md) |
+| 2026-11-04 | AWS 지출 한도(spend limit)에 걸려 프로젝트가 멈추면 어떻게 하나 | [qna/2026-11-04-aws-spend-limit-pause.md](qna/2026-11-04-aws-spend-limit-pause.md) |
+| 2026-11-04 | 배포 서버의 관리 화면(Grafana 등)을 IP 주소로 바로 열 수 있나 | [qna/2026-11-04-admin-ui-access-by-ip.md](qna/2026-11-04-admin-ui-access-by-ip.md) |
+| 2026-11-04 | EC2에 탄력적 IP(Elastic IP)는 어떻게 할당하나 | [qna/2026-11-04-ec2-elastic-ip-allocate.md](qna/2026-11-04-ec2-elastic-ip-allocate.md) |
 | 2026-11-04 | 배포 EC2 요금은 얼마이고, DB까지 한 인스턴스에 띄우는 설계인가 | [qna/2026-11-04-deploy-cost-and-single-host-db.md](qna/2026-11-04-deploy-cost-and-single-host-db.md) |
 | 2026-11-04 | GHCR(GitHub Container Registry)은 무엇이고 왜 쓰나 | [qna/2026-11-04-what-is-ghcr.md](qna/2026-11-04-what-is-ghcr.md) |
 | 2026-11-04 | Grafana Alloy는 무엇이고 왜 쓰나 | [qna/2026-11-04-grafana-alloy-what-is.md](qna/2026-11-04-grafana-alloy-what-is.md) |
@@ -52,7 +66,6 @@
 | 2026-10-27 | 서비스가 Access JWT를 직접 검증할 때 HS256과 RS256은 무엇이 다른가 | [qna/2026-10-27-jwt-hs256-vs-rs256.md](qna/2026-10-27-jwt-hs256-vs-rs256.md) |
 | 2026-10-27 | MSA 사용자 JWT·Gateway 내부 토큰 비교와 이중 검증의 비용·보안 절충 | [qna/2026-10-27-msa-service-identity-verification.md](qna/2026-10-27-msa-service-identity-verification.md) |
 | 2026-10-26 | fail open과 fail closed는 무엇이고 어떻게 고르는가 | [qna/2026-10-26-fail-open-fail-closed.md](qna/2026-10-26-fail-open-fail-closed.md) |
-| 2026-10-26 | DLQ(Dead Letter Queue)는 무엇이고 언제 쓰는가 | [qna/2026-10-26-dlq-dead-letter-queue.md](qna/2026-10-26-dlq-dead-letter-queue.md) |
 | 2026-10-26 | Redis Lua 스크립트는 무엇이고 왜 쓰는가 | [qna/2026-10-26-redis-lua-script.md](qna/2026-10-26-redis-lua-script.md) |
 | 2026-10-23 | M1(Kafka 비동기 접수 설계)을 자세히 설명해 줘 | [sa-review/03-seat-hold-kafka-design.md](../../sa-review/03-seat-hold-kafka-design.md) |
 | 2026-10-23 | 원래 PG사의 타임아웃은 어떻게 처리돼? | [sa-review/02-pg-timeout-handling.md](../../sa-review/02-pg-timeout-handling.md) |

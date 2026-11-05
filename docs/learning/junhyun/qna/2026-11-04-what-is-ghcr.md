@@ -58,3 +58,7 @@ ghcr.io / iseonjwa / gateway : 6aeaae2f...(커밋 SHA)
 - [Configuring a package's access control and visibility (GitHub)](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 - [About billing for GitHub Packages (GitHub)](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-packages/about-billing-for-github-packages)
 - [Docker Hub usage and rate limits (Docker)](https://docs.docker.com/docker-hub/usage/)
+
+## 보강: 패키지를 공개로 바꾸는 곳 (2026-11-04)
+- 조직 Packages(`https://github.com/orgs/iseonjwa/packages`) → 패키지 → Package settings → 맨 아래 Danger Zone의 Change visibility → Public. 패키지마다 따로 바꾸므로 8개 모두 반복한다. 조직 관리자 권한이 필요하고, 조직 설정에서 공개 패키지 생성이 막혀 있으면 버튼이 비활성이다.
+- 확인: 로그아웃한 상태에서 `docker pull ghcr.io/iseonjwa/<이름>:<SHA>`가 되거나 `curl -s "https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull"`이 403 대신 토큰을 준다. Jenkins의 이미지 대기(ISE-175)가 이 익명 토큰에 의존한다.
