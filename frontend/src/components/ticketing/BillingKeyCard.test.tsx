@@ -49,15 +49,13 @@ function seedActiveCard() {
 }
 
 describe('BillingKeyCard: 표시', () => {
-  it('기록이 없으면 기록 없음 배지와 안내, 카드 등록과 다른 곳에서 등록한 카드 해지를 보인다', () => {
+  it('기록이 없으면 기록 없음 배지와 안내, 카드 등록만 보이고 해지 버튼은 없다', () => {
     renderCards()
 
     expect(screen.getByText('기록 없음')).toBeInTheDocument()
     expect(screen.getByText('이 브라우저에서 등록한 카드가 없어요')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
-    // 서버에는 카드가 있을 수 있어(다른 브라우저에서 등록, 등록 결과 모름) 해지는 늘 할 수 있다
-    expect(screen.getByRole('button', { name: '다른 곳에서 등록한 카드 해지' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '해지' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /해지/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다른 카드로 바꾸기' })).not.toBeInTheDocument()
   })
 
@@ -381,16 +379,21 @@ describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
     }
   })
 
-  it('기록이 없어도 다른 곳에서 등록한 카드를 해지할 수 있다', async () => {
+  it('다른 곳에서 등록한 카드가 서버에 있어도 기록이 없으면 해지 버튼이 없고, 등록하면 새 카드로 바뀐다', async () => {
     mockDb.billingKeys.push({ billingKeyId: 7, userId: USER_ID, status: 'ACTIVE' })
     renderCards()
 
-    await userEvent.click(screen.getByRole('button', { name: '다른 곳에서 등록한 카드 해지' }))
-    const dialog = await screen.findByRole('dialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
+    expect(screen.queryByRole('button', { name: /해지/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
-    expect(hasActiveBillingKey(USER_ID)).toBe(false)
+    expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+    // 앞 카드는 해지되고 새 카드 하나만 ACTIVE다(BillingKeyService)
+    const active = mockDb.billingKeys.filter(
+      (key) => key.userId === USER_ID && key.status === 'ACTIVE',
+    )
+    expect(active).toHaveLength(1)
+    expect(active[0].billingKeyId).not.toBe(7)
+    expect(hasActiveBillingKey(USER_ID)).toBe(true)
   })
 
   it('등록 결과를 모르면 안내에서 바로 해지할 수 있고, 해지하면 그 안내가 사라진다', async () => {
