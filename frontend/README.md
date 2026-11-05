@@ -25,7 +25,7 @@ nginx가 빌드 결과를 서빙하고 `/api/`를 Gateway로 중계한다. 첫 �
 
 ### 시연 모드 (요청 로그)
 
-주소 끝에 `?demo=on`을 붙이면 그 탭에서 화면 오른쪽에 요청 로그가 열린다. 요청마다 메서드·경로·상태·traceId가 쌓이고, traceId를 누르면 Grafana "요청 로그" 대시보드가 Grafana 탭에서 열린다. 처음 열린 탭을 옆 창으로 옮겨 두면 다음부터 그 창에서 바뀐다. 왼쪽 경계를 끌어 너비를 바꾸고, `?demo=off`나 패널의 X로 끈다. Grafana 주소는 기본 `http://localhost:3000`(발표자 노트북의 SSH 터널)이고 `VITE_GRAFANA_URL`로 바꾼다. 규칙은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "시연 모드 규칙"에 있다. 패널이 앱 화면을 좁히므로 화면의 반응형 클래스는 `sm:`·`md:` 대신 `@min-[40rem]:`·`@min-[48rem]:`을 쓴다.
+주소 끝에 `?demo=on`을 붙이면 그 탭에서 화면 오른쪽에 요청 로그가 열린다. 요청마다 메서드·경로·상태·traceId가 쌓이고, traceId를 누르면 Grafana "요청 로그" 대시보드가 Grafana 탭에서 열린다. 처음 열린 탭을 옆 창으로 옮겨 두면 다음부터 그 창에서 바뀐다. 왼쪽 경계를 끌어 너비를 바꾸고, `?demo=off`나 패널의 X로 끈다. Grafana 주소는 기본 화면을 연 호스트의 3000번(로컬 `localhost:3000`, 배포 `52.63.10.174:3000`)이고 `VITE_GRAFANA_URL`로 바꾼다. 규칙은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "시연 모드 규칙"에 있다. 패널이 앱 화면을 좁히므로 화면의 반응형 클래스는 `sm:`·`md:` 대신 `@min-[40rem]:`·`@min-[48rem]:`을 쓴다.
 
 ### 백엔드 없이 띄우기 (API 목)
 

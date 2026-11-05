@@ -45,17 +45,16 @@ tags: [frontend, demo, observability, traceid, grafana]
 
 ### 3. Grafana로 이어 보기
 - traceId를 누르면 이 주소가 열린다.
-  - `http://localhost:3000/d/iseonjwa-request-logs?var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>`
+  - `http://<화면을 연 호스트>:3000/d/iseonjwa-request-logs?var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>`
+  - 배포 서버에서 열었으면 `http://52.63.10.174:3000/...`, 로컬이면 `http://localhost:3000/...`이다.
   - 앞뒤 15분은 브라우저와 서버의 시계 차이, 요청 뒤 Kafka 소비자가 늦게 남긴 로그까지 넣으려는 것이다.
-- 배포 이미지는 Grafana 주소를 따로 정하지 않아 기본값 `http://localhost:3000`을 쓴다. 그래서 **보는 사람 노트북에 배포 서버 Grafana로 가는 SSH 터널이 열려 있어야** 링크가 열린다.
-  ```bash
-  ssh -i ~/.ssh/<개인 키> -N -L 3000:127.0.0.1:3000 ubuntu@52.63.10.174
-  ```
+- 배포 서버 Grafana는 3000을 팀원 IP에만 연다(보안 그룹). 익명 보기(Viewer)라 로그인 없이 대시보드가 열린다. 등록되지 않은 IP에서는 열리지 않는다.
+- 처음에는 기본 주소가 `http://localhost:3000`으로 고정돼 있어 SSH 터널이 필요했다. 배포 서버에서 링크가 localhost로 가는 문제를 찾아 2026-11-05에 바꿨다(PR #344, [판단 기록](../../../ai-judgments/junhyun/2026-11-05-grafana-link-deploy-host.md)).
 - 처음 한 번만 새 탭이 열리고, 다음부터는 같은 Grafana 탭에서 바뀐다. 처음 열린 탭을 옆 창으로 옮겨 두면 앱 화면과 나란히 보며 시연할 수 있다.
 
 ### 4. 시연에서 쓰는 흐름
-1. 발표자 노트북에서 Grafana 터널을 연다.
-2. `http://52.63.10.174/?demo=on`으로 앱을 열고, Grafana 탭을 옆 창에 둔다.
+1. 발표자 노트북의 IP가 보안 그룹 3000 규칙에 있는지 확인한다(안 열리면 담당에게 IP를 보낸다).
+2. `http://52.63.10.174/?demo=on`으로 앱을 열고, 처음 열린 Grafana 탭을 옆 창에 둔다.
 3. 좌석을 고르거나 결제하면 패널에 `POST /api/v1/...` 같은 요청이 쌓인다.
 4. 보고 싶은 요청의 traceId를 누르면 옆 창 Grafana에 그 요청의 서비스별 로그가 뜬다.
 5. 끝나면 `?demo=off`나 X로 끈다.
@@ -66,4 +65,4 @@ tags: [frontend, demo, observability, traceid, grafana]
 
 ## 관련 문서
 - `frontend/README.md`(시연 모드), `docs/design/frontend/README.md` "시연 모드 규칙", `docs/design/infra/observability.md`(요청 로그 대시보드)
-- [팀원 SSH 접속(터널)](2026-11-05-team-ssh-access-to-deploy-server.md)
+- [팀원 SSH 접속(터널)](2026-11-05-team-ssh-access-to-deploy-server.md), [외부 접속과 HTTPS](2026-11-05-why-front-unreachable-by-ip.md)

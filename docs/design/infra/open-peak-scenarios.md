@@ -259,7 +259,7 @@
 
 ## 3. 결과
 
-본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-35~TS-40에 있다.
+본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-36~TS-41에 있다.
 
 ### 동작 확인 중 얻은 수치 (local, 1회, 참고용)
 
