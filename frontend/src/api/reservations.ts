@@ -15,14 +15,18 @@ const heldReservationSchema = z.object({
   totalAmount: won,
 })
 
+// 선점이 성립한 응답. 결제 화면에 넘기는 값이다
+export const heldSeatHoldSchema = heldReservationSchema.extend({
+  status: z.literal('HELD'),
+  paymentToken: z.string().min(1),
+  // 선점 만료보다 10초 이르다(SA 7-3). 결제 가능 시간은 이 값으로 보인다
+  paymentTokenExpiresAt: isoDateTime,
+})
+export type HeldSeatHold = z.infer<typeof heldSeatHoldSchema>
+
 // 동기형 201. 같은 키 재요청 때 이미 결제가 끝났으면 CONFIRMED이고 결제 토큰이 null이다(contracts.md 3-2 ③)
 export const seatHoldSchema = z.discriminatedUnion('status', [
-  heldReservationSchema.extend({
-    status: z.literal('HELD'),
-    paymentToken: z.string().min(1),
-    // 선점 만료보다 10초 이르다(SA 7-3). 결제 가능 시간은 이 값으로 보인다
-    paymentTokenExpiresAt: isoDateTime,
-  }),
+  heldSeatHoldSchema,
   heldReservationSchema.extend({
     status: z.literal('CONFIRMED'),
     paymentToken: z.null(),
@@ -75,7 +79,12 @@ export const myReservationSchema = z.object({
 // 좌석 일괄 선점. 입장 토큰과 멱등키가 필요하다.
 // 409 SEAT_ALREADY_HELD면 좌석을 다시 조회해 고르고, 좌석이 바뀌었으니 새 멱등키로 보낸다.
 // Note: 접수형 202(`REQUESTED`)는 M4 고도화 모드라 ISE-120에서 응답 스키마에 더한다.
-export function holdSeats(scheduleId: number, seatIds: number[], idempotencyKey: string) {
+export function holdSeats(
+  scheduleId: number,
+  seatIds: number[],
+  idempotencyKey: string,
+  options: { signal?: AbortSignal } = {},
+) {
   return apiRequest({
     method: 'POST',
     path: `/schedules/${scheduleId}/reservations`,
@@ -83,6 +92,7 @@ export function holdSeats(scheduleId: number, seatIds: number[], idempotencyKey:
     schema: seatHoldSchema,
     idempotencyKey,
     entryScheduleId: scheduleId,
+    signal: options.signal,
   })
 }
 

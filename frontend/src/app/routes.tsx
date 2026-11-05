@@ -11,6 +11,7 @@ import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
 import { ConcertListPage } from '@/pages/concerts/ConcertListPage'
 import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { QueuePage } from '@/pages/queue/QueuePage'
+import { SeatsPage } from '@/pages/seats/SeatsPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
 import { RequireAdmin } from '@/app/RequireAdmin'
@@ -52,6 +53,7 @@ export const routes: RouteObject[] = [
             children: [
               { path: paths.me, element: <MyInfoPage /> },
               { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
+              { path: paths.seats, element: <SeatsPage />, handle: bookingStepHandle(1) },
               {
                 element: <RequireAdmin />,
                 children: [

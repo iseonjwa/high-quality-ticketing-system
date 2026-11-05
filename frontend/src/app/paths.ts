@@ -1,4 +1,4 @@
-// 좌석 화면은 ISE-115, 내 예매 화면은 ISE-117에서 만든다. 그 전까지 그 경로는 NotFound다.
+// 결제 화면은 ISE-116, 예매 상세·내 예매 화면은 ISE-117에서 만든다. 그 전까지 그 경로는 NotFound다.
 export const paths = {
   home: '/',
   concert: '/concerts/:concertId',
@@ -7,6 +7,9 @@ export const paths = {
   passwordChange: '/password-change',
   me: '/me',
   queue: '/schedules/:scheduleId/queue',
+  seats: '/schedules/:scheduleId/seats',
+  payment: '/reservations/:reservationId/payment',
+  reservation: '/reservations/:reservationId',
   myReservations: '/me/reservations',
   admin: '/admin',
   adminConcertNew: '/admin/concerts/new',
@@ -27,4 +30,12 @@ export function queuePath(scheduleId: number): string {
 
 export function seatsPath(scheduleId: number): string {
   return `/schedules/${scheduleId}/seats`
+}
+
+export function paymentPath(reservationId: number): string {
+  return `/reservations/${reservationId}/payment`
+}
+
+export function reservationPath(reservationId: number): string {
+  return `/reservations/${reservationId}`
 }
