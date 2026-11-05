@@ -24,6 +24,7 @@ import { paths } from '@/app/paths'
 import { RequireAdmin } from '@/app/RequireAdmin'
 import { RequireAuth } from '@/app/RequireAuth'
 import { bookingStepHandle } from '@/app/bookingStep'
+import { bleedLayoutHandle } from '@/app/pageLayout'
 
 // 테스트도 같은 목록으로 라우터를 만든다.
 // 개발 서버에서만 붙는 디자인 시스템 확인 화면. DEV가 빌드 때 상수 false가 돼 운영 번들에는 화면 코드가 들어가지 않는다.
@@ -49,8 +50,8 @@ export const routes: RouteObject[] = [
       {
         errorElement: <RouteErrorPage />,
         children: [
-          { path: paths.home, element: <ConcertListPage /> },
-          { path: paths.concert, element: <ConcertDetailPage /> },
+          { path: paths.home, element: <ConcertListPage />, handle: bleedLayoutHandle },
+          { path: paths.concert, element: <ConcertDetailPage />, handle: bleedLayoutHandle },
           { path: paths.login, element: <LoginPage /> },
           { path: paths.signup, element: <SignupPage /> },
           { path: paths.passwordChange, element: <PasswordChangePage /> },

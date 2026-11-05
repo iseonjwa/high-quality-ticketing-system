@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | 핵심 흐름만 보이던 AI의 화면 구성을 실제 서비스형 레이아웃·그림 에셋으로 바꾸게 함(ISE-187) | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-05-frontend-service-like-layout.md) |
 | 2026-11-05 | 등록 기록이 없을 때도 자동결제 카드 해지 버튼을 둔 AI 설계를 거두고 버튼을 없앰(ISE-186) | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-billing-card-no-revoke-without-record.md) |
 | 2026-11-04 | 지출 한도로 멈춘 배포·Jenkins 서버를 한도를 올려 살리되, 그 시점을 다음 날(11/5)로 미룸 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-04-spend-limit-raise-tomorrow.md) |
 | 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-04-single-ec2-then-review-managed.md) |

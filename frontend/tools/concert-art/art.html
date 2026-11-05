@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>공연 그림 생성기</title>
+    <!--
+  공연 포스터·배너 그림을 캔버스로 그린다. 사진·외부 이미지를 쓰지 않아 저작권 문제가 없다.
+  render.mjs가 headless Chrome으로 이 파일을 열어 #art=<번호>&w=<폭>&h=<높이>로 그리고 PNG를 받는다.
+  같은 번호는 같은 씨앗(seed)을 써서 포스터(세로)와 배너(가로)가 같은 그림으로 보인다.
+-->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #000;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script>
+      // 결정적 난수: 같은 씨앗이면 같은 그림이 나온다
+      function mulberry32(seed) {
+        return function () {
+          seed |= 0
+          seed = (seed + 0x6d2b79f5) | 0
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+        }
+      }
+
+      const params = new URLSearchParams(location.hash.slice(1))
+      const ART = Number(params.get('art') ?? 0)
+      const W = Number(params.get('w') ?? 600)
+      const H = Number(params.get('h') ?? 900)
+      const canvas = document.getElementById('c')
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext('2d')
+      // 짧은 변 기준 크기. 세로·가로 그림에서 요소 크기를 맞춘다
+      const U = Math.min(W, H)
+      const PORTRAIT = H > W
+
+      function linear(x0, y0, x1, y1, stops) {
+        const g = ctx.createLinearGradient(x0, y0, x1, y1)
+        for (const [o, c] of stops) g.addColorStop(o, c)
+        return g
+      }
+      function radial(x, y, r0, r1, stops) {
+        const g = ctx.createRadialGradient(x, y, r0, x, y, r1)
+        for (const [o, c] of stops) g.addColorStop(o, c)
+        return g
+      }
+      function fill(style) {
+        ctx.fillStyle = style
+        ctx.fillRect(0, 0, W, H)
+      }
+      function withBlur(px, draw) {
+        ctx.save()
+        ctx.filter = `blur(${px}px)`
+        draw()
+        ctx.restore()
+      }
+      function glow(x, y, r, color, alpha = 1) {
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = radial(x, y, 0, r, [
+          [0, color],
+          [1, 'rgba(0,0,0,0)'],
+        ])
+        ctx.fillRect(x - r, y - r, r * 2, r * 2)
+        ctx.restore()
+      }
+
+      // 무대 조명 빔: 위(또는 아래)의 한 점에서 퍼지는 빛 삼각형
+      function beam(x, y, angle, spread, length, color, alpha) {
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = alpha
+        ctx.translate(x, y)
+        ctx.rotate(angle)
+        const g = ctx.createLinearGradient(0, 0, 0, length)
+        g.addColorStop(0, color)
+        g.addColorStop(0.55, color.replace(/[\d.]+\)$/, '0.25)'))
+        g.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = g
+        ctx.filter = `blur(${U * 0.012}px)`
+        ctx.beginPath()
+        ctx.moveTo(-U * 0.006, 0)
+        ctx.lineTo(U * 0.006, 0)
+        ctx.lineTo(Math.tan(spread) * length, length)
+        ctx.lineTo(-Math.tan(spread) * length, length)
+        ctx.closePath()
+        ctx.fill()
+        ctx.restore()
+      }
+
+      // 관객 실루엣: 머리·어깨와 일부 든 팔, 휴대폰 불빛
+      function crowd(
+        rng,
+        baseY,
+        color,
+        {
+          rows = 3,
+          scale = 1,
+          phones = 0.08,
+          arms = 0.22,
+          phoneColor = 'rgba(255,255,255,0.9)',
+        } = {},
+      ) {
+        ctx.save()
+        ctx.fillStyle = color
+        ctx.strokeStyle = color
+        ctx.lineCap = 'round'
+        for (let row = 0; row < rows; row++) {
+          const s = U * 0.05 * scale * (1 + row * 0.35)
+          const y = baseY + row * s * 0.75
+          let x = -s * rng()
+          while (x < W + s) {
+            const headR = s * (0.32 + rng() * 0.08)
+            const hy = y - s * (0.15 + rng() * 0.25)
+            // 어깨
+            ctx.beginPath()
+            ctx.ellipse(x, hy + headR * 2.4, headR * 2.1, headR * 1.6, 0, Math.PI, 0)
+            ctx.lineTo(x + headR * 2.1, H)
+            ctx.lineTo(x - headR * 2.1, H)
+            ctx.fill()
+            // 머리
+            ctx.beginPath()
+            ctx.ellipse(x, hy, headR * 0.88, headR, 0, 0, Math.PI * 2)
+            ctx.fill()
+            // 든 팔
+            if (rng() < arms) {
+              const side = rng() < 0.5 ? -1 : 1
+              const sx = x + side * headR * 1.5
+              const sy = hy + headR * 2.2
+              const ex = sx + side * s * (0.1 + rng() * 0.35)
+              const ey = sy - s * (1.4 + rng() * 0.8)
+              ctx.lineWidth = headR * 0.62
+              ctx.beginPath()
+              ctx.moveTo(sx, sy)
+              ctx.quadraticCurveTo(sx + side * s * 0.05, (sy + ey) / 2, ex, ey)
+              ctx.stroke()
+              ctx.beginPath()
+              ctx.ellipse(ex, ey - headR * 0.2, headR * 0.42, headR * 0.55, 0, 0, Math.PI * 2)
+              ctx.fill()
+              if (rng() < phones / arms) {
+                ctx.save()
+                ctx.fillStyle = phoneColor
+                ctx.shadowColor = phoneColor
+                ctx.shadowBlur = headR * 2.4
+                ctx.fillRect(ex - headR * 0.32, ey - headR * 1.3, headR * 0.64, headR * 0.95)
+                ctx.restore()
+              }
+            }
+            x += s * (0.95 + rng() * 0.55)
+          }
+        }
+        ctx.restore()
+      }
+
+      // 연기: 흐린 원을 겹쳐 얇은 안개를 깐다
+      function haze(rng, count, color, yMin, yMax, rMin, rMax, alpha) {
+        withBlur(U * 0.05, () => {
+          ctx.globalCompositeOperation = 'lighter'
+          for (let i = 0; i < count; i++) {
+            const x = rng() * W
+            const y = yMin + rng() * (yMax - yMin)
+            const r = rMin + rng() * (rMax - rMin)
+            ctx.globalAlpha = alpha * (0.4 + rng() * 0.6)
+            ctx.fillStyle = radial(x, y, 0, r, [
+              [0, color],
+              [1, 'rgba(0,0,0,0)'],
+            ])
+            ctx.fillRect(x - r, y - r, r * 2, r * 2)
+          }
+        })
+      }
+
+      function bokeh(rng, count, colors, rMin, rMax, alphaMax, blurPx) {
+        withBlur(blurPx, () => {
+          ctx.globalCompositeOperation = 'lighter'
+          for (let i = 0; i < count; i++) {
+            const r = rMin + rng() ** 2 * (rMax - rMin)
+            const x = rng() * W
+            const y = rng() * H
+            ctx.globalAlpha = alphaMax * (0.25 + rng() * 0.75)
+            ctx.fillStyle = colors[Math.floor(rng() * colors.length)]
+            ctx.beginPath()
+            ctx.arc(x, y, r, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        })
+      }
+
+      function stars(rng, count, yMax, alphaMax = 0.9) {
+        ctx.save()
+        for (let i = 0; i < count; i++) {
+          const r = U * (0.0015 + rng() ** 3 * 0.004)
+          ctx.globalAlpha = alphaMax * (0.3 + rng() * 0.7)
+          ctx.fillStyle = '#fff'
+          ctx.beginPath()
+          ctx.arc(rng() * W, rng() * yMax, r, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
+      }
+
+      function vignette(strength = 0.65) {
+        ctx.save()
+        const r = Math.hypot(W, H) / 2
+        ctx.fillStyle = radial(W / 2, H / 2, r * 0.35, r * 1.05, [
+          [0, 'rgba(0,0,0,0)'],
+          [1, `rgba(0,0,0,${strength})`],
+        ])
+        ctx.fillRect(0, 0, W, H)
+        ctx.restore()
+      }
+
+      // 필름 입자. 세기를 낮게 둬서 WebP 크기가 크게 늘지 않게 한다
+      function grain(rng, amount) {
+        const img = ctx.getImageData(0, 0, W, H)
+        const d = img.data
+        for (let i = 0; i < d.length; i += 4) {
+          const n = (rng() - 0.5) * amount
+          d[i] += n
+          d[i + 1] += n
+          d[i + 2] += n
+        }
+        ctx.putImageData(img, 0, 0)
+      }
+
+      // 무대 트러스와 조명 기구
+      function truss(y, color, lampColor, rng, count) {
+        ctx.save()
+        ctx.fillStyle = color
+        ctx.fillRect(0, y, W, U * 0.012)
+        for (let i = 0; i < count; i++) {
+          const x = ((i + 0.5) / count) * W
+          ctx.fillStyle = color
+          ctx.fillRect(x - U * 0.012, y, U * 0.024, U * 0.03)
+          glow(x, y + U * 0.035, U * 0.05, lampColor, 0.9)
+        }
+        ctx.restore()
+      }
+
+      const ARTS = [
+        // 0. 보랏빛 무대 조명과 관객
+        function spotlight(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#07061c'],
+              [0.55, '#1d1550'],
+              [1, '#2b1a63'],
+            ]),
+          )
+          haze(rng, 26, 'rgba(130,110,255,0.55)', H * 0.15, H * 0.8, U * 0.15, U * 0.45, 0.5)
+          const n = PORTRAIT ? 5 : 7
+          for (let i = 0; i < n; i++) {
+            const x = ((i + 0.5) / n) * W
+            const a = (rng() - 0.5) * 0.7 + (x < W / 2 ? 0.18 : -0.18)
+            beam(
+              x,
+              H * 0.04,
+              a,
+              0.07 + rng() * 0.05,
+              H * 1.1,
+              i % 2 ? 'rgba(190,180,255,0.75)' : 'rgba(255,255,255,0.7)',
+              0.55,
+            )
+          }
+          truss(H * 0.02, '#05040f', 'rgba(255,255,255,1)', rng, n)
+          glow(W * 0.5, H * 0.66, U * 0.6, 'rgba(120,90,255,0.6)', 0.6)
+          crowd(rng, H * 0.78, '#05040d', {
+            rows: 3,
+            scale: PORTRAIT ? 1 : 0.8,
+            phones: 0.06,
+            arms: 0.3,
+          })
+          vignette(0.55)
+          grain(rng, 14)
+        },
+        // 1. 분홍·청록 보케
+        function neon(rng) {
+          fill(
+            linear(0, 0, W, H, [
+              [0, '#14001f'],
+              [0.5, '#300a45'],
+              [1, '#09122e'],
+            ]),
+          )
+          glow(W * 0.2, H * 0.25, U * 0.8, 'rgba(255,40,160,0.55)', 0.8)
+          glow(W * 0.85, H * 0.75, U * 0.8, 'rgba(0,200,255,0.45)', 0.8)
+          bokeh(
+            rng,
+            70,
+            ['#ff4fb8', '#7c5cff', '#2ad4ff', '#ffd6f2'],
+            U * 0.01,
+            U * 0.11,
+            0.5,
+            U * 0.012,
+          )
+          bokeh(rng, 30, ['#ff4fb8', '#2ad4ff'], U * 0.06, U * 0.2, 0.3, U * 0.04)
+          // 빛 줄기
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          for (let i = 0; i < 6; i++) {
+            ctx.strokeStyle = i % 2 ? 'rgba(42,212,255,0.35)' : 'rgba(255,79,184,0.35)'
+            ctx.lineWidth = U * (0.003 + rng() * 0.006)
+            ctx.filter = `blur(${U * 0.004}px)`
+            ctx.beginPath()
+            const y = rng() * H
+            ctx.moveTo(-W * 0.1, y)
+            ctx.lineTo(W * 1.1, y - H * (0.3 + rng() * 0.4))
+            ctx.stroke()
+          }
+          ctx.restore()
+          vignette(0.5)
+          grain(rng, 12)
+        },
+        // 2. 노을 페스티벌
+        function festival(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#3b1d5c'],
+              [0.38, '#c2456b'],
+              [0.62, '#ff8a5b'],
+              [0.78, '#ffc27a'],
+              [1, '#ffd9a0'],
+            ]),
+          )
+          const sunY = H * 0.6
+          const sunR = U * 0.26
+          ctx.save()
+          ctx.fillStyle = linear(0, sunY - sunR, 0, sunY + sunR, [
+            [0, '#fff2c4'],
+            [1, '#ff9b5c'],
+          ])
+          ctx.beginPath()
+          ctx.arc(W / 2, sunY, sunR, 0, Math.PI * 2)
+          ctx.fill()
+          // 해를 가로로 자른 줄
+          ctx.globalCompositeOperation = 'destination-out'
+          for (let i = 0; i < 7; i++) {
+            const y = sunY + sunR * (0.05 + i * 0.14)
+            ctx.fillRect(W / 2 - sunR, y, sunR * 2, sunR * (0.02 + i * 0.012))
+          }
+          ctx.restore()
+          glow(W / 2, sunY, U * 0.7, 'rgba(255,170,110,0.5)', 0.6)
+          // 무대 구조물
+          ctx.save()
+          ctx.fillStyle = '#2a1238'
+          const stageW = W * (PORTRAIT ? 0.8 : 0.5)
+          const sx = (W - stageW) / 2
+          const top = H * 0.62
+          ctx.fillRect(sx, top, U * 0.02, H)
+          ctx.fillRect(sx + stageW - U * 0.02, top, U * 0.02, H)
+          ctx.fillRect(sx, top, stageW, U * 0.022)
+          for (let i = 0; i < 8; i++)
+            glow(
+              sx + (stageW * (i + 0.5)) / 8,
+              top + U * 0.03,
+              U * 0.035,
+              'rgba(255,240,200,1)',
+              0.8,
+            )
+          ctx.restore()
+          // 깃발
+          ctx.save()
+          ctx.fillStyle = '#2a1238'
+          for (let i = 0; i < 5; i++) {
+            const x = rng() * W
+            const y = H * (0.68 + rng() * 0.06)
+            ctx.fillRect(x, y, U * 0.006, H * 0.2)
+            ctx.beginPath()
+            ctx.moveTo(x, y)
+            ctx.lineTo(x + U * 0.07, y + U * 0.025)
+            ctx.lineTo(x, y + U * 0.05)
+            ctx.fill()
+          }
+          ctx.restore()
+          crowd(rng, H * 0.82, '#22102e', {
+            rows: 3,
+            scale: PORTRAIT ? 0.95 : 0.75,
+            phones: 0,
+            arms: 0.28,
+          })
+          vignette(0.35)
+          grain(rng, 12)
+        },
+        // 3. 오케스트라: 검정과 금색
+        function orchestra(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#0b0806'],
+              [0.6, '#1e140a'],
+              [1, '#2c1d0e'],
+            ]),
+          )
+          glow(W / 2, H * 0.62, U * 0.75, 'rgba(255,190,100,0.35)', 0.9)
+          // 공연장 반원 지붕(셸)
+          ctx.save()
+          ctx.translate(W / 2, H * 0.92)
+          for (let i = 0; i < 16; i++) {
+            const r = U * (0.18 + i * 0.07)
+            ctx.strokeStyle = `rgba(232,190,120,${0.55 - i * 0.03})`
+            ctx.lineWidth = U * (0.004 - i * 0.00015)
+            ctx.beginPath()
+            ctx.arc(0, 0, r, Math.PI, 0)
+            ctx.stroke()
+          }
+          for (let i = 0; i < 24; i++) {
+            const a = Math.PI + (i / 23) * Math.PI
+            ctx.strokeStyle = 'rgba(232,190,120,0.12)'
+            ctx.lineWidth = U * 0.002
+            ctx.beginPath()
+            ctx.moveTo(Math.cos(a) * U * 0.18, Math.sin(a) * U * 0.18)
+            ctx.lineTo(Math.cos(a) * U * 1.3, Math.sin(a) * U * 1.3)
+            ctx.stroke()
+          }
+          ctx.restore()
+          // 금빛 먼지
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          for (let i = 0; i < 260; i++) {
+            const x = rng() * W,
+              y = rng() * H
+            const r = U * (0.001 + rng() ** 4 * 0.006)
+            ctx.globalAlpha = 0.25 + rng() * 0.6
+            ctx.fillStyle = '#ffd99a'
+            ctx.beginPath()
+            ctx.arc(x, y, r, 0, Math.PI * 2)
+            ctx.fill()
+          }
+          ctx.restore()
+          // 보면대 줄
+          ctx.save()
+          ctx.fillStyle = '#080503'
+          for (let i = 0; i < (PORTRAIT ? 9 : 16); i++) {
+            const x = ((i + 0.5) / (PORTRAIT ? 9 : 16)) * W
+            const y = H * 0.86 + rng() * H * 0.03
+            ctx.fillRect(x - U * 0.003, y, U * 0.006, H)
+            ctx.beginPath()
+            ctx.moveTo(x - U * 0.03, y)
+            ctx.lineTo(x + U * 0.03, y)
+            ctx.lineTo(x + U * 0.022, y - U * 0.035)
+            ctx.lineTo(x - U * 0.022, y - U * 0.035)
+            ctx.fill()
+          }
+          ctx.fillRect(0, H * 0.93, W, H)
+          ctx.restore()
+          vignette(0.6)
+          grain(rng, 10)
+        },
+        // 4. 레이저와 연기
+        function laser(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#010806'],
+              [1, '#03140f'],
+            ]),
+          )
+          haze(rng, 30, 'rgba(0,255,190,0.4)', H * 0.2, H * 0.9, U * 0.12, U * 0.4, 0.35)
+          const ox = W / 2,
+            oy = H * 0.86
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          const n = 26
+          for (let i = 0; i < n; i++) {
+            const a = -Math.PI * 0.95 + (i / (n - 1)) * Math.PI * 0.9
+            const len = Math.hypot(W, H)
+            const color = i % 3 === 0 ? 'rgba(120,255,120,' : 'rgba(0,255,210,'
+            for (const [lw, al, bl] of [
+              [U * 0.012, 0.18, U * 0.01],
+              [U * 0.003, 0.9, 0],
+            ]) {
+              ctx.strokeStyle = color + al + ')'
+              ctx.lineWidth = lw
+              ctx.filter = bl ? `blur(${bl}px)` : 'none'
+              ctx.beginPath()
+              ctx.moveTo(ox, oy)
+              ctx.lineTo(ox + Math.cos(a) * len, oy + Math.sin(a) * len)
+              ctx.stroke()
+            }
+          }
+          ctx.restore()
+          glow(ox, oy, U * 0.25, 'rgba(160,255,230,1)', 0.9)
+          crowd(rng, H * 0.84, '#000302', {
+            rows: 2,
+            scale: PORTRAIT ? 0.9 : 0.7,
+            phones: 0.05,
+            arms: 0.35,
+            phoneColor: 'rgba(200,255,240,0.9)',
+          })
+          vignette(0.5)
+          grain(rng, 12)
+        },
+        // 5. 종이 질감의 기하 도형(밝은 그림)
+        function swiss(rng) {
+          fill('#efeae0')
+          // 종이 결
+          ctx.save()
+          ctx.globalAlpha = 0.05
+          for (let i = 0; i < 1400; i++) {
+            ctx.fillStyle = rng() < 0.5 ? '#000' : '#fff'
+            ctx.fillRect(rng() * W, rng() * H, U * 0.003, U * 0.003)
+          }
+          ctx.restore()
+          // 모눈
+          ctx.save()
+          ctx.strokeStyle = 'rgba(20,22,30,0.08)'
+          ctx.lineWidth = 1
+          const step = U / 12
+          for (let x = step; x < W; x += step) {
+            ctx.beginPath()
+            ctx.moveTo(x, 0)
+            ctx.lineTo(x, H)
+            ctx.stroke()
+          }
+          for (let y = step; y < H; y += step) {
+            ctx.beginPath()
+            ctx.moveTo(0, y)
+            ctx.lineTo(W, y)
+            ctx.stroke()
+          }
+          ctx.restore()
+          const cx = PORTRAIT ? W * 0.62 : W * 0.7
+          const cy = PORTRAIT ? H * 0.34 : H * 0.48
+          ctx.fillStyle = '#ff5b4a'
+          ctx.beginPath()
+          ctx.arc(cx, cy, U * 0.34, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = '#3b3bd4'
+          ctx.fillRect(
+            PORTRAIT ? W * 0.08 : W * 0.06,
+            PORTRAIT ? H * 0.12 : H * 0.12,
+            U * 0.09,
+            PORTRAIT ? H * 0.5 : H * 0.76,
+          )
+          ctx.save()
+          ctx.translate(cx - U * 0.1, cy + U * 0.05)
+          ctx.rotate(-0.5)
+          ctx.fillStyle = '#14161e'
+          ctx.fillRect(-U * 0.45, -U * 0.025, U * 0.9, U * 0.05)
+          ctx.restore()
+          ctx.fillStyle = '#f2b632'
+          ctx.beginPath()
+          ctx.arc(cx + U * 0.26, cy + U * 0.3, U * 0.07, 0, Math.PI * 2)
+          ctx.fill()
+          // 점 무늬
+          ctx.fillStyle = '#14161e'
+          for (let i = 0; i < 6; i++)
+            for (let j = 0; j < 6; j++) {
+              ctx.beginPath()
+              ctx.arc(
+                (PORTRAIT ? W * 0.12 : W * 0.2) + i * U * 0.035,
+                (PORTRAIT ? H * 0.66 : H * 0.2) + j * U * 0.035,
+                U * 0.007,
+                0,
+                Math.PI * 2,
+              )
+              ctx.fill()
+            }
+          grain(rng, 8)
+        },
+        // 6. 오로라와 별, 휴대폰 불빛
+        function aurora(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#020617'],
+              [0.6, '#06263a'],
+              [1, '#04121c'],
+            ]),
+          )
+          stars(rng, 260, H * 0.7)
+          // 오로라 커튼: 물결을 따라 세로 빛줄기를 촘촘히 긋는다. 아래 끝이 밝고 위로 갈수록 보라로 옅어진다
+          const curtains = [
+            [0.34, 0.2, 'rgba(70,255,170,', 'rgba(150,90,255,'],
+            [0.42, 0.14, 'rgba(60,220,255,', 'rgba(120,80,255,'],
+          ]
+          for (const [yRatio, lenRatio, base, tip] of curtains) {
+            const phase = rng() * Math.PI * 2
+            withBlur(U * 0.004, () => {
+              ctx.globalCompositeOperation = 'lighter'
+              for (let x = -W * 0.05; x < W * 1.05; x += U * 0.0035) {
+                const t = x / W
+                const y =
+                  H * yRatio +
+                  Math.sin(t * Math.PI * 2.4 + phase) * H * 0.05 +
+                  Math.sin(t * Math.PI * 9 + phase * 2) * H * 0.012
+                const len =
+                  H *
+                  lenRatio *
+                  (0.55 + 0.45 * Math.sin(t * Math.PI * 5 + phase) ** 2) *
+                  (0.8 + rng() * 0.4)
+                const g = ctx.createLinearGradient(0, y, 0, y - len)
+                g.addColorStop(0, base + '0)')
+                g.addColorStop(0.06, base + '0.5)')
+                g.addColorStop(0.45, base + '0.18)')
+                g.addColorStop(1, tip + '0)')
+                ctx.strokeStyle = g
+                ctx.globalAlpha = 0.5 + rng() * 0.5
+                ctx.lineWidth = U * 0.004
+                ctx.beginPath()
+                ctx.moveTo(x, y)
+                ctx.lineTo(x + U * 0.01, y - len)
+                ctx.stroke()
+              }
+            })
+          }
+          glow(W * 0.5, H * 0.38, U * 0.7, 'rgba(40,200,160,0.25)', 0.6)
+          // 언덕
+          ctx.save()
+          ctx.fillStyle = '#020a10'
+          ctx.beginPath()
+          ctx.moveTo(0, H)
+          for (let x = 0; x <= W; x += W / 40)
+            ctx.lineTo(x, H * 0.8 - Math.sin((x / W) * Math.PI) * H * 0.06 - rng() * H * 0.005)
+          ctx.lineTo(W, H)
+          ctx.fill()
+          ctx.restore()
+          crowd(rng, H * 0.88, '#01060a', {
+            rows: 2,
+            scale: PORTRAIT ? 0.8 : 0.6,
+            phones: 0.14,
+            arms: 0.3,
+            phoneColor: 'rgba(190,255,235,0.95)',
+          })
+          vignette(0.45)
+          grain(rng, 10)
+        },
+        // 7. 흑백 재즈: 조명 아래 마이크
+        function jazz(rng) {
+          fill(
+            linear(0, 0, 0, H, [
+              [0, '#050505'],
+              [1, '#141210'],
+            ]),
+          )
+          const mx = PORTRAIT ? W * 0.5 : W * 0.66
+          beam(mx, -H * 0.05, 0, 0.2, H * 1.15, 'rgba(255,244,225,0.6)', 0.6)
+          // 바닥 빛
+          ctx.save()
+          ctx.fillStyle = radial(mx, H * 0.9, 0, U * 0.45, [
+            [0, 'rgba(255,240,220,0.5)'],
+            [1, 'rgba(0,0,0,0)'],
+          ])
+          ctx.scale(1, 0.25)
+          ctx.fillRect(0, H * 0.9 * 4 - U * 0.45, W, U * 0.9)
+          ctx.restore()
+          // 마이크 스탠드
+          ctx.save()
+          ctx.fillStyle = '#0a0908'
+          ctx.strokeStyle = '#0a0908'
+          const top = H * 0.36
+          ctx.lineWidth = U * 0.012
+          ctx.beginPath()
+          ctx.moveTo(mx, H * 0.9)
+          ctx.lineTo(mx, top + U * 0.1)
+          ctx.stroke()
+          ctx.lineWidth = U * 0.009
+          ctx.beginPath()
+          ctx.moveTo(mx, top + U * 0.1)
+          ctx.lineTo(mx - U * 0.07, top + U * 0.02)
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.ellipse(mx - U * 0.085, top, U * 0.03, U * 0.045, -0.7, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.beginPath()
+          ctx.moveTo(mx, H * 0.9)
+          ctx.lineTo(mx - U * 0.09, H * 0.93)
+          ctx.moveTo(mx, H * 0.9)
+          ctx.lineTo(mx + U * 0.09, H * 0.93)
+          ctx.moveTo(mx, H * 0.9)
+          ctx.lineTo(mx, H * 0.94)
+          ctx.stroke()
+          // 마이크 망 하이라이트
+          ctx.strokeStyle = 'rgba(255,240,220,0.35)'
+          ctx.lineWidth = U * 0.003
+          ctx.beginPath()
+          ctx.ellipse(mx - U * 0.085, top, U * 0.026, U * 0.041, -0.7, Math.PI * 1.1, Math.PI * 1.6)
+          ctx.stroke()
+          ctx.restore()
+          // 먼지
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          for (let i = 0; i < 140; i++) {
+            const y = rng() * H * 0.9
+            const spread = Math.tan(0.2) * y
+            const x = mx + (rng() - 0.5) * 2 * spread
+            ctx.globalAlpha = 0.2 + rng() * 0.5
+            ctx.fillStyle = '#fff6e6'
+            ctx.beginPath()
+            ctx.arc(x, y, U * (0.001 + rng() ** 3 * 0.003), 0, Math.PI * 2)
+            ctx.fill()
+          }
+          ctx.restore()
+          vignette(0.7)
+          grain(rng, 16)
+        },
+      ]
+
+      const rng = mulberry32(1000 + ART * 7919)
+      ARTS[ART % ARTS.length](rng)
+      document.title = 'done'
+    </script>
+  </body>
+</html>

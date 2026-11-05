@@ -1,12 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
 import { resetUserQueries } from '@/api/queryClient'
 import { useBookingStep } from '@/app/bookingStep'
+import { useIsBleedLayout } from '@/app/pageLayout'
 import { paths } from '@/app/paths'
 import { HeaderSlotContext } from '@/components/layout/headerSlotContext'
+import { Logo } from '@/components/layout/Logo'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import { StepIndicator } from '@/components/ticketing/StepIndicator'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
@@ -36,6 +39,9 @@ export function AppLayout() {
   const [loggingOut, setLoggingOut] = useState(false)
   const demoMode = useIsDemoMode()
   const bookingStep = useBookingStep()
+  const bleed = useIsBleedLayout()
+  const browsingConcerts =
+    location.pathname === paths.home || location.pathname.startsWith('/concerts/')
   // 화면이 HeaderSlot으로 채우는 헤더 자리(좌석 화면의 입장 유효 시간)
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
 
@@ -70,24 +76,37 @@ export function AppLayout() {
   // 화면 폭은 패널이 앱 화면을 좁힌 것을 몰라서, 창 절반에 패널을 띄우면 좁은 앱 화면에 넓은 배치가 그려진다.
   // 대화상자처럼 화면 전체에 뜨는 것은 화면 폭 그대로 둔다
   return (
-    <div className="@container min-h-svh pr-(--demo-panel-width)">
+    <div className="@container flex min-h-svh flex-col pr-(--demo-panel-width)">
       {/* 메뉴 셋은 앱 화면이 좁을 때(28rem 미만) 버튼 여백을 줄여 360px 휴대폰에도 한 줄로 들어간다 */}
-      <header className="sticky top-0 z-10 border-b border-gray-100 bg-gray-0">
+      <header className="sticky top-0 z-20 border-b border-gray-100 bg-gray-0/95 backdrop-blur supports-[backdrop-filter]:bg-gray-0/85">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 @min-[40rem]:px-6">
-          {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
-          <Link
-            to={paths.home}
-            className="inline-flex shrink-0 items-center gap-2 rounded-sm text-[20px] font-extrabold tracking-[-0.02em] text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {/* 꾸밈이라 링크 이름은 글자만 남긴다 */}
-            <span
-              aria-hidden="true"
-              className="relative size-6 rounded-t-[7px] rounded-b-[4px] bg-primary-600"
+          <div className="flex shrink-0 items-center gap-6">
+            {/* 화면마다 h1이 따로 있어서 워드마크는 제목 요소로 만들지 않는다 */}
+            <Link
+              to={paths.home}
+              className="inline-flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="absolute inset-x-[5px] bottom-[5px] h-[5px] rounded-[2px] bg-white" />
-            </span>
-            이선좌
-          </Link>
+              <Logo />
+            </Link>
+            {/* 예매 흐름 화면에서는 단계 표시에 자리를 내준다. 앱 화면이 40rem보다 좁으면 워드마크가 홈 링크를 대신한다 */}
+            {bookingStep === null ? (
+              <nav aria-label="둘러보기" className="@max-[40rem]:hidden">
+                {/* 공연 목록과 공연 상세에서 밑줄을 긋는다. 목록에만 aria-current(NavLink)가 붙는다 */}
+                <NavLink
+                  to={paths.home}
+                  end
+                  className={cn(
+                    'relative rounded-sm py-1 type-body font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    browsingConcerts
+                      ? 'text-gray-900 after:absolute after:inset-x-0 after:-bottom-4 after:h-0.5 after:bg-gray-900'
+                      : 'text-gray-500 hover:text-gray-900',
+                  )}
+                >
+                  공연
+                </NavLink>
+              </nav>
+            ) : null}
+          </div>
           {/* 예매 흐름 화면에서만 가운데에 단계를 보인다. 앱 화면이 48rem보다 좁으면 워드마크·메뉴와 한 줄에 들어가지
               않아 숨긴다(40rem으로 두었을 때 640~673px에서 워드마크가 접혔다). 워드마크와 메뉴는 줄어들지 않는다 */}
           {bookingStep !== null ? (
@@ -120,20 +139,36 @@ export function AppLayout() {
                 </Button>
               </>
             ) : (
-              <Button asChild variant="ghost" className={COMPACT_MENU}>
-                <Link to={paths.login} state={loginState}>
-                  로그인
-                </Link>
-              </Button>
+              <>
+                <Button asChild variant="ghost" className={COMPACT_MENU}>
+                  <Link to={paths.login} state={loginState}>
+                    로그인
+                  </Link>
+                </Button>
+                {/* 좁은 화면에서는 로그인 화면의 회원가입 링크로 간다 */}
+                <Button asChild size="sm" className="ml-1 @max-[28rem]:hidden">
+                  <Link to={paths.signup} state={loginState}>
+                    회원가입
+                  </Link>
+                </Button>
+              </>
             )}
           </nav>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 @min-[40rem]:px-6">
+      {/* 홈·공연 상세는 배너를 화면 끝까지 그리려고 폭을 스스로 정한다(app/pageLayout.ts) */}
+      <div
+        className={cn(
+          'flex w-full flex-1 flex-col',
+          !bleed && 'mx-auto max-w-[1200px] px-4 py-8 @min-[40rem]:px-6',
+        )}
+      >
         <HeaderSlotContext.Provider value={headerSlot}>
           <Outlet />
         </HeaderSlotContext.Provider>
       </div>
+      {/* 예매 흐름 화면에서는 지금 단계에 집중하도록 사이트 아래 정보를 두지 않는다 */}
+      {bookingStep === null ? <SiteFooter /> : null}
       <Toaster />
       {demoMode && (
         <Suspense fallback={null}>
