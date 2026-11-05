@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-04 | 배포 비밀값을 Jenkins Credentials나 GitHub Secrets에 두고 관리하는 방법 | [qna/2026-11-04-deploy-secrets-jenkins-github.md](qna/2026-11-04-deploy-secrets-jenkins-github.md) |
+| 2026-11-04 | AWS 지출 한도(spend limit)에 걸려 프로젝트가 멈추면 어떻게 하나 | [qna/2026-11-04-aws-spend-limit-pause.md](qna/2026-11-04-aws-spend-limit-pause.md) |
 | 2026-11-04 | 배포 서버의 관리 화면(Grafana 등)을 IP 주소로 바로 열 수 있나 | [qna/2026-11-04-admin-ui-access-by-ip.md](qna/2026-11-04-admin-ui-access-by-ip.md) |
 | 2026-11-04 | EC2에 탄력적 IP(Elastic IP)는 어떻게 할당하나 | [qna/2026-11-04-ec2-elastic-ip-allocate.md](qna/2026-11-04-ec2-elastic-ip-allocate.md) |
 | 2026-11-04 | 배포 EC2 요금은 얼마이고, DB까지 한 인스턴스에 띄우는 설계인가 | [qna/2026-11-04-deploy-cost-and-single-host-db.md](qna/2026-11-04-deploy-cost-and-single-host-db.md) |
