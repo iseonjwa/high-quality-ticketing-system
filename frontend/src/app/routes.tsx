@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { MyInfoPage } from '@/pages/MyInfoPage'
+import { MyPageLayout } from '@/pages/my/MyPageLayout'
 import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
 import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
@@ -61,7 +62,14 @@ export const routes: RouteObject[] = [
           {
             element: <RequireAuth />,
             children: [
-              { path: paths.me, element: <MyInfoPage /> },
+              // 마이페이지 틀(프로필·메뉴) 안의 화면
+              {
+                element: <MyPageLayout />,
+                children: [
+                  { path: paths.me, element: <MyInfoPage /> },
+                  { path: paths.myReservations, element: <MyReservationsPage /> },
+                ],
+              },
               { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
               { path: paths.seats, element: <SeatsPage />, handle: bookingStepHandle(1) },
               { path: paths.payment, element: <PaymentPage />, handle: bookingStepHandle(2) },
@@ -71,7 +79,6 @@ export const routes: RouteObject[] = [
                 handle: bookingStepHandle(3),
               },
               { path: paths.reservation, element: <ReservationPage variant="detail" /> },
-              { path: paths.myReservations, element: <MyReservationsPage /> },
               {
                 element: <RequireAdmin />,
                 children: [
