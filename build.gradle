@@ -123,6 +123,8 @@ subprojects {
     }
 
     tasks.withType(Test).configureEach {
+        // Note: 테스트 JVM 인코딩이 PC 기본값을 따르면 Windows(cp1252)에서 한글 로그 비교 테스트가 실패한다(TS-36).
+        defaultCharacterEncoding = 'UTF-8'
         useJUnitPlatform()
         testLogging {
             events 'failed', 'skipped'

@@ -295,7 +295,14 @@
   - 테스트는 자기가 시작한 요청을 끝까지 기다린 뒤 끝낸다.
   - 요청 수를 세는 테스트는 다른 테스트와 겹치지 않는 ID를 쓴다.
 
-### TS-36 작업을 멈춰도 PaymentJobStalled가 울리지 않음(규칙 단위 테스트는 통과)
+### TS-36 Windows에서 요청 로그 테스트 8개만 실패(같은 커밋의 CI는 성공)
+- 서비스·작성: common·gateway / kangmin / 2026-11-05
+- 문제: `./gradlew test`에서 `RequestLogFilterTest` 3개와 `RequestLogWebFilterTest` 5개가 실패했다. 출력의 `요청`이 `??`로 찍혀 `CapturedOutput` 비교가 어긋났다. 같은 커밋의 Linux CI `build`는 성공했다.
+- 원인: Windows 기본 인코딩이 `cp1252`인 PC에서는 Gradle 테스트 JVM의 `file.encoding`도 그 값이 되어 한글 로그가 깨진다. `JAVA_TOOL_OPTIONS`의 `stdout.encoding=UTF-8`로는 해결되지 않았다.
+- 해결: 루트 `build.gradle`의 `tasks.withType(Test)`에 `defaultCharacterEncoding = 'UTF-8'`을 지정했다. 옵션 없이 `./gradlew test --rerun-tasks`를 다시 돌려 1,563개가 모두 통과했다.
+- 배운 점: 한글을 비교하는 출력 캡처 테스트는 실행 환경의 인코딩에 영향을 받는다. 코드 결함으로 판단하기 전에 CI 결과와 실제 출력을 비교한다.
+
+### TS-37 작업을 멈춰도 PaymentJobStalled가 울리지 않음(규칙 단위 테스트는 통과)
 - 서비스·작성: payment·infra / kangmin / 2026-11-05
 - 문제
   - `payment_job_last_success_timestamp{application="payment-service",job="gauge-refresh"}` 조회가 0건이었고, `exported_job="gauge-refresh"`는 1건이었다.

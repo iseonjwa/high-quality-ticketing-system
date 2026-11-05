@@ -32,7 +32,7 @@ shared: 예
 - 이슈: ISE-195(결제 담당 배정·멘션)
 - 코드: `PaymentMetrics`, `PrometheusNamesTest`, `BackgroundJobSchedulerTest`
 - 설정: `infra/prometheus/rules/payment-alerts.yml`, `infra/prometheus/tests/payment-alerts.test.yml`, `infra/grafana/dashboards/payment.json`, `infra/alertmanager/templates/slack.tmpl`
-- 문서: `docs/design/payment/`, `docs/design/infra/observability.md`, [TS-36](../../troubleshooting.md)
+- 문서: `docs/design/payment/`, `docs/design/infra/observability.md`, [TS-37](../../troubleshooting.md)
 
 ## 검증
 - 수정본 payment-service와 임시 Prometheus에서 규칙의 네 항목이 작업 7개를 모두 찾았다.
