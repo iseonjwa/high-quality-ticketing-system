@@ -14,7 +14,7 @@ const SECTION_BY_GRADE: Record<string, string> = { VIP: 'A', R: 'B', S: 'C', LOT
 const MOCK_ROWS = 2
 const MOCK_PER_ROW = 10
 
-function requireAdmin(request: Request): MockUser {
+export function requireAdmin(request: Request): MockUser {
   const user = requireUser(request)
   if (user.role !== 'ADMIN') {
     throw fail(403, 'FORBIDDEN', '접근 권한이 없습니다')

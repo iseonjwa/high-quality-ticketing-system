@@ -1,9 +1,12 @@
 package com.iseonjwa.reservation.reservation.infrastructure.persistence;
 
+import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
+import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +33,19 @@ public class JpaReservationRepository implements ReservationRepository {
     @Override
     public Optional<Reservation> findByRequestId(UUID requestId) {
         return repository.findByRequestId(requestId);
+    }
+
+    @Override
+    public List<MyReservationRow> findMine(Long userId, int page, int size) {
+        return repository.findMineRows(userId, size, (long) page * size).stream()
+                .map(row -> new MyReservationRow(((Number) row[0]).longValue(), (String) row[1], (String) row[2],
+                        (Instant) row[3], ReservationStatus.valueOf((String) row[4]), Money.of((BigDecimal) row[5])))
+                .toList();
+    }
+
+    @Override
+    public long countByUserId(Long userId) {
+        return repository.countByUserId(userId);
     }
 
     @Override

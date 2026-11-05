@@ -21,7 +21,13 @@ function Swatch({ state, grade }: { state: string; grade?: string }) {
   )
 }
 
-export function SeatLegend({ grades }: { grades: LegendGrade[] }) {
+interface SeatLegendProps {
+  grades: LegendGrade[]
+  // 좌석 조회 응답은 추첨석을 따로 알려 주지 않아(선택할 수 없음으로 온다) 좌석 화면은 추첨석 칸을 뺀다
+  showLottery?: boolean
+}
+
+export function SeatLegend({ grades, showLottery = true }: SeatLegendProps) {
   return (
     <ul
       aria-label="좌석 범례"
@@ -43,10 +49,12 @@ export function SeatLegend({ grades }: { grades: LegendGrade[] }) {
         <Swatch state="unavailable" />
         선택할 수 없음
       </li>
-      <li className="flex items-center gap-2">
-        <Swatch state="lottery" />
-        추첨석
-      </li>
+      {showLottery ? (
+        <li className="flex items-center gap-2">
+          <Swatch state="lottery" />
+          추첨석
+        </li>
+      ) : null}
     </ul>
   )
 }

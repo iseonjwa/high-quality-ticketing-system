@@ -5,12 +5,20 @@ import { MyInfoPage } from '@/pages/MyInfoPage'
 import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
 import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
+import { AdminLotteryNewPage } from '@/pages/admin/AdminLotteryNewPage'
+import { AdminLotteryPage } from '@/pages/admin/AdminLotteryPage'
+import { AdminPasswordResetPage } from '@/pages/admin/AdminPasswordResetPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { ConcertDetailPage } from '@/pages/concerts/ConcertDetailPage'
 import { ConcertListPage } from '@/pages/concerts/ConcertListPage'
 import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { QueuePage } from '@/pages/queue/QueuePage'
+import { SeatsPage } from '@/pages/seats/SeatsPage'
+import { PaymentPage } from '@/pages/payment/PaymentPage'
+import { LotteryPage } from '@/pages/lotteries/LotteryPage'
+import { MyReservationsPage } from '@/pages/reservations/MyReservationsPage'
+import { ReservationPage } from '@/pages/reservations/ReservationPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
 import { RequireAdmin } from '@/app/RequireAdmin'
@@ -46,18 +54,32 @@ export const routes: RouteObject[] = [
           { path: paths.login, element: <LoginPage /> },
           { path: paths.signup, element: <SignupPage /> },
           { path: paths.passwordChange, element: <PasswordChangePage /> },
+          // 추첨 정보는 공개다. 응모·결과는 화면 안에서 로그인을 안내한다
+          { path: paths.lottery, element: <LotteryPage /> },
           // 로그인이 필요한 화면은 이 아래에 둔다
           {
             element: <RequireAuth />,
             children: [
               { path: paths.me, element: <MyInfoPage /> },
               { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
+              { path: paths.seats, element: <SeatsPage />, handle: bookingStepHandle(1) },
+              { path: paths.payment, element: <PaymentPage />, handle: bookingStepHandle(2) },
+              {
+                path: paths.reservationComplete,
+                element: <ReservationPage variant="complete" />,
+                handle: bookingStepHandle(3),
+              },
+              { path: paths.reservation, element: <ReservationPage variant="detail" /> },
+              { path: paths.myReservations, element: <MyReservationsPage /> },
               {
                 element: <RequireAdmin />,
                 children: [
                   { path: paths.admin, element: <AdminHomePage /> },
                   { path: paths.adminConcertNew, element: <AdminConcertNewPage /> },
                   { path: paths.adminConcert, element: <AdminConcertPage /> },
+                  { path: paths.adminLotteryNew, element: <AdminLotteryNewPage /> },
+                  { path: paths.adminLottery, element: <AdminLotteryPage /> },
+                  { path: paths.adminPasswordReset, element: <AdminPasswordResetPage /> },
                 ],
               },
             ],

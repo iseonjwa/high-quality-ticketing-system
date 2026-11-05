@@ -237,6 +237,30 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 |---|---|---|
 | ![순번 15,234번과 예상 대기 약 5분, 진행 막대](samples/screens/queue-waiting.png) | ![위 표시만 경고색으로 바뀌고 순번은 그대로인 상태](samples/screens/queue-unstable.png) | ![입장 시간이 지나 줄에서 빠졌다는 안내와 다시 줄 서기](samples/screens/queue-expired.png) |
 
+[`samples/seat-sections.html`](samples/seat-sections.html)은 좌석 선택을 "구역 먼저 고르기"로 바꾼 샘플이다(ISE-115, 2026-11-04 사용자 선택). 로컬 공연장(KSPO DOME)이 25구역 × 600석 = 15,000석이라 위 샘플처럼 전부 그리면 페이지가 1만 px를 넘는다. 구역 배치도(응답 순서대로 5칸, 좁으면 4칸)에서 구역을 고르면 그 구역 좌석만 그리고, 고른 좌석은 구역을 옮겨도 요약과 배치도(구역별 고른 수)에 남는다. 상단 바의 입장 유효 시간은 좁은 화면에서 본문 맨 위로 내려온다. 조작판과 `#demo=` 값은 위 샘플과 같다.
+
+| 두 구역에서 2석 선택 | 409 이선좌 뒤 | 375px |
+|---|---|---|
+| ![A·F구역에서 한 석씩 고르고 F구역 좌석을 보이는 상태, C구역은 매진](samples/screens/seat-sections-selected.png) | ![겹친 좌석을 빼고 남은 한 석을 유지한 채 경고를 보인 상태](samples/screens/seat-sections-conflict.png) | ![구역 4칸, 입장 시간이 본문 위로 내려온 좁은 화면](samples/screens/seat-sections-375.png) |
+
+[`samples/payment.html`](samples/payment.html)은 결제 화면이다(ISE-116). 결제 수단은 카드 하나다(API가 `method: CARD`만 받고, 시연 결제(Mock PG)라 카드 정보를 받지 않는다). 조작판으로 결제 전, 결제 요청 중, 확인 중(202·504), 승인 뒤 확정 확인, 거절, 결제사 장애(503), 결제 가능 시간 지남, 수동 확인(409), 승인 뒤 만료(환불)를 바꿔 본다. 주소 끝에 `#demo=checking` 등을 붙이면 그 상태로 열리고 `&panel=0`이면 조작판을 숨긴다.
+
+| 결제 전 | 확인 중 | 거절 |
+|---|---|---|
+| ![결제 수단 카드와 결제 금액, 결제하기 버튼](samples/screens/payment-ready.png) | ![버튼 자리가 결제를 확인하고 있어요 표시로 바뀐 상태](samples/screens/payment-checking.png) | ![결제가 거절됐다는 위험 알림과 좌석 다시 고르기](samples/screens/payment-declined.png) |
+
+[`samples/reservations.html`](samples/reservations.html)은 예매 결과·상세와 내 예매 목록이다(ISE-117). 조작판으로 결과(예매 확정), 상세(결제 대기·기한 만료), 내 예매 목록, 빈 목록을 바꿔 본다. 예매 상세 응답에 공연 제목이 없어 결제 화면·내 예매 목록에서 오면 화면 이동 값으로 받고, 주소로 열면 예매 번호를 제목으로 쓴다. 결제 상태는 예매 응답에 없어(결제 ID 없음) 예매 상태로만 보인다.
+
+| 결과(예매 확정) | 상세(결제 대기) | 내 예매 |
+|---|---|---|
+| ![예매가 확정됐다는 머리와 좌석별 티켓 번호](samples/screens/reservations-confirmed.png) | ![아직 결제하지 않았다는 경고와 결제하기](samples/screens/reservations-held.png) | ![상태 배지가 붙은 예매 목록과 더 보기](samples/screens/reservations-list.png) |
+
+[`samples/lottery.html`](samples/lottery.html)은 추첨 응모 화면이다(ISE-121·122). 조작판으로 응모 전(자동결제 카드 기록 없음), 응모 완료, 추첨 중, 당첨(자동결제 중), 당첨·결제 완료, 예비, 미당첨, 자동결제 실패를 바꿔 본다. 추첨 정보에 공연 제목이 없어 추첨 번호·회차 번호를 보인다. 아래 자동결제 카드는 내 정보에 두는 카드와 같다.
+
+| 응모 전 | 추첨 중 | 당첨·결제 완료 |
+|---|---|---|
+| ![응모 매수와 응모하기, 자동결제 카드 확인 경고와 기록 없음 카드](samples/screens/lottery-form.png) | ![응모했어요 카드에 추첨하고 있다는 안내](samples/screens/lottery-drawing.png) | ![당첨되고 결제까지 끝났다는 결과와 예매 보기](samples/screens/lottery-paid.png) |
+
 ## 9. 확정한 방향
 
 샘플을 보고 초안 그대로 확정했다(2026-11-02, [판단 기록](../../ai-judgments/junhyun/2026-11-02-design-system-sample-accepted.md)).

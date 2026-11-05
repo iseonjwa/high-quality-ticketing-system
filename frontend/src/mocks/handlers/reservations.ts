@@ -23,8 +23,6 @@ import { mockScenario } from '@/mocks/scenario'
 
 // 동기형 선점(`docs/design/reservation/contracts.md`)과 예매 조회(SA 11-5).
 
-const MAX_SEATS_PER_REQUEST = 4
-
 // 결제 토큰 `mock-payment.{reservationId}.{발급 번호}`. 실제 발급기처럼 발급마다 값이 달라진다(무작위 jti).
 // 결제 서버는 토큰 원문까지 멱등 비교에 넣으므로, 다시 받은 토큰을 옛 멱등키로 보내면 409 IDEMPOTENCY_KEY_REUSED다.
 export function issuePaymentToken(reservation: MockReservation) {
@@ -52,16 +50,14 @@ function holdResponse(reservation: MockReservation) {
   )
 }
 
+// 서버 SyncSeatHoldService.sortedDistinctSeatIds(:143-148): 형식 검증(양수 정수) 뒤 빈 배열·중복은 SEAT_COUNT_MISMATCH,
+// 정렬한 목록이 응답과 멱등 본문 비교의 기준이다. 회차의 1인 최대 매수 검사는 같은 키 재요청 확인 뒤에 따로 한다(:85).
 function parseSeatIds(value: unknown): number[] {
   if (!Array.isArray(value) || !value.every((id) => Number.isInteger(id) && id > 0)) {
     throw fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
   }
   const seatIds = [...new Set(value as number[])].sort((left, right) => left - right)
-  if (
-    seatIds.length !== value.length ||
-    seatIds.length < 1 ||
-    seatIds.length > MAX_SEATS_PER_REQUEST
-  ) {
+  if (seatIds.length !== value.length || seatIds.length < 1) {
     throw fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
   }
   return seatIds
@@ -127,9 +123,9 @@ export const reservationHandlers = [
     requireEntryToken(request, user.userId, scheduleId)
     const key = requireIdempotencyKey(request)
     const seatIds = parseSeatIds((await readBody(request)).seatIds)
-    const schedule = requireSchedule(scheduleId)
     settleExpiredHolds()
 
+    // 서버는 같은 키 재요청을 회차 조회·판매 기간 검사보다 먼저 본다(SyncSeatHoldService:79-82)
     const replayed = replayHold(key, {
       userId: user.userId,
       scheduleId,
@@ -137,6 +133,10 @@ export const reservationHandlers = [
     })
     if (replayed !== null) {
       return replayed
+    }
+    const schedule = requireSchedule(scheduleId)
+    if (seatIds.length > schedule.maxPerUser) {
+      return fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
     }
     if (saleStatusOf(schedule) !== 'ON_SALE') {
       return fail(409, 'SALE_NOT_OPEN', '판매 중인 회차가 아닙니다')
@@ -181,6 +181,11 @@ export const reservationHandlers = [
       seatKey: seatIds.join(','),
       reservationId,
     })
+    if (mockScenario().seatHold === 'hold-unknown' && !mockDb.holdUnknownUsed) {
+      // 서버는 선점을 마쳤지만 Gateway가 응답 시한을 넘겨 504를 준 경우. 코드는 실제 Gateway처럼 INTERNAL_SERVER_ERROR다
+      mockDb.holdUnknownUsed = true
+      return fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+    }
     return holdResponse(reservation)
   }),
 
@@ -190,11 +195,16 @@ export const reservationHandlers = [
     const url = new URL(request.url)
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Number(url.searchParams.get('size') ?? 20)
+    // 서버는 page ≥ 0, 1 ≤ size ≤ 100만 받고 벗어나거나 숫자가 아니면 400이다(ReservationController:35-36)
+    if (!Number.isInteger(page) || !Number.isInteger(size) || page < 0 || size < 1 || size > 100) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
 
     const owned = [...mockDb.reservations.values()].filter(
       (reservation) => reservation.userId === user.userId,
     )
     owned.forEach(advanceConfirmation)
+    // 서버는 created_at DESC, id DESC다. 목은 ID가 만든 순서대로 커지므로 ID 내림차순과 같다
     const mine = owned
       .sort((left, right) => right.reservationId - left.reservationId)
       .map((reservation) => {
@@ -217,10 +227,18 @@ export const reservationHandlers = [
   }),
 
   http.get('/api/v1/reservations/:reservationId', ({ request, params }) => {
+    const reservationId = Number(params.reservationId)
+    // 서버는 숫자가 아니거나 0 이하인 ID를 400으로 거른다(ReservationController:47-49)
+    if (!Number.isInteger(reservationId) || reservationId <= 0) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
     settleExpiredHolds()
-    const reservation = ownReservation(request, Number(params.reservationId))
+    const reservation = ownReservation(request, reservationId)
     advanceConfirmation(reservation)
-    const seats = mockDb.seats.filter((seat) => reservation.seatIds.includes(seat.seatId))
+    // 서버는 좌석 ID 오름차순이다(ReservationDetailResult:17-18)
+    const seats = mockDb.seats
+      .filter((seat) => reservation.seatIds.includes(seat.seatId))
+      .sort((left, right) => left.seatId - right.seatId)
     return ok({
       reservationId: reservation.reservationId,
       reservationNo: reservation.reservationNo,
@@ -236,7 +254,12 @@ export const reservationHandlers = [
         grade,
         price,
       })),
-      paymentToken: reservation.status === 'HELD' ? issuePaymentToken(reservation) : null,
+      // HELD이고 결제 가능 시간(만료 10초 전) 안일 때만 준다(ReservationService:47-55)
+      paymentToken:
+        reservation.status === 'HELD' &&
+        Date.now() < reservation.holdExpiresAtMillis - PAYMENT_TOKEN_MARGIN_MILLIS
+          ? issuePaymentToken(reservation)
+          : null,
       tickets:
         reservation.status === 'CONFIRMED'
           ? reservation.seatIds.map((seatId) => ({

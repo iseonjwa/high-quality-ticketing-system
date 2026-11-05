@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.reservation.infrastructure.persistence;
 
+import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
 import com.iseonjwa.reservation.reservation.domain.repository.ActiveSeatConflictException;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationSeatRepository;
@@ -7,6 +8,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -50,6 +52,15 @@ public class JpaReservationSeatRepository implements ReservationSeatRepository {
     @Override
     public int confirmHeld(Long reservationId, Instant now) {
         return repository.confirmHeld(reservationId, now);
+    }
+
+    @Override
+    public List<SeatDetailRow> findSeatDetails(Long reservationId) {
+        return repository.findSeatDetailRows(reservationId).stream()
+                .map(row -> new SeatDetailRow(((Number) row[0]).longValue(), (String) row[1],
+                        ((Number) row[2]).intValue(), ((Number) row[3]).intValue(), (String) row[4],
+                        Money.of((BigDecimal) row[5]), (String) row[6]))
+                .toList();
     }
 
     // 다른 제약(FK 등) 위반은 좌석 경합이 아니라 버그이므로 그대로 올려 보낸다

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이선좌 · 결제 (디자인 시스템 샘플)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* ── 1. 토큰: docs/design/frontend/design-system.md 2절과 같은 값이다 ── */
+:root {
+  --gray-0:#FFFFFF; --gray-25:#FBFBFD; --gray-50:#F4F5F8; --gray-100:#E9EBF0; --gray-200:#D7DAE2;
+  --gray-300:#B9BDC9; --gray-400:#8D92A3; --gray-500:#676C7E; --gray-600:#4D5263; --gray-700:#373B4A;
+  --gray-800:#232631; --gray-900:#14161E;
+
+  --primary-50:#EEF0FF; --primary-100:#DDE1FF; --primary-300:#A9B0FF; --primary-500:#5B5BF0;
+  --primary-600:#3B3BD4; --primary-700:#2F2FAE;
+
+  --success-50:#E8F6EE; --success-600:#1E7F4F;
+  --warning-50:#FFF4E5; --warning-500:#F59F00; --warning-700:#9A5200;
+  --danger-50:#FDECEE; --danger-600:#D12B3A;
+  --info-50:#EAF2FD; --info-600:#1F6FD1;
+
+  --seat-vip:#C2255C; --seat-r:#D9480F; --seat-s:#2B8A3E; --seat-a:#1971C2;
+  --seat-selected:var(--gray-900); --seat-unavailable:var(--gray-200);
+  --seat-lottery-line:#6E6EF0; --seat-lottery-a:var(--primary-100); --seat-lottery-b:var(--primary-50);
+
+  --bg-page:var(--gray-25); --bg-surface:var(--gray-0); --bg-subtle:var(--gray-50);
+  --text-strong:var(--gray-900); --text-default:var(--gray-700); --text-muted:var(--gray-500); --text-disabled:var(--gray-400);
+  --border-default:var(--gray-100); --border-strong:var(--gray-200);
+  --focus-ring:var(--primary-600);
+
+  --font-sans:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
+  --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
+
+  --radius-sm:6px; --radius-md:10px; --radius-lg:14px; --radius-pill:999px;
+
+  --shadow-sm:0 1px 2px rgba(20,22,30,.06);
+  --shadow-md:0 4px 12px rgba(20,22,30,.08);
+  --shadow-lg:0 12px 32px rgba(20,22,30,.18);
+
+  --dur-fast:120ms; --dur-base:200ms; --ease-out:cubic-bezier(.2,.8,.2,1);
+}
+
+/* ── 2. 기본 ── */
+*,*::before,*::after { box-sizing:border-box; }
+html,body { margin:0; }
+body { font-family:var(--font-sans); background:var(--bg-page); color:var(--text-default); font-size:16px; line-height:24px; -webkit-font-smoothing:antialiased; word-break:keep-all; overflow-wrap:anywhere; }
+h1,h2,h3,p { margin:0; }
+button { font:inherit; }
+.num { font-variant-numeric:tabular-nums; }
+.muted { color:var(--text-muted); }
+.t-title   { font-size:24px; line-height:32px; font-weight:700; color:var(--text-strong); letter-spacing:-0.01em; }
+.t-heading { font-size:18px; line-height:26px; font-weight:600; color:var(--text-strong); }
+.t-body-sm { font-size:14px; line-height:20px; }
+.t-caption { font-size:12px; line-height:16px; font-weight:500; }
+:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+/* ── 3. 컴포넌트 ── */
+.card { background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); }
+
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2); height:44px; padding:0 var(--space-5);
+  border-radius:var(--radius-md); border:1px solid transparent; font-weight:600; font-size:15px; cursor:pointer;
+  transition:background var(--dur-fast) var(--ease-out), color var(--dur-fast); }
+.btn-lg { height:52px; font-size:16px; width:100%; }
+.btn-primary { background:var(--primary-600); color:#fff; }
+.btn-primary:hover:not(:disabled) { background:var(--primary-700); }
+.btn-primary:disabled { background:var(--gray-200); color:var(--text-disabled); cursor:not-allowed; }
+.btn-ghost { background:transparent; color:var(--text-default); border-color:var(--border-strong); }
+.btn-ghost:hover:not(:disabled) { background:var(--bg-subtle); }
+.btn-ghost:disabled { color:var(--text-disabled); cursor:not-allowed; }
+.btn-block { width:100%; }
+.spinner { width:18px; height:18px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border-radius:var(--radius-pill); font-size:12px; font-weight:600; }
+.badge-open { background:var(--success-50); color:var(--success-600); }
+.badge-open::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+.chip-timer { display:inline-flex; align-items:center; gap:var(--space-2); height:32px; padding:0 var(--space-3); border-radius:var(--radius-pill);
+  background:var(--bg-subtle); color:var(--text-default); font-size:14px; }
+.chip-timer b { color:var(--text-strong); font-weight:700; }
+.chip-timer .dot { width:8px; height:8px; border-radius:50%; background:var(--success-600); }
+.chip-timer.is-warning { background:var(--warning-50); color:var(--warning-700); }
+.chip-timer.is-warning b { color:var(--warning-700); }
+.chip-timer.is-warning .dot { background:var(--warning-500); animation:pulse 1s ease-in-out infinite; }
+.chip-timer.is-danger { background:var(--danger-50); color:var(--danger-600); }
+.chip-timer.is-danger b { color:var(--danger-600); }
+.chip-timer.is-danger .dot { background:var(--danger-600); }
+@keyframes pulse { 50% { opacity:.3; } }
+
+.alert { display:grid; grid-template-columns:20px 1fr auto; gap:var(--space-3); align-items:start; padding:var(--space-4); border-radius:var(--radius-md); border:1px solid; margin-bottom:var(--space-4); }
+.alert-icon { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:800; color:#fff; margin-top:2px; }
+.alert-title { font-weight:700; font-size:15px; line-height:22px; }
+.alert-body { font-size:14px; line-height:20px; margin-top:2px; }
+.alert-warning { background:var(--warning-50); border-color:#FFD8A8; color:var(--warning-700); }
+.alert-warning .alert-icon { background:var(--warning-500); }
+.alert-danger { background:var(--danger-50); border-color:#F8C4CA; color:var(--danger-600); }
+.alert-danger .alert-icon { background:var(--danger-600); }
+.alert .btn { height:36px; padding:0 var(--space-3); font-size:14px; }
+
+.toast-region { position:fixed; left:50%; bottom:var(--space-8); transform:translateX(-50%); display:grid; gap:var(--space-2); z-index:30; }
+.toast { background:var(--gray-900); color:#fff; padding:var(--space-3) var(--space-5); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); font-size:14px; line-height:20px; animation:toast-in var(--dur-base) var(--ease-out); max-width:420px; }
+@keyframes toast-in { from { opacity:0; transform:translateY(8px); } }
+
+/* ── 4. 레이아웃 ── */
+.topbar { background:var(--bg-surface); border-bottom:1px solid var(--border-default); position:sticky; top:0; z-index:10; }
+.topbar-inner { max-width:1200px; margin:0 auto; height:64px; padding:0 var(--space-6); display:flex; align-items:center; gap:var(--space-8); }
+.brand { display:inline-flex; align-items:center; gap:var(--space-2); font-weight:800; font-size:20px; color:var(--text-strong); text-decoration:none; letter-spacing:-0.02em; }
+.brand-mark { width:24px; height:24px; border-radius:7px 7px 4px 4px; background:var(--primary-600); position:relative; }
+.brand-mark::after { content:""; position:absolute; left:5px; right:5px; bottom:5px; height:5px; border-radius:2px; background:#fff; }
+.steps { list-style:none; margin:0 auto; padding:0; display:flex; gap:var(--space-2); align-items:center; }
+.step { display:flex; align-items:center; gap:var(--space-2); font-size:14px; color:var(--text-muted); }
+.step + .step::before { content:""; width:24px; height:1px; background:var(--border-strong); margin-right:var(--space-2); }
+.step-dot { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--bg-subtle); color:var(--text-muted); }
+.step.done .step-dot { background:var(--primary-50); color:var(--primary-600); }
+.step.current { color:var(--text-strong); font-weight:600; }
+.step.current .step-dot { background:var(--primary-600); color:#fff; }
+.topbar-right { display:flex; align-items:center; gap:var(--space-4); font-size:14px; }
+
+.page { max-width:1200px; margin:0 auto; padding:var(--space-6); display:grid; grid-template-columns:minmax(0,1fr); gap:var(--space-5); }
+.concert { display:flex; align-items:center; gap:var(--space-5); padding:var(--space-5); }
+.poster { width:56px; height:72px; border-radius:var(--radius-sm); background:linear-gradient(150deg, var(--primary-700), var(--seat-vip)); flex:none; }
+.concert-meta { display:flex; gap:var(--space-4); margin-top:var(--space-1); }
+.concert-meta span + span::before { content:"·"; margin-right:var(--space-4); color:var(--gray-300); }
+.layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:var(--space-5); align-items:start; }
+@media (max-width: 960px) { .layout { grid-template-columns:minmax(0,1fr); } .steps { display:none; } .summary { position:static; } }
+@media (max-width: 640px) { .page { padding:var(--space-4); } .topbar-inner { padding:0 var(--space-4); gap:var(--space-4); } .map-card, .summary { padding:var(--space-4); } .concert { padding:var(--space-4); } .t-title { font-size:20px; line-height:28px; } }
+
+/* ── 6. 요약 패널 ── */
+.summary { padding:var(--space-6); position:sticky; top:88px; display:grid; gap:var(--space-4); }
+.summary-head { display:flex; justify-content:space-between; align-items:baseline; }
+.count { font-size:14px; color:var(--text-muted); }
+.count b { color:var(--text-strong); }
+.selected-list { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-2); }
+.selected-item { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:var(--space-3); padding:var(--space-3); border-radius:var(--radius-md); background:var(--bg-subtle); font-size:14px; }
+.selected-item .remove { border:0; background:none; color:var(--text-muted); cursor:pointer; font-size:13px; padding:4px; border-radius:var(--radius-sm); }
+.selected-item .remove:hover { color:var(--text-strong); background:var(--gray-100); }
+.empty { padding:var(--space-6) var(--space-4); border:1px dashed var(--border-strong); border-radius:var(--radius-md); text-align:center; font-size:14px; color:var(--text-muted); }
+.total { display:flex; justify-content:space-between; align-items:baseline; margin:0; padding-top:var(--space-4); border-top:1px solid var(--border-default); }
+.total dt { font-size:14px; color:var(--text-muted); }
+.total dd { margin:0; font-size:22px; font-weight:800; color:var(--text-strong); }
+.hint { font-size:13px; line-height:19px; color:var(--text-muted); }
+.pending { display:grid; grid-template-columns:auto 1fr; gap:var(--space-3); align-items:start; padding:var(--space-4); border-radius:var(--radius-md); background:var(--info-50); color:var(--info-600); }
+.pending .spinner { margin-top:2px; }
+.pending b { display:block; font-size:15px; }
+.pending span { font-size:13px; line-height:19px; }
+
+/* ── 8. 샘플 전용 조작 (실제 화면에는 없다) ── */
+.demo { position:fixed; right:var(--space-4); bottom:var(--space-4); width:240px; padding:var(--space-4); background:#fff; border:1.5px dashed var(--gray-300); border-radius:var(--radius-md); font-size:13px; line-height:18px; z-index:20; box-shadow:var(--shadow-md); }
+.demo-title { font-weight:700; color:var(--text-strong); cursor:pointer; }
+.demo[open] .demo-title { margin-bottom:var(--space-2); }
+.demo-title span { font-weight:500; color:var(--text-muted); }
+.demo fieldset { border:0; margin:0 0 var(--space-3); padding:0; display:grid; gap:6px; }
+.demo legend { color:var(--text-muted); margin-bottom:4px; }
+.demo .btn { height:32px; font-size:13px; padding:0 var(--space-3); }
+.demo-actions { display:flex; gap:var(--space-2); }
+
+/* ── 9. 결제 (payment.html, ISE-116) ──
+   결제 수단은 카드 하나다(API가 method CARD만 받는다). 시연 결제(Mock PG)라 카드 번호를 받지 않는다.
+   승인 응답은 예매 확정이 아니라서 예매 조회로 확정을 확인한 뒤 결과 화면으로 간다. */
+.grade-chip { display:inline-grid; place-items:center; min-width:36px; height:20px; padding:0 6px; border-radius:var(--radius-sm); background:var(--c); color:#fff; font-size:11px; font-weight:800; }
+.pay-card { padding:var(--space-6); display:grid; gap:var(--space-5); align-content:start; }
+.methods { border:0; margin:0; padding:0; display:grid; gap:var(--space-2); }
+.methods legend { font-size:14px; font-weight:600; color:var(--text-strong); margin-bottom:var(--space-2); }
+.method { display:grid; grid-template-columns:auto 1fr; gap:2px var(--space-3); align-items:center; padding:var(--space-4); border-radius:var(--radius-md);
+  border:1px solid var(--primary-600); box-shadow:inset 0 0 0 1px var(--primary-600); background:var(--primary-50); cursor:pointer; }
+.method input { margin:0; accent-color:var(--primary-600); width:18px; height:18px; grid-row:span 2; }
+.method b { color:var(--text-strong); font-size:15px; }
+.method span { font-size:13px; color:var(--text-muted); }
+.facts { display:grid; grid-template-columns:auto 1fr; gap:var(--space-2) var(--space-5); margin:0; font-size:14px; }
+.facts dt { color:var(--text-muted); }
+.facts dd { margin:0; color:var(--text-strong); font-variant-numeric:tabular-nums; }
+.pending.is-success { background:var(--success-50); color:var(--success-600); }
+.entry-inline { display:none; }
+@media (max-width: 896px) { .topbar .chip-timer { display:none; } .entry-inline { display:flex; justify-content:flex-end; } }
+@media (max-width: 768px) { .topbar .steps { display:none; } .topbar-right { margin-left:auto; } }
+@media (max-width: 640px) { .pay-card { padding:var(--space-4); } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#"><span class="brand-mark" aria-hidden="true"></span>이선좌</a>
+    <ol class="steps" aria-label="예매 단계">
+      <li class="step done"><span class="step-dot" aria-hidden="true">✓</span>대기열</li>
+      <li class="step done"><span class="step-dot" aria-hidden="true">✓</span>좌석 선택</li>
+      <li class="step current" aria-current="step"><span class="step-dot">3</span>결제</li>
+      <li class="step"><span class="step-dot">4</span>완료</li>
+    </ol>
+    <div class="topbar-right">
+      <div class="chip-timer" data-timer role="timer" aria-label="결제 가능 시간"><span class="dot" aria-hidden="true"></span>결제 가능 <b class="num" data-timer-value>04:50</b></div>
+      <span>내 예매</span><span>내 정보</span><span>로그아웃</span>
+    </div>
+  </div>
+</header>
+<main class="page">
+  <div class="entry-inline"><div class="chip-timer" data-timer role="timer" aria-label="결제 가능 시간"><span class="dot" aria-hidden="true"></span>결제 가능 <b class="num" data-timer-value>04:50</b></div></div>
+  <section class="card concert" aria-label="공연 정보">
+    <div class="poster" aria-hidden="true"></div>
+    <div>
+      <h1 class="t-title">노을섬 단독 콘서트 〈새벽의 좌석〉</h1>
+      <p class="concert-meta t-body-sm muted"><span class="num">2026.11.20 (금) 20:00</span><span>KSPO DOME</span></p>
+    </div>
+  </section>
+  <div class="layout">
+    <section class="card pay-card" aria-labelledby="payTitle">
+      <div>
+        <h2 class="t-heading" id="payTitle">결제</h2>
+        <p class="t-body-sm muted">결제 수단을 확인하고 결제해 주세요.</p>
+      </div>
+      <div id="alertSlot" tabindex="-1"></div>
+      <fieldset class="methods">
+        <legend>결제 수단</legend>
+        <label class="method"><input type="radio" name="method" checked><b>신용·체크카드</b><span>시연용 결제라 카드 정보를 받지 않아요</span></label>
+      </fieldset>
+      <dl class="facts">
+        <dt>예매 번호</dt><dd>R20261104-8F3K2Q</dd>
+        <dt>좌석 유지</dt><dd id="holdUntil">오후 8:14:50까지</dd>
+      </dl>
+    </section>
+    <aside class="card summary" aria-labelledby="summaryTitle">
+      <div class="summary-head">
+        <h2 class="t-heading" id="summaryTitle">결제 금액</h2>
+        <span class="count num"><b>2</b>매</span>
+      </div>
+      <ul class="selected-list">
+        <li class="selected-item"><span class="grade-chip" style="--c:var(--seat-vip)">VIP</span><span>A구역 <b class="num">3열 7번</b></span><span class="num">165,000원</span></li>
+        <li class="selected-item"><span class="grade-chip" style="--c:var(--seat-r)">R</span><span>F구역 <b class="num">5열 12번</b></span><span class="num">143,000원</span></li>
+      </ul>
+      <dl class="total"><dt>합계</dt><dd class="num">308,000원</dd></dl>
+      <div id="actionSlot"></div>
+      <p class="hint" id="hint">결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.</p>
+    </aside>
+  </div>
+</main>
+<details class="demo" open>
+  <summary class="demo-title">샘플 전용 조작 <span>(실제 화면에 없음)</span></summary>
+  <fieldset>
+    <legend>상태</legend>
+    <label><input type="radio" name="state" value="ready" checked> 결제 전</label>
+    <label><input type="radio" name="state" value="paying"> 결제 요청 중</label>
+    <label><input type="radio" name="state" value="checking"> 확인 중 (202·504)</label>
+    <label><input type="radio" name="state" value="confirming"> 승인 뒤 확정 확인</label>
+    <label><input type="radio" name="state" value="declined"> 거절 (200 DECLINED)</label>
+    <label><input type="radio" name="state" value="pg"> 결제사 장애 (503)</label>
+    <label><input type="radio" name="state" value="expired"> 결제 가능 시간 지남</label>
+    <label><input type="radio" name="state" value="manual"> 수동 확인 (409)</label>
+    <label><input type="radio" name="state" value="refund"> 승인 뒤 만료 (환불)</label>
+  </fieldset>
+</details>
+<script>
+const $ = (id) => document.getElementById(id);
+const btn = (label, { disabled = false, loading = false } = {}) =>
+  `<button class="btn btn-primary btn-lg" ${disabled || loading ? 'disabled' : ''}>${loading ? '<span class="spinner" aria-hidden="true"></span>' : ''}${label}</button>`;
+const pending = (title, body, cls = '') =>
+  `<div class="pending ${cls}" role="status"><span class="spinner" aria-hidden="true"></span><div><b>${title}</b><span>${body}</span></div></div>`;
+const alertBox = (kind, title, body, action = '') =>
+  `<div class="alert alert-${kind}" role="alert" style="margin:0"><span class="alert-icon" aria-hidden="true">!</span><div><p class="alert-title">${title}</p><p class="alert-body">${body}</p></div>${action}</div>`;
+const ghost = (label) => `<button class="btn btn-ghost">${label}</button>`;
+const STATES = {
+  ready:      { action: btn('308,000원 결제하기') },
+  paying:     { action: btn('결제하는 중', { loading: true }) },
+  checking:   { action: pending('결제를 확인하고 있어요', '결제사 응답을 기다리는 중이에요. 화면을 닫아도 결제는 그대로 진행돼요.') },
+  confirming: { action: pending('결제가 승인됐어요', '예매를 확정하고 있어요. 잠시만 기다려 주세요.', 'is-success') },
+  declined:   { alert: alertBox('danger', '결제가 거절됐어요', '카드사가 결제를 거절했어요. 잡아 둔 좌석은 풀렸으니 좌석을 다시 골라 주세요.', ghost('좌석 다시 고르기')), action: btn('308,000원 결제하기', { disabled: true }), stop: true },
+  pg:         { alert: alertBox('warning', '결제사 연결이 원활하지 않아요', '좌석은 남은 시간 동안 유지돼요. 잠시 뒤 다시 결제해 주세요.'), action: btn('다시 결제하기') },
+  expired:    { alert: alertBox('danger', '결제 가능 시간이 지났어요', '잡아 둔 좌석이 풀렸어요. 좌석을 다시 골라 주세요.', ghost('좌석 다시 고르기')), action: btn('308,000원 결제하기', { disabled: true }), timer: 'danger' },
+  manual:     { alert: alertBox('warning', '결제 확인이 늦어지고 있어요', '운영자가 확인한 뒤 예매 상태가 바뀌어요. 내 예매에서 확인해 주세요.', ghost('내 예매 보기')), action: '', stop: true },
+  refund:     { alert: alertBox('danger', '예매가 확정되지 않았어요', '결제 가능 시간이 지난 뒤 승인돼 좌석이 풀렸어요. 결제 금액은 환불돼요.', ghost('내 예매 보기')), action: '', stop: true },
+};
+function render(name) {
+  const s = STATES[name];
+  $('alertSlot').innerHTML = s.alert ?? '';
+  $('actionSlot').innerHTML = s.action;
+  document.querySelectorAll('[data-timer]').forEach((chip) => {
+    chip.className = 'chip-timer' + (s.timer === 'danger' ? ' is-danger' : s.stop ? '' : '');
+    chip.querySelector('[data-timer-value]').textContent = s.timer === 'danger' ? '00:00' : '04:50';
+    chip.style.visibility = s.stop ? 'hidden' : '';
+  });
+  $('hint').hidden = Boolean(s.stop) || s.timer === 'danger';
+}
+document.querySelectorAll('input[name=state]').forEach((radio) => radio.addEventListener('change', () => render(radio.value)));
+// 스크린숏·리뷰용: #demo=<상태>, &panel=0이면 조작판을 숨긴다
+const params = new URLSearchParams(location.hash.slice(1));
+if (params.get('panel') === '0') document.querySelector('.demo').remove();
+const initial = STATES[params.get('demo')] ? params.get('demo') : 'ready';
+const radio = document.querySelector(`input[name=state][value=${initial}]`); if (radio) radio.checked = true;
+render(initial);
+</script>
+</body>
+</html>

@@ -1,8 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { ChevronRight, Plus } from 'lucide-react'
-import { Link } from 'react-router'
+import { ChevronRight, KeyRound, Plus } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { getConcerts } from '@/api/concerts'
-import { adminConcertPath, paths } from '@/app/paths'
+import { adminConcertPath, adminLotteryPath, paths } from '@/app/paths'
+import { TextField } from '@/components/form/TextField'
 import { EmptyState } from '@/components/ticketing/EmptyState'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Button } from '@/components/ui/button'
@@ -10,7 +12,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/lib/format'
 
-// 운영 첫 화면. 공연을 고르면 회차와 좌석을 만드는 화면으로 간다.
+// 운영 첫 화면. 공연을 고르면 회차·좌석·추첨을 만드는 화면으로 간다. 추첨 번호로 추첨 설정을 열고, 회원 비밀번호를 초기화한다.
 // 공연 목록 API(최근 등록순)를 그대로 쓴다. 운영자 전용 목록 API는 없다
 const PAGE_SIZE = 50
 
@@ -28,7 +30,9 @@ export function AdminHomePage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
           <h1 className="type-title text-gray-900">운영</h1>
-          <p className="type-body-sm text-gray-500">공연을 등록하고 회차와 좌석을 만들어요</p>
+          <p className="type-body-sm text-gray-500">
+            공연·회차·좌석·추첨을 만들고 회원 비밀번호를 초기화해요
+          </p>
         </div>
         <Button asChild>
           <Link to={paths.adminConcertNew}>
@@ -36,6 +40,25 @@ export function AdminHomePage() {
             공연 등록
           </Link>
         </Button>
+      </div>
+
+      <div className="grid gap-3 @min-[40rem]:grid-cols-2">
+        <LotteryLookup />
+        <Card className="justify-center px-5 py-4">
+          <Link
+            to={paths.adminPasswordReset}
+            className="flex items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <KeyRound aria-hidden="true" className="size-5 text-gray-500" />
+            <span className="grid flex-1 gap-0.5">
+              <span className="type-body font-semibold text-gray-900">비밀번호 초기화</span>
+              <span className="type-body-sm text-gray-500">
+                회원 번호로 임시 비밀번호를 만들어요
+              </span>
+            </span>
+            <ChevronRight aria-hidden="true" className="size-4 text-gray-400" />
+          </Link>
+        </Card>
       </div>
 
       {concerts.isPending ? (
@@ -89,5 +112,43 @@ export function AdminHomePage() {
         </p>
       ) : null}
     </main>
+  )
+}
+
+// 추첨 번호로 추첨 설정을 연다. 운영자용 추첨 목록 API가 없어 설정할 때 받은 번호로 찾는다
+function LotteryLookup() {
+  const navigate = useNavigate()
+  const [value, setValue] = useState('')
+  const [error, setError] = useState<string | undefined>(undefined)
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = value.trim()
+    if (!/^\d+$/.test(trimmed) || Number(trimmed) < 1 || !Number.isSafeInteger(Number(trimmed))) {
+      setError('추첨 번호를 숫자로 입력해 주세요')
+      return
+    }
+    void navigate(adminLotteryPath(Number(trimmed)))
+  }
+
+  return (
+    <Card className="px-5 py-4">
+      <form noValidate onSubmit={handleSubmit} className="flex items-end gap-2">
+        <TextField
+          className="flex-1"
+          label="추첨 번호로 열기"
+          inputMode="numeric"
+          value={value}
+          error={error}
+          onChange={(event) => {
+            setValue(event.target.value)
+            setError(undefined)
+          }}
+        />
+        <Button type="submit" variant="outline" className={error ? 'mb-6' : undefined}>
+          열기
+        </Button>
+      </form>
+    </Card>
   )
 }

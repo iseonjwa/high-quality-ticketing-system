@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { authQueryKeys, getMe, type Me } from '@/api/auth'
 import { paths } from '@/app/paths'
 import type { AuthNavigationState } from '@/auth/navigation'
+import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -40,11 +41,20 @@ export function MyInfoPage() {
                 <dd className="min-w-0 break-all text-gray-900">{me.data.nickname}</dd>
                 <dt className="text-gray-500">회원 구분</dt>
                 <dd className="text-gray-900">{ROLE_LABELS[me.data.role]}</dd>
+                {/* 운영자가 비밀번호를 초기화할 때 회원 번호로 찾는다(회원 검색 API가 없다) */}
+                <dt className="text-gray-500">회원 번호</dt>
+                <dd className="grid gap-0.5">
+                  <span className="text-gray-900 tabular-nums">{me.data.userId}</span>
+                  <span className="type-caption text-gray-500">
+                    운영자에게 비밀번호 초기화를 부탁할 때 알려 주세요
+                  </span>
+                </dd>
               </dl>
             )}
           </CardContent>
         </Card>
       )}
+      {me.data ? <BillingKeyCard userId={me.data.userId} /> : null}
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline">
           <Link to={paths.passwordChange} state={passwordChangeState}>
