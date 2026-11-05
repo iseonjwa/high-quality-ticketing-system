@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
-import { useEffect, useState, type FocusEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { concertPath } from '@/app/paths'
 import { concertArt, WIDE_SIZE } from '@/components/ticketing/concertArt'
@@ -11,8 +11,9 @@ import { cn } from '@/lib/utils'
 import type { HomeConcert } from '@/pages/concerts/homeConcerts'
 
 // 홈 맨 위의 대표 배너. 예매 중·오픈 예정 공연을 몇 개 골라 넘겨 보인다.
-// 자동 넘김은 WAI-ARIA 캐러셀 패턴을 따른다: 멈춤 버튼을 맨 앞에 두고, 마우스를 올리거나 초점이 안에 있으면 멈추고,
-// 동작 줄이기 설정이면 처음부터 멈춰 둔다. 보이지 않는 장은 inert로 초점·낭독에서 뺀다.
+// 자동 넘김은 WAI-ARIA 캐러셀 패턴을 따른다: 멈춤 버튼을 맨 앞에 두고, 마우스를 올리면 그동안만 멈춘다.
+// 키보드 초점이 밖에서 들어오면 멈추고 [자동 넘김 시작]을 누르기 전에는 다시 넘기지 않는다. 동작 줄이기 설정이면
+// 처음부터 멈춰 둔다. 보이지 않는 장은 inert로 초점·낭독에서 뺀다.
 const ROTATE_MILLIS = 7000
 
 const HERO_HEIGHT = 'h-[clamp(440px,46cqw,540px)]'
@@ -33,7 +34,6 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(() => !prefersReducedMotion())
   const [hovering, setHovering] = useState(false)
-  const [focusWithin, setFocusWithin] = useState(false)
   const count = items.length
   // 공연 묶음이 줄어 지금 장이 사라지면 마지막 장을 보인다
   const current = Math.min(index, count - 1)
@@ -43,7 +43,7 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
   if (!loaded.has(current) || !loaded.has(next)) {
     setLoaded(new Set(loaded).add(current).add(next))
   }
-  const rotating = playing && !hovering && !focusWithin && count > 1
+  const rotating = playing && !hovering && count > 1
 
   useEffect(() => {
     if (!rotating) {
@@ -59,9 +59,12 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
     setIndex(((next % count) + count) % count)
   }
 
-  const onBlur = (event: FocusEvent<HTMLElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setFocusWithin(false)
+  // 키보드 초점이 캐러셀 밖에서 들어올 때만 멈춘다. 마우스로 버튼을 누를 때 생기는 초점은 세지 않는다.
+  // 세면 [자동 넘김 멈추기]를 누르는 순간 초점으로 먼저 멈추고 이어진 클릭이 다시 켠다
+  const pointerDownRef = useRef(false)
+  const onFocus = (event: FocusEvent<HTMLElement>) => {
+    if (!pointerDownRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+      setPlaying(false)
     }
   }
 
@@ -69,11 +72,17 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
     <section
       aria-roledescription="carousel"
       aria-label="추천 공연"
-      className={cn('relative overflow-hidden bg-gray-900 text-white', HERO_HEIGHT)}
+      // isolate: 안의 z-index(조작판)가 sticky 헤더 위로 올라가지 않게 쌓임 맥락을 가둔다
+      className={cn('relative isolate overflow-hidden bg-gray-900 text-white', HERO_HEIGHT)}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
-      onFocus={() => setFocusWithin(true)}
-      onBlur={onBlur}
+      onPointerDown={() => {
+        pointerDownRef.current = true
+      }}
+      onPointerUp={() => {
+        pointerDownRef.current = false
+      }}
+      onFocus={onFocus}
     >
       {count > 1 ? (
         <div className="absolute inset-x-0 bottom-6 z-20">
@@ -179,7 +188,8 @@ function HeroSlide({
         />
       ) : null}
       {/* 글자가 그림 위에서 읽히도록 왼쪽과 아래를 어둡게 덮는다 */}
-      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/70 to-gray-900/10" />
+      {/* 좁은 화면에서는 글자가 폭 전체를 쓰므로 그라데이션 대신 고르게 덮는다(밝은 그림에서도 흰 글자 4.5:1) */}
+      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/75 to-gray-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-gray-900/75" />
       <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-gray-900/70 to-transparent" />
       <div className="relative mx-auto grid h-full max-w-[1200px] items-center gap-10 px-4 @min-[40rem]:px-6 @min-[56rem]:grid-cols-[1fr_auto]">
         <div className="grid max-w-[620px] gap-5 pb-12">
@@ -191,10 +201,10 @@ function HeroSlide({
             {concert.title}
           </h2>
           {next ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 type-body text-white/85">
-              <dt className="text-white/60">공연</dt>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 type-body text-white/90">
+              <dt className="text-white/70">공연</dt>
               <dd className="tabular-nums">{formatDateTime(next.startsAt)}</dd>
-              <dt className="text-white/60">오픈</dt>
+              <dt className="text-white/70">오픈</dt>
               <dd className="tabular-nums">{formatDateTime(next.openAt)}</dd>
             </dl>
           ) : null}
@@ -206,12 +216,14 @@ function HeroSlide({
             </Button>
           </div>
         </div>
-        <ConcertPoster
-          concertId={concert.concertId}
-          title={concert.title}
-          loading={eager || loadArt ? 'eager' : 'lazy'}
-          className="hidden w-[220px] -rotate-2 rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.55)] ring-1 ring-white/10 @min-[56rem]:block @min-[72rem]:w-[250px]"
-        />
+        {/* 넓은 화면에서만 보인다. lazy라 좁은 화면(display:none)에서는 받지 않는다 */}
+        {loadArt ? (
+          <ConcertPoster
+            concertId={concert.concertId}
+            title={concert.title}
+            className="hidden w-[220px] -rotate-2 rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.55)] ring-1 ring-white/10 @min-[56rem]:block @min-[72rem]:w-[250px]"
+          />
+        ) : null}
       </div>
     </div>
   )
@@ -256,14 +268,14 @@ function BrandHero() {
         decoding="async"
         className="absolute inset-0 size-full object-cover"
       />
-      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/60 to-gray-900/10" />
+      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/75 to-gray-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-gray-900/75" />
       <div className="relative mx-auto grid h-full max-w-[1200px] content-center gap-4 px-4 @min-[40rem]:px-6">
         <p className="type-body font-semibold text-primary-300">콘서트 예매, 이선좌</p>
         <h2 className="max-w-[620px] text-[clamp(28px,4.2cqw,46px)] leading-[1.15] font-extrabold tracking-[-0.03em] break-keep">
           오픈 순간에도 흔들리지 않는 예매
         </h2>
         <p className="max-w-[520px] type-body text-white/80">
-          대기열로 순서를 지키고, 고른 좌석은 결제하는 동안 잡아 둬요. 인기 회차는 추첨으로 공정하게
+          대기열로 순서를 지키고, 고른 좌석은 결제하는 동안 잡아 둬요. 일부 좌석은 추첨으로 공정하게
           나눠요.
         </p>
       </div>
