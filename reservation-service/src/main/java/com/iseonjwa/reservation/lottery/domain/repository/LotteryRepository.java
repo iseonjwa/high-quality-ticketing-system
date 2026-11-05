@@ -1,4 +1,7 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.repository;
+
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+
 
 import java.util.List;
 import java.util.Optional;

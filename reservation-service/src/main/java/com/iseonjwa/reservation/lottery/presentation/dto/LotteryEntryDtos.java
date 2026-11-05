@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.lottery.presentation.dto;
 
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntry;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntry;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;

@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.lottery.application;
 
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
-import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery.LotterySettings;
 
 import java.time.Instant;
 

@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.policy;
 
 import java.util.ArrayList;
 import java.util.List;
