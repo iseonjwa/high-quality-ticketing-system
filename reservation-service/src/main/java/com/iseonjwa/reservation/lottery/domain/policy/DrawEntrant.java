@@ -1,4 +1,6 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.policy;
+
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
 
 /**
  * 추첨 계산에 넘기는 응모 한 건으로, 엔티티 대신 계산에 필요한 값만 담는다.

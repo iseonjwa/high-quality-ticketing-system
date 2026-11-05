@@ -1,8 +1,8 @@
 package com.iseonjwa.reservation.lottery.infrastructure.persistence;
 
-import com.iseonjwa.reservation.lottery.domain.DrawEntrant;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntry;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntry;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawEntrant;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;

@@ -1,9 +1,9 @@
 package com.iseonjwa.reservation.lottery.application;
 
-import com.iseonjwa.reservation.lottery.domain.DrawTimeWindow;
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
-import com.iseonjwa.reservation.lottery.domain.LotteryStatus;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery.LotterySettings;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryStatus;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawTimeWindow;
 
 import java.util.List;
 

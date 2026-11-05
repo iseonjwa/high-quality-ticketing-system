@@ -3,7 +3,7 @@ package com.iseonjwa.reservation.lottery.infrastructure.seat;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
 import com.iseonjwa.reservation.lottery.application.LotterySeatPort;
-import com.iseonjwa.reservation.lottery.domain.LotterySeat;
+import com.iseonjwa.reservation.lottery.domain.policy.LotterySeat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

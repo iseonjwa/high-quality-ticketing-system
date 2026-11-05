@@ -1,4 +1,9 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.repository;
+
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntry;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntryStatus;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawEntrant;
+
 
 import java.time.Instant;
 import java.util.Collection;

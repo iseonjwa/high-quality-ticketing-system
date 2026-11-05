@@ -1,8 +1,8 @@
 package com.iseonjwa.reservation.lottery.infrastructure.seat;
 
 import com.iseonjwa.reservation.lottery.application.LotteryPaymentResultHandler;
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
 import com.iseonjwa.reservation.seathold.application.LotteryHoldExpiryHook;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
