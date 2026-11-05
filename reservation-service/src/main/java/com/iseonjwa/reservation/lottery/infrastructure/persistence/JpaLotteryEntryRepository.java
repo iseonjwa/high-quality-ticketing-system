@@ -147,6 +147,16 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
         return springDataLotteryEntryRepository.hasUnsettled(lotteryId);
     }
 
+    @Override
+    public long countUnsettledWinners() {
+        return springDataLotteryEntryRepository.countUnsettledWinners();
+    }
+
+    @Override
+    public Optional<Instant> findDrawAtByReservationId(Long reservationId) {
+        return springDataLotteryEntryRepository.findDrawAtByReservationId(reservationId);
+    }
+
     private static DrawEntrant toDrawEntrant(Object[] row) {
         return new DrawEntrant((Long) row[0], ((Number) row[1]).intValue());
     }

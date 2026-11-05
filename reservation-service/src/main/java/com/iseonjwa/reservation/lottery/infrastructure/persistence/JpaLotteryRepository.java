@@ -70,6 +70,16 @@ public class JpaLotteryRepository implements LotteryRepository {
     }
 
     @Override
+    public long countUnfinished() {
+        return springDataLotteryRepository.countUnfinished();
+    }
+
+    @Override
+    public long findOldestUnfinishedSeconds() {
+        return springDataLotteryRepository.findOldestUnfinishedSeconds();
+    }
+
+    @Override
     public boolean markDrawn(Long id) {
         springDataLotteryRepository.setLocalLockTimeout();
         return springDataLotteryRepository.markDrawn(id) == 1;
