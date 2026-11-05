@@ -24,7 +24,8 @@ import {
 
 // 자동결제 카드(빌링키) 카드. 내 정보와 추첨 응모 화면에 둔다.
 // 서버에 보유 여부를 묻는 API가 없어 이 브라우저에서 등록한 기록(billingKeyRecord)으로 보인다.
-// 기록이 없어도 서버에 카드가 있을 수 있어(다른 브라우저에서 등록, 등록 결과를 받지 못함) 해지는 늘 할 수 있게 둔다.
+// 기록이 없으면 해지 버튼을 두지 않는다. 다른 브라우저에서 등록한 카드가 서버에 남아 있어도 다시 등록하면
+// 앞 카드가 해지되고 새 카드로 바뀐다(ISE-186). 등록 결과를 모를 때만 안내에 해지를 둔다(RegisterError)
 
 // 시연 결제(Mock PG)에 보낼 인증 값. 실제 PG라면 결제창이 준다(ISE-125).
 // Note: crypto.randomUUID()는 http 배포 주소에서 없다(newIdempotencyKey 참고)
@@ -117,17 +118,8 @@ export function BillingKeyCard({
             </Button>
           </div>
         ) : (
-          <div className="grid justify-items-center gap-1 rounded-md border border-dashed border-gray-200 px-4 py-5 text-center">
+          <div className="rounded-md border border-dashed border-gray-200 px-4 py-5 text-center">
             <p className="type-body-sm text-gray-500">이 브라우저에서 등록한 카드가 없어요</p>
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto p-0"
-              disabled={busy}
-              onClick={openRevoke}
-            >
-              다른 곳에서 등록한 카드 해지
-            </Button>
           </div>
         )}
         <Button
