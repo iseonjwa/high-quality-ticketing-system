@@ -37,6 +37,12 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
   const count = items.length
   // 공연 묶음이 줄어 지금 장이 사라지면 마지막 장을 보인다
   const current = Math.min(index, count - 1)
+  // 배너 그림을 받은 장. 지금 장과 다음 장만 받고(나머지는 넘길 때 받는다), 한 번 받은 그림은 남긴다
+  const next = (current + 1) % count
+  const [loaded, setLoaded] = useState<ReadonlySet<number>>(() => new Set([0, 1 % count]))
+  if (!loaded.has(current) || !loaded.has(next)) {
+    setLoaded(new Set(loaded).add(current).add(next))
+  }
   const rotating = playing && !hovering && !focusWithin && count > 1
 
   useEffect(() => {
@@ -101,6 +107,7 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
             active={position === current}
             label={`${position + 1} / ${count}`}
             eager={position === 0}
+            loadArt={loaded.has(position)}
             nowMillis={nowMillis}
           />
         ))}
@@ -135,12 +142,15 @@ function HeroSlide({
   active,
   label,
   eager,
+  loadArt,
   nowMillis,
 }: {
   item: HomeConcert
   active: boolean
   label: string
   eager: boolean
+  // false면 배너 그림을 아직 받지 않는다(보이지 않는 장의 그림을 첫 화면에서 받지 않게)
+  loadArt: boolean
   nowMillis: number
 }) {
   const { concert, next, status } = item
@@ -157,16 +167,17 @@ function HeroSlide({
         active ? 'opacity-100' : 'opacity-0',
       )}
     >
-      <img
-        src={art.wide}
-        alt=""
-        width={WIDE_SIZE.width}
-        height={WIDE_SIZE.height}
-        loading={eager ? 'eager' : 'lazy'}
-        fetchPriority={eager ? 'high' : 'auto'}
-        decoding="async"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {loadArt ? (
+        <img
+          src={art.wide}
+          alt=""
+          width={WIDE_SIZE.width}
+          height={WIDE_SIZE.height}
+          fetchPriority={eager ? 'high' : 'auto'}
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : null}
       {/* 글자가 그림 위에서 읽히도록 왼쪽과 아래를 어둡게 덮는다 */}
       <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/70 to-gray-900/10" />
       <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-gray-900/70 to-transparent" />
@@ -198,7 +209,7 @@ function HeroSlide({
         <ConcertPoster
           concertId={concert.concertId}
           title={concert.title}
-          loading={eager ? 'eager' : 'lazy'}
+          loading={eager || loadArt ? 'eager' : 'lazy'}
           className="hidden w-[220px] -rotate-2 rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.55)] ring-1 ring-white/10 @min-[56rem]:block @min-[72rem]:w-[250px]"
         />
       </div>

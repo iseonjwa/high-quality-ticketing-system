@@ -40,7 +40,8 @@ function scheduleStartsAt() {
 }
 
 // 목록의 예매 항목 링크(누르면 상세로 간다)
-const itemLinks = () => within(screen.getByRole('list')).getAllByRole('link')
+const itemList = () => within(screen.getByRole('main')).getByRole('list')
+const itemLinks = () => within(itemList()).getAllByRole('link')
 
 function seedMany(count: number) {
   return Array.from({ length: count }, () => seedReservation({ status: 'CONFIRMED' }))
@@ -61,7 +62,7 @@ describe('MyReservationsPage', () => {
     const newer = seedReservation({ status: 'HELD', totalAmount: 330000 })
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     const links = itemLinks()
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveAttribute('href', `/reservations/${newer.reservationId}`)
@@ -81,7 +82,7 @@ describe('MyReservationsPage', () => {
     const mine = seedReservation({ status: 'CONFIRMED' })
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(itemLinks()).toHaveLength(1)
     expect(screen.getByText(new RegExp(mine.reservationNo))).toBeInTheDocument()
   })
@@ -99,7 +100,7 @@ describe('MyReservationsPage', () => {
     }
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     const links = itemLinks()
     expect(links).toHaveLength(5)
     // 최신순이라 마지막에 만든 상태가 먼저다
@@ -134,7 +135,7 @@ describe('MyReservationsPage 더 보기', () => {
     const requests = recordRequests(MINE_API)
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(itemLinks()).toHaveLength(20)
     expect(requests).toHaveLength(1)
     const first = new URL(requests[0].url).searchParams
@@ -160,7 +161,7 @@ describe('MyReservationsPage 더 보기', () => {
     seedMany(20)
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(itemLinks()).toHaveLength(20)
     expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
   })
@@ -169,7 +170,7 @@ describe('MyReservationsPage 더 보기', () => {
     seedMany(21)
     renderMine()
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(screen.getByRole('button', { name: '더 보기' })).toBeInTheDocument()
   })
 
@@ -189,7 +190,7 @@ describe('MyReservationsPage 더 보기', () => {
     )
     const requests = recordRequests(MINE_API)
     renderMine()
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     const firstTexts = itemLinks().map((link) => link.textContent)
 
     await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
@@ -201,7 +202,7 @@ describe('MyReservationsPage 더 보기', () => {
     const more = screen.getByRole('button', { name: '더 보기' })
     expect(retry.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(
-      screen.getByRole('list').compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING,
+      itemList().compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
 
@@ -216,7 +217,7 @@ describe('MyReservationsPage 더 보기', () => {
   it('쪽 사이에 새 예매가 생겨 앞 쪽의 마지막 항목이 다음 쪽에 또 와도 한 번만 보인다', async () => {
     seedMany(21)
     renderMine()
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(itemLinks()).toHaveLength(20)
 
     // 새 예매가 맨 앞에 끼어 모든 항목이 한 칸씩 밀린다. 다음 쪽(offset 20)은 이미 받은 마지막 항목부터 시작한다
@@ -232,7 +233,7 @@ describe('MyReservationsPage 더 보기', () => {
   it('더 보기로 붙인 첫 항목으로 초점을 옮기고 몇 건 더 불러왔는지 알린다', async () => {
     seedMany(25)
     renderMine()
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
 
     await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
@@ -261,7 +262,7 @@ describe('MyReservationsPage 조회 실패', () => {
     expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
     await userEvent.click(retry)
 
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     expect(itemLinks()).toHaveLength(1)
     expect(calls).toBe(2)
   })
@@ -271,7 +272,7 @@ describe('MyReservationsPage 다시 받기 실패', () => {
   it('받은 목록이 있으면 다시 받기가 실패해도 목록을 그대로 두고 오류 안내를 보이며, 다시 시도하면 안내가 사라진다', async () => {
     seedMany(2)
     const { queryClient } = renderMine()
-    await screen.findByRole('list')
+    await within(await screen.findByRole('main')).findByRole('list')
     const texts = itemLinks().map((link) => link.textContent)
     let calls = 0
     mockServer.use(

@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | 핵심 흐름만 보이던 AI의 화면 구성을 실제 서비스형 레이아웃·그림 에셋으로 바꾸게 함(ISE-187) | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-05-frontend-service-like-layout.md) |
 | 2026-11-04 | ISE-150 리뷰 지적 11건을 이번 PR 수정, 담당자 확인, 후속으로 나눔 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-04-ise-150-review-triage.md) |
 | 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-04-single-ec2-then-review-managed.md) |
 | 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-deploy-ec2-16gb-paid-plan.md) |
