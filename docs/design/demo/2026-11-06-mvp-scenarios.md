@@ -1,6 +1,6 @@
 # 11/6 MVP 시연 시나리오
 
-상태: 초안(2026-11-05). 서버에서 실행해 본 장면은 아직 없다. 각 장면의 기대 결과는 코드, 설계 문서, 로컬 실행 기록을 근거로 쓴 것이고 리허설에서 확정한다. 진행은 통합 진행자 1명이 맡는다([판단 기록](../../ai-judgments/kangmin/2026-11-05-demo-single-integrated-presenter.md)).
+상태: 초안(2026-11-05 작성, 2026-11-06 코드와 로컬 리허설 기준으로 수정). 서버에서 실행해 본 장면은 아직 없고 로컬 리허설은 진행 중이다. 각 장면의 기대 결과는 코드, 설계 문서, 로컬 실행 기록을 근거로 쓴 것이고 리허설에서 확정한다. 진행은 통합 진행자 1명이 맡는다([판단 기록](../../ai-judgments/kangmin/2026-11-05-demo-single-integrated-presenter.md)).
 
 시연 장면 밖의 시나리오 전체는 [테스트 시나리오](../../test-scenarios/README.md)에 있다.
 
@@ -17,7 +17,7 @@
 | 1 | S1~S4 (D-02~D-05) 일반 예매 | 정상 흐름을 먼저 보인다 |
 | 2 | S5~S7 (F-01, F-04, F-06) 일반 예매 장애 | 정상 흐름과 비교한다 |
 | 3 | S8~S10 (L-01, L-02, L-04~L-06) 추첨 | 일반 결제 장애 주입이 끝난 뒤 자동결제를 돌려 섞이지 않게 한다 |
-| 4 | L-08 추첨 종결 | 추첨 30분 뒤에 결과를 확인한다. 시간이 맞지 않으면 로컬 기록으로 대체한다 |
+| 4 | L-08 추첨 종결 | 추첨 약 31분 뒤에 결과를 확인한다(L-08 참고). 시간이 맞지 않으면 로컬 기록으로 대체한다 |
 | 5 | 그 밖의 항목, F-08~F-10 | 시간이 남으면 진행한다. 선택 장면은 로컬 리허설을 통과한 것만 넣는다 |
 
 ## 2. 사전 준비
@@ -80,7 +80,7 @@
 
 ```bash
 # 예약 DB. payment는 컨테이너 이름만 postgres-payment로 바꾼다
-docker exec -e PGOPTIONS='-c default_transaction_read_only=on' iseonjwa-postgres-reservation-1 \
+docker exec -it -e PGOPTIONS='-c default_transaction_read_only=on' iseonjwa-postgres-reservation-1 \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
@@ -134,10 +134,10 @@ docker exec iseonjwa-mock-pg-1 curl -s http://localhost:8090/mock-pg/faults
 | ID | 무엇을 증명하나 | 절차 | 기대 결과 | 결과 |
 |---|---|---|---|---|
 | A-01 | 가입 후 로그인해 내 정보를 본다 | 가입 → 로그인 → 내 정보 | 201, 토큰 발급, 200 | |
-| A-02 | 토큰 없는 요청은 Gateway가 막는다 | `GET /users/me` 토큰 없이 | 401 | |
+| A-02 | 토큰 없는 요청은 Gateway가 막는다 | `GET /api/v1/users/me` 토큰 없이 | 401 | |
 | A-03 | 로그아웃한 토큰을 거절한다 | 로그아웃 뒤 이전 토큰으로 호출 | 401 `TOKEN_REVOKED` | |
-| A-04 | 비밀번호 반복 실패 시 잠긴다 | 5번 틀림 → 6번째 로그인 | 423 | |
-| A-05 | 일반 사용자는 관리자 API를 못 쓴다 | 일반 토큰으로 `/admin/concerts` 호출 | 403 `FORBIDDEN` | |
+| A-04 | 비밀번호 반복 실패 시 잠긴다 | 시연에 쓰지 않는 계정으로 틀린 비밀번호를 5번 보낸 뒤 맞는 비밀번호로 로그인 | 1~4번째 401 `INVALID_CREDENTIALS`, 5번째 실패 응답부터 423 `ACCOUNT_LOCKED`, 맞는 비밀번호도 423 | |
+| A-05 | 일반 사용자는 관리자 API를 못 쓴다 | 일반 토큰으로 `POST /api/v1/admin/concerts` 호출. 이 경로에는 POST만 있다 | 403 `FORBIDDEN` | |
 
 ### 일반 예매 정상
 
@@ -147,8 +147,10 @@ docker exec iseonjwa-mock-pg-1 curl -s http://localhost:8090/mock-pg/faults
 | D-02 | 오픈 판단이 브라우저가 아닌 서버 시각을 따른다 | D-01 회차 | 공연 상세에서 카운트다운을 본다 | 0이 되면 새로고침 없이 [예매하기] 활성 | 회차 1로 넘어가 설명 | |
 | D-03 | 입장 토큰을 받아야 좌석에 들어간다 | 로그인 | [예매하기] → 대기열 | `WAITING` → `READY` → 토큰 → 좌석 화면 | 패널 traceId로 응답 확인 | |
 | D-04 | 선점부터 확정까지 한 흐름이 이어지고 DB 상태가 맞다 | 입장 완료 | 좌석 선택 → [선택 완료] → 결제 → 결과 → 내 예매 | 예매 `CONFIRMED`, 결제 `APPROVED`, 좌석별 티켓 `ISSUED`, `outbox_events` `SENT` | 회차 1에서 다시 실행, 로컬 녹화 | |
-| D-05 | 요청 하나를 서비스 전체에서 따라간다 | D-04 완료 | 결제 요청의 traceId 클릭 → 요청 로그 → Zipkin 구간 | Gateway, reservation, payment 로그가 같은 traceId로 나온다 | Loki 탐색으로 traceId 검색 | |
+| D-05 | 요청 하나를 Gateway에서 그 요청을 받은 서비스까지 따라간다 | D-04 완료 | 1. 선점 요청(`POST /api/v1/schedules/{id}/reservations`)의 traceId 클릭 → 요청 로그 → Zipkin 구간에서 gateway와 reservation-service 확인 2. 결제 요청(`POST /api/v1/payments`)의 traceId로 같은 순서를 밟아 gateway와 payment-service 확인 | 요청 하나에 Gateway와 그 요청을 받은 서비스가 같은 traceId를 갖는다. 결제 뒤 예매 확정은 Kafka 비동기라 다른 trace다 | Loki 탐색으로 traceId 검색. 서버 Grafana는 익명 Viewer라 막힐 수 있고, 막히면 서버에서 `docker logs`를 traceId로 검색한다 | |
 | D-06 (E2) | 같은 멱등키 재요청은 결제 1건이다 | HELD 예매 | 같은 키로 결제 재요청 | 같은 `paymentId`, PG 승인 1회 | 통합 테스트 FT-1 결과 제시 | |
+
+D-05 근거: [관측성 설계](../infra/observability.md)의 완료 기준을 읽는 법과 남은 항목의 Kafka 소비자 전파 행이다. 2026-11-06 로컬 확인에서 결제 trace는 Zipkin에 gateway와 payment-service만 나왔고 reservation 로그는 0줄이었다.
 
 참고: 혼자 진행하면 대기열이 금방 끝나 긴 줄은 보이지 않는다. 입장 속도가 초당 50명이기 때문이다. 긴 대기를 보이려면 별도 부하가 필요한데 11/6은 부하 측정을 하지 않기로 했다.
 
@@ -161,8 +163,8 @@ docker exec iseonjwa-mock-pg-1 curl -s http://localhost:8090/mock-pg/faults
 | F-03 (E4·E5·E14) | 토큰과 시각 검사는 화면이 아니라 서버가 한다 | 오픈 전 회차, 입장 토큰, 결제 토큰 | `curl`로 오픈 전 진입, 토큰 없는 좌석 조회, 토큰을 바꾼 호출 | 오픈 전 409 `SALE_NOT_OPEN`, 나머지 403 | 시스템 테스트 결과 제시 | |
 | F-04 (E6) | 결제가 거절되면 SAGA 보상으로 좌석이 돌아간다 | `{"target":"APPROVE","mode":"DECLINE","count":1}` | 결제 | 화면 거절 안내, 결제 `DECLINED`, 예매 `RELEASED`, 좌석 판매 가능 | 추첨 카드 미등록 거절(L-06) | |
 | F-05 (E7) | 결제하지 않으면 좌석이 자동 반환된다 | 시연 5분 전 선점해 둠. 선점 시간 기본 5분 | 만료 뒤 예매와 좌석 조회 | 예매 `EXPIRED`, 좌석 판매 가능(만료 스케줄러 5초 주기) | 만료 전후 쿼리 기록 제시 | |
-| F-06 (E9) | PG 응답이 유실돼도 중복 결제 없이 확정한다 | `{"target":"APPROVE","mode":"DROP_RESPONSE","count":1}` | 결제 | "확인 중" 뒤 `UNKNOWN` → `APPROVED` → 확정. `payment_status_histories`에 경과, PG 승인 1건 | 통합 테스트 FT-2 결과 제시 | |
-| F-07 | PG가 느려도 요청이 묶이지 않는다 | `{"target":"APPROVE","mode":"DELAY","delayMs":5000,"count":1}` | 결제. Grafana `승인 지연`, `PG Unknown 원인` 확인 | 2.5초 시한 뒤 "확인 중", 재확인 뒤 최종 상태로 수렴 | F-06만 진행 | |
+| F-06 (E9) | PG 응답이 유실돼도 중복 결제 없이 확정한다 | `{"target":"APPROVE","mode":"DROP_RESPONSE","count":1}` | 결제 | "결제를 확인하고 있어요" 뒤 `UNKNOWN` → `APPROVED` → 확정. `payment_status_histories`에 경과, PG 승인 1건 | 통합 테스트 FT-2 결과 제시 | |
+| F-07 | PG가 느려도 요청이 묶이지 않는다 | `{"target":"APPROVE","mode":"DELAY","delayMs":5000,"count":1}` | 결제. Grafana `승인 지연`, `PG Unknown 원인` 확인 | PG 호출 시한(연결 0.5초, 응답 2초)이 지나면 202와 "결제를 확인하고 있어요"가 나오고, 재확인 뒤 최종 상태로 수렴한다. 2026-11-06 로컬 실측: 202 응답 2,022ms, 확정까지 약 22초 | F-06만 진행 | |
 
 ### 추첨
 
@@ -171,14 +173,14 @@ docker exec iseonjwa-mock-pg-1 curl -s http://localhost:8090/mock-pg/faults
 | L-01 | 운영자 설정으로 추첨석이 일반 판매에서 분리된다 | P-06 회차 | 운영 화면에서 응모 1~2분 뒤 시작, 몇 분 응모, 마감 1분 뒤 추첨 | 추첨 번호 발급, 추첨석 수만큼 `LOTTERY` 등급 | 예비 회차로 재설정 | |
 | L-02 | 응모가 멱등하게 쌓인다 | L-01, P-07 | 응모 시작 뒤 적재 실행 → 건수 쿼리 → 발표자 화면 응모 | `ENTERED` 건수 증가, 발표자 응모 카드 표시 | 적재 일부 실패 시 성공 건수로 진행 | |
 | L-03 | 응모 규칙을 서버가 지킨다 | L-02 | 같은 계정 재응모, 같은 키 재요청, 마감 뒤 응모 | 재응모 409, 같은 키는 처음 응모 반환, 마감 뒤 409 | 로컬 11/5 기록 제시 | |
-| L-04 | 추첨 시각에 시드 기반으로 순위가 정해진다 | 추첨 시각 경과 | 추첨 + 10초 뒤 화면 새로 보기, 응모 결과 쿼리 | 상태 `DRAWN`, `WON`·`WAITLISTED`·`LOST`로 나뉘고 순위 기록 | 추첨 설정 시각 확인 뒤 다음 주기 대기 | |
+| L-04 | 추첨 시각에 시드 기반으로 순위가 정해진다 | 추첨 시각 경과 | 추첨 + 20초 뒤 응모 결과 쿼리, 화면 확인. 추첨 스케줄러가 앞 실행이 끝난 뒤 10초 간격이고 추첨 한 번의 시한이 10초다. 화면은 10~13초마다 다시 받아 조금 더 늦을 수 있다 | 상태 `DRAWN`, `WON`·`WAITLISTED`·`LOST`로 나뉜다. `draw_rank`는 `WON`·`WAITLISTED`에만 기록되고 `LOST`는 NULL이다 | 추첨 설정 시각 확인 뒤 다음 주기 대기 | |
 | L-05 | 당첨자는 자동결제로 확정된다 | 카드 등록 당첨자 | 당첨자 로그인, 예매 보기 | 응모 `PAID`, 예매 `CONFIRMED`, 결제 `BILLING`·`APPROVED`, 티켓 발급 | DB 결과로 설명 | |
 | L-06 | 카드가 없으면 예비자에게 넘어간다 | 카드 미등록 당첨자 | 실패 화면, 응모 결과 쿼리 | `FAILED`·`BILLING_KEY_MISSING`, 예약 `RELEASED`, 예비자가 `WON`을 거쳐 `PAID` | 미등록 당첨자가 없으면 L-07 | |
 | L-07 | PG 거절도 같은 경로로 승계한다 | 예비자가 남았을 때 `{"target":"APPROVE","mode":"DECLINE","count":1}`를 추첨 전에 건다 | 결과 쿼리 | `FAILED`·`CARD_DECLINED`, 다음 예비자 승계 | L-06으로 대체 | |
-| L-08 | 승계 마감 뒤 추첨이 끝나고 남은 좌석이 돌아간다 | 추첨 + 30분 경과 | 추첨 상태, 회차 좌석 쿼리 | 상태 `DONE`, 남은 예비 `LOST`, 판매 좌석은 원래 등급·`SOLD`, 빈 좌석은 `AVAILABLE` | 로컬 11/5 기록 제시 | |
-| L-09 | 마감 전 응모를 취소한다 | 응모 기간 | `DELETE /entries/me` 뒤 재응모 | `CANCELED`, 재응모 409, 추첨 제외 | 로컬 11/5 기록 제시 | |
+| L-08 | 승계 마감 뒤 추첨이 끝나고 남은 좌석이 돌아간다 | 추첨 + 31분 경과. 승계 마감은 추첨 + 30분이고, 예비자 마감 작업이 10초 주기, 종결 작업이 1분 주기라 30분 정각에는 끝나지 않는다. `WON`이 남으면 더 늦어지고, 추첨 + 30분 전에 `WON`·`WAITLISTED`가 모두 없어지면 더 일찍 끝난다 | 추첨 상태, 회차 좌석 쿼리 | 상태 `DONE`, 남은 예비 `LOST`, 판매 좌석은 원래 등급·`SOLD`, 빈 좌석은 `AVAILABLE` | 로컬 11/5 기록 제시 | |
+| L-09 | 마감 전 응모를 취소한다 | 응모 기간 | `DELETE /api/v1/lotteries/{id}/entries/me` 뒤 재응모 | `CANCELED`, 재응모 409, 추첨 제외 | 로컬 11/5 기록 제시 | |
 
-ISE-94가 시연 전에 `main`에 들어가면 추첨 대시보드와 알림을 L-04~L-07에 함께 보여 준다. 들어가지 않으면 서버에 없다.
+추첨 대시보드와 경보 규칙은 `main`에 있다(`#358`). 서버에서 `추첨` 대시보드가 열리는지 확인한 뒤 L-04~L-07에 함께 보여 준다.
 
 ### 선택 장면
 
@@ -186,7 +188,7 @@ ISE-94가 시연 전에 `main`에 들어가면 추첨 대시보드와 알림을 
 
 | ID | 무엇을 증명하나 | 주입 | 절차와 기대 결과 | 확인 못 한 것 | 실패 시 대체 |
 |---|---|---|---|---|---|
-| F-08 (E8) | 선점 만료 뒤 승인이 오면 자동 환불한다 | 결제 가능 시간 막바지에 `DELAY` | 예매 `EXPIRED`, 환불 행 생성 후 `REFUNDED` | 재확인이 먼저 늦은 승인 방지(취소)로 끝날 수 있어 타이밍을 맞춰야 한다 | 통합 테스트 결과 제시 |
+| F-08 (E8) | 선점 만료 뒤 승인이 오면 자동 환불한다 | 결제 가능 시간 막바지에 `DELAY` | 화면의 `결제 가능` 시간이 끝나기 전에 결제를 누른다. 결제 토큰은 선점보다 10초 먼저 끝난다(`EXPIRY_MARGIN`). 그 뒤의 새 결제는 403 `PAYMENT_TOKEN_INVALID`이고 PG를 부르지 않는다. 기대 결과: 예매 `EXPIRED`, 환불 행 생성 후 `REFUNDED` | 재확인이 먼저 늦은 승인 방지(취소)로 끝날 수 있어 타이밍을 맞춰야 한다 | 통합 테스트 결과 제시 |
 | F-09 (E10) | PG 장애가 이어지면 CB가 막고 복구된다 | `{"target":"APPROVE","mode":"SERVER_ERROR"}` | 최근 20회 중 50% 실패로 OPEN, 결제 503 `PG_UNAVAILABLE`, 해제 뒤 10초 지나 복구. Grafana `PG Circuit Breaker OPEN`, 슬랙 `PaymentPgCircuitOpen` | 수동 결제로는 20회를 채우기 어렵다. 자동결제 20건 이상을 쓰는 방법을 로컬에서 확인해야 한다 | 대시보드 패널과 규칙 설명 |
 | F-10 (E12) | 결제 서비스가 재시작돼도 결제가 수렴한다 | 결제 중 `docker restart iseonjwa-payment-service-1` | 재기동 뒤 상태 확정, `dead_letters` 증가 없음 | 복구 시간 동안 503. 공유 서버라 재시작 전 팀 채널 공지가 필요하다 | 통합 테스트 FT-3 결과 제시 |
 
@@ -200,5 +202,5 @@ ISE-94가 시연 전에 `main`에 들어가면 추첨 대시보드와 알림을 
 | 컨테이너 이름과 `mock-pg` 장애 API가 서버에서 동작하는가 | 현재 설정 조회(GET) |
 | 회차당 15,000석 생성에 몇 초 걸리는가 | P-06 실행 시간 측정 |
 | 120명 가입과 카드 등록에 몇 분 걸리는가 | 서버에서 적재 시간 측정. 로컬은 73초, 응모는 75초다(2026-11-05) |
-| 등록된 IP에서 Grafana, Zipkin이 보이는가 | 시연 장소에서 접속 |
-| 재확인 후 `UNKNOWN`이 확정되기까지 몇 초인가 | F-06·F-07 리허설 측정 |
+| 등록된 IP에서 Grafana가 열리고 `요청 로그`의 `트레이스(Zipkin)` 패널에 구간이 나오는가 | 시연 장소에서 접속. 서버의 Zipkin은 `127.0.0.1:9411`만 열려 있어 등록 IP로 바로 접속할 수 없다. 화면을 직접 보려면 SSH 터널을 쓴다 |
+| 재확인 후 `UNKNOWN`이 확정되기까지 몇 초인가 | F-06·F-07 서버 리허설 측정. F-07 로컬 값은 약 22초다(2026-11-06) |
