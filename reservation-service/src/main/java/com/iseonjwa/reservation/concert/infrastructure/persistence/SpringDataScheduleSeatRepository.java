@@ -39,32 +39,35 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
 
     // Note: 고를 좌석에 FOR UPDATE를 걸어, 같은 좌석을 선점하는 트랜잭션과 엇갈려도 이미 HELD가 된 좌석은 바꾸지 않는다.
     // 선점이 먼저 끝나면 다시 읽은 행이 AVAILABLE이 아니어서 빠지고, 바꾼 수가 모자라면 호출한 쪽이 되돌린다.
+    // Note: IN으로 정리하지 않는다. IN (SELECT ... LIMIT n FOR UPDATE)는 실행 계획에 따라 서브쿼리가 바깥 행마다 다시 실행되고,
+    // 이 문장이 이미 바꾼 행을 건너뛰어 다음 행을 골라 LIMIT보다 많이 바꾼다. ARRAY(...)는 먼저 한 번만 실행된다.
     @Modifying
     @Query(nativeQuery = true, value = """
             UPDATE schedule_seats
             SET grade = 'LOTTERY', updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
-            WHERE id IN (
+            WHERE id = ANY(ARRAY(
                 SELECT id FROM schedule_seats
                 WHERE schedule_id = :scheduleId AND grade = :sourceGrade
                   AND status = 'AVAILABLE' AND deleted_at IS NULL
                 ORDER BY id
                 LIMIT :seatCount
-                FOR UPDATE)
+                FOR UPDATE))
             """)
     int updateGradeToLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
                              @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
 
-    // ID가 큰 추첨석부터 되돌려, 남는 추첨석이 ID 순으로 이어지게 한다(옆자리 배정에 유리, D9)
+    // ID가 큰 추첨석부터 되돌려, 남는 추첨석이 ID 순으로 이어지게 한다(옆자리 배정에 유리, D9).
+    // ANY(ARRAY(...))를 쓰는 이유는 updateGradeToLottery와 같다
     @Modifying
     @Query(nativeQuery = true, value = """
             UPDATE schedule_seats
             SET grade = :sourceGrade, updated_at = now(), updated_by = CAST(:actorId AS BIGINT)
-            WHERE id IN (
+            WHERE id = ANY(ARRAY(
                 SELECT id FROM schedule_seats
                 WHERE schedule_id = :scheduleId AND grade = 'LOTTERY' AND deleted_at IS NULL
                 ORDER BY id DESC
                 LIMIT :seatCount
-                FOR UPDATE)
+                FOR UPDATE))
             """)
     int updateGradeFromLottery(@Param("scheduleId") Long scheduleId, @Param("sourceGrade") String sourceGrade,
                                @Param("seatCount") int seatCount, @Param("actorId") Long actorId);
