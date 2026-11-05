@@ -18,6 +18,7 @@ import java.util.UUID;
 public class JpaLotteryEntryRepository implements LotteryEntryRepository {
 
     private static final long NO_ENTRY = -1L;
+    private static final int DRAW_RESULT_BATCH_SIZE = 500;
 
     private final SpringDataLotteryEntryRepository springDataLotteryEntryRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -51,17 +52,18 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public List<DrawEntrant> findDrawEntrants(Long lotteryId) {
         return springDataLotteryEntryRepository.findDrawEntrantRows(lotteryId).stream()
-                .map(row -> new DrawEntrant((Long) row[0], ((Number) row[1]).intValue()))
+                .map(JpaLotteryEntryRepository::toDrawEntrant)
                 .toList();
     }
 
-    // Note: 당첨·예비 수천 건을 JDBC 배치로 보낸다. JPA 트랜잭션이 연 같은 커넥션을 쓰므로 추첨 트랜잭션에 함께 묶인다.
-    // 조건 status = 'ENTERED'는 추첨 중 응모가 바뀌지 않았는지 지키는 마지막 방어선이다(추첨은 마감 뒤라 바뀌지 않아야 한다)
+    // Note: 당첨·예비 수천 건을 추첨 트랜잭션과 같은 커넥션의 JDBC 배치로 보내고, status = 'ENTERED'는 응모가 바뀌지 않았는지 지키는 마지막 방어선이다.
     @Override
     public void saveDrawResults(List<DrawResult> results) {
         jdbcTemplate.batchUpdate("UPDATE lottery_entries SET status = ?, draw_rank = ?, updated_at = now()"
                         + " WHERE id = ? AND status = 'ENTERED'",
-                results, 500, (statement, result) -> {
+                results,
+                DRAW_RESULT_BATCH_SIZE,
+                (statement, result) -> {
                     statement.setString(1, result.status().name());
                     statement.setInt(2, result.drawRank());
                     statement.setLong(3, result.entryId());
@@ -76,11 +78,11 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public Optional<UnassignedWinner> lockNextUnassignedWinner(Collection<Long> skipEntryIds) {
         // NOT IN ()은 SQL 문법 오류라 비어 있으면 존재할 수 없는 ID 하나를 넣는다
-        var skip = skipEntryIds.isEmpty() ? List.of(NO_ENTRY) : skipEntryIds;
-        return springDataLotteryEntryRepository.lockNextUnassignedWinner(skip).stream().findFirst()
-                .map(row -> new UnassignedWinner(((Number) row[0]).longValue(), ((Number) row[1]).longValue(),
-                        ((Number) row[2]).longValue(), ((Number) row[3]).longValue(),
-                        ((Number) row[4]).intValue()));
+        Collection<Long> skip = skipEntryIds.isEmpty() ? List.of(NO_ENTRY) : skipEntryIds;
+
+        return springDataLotteryEntryRepository.lockNextUnassignedWinner(skip).stream()
+                .findFirst()
+                .map(JpaLotteryEntryRepository::toUnassignedWinner);
     }
 
     @Override
@@ -126,7 +128,7 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public List<DrawEntrant> findWaitlist(Long lotteryId) {
         return springDataLotteryEntryRepository.findWaitlistRows(lotteryId).stream()
-                .map(row -> new DrawEntrant((Long) row[0], ((Number) row[1]).intValue()))
+                .map(JpaLotteryEntryRepository::toDrawEntrant)
                 .toList();
     }
 
@@ -143,5 +145,18 @@ public class JpaLotteryEntryRepository implements LotteryEntryRepository {
     @Override
     public boolean hasUnsettled(Long lotteryId) {
         return springDataLotteryEntryRepository.hasUnsettled(lotteryId);
+    }
+
+    private static DrawEntrant toDrawEntrant(Object[] row) {
+        return new DrawEntrant((Long) row[0], ((Number) row[1]).intValue());
+    }
+
+    private static UnassignedWinner toUnassignedWinner(Object[] row) {
+        return new UnassignedWinner(
+                ((Number) row[0]).longValue(),
+                ((Number) row[1]).longValue(),
+                ((Number) row[2]).longValue(),
+                ((Number) row[3]).longValue(),
+                ((Number) row[4]).intValue());
     }
 }

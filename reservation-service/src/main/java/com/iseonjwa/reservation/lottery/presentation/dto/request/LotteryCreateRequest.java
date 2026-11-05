@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.lottery.presentation.dto.request;
 
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.lottery.application.CreateLotteryCommand;
+import com.iseonjwa.reservation.lottery.domain.Lottery;
 import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -24,17 +25,17 @@ public class LotteryCreateRequest {
     @Positive
     private Integer seatCount;
 
-    // 예비자 수. 기본은 당첨자의 50%(D1)지만 당첨자 수가 매수에 따라 달라 운영자가 정해 보낸다
+    // 기본은 당첨자의 50%(D1)지만 당첨자 수가 매수에 따라 달라 운영자가 정해 보내는 예비자 수
     @NotNull
     @Min(0)
     private Integer waitlistCount;
 
     @NotNull
-    @Min(1)
-    @Max(2)
+    @Min(Lottery.MIN_PER_ENTRY)
+    @Max(Lottery.MAX_PER_ENTRY)
     private Integer maxPerEntry;
 
-    // ISO-8601 형식이다. 예: "2026-12-01T01:00:00Z"
+    // ISO-8601 형식이다(예: "2026-12-01T01:00:00Z")
     @NotNull
     private Instant entryStartAt;
 
@@ -45,7 +46,15 @@ public class LotteryCreateRequest {
     private Instant drawAt;
 
     public CreateLotteryCommand toCommand(Long scheduleId) {
-        return new CreateLotteryCommand(scheduleId, new LotterySettings(sourceGrade, seatCount, waitlistCount,
-                maxPerEntry, entryStartAt, entryEndAt, drawAt));
+        LotterySettings settings = new LotterySettings(
+                sourceGrade,
+                seatCount,
+                waitlistCount,
+                maxPerEntry,
+                entryStartAt,
+                entryEndAt,
+                drawAt);
+
+        return new CreateLotteryCommand(scheduleId, settings);
     }
 }
