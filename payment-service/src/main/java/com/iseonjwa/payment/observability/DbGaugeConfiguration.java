@@ -16,7 +16,7 @@ import java.time.Duration;
 /**
  * DB 집계 Gauge와 그것을 갱신하는 {@code gauge-refresh} 작업을 등록한다. 작업은 {@code housekeeping} 실행기에 올라가
  * 기동 직후 바로 한 번 돌고(첫 지연 0) 이후 설정한 간격으로 돈다(events-and-reliability.md 7절). 갱신이 예외로 끝나면
- * 실행기가 {@code payment.job.failures{job="gauge-refresh"}}를 올리고 이전 값은 그대로 남는다.
+ * 실행기가 {@code payment.job.failures{task="gauge-refresh"}}를 올리고 이전 값은 그대로 남는다.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(GaugeRefreshProperties.class)

@@ -223,17 +223,17 @@ class BackgroundJobSchedulerTest {
         scheduler.runTick(job(20));
         scheduler.runTick(failing);
 
-        assertEquals(0, meters.get("payment.job.failures").tag("job", "recheck").counter().count());
-        assertEquals(1, meters.get("payment.job.failures").tag("job", "refund-worker").counter().count());
+        assertEquals(0, meters.get("payment.job.failures").tag("task", "recheck").counter().count());
+        assertEquals(1, meters.get("payment.job.failures").tag("task", "refund-worker").counter().count());
         assertEquals(clock.instant().getEpochSecond(), lastSuccess(meters));
     }
 
     private static double lastSuccess(SimpleMeterRegistry meters) {
-        return meters.get("payment.job.last.success.timestamp").tag("job", "recheck").gauge().value();
+        return meters.get("payment.job.last.success.timestamp").tag("task", "recheck").gauge().value();
     }
 
     private static double failures(SimpleMeterRegistry meters) {
-        return meters.get("payment.job.failures").tag("job", "recheck").counter().count();
+        return meters.get("payment.job.failures").tag("task", "recheck").counter().count();
     }
 
     private static final class MutableClock extends Clock {

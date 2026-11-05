@@ -301,3 +301,21 @@
 - 원인: Windows 기본 인코딩이 `cp1252`인 PC에서는 Gradle 테스트 JVM의 `file.encoding`도 그 값이 되어 한글 로그가 깨진다. `JAVA_TOOL_OPTIONS`의 `stdout.encoding=UTF-8`로는 해결되지 않았다.
 - 해결: 루트 `build.gradle`의 `tasks.withType(Test)`에 `defaultCharacterEncoding = 'UTF-8'`을 지정했다. 옵션 없이 `./gradlew test --rerun-tasks`를 다시 돌려 1,563개가 모두 통과했다.
 - 배운 점: 한글을 비교하는 출력 캡처 테스트는 실행 환경의 인코딩에 영향을 받는다. 코드 결함으로 판단하기 전에 CI 결과와 실제 출력을 비교한다.
+
+### TS-37 작업을 멈춰도 PaymentJobStalled가 울리지 않음(규칙 단위 테스트는 통과)
+- 서비스·작성: payment·infra / kangmin / 2026-11-05
+- 문제
+  - `payment_job_last_success_timestamp{application="payment-service",job="gauge-refresh"}` 조회가 0건이었고, `exported_job="gauge-refresh"`는 1건이었다.
+  - `PaymentJobStalled`는 시계열을 찾지 못해 작업이 멈춰도 울릴 수 없었다. 작업 실패 패널의 `sum by (job)`도 모든 작업을 `spring` 하나로 합쳤다.
+- 원인
+  - Micrometer 태그 `job`이 Prometheus 수집 작업 라벨과 겹쳤다. `honor_labels`가 없으면 Prometheus는 대상이 보낸 값을 `exported_job`으로 옮기고 `job`에 수집 작업 이름(`spring`)을 넣는다.
+  - promtool 테스트는 입력 시계열에 `job`을 직접 넣어 이 변환을 건너뛰었다. 그래서 테스트가 통과했다.
+- 해결: ISE-195
+  - `PaymentMetrics`의 태그를 `task`로 바꾸고 규칙, 대시보드, 슬랙 템플릿, 문서를 맞췄다.
+  - promtool 테스트 입력을 실제 수집 형태(`instance`, `job="spring"`, `task`)로 바꿨다.
+  - `PrometheusNamesTest`에 `job`·`instance` 태그를 막는 검사를 더했다.
+  - 임시 DB를 멈춰 `gauge-refresh` 72초, `recheck`·`refund-worker` 145초에 firing이 되는 것을 확인했다.
+- 배운 점
+  - 지표 태그에 `job`·`instance`를 쓰지 않는다.
+  - 규칙 단위 테스트의 입력은 실제 Prometheus 조회 결과를 옮겨 와 만든다.
+  - 경보는 실제로 장애를 내서 울리는지 본다.
