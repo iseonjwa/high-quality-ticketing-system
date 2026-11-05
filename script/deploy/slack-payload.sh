@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 배포 결과 슬랙 메시지(#이선좌-배포상태알림)의 JSON을 표준 출력으로 낸다(ISE-175). Jenkinsfile의 post 단계가 부른다.
+# 배포 단계·결과 슬랙 메시지(#이선좌-배포상태알림)의 JSON을 표준 출력으로 낸다(ISE-175). Jenkinsfile의 notifySlack이 부른다.
 #   RESULT=success SHA=<40자> COMMIT_TITLE=... script/deploy/slack-payload.sh | curl ... "$SLACK_URL"
 # 모양은 Alertmanager 알림(infra/alertmanager/templates/slack.tmpl)과 맞춘다: 왼쪽 색 띠, 굵은 제목, 짧은 필드, 꼬리말, 합니다체.
 #
 # 읽는 환경 변수
-#   RESULT        success | rolledback | rollbackfailed | aborted(이미지 대기 초과) | cancelled(사람이 멈춤·40분 제한) | error
+#   RESULT        started(배포 준비) | deploying(배포 중) | success | rolledback | rollbackfailed | aborted(이미지 대기 초과) | cancelled(사람이 멈춤·40분 제한) | error
 #   SHA           배포하려던 커밋(40자). 정하기 전에 실패했으면 비어 있다
 #   COMMIT_TITLE  커밋 제목
 #   PREVIOUS_SHA  배포 전 서버에 떠 있던 커밋(deploy.sh의 "직전 성공"). 모르면 비우거나 "없음"
@@ -24,7 +24,13 @@ seconds="${DURATION_SEC:-0}"
 [[ "$seconds" =~ ^[0-9]+$ ]] || seconds=0
 if (( seconds >= 60 )); then duration="$(( seconds / 60 ))분 $(( seconds % 60 ))초"; else duration="${seconds}초"; fi
 
+# started·deploying은 진행 알림이라 짧게 보낸다(제목, 커밋 제목, 커밋·계기 필드, 꼬리말). 직전 버전은 deploy.sh가 알려 주므로 아직 모른다.
+progress=0
 case "${RESULT:-error}" in
+  started)
+    progress=1; color='#3B3BD4'; headline="[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다" ;;
+  deploying)
+    progress=1; color='#3B3BD4'; headline="[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다" ;;
   success)
     color='#1E7F4F'; headline="[배포 성공] 배포 서버에 새 버전을 올렸습니다" ;;
   rolledback)
@@ -39,7 +45,7 @@ case "${RESULT:-error}" in
     color='#D12B3A'; headline="[배포 오류] 파이프라인이 실패했습니다. Jenkins 로그를 확인해 주세요" ;;
 esac
 
-jq -n \
+jq -n --argjson progress "$progress" \
   --arg repo "$repo" --arg sha "$sha" --arg short "$short" --arg title "${COMMIT_TITLE:-}" \
   --arg previous "$previous" --arg color "$color" --arg headline "$headline" \
   --arg trigger "${TRIGGER:-}" --arg duration "$duration" --arg build "${BUILD_NUMBER:-?}" \
@@ -53,14 +59,18 @@ jq -n \
     text: (if $title != "" then "*\($title)*" elif $sha == "" then "배포할 커밋을 정하기 전에 끝났습니다" else "" end),
     mrkdwn_in: ["text", "fields"],
     fields: (
-      [ {title: "커밋", value: (if $sha != "" then link("\($repo)/commit/\($sha)"; $short) else "-" end), short: true},
-        {title: "직전 버전", value: (if $previous != "" then link("\($repo)/commit/\($previous)"; $previous[0:7]) else "없음" end), short: true},
-        {title: "계기", value: (if $trigger != "" then $trigger else "-" end), short: true},
-        {title: "걸린 시간", value: $duration, short: true} ]
-      + (if $previous != "" and $sha != "" and $previous != $sha
-         then [{title: "바뀐 내용", value: link("\($repo)/compare/\($previous)...\($sha)"; "\($previous[0:7])...\($short) 비교"), short: true}]
-         else [] end)
-      + (if $site != "" then [{title: "바로 가기", value: link($site; "서비스 열기"), short: true}] else [] end)
+      [ {title: "커밋", value: (if $sha != "" then link("\($repo)/commit/\($sha)"; $short) else "-" end), short: true} ]
+      + (if $progress == 1 then
+           [ {title: "계기", value: (if $trigger != "" then $trigger else "-" end), short: true} ]
+         else
+           [ {title: "직전 버전", value: (if $previous != "" then link("\($repo)/commit/\($previous)"; $previous[0:7]) else "없음" end), short: true},
+             {title: "계기", value: (if $trigger != "" then $trigger else "-" end), short: true},
+             {title: "걸린 시간", value: $duration, short: true} ]
+           + (if $previous != "" and $sha != "" and $previous != $sha
+              then [{title: "바뀐 내용", value: link("\($repo)/compare/\($previous)...\($sha)"; "\($previous[0:7])...\($short) 비교"), short: true}]
+              else [] end)
+           + (if $site != "" then [{title: "바로 가기", value: link($site; "서비스 열기"), short: true}] else [] end)
+         end)
     ),
     footer: "이선좌 Jenkins #\($build) · 배포 서버",
     ts: (now | floor)
