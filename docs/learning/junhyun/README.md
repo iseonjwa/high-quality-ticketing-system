@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-05 | 프론트 테스트의 "8×8 동시 실행"은 무엇이고 왜 메모리를 다 쓰나 | [qna/2026-11-05-vitest-8x8-concurrency-memory.md](qna/2026-11-05-vitest-8x8-concurrency-memory.md) |
 | 2026-11-04 | 배포 비밀값을 Jenkins Credentials나 GitHub Secrets에 두고 관리하는 방법 | [qna/2026-11-04-deploy-secrets-jenkins-github.md](qna/2026-11-04-deploy-secrets-jenkins-github.md) |
 | 2026-11-04 | AWS 지출 한도(spend limit)에 걸려 프로젝트가 멈추면 어떻게 하나 | [qna/2026-11-04-aws-spend-limit-pause.md](qna/2026-11-04-aws-spend-limit-pause.md) |
 | 2026-11-04 | 배포 서버의 관리 화면(Grafana 등)을 IP 주소로 바로 열 수 있나 | [qna/2026-11-04-admin-ui-access-by-ip.md](qna/2026-11-04-admin-ui-access-by-ip.md) |
