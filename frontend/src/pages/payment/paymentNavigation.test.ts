@@ -34,16 +34,35 @@ const CONCERT = {
 
 describe('paymentNavigation', () => {
   it('만든 이동 값을 그대로 읽는다', () => {
-    const navigation: PaymentNavigation = { hold: HOLD, seats: SEATS, concert: CONCERT }
+    const navigation: PaymentNavigation = {
+      hold: HOLD,
+      seats: SEATS,
+      concert: CONCERT,
+      clockOffsetMillis: -1500,
+    }
 
     expect(readPaymentNavigation(paymentNavigationState(navigation))).toEqual(navigation)
   })
 
   it('공연 요약이 없으면 이동 값에 넣지 않고 읽으면 concert가 null이다', () => {
-    const state = paymentNavigationState({ hold: HOLD, seats: SEATS, concert: null })
+    const state = paymentNavigationState({
+      hold: HOLD,
+      seats: SEATS,
+      concert: null,
+      clockOffsetMillis: null,
+    })
 
     expect(state).not.toHaveProperty('concert')
-    expect(readPaymentNavigation(state)).toEqual({ hold: HOLD, seats: SEATS, concert: null })
+    expect(readPaymentNavigation(state)).toEqual({
+      hold: HOLD,
+      seats: SEATS,
+      concert: null,
+      clockOffsetMillis: null,
+    })
+  })
+
+  it('시계 차이가 없는 예전 이동 값도 읽고 차이는 null이다', () => {
+    expect(readPaymentNavigation({ hold: HOLD, seats: SEATS })?.clockOffsetMillis).toBeNull()
   })
 
   it('공연 요약만 모양이 틀리면 결제 값은 읽고 concert만 null이다', () => {

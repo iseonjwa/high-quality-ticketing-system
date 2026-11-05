@@ -48,7 +48,8 @@ export const reservationDetailSchema = z.object({
   reservationNo: z.string(),
   scheduleId: entityId,
   status: reservationStatusSchema,
-  holdExpiresAt: isoDateTime,
+  // DB 컬럼이 nullable이라 서버 응답도 null일 수 있다. 선점 때 항상 채우므로 실제로는 늘 값이 있다
+  holdExpiresAt: isoDateTime.nullable(),
   totalAmount: won,
   seats: z.array(
     z.object({
@@ -96,11 +97,18 @@ export function holdSeats(
   })
 }
 
-export function getReservation(reservationId: number) {
+// 예매 조회 캐시 키. 'reservations'는 사용자별 조회라 로그아웃 때 지운다(resetUserQueries)
+export const reservationQueryKeys = {
+  detail: (reservationId: number) => ['reservations', 'detail', reservationId] as const,
+  mine: ['reservations', 'mine'] as const,
+}
+
+export function getReservation(reservationId: number, options: { signal?: AbortSignal } = {}) {
   return apiRequest({
     method: 'GET',
     path: `/reservations/${reservationId}`,
     schema: reservationDetailSchema,
+    signal: options.signal,
   })
 }
 

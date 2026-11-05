@@ -16,7 +16,7 @@ import {
   type StoredHold,
 } from '@/auth/heldSeats'
 import { HeaderSlot } from '@/components/layout/HeaderSlot'
-import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
+import { ConcertHeader } from '@/components/ticketing/ConcertHeader'
 import { EmptyState } from '@/components/ticketing/EmptyState'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { GradeBadge } from '@/components/ticketing/GradeBadge'
@@ -28,7 +28,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTime, formatWon } from '@/lib/format'
+import { formatWon } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
 import { readRouteId } from '@/lib/routeId'
 import { createServerClock, type ServerClock } from '@/lib/serverClock'
@@ -166,7 +166,7 @@ function SeatsScreen({
         {entryChip(() => setEntryExpired(true))}
       </div>
       {concert !== null ? (
-        <ConcertCard concert={concert} />
+        <ConcertHeader concert={concert} />
       ) : (
         <h1 className="sr-only">좌석 선택</h1>
       )}
@@ -423,10 +423,16 @@ function SeatSelection({
   }
 
   function goToPayment({ hold, seats }: StoredHold) {
-    // 결제 화면에서 뒤로 가면 공연 상세로 간다. 좌석 화면으로 돌아오면 잡은 좌석을 두고 또 고르게 된다
+    // 결제 화면에서 뒤로 가면 공연 상세로 간다. 좌석 화면으로 돌아오면 잡은 좌석을 두고 또 고르게 된다.
+    // 결제 가능 시간을 서버 시각으로 재도록 좌석 응답으로 잰 시계 차이를 함께 넘긴다
     void navigate(paymentPath(hold.reservationId), {
       replace: true,
-      state: paymentNavigationState({ hold, seats, concert }),
+      state: paymentNavigationState({
+        hold,
+        seats,
+        concert,
+        clockOffsetMillis: clock ? clock.now() - Date.now() : null,
+      }),
     })
   }
 
@@ -680,22 +686,6 @@ function EntryExpiredAlert({
         </p>
       ) : null}
     </Alert>
-  )
-}
-
-function ConcertCard({ concert }: { concert: QueueConcert }) {
-  return (
-    <Card className="flex-row items-center gap-4 px-4 py-4 @min-[40rem]:gap-5 @min-[40rem]:px-5 @min-[40rem]:py-5">
-      <ConcertPoster concertId={concert.concertId} className="h-[72px] w-14" />
-      <div className="min-w-0">
-        <h1 className="type-title text-gray-900 @max-[40rem]:text-[20px] @max-[40rem]:leading-[28px]">
-          {concert.title}
-        </h1>
-        <p className="mt-1 type-body-sm text-gray-500 tabular-nums">
-          {formatDateTime(concert.startsAt)} · {concert.venueName}
-        </p>
-      </div>
-    </Card>
   )
 }
 
