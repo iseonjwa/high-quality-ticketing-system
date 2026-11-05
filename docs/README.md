@@ -15,6 +15,7 @@
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
 | 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/hold-expiry.md`](design/reservation/hold-expiry.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/frontend/`](design/frontend/README.md), [`design/infra/`](design/infra/README.md)(배포·관측·부하 측정) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 시연 시나리오(사전 준비, 장면, DB 확인, 장애 주입) | [`design/demo/2026-11-06-mvp-scenarios.md`](design/demo/2026-11-06-mvp-scenarios.md) | 리허설 결과를 장면별로 채운다 |
+| 검증할 수 있는 시나리오 전체(영역별 표, 미구현 목록)와 회차별 실행 기록 | [`test-scenarios/`](test-scenarios/README.md) | 정의는 영역 파일에, 결과는 `runs/`에 쓴다 |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
 | 문서·커밋 작성 규칙 | [`guides/writing.md`](guides/writing.md), [`guides/git-workflow.md`](guides/git-workflow.md) | |
 | 서비스 간 접점(contract) 변경 알림과 작업 전 확인 | [`guides/contract-issues.md`](guides/contract-issues.md) | Linear 라벨 `contract` |
