@@ -8,9 +8,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { reservationQueryKeys } from '@/api/reservations'
 import { routes } from '@/app/routes'
 import { mockDb, toKstIso, type MockReservation } from '@/mocks/db'
-import { fail } from '@/mocks/respond'
+import { fail, ok } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
-import { formatDateTime, formatWon } from '@/lib/format'
+import { formatWon, kstParts } from '@/lib/format'
 import { readReservationHeading } from '@/pages/reservations/reservationNavigation'
 import { ON_SALE_SCHEDULE_ID, recordRequests, signInAsDemo } from '@/test/api'
 import { seedReservation } from '@/test/reservations'
@@ -43,6 +43,10 @@ function scheduleStartsAt() {
 const itemList = () => within(screen.getByRole('main')).getByRole('list')
 const itemLinks = () => within(itemList()).getAllByRole('link')
 
+// 날짜 칸(티켓 왼쪽)과 공연 제목 글자
+const stubOf = (link: HTMLElement) => link.querySelector('article > div')!
+const titleOf = (link: HTMLElement) => within(link).getByText(CONCERT_TITLE, { selector: 'span' })
+
 function seedMany(count: number) {
   return Array.from({ length: count }, () => seedReservation({ status: 'CONFIRMED' }))
 }
@@ -69,9 +73,11 @@ describe('MyReservationsPage', () => {
     expect(links[1]).toHaveAttribute('href', `/reservations/${older.reservationId}`)
     expect(links[0]).toHaveTextContent(CONCERT_TITLE)
     expect(links[0]).toHaveTextContent('결제 대기')
-    expect(links[0]).toHaveTextContent(
-      `${formatDateTime(scheduleStartsAt())} · ${newer.reservationNo}`,
-    )
+    // 날짜 칸(연.월, 일, 요일 시:분)과 예매 번호를 따로 보인다
+    const date = kstParts(scheduleStartsAt())
+    expect(links[0]).toHaveTextContent(`${date.year}.${date.month}`)
+    expect(links[0]).toHaveTextContent(`${date.weekday} ${date.hour}:${date.minute}`)
+    expect(links[0]).toHaveTextContent(`예매 번호 ${newer.reservationNo}`)
     expect(links[0]).toHaveTextContent(formatWon(330000))
     expect(links[1]).toHaveTextContent('예매 확정')
     expect(links[1]).toHaveTextContent(formatWon(110000))
@@ -107,6 +113,84 @@ describe('MyReservationsPage', () => {
     ;[...statuses].reverse().forEach(([, label], index) => {
       expect(links[index]).toHaveTextContent(label)
     })
+  })
+
+  // 티켓 왼쪽 날짜 칸. 색만으로 구분하지 않도록 오른쪽에 배지가 함께 있지만, 칸 색 자체도 상태를 따른다
+  it.each([
+    { status: 'CONFIRMED', tone: 'bg-primary-600' },
+    { status: 'HELD', tone: 'bg-warning-50' },
+    { status: 'EXPIRED', tone: 'bg-gray-100' },
+    { status: 'RELEASED', tone: 'bg-gray-100' },
+    { status: 'CANCELED', tone: 'bg-gray-100' },
+  ] as const)('$status 예매의 날짜 칸은 $tone 색이다', async ({ status, tone }) => {
+    seedReservation({ status })
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    expect(stubOf(itemLinks()[0]).className).toContain(tone)
+  })
+
+  it('확정·결제 대기·끝난 예매의 날짜 칸 색이 서로 다르다', async () => {
+    seedReservation({ status: 'EXPIRED' })
+    seedReservation({ status: 'HELD' })
+    seedReservation({ status: 'CONFIRMED' })
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    const tones = itemLinks().map((link) => stubOf(link).className)
+    expect(new Set(tones).size).toBe(3)
+  })
+
+  it('날짜 칸은 공연 시작 시각을 한국 시각의 연.월, 일, 요일 시:분으로 보인다', async () => {
+    mockServer.use(
+      http.get(MINE_API, () =>
+        ok({
+          content: [
+            {
+              reservationId: 901,
+              reservationNo: 'R20261102-000901',
+              concertTitle: CONCERT_TITLE,
+              // 한국 시각 2026-11-21 00:30 — UTC 날짜(20일)와 한국 날짜(21일)가 다른 시각이다
+              startsAt: '2026-11-20T15:30:00Z',
+              status: 'CONFIRMED',
+              totalAmount: 110000,
+            },
+          ],
+          page: 0,
+          size: 20,
+          totalElements: 1,
+        }),
+      ),
+    )
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    const stub = stubOf(itemLinks()[0])
+    expect(Array.from(stub.children).map((child) => child.textContent)).toEqual([
+      '2026.11',
+      '21',
+      '토 00:30',
+    ])
+  })
+
+  it('끝난 예매(만료·반환·취소)의 제목은 흐린 색이고 확정·결제 대기는 진한 색이다', async () => {
+    const statuses = ['CONFIRMED', 'HELD', 'EXPIRED', 'RELEASED', 'CANCELED'] as const
+    for (const status of statuses) {
+      seedReservation({ status })
+    }
+    renderMine()
+
+    await within(await screen.findByRole('main')).findByRole('list')
+    // 최신순이라 마지막에 만든 상태가 먼저다
+    const titleClasses = itemLinks().map((link) => titleOf(link).className)
+    expect(titleClasses.map((name) => (name.includes('text-gray-500') ? 'dim' : 'dark'))).toEqual([
+      'dim',
+      'dim',
+      'dim',
+      'dark',
+      'dark',
+    ])
+    expect(titleClasses[3]).toContain('text-gray-900')
   })
 
   it('항목을 누르면 상세로 가고 공연 제목·시작 시각을 넘긴다(공연장은 없다)', async () => {

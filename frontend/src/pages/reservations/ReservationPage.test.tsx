@@ -193,6 +193,122 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
   })
 })
 
+// 확정 예매를 서버가 준 모양 그대로 만든다. tickets를 비워 티켓 번호가 없는 응답도 만든다
+function confirmedDetail(
+  reservation: ReturnType<typeof seedReservation>,
+  tickets: ReservationDetail['tickets'],
+): ReservationDetail {
+  return {
+    reservationId: reservation.reservationId,
+    reservationNo: reservation.reservationNo,
+    scheduleId: reservation.scheduleId,
+    status: 'CONFIRMED',
+    holdExpiresAt: toKstIso(reservation.holdExpiresAtMillis),
+    totalAmount: reservation.totalAmount,
+    seats: mockDb.seats
+      .filter((seat) => reservation.seatIds.includes(seat.seatId))
+      .sort((left, right) => left.seatId - right.seatId)
+      .map(({ seatId, section, row, number, grade, price }) => ({
+        seatId,
+        section,
+        row,
+        number,
+        grade,
+        price,
+      })),
+    paymentToken: null,
+    tickets,
+  }
+}
+
+// 좌석 티켓의 꾸밈 바코드(티켓 번호로 그린다)
+const barcodeOf = (ticket: HTMLElement) => ticket.querySelector('svg[preserveAspectRatio="none"]')
+
+describe('ReservationPage 티켓 카드', () => {
+  it('좌석 수만큼 티켓 카드를 두고 "Ticket n/N"으로 번호를 매긴다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { variant: 'complete' })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    const cards = within(tickets).getAllByRole('listitem')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toHaveTextContent('Ticket 1/2')
+    expect(cards[1]).toHaveTextContent('Ticket 2/2')
+    expect(cards[0]).toHaveTextContent('VIP')
+    expect(cards[0]).toHaveTextContent('A구역 1열 1번')
+    expect(cards[1]).toHaveTextContent('A구역 1열 2번')
+  })
+
+  it('티켓 번호가 있으면 글자로 보이고 꾸밈 바코드를 함께 그린다(낭독에서는 뺀다)', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { variant: 'complete' })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    for (const [index, card] of within(tickets).getAllByRole('listitem').entries()) {
+      const seatId = [SEAT_A1, SEAT_A2][index]
+      expect(card).toHaveTextContent(`티켓 번호 T${reservation.reservationId}-${seatId}`)
+      const barcode = barcodeOf(card)
+      expect(barcode).not.toBeNull()
+      expect(barcode).toHaveAttribute('aria-hidden', 'true')
+      expect(barcode!.querySelectorAll('rect').length).toBeGreaterThan(0)
+    }
+  })
+
+  it('티켓 번호가 없는 좌석은 번호도 바코드도 없고 좌석과 가격만 보인다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    // 두 좌석 중 첫 좌석의 티켓만 발급된 응답
+    const detail = confirmedDetail(reservation, [
+      { ticketNo: `T${reservation.reservationId}-${SEAT_A1}`, seatId: SEAT_A1 },
+    ])
+    renderReservation(reservation.reservationId, { variant: 'complete', primed: detail })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    const [issued, notIssued] = within(tickets).getAllByRole('listitem')
+    expect(barcodeOf(issued)).not.toBeNull()
+    expect(notIssued).not.toHaveTextContent('티켓 번호')
+    expect(barcodeOf(notIssued)).toBeNull()
+    expect(notIssued).toHaveTextContent('A구역 1열 2번')
+    expect(notIssued).toHaveTextContent('165,000원')
+  })
+
+  it('화면 이동 값이 있으면 카드마다 공연 제목과 일시·공연장을 얹고, 없으면 얹지 않는다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { variant: 'detail', heading: HEADING })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    for (const card of within(tickets).getAllByRole('listitem')) {
+      expect(card).toHaveTextContent(HEADING.title)
+      expect(card).toHaveTextContent(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`)
+    }
+  })
+
+  it('화면 이동 값이 없으면 카드에 공연 제목이 없다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { variant: 'detail' })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    for (const card of within(tickets).getAllByRole('listitem')) {
+      expect(card).not.toHaveTextContent('노을섬')
+    }
+  })
+
+  it('예매 번호와 결제 금액은 티켓 카드 아래 표에 있다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { variant: 'detail' })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    const cards = within(tickets).getAllByRole('listitem')
+    expect(within(tickets).getByText('예매 번호').nextElementSibling).toHaveTextContent(
+      reservation.reservationNo,
+    )
+    expect(within(tickets).getByText('결제 금액').nextElementSibling).toHaveTextContent('330,000원')
+    // 표는 카드 목록 밖, 뒤에 있다
+    for (const card of cards) {
+      expect(card).not.toHaveTextContent(reservation.reservationNo)
+    }
+  })
+})
+
 describe('ReservationPage 상세(detail) 확정', () => {
   it('머리에 제목·상태 배지·일시·예매 번호를 두고 티켓 카드에는 배지를 두지 않는다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })

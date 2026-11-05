@@ -25,7 +25,7 @@ describe('PasswordChangePage', () => {
     await signInAsDemo()
     const oldRefreshToken = sessionStore.getState().refreshToken
     const { router } = renderRoutes(routes, '/me')
-    await screen.findByText(DEMO_USER.email)
+    await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
 
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
     expect(screen.getByLabelText('이메일')).toHaveValue(DEMO_USER.email)
@@ -46,7 +46,7 @@ describe('PasswordChangePage', () => {
       ),
     )
     const { router } = renderRoutes(routes, '/me')
-    await screen.findByText(DEMO_USER.email)
+    await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
 
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678')
@@ -118,7 +118,7 @@ describe('PasswordChangePage', () => {
   it('로그인한 채 들어왔으면 바꾸지 않고 원래 화면으로 돌아가는 링크를 보인다', async () => {
     await signInAsDemo()
     const { router } = renderRoutes(routes, '/me')
-    await screen.findByText(DEMO_USER.email)
+    await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
 
     await userEvent.click(screen.getByRole('link', { name: '바꾸지 않고 돌아가기' }))

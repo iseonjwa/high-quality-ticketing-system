@@ -65,17 +65,49 @@ describe('BillingKeyCard: 표시', () => {
     renderCards()
 
     expect(screen.getByText('등록됨')).toBeInTheDocument()
-    expect(screen.getByText(/•••• 4242/)).toHaveTextContent('•••• 4242 · 11.04 등록')
+    // 실물 카드 모양: 카드 이름, 끝 네 자리, 등록일을 따로 보인다
+    expect(screen.getByText('시연용 카드')).toBeInTheDocument()
+    expect(screen.getByText('•••• 4242')).toBeInTheDocument()
+    expect(screen.getByText('11.04 등록')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다른 카드로 바꾸기' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '카드 등록' })).not.toBeInTheDocument()
   })
 
-  it('카드 끝 네 자리가 없으면 등록일만 보인다', () => {
+  it('카드 끝 네 자리가 없으면 자리만 "•••• ••••"로 보이고 등록일은 그대로 보인다', () => {
     saveBillingKeyRecord(USER_ID, { cardLast4: null, registeredAt: '2026-11-04T03:00:00.000Z' })
     renderCards()
 
+    expect(screen.getByText('•••• ••••')).toBeInTheDocument()
     expect(screen.getByText('11.04 등록')).toBeInTheDocument()
+    expect(screen.queryByText(/•••• \d{4}/)).not.toBeInTheDocument()
+  })
+})
+
+describe('BillingKeyCard: 카드 모양', () => {
+  it('등록일은 한국 날짜로 쓴다(UTC로는 아직 전날인 시각)', () => {
+    // 2026-11-04T16:00Z는 한국 시각으로 11월 5일 01시다
+    saveBillingKeyRecord(USER_ID, { cardLast4: '4242', registeredAt: '2026-11-04T16:00:00.000Z' })
+    renderCards()
+
+    expect(screen.getByText('11.05 등록')).toBeInTheDocument()
+  })
+
+  it('카드 옆에 해지 안내와 [해지]가 있고, 기록이 없으면 카드 모양 자체가 없다', () => {
+    saveBillingKeyRecord(USER_ID, { cardLast4: '4242', registeredAt: '2026-11-04T03:00:00.000Z' })
+    renderCards()
+
+    expect(
+      screen.getByText(/쓰지 않으려면 해지해 주세요. 해지하면 당첨돼도 결제되지 않아/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
+  })
+
+  it('기록이 없으면 시연용 카드 모양과 해지 안내를 보이지 않는다', () => {
+    renderCards()
+
+    expect(screen.queryByText('시연용 카드')).not.toBeInTheDocument()
+    expect(screen.queryByText(/쓰지 않으려면 해지해 주세요/)).not.toBeInTheDocument()
     expect(screen.queryByText(/••••/)).not.toBeInTheDocument()
   })
 })

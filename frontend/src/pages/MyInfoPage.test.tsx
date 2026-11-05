@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { routes } from '@/app/routes'
 import { sessionStore } from '@/auth/session'
@@ -13,9 +13,11 @@ describe('MyInfoPage', () => {
 
     // 불러오는 동안은 화면 낭독기가 읽는 상태 문구를 둔다
     expect(screen.getByText('내 정보를 불러오고 있어요').closest('[role="status"]')).not.toBeNull()
-    expect(await screen.findByText(DEMO_USER.email)).toBeInTheDocument()
-    expect(screen.getByText('데모')).toBeInTheDocument()
-    expect(screen.getByText('일반 회원')).toBeInTheDocument()
+    // 프로필 카드에도 같은 이메일이 있어 내 정보 화면(main) 안에서 찾는다
+    const main = within(screen.getByRole('main'))
+    expect(await main.findByText(DEMO_USER.email)).toBeInTheDocument()
+    expect(main.getByText('데모')).toBeInTheDocument()
+    expect(main.getByText('일반 회원')).toBeInTheDocument()
   })
 
   it('자동결제 카드 영역을 보인다. 등록한 기록이 없으면 등록을 권한다', async () => {
