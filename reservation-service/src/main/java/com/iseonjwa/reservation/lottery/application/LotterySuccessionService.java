@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * 예비자 승계와 승계 마감(D13·D14, ISE-93). 실패 경로(결제 거절, 선점 만료, 배정 거절)는 응모를 FAILED로만 바꾸고,
- * 빈 자리를 예비자로 채우는 일은 여기 한 곳이 추첨 행 잠금으로 줄 세워 처리한다. 예매는 배정 워커(ISE-90)가 만든다.
+ * 빈 자리를 예비자로 채우는 일을 추첨 행 잠금으로 줄 세워 여기 한 곳에서 처리하며, 예매는 배정 워커가 만든다(D13·D14, ISE-93).
  */
 @Service
 @RequiredArgsConstructor
@@ -32,16 +32,22 @@ public class LotterySuccessionService {
      */
     @Transactional
     public int succeed(Long lotteryId) {
-        var seatCount = lotteryRepository.lockForSuccession(lotteryId);
+        Optional<Integer> seatCount = lotteryRepository.lockForSuccession(lotteryId);
         if (seatCount.isEmpty()) {
             return 0;
         }
+
         int remaining = seatCount.get() - lotteryEntryRepository.sumTakenSeats(lotteryId);
         if (remaining <= 0) {
             return 0;
         }
-        var selected = SuccessionPlanner.select(lotteryEntryRepository.findWaitlist(lotteryId), remaining);
-        return lotteryEntryRepository.promoteToWon(selected.stream().map(DrawEntrant::entryId).toList());
+
+        List<DrawEntrant> selected = SuccessionPlanner.select(lotteryEntryRepository.findWaitlist(lotteryId), remaining);
+        List<Long> selectedEntryIds = selected.stream()
+                .map(DrawEntrant::entryId)
+                .toList();
+
+        return lotteryEntryRepository.promoteToWon(selectedEntryIds);
     }
 
     @Transactional

@@ -9,8 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-// 좌석 SQL은 좌석을 가진 concert 모듈에 두고, 추첨은 이 어댑터로만 부른다.
-// 서비스를 나누면 이 클래스를 내부 API 클라이언트로 바꾼다
+// 좌석 SQL은 concert 모듈에 두고 추첨은 이 어댑터로만 부르며, 서비스를 나누면 내부 API 클라이언트로 바꾼다
 @Component
 @RequiredArgsConstructor
 public class ScheduleSeatLotteryAdapter implements LotterySeatPort {
