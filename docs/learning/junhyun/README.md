@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-05 | 주소에 ?demo=on을 붙이면 보이는 요청 로그 패널은 어떻게 쓰나 | [qna/2026-11-05-demo-mode-request-log-panel.md](qna/2026-11-05-demo-mode-request-log-panel.md) |
 | 2026-11-05 | 팀원에게 받은 공개 키와 IP로 배포 서버 SSH 접속을 열어 주는 방법 | [qna/2026-11-05-team-ssh-access-to-deploy-server.md](qna/2026-11-05-team-ssh-access-to-deploy-server.md) |
 | 2026-11-05 | 팀원이 가비지 컬렉터를 Serial에서 G1으로 바꿔 잰 내용은 무엇이고, 배포 서버에는 어떤 의미인가 | [qna/2026-11-05-gc-serial-to-g1-seathold-measurement.md](qna/2026-11-05-gc-serial-to-g1-seathold-measurement.md) |
 | 2026-11-05 | 부하 테스트를 로컬(노트북)에서 배포 서버로 쏘면 안 되나 | [qna/2026-11-05-load-test-from-local-machine.md](qna/2026-11-05-load-test-from-local-machine.md) |
