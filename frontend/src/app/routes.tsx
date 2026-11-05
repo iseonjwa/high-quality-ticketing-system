@@ -13,6 +13,7 @@ import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { QueuePage } from '@/pages/queue/QueuePage'
 import { SeatsPage } from '@/pages/seats/SeatsPage'
 import { PaymentPage } from '@/pages/payment/PaymentPage'
+import { LotteryPage } from '@/pages/lotteries/LotteryPage'
 import { MyReservationsPage } from '@/pages/reservations/MyReservationsPage'
 import { ReservationPage } from '@/pages/reservations/ReservationPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
@@ -50,6 +51,8 @@ export const routes: RouteObject[] = [
           { path: paths.login, element: <LoginPage /> },
           { path: paths.signup, element: <SignupPage /> },
           { path: paths.passwordChange, element: <PasswordChangePage /> },
+          // 추첨 정보는 공개다. 응모·결과는 화면 안에서 로그인을 안내한다
+          { path: paths.lottery, element: <LotteryPage /> },
           // 로그인이 필요한 화면은 이 아래에 둔다
           {
             element: <RequireAuth />,

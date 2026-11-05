@@ -112,6 +112,38 @@ export interface MockBillingKey {
   status: 'ACTIVE' | 'REVOKED'
 }
 
+// 추첨(reservation-service lottery). 시각은 밀리초로 두고 응답에서 Instant(`Z`)로 낸다.
+// 운영자 추첨 설정 목(ISE-124)이 나중에 lotteries에 더한다. status는 서버처럼 OPEN이 응모 시작 전부터 마감 전까지다
+export interface MockLottery {
+  lotteryId: number
+  scheduleId: number
+  status: 'OPEN' | 'CLOSED' | 'DRAWN' | 'DONE'
+  seatCount: number
+  entryStartAtMillis: number
+  entryEndAtMillis: number
+  drawAtMillis: number
+  maxPerEntry: number
+}
+
+export type MockEntryStatus =
+  'ENTERED' | 'CANCELED' | 'WON' | 'WAITLISTED' | 'LOST' | 'PAID' | 'FAILED'
+
+// 응모 행. requestId(=Idempotency-Key)는 전역 UNIQUE다(LotteryEntry.isSameRequest)
+export interface MockLotteryEntry {
+  entryId: number
+  lotteryId: number
+  requestId: string
+  userId: number
+  quantity: number
+  status: MockEntryStatus
+  drawRank: number | null
+  reservationId: number | null
+  failReason: string | null
+  // 처음부터 들어 있는 추첨 결과(3번 추첨의 데모 응모)가 시나리오에 따라 정해지는 단계.
+  // pending: 아직 아무도 조회하지 않았다, shown: 첫 조회에서 WON을 보였다(다음 조회에서 PAID·FAILED), settled: 끝
+  seedStage: 'pending' | 'shown' | 'settled'
+}
+
 interface MockState {
   nextId: number
   users: MockUser[]
@@ -150,7 +182,11 @@ interface MockState {
   >
   // 등록된 빌링키(해지한 것 포함). 추첨 당첨 자동결제는 hasActiveBillingKey로 본다
   billingKeys: MockBillingKey[]
+  lotteries: MockLottery[]
+  lotteryEntries: MockLotteryEntry[]
   seatConflictUsed: boolean
+  // lottery-unknown이 이미 504를 줬는지
+  lotteryUnknownUsed: boolean
   // hold-unknown이 이미 504를 줬는지
   holdUnknownUsed: boolean
   // queue-unavailable이 아직 503을 줘야 하는 남은 횟수
@@ -350,7 +386,57 @@ function createInitialState(nowMillis = Date.now()): MockState {
     payments: new Map(),
     paymentRequests: new Map(),
     billingKeys: [],
+    lotteries: [
+      // 응모 중: 1시간 전에 시작해 내일 마감. 추첨은 그 1시간 뒤
+      {
+        lotteryId: 1,
+        scheduleId: 32,
+        status: 'OPEN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis - 60 * MINUTE,
+        entryEndAtMillis: nowMillis + DAY,
+        drawAtMillis: nowMillis + DAY + 60 * MINUTE,
+        maxPerEntry: 2,
+      },
+      // 응모 시작 전(OPEN)
+      {
+        lotteryId: 2,
+        scheduleId: 41,
+        status: 'OPEN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis + DAY,
+        entryEndAtMillis: nowMillis + 2 * DAY,
+        drawAtMillis: nowMillis + 2 * DAY + 60 * MINUTE,
+        maxPerEntry: 1,
+      },
+      // 추첨 완료(DRAWN). 데모 사용자가 1매 응모한 결과를 본다
+      {
+        lotteryId: 3,
+        scheduleId: 31,
+        status: 'DRAWN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis - 2 * DAY,
+        entryEndAtMillis: nowMillis - DAY,
+        drawAtMillis: nowMillis - MINUTE,
+        maxPerEntry: 2,
+      },
+    ],
+    lotteryEntries: [
+      {
+        entryId: 500,
+        lotteryId: 3,
+        requestId: '00000000-0000-4000-8000-000000000003',
+        userId: 42,
+        quantity: 1,
+        status: 'WON',
+        drawRank: 1,
+        reservationId: null,
+        failReason: null,
+        seedStage: 'pending',
+      },
+    ],
     seatConflictUsed: false,
+    lotteryUnknownUsed: false,
     holdUnknownUsed: false,
     queueUnavailableLeft: 1,
     queueExpiredUsed: false,

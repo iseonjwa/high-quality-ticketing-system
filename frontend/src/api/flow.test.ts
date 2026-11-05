@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { logout } from '@/api/auth'
+import { registerBillingKey } from '@/api/billingKeys'
 import { getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
 import { describeError } from '@/api/errorMessages'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { approvePayment, getPayment } from '@/api/payments'
+import { cancelEntry, enterLottery, getLottery, getMyEntry } from '@/api/lotteries'
 import { getQueuePosition, issueEntryToken, joinQueue } from '@/api/queue'
 import { getMyReservations, getReservation, holdSeats, type SeatHold } from '@/api/reservations'
 import { readEntryToken } from '@/auth/entryTokens'
@@ -314,5 +316,59 @@ describe('실패 재현 스위치', () => {
 
     const retry = await rejectionOf(approvePayment(body, newIdempotencyKey()))
     expect(retry.code).toBe('PAYMENT_ALREADY_CLOSED')
+  })
+})
+
+describe('추첨 흐름', () => {
+  it('응모 중인 추첨 1번: 추첨 정보 → 응모 → 내 응모 → 취소 → 재응모 거절', async () => {
+    await signInAsDemo()
+
+    const lottery = await getLottery(1)
+    expect(lottery.status).toBe('OPEN')
+    await expect(getMyEntry(1)).resolves.toBeNull()
+
+    const key = newIdempotencyKey()
+    const entry = await enterLottery(1, 2, key)
+    expect(entry).toMatchObject({ status: 'ENTERED', quantity: 2, drawRank: null })
+    await expect(getMyEntry(1)).resolves.toEqual(entry)
+
+    await expect(cancelEntry(1)).resolves.toMatchObject({ status: 'CANCELED' })
+    await expect(getMyEntry(1)).resolves.toMatchObject({ status: 'CANCELED' })
+    const reentry = await rejectionOf(enterLottery(1, 2, newIdempotencyKey()))
+    expect(reentry.code).toBe('LOTTERY_ALREADY_ENTERED')
+  })
+
+  it('추첨 완료 3번: 카드를 등록해 두면 처음 WON → PAID가 되고 그 예매는 티켓이 나온 확정 예매다', async () => {
+    await signInAsDemo()
+    await registerBillingKey('demo-1')
+
+    const won = await getMyEntry(3)
+    expect(won).toMatchObject({ status: 'WON', drawRank: 1 })
+    const reservationId = won!.reservationId!
+    // 당첨 직후의 예매는 결제 대기다
+    expect((await getReservation(reservationId)).status).toBe('HELD')
+
+    const paid = await getMyEntry(3)
+    expect(paid).toMatchObject({ status: 'PAID', reservationId })
+    const reservation = await getReservation(reservationId)
+    expect(reservation.status).toBe('CONFIRMED')
+    expect(reservation.tickets).toHaveLength(1)
+    expect((await getMyReservations({ page: 0, size: 20 })).content[0]).toMatchObject({
+      reservationId,
+      status: 'CONFIRMED',
+    })
+  })
+})
+
+describe('추첨 당첨 자동결제는 카드가 정한다', () => {
+  it('카드를 등록하지 않으면 당첨이 FAILED(BILLING_KEY_MISSING)로 넘어가고 예매는 풀린다', async () => {
+    await signInAsDemo()
+
+    const won = await getMyEntry(3)
+    const failed = await getMyEntry(3)
+
+    expect(won?.status).toBe('WON')
+    expect(failed).toMatchObject({ status: 'FAILED', failReason: 'BILLING_KEY_MISSING' })
+    expect((await getReservation(won!.reservationId!)).status).toBe('RELEASED')
   })
 })

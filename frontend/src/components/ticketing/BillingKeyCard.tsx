@@ -35,9 +35,12 @@ function demoAuthKey(): string {
 export function BillingKeyCard({
   userId,
   titleAs = 'h2',
+  anchorId,
 }: {
   userId: number
   titleAs?: 'h2' | 'h3'
+  // 다른 곳에서 이 카드로 초점을 옮길 때 쓰는 영역 id(추첨 응모 화면의 "카드 등록" 안내)
+  anchorId?: string
 }) {
   const Title = titleAs
   const titleId = useId()
@@ -76,7 +79,12 @@ export function BillingKeyCard({
   }
 
   return (
-    <section aria-labelledby={titleId}>
+    <section
+      id={anchorId}
+      tabIndex={anchorId === undefined ? undefined : -1}
+      aria-labelledby={titleId}
+      className="scroll-mt-24 outline-none"
+    >
       <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Title id={titleId} className="type-heading text-gray-900">
