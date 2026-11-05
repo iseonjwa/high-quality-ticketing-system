@@ -1,0 +1,11 @@
+# K1 측정 전용 덮어쓰기다. compose.deploy-memory.yml 위에 얹어 reservation-service의 GC만 G1으로 고정한다.
+#   docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml \
+#     -f reservation-service/k6/compose.g1.yml up -d --wait
+#
+# Note: 컨테이너 메모리가 약 1,792MB보다 작으면 JVM이 Serial GC를 자동으로 고른다. 배포 값(1,152MB)도 여기에 해당해 G1을 명시한다.
+# Note: 바꾼 변수를 GC 하나로 묶으려고 메모리(-Xms·-Xmx)와 대상 서비스는 compose.deploy-memory.yml과 같게 둔다.
+# GC 로그는 컨테이너 안 /tmp/gc.log에 남긴다. gc+heap은 GC마다 리전 수(humongous 포함)를 적는다.
+services:
+  reservation-service:
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms384m -Xmx768m -XX:+UseG1GC -Xlog:gc,gc+heap=info:file=/tmp/gc.log:uptime

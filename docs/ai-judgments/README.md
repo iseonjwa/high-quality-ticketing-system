@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-05-g1-first-then-decide-p4-order.md) |
 | 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
 | 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | kwonwoo | Claude Code | 거부 | 후보 | [기록](kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
 | 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-04-single-ec2-then-review-managed.md) |

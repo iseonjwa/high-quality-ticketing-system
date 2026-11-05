@@ -10,6 +10,8 @@
 |---|---|
 | `k1-seathold.js` | K1: 초당 `RATE`명이 입장해 좌석 조회 → 고민 → 선점, 409면 다시 조회해 최대 `MAX_RETRY`번 재시도 |
 | `run.sh` | Docker로 k6 실행, 결과를 `results/`에 저장 |
+| `compose.deploy-memory.yml` | local 스택에서 gateway와 reservation-service의 메모리만 배포 서버 값으로 맞추고, 선점 만료 스케줄러를 끄는 측정 전용 덮어쓰기 |
+| `compose.g1.yml` | 위 파일에 얹어 reservation-service의 GC를 G1으로 고정하고 GC 로그를 컨테이너 `/tmp/gc.log`에 남긴다. P0'' 이후 단계의 기본 환경 |
 | `data/users.csv` | 사용자 토큰(직접 준비, 커밋 금지) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력(커밋 금지) |
 
@@ -41,6 +43,18 @@ SCHEDULE_ID=12 TOKEN_MODE=sign bash reservation-service/k6/run.sh
 ## 3. 실행
 
 Docker Desktop과 Gateway(`localhost:8080`)가 떠 있어야 한다. 저장소 루트에서 실행한다.
+
+배포 서버와 같은 메모리로 재려면 스택을 덮어쓰기 파일과 함께 띄운다. 5분 측정 중 선점 만료가 끼지 않게 만료 스케줄러도 꺼진다. 기동 뒤 Gateway가 인스턴스를 받기까지 약 40초 걸린다.
+
+```bash
+docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml up -d --wait
+# P0'' 이후 단계: G1까지 켠다
+docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml \
+  -f reservation-service/k6/compose.g1.yml up -d --wait
+```
+
+- GC 로그를 꺼낼 때 Git Bash는 `/tmp`를 Windows 경로로 바꾼다. `MSYS_NO_PATHCONV=1`을 앞에 붙인다.
+- 컨테이너 안에서 `java -version` 같은 명령을 따로 띄우지 않는다. `JAVA_TOOL_OPTIONS`를 물려받아 같은 GC 로그 파일을 열기 때문에 앱의 로그가 `gc.log.0`으로 밀려난다.
 
 ```bash
 # Git Bash
