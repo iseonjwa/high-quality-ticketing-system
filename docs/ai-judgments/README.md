@@ -42,10 +42,11 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-05-grafana-link-deploy-host.md) |
+| 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
 | 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-05-g1-first-then-decide-p4-order.md) |
 | 2026-11-05 | 부하 테스트에 대비해 배포 EC2를 flex(m7i-flex.xlarge)에서 같은 크기의 일반 인스턴스(m7i.xlarge)로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-ec2-m7i-standard-for-load-test.md) |
 | 2026-11-05 | 핵심 흐름만 보이던 AI의 화면 구성을 실제 서비스형 레이아웃·그림 에셋으로 바꾸게 함(ISE-187) | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-05-frontend-service-like-layout.md) |
-| 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
 | 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | kwonwoo | Claude Code | 거부 | 후보 | [기록](kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
 | 2026-11-04 | 지출 한도로 멈춘 배포·Jenkins 서버를 한도를 올려 살리되, 그 시점을 다음 날(11/5)로 미룸 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-spend-limit-raise-tomorrow.md) |
 | 2026-11-04 | ISE-150 리뷰 지적 11건을 이번 PR 수정, 담당자 확인, 후속으로 나눔 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-04-ise-150-review-triage.md) |
