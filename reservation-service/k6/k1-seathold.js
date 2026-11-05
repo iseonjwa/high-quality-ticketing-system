@@ -27,6 +27,10 @@ const USER_ID_BASE = Number(__ENV.USER_ID_BASE || 1000000);
 // each: K1(시도마다 좌석 조회). once: K1-H(좌석 조회 병목을 떼고 선점 경로만 잰다)
 const SEAT_MAP = __ENV.SEAT_MAP || 'each';
 const HOLD_ONLY = SEAT_MAP === 'once';
+// 0보다 크면 부하가 끝난 뒤 이 시간 동안 10초마다 좌석 조회 한 건을 보내 회복을 본다(B8, k6-overload-recovery.md 6절)
+const RECOVERY_SECONDS = Number(__ENV.RECOVERY_SECONDS || 0);
+// 탐침 사용자는 부하 사용자와 겹치지 않게 뒤쪽 ID를 쓴다
+const PROBE_USER_OFFSET = 900000;
 
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
@@ -48,6 +52,7 @@ const holdDuration = new Trend('hold_duration', true);
 const holdResults = new Counter('hold_results');
 const usersFinished = new Counter('users_finished');
 const requestsPerUser = new Trend('requests_per_user');
+const probeDuration = new Trend('probe_duration', true);
 
 const scenario = MODEL === 'closed'
   ? {
@@ -66,8 +71,17 @@ const scenario = MODEL === 'closed'
     maxVUs: Number(__ENV.MAX_VUS || 2000),
   };
 
+const scenarios = HOLD_ONLY ? { k1h: scenario } : { k1: scenario };
+if (RECOVERY_SECONDS > 0) {
+  // Note: 부하 시나리오의 gracefulStop(30초) 동안 남은 반복과 겹치지 않게 부하가 끝나고 30초 뒤부터 보낸다
+  scenarios.probe = {
+    executor: 'constant-arrival-rate', exec: 'probe', rate: 1, timeUnit: '10s',
+    startTime: `${DURATION_SECONDS + 30}s`, duration: `${RECOVERY_SECONDS}s`, preAllocatedVUs: 2, maxVUs: 5,
+  };
+}
+
 export const options = {
-  scenarios: HOLD_ONLY ? { k1h: scenario } : { k1: scenario },
+  scenarios,
   // 기본 요약에는 p(99)가 없다
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   // 목표값은 [가정]이다. 태그 조합마다 임계값을 걸어야 요약에 그 조합의 수치가 따로 나온다
@@ -101,7 +115,10 @@ export function setup() {
   if (res.status !== 200) {
     fail(`사전 확인 실패: GET seats ${res.status} ${res.body && res.body.substring(0, 200)}`);
   }
-  return HOLD_ONLY ? { seats: seatListOf(res.body) } : {};
+  const data = HOLD_ONLY ? { seats: seatListOf(res.body) } : {};
+  // setup이 끝난 직후 부하 시나리오가 시작한다. 측정 뒤 지표 구간을 자르는 기준이다
+  console.log(`load_start epoch_ms=${Date.now()}`);
+  return data;
 }
 
 export default function (data) {
@@ -149,6 +166,15 @@ export default function (data) {
     }
   }
   requestsPerUser.add(requests);
+}
+
+// 회복 탐침: 좌석 조회 한 건의 상태와 지연을, 부하가 끝난 뒤 몇 초째인지와 함께 남긴다
+export function probe() {
+  const user = userOf(PROBE_USER_OFFSET + exec.scenario.iterationInTest);
+  const res = http.get(seatsUrl(), { headers: headersOf(user), tags: { api: 'probe' }, timeout: '10s' });
+  probeDuration.add(res.timings.duration, { status: String(res.status) });
+  // 부하가 끝난 뒤 몇 초째인지는 setup이 남긴 load_start로 측정 뒤에 계산한다(tools/b8-run.sh)
+  console.log(`probe epoch_ms=${Date.now()} status=${res.status} ${Math.round(res.timings.duration)}ms`);
 }
 
 // K1: 좌석을 조회하고 고민한 뒤 고른다. 조회 실패나 매진이면 사용자 결과를 남기고 null을 돌려준다

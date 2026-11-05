@@ -1,0 +1,10 @@
+# B8 대응 R2·R3 측정 전용 덮어쓰기다. compose.b8-r1.yml 위에 얹어 R1+R2+R3을 잰다.
+# R2: 요청 스레드 200 → 50. 커넥션 5개를 스레드 200개가 기다리는 상태를 없앤다.
+# R3: 연결 상한 8,192 → 200, OS 대기열 100 → 50. 서버 앞 대기열을 Gateway 시한(3초) 안에 처리할 수 있는 양 근처로 묶는다.
+# 설계: docs/design/reservation/k6-overload-recovery.md 4절 R2·R3
+services:
+  reservation-service:
+    environment:
+      SERVER_TOMCAT_THREADS_MAX: "50"
+      SERVER_TOMCAT_MAXCONNECTIONS: "200"
+      SERVER_TOMCAT_ACCEPTCOUNT: "50"

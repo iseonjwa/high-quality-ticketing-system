@@ -36,7 +36,7 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e MODEL -e RATE -e DURATION_SECONDS -e CLOSED_VUS \
   -e THINK_MIN -e THINK_MAX -e MAX_RETRY -e HOT_RATIO -e HOT_SHARE \
   -e PRE_VUS -e MAX_VUS -e USERS_CSV \
-  -e SEAT_MAP -e TOKEN_MODE -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
+  -e SEAT_MAP -e RECOVERY_SECONDS -e TOKEN_MODE -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
   "$K6_IMAGE" run \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \

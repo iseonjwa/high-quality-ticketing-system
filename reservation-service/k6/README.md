@@ -12,6 +12,11 @@
 | `run.sh` | Docker로 k6 실행, 결과를 `results/`에 저장 |
 | `compose.deploy-memory.yml` | local 스택에서 gateway와 reservation-service의 메모리만 배포 서버 값으로 맞추고, 선점 만료 스케줄러를 끄는 측정 전용 덮어쓰기 |
 | `compose.g1.yml` | 위 파일에 얹어 reservation-service의 GC를 G1으로 고정하고 GC 로그를 컨테이너 `/tmp/gc.log`에 남긴다. P0'' 이후 단계의 기본 환경 |
+| `compose.b8-observe.yml` | B8(과부하 뒤 회복) 측정용. Tomcat MBean 지표와 요청 지연 1초·3초 경계 버킷을 켠다. 동작은 바꾸지 않는다 |
+| `compose.b8-r1.yml` / `compose.b8-r123.yml` | B8 대응 R1(커넥션 대기 1초), R2·R3(요청 스레드 50, 연결 상한 200, OS 대기열 50) 측정용 |
+| `tools/b8-run.sh` | B8 한 회: reservation-service를 덮어쓰기로 새로 띄우고 새 회차에 K1 + 회복 탐침(`RECOVERY_SECONDS`)을 건 뒤 지표를 모은다 |
+| `tools/create-schedule.sh` | 측정용 새 회차(판매 중, 15,000석)를 만들고 회차 ID만 출력한다. 관리자 계정은 `.env`에서 읽고 출력하지 않는다 |
+| `tools/b8_metrics.py` | Prometheus에서 Tomcat·Hikari·좌석 조회 지표를 10초 간격 CSV와 판정용 요약으로 꺼낸다 |
 | `data/users.csv` | 사용자 토큰(직접 준비, 커밋 금지) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력(커밋 금지) |
 
@@ -87,6 +92,15 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 | `PRE_VUS` / `MAX_VUS` | 600 / 2000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `TOKEN_MODE` / `USER_ID_BASE` | `csv` / 1000000 | `sign`이면 CSV 대신 local 키로 토큰을 서명한다(2절) |
 | `SEAT_MAP` | `each` | `each`는 K1(시도마다 좌석 조회), `once`는 K1-H(선점만) |
+| `RECOVERY_SECONDS` | 0 | 0보다 크면 부하가 끝나고 30초 뒤부터 이 시간 동안 10초마다 좌석 조회 탐침을 보낸다(B8) |
+
+B8(과부하 뒤 회복) 측정은 `tools/b8-run.sh`로 한 회씩 돈다. 결과는 `results/b8-<이름>-<시각>-*`(k6 로그, 탐침, 지표 CSV, 요약)이다. 판정 기준은 [k6-overload-recovery.md](../../docs/design/reservation/k6-overload-recovery.md) 6절이다.
+
+```bash
+bash reservation-service/k6/tools/b8-run.sh r0
+bash reservation-service/k6/tools/b8-run.sh r1 reservation-service/k6/compose.b8-r1.yml
+bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.b8-r1.yml reservation-service/k6/compose.b8-r123.yml
+```
 
 ## 4. 결과 읽기
 
