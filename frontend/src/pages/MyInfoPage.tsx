@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { authQueryKeys, getMe, type Me } from '@/api/auth'
+import { ME_STALE_MILLIS } from '@/pages/my/MyPageLayout'
 import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { Card } from '@/components/ui/card'
@@ -13,7 +14,7 @@ const ROLE_LABELS: Record<Me['role'], string> = {
 
 // 마이페이지의 내 정보. 비밀번호 변경·운영 화면 링크는 마이페이지 메뉴(MyPageLayout)에 있다
 export function MyInfoPage() {
-  const me = useQuery({ queryKey: authQueryKeys.me, queryFn: getMe })
+  const me = useQuery({ queryKey: authQueryKeys.me, queryFn: getMe, staleTime: ME_STALE_MILLIS })
 
   return (
     <main className="grid min-w-0 content-start gap-6">

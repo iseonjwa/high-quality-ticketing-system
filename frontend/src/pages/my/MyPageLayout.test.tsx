@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
@@ -6,7 +6,7 @@ import { routes } from '@/app/routes'
 import { ADMIN_USER, DEMO_USER } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
-import { signInAsAdmin, signInAsDemo } from '@/test/api'
+import { recordRequests, signInAsAdmin, signInAsDemo } from '@/test/api'
 import { renderRoutes } from '@/test/render'
 
 const menu = () => within(screen.getByRole('navigation', { name: '마이페이지 메뉴' }))
@@ -78,6 +78,19 @@ describe('MyPageLayout 메뉴', () => {
     expect(menu().getAllByRole('link')).toHaveLength(4)
   })
 
+  it('내 예매에서 누른 비밀번호 변경은 돌아올 곳으로 내 예매를 넘긴다', async () => {
+    await signInAsDemo()
+    const { router } = renderRoutes(routes, '/me/reservations')
+    await (await profileCard()).findByText(DEMO_USER.email)
+
+    await userEvent.click(menu().getByRole('link', { name: '비밀번호 변경' }))
+
+    expect(router.state.location.state).toEqual({
+      from: '/me/reservations',
+      email: DEMO_USER.email,
+    })
+  })
+
   it('비밀번호 변경 링크는 돌아올 곳(/me)과 내 이메일을 화면 이동 값으로 넘긴다', async () => {
     await signInAsDemo()
     const { router } = renderRoutes(routes, '/me')
@@ -107,12 +120,24 @@ describe('MyPageLayout 메뉴', () => {
   })
 })
 
+// 프로필 카드(넓은 화면에서만 보인다. jsdom은 CSS를 적용하지 않아 늘 있다)
+async function profileCard() {
+  const card = await waitFor(() => {
+    const found = document.querySelector<HTMLElement>('[data-slot="profile-card"]')
+    if (found === null) {
+      throw new Error('프로필 카드가 없다')
+    }
+    return found
+  })
+  return within(card)
+}
+
 describe('MyPageLayout 프로필 카드', () => {
   it('받은 내 정보로 닉네임과 이메일을 보이고, 일반 회원에게는 운영자 표시가 없다', async () => {
     await signInAsDemo()
     renderRoutes(routes, '/me')
 
-    const profile = within(await screen.findByRole('complementary'))
+    const profile = await profileCard()
     expect(await profile.findByText(DEMO_USER.email)).toBeInTheDocument()
     expect(profile.getByText('데모님')).toBeInTheDocument()
     expect(profile.queryByText('운영자')).not.toBeInTheDocument()
@@ -122,19 +147,34 @@ describe('MyPageLayout 프로필 카드', () => {
     await signInAsAdmin()
     renderRoutes(routes, '/me/reservations')
 
-    const profile = within(await screen.findByRole('complementary'))
+    const profile = await profileCard()
     expect(await profile.findByText(ADMIN_USER.email)).toBeInTheDocument()
     expect(profile.getByText('운영자')).toBeInTheDocument()
   })
 
-  it('다른 마이페이지 화면으로 옮겨도 틀은 그대로이고 내 정보는 다시 받지 않는다', async () => {
+  it('다른 마이페이지 화면으로 오가도 틀은 그대로이고 내 정보는 다시 받지 않는다', async () => {
     await signInAsDemo()
+    const meRequests = recordRequests('/api/v1/users/me')
     const { router } = renderRoutes(routes, '/me')
-    const profile = within(await screen.findByRole('complementary'))
+    const profile = await profileCard()
     await profile.findByText(DEMO_USER.email)
+    await within(screen.getByRole('main')).findByText(DEMO_USER.email)
 
     await act(() => router.navigate('/me/reservations'))
+    await within(screen.getByRole('main')).findByRole('heading', { name: '내 예매' })
+    await act(() => router.navigate('/me'))
+    await within(screen.getByRole('main')).findByText(DEMO_USER.email)
 
     expect(profile.getByText(DEMO_USER.email)).toBeInTheDocument()
+    // 틀과 내 정보 화면이 같은 조회를 나누고, 5분 안에는 다시 받지 않는다
+    expect(meRequests).toHaveLength(1)
+  })
+
+  it('메뉴는 보조 내용(aside) 랜드마크로 감싸지 않는다', async () => {
+    await signInAsDemo()
+    renderRoutes(routes, '/me')
+
+    await screen.findByRole('navigation', { name: '마이페이지 메뉴' })
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
   })
 })
