@@ -8,6 +8,12 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-05-payment-job-label-task.md) |
+| 2026-11-05 | herdr 병렬 작업을 시연 뒤로 미루자는 제안을 거부하고 지금 전부 처리하기로 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-demo-parallel-herdr-now.md) |
+| 2026-11-05 | MVP 시연: 리허설 전 `main` 동결 제안 거부, `dev` 머지와 로컬 테스트 뒤 반영 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-demo-main-merge-after-local-test.md) |
+| 2026-11-05 | MVP 시연: 장애 현장 대체 제안 거부, 장애 상황도 함께 보임 | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-05-demo-show-failures-live.md) |
+| 2026-11-05 | MVP 시연: 추첨은 응모자를 적재해 실제처럼 모의 진행 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-05-demo-lottery-seeded-entries.md) |
+| 2026-11-05 | MVP 시연: 영역 담당별 진행 제안 거부, 통합 진행 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-demo-single-integrated-presenter.md) |
 | 2026-11-05 | 패키지 분리 PR의 base를 ISE-184 브랜치로 둔 구성을 거부하고 `dev`로 다시 올림 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-stacked-pr-base-to-dev.md) |
 | 2026-11-05 | 추첨 응모 취소의 변수 `canceled`를 `canceledNow`로 바꾸자는 제안 거부 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-keep-canceled-name.md) |
 | 2026-11-04 | 초기 구성 브랜치 `ggangmy/chore/init-env`를 남겨 두자는 추천을 거부하고 원격에서 삭제 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-04-delete-init-env-branch.md) |

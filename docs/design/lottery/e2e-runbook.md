@@ -54,7 +54,7 @@ SELECT status, event_type, message_key FROM outbox_events WHERE event_type IN ('
 - 결제 거절: Mock PG 장애 주입(`POST /mock-pg/faults`, 측정·테스트 프로필)으로 다음 승인을 `DECLINE`로 둔다. payment DB의 `DECLINED` 뒤의 응모 전이는 6절에서 확인한다.
 - 허가 대기(백프레셔): Mock PG에 지연을 넣어 `pg-approve` 동시 10을 채우면 자동결제 메시지가 DLQ로 가지 않고 다시 읽힌다. 로그 `PG 승인 허가 거절` 빈도와 `payment.command.dlq`가 비어 있는지 본다.
 
-## 6. 결제 결과 반영 확인(ISE-150 연결, compose 스택에서 아직 돌리지 않음)
+## 6. 결제 결과 반영 확인(ISE-150 연결, 2026-11-05 로컬 compose에서 확인. 7절 참고)
 - 응모 `PAID`, 예매 `CONFIRMED`·티켓 발권.
 - 결제 거절 → 응모 `FAILED` → 예비자 승계 → 새 예매·새 자동결제.
 - 승계 마감(추첨 후 30분) 뒤 종결 → `lotteries.status = DONE`, 남은 추첨석이 S석으로 일반 판매에.
@@ -77,4 +77,21 @@ SELECT status, event_type, message_key FROM outbox_events WHERE event_type IN ('
 
 - 겪은 것: 스택을 막 띄운 직후 첫 로그인이 503이었다. 서비스가 healthy여도 Gateway가 Eureka에서 등록 정보를 받기까지 시간이 걸린다. 수십 초 뒤 다시 실행하면 된다.
 - 확인하지 못한 것: 응모 `PAID`·예매 `CONFIRMED`(ISE-73·150 뒤), 허가 대기 백프레셔(Mock PG 지연 주입 필요).
+
+### 2026-11-05 로컬 compose(dev `b7217fc`, ISE-150·184·190까지)
+- 방법: 위 절차를 스크립트로 실행했다. 시나리오 1은 추첨석 4·예비 3에 응모자 7명(1명은 수량 2, 3명은 빌링키 없음, 1명은 취소)이고, 시나리오 2는 추첨석 5에 빌링키 없는 응모자 2명이다. 승계 마감을 기다리지 않도록 로컬 DB의 추첨 시각을 61분 앞으로 옮겨 종결을 확인했다. 관측 도구(Prometheus·Grafana·Kafka-UI·Zipkin)는 띄우지 않았다.
+- 결과: 시나리오 1은 60개 확인, 시나리오 2는 12개 확인 항목이 모두 통과했다.
+
+| 확인 | 결과 |
+|---|---|
+| 응모 규칙 | 시작 전·마감 뒤 409, 인증 없음 401, 멱등키 없음·매수 초과 400, 같은 키 재요청은 처음 응모 반환, 같은 키 다른 내용·중복 응모 409 |
+| 취소 | `CANCELED`, 재요청 200, 마감 뒤 409, 취소한 응모는 추첨 제외 |
+| 결제 성공 | 응모 `PAID`, 예매 `CONFIRMED`, 수량만큼 티켓 발권, 결제 `BILLING`·`APPROVED` |
+| 결제 거절 | 빌링키 없는 2명이 `FAILED`·`BILLING_KEY_MISSING`, 예매 `RELEASED` |
+| 승계 | 거절로 빈 2석에 순위 5(수량 2) 예비자가 `WON`을 거쳐 `PAID`, 순위 6은 자리가 없어 종결 때 `LOST` |
+| 종결 | `DONE`. 시나리오 1은 판매된 4석이 `S`·`SOLD`로, 시나리오 2는 남은 5석이 `S`·`AVAILABLE`로 돌아옴(S석 6000) |
+| 메시징 | 결제·예매 `dead_letters` 0건, 시나리오 1 시점 outbox 전부 `SENT` |
+
+- 겪은 것: 2026-11-02 실행의 예매 1·3에 남아 있던 결제 결과가 스택을 다시 띄울 때 처리되어 `RefundRequested`(`EXPIRED_AFTER_APPROVAL`)가 나갔고, Mock PG가 `NOT_REFUNDABLE`로 거절했다. 이번 실행의 예매와는 무관하다. Mock PG 재기동으로 승인 기록이 사라졌기 때문인지는 확인하지 못했다.
+- 확인하지 못한 것: 결과 미수신 만료 → 1회 연장, 재시도, 허가 대기 백프레셔, 배포 서버에서의 실행.
 

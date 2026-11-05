@@ -195,6 +195,7 @@ class QueueApiTest {
             JsonNode data = response.json().get("data");
             assertEquals("ADMITTED", data.get("status").asString());
             assertFalse(data.get("entryToken").asString().isBlank());
+            assertTrue(data.get("entryTokenExpiresAt").asString().endsWith("+09:00"), data.toString());
             // 만료는 발급 후 약 10분(초 단위로 내림하므로 최대 1초 짧다)
             Duration untilExpiry = Duration.between(Instant.now(), Instant.parse(data.get("entryTokenExpiresAt").asString()));
             assertTrue(untilExpiry.compareTo(Duration.ofMinutes(9)) > 0

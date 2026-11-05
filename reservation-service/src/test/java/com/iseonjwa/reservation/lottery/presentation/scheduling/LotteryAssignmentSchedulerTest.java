@@ -3,9 +3,12 @@ package com.iseonjwa.reservation.lottery.presentation.scheduling;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService.AssignmentError;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService.AssignmentRejected;
+import com.iseonjwa.reservation.lottery.observability.LotteryMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -24,13 +27,15 @@ import static org.mockito.Mockito.when;
 class LotteryAssignmentSchedulerTest {
     private LotteryAssignmentService service;
     private LotteryAssignmentScheduler scheduler;
+    private SimpleMeterRegistry registry;
     private List<Long> winners;
     private List<Long> assigned;
 
     @BeforeEach
     void setUp() {
         service = mock(LotteryAssignmentService.class);
-        scheduler = new LotteryAssignmentScheduler(service);
+        registry = new SimpleMeterRegistry();
+        scheduler = new LotteryAssignmentScheduler(service, new LotteryMetrics(registry, Clock.systemUTC()));
         winners = new ArrayList<>(List.of(1L, 2L, 3L));
         assigned = new ArrayList<>();
     }
@@ -68,6 +73,36 @@ class LotteryAssignmentSchedulerTest {
         scheduler.assignWinners();
 
         assertEquals(List.of(2L, 3L), assigned);
+        assertEquals(0, assignmentResult("rejected"));
+    }
+
+    // ISE-94: 배정·오류·거절을 결과별로 세고, 포기한 응모는 실패 사유로도 센다
+    @Test
+    void 배정_결과를_종류별로_센다() {
+        stub(1L, new AssignmentError(1L, new IllegalStateException("데이터 오류")));
+
+        scheduler.assignWinners();
+        scheduler.assignWinners();
+        scheduler.assignWinners();
+
+        assertEquals(2, assignmentResult("assigned"));
+        assertEquals(3, assignmentResult("error"));
+        assertEquals(1, assignmentResult("rejected"));
+        assertEquals(1, registry.get("lottery.entry.failures").tag("reason", "ASSIGN_ERROR").counter().count());
+    }
+
+    // ISE-94: 응모를 특정할 수 없어 주기를 멈춘 실패는 작업 실패로 센다
+    @Test
+    void 대상_조회가_실패하면_작업_실패로_센다() {
+        when(service.assignNext(any(Collection.class))).thenThrow(new IllegalStateException("커밋 실패"));
+
+        scheduler.assignWinners();
+
+        assertEquals(1, registry.get("lottery.job.failures").tag("task", "assignment").counter().count());
+    }
+
+    private double assignmentResult(String result) {
+        return registry.get("lottery.assignment.results").tag("result", result).counter().count();
     }
 
     // 순위 순으로 건너뛰지 않은 첫 당첨자를 고른다. failing 응모는 매번 같은 예외를 던지고, 나머지는 배정된다

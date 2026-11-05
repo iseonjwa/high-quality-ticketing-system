@@ -1357,7 +1357,7 @@
             "uid": "prometheus"
           },
           "expr": "time() - payment_job_last_success_timestamp{application=\"payment-service\"}",
-          "legendFormat": "{{job}}",
+          "legendFormat": "{{task}}",
           "refId": "A"
         },
         {
@@ -1411,8 +1411,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (job) (increase(payment_job_failures_total{application=\"payment-service\"}[5m]))",
-          "legendFormat": "{{job}}",
+          "expr": "sum by (task) (increase(payment_job_failures_total{application=\"payment-service\"}[5m]))",
+          "legendFormat": "{{task}}",
           "refId": "A"
         },
         {

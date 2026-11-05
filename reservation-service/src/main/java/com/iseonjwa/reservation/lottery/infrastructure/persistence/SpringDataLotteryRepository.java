@@ -76,6 +76,15 @@ interface SpringDataLotteryRepository extends JpaRepository<Lottery, Long> {
             """)
     int markDone(@Param("id") Long id);
 
+    @Query(nativeQuery = true, value = "SELECT count(*) FROM lotteries WHERE status <> 'DONE' AND deleted_at IS NULL")
+    long countUnfinished();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(CAST(EXTRACT(EPOCH FROM now() - MIN(draw_at)) AS bigint), 0)
+            FROM lotteries WHERE status = 'DRAWN' AND deleted_at IS NULL
+            """)
+    long findOldestUnfinishedSeconds();
+
     // 추첨 트랜잭션이 다른 트랜잭션의 잠금을 오래 기다리지 않게 하며, 트랜잭션이 끝나면 원래 값으로 돌아간다
     @Query(nativeQuery = true, value = "SELECT set_config('lock_timeout', '3s', true)")
     String setLocalLockTimeout();

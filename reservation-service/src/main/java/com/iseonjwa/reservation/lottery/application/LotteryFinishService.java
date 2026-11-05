@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.lottery.application;
 import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
 import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
 import com.iseonjwa.reservation.lottery.domain.repository.LotteryRepository;
+import com.iseonjwa.reservation.lottery.observability.LotteryMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +52,11 @@ public class LotteryFinishService {
                 SYSTEM_ACTOR_ID));
     }
 
-    public long countRemainingLotterySeats() {
-        return lotterySeatPort.countAllLotterySeats();
+    public LotteryMetrics.Progress readProgress() {
+        return new LotteryMetrics.Progress(
+                lotteryRepository.countUnfinished(),
+                lotteryRepository.findOldestUnfinishedSeconds(),
+                lotteryEntryRepository.countUnsettledWinners(),
+                lotterySeatPort.countAllLotterySeats());
     }
 }
