@@ -71,7 +71,8 @@ export interface MockReservation {
   userId: number
   scheduleId: number
   seatIds: number[]
-  status: 'HELD' | 'CONFIRMED' | 'EXPIRED' | 'RELEASED'
+  // 서버 enum에는 CANCELED도 있으나 만드는 API가 아직 없다(테스트가 직접 넣어 화면을 확인한다)
+  status: 'HELD' | 'CONFIRMED' | 'EXPIRED' | 'RELEASED' | 'CANCELED'
   holdExpiresAtMillis: number
   totalAmount: number
   // 결제 승인 뒤 확정 반영을 기다리는 동안만 값이 있다. 예매 조회 몇 번 뒤 CONFIRMED가 되는지
@@ -82,7 +83,7 @@ export interface MockPayment {
   paymentId: number
   reservationId: number
   userId: number
-  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED'
+  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED' | 'NEEDS_MANUAL_CHECK'
   amount: number
   approvedAtMillis: number | null
   reasonCode: string | null
@@ -102,6 +103,51 @@ export interface MockVenue {
   name: string
   // 공연장 좌석의 등급 모음. 회차 좌석을 만들 때 가격표의 등급과 정확히 같아야 한다
   grades: string[]
+}
+
+// 사용자당 ACTIVE는 하나다. 다시 등록하면 앞 키는 REVOKED가 된다(V5__billing_keys.sql)
+export interface MockBillingKey {
+  billingKeyId: number
+  userId: number
+  status: 'ACTIVE' | 'REVOKED'
+}
+
+// 추첨(reservation-service lottery). 시각은 밀리초로 두고 응답에서 Instant(`Z`)로 낸다.
+// 운영자 추첨 설정 목(ISE-124)이 나중에 lotteries에 더한다. status는 서버처럼 OPEN이 응모 시작 전부터 마감 전까지다
+export interface MockLottery {
+  lotteryId: number
+  scheduleId: number
+  status: 'OPEN' | 'CLOSED' | 'DRAWN' | 'DONE'
+  seatCount: number
+  entryStartAtMillis: number
+  entryEndAtMillis: number
+  drawAtMillis: number
+  maxPerEntry: number
+  // 운영자 설정(ISE-124). 추첨석으로 뗀 등급과 예비 순번 수. 공개 조회(GET /lotteries/{id})에는 나오지 않는다
+  sourceGrade: 'VIP' | 'R' | 'S'
+  waitlistCount: number
+  // 설정이 추첨석으로 바꾼 좌석. 서버는 좌석 등급을 LOTTERY로 바꾸지만 좌석 조회는 구역 등급을 공연장 원래 등급으로
+  // 주고 추첨석을 팔 수 없는 좌석으로만 보인다. 목은 등급을 건드리지 않고 이 좌석들을 못 잡는 상태로 둔다
+  convertedSeatIds: number[]
+}
+
+export type MockEntryStatus =
+  'ENTERED' | 'CANCELED' | 'WON' | 'WAITLISTED' | 'LOST' | 'PAID' | 'FAILED'
+
+// 응모 행. requestId(=Idempotency-Key)는 전역 UNIQUE다(LotteryEntry.isSameRequest)
+export interface MockLotteryEntry {
+  entryId: number
+  lotteryId: number
+  requestId: string
+  userId: number
+  quantity: number
+  status: MockEntryStatus
+  drawRank: number | null
+  reservationId: number | null
+  failReason: string | null
+  // 처음부터 들어 있는 추첨 결과(3번 추첨의 데모 응모)가 시나리오에 따라 정해지는 단계.
+  // pending: 아직 아무도 조회하지 않았다, shown: 첫 조회에서 WON을 보였다(다음 조회에서 PAID·FAILED), settled: 끝
+  seedStage: 'pending' | 'shown' | 'settled'
 }
 
 interface MockState {
@@ -129,7 +175,8 @@ interface MockState {
     { userId: number; scheduleId: number; seatKey: string; reservationId: number }
   >
   payments: Map<number, MockPayment>
-  // Idempotency-Key → 결제 요청. 기존 결제에 붙은 별칭 키는 storedResponse가 null이다
+  // `${userId}:${Idempotency-Key}` → 결제 요청(키 범위는 사용자별이다, PaymentApprovalService:226-233).
+  // 기존 결제에 붙은 별칭 키와 응답을 저장하지 않는 409는 storedResponse가 null이다
   paymentRequests: Map<
     string,
     {
@@ -139,7 +186,15 @@ interface MockState {
       storedResponse: StoredPaymentResponse | null
     }
   >
+  // 등록된 빌링키(해지한 것 포함). 추첨 당첨 자동결제는 hasActiveBillingKey로 본다
+  billingKeys: MockBillingKey[]
+  lotteries: MockLottery[]
+  lotteryEntries: MockLotteryEntry[]
   seatConflictUsed: boolean
+  // lottery-unknown이 이미 504를 줬는지
+  lotteryUnknownUsed: boolean
+  // hold-unknown이 이미 504를 줬는지
+  holdUnknownUsed: boolean
   // queue-unavailable이 아직 503을 줘야 하는 남은 횟수
   queueUnavailableLeft: number
   // queue-expired가 이미 줄 기록을 지웠는지
@@ -189,8 +244,8 @@ export function settleExpiredHolds(nowMillis = Date.now()) {
 
 // 결제가 승인되면 부른다. 실제로는 PaymentApproved 이벤트를 받아 비동기로 확정한다(목표 2초, SA 9-4).
 // 승인 직후 예매 조회는 아직 HELD라서 화면은 CONFIRMED가 될 때까지 다시 조회해야 한다(design-system.md 5절 "확정 반영 대기").
-export function scheduleConfirmation(reservation: MockReservation) {
-  reservation.confirmAfterChecks = 1
+export function scheduleConfirmation(reservation: MockReservation, checks: number = 1) {
+  reservation.confirmAfterChecks = checks
 }
 
 // 예매를 조회할 때 부른다. 확정 반영을 기다리는 예매는 정해진 횟수만큼 조회된 뒤 CONFIRMED가 된다.
@@ -204,6 +259,11 @@ export function advanceConfirmation(reservation: MockReservation) {
     return
   }
   reservation.confirmAfterChecks -= 1
+}
+
+// 이 사용자가 ACTIVE 빌링키를 갖고 있는가. 추첨 목이 당첨 자동결제를 거절할지(BILLING_KEY_MISSING) 볼 때 쓴다
+export function hasActiveBillingKey(userId: number): boolean {
+  return mockDb.billingKeys.some((key) => key.userId === userId && key.status === 'ACTIVE')
 }
 
 export function releaseSeats(seatIds: number[]) {
@@ -309,6 +369,17 @@ function createInitialState(nowMillis = Date.now()): MockState {
         rows: 3,
         perRow: 10,
       }),
+      // 처음부터 매진인 구역. 좌석 화면의 매진 구역 표시와 건너뛰기를 확인한다
+      ...createSeats({
+        scheduleId: 31,
+        firstSeatId: 1201,
+        section: 'C',
+        grade: 'S',
+        price: 99000,
+        rows: 1,
+        perRow: 6,
+        available: false,
+      }),
     ],
     accessTokens: new Map(),
     expiredAccessTokens: new Set(),
@@ -320,7 +391,68 @@ function createInitialState(nowMillis = Date.now()): MockState {
     holdRequests: new Map(),
     payments: new Map(),
     paymentRequests: new Map(),
+    billingKeys: [],
+    lotteries: [
+      // 응모 중: 1시간 전에 시작해 내일 마감. 추첨은 그 1시간 뒤
+      {
+        lotteryId: 1,
+        scheduleId: 32,
+        status: 'OPEN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis - 60 * MINUTE,
+        entryEndAtMillis: nowMillis + DAY,
+        drawAtMillis: nowMillis + DAY + 60 * MINUTE,
+        maxPerEntry: 2,
+        sourceGrade: 'VIP',
+        waitlistCount: 5,
+        convertedSeatIds: [],
+      },
+      // 응모 시작 전(OPEN)
+      {
+        lotteryId: 2,
+        scheduleId: 41,
+        status: 'OPEN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis + DAY,
+        entryEndAtMillis: nowMillis + 2 * DAY,
+        drawAtMillis: nowMillis + 2 * DAY + 60 * MINUTE,
+        maxPerEntry: 1,
+        sourceGrade: 'R',
+        waitlistCount: 5,
+        convertedSeatIds: [],
+      },
+      // 추첨 완료(DRAWN). 데모 사용자가 1매 응모한 결과를 본다
+      {
+        lotteryId: 3,
+        scheduleId: 31,
+        status: 'DRAWN',
+        seatCount: 10,
+        entryStartAtMillis: nowMillis - 2 * DAY,
+        entryEndAtMillis: nowMillis - DAY,
+        drawAtMillis: nowMillis - MINUTE,
+        maxPerEntry: 2,
+        sourceGrade: 'VIP',
+        waitlistCount: 5,
+        convertedSeatIds: [],
+      },
+    ],
+    lotteryEntries: [
+      {
+        entryId: 500,
+        lotteryId: 3,
+        requestId: '00000000-0000-4000-8000-000000000003',
+        userId: 42,
+        quantity: 1,
+        status: 'WON',
+        drawRank: 1,
+        reservationId: null,
+        failReason: null,
+        seedStage: 'pending',
+      },
+    ],
     seatConflictUsed: false,
+    lotteryUnknownUsed: false,
+    holdUnknownUsed: false,
     queueUnavailableLeft: 1,
     queueExpiredUsed: false,
   }
@@ -334,6 +466,7 @@ export function createSeats(spec: {
   price: number
   rows: number
   perRow: number
+  available?: boolean
 }): MockSeat[] {
   const seats: MockSeat[] = []
   for (let row = 1; row <= spec.rows; row++) {
@@ -346,7 +479,7 @@ export function createSeats(spec: {
         price: spec.price,
         row,
         number,
-        available: true,
+        available: spec.available ?? true,
       })
     }
   }

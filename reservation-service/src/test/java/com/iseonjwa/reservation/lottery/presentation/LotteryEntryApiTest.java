@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.lottery.presentation;
 
-import com.iseonjwa.reservation.lottery.domain.DrawEntrant;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawEntrant;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

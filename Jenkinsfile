@@ -1,6 +1,39 @@
 // main의 새 커밋을 배포 서버에 배포하는 파이프라인(ISE-175). 설계: docs/design/infra/deployment.md "Jenkins"
 // 흐름: 커밋 정하기 → GHCR에 그 SHA 이미지 8개가 올라올 때까지 기다리기 → 배포 서버에 SSH로 deploy.sh → 슬랙에 결과.
+// 슬랙은 세 번 알린다: 커밋을 정하면 배포 준비(started), SSH 배포를 시작하기 직전 배포 중(deploying), 끝나면 결과.
+// 이미지를 못 찾아 중단되면 배포 중 알림 없이 준비 다음에 바로 결과가 간다.
 // 폴링은 잡 정의(infra/jenkins/casc.yaml)에 있다. 되돌리기·재배포는 매개변수 TAG에 40자 커밋 SHA를 넣고 실행한다.
+
+// 슬랙 알림 하나를 보낸다. 단계 알림(started, deploying)과 결과 알림이 같은 메시지 규칙(script/deploy/slack-payload.sh)을 쓴다.
+// 웹훅 주소는 환경 변수로만 다룬다(Groovy 문자열에 넣지 않고 셸 추적도 끈다). 전송 실패는 빌드 결과를 바꾸지 않는다.
+// 메시지를 만들지 못하면(체크아웃 실패 등) 한 줄짜리로 보낸다.
+def notifySlack(String result) {
+    withCredentials([string(credentialsId: 'slack-webhook-deploy', variable: 'SLACK_URL')]) {
+        withEnv(["RESULT=${result}", "TRIGGER=${deployTrigger()}", "START_MS=${currentBuild.startTimeInMillis}"]) {
+            sh '''#!/usr/bin/env bash
+                set +x
+                DURATION_SEC=$(( $(date +%s) - START_MS / 1000 )) PUBLIC_URL="${PUBLIC_URL:-}" \
+                  script/deploy/slack-payload.sh > slack.json 2>/dev/null \
+                  || jq -n --arg t "[배포 알림] ${RESULT} ${SHA:0:7} (#${BUILD_NUMBER}) 메시지를 만들지 못했습니다. Jenkins 로그를 확인해 주세요" \
+                       '{text: $t}' > slack.json
+                curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' --data-binary @slack.json "$SLACK_URL" > /dev/null \
+                  || echo "슬랙 전송에 실패했습니다"
+            '''
+        }
+    }
+}
+
+// 배포가 시작된 계기. 폴링(SCM)이면 새 커밋, TAG를 넣었으면 수동 재배포다.
+def deployTrigger() {
+    if (params.TAG?.trim()) {
+        return '수동 재배포(TAG)'
+    }
+    if (currentBuild.getBuildCauses('hudson.triggers.SCMTrigger$SCMTriggerCause')) {
+        return 'main 새 커밋'
+    }
+    return '수동 실행(main 최신)'
+}
+
 pipeline {
     agent any
 
@@ -38,6 +71,7 @@ pipeline {
                             script: 'git log -1 --format=%s "$SHA" 2>/dev/null || echo "(제목을 확인할 수 없음)"').trim()
                     currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
                     echo "배포할 커밋: ${env.SHORT_SHA} ${env.COMMIT_TITLE}"
+                    notifySlack('started')
                 }
             }
         }
@@ -81,6 +115,7 @@ pipeline {
                         env.RESULT = 'error'
                         error('DEPLOY_HOST(배포 EC2의 사설 IP)가 비어 있습니다')
                     }
+                    notifySlack('deploying')
                     // Note: DEPLOY_HOST는 사설 IP여야 한다. 배포 서버 보안 그룹은 Jenkins 보안 그룹에서 오는 22만 허용하는데,
                     // 이 규칙은 VPC 안 사설 IP로 온 연결에만 맞는다. 공인 IP로 붙으면 막힌다.
                     def rc = 255
@@ -89,11 +124,14 @@ pipeline {
                             ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes "ubuntu@${DEPLOY_HOST}" \
                               "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach ${SHA} && script/deploy/deploy.sh ${SHA}" 2>&1 | tee deploy.log
                             code=${PIPESTATUS[0]}
-                            # deploy.sh가 "== 되돌림 성공: <SHA>"를 남긴다. 짧은 SHA만 뽑아 둔다.
+                            # deploy.sh가 "== 배포 시작: <SHA> (직전 성공: <SHA>|없음)"과 "== 되돌림 성공: <SHA>"를 남긴다.
+                            # 직전 버전(40자, 없으면 "없음")과 되돌린 버전(짧은 SHA)을 뽑아 슬랙 메시지에 쓴다. Groovy 문자열이라 백슬래시를 쓰지 않는다.
+                            awk '/^== 배포 시작: /{gsub(/[()]/, ""); print $7; exit}' deploy.log > previous.txt
                             awk '/^== 되돌림 성공: /{print substr($4,1,7)}' deploy.log | tail -1 > rollback.txt
                             exit "$code"
                         ''')
                     }
+                    env.PREVIOUS_SHA = readFile('previous.txt').trim()
                     if (rc == 0) {
                         env.RESULT = 'success'
                     } else if (rc == 1) {
@@ -115,37 +153,8 @@ pipeline {
     post {
         always {
             script {
-                def commit = env.SHA ? "${env.SHORT_SHA} ${env.COMMIT_TITLE}" : '(커밋을 정하기 전)'
-                def build = "(#${env.BUILD_NUMBER})"
-                def message
-                switch (env.RESULT) {
-                    case 'success':
-                        message = "[배포 성공] ${commit} ${build}"
-                        break
-                    case 'rolledback':
-                        def previous = env.ROLLBACK_SHA ? "(${env.ROLLBACK_SHA})" : ''
-                        message = "[배포 실패] ${commit} ${build} 직전 버전${previous}으로 되돌렸습니다"
-                        break
-                    case 'rollbackfailed':
-                        message = "[배포 실패] ${commit} ${build} 되돌림도 실패했습니다. 서버 확인이 필요합니다"
-                        break
-                    case 'aborted':
-                        message = "[배포 중단] ${commit} ${build} 이미지가 20분 안에 GHCR에 올라오지 않았습니다"
-                        break
-                    default:
-                        message = "[배포 오류] ${commit} ${build} 파이프라인이 실패했습니다. Jenkins 로그를 확인해 주세요"
-                }
-                // 웹훅 주소는 환경 변수로만 다룬다(Groovy 문자열에 넣지 않고 셸 추적도 끈다). 전송 실패가 빌드 결과를 바꾸지 않는다.
-                withCredentials([string(credentialsId: 'slack-webhook-deploy', variable: 'SLACK_URL')]) {
-                    withEnv(["MESSAGE=${message}"]) {
-                        sh '''#!/usr/bin/env bash
-                            set +x
-                            jq -n --arg t "$MESSAGE" '{text: $t}' \
-                              | curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' --data-binary @- "$SLACK_URL" > /dev/null \
-                              || echo "슬랙 전송에 실패했습니다"
-                        '''
-                    }
-                }
+                // RESULT가 없으면 단계 밖에서 끝난 것이다: 사람이 멈췄거나 40분 제한이면 ABORTED, 그 밖은 오류다.
+                notifySlack(env.RESULT ?: (currentBuild.currentResult == 'ABORTED' ? 'cancelled' : 'error'))
             }
         }
     }

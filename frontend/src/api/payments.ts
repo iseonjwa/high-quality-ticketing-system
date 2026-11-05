@@ -74,6 +74,7 @@ export type PaymentDetail = z.infer<typeof paymentDetailSchema>
 export function approvePayment(
   body: { paymentToken: string; amount: number; method: 'CARD' },
   idempotencyKey: string,
+  options: { signal?: AbortSignal } = {},
 ) {
   return apiRequest({
     method: 'POST',
@@ -81,9 +82,15 @@ export function approvePayment(
     body,
     schema: paymentResultSchema,
     idempotencyKey,
+    signal: options.signal,
   })
 }
 
-export function getPayment(paymentId: number) {
-  return apiRequest({ method: 'GET', path: `/payments/${paymentId}`, schema: paymentDetailSchema })
+export function getPayment(paymentId: number, options: { signal?: AbortSignal } = {}) {
+  return apiRequest({
+    method: 'GET',
+    path: `/payments/${paymentId}`,
+    schema: paymentDetailSchema,
+    signal: options.signal,
+  })
 }

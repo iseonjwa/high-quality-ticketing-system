@@ -33,7 +33,7 @@ nginx가 빌드 결과를 서빙하고 `/api/`를 Gateway로 중계한다. 첫 �
 npm run dev:mock   # MSW가 계약 문서대로 응답한다
 ```
 
-- 로그인: `demo@iseonjwa.dev` / `password1234`(운영자는 `admin@iseonjwa.dev`, 같은 비밀번호. 운영자 등록 API가 만드는 회차는 공연장 1번 KSPO DOME을 쓰고 등급은 VIP·R·S다). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
+- 로그인: `demo@iseonjwa.dev` / `password1234`(회원 번호 42. 운영자는 `admin@iseonjwa.dev`(회원 번호 1), 같은 비밀번호. 운영자 등록 API가 만드는 회차는 공연장 1번 KSPO DOME을 쓰고 등급은 VIP·R·S다). 공연은 셋이다. 공연 7은 판매 중 회차 31과 10분 뒤 오픈하는 회차 32, 공연 8은 이틀 뒤 오픈하는 회차 41, 공연 9는 끝난 회차 51이다. 공연 응답은 실제 API(ISE-99)와 같은 모양이다.
 - 임시 비밀번호 계정: `temp@iseonjwa.dev` / `TempPass2345`. 로그인하면 비밀번호 변경 화면으로 간다. 어느 계정이든 비밀번호를 5번 틀리면 잠긴다(새로고침하면 목 상태와 함께 풀린다).
 - 실패 화면은 주소에 `?mock=`로 고른다. 쉼표로 여러 개를 고를 수 있고 탭을 닫을 때까지 유지된다. `?mock=`(빈 값)이면 기본으로 돌아간다.
 
@@ -44,10 +44,21 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `queue-unavailable` | 대기열 요청 첫 1번이 503(`Retry-After: 1`), 그다음부터 기본과 같다 |
 | `queue-expired` | READY 뒤 첫 토큰 요청이 줄 기록을 지우고 404 `QUEUE_NOT_JOINED`. 다시 진입하면 기본처럼 돈다 |
 | `seat-conflict` | 첫 선점이 409 이선좌로 끝나고 요청 좌석 하나가 팔린 상태가 된다. 다시 고르면 성공한다 |
+| `hold-unknown` | 첫 선점이 서버에서는 성립하지만 응답 대신 504를 준다. 같은 멱등키로 다시 보내면 처음 결과(201)를 준다 |
 | `payment-declined` | 결제 200 `DECLINED`(한도 초과) |
 | `payment-unknown` | 결제 202 `UNKNOWN`, 첫 결제 조회에서 `APPROVED` |
 | `pg-unavailable` | 결제 503 `PG_UNAVAILABLE`, 좌석은 유지 |
+| `payment-manual` | 결제 409 `PAYMENT_ALREADY_EXISTS`(수동 확인 필요, `Location` 있음) |
+| `payment-slow-confirm` | 결제는 승인되지만 예매가 계속 `HELD`라 확정 확인이 30초를 넘긴다 |
+| `payment-late-approval` | 결제는 승인되지만 그 뒤 예매가 `EXPIRED`가 된다(선점 만료 뒤 승인 도착, 환불 안내) |
+| `billing-unavailable` | 자동결제 카드 등록이 503 `PG_UNAVAILABLE`. 해지는 기본과 같다 |
+| `lottery-waitlisted` | 추첨 3번의 데모 응모가 예비자(추첨 순위 13위) |
+| `lottery-lost` | 추첨 3번의 데모 응모가 미당첨 |
+| `lottery-failed` | 추첨 3번이 당첨 → 다음 조회부터 자동결제 실패(`BILLING_KEY_MISSING`) |
+| `lottery-unknown` | 첫 응모가 서버에서는 성립하지만 504. 같은 키로 다시 보내면 201(지금 상태) |
+| `lottery-closed` | 응모가 409 `LOTTERY_NOT_OPEN` |
 
+- 추첨은 셋이다(`/lotteries/1`·`2`·`3`). 1번은 회차 32의 응모 중(최대 2매), 2번은 회차 41의 응모 시작 전(최대 1매), 3번은 회차 31의 추첨 완료다. 3번은 데모 계정이 1매 응모해 두었고 첫 조회에 당첨이다. 다음 조회 때 자동결제 카드가 있으면 결제 완료(확정 예매), 없으면 자동결제 실패(`BILLING_KEY_MISSING`)다(서버와 같다). 추첨 상태는 조회 때 시각으로 바뀐다(응모 마감 뒤 `CLOSED`, 추첨 시각 뒤 `DRAWN`).
 - 결제가 승인돼도 예매는 바로 확정되지 않는다. 승인 뒤 예매 조회 한 번은 `HELD`, 다음 조회부터 `CONFIRMED`다(실제는 이벤트로 2초 안에 반영).
 - 결제 토큰은 발급마다 다르다. 같은 결제 멱등키 재요청은 처음 응답을 그대로 돌려준다(202 뒤 승인돼도 202).
 - 목 상태는 페이지 메모리에 있어 새로고침하면 처음으로 돌아간다. 로그인은 Refresh 토큰으로 이어진다(브라우저 목 모드에서만 처음 보는 Refresh 토큰을 받아 준다. 테스트는 서버처럼 거절한다).
@@ -74,20 +85,23 @@ src/
   app/routes.tsx  경로 목록. 테스트도 같은 목록으로 라우터를 만든다
   app/RequireAuth.tsx  로그인이 필요한 화면을 감싸는 경로(로그인 전이면 로그인 화면으로)
   app/bookingStep.ts  예매 흐름 경로의 단계 번호(handle). 헤더가 이 번호로 단계 표시를 그린다
+  app/pageLayout.ts  폭을 화면이 정하는 경로(handle { layout: 'bleed' }). 홈·공연 상세가 배너를 화면 끝까지 그린다
+  assets/concert-art/  공연 포스터(poster-N)·배너(wide-N) WebP. tools/concert-art가 만든다
   app/RequireAdmin.tsx  운영자 화면을 감싸는 경로(ADMIN이 아니면 안내만)
-  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 운영자는 pages/admin/
-  admin/          운영자 입력 검사(formSchemas.ts)
-  components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 비밀번호 보기 PasswordField)
+  pages/          화면 단위 컴포넌트. 인증 화면은 pages/auth/, 공연은 pages/concerts/, 대기열(화면과 입장 흐름)은 pages/queue/, 좌석 선택·선점은 pages/seats/, 결제(화면과 승인·확인 흐름)는 pages/payment/, 예매 결과·상세·내 예매는 pages/reservations/, 추첨 응모는 pages/lotteries/, 운영자는 pages/admin/
+  admin/          운영자 입력 검사(formSchemas.ts, 추첨 설정 lotteryFormSchema.ts), 이 브라우저에서 설정한 추첨 기록(adminLotteryRecords.ts)
+  components/form/  입력 칸(라벨·오류·도움말을 잇는 TextField, 고르기 SelectField, 비밀번호 보기 PasswordField)
   components/ui/  shadcn/ui 컴포넌트(저장소에 복사해 소유한다)
   components/ticketing/  티켓팅 전용 컴포넌트(좌석·좌석표, 시간 칩, 카운트다운, 대기 순번, 단계 표시, 에러 안내 등)
-  components/layout/  공통 레이아웃(헤더·토스트, AppLayout)과 경로 에러 화면
+  components/layout/  공통 레이아웃(헤더·토스트, AppLayout), 로고, 사이트 아래 정보(SiteFooter), 화면이 헤더 오른쪽을 채우는 HeaderSlot, 경로 에러 화면
   pages/DesignSystemPage.tsx  `npm run dev`에서 `/_design`으로 여는 컴포넌트 확인 화면(운영 빌드에는 없다)
   lib/            공통 함수
   api/            API 클라이언트(client.ts)와 도메인별 요청 함수·응답 스키마, 에러 문구 표
-  auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts), 입력 검사(formSchemas.ts), 돌아갈 경로(navigation.ts)
+  auth/           로그인 토큰(session.ts), 재발급(refresh.ts), 입장 토큰(entryTokens.ts), 잡은 좌석(heldSeats.ts), 결제 시도(paymentAttempts.ts), 자동결제 카드 등록 기록(billingKeyRecord.ts), 입력 검사(formSchemas.ts), 돌아갈 경로(navigation.ts)
   mocks/          MSW 핸들러·목 상태·실패 시나리오. 테스트와 `dev:mock`이 같이 쓴다
   demo/           시연 모드(켜짐 상태, 요청 기록, 오른쪽 요청 로그 패널, Grafana 주소)
   test/setup.ts   Vitest 설정(jest-dom 매처, MSW 서버, 테스트마다 DOM·목 상태·저장소 정리)
+tools/concert-art/  공연 그림 생성기(art.html 캔버스 그림, render.mjs가 headless Chrome으로 그려 cwebp로 저장). 빌드에 들어가지 않는다
 ```
 
 화면이 API를 부르는 규칙(401 재발급, 멱등키, 입장 토큰)은 [`docs/design/frontend/README.md`](../docs/design/frontend/README.md) "API 클라이언트 규칙"에 있다.

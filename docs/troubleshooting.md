@@ -261,3 +261,17 @@
   - Mock PG는 원장을 메모리에 두므로, 재시작 전에 만든 로컬 결제·환불은 PG 근거를 잃는다.
   - 운영 서버에서는 상태를 바꾸는 SQL을 쓰지 않고(`manual-recovery.md` 1절) PG 콘솔 확인과 8절 예외 절차를 따른다.
   - 로컬 테스트 데이터를 SQL로 고칠 때도 운영 명령과 같은 전이와 이력을 남기고, 사유로 SQL로 고친 것임을 드러낸다.
+
+### TS-33 새 EC2에서 GitHub·Docker 저장소로 나가는 연결이 모두 시간 초과(들어오는 SSH는 됨)
+- 서비스·작성: infra / junhyun / 2026-11-04
+- 문제: 배포 EC2에서 `git clone https://github.com/...`이 `Failed to connect to github.com port 443 after 133577 ms`로 실패했다. `curl`로 github.com, ghcr.io, download.docker.com, archive.ubuntu.com, 1.1.1.1 모두 응답이 없었다. DNS 조회와 들어오는 SSH는 됐다.
+- 원인: 직접 만든 보안 그룹 두 개(`iseonjwa-deploy-sg`, `iseonjwa-jenkins-sg`)에 아웃바운드 규칙이 없었다. 보안 그룹은 상태 저장이라 들어온 SSH의 응답은 나가지만, 서버가 먼저 여는 연결은 아웃바운드 규칙이 있어야 나간다.
+- 해결: 두 보안 그룹에 아웃바운드 "모든 트래픽, 0.0.0.0/0"을 더했다. 바로 github.com 200, download.docker.com 200을 확인했다.
+- 배운 점: 보안 그룹을 만들 때 아웃바운드 기본 규칙이 그대로 있는지 확인한다. "들어오는 SSH는 되는데 나가는 연결만 안 된다"는 증상이면 라우팅(인터넷 게이트웨이)보다 보안 그룹 아웃바운드를 먼저 본다.
+
+### TS-34 첫 배포의 스모크 테스트가 공연 목록 503으로 실패(컨테이너는 모두 healthy)
+- 서비스·작성: infra / junhyun / 2026-11-04
+- 문제: `script/deploy/deploy.sh`의 `up --wait`는 통과했는데 바로 이어진 스모크에서 `/api/v1/concerts`가 503이었다. Gateway 로그는 `No servers available for service: reservation-service`였다.
+- 원인: reservation-service가 기동해 Eureka에 등록한 뒤에도 Gateway가 레지스트리를 다시 받아 오기까지 약 35초가 걸렸다(`prod` 프로필은 Eureka 기본 갱신 주기). healthcheck는 각 컨테이너가 떴는지만 보므로 Gateway의 서비스 발견을 기다리지 않는다.
+- 해결: `smoke.sh`가 항목마다 기대한 상태가 나올 때까지 5초 간격으로 최대 120초(`SMOKE_WAIT_SECONDS`) 다시 확인하게 고쳤다. 고치기 전에는 다음 배포 때 멀쩡한 새 버전이 스모크 실패로 되돌려질 수 있었다. 첫 배포는 다시 돌린 스모크가 통과해 현재 배포로 기록했다.
+- 배운 점: 서비스 발견(Eureka)을 거치는 구조에서는 "컨테이너 healthy"와 "Gateway가 찾을 수 있음" 사이에 시간이 있다. 배포 확인은 실제 진입점으로, 기다리는 시간을 두고 한다.

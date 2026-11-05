@@ -24,7 +24,9 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('heading', { name: '내 정보' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/me')
-    expect(await screen.findByText(DEMO_USER.email)).toBeInTheDocument()
+    expect(
+      await within(await screen.findByRole('main')).findByText(DEMO_USER.email),
+    ).toBeInTheDocument()
   })
 
   it('비어 있거나 형식이 틀리면 요청을 보내지 않고 칸 아래에 알린다', async () => {

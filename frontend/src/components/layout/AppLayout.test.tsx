@@ -1,10 +1,13 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { routes } from '@/app/routes'
+import { bleedLayoutHandle } from '@/app/pageLayout'
+import { AppLayout } from '@/components/layout/AppLayout'
+import { HeaderSlot } from '@/components/layout/HeaderSlot'
 import { sessionStore } from '@/auth/session'
 import { enableDemoMode } from '@/demo/demoMode'
 import { mockServer } from '@/mocks/server'
@@ -19,13 +22,16 @@ describe('AppLayout', () => {
     expect(screen.queryByRole('button', { name: '로그아웃' })).not.toBeInTheDocument()
   })
 
-  it('로그인 뒤에는 내 예매·내 정보 링크와 로그아웃 버튼을 보인다', async () => {
+  it('로그인 뒤에는 헤더에 내 예매·내 정보 링크와 로그아웃 버튼을 보인다', async () => {
     await signInAsDemo()
     renderRoutes(routes, '/')
 
-    expect(screen.getByRole('link', { name: '내 예매' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '내 정보' })).toHaveAttribute('href', '/me')
-    expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument()
+    // 사이트 아래 정보에도 같은 이름의 바로가기가 있어 헤더의 주 메뉴 안에서 찾는다
+    const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }))
+    expect(menu.getByRole('link', { name: '내 예매' })).toHaveAttribute('href', '/me/reservations')
+    expect(menu.getByRole('link', { name: '내 정보' })).toHaveAttribute('href', '/me')
+    expect(menu.getByRole('button', { name: '로그아웃' })).toBeInTheDocument()
+    expect(menu.queryByRole('link', { name: '회원가입' })).not.toBeInTheDocument()
   })
 
   it('헤더의 로그인 링크는 지금 보는 화면을 돌아갈 곳으로 넘긴다', async () => {
@@ -126,6 +132,95 @@ describe('AppLayout', () => {
     expect(screen.queryByRole('list', { name: '예매 단계' })).not.toBeInTheDocument()
   })
 
+  it('로그아웃 상태에서는 로그인 옆에 회원가입 링크가 있다', () => {
+    renderRoutes(routes, '/')
+
+    const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }))
+    expect(menu.getByRole('link', { name: '회원가입' })).toHaveAttribute('href', '/signup')
+    expect(menu.getByRole('link', { name: '로그인' })).toBeInTheDocument()
+  })
+
+  it('공연 목록과 공연 상세에서는 헤더의 공연 링크에 밑줄을 긋고, 다른 화면에서는 긋지 않는다', async () => {
+    const underline = 'after:h-0.5'
+    const home = renderRoutes(routes, '/')
+    const homeLink = within(screen.getByRole('navigation', { name: '둘러보기' })).getByRole(
+      'link',
+      {
+        name: '공연',
+      },
+    )
+    expect(homeLink.className).toContain(underline)
+    // 목록에서만 현재 화면으로 표시한다(NavLink)
+    expect(homeLink).toHaveAttribute('aria-current', 'page')
+
+    await act(() => home.router.navigate('/concerts/7'))
+    const detailLink = within(screen.getByRole('navigation', { name: '둘러보기' })).getByRole(
+      'link',
+      {
+        name: '공연',
+      },
+    )
+    expect(detailLink.className).toContain(underline)
+    expect(detailLink).not.toHaveAttribute('aria-current')
+
+    await act(() => home.router.navigate('/no-such-page'))
+    const otherLink = within(screen.getByRole('navigation', { name: '둘러보기' })).getByRole(
+      'link',
+      {
+        name: '공연',
+      },
+    )
+    expect(otherLink.className).not.toContain(underline)
+  })
+
+  it('홈과 다른 일반 화면에는 사이트 아래 정보가 있다', async () => {
+    const { router } = renderRoutes(routes, '/')
+
+    const footer = screen.getByRole('contentinfo')
+    expect(within(footer).getByRole('navigation', { name: '바로가기' })).toBeInTheDocument()
+    expect(within(footer).getByRole('link', { name: 'GitHub 저장소' })).toBeInTheDocument()
+
+    await act(() => router.navigate('/no-such-page'))
+
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+  })
+
+  it('예매 흐름 화면에서는 사이트 아래 정보와 둘러보기 메뉴를 두지 않는다', async () => {
+    await signInAsDemo()
+    renderRoutes(routes, '/schedules/31/queue')
+
+    await screen.findByRole('list', { name: '예매 단계' })
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: '둘러보기' })).not.toBeInTheDocument()
+  })
+
+  it('경로가 폭을 스스로 정하면(bleed) 본문을 가운데 상자에 넣지 않는다', () => {
+    const layoutRoutes: RouteObject[] = [
+      {
+        element: <AppLayout />,
+        children: [{ path: '/wide', element: <main>넓은 화면</main>, handle: bleedLayoutHandle }],
+      },
+    ]
+
+    renderRoutes(layoutRoutes, '/wide')
+
+    expect(screen.getByRole('main').parentElement).not.toHaveClass('max-w-[1200px]')
+    expect(screen.getByRole('main').parentElement).not.toHaveClass('mx-auto')
+  })
+
+  it('경로 handle이 없으면 본문을 가운데 정렬 상자(최대 1200px)에 넣는다', () => {
+    const layoutRoutes: RouteObject[] = [
+      {
+        element: <AppLayout />,
+        children: [{ path: '/boxed', element: <main>상자 화면</main> }],
+      },
+    ]
+
+    renderRoutes(layoutRoutes, '/boxed')
+
+    expect(screen.getByRole('main').parentElement).toHaveClass('mx-auto', 'max-w-[1200px]')
+  })
+
   it('워드마크는 제목 요소가 아니라 홈 링크다', () => {
     renderRoutes(routes, '/')
 
@@ -218,5 +313,65 @@ describe('RouteErrorPage', () => {
 
     expect(await screen.findByRole('link', { name: '로그인' })).toBeInTheDocument()
     expect(logoutRequests).toHaveLength(1)
+  })
+})
+
+describe('AppLayout 헤더 자리', () => {
+  const slotOf = (header: HTMLElement) =>
+    header.querySelector<HTMLElement>('div[class*="empty:hidden"]')!
+
+  const slotRoutes: RouteObject[] = [
+    {
+      element: <AppLayout />,
+      children: [
+        {
+          path: '/with-slot',
+          element: (
+            <main>
+              <h1>채우는 화면</h1>
+              <HeaderSlot>
+                <span>헤더에 넣은 내용</span>
+              </HeaderSlot>
+            </main>
+          ),
+        },
+        { path: '/without-slot', element: <h1>비우는 화면</h1> },
+      ],
+    },
+  ]
+
+  it('화면이 HeaderSlot으로 넣은 내용은 본문이 아니라 header 안에 보인다', async () => {
+    renderRoutes(slotRoutes, '/with-slot')
+
+    const header = screen.getByRole('banner')
+    const content = await within(header).findByText('헤더에 넣은 내용')
+    expect(slotOf(header)).toContainElement(content)
+    expect(within(screen.getByRole('main')).queryByText('헤더에 넣은 내용')).not.toBeInTheDocument()
+  })
+
+  it('화면이 채우지 않으면 자리가 비어 있다', () => {
+    renderRoutes(slotRoutes, '/without-slot')
+
+    expect(slotOf(screen.getByRole('banner'))).toBeEmptyDOMElement()
+  })
+
+  it('화면을 옮기면 이전 화면이 넣은 내용을 치운다', async () => {
+    const { router } = renderRoutes(slotRoutes, '/with-slot')
+    await screen.findByText('헤더에 넣은 내용')
+
+    await act(() => router.navigate('/without-slot'))
+
+    expect(screen.queryByText('헤더에 넣은 내용')).not.toBeInTheDocument()
+    expect(slotOf(screen.getByRole('banner'))).toBeEmptyDOMElement()
+  })
+
+  it('AppLayout 밖에서 그리면 아무것도 그리지 않는다', () => {
+    render(
+      <HeaderSlot>
+        <span>갈 곳 없는 내용</span>
+      </HeaderSlot>,
+    )
+
+    expect(screen.queryByText('갈 곳 없는 내용')).not.toBeInTheDocument()
   })
 })

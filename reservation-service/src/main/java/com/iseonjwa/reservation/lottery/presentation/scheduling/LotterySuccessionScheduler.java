@@ -7,8 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 승계 워커(1초)와 승계 마감(10초, details.md 4절). 인스턴스마다 돌아도 안전하다.
- * 승계는 추첨 행 잠금으로, 마감은 조건부 UPDATE로 한 번만 반영된다.
+ * 승계는 추첨 행 잠금으로, 마감은 조건부 UPDATE로 한 번만 반영되어 인스턴스마다 돌아도 안전한 승계 워커(1초)와 승계 마감(10초, details.md 4절).
  */
 @Slf4j
 @Component
@@ -24,7 +23,7 @@ public class LotterySuccessionScheduler {
     // 한 추첨이 실패해도 다른 추첨의 승계는 계속한다
     @Scheduled(fixedDelayString = "${lottery.scheduler.succession-interval:1s}")
     public void succeed() {
-        for (var lotteryId : successionService.findSuccessionOpenIds()) {
+        for (Long lotteryId : successionService.findSuccessionOpenIds()) {
             try {
                 int promoted = successionService.succeed(lotteryId);
                 if (promoted > 0) {

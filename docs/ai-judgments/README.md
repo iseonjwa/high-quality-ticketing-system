@@ -43,12 +43,17 @@
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-05-g1-first-then-decide-p4-order.md) |
-| 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
+| 2026-11-05 | 부하 테스트에 대비해 배포 EC2를 flex(m7i-flex.xlarge)에서 같은 크기의 일반 인스턴스(m7i.xlarge)로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-ec2-m7i-standard-for-load-test.md) |
+| 2026-11-05 | 핵심 흐름만 보이던 AI의 화면 구성을 실제 서비스형 레이아웃·그림 에셋으로 바꾸게 함(ISE-187) | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-05-frontend-service-like-layout.md) |
+| 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
 | 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | kwonwoo | Claude Code | 거부 | 후보 | [기록](kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
+| 2026-11-04 | 지출 한도로 멈춘 배포·Jenkins 서버를 한도를 올려 살리되, 그 시점을 다음 날(11/5)로 미룸 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-spend-limit-raise-tomorrow.md) |
+| 2026-11-04 | ISE-150 리뷰 지적 11건을 이번 PR 수정, 담당자 확인, 후속으로 나눔 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-04-ise-150-review-triage.md) |
 | 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-04-single-ec2-then-review-managed.md) |
 | 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-deploy-ec2-16gb-paid-plan.md) |
 | 2026-11-04 | M3 배포 순서(173·178 → 176 → 174·177 → 175)를 받아들이고 프론트 nginx(ISE-109)를 M4에서 M3로 당겨 이미지 워크플로(ISE-173)와 함께 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-m3-deploy-order-with-ise109.md) |
 | 2026-11-04 | 배포용 AWS 계정 운영: 시드니 리전 유지(서울 전환 안 함), 팀원은 각자 SSH 키와 IP로 접속하고 콘솔 초대는 필요한 사람만 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-aws-region-and-team-access.md) |
+| 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
 | 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | junhyun | Claude Code | 부분 수용 | 후보 | [기록](junhyun/2026-11-03-deploy-observability-loadtest-design.md) |
 | 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
 | 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-reconciliation-rc5-rc6-approved-only.md) |

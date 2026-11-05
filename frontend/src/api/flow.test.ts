@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
-import { logout } from '@/api/auth'
+import { createSchedule, createScheduleSeats } from '@/api/admin'
+import { createLottery } from '@/api/adminLotteries'
+import { resetUserPassword } from '@/api/adminUsers'
+import { changePassword, login, logout } from '@/api/auth'
+import { registerBillingKey } from '@/api/billingKeys'
 import { getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
 import { describeError } from '@/api/errorMessages'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { approvePayment, getPayment } from '@/api/payments'
+import { cancelEntry, enterLottery, getLottery, getMyEntry } from '@/api/lotteries'
 import { getQueuePosition, issueEntryToken, joinQueue } from '@/api/queue'
 import { getMyReservations, getReservation, holdSeats, type SeatHold } from '@/api/reservations'
 import { readEntryToken } from '@/auth/entryTokens'
 import { sessionStore } from '@/auth/session'
+import { DEMO_USER, mockDb } from '@/mocks/db'
 import { setMockScenario } from '@/mocks/scenario'
 import {
   admitTo,
@@ -18,8 +24,10 @@ import {
   SEAT_A1,
   SEAT_A2,
   SEAT_A3,
+  signInAsAdmin,
   signInAsDemo,
 } from '@/test/api'
+import { DAY, HOUR, iso, kstTimeAfterDays } from '@/test/adminLotteries'
 
 // 화면 없이 MSW 목만으로 일반 예매 흐름(SA 2-4)과 실패 분기를 확인한다.
 
@@ -144,6 +152,32 @@ describe('일반 예매 흐름', () => {
       expired: false,
     })
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('로그아웃하면 모든 회차의 저장한 선점 좌석도 지우고 다른 저장값은 둔다', async () => {
+    await signInAsDemo()
+    sessionStorage.setItem('iseonjwa.heldSeats.31', '{}')
+    sessionStorage.setItem('iseonjwa.heldSeats.32', '{}')
+    sessionStorage.setItem('unrelated', 'keep')
+
+    await logout()
+
+    expect(sessionStorage.getItem('iseonjwa.heldSeats.31')).toBeNull()
+    expect(sessionStorage.getItem('iseonjwa.heldSeats.32')).toBeNull()
+    expect(sessionStorage.getItem('unrelated')).toBe('keep')
+  })
+
+  it('로그아웃하면 저장한 결제 시도(결제 토큰·멱등키)도 지우고 다른 저장값은 둔다', async () => {
+    await signInAsDemo()
+    sessionStorage.setItem('iseonjwa.paymentAttempt.1001', '{}')
+    sessionStorage.setItem('iseonjwa.paymentAttempt.1002', '{}')
+    sessionStorage.setItem('unrelated', 'keep')
+
+    await logout()
+
+    expect(sessionStorage.getItem('iseonjwa.paymentAttempt.1001')).toBeNull()
+    expect(sessionStorage.getItem('iseonjwa.paymentAttempt.1002')).toBeNull()
+    expect(sessionStorage.getItem('unrelated')).toBe('keep')
   })
 })
 
@@ -288,5 +322,119 @@ describe('실패 재현 스위치', () => {
 
     const retry = await rejectionOf(approvePayment(body, newIdempotencyKey()))
     expect(retry.code).toBe('PAYMENT_ALREADY_CLOSED')
+  })
+})
+
+describe('추첨 흐름', () => {
+  it('응모 중인 추첨 1번: 추첨 정보 → 응모 → 내 응모 → 취소 → 재응모 거절', async () => {
+    await signInAsDemo()
+
+    const lottery = await getLottery(1)
+    expect(lottery.status).toBe('OPEN')
+    await expect(getMyEntry(1)).resolves.toBeNull()
+
+    const key = newIdempotencyKey()
+    const entry = await enterLottery(1, 2, key)
+    expect(entry).toMatchObject({ status: 'ENTERED', quantity: 2, drawRank: null })
+    await expect(getMyEntry(1)).resolves.toEqual(entry)
+
+    await expect(cancelEntry(1)).resolves.toMatchObject({ status: 'CANCELED' })
+    await expect(getMyEntry(1)).resolves.toMatchObject({ status: 'CANCELED' })
+    const reentry = await rejectionOf(enterLottery(1, 2, newIdempotencyKey()))
+    expect(reentry.code).toBe('LOTTERY_ALREADY_ENTERED')
+  })
+
+  it('추첨 완료 3번: 카드를 등록해 두면 처음 WON → PAID가 되고 그 예매는 티켓이 나온 확정 예매다', async () => {
+    await signInAsDemo()
+    await registerBillingKey('demo-1')
+
+    const won = await getMyEntry(3)
+    expect(won).toMatchObject({ status: 'WON', drawRank: 1 })
+    const reservationId = won!.reservationId!
+    // 당첨 직후의 예매는 결제 대기다
+    expect((await getReservation(reservationId)).status).toBe('HELD')
+
+    const paid = await getMyEntry(3)
+    expect(paid).toMatchObject({ status: 'PAID', reservationId })
+    const reservation = await getReservation(reservationId)
+    expect(reservation.status).toBe('CONFIRMED')
+    expect(reservation.tickets).toHaveLength(1)
+    expect((await getMyReservations({ page: 0, size: 20 })).content[0]).toMatchObject({
+      reservationId,
+      status: 'CONFIRMED',
+    })
+  })
+})
+
+describe('운영자 흐름', () => {
+  it('운영자가 새 회차에 좌석을 만들고 추첨을 설정하면 사용자가 그 추첨에 응모한다', async () => {
+    await signInAsAdmin()
+    const now = Date.now()
+    const { scheduleId } = await createSchedule(CONCERT_ID, {
+      venueId: 1,
+      startsAt: iso(now + 30 * DAY),
+      openAt: iso(now + 2 * DAY),
+    })
+    await createScheduleSeats(scheduleId, [
+      { grade: 'VIP', price: 165000 },
+      { grade: 'R', price: 132000 },
+      { grade: 'S', price: 99000 },
+    ])
+    const lottery = await createLottery(scheduleId, {
+      sourceGrade: 'VIP',
+      seatCount: 4,
+      waitlistCount: 2,
+      maxPerEntry: 2,
+      entryStartAt: iso(now + DAY),
+      entryEndAt: iso(now + 2 * DAY - HOUR),
+      drawAt: iso(kstTimeAfterDays(3, 4)),
+    })
+    expect(lottery).toMatchObject({ status: 'OPEN', warnings: [] })
+    // 추첨석으로 뗀 만큼 그 회차의 VIP 좌석이 팔 수 없는 상태가 된다
+    const seats = mockDb.seats.filter((seat) => seat.scheduleId === scheduleId)
+    expect(seats.filter((seat) => seat.grade === 'VIP' && !seat.available)).toHaveLength(4)
+
+    // 응모 시작 시각이 지났다고 보고 사용자가 응모한다
+    mockDb.lotteries.find((item) => item.lotteryId === lottery.lotteryId)!.entryStartAtMillis =
+      now - 1000
+    await logout()
+    await signInAsDemo()
+    const info = await getLottery(lottery.lotteryId)
+    expect(info).toMatchObject({ scheduleId, status: 'OPEN', seatCount: 4 })
+    const entry = await enterLottery(lottery.lotteryId, 2, newIdempotencyKey())
+    expect(entry).toMatchObject({ lotteryId: lottery.lotteryId, status: 'ENTERED', quantity: 2 })
+    await expect(getMyEntry(lottery.lotteryId)).resolves.toEqual(entry)
+  })
+
+  it('운영자가 회원 비밀번호를 초기화하면 그 회원은 임시 비밀번호로 로그인하지 못하고 비밀번호를 바꿔야 한다', async () => {
+    await signInAsAdmin()
+    const { temporaryPassword } = await resetUserPassword(42)
+    await logout()
+
+    const blocked = await rejectionOf(
+      login({ email: DEMO_USER.email, password: temporaryPassword }),
+    )
+    expect([blocked.status, blocked.code]).toEqual([403, 'PASSWORD_CHANGE_REQUIRED'])
+
+    await changePassword({
+      email: DEMO_USER.email,
+      currentPassword: temporaryPassword,
+      newPassword: 'new-password-1234',
+    })
+    await login({ email: DEMO_USER.email, password: 'new-password-1234' })
+    expect(sessionStore.getState().accessToken).not.toBeNull()
+  })
+})
+
+describe('추첨 당첨 자동결제는 카드가 정한다', () => {
+  it('카드를 등록하지 않으면 당첨이 FAILED(BILLING_KEY_MISSING)로 넘어가고 예매는 풀린다', async () => {
+    await signInAsDemo()
+
+    const won = await getMyEntry(3)
+    const failed = await getMyEntry(3)
+
+    expect(won?.status).toBe('WON')
+    expect(failed).toMatchObject({ status: 'FAILED', failReason: 'BILLING_KEY_MISSING' })
+    expect((await getReservation(won!.reservationId!)).status).toBe('RELEASED')
   })
 })
