@@ -14,9 +14,11 @@
 | `compose.g1.yml` | 위 파일에 얹어 reservation-service의 GC를 G1으로 고정하고 GC 로그를 컨테이너 `/tmp/gc.log`에 남긴다. P0'' 이후 단계의 기본 환경 |
 | `compose.b8-observe.yml` | B8(과부하 뒤 회복) 측정용. Tomcat MBean 지표와 요청 지연 1초·3초 경계 버킷을 켠다. 동작은 바꾸지 않는다 |
 | `compose.b8-r1.yml` / `compose.b8-r123.yml` | B8 대응 R1(커넥션 대기 1초), R2·R3(요청 스레드 50, 연결 상한 200, OS 대기열 50) 측정용 |
+| `compose.b8-r13.yml` | R3 재측정용(연결 상한 30, OS 대기열 10, 스레드 기본값). `compose.b8-r1.yml` 위에 얹는다 |
 | `tools/b8-run.sh` | B8 한 회: reservation-service를 덮어쓰기로 새로 띄우고 새 회차에 K1 + 회복 탐침(`RECOVERY_SECONDS`)을 건 뒤 지표를 모은다 |
 | `tools/create-schedule.sh` | 측정용 새 회차(판매 중, 15,000석)를 만들고 회차 ID만 출력한다. 관리자 계정은 `.env`에서 읽고 출력하지 않는다 |
 | `tools/b8_metrics.py` | Prometheus에서 Tomcat·Hikari·좌석 조회 지표를 10초 간격 CSV와 판정용 요약으로 꺼낸다 |
+| `tools/b8_k6.py` | k6 원자료에서 사용자 쪽 좌석 조회·선점 상태별 건수와 오류 응답 p50·p95를 센다 |
 | `data/users.csv` | 사용자 토큰(직접 준비, 커밋 금지) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력(커밋 금지) |
 
