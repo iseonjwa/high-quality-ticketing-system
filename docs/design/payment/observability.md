@@ -25,7 +25,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | DLQ | `dead_letter_open_count`, `dead_letter_open_oldest_seconds` | Gauge | `topic`(원본 토픽) |
 | DLQ | 컨슈머 랙 | Kafka 클라이언트 제공 지표 | 그룹 |
 | 대사 | `reconciliation_mismatch_open` | Gauge | `rule`(RC-1~RC-8). `DbAggregateGauges`가 `gauge-refresh`마다 `OPEN` 건수를 세고 여덟 규칙을 늘 0으로 보인다(ISE-167, `DbAggregateGaugesTest`) |
-| 작업 | `payment_job_last_success_timestamp`, `payment_job_failures_total` | Gauge(epoch 초), Counter | `job`(recheck·refund-worker·outbox-cleanup·processed-events-cleanup·idempotency-cleanup·gauge-refresh·reconciliation) |
+| 작업 | `payment_job_last_success_timestamp`, `payment_job_failures_total` | Gauge(epoch 초), Counter | `task`(recheck·refund-worker·outbox-cleanup·processed-events-cleanup·idempotency-cleanup·gauge-refresh·reconciliation) |
 | DB 연결 | Hikari 대기 수, 연결 대기 시간 초과 | 제공 지표 사용 | 풀 이름 |
 | Ops | `payment_ops_actions` | Gauge(누적 건수) | `command`, `result`(`APPLIED`·`REJECTED`) |
 
@@ -36,7 +36,8 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - 승인 결과별 건수는 별도 Counter(`payment_approve_total`)가 아니라 `payment_approve_seconds_count{outcome}`로 본다. `outcome`에 `unavailable`(승인 허가 거절 503)과 `error`(그 밖의 예외)를 더했다.
 - 이름이 `payment_approve_duration`·`payment_pg_call_duration`에서 `..._seconds_*`로 바뀌었다(Micrometer Timer의 Prometheus 이름).
 - 전이 충돌 이름이 `payment_transition_conflict_total`로 같고 `operation`의 `ops`는 Ops 명령 구현 이슈(ISE-159·160) 때 더한다. 이전 초안의 `dlq_handler_failures_total`은 `payment_dlq_handler_failures_total`이다.
-- `payment_job_*`의 `job` 값은 등록된 작업 이름이다(초안의 `outbox_relay`·`payment_recheck`·`refund_worker`·`cleanup`·`gauge_refresh`·`reconciliation`을 대체). Outbox 릴레이는 결제 공통 작업 실행기가 아니라 common의 전용 실행기라 `payment_job_*`가 아니라 `outbox_relay_*`로 따로 남긴다. `cleanup` 하나였던 값은 정리 작업 셋의 이름으로 나뉜다. `reconciliation`은 ISE-167에서 더했다.
+- 작업 이름 라벨은 `job`이 아니라 `task`다. `job`은 Prometheus 수집 작업 라벨과 겹쳐 `exported_job`으로 바뀌므로 지표 태그에 `job`·`instance`를 쓰지 않는다(ISE-195, `PrometheusNamesTest`가 확인한다).
+- `payment_job_*`의 `task` 값은 등록된 작업 이름이다(초안의 `outbox_relay`·`payment_recheck`·`refund_worker`·`cleanup`·`gauge_refresh`·`reconciliation`을 대체). Outbox 릴레이는 결제 공통 작업 실행기가 아니라 common의 전용 실행기라 `payment_job_*`가 아니라 `outbox_relay_*`로 따로 남긴다. `cleanup` 하나였던 값은 정리 작업 셋의 이름으로 나뉜다. `reconciliation`은 ISE-167에서 더했다.
 - PG 호출의 `operation`에 `approve_billing`·`issue_billing_key`를 더했다. 자동결제(빌링키)도 같은 PG 클라이언트를 지나므로 지표 구멍이 되지 않게 했다.
 - 건수 Gauge의 `_count` 접미사는 Prometheus 클라이언트가 거부하지 않아 목표 이름 그대로 쓴다(`payment_unknown_count` 등).
 - `resilience4j_*`의 정확한 이름 목록은 Resilience4j 2.3.0 `Tagged*Metrics`가 정한다. 직접 만들지 않았다.
@@ -49,7 +50,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 - **금액 불일치**: 판단하는 모든 곳에서 올린다. 승인 TX2는 `approve`, 재확인은 `find_payment`와 `prevent_late_approval`, 환불 워커는 `refund`와 `find_refund`다.
 - **전이 충돌**: 경로(`operation`)를 아는 호출한 유스케이스가 반환값 false(조건부 UPDATE 0행)를 받아 센다. `PaymentTransitionService`는 경로를 모르므로 세지 않는다. `tx2`는 승인 API와 자동결제의 TX2, `recheck`는 결제 재확인, `refund_worker`는 환불 워커(환불·결제 전이)다. `consumer`·`dlq`는 이름만 정했고 지금은 올리는 곳이 없다(소비자와 DLQ 처리기에는 조건부 UPDATE가 없다. 중복 판단은 UNIQUE와 `ON CONFLICT`가 한다).
 - **Resilience4j**: CB와 Bulkhead를 `CircuitBreakerRegistry`·`BulkheadRegistry`에 두 그룹 이름으로 등록하고 `TaggedCircuitBreakerMetrics`·`TaggedBulkheadMetrics`(`MeterBinder` 빈)로 묶는다. 지표를 직접 만들지 않았다. `resilience4j-micrometer` 버전은 `resilience4j-bom`(spring-cloud-dependencies)이 정한다(2.3.0).
-- **DB 집계 Gauge**: `DbAggregateGauges.refresh()`가 테이블마다 쿼리 하나(`FILTER`)로 읽어 메모리 스냅숏을 바꾸고 Gauge는 스냅숏을 읽는다. `housekeeping` 실행기의 `gauge-refresh` 작업이 기동 직후 한 번 바로 돌고(첫 지연 0) 이후 15초마다 돈다. 설정은 `payment.metrics.gauge-refresh.{enabled(true), interval(15s)}`이고 `payment.housekeeping.enabled`와 따로다(테스트 프로필은 끈다). 쿼리가 하나라도 실패하면 스냅숏을 바꾸지 않고 예외를 던져 이전 값이 남고 `payment_job_failures_total{job="gauge-refresh"}`가 오른다. 한 번 본 `dead_letters` 토픽은 해결된 뒤에도 0으로 남는다.
+- **DB 집계 Gauge**: `DbAggregateGauges.refresh()`가 테이블마다 쿼리 하나(`FILTER`)로 읽어 메모리 스냅숏을 바꾸고 Gauge는 스냅숏을 읽는다. `housekeeping` 실행기의 `gauge-refresh` 작업이 기동 직후 한 번 바로 돌고(첫 지연 0) 이후 15초마다 돈다. 설정은 `payment.metrics.gauge-refresh.{enabled(true), interval(15s)}`이고 `payment.housekeeping.enabled`와 따로다(테스트 프로필은 끈다). 쿼리가 하나라도 실패하면 스냅숏을 바꾸지 않고 예외를 던져 이전 값이 남고 `payment_job_failures_total{task="gauge-refresh"}`가 오른다. 한 번 본 `dead_letters` 토픽은 해결된 뒤에도 0으로 남는다.
 - **나이 기준 시각**: 나이는 갱신 시각의 시계에서 기준 시각을 뺀 초이고 행이 없으면 0이다. `REQUESTED`·`UNKNOWN` 결제, 환불 대기, Outbox `PENDING`, `dead_letters OPEN`은 `created_at`(돈이 확정되지 않은 채 남은 시간), `NEEDS_MANUAL_CHECK` 결제·환불은 `updated_at`(수동 확인으로 들어간 시각)이다. 자동 경로에는 NMC 행을 제자리에서 고치는 코드가 없다(모든 UPDATE가 `status = from` 조건이고 NMC는 도착 상태일 뿐이다). 예외는 Ops `payment resolve`가 금액 불일치 환불을 시작할 때다(ISE-159). NMC 결제에 PG 거래 정보를 채우며 `updated_at`이 바뀌므로 그 결제의 나이는 환불을 시작한 시각부터 다시 센다. 운영자가 손을 댄 뒤라 장기 미해결 경고를 다시 세는 것이 맞다고 봤다. ISE-158의 `inspect`·`outbox requeue`는 결제·환불 행을 바꾸지 않는다. 재시도 중 Outbox 건수는 `PENDING`이면서 `attempts > 0`이다.
 - **인덱스(EXPLAIN)**: 결제 `idx_payments_unsettled_created_at`, 환불 `idx_refunds_unsettled_created_at`, `dead_letters` `idx_dead_letters_open_created_at`을 탄다(결제 20만·Outbox SENT 30만 행 규모에서 Index Scan, 실행 0.02~0.04ms). Outbox는 조건을 `IN ('PENDING','FAILED')`로 쓰면 어느 부분 인덱스에도 맞지 않아 SENT가 쌓인 테이블 전체를 순차로 읽었다(12.7ms). `status = 'PENDING' OR status = 'FAILED'`로 쓰면 `idx_outbox_events_pending_id`와 `idx_outbox_events_failed_message_key`의 BitmapOr가 되어 두 상태의 행만 읽는다(0.06ms). 그래서 새 마이그레이션은 없다. `PENDING`이 크게 쌓이면(브로커 장애) 그만큼 행을 읽는다.
 - **Outbox 릴레이 지표**: common의 `OutboxMetrics`가 `outbox_relay_last_success_timestamp`, `outbox_relay_failures_total`, `outbox_events_failed_total`을 남긴다. Micrometer는 common에서 `compileOnly`고 `MeterRegistry` 빈이 없으면 지표 없이 동작한다. "마지막 성공"은 라운드 반복이 예외 없이 끝난 시각이다. Kafka가 죽어 전송이 실패해도 라운드는 정상으로 끝나므로 이 값은 계속 갱신된다. 즉 릴레이 스레드가 살아서 돌고 있다는 신호일 뿐이고, 브로커 장애와 발행 지연은 `outbox_pending_oldest_seconds`가 잡는다. 두 작업 지표의 마지막 성공 시각은 기동 시각으로 시작한다(첫 주기 전에 정체 알림이 울리지 않게 하고, 한 번도 성공하지 못한 작업은 기준 시간이 지나면 정체로 보이게 한다).
@@ -71,7 +72,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 경고 | 환불 대기 장기 체류 | 최고령 > 30분(심각 2시간) | 같은 문서 5절 |
 | 경고 | PG Circuit Breaker OPEN | `pg-approve` 또는 `pg-recovery` OPEN | 같은 문서 5절 |
 | 경고 | Outbox 발행 지연 | `PENDING` 최고령 > 5분(심각 30분) | 같은 문서 4절 |
-| 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`job="gauge-refresh"` 1분, `job="recheck"`·`"refund-worker"` 2분, `job="reconciliation"` 15분(ISE-167), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
+| 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`task="gauge-refresh"` 1분, `task="recheck"`·`"refund-worker"` 2분, `task="reconciliation"` 15분(ISE-167), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
 | 경고 | DB 연결 대기 초과 | Hikari 연결 대기 시간 초과 증가 | 같은 문서 7절 |
 
 - 즉시 확인은 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태다. 경고는 자동 복구가 아직 진행 중이지만 늦어지는 상태다.

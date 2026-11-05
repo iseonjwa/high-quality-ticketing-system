@@ -24,10 +24,9 @@
 {{ template "iseonjwa.slack.title" . }}: {{ (index .Alerts 0).Annotations.summary }}
 {{- end }}
 
-{{/* 같은 이름의 알림을 가르는 라벨(rule, topic, operation, pool, job 등). 묶음 공통 라벨과 수집 라벨은 뺀다. */}}
+{{/* 같은 이름의 알림을 가르는 라벨(rule, topic, operation, pool, task 등). 묶음 공통 라벨과 수집 라벨은 뺀다. */}}
 {{ define "iseonjwa.labels" -}}
 {{ range .Labels.SortedPairs }}{{ if not (match "^(alertname|service|severity|urgency|env|application|instance|job)$" .Name) }} `{{ .Name }}={{ .Value }}`{{ end }}{{ end }}
-{{- if and .Labels.job (ne .Labels.job "spring") }} `job={{ .Labels.job }}`{{ end }}
 {{- end }}
 
 {{/* runbook 주석("docs/... N절")을 GitHub 문서 링크로 바꾼다. */}}

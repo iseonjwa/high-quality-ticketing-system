@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Component
 public class PaymentMetrics {
+    // Note: "job"은 Prometheus 수집 작업 라벨과 겹쳐 exported_job으로 바뀌고 job은 수집 작업 이름(spring)이 된다(ISE-195)
+    private static final String TASK_TAG = "task";
     private static final Duration APPROVE_MIN = Duration.ofMillis(1);
     private static final Duration APPROVE_MAX = Duration.ofSeconds(30);
 
@@ -124,7 +126,7 @@ public class PaymentMetrics {
             var value = new AtomicLong(startedAt.getEpochSecond());
             Gauge.builder("payment.job.last.success.timestamp", value, AtomicLong::get)
                     .description("작업 주기가 예외 없이 끝난 마지막 시각(epoch 초)")
-                    .tag("job", key)
+                    .tag(TASK_TAG, key)
                     .register(registry);
             return value;
         });
@@ -143,7 +145,7 @@ public class PaymentMetrics {
     private Counter jobFailureCounter(String job) {
         return jobFailures.computeIfAbsent(job, key -> Counter.builder("payment.job.failures")
                 .description("작업 주기가 예외로 끝난 수")
-                .tag("job", key)
+                .tag(TASK_TAG, key)
                 .register(registry));
     }
 
