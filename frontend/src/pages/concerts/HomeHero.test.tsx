@@ -162,6 +162,28 @@ describe('HomeHero 넘기기', () => {
   })
 })
 
+describe('HomeHero 배너 그림 받기', () => {
+  // 장 안의 배너 그림(포스터 그림은 data-slot="concert-poster" 안에 있어 뺀다)
+  const artOf = (slide: HTMLElement) =>
+    Array.from(slide.querySelectorAll('img')).filter(
+      (img) => img.closest('[data-slot="concert-poster"]') === null,
+    )
+
+  it('처음에는 보이는 장과 다음 장의 배너 그림만 받고, 넘기면 그다음 장 그림을 받는다', async () => {
+    const user = renderHero([...THREE, onSale(4, 6 * DAY)])
+    expect(slides().map((slide) => artOf(slide).length)).toEqual([1, 1, 0, 0])
+    // 첫 장 그림만 먼저 받는다
+    expect(artOf(slides()[0])[0]).toHaveAttribute('fetchpriority', 'high')
+
+    await user.click(screen.getByRole('button', { name: '다음 공연' }))
+    expect(slides().map((slide) => artOf(slide).length)).toEqual([1, 1, 1, 0])
+
+    // 한 번 받은 그림은 장을 떠나도 남긴다(사라졌다 다시 받지 않는다)
+    await user.click(screen.getByRole('button', { name: '이전 공연' }))
+    expect(slides().map((slide) => artOf(slide).length)).toEqual([1, 1, 1, 0])
+  })
+})
+
 describe('HomeHero 자동 넘김', () => {
   it('7초마다 다음 장으로 넘기고 끝에서는 처음으로 돌아온다', () => {
     renderHero(THREE)
