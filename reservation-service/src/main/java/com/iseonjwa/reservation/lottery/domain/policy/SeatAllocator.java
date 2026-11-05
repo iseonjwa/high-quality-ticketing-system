@@ -1,6 +1,6 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.policy;
 
-import com.iseonjwa.reservation.lottery.domain.LotterySeat.SeatPosition;
+import com.iseonjwa.reservation.lottery.domain.policy.LotterySeat.SeatPosition;
 
 import java.util.ArrayList;
 import java.util.Comparator;

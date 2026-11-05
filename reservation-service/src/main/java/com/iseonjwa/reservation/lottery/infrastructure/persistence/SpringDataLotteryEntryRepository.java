@@ -1,6 +1,6 @@
 package com.iseonjwa.reservation.lottery.infrastructure.persistence;
 
-import com.iseonjwa.reservation.lottery.domain.LotteryEntry;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

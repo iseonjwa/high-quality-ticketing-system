@@ -14,7 +14,7 @@ flowchart LR
   JK -->|이미지 존재 확인| GHCR
   JK -->|SSH 키 인증<br/>.env·compose 반영, pull, up -d| DEPLOY[배포 EC2<br/>docker compose]
   DEPLOY -->|pull| GHCR
-  JK -->|결과| SL[슬랙 #이선좌-배포상태알림]
+  JK -->|준비·배포 중·결과| SL[슬랙 #이선좌-배포상태알림]
   USER[사용자 브라우저] -->|80| DEPLOY
 ```
 
@@ -31,7 +31,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 5. 배포 EC2에 SSH로 접속해 `.env`와 compose 파일을 반영하고 `docker compose pull`, `up -d`를 실행한다.
 6. 헬스를 기다린다(Gateway 경유와 각 컨테이너의 readiness).
 7. 스모크 테스트를 돈다.
-8. 결과를 슬랙 #이선좌-배포상태알림에 보낸다.
+8. 슬랙 #이선좌-배포상태알림에 단계마다 알린다: 배포 준비, 배포 중, 결과 순이다(ISE-175).
 9. 헬스나 스모크가 실패하면 직전 성공 태그로 되돌린다.
 
 스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 15,000석을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
@@ -182,17 +182,18 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | `infra/jenkins/compose.yml` | Jenkins EC2용. `127.0.0.1:8080`, `jenkins_home` 볼륨, `mem_limit` 1200m, `-Xmx768m`, `restart: unless-stopped`, 로그 20MB×5 |
 | `Jenkinsfile` | 파이프라인(아래) |
 
-**잡 흐름**: 폴링(`POLL_SCHEDULE`, 서버 기본 `H/2 * * * *`) → 커밋 정하기 → GHCR 이미지 8개 기다리기 → 배포 서버에 SSH로 `deploy.sh` → 슬랙.
+**잡 흐름**: 폴링(`POLL_SCHEDULE`, 서버 기본 `H/2 * * * *`) → 커밋 정하기 → GHCR 이미지 8개 기다리기 → 배포 서버에 SSH로 `deploy.sh` → 슬랙. 슬랙은 세 번 알린다: 커밋을 정한 직후 `started`(배포 준비), 이미지 8개를 확인하고 SSH 배포를 시작하기 직전 `deploying`(배포 중), 끝나면 결과.
 
 1. 커밋 정하기: 매개변수 `TAG`가 비면 checkout한 main의 HEAD SHA, 있으면 그 40자 SHA(16진이 아니면 실패)를 쓴다. 커밋 제목도 함께 읽는다.
 2. 이미지 기다리기: 8개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend)에 그 SHA 태그가 모두 생길 때까지 30초마다 확인하고 최대 20분 기다린다. 익명 토큰(`https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull`)으로 매니페스트에 HEAD 요청을 보내 200을 본다. 이 방식은 패키지가 공개일 때만 동작한다(아래 "GHCR 패키지 공개"). 아직 올라오지 않은 이미지는 토큰 요청이 403(`DENIED`)으로 끝나는데, 이것도 "없음"으로 센다.
 3. 배포: `sshagent(['deploy-ssh'])` 안에서 `ssh ubuntu@${DEPLOY_HOST} "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach <SHA> && script/deploy/deploy.sh <SHA>"`를 실행한다. 종료 코드 0은 성공, 1은 실패(되돌림 성공), 3은 되돌림도 실패, 그 밖(예: SSH 접속 실패 255)은 오류다.
-4. 슬랙: 결과를 `#이선좌-배포상태알림`에 보낸다. 메시지는 `script/deploy/slack-payload.sh`가 만들고 모양은 Alertmanager 알림(`infra/alertmanager/templates/slack.tmpl`)과 맞췄다(2026-11-04, 처음의 한 줄 메시지는 커밋·직전 버전을 찾기 어려워 바꿨다).
-   - 왼쪽 색 띠와 제목 한 줄: 성공 초록 `[배포 성공] 배포 서버에 새 버전을 올렸습니다`, 되돌림 주황 `[배포 실패] 새 버전이 확인을 통과하지 못해 직전 버전(def5678)으로 되돌렸습니다`, 되돌림도 실패 빨강 `[배포 실패] 배포와 되돌림이 모두 실패했습니다. 서버 확인이 필요합니다`, 이미지 대기 초과 회색 `[배포 중단] …`, 사람이 멈췄거나 40분 제한 회색 `[배포 멈춤] …`, 그 밖 빨강 `[배포 오류] …`. 제목은 GitHub 커밋 페이지로 이어진다.
+4. 슬랙: 단계 알림 둘과 결과를 `#이선좌-배포상태알림`에 보낸다(Jenkinsfile의 `notifySlack`). 이미지를 못 찾아 중단되면 배포 중 알림은 가지 않고 배포 준비 다음에 바로 결과가 간다. 메시지는 `script/deploy/slack-payload.sh`가 만들고 모양은 Alertmanager 알림(`infra/alertmanager/templates/slack.tmpl`)과 맞췄다(2026-11-04, 처음의 한 줄 메시지는 커밋·직전 버전을 찾기 어려워 바꿨다).
+   - 단계 알림: 남색 띠에 `[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다`와 `[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다`다. 직전 버전은 `deploy.sh`가 알려 주므로 이 시점에는 모른다. 그래서 커밋 제목과 필드 둘(커밋, 계기), 꼬리말만 담고 직전 버전·걸린 시간·바뀐 내용·바로 가기는 뺀다.
+   - 결과 알림의 왼쪽 색 띠와 제목 한 줄: 성공 초록 `[배포 성공] 배포 서버에 새 버전을 올렸습니다`, 되돌림 주황 `[배포 실패] 새 버전이 확인을 통과하지 못해 직전 버전(def5678)으로 되돌렸습니다`, 되돌림도 실패 빨강 `[배포 실패] 배포와 되돌림이 모두 실패했습니다. 서버 확인이 필요합니다`, 이미지 대기 초과 회색 `[배포 중단] …`, 사람이 멈췄거나 40분 제한 회색 `[배포 멈춤] …`, 그 밖 빨강 `[배포 오류] …`. 제목은 GitHub 커밋 페이지로 이어진다.
    - 본문: 굵은 커밋 제목, 그리고 짧은 필드 커밋(링크)·직전 버전(링크, 처음 배포면 "없음")·계기(`main 새 커밋`, `수동 재배포(TAG)`, `수동 실행(main 최신)`)·걸린 시간·바뀐 내용(직전 버전과 새 버전의 GitHub 비교 링크)·바로 가기(`PUBLIC_URL`이 있을 때 서비스 링크). 꼬리말은 `이선좌 Jenkins #<빌드 번호> · 배포 서버`다.
    - 직전 버전은 `deploy.sh`가 남기는 `== 배포 시작: <SHA> (직전 성공: <SHA>|없음)` 줄에서 뽑는다. 휴대폰 푸시 알림에는 제목, 짧은 SHA, 커밋 제목이 한 줄로 보인다.
    - 웹훅 주소는 `withCredentials` 환경 변수로만 다루고 로그에 찍지 않는다. 메시지를 만들지 못하면(체크아웃 실패 등) 한 줄짜리로 보낸다. 전송이 실패해도 빌드 결과는 바뀌지 않는다.
-   - 모양 확인: `RESULT=success SHA=<40자> COMMIT_TITLE=제목 PREVIOUS_SHA=<40자> TRIGGER='main 새 커밋' DURATION_SEC=95 BUILD_NUMBER=1 script/deploy/slack-payload.sh | jq .`
+   - 모양 확인(`RESULT`는 `started`, `deploying`도 된다): `RESULT=success SHA=<40자> COMMIT_TITLE=제목 PREVIOUS_SHA=<40자> TRIGGER='main 새 커밋' DURATION_SEC=95 BUILD_NUMBER=1 script/deploy/slack-payload.sh | jq .`
 
 옵션은 동시 실행 금지, 타임스탬프, 전체 40분 제한이다. 되돌리기·재배포는 Jenkins에서 `TAG`에 이전 커밋 SHA를 넣고 실행한다. `BookingFlowSystemTest`를 고르는 매개변수는 이번에 넣지 않았다(후속).
 
@@ -218,6 +219,11 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 - `deploy-main`을 실행하니 GitHub에서 main을 받았으나 main에 `Jenkinsfile`이 아직 없어 실패했다(이 PR이 main에 들어가야 한다).
 - 파이프라인 시험: Jenkinsfile을 인라인 잡으로 옮겨 단계마다 확인했다. 20분 대기를 12초로 줄이면 "[배포 중단]" 경로로 가고 슬랙 전송 실패는 빌드를 바꾸지 않았다. 이미지 확인을 건너뛰면 SSH 단계까지 가서 ssh-agent가 키를 읽고 `127.0.0.1:22`에 접속을 시도했다(연결 거부, 오류 경로). `ssh`를 종료 코드 0·1·3으로 흉내 내면 슬랙 메시지가 각각 성공, "직전 버전(aaaaaaa)으로 되돌렸습니다", "되돌림도 실패했습니다"로 나왔다.
 - 실제 GHCR 이미지 확인, 실제 배포 EC2 SSH, 실제 슬랙 전송은 하지 않았다(이미지는 아직 올라오지 않았다).
+
+**단계 알림 확인(2026-11-05, 맥 Docker)**: 같은 방식으로 띄우고(포트 28080) 슬랙 대신 맥의 작은 HTTP 수신기(28099)가 POST 본문을 받게 했다. 이 브랜치의 `Jenkinsfile`을 인라인 시험 잡에 넣고 `slack-payload.sh`를 작업 공간에 뒀다. 저장소 `Jenkinsfile`의 문법 검사는 "successfully validated"였다.
+- `TAG`를 실제 커밋 SHA로 줘 GHCR의 공개 이미지 8개 확인을 통과시키면 `DEPLOY_HOST=127.0.0.1`의 SSH가 실패(종료 코드 255)하고, 수신기에 `[배포 준비]` → `[배포 중]` → `[배포 오류]` 3건이 순서대로 왔다.
+- `TAG`를 존재하지 않는 SHA(0이 40개)로 주고 대기를 12초로 줄이면 `[배포 준비]` → `[배포 중단]` 2건만 왔다(배포 중 알림 없음).
+- 실제 슬랙 전송과 실제 배포 서버(SSH 성공 경로)는 확인하지 않았다. 시험 컨테이너·볼륨·수신기는 지웠다.
 
 ### 첫 배포 기록 (2026-11-04)
 

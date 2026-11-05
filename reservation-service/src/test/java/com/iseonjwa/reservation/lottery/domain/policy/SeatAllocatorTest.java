@@ -1,6 +1,6 @@
-package com.iseonjwa.reservation.lottery.domain;
+package com.iseonjwa.reservation.lottery.domain.policy;
 
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator.SeatAssignment;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator.SeatAssignment;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

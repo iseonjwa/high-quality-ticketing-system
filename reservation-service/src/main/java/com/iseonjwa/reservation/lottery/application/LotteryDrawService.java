@@ -1,15 +1,15 @@
 package com.iseonjwa.reservation.lottery.application;
 
-import com.iseonjwa.reservation.lottery.domain.DrawEntrant;
-import com.iseonjwa.reservation.lottery.domain.DrawRanker;
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository.DrawResult;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryStatus;
-import com.iseonjwa.reservation.lottery.domain.LotteryRepository;
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator;
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator.DrawAllocation;
-import com.iseonjwa.reservation.lottery.domain.SeatAllocator.SeatAssignment;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntryStatus;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawEntrant;
+import com.iseonjwa.reservation.lottery.domain.policy.DrawRanker;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator.DrawAllocation;
+import com.iseonjwa.reservation.lottery.domain.policy.SeatAllocator.SeatAssignment;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository.DrawResult;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
