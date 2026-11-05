@@ -21,25 +21,136 @@ function summary(concertId: number, title: string, openInMillis: number | null, 
 }
 
 describe('ConcertListPage', () => {
-  it('공연마다 판매 상태와 공연·오픈 일시를 보이고, 누르면 상세로 간다', async () => {
+  it('공연을 오픈 예정·예매 중·다른 공연 묶음으로 나눠 보이고, 누르면 상세로 간다', async () => {
     const { router } = renderRoutes(routes, '/')
 
-    const cards = await screen.findAllByRole('listitem')
-    expect(cards).toHaveLength(3)
-    const nightSky = within(cards[0])
+    const opening = await screen.findByRole('region', { name: /^티켓 오픈 예정/ })
     expect(
-      nightSky.getByRole('heading', { name: '미드나잇 오케스트라 〈별의 지도〉' }),
+      within(opening).getByRole('heading', { level: 3, name: '파란 정거장 2026 투어' }),
     ).toBeInTheDocument()
-    // 다음 회차가 없으면 끝났는지 등록 전인지 알 수 없어 배지를 달지 않는다
-    expect(nightSky.queryByText('판매 종료')).not.toBeInTheDocument()
-    expect(nightSky.getByText('예정된 회차가 없어요')).toBeInTheDocument()
-    expect(within(cards[1]).getByText('오픈 예정')).toBeInTheDocument()
-    expect(within(cards[2]).getByText('예매 중')).toBeInTheDocument()
-    expect(within(cards[2]).getByText('공연')).toBeInTheDocument()
+    expect(within(opening).getByText(/\d{2}:\d{2} 티켓 오픈/)).toBeInTheDocument()
+
+    const onSale = screen.getByRole('region', { name: /^지금 예매 중/ })
+    expect(
+      within(onSale).getByRole('heading', {
+        level: 3,
+        name: '노을섬 단독 콘서트 〈새벽의 좌석〉',
+      }),
+    ).toBeInTheDocument()
+    expect(within(onSale).getByText('예매 중')).toBeInTheDocument()
+    expect(within(onSale).getByText(/\d{2}\.\d{2} \(.\) \d{2}:\d{2} 공연/)).toBeInTheDocument()
+
+    // 다음 회차가 없으면 끝났는지 등록 전인지 알 수 없어 판매 종료라고 쓰지 않는다
+    const others = screen.getByRole('region', { name: /^다른 공연/ })
+    expect(
+      within(others).getByRole('heading', { level: 3, name: '미드나잇 오케스트라 〈별의 지도〉' }),
+    ).toBeInTheDocument()
+    expect(within(others).queryByText('판매 종료')).not.toBeInTheDocument()
+    expect(within(others).getByText('예정된 회차가 없어요')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: '노을섬 단독 콘서트 〈새벽의 좌석〉' }))
 
     expect(router.state.location.pathname).toBe('/concerts/7')
+  })
+
+  it('데이터에 따라 묶음이 생기고 사라진다: 예매 중만 있으면 다른 묶음은 없다', async () => {
+    const now = Date.now()
+    mockServer.use(
+      http.get('/api/v1/concerts', () =>
+        ok({
+          content: [summary(7, '예매 중 공연', -DAY, now)],
+          page: 0,
+          size: 20,
+          totalElements: 1,
+        }),
+      ),
+    )
+    renderRoutes(routes, '/')
+
+    expect(await screen.findByRole('region', { name: /^지금 예매 중/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^티켓 오픈 예정/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^다른 공연/ })).not.toBeInTheDocument()
+  })
+
+  it('오픈 예정만 있으면 예매 중 묶음이 없고, 묶음 제목 옆에 공연 수를 보인다', async () => {
+    const now = Date.now()
+    mockServer.use(
+      http.get('/api/v1/concerts', () =>
+        ok({
+          content: [summary(7, '오픈 전 하나', DAY, now), summary(8, '오픈 전 둘', 2 * DAY, now)],
+          page: 0,
+          size: 20,
+          totalElements: 2,
+        }),
+      ),
+    )
+    renderRoutes(routes, '/')
+
+    const opening = await screen.findByRole('region', { name: /^티켓 오픈 예정/ })
+    expect(within(opening).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(opening).getByRole('heading', { level: 2 })).toHaveTextContent('2')
+    expect(screen.queryByRole('region', { name: /^지금 예매 중/ })).not.toBeInTheDocument()
+  })
+
+  it('회차가 없는 공연만 있으면 다른 공연 묶음만 있고 대표 배너는 소개로 바뀐다', async () => {
+    const now = Date.now()
+    mockServer.use(
+      http.get('/api/v1/concerts', () =>
+        ok({
+          content: [summary(7, '회차 없는 공연', null, now)],
+          page: 0,
+          size: 20,
+          totalElements: 1,
+        }),
+      ),
+    )
+    renderRoutes(routes, '/')
+
+    expect(await screen.findByRole('region', { name: /^다른 공연/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^지금 예매 중/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^티켓 오픈 예정/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '이선좌 소개' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '추천 공연' })).not.toBeInTheDocument()
+  })
+
+  it('추첨 안내 띠는 공연 묶음과 상관없이 있고, 내 정보로 가는 링크를 준다', async () => {
+    renderRoutes(routes, '/')
+
+    const promo = await screen.findByRole('region', {
+      name: '인기 회차는 추첨으로 공정하게 나눠요',
+    })
+    expect(within(promo).getByRole('link', { name: '자동결제 카드 등록하기' })).toHaveAttribute(
+      'href',
+      '/me',
+    )
+  })
+
+  it('첫 페이지에는 예매 중·오픈 예정 공연을 담은 대표 배너가 있고, 둘째 쪽부터는 없다', async () => {
+    const now = Date.now()
+    const { router } = renderRoutes(routes, '/')
+
+    const hero = await screen.findByRole('region', { name: '추천 공연' })
+    // 예매 중 공연이 먼저 온다
+    expect(
+      within(hero).getByRole('heading', { level: 2, name: '노을섬 단독 콘서트 〈새벽의 좌석〉' }),
+    ).toBeInTheDocument()
+    expect(within(hero).getByText('1 / 2')).toBeInTheDocument()
+
+    mockServer.use(
+      http.get('/api/v1/concerts', () =>
+        ok({
+          content: [summary(30, '둘째 쪽 공연', DAY, now)],
+          page: 1,
+          size: 20,
+          totalElements: 21,
+        }),
+      ),
+    )
+    await act(() => router.navigate('/?page=2'))
+
+    expect(await screen.findByText('둘째 쪽 공연')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '추천 공연' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '이선좌 소개' })).not.toBeInTheDocument()
   })
 
   it('오픈 전 공연은 오픈 예정 배지를 보인다', async () => {
