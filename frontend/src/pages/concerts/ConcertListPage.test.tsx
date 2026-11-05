@@ -117,7 +117,7 @@ describe('ConcertListPage', () => {
     renderRoutes(routes, '/')
 
     const promo = await screen.findByRole('region', {
-      name: '인기 회차는 추첨으로 공정하게 나눠요',
+      name: '일부 좌석은 추첨으로 공정하게 나눠요',
     })
     expect(within(promo).getByRole('link', { name: '자동결제 카드 등록하기' })).toHaveAttribute(
       'href',

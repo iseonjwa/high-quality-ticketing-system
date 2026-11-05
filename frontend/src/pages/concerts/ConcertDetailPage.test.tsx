@@ -135,6 +135,45 @@ describe('ConcertDetailPage', () => {
     expect(screen.queryByText('예매가 열렸어요')).not.toBeInTheDocument()
   })
 
+  it('고르지 않은 기본 회차는 목록 앞 회차가 열려도 바뀌지 않는다(보던 회차의 대기열로 간다)', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    const serverNow = Date.now()
+    // 목록 앞 회차(32)는 2.1초 뒤에 열리고, 뒤 회차(33)는 이미 예매 중이다. 처음 기본 회차는 예매 중인 33이다
+    serveDetail(
+      detail(serverNow, [{ openAt: iso(serverNow + 2100), saleStatus: 'BEFORE_OPEN' }, {}]),
+    )
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+    const [first, second] = panel.getAllByRole('radio')
+    expect(second).toBeChecked()
+    expect(panel.getByRole('link', { name: '예매하기' })).toHaveAttribute(
+      'href',
+      '/schedules/33/queue',
+    )
+
+    await tick(3000)
+
+    // 앞 회차가 열려 예매 중인 첫 회차가 바뀌어도 보던 회차가 그대로다
+    expect(within(first.closest('label')!).getByText('예매 중')).toBeInTheDocument()
+    expect(second).toBeChecked()
+    expect(first).not.toBeChecked()
+    expect(panel.getByRole('link', { name: '예매하기' })).toHaveAttribute(
+      'href',
+      '/schedules/33/queue',
+    )
+  })
+
+  it('넓은 화면에서 예매 패널을 배너 위로 끌어올리고, 행동(카운트다운·예매하기)을 회차 목록보다 먼저 둔다', async () => {
+    serveDetail(detail(Date.now(), [{}, {}]))
+    renderRoutes(routes, '/concerts/7')
+
+    const aside = await bookingPanel()
+    expect(aside.className).toContain('@min-[64rem]:-mt-[320px]')
+    const link = within(aside).getByRole('link', { name: '예매하기' })
+    const firstRadio = within(aside).getAllByRole('radio')[0]
+    expect(link.compareDocumentPosition(firstRadio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('받은 뒤 다시 조회하다 실패해도 카운트다운과 예매하기를 오류 알림으로 바꾸지 않는다', async () => {
     const serverNow = Date.now()
     serveDetail(detail(serverNow, [{ openAt: iso(serverNow + HOUR), saleStatus: 'BEFORE_OPEN' }]))
@@ -216,7 +255,7 @@ describe('ConcertDetailPage', () => {
     expect(panel.queryByRole('timer')).not.toBeInTheDocument()
   })
 
-  // 고르기 전 기본 선택: 예매 중 첫 회차 → 오픈 예정 첫 회차 → 첫 회차
+  // 고르기 전 기본 선택: 예매 중 첫 회차 → 오픈이 가장 빠른 회차 → 첫 회차
   it.each([
     {
       name: '예매 중인 회차가 있으면 판매 종료·오픈 예정보다 그 첫 회차',
@@ -224,13 +263,13 @@ describe('ConcertDetailPage', () => {
       checked: 2,
     },
     {
-      name: '예매 중이 없으면 오픈 예정인 첫 회차',
+      name: '예매 중이 없으면 목록 순서와 상관없이 오픈이 가장 빠른 회차',
       schedules: [
         { saleStatus: 'CLOSED' },
         { openAt: iso(Date.now() + 2 * HOUR) },
         { openAt: iso(Date.now() + HOUR) },
       ],
-      checked: 1,
+      checked: 2,
     },
     {
       name: '모두 판매 종료면 첫 회차',

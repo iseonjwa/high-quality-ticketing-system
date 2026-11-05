@@ -34,7 +34,7 @@ export function SiteFooter() {
           <h2 className="type-body-sm font-semibold text-gray-0">예매 안내</h2>
           <ul className="grid gap-2 type-body-sm">
             <li>예매는 대기열 → 좌석 선택 → 결제 순서예요.</li>
-            <li>인기 회차는 추첨으로 응모를 받아요.</li>
+            <li>일부 좌석은 추첨으로 응모를 받아요.</li>
             <li>시연용 결제라 실제로 돈이 나가지 않아요.</li>
           </ul>
         </div>

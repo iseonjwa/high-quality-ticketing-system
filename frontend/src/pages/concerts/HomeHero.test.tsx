@@ -228,17 +228,35 @@ describe('HomeHero 자동 넘김', () => {
     expect(screen.getByText('2 / 3')).toBeInTheDocument()
   })
 
-  it('초점이 안에 있으면 멈추고 밖으로 나가면 다시 넘긴다', () => {
-    renderHero(THREE)
-    const link = within(visibleSlide()).getByRole('link')
+  it('키보드 초점이 들어오면 멈추고, 나가도 [자동 넘김 시작]을 누르기 전에는 다시 넘기지 않는다', async () => {
+    const user = renderHero(THREE)
 
-    act(() => link.focus())
+    await user.tab()
+    expect(screen.getByRole('button', { name: '자동 넘김 시작' })).toHaveFocus()
     advance(ROTATE * 4)
     expect(screen.getByText('1 / 3')).toBeInTheDocument()
 
-    act(() => link.blur())
+    act(() => (document.activeElement as HTMLElement).blur())
+    advance(ROTATE * 4)
+    expect(screen.getByText('1 / 3')).toBeInTheDocument()
+
+    act(() => screen.getByRole('button', { name: '자동 넘김 시작' }).focus())
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: '자동 넘김 멈추기' })).toBeInTheDocument()
+    await leaveCarousel(user)
     advance(ROTATE)
     expect(screen.getByText('2 / 3')).toBeInTheDocument()
+  })
+
+  it('마우스로 [자동 넘김 멈추기]를 누르면 멈추고, 누를 때 생기는 초점으로 다시 켜지지 않는다', async () => {
+    const user = renderHero(THREE)
+
+    await user.click(screen.getByRole('button', { name: '자동 넘김 멈추기' }))
+
+    expect(screen.getByRole('button', { name: '자동 넘김 시작' })).toBeInTheDocument()
+    await leaveCarousel(user)
+    advance(ROTATE * 4)
+    expect(screen.getByText('1 / 3')).toBeInTheDocument()
   })
 
   it('직접 넘기면 자동 넘김이 꺼지고 버튼은 [자동 넘김 시작]이 된다', async () => {
