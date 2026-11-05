@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Armchair, ChevronLeft, CreditCard, PartyPopper, Users } from 'lucide-react'
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
 import {
@@ -314,30 +314,28 @@ function ScheduleChooser({
           )
         })}
       </fieldset>
-      <ChosenSchedule
-        key={chosen.scheduleId}
-        concert={concert}
-        schedule={chosen}
-        clock={clock}
-        status={statusOf(chosen, now)}
-      />
+      <ChosenSchedule key={chosen.scheduleId} concert={concert} schedule={chosen} clock={clock} />
     </>
   )
 }
 
+// Note: 고른 회차의 상태는 부모의 1초 갱신을 기다리지 않고 그릴 때마다 서버 시계로 다시 정한다. 카운트다운(250ms)이
+// 0을 보이면 onComplete로 이 부분만 다시 그려, "00:00"이 보이는 순간 [예매하기]가 켜진다(design-system.md 7절).
+// 부모 값을 받으면 최대 1초 동안 0인데 버튼이 꺼져 있었다(테스트 작업자가 찾음).
 function ChosenSchedule({
   concert,
   schedule,
   clock,
-  status,
 }: {
   concert: Pick<ConcertDetail, 'concertId' | 'title'>
   schedule: ScheduleSummary
   clock: ServerClock
-  status: SaleStatus
 }) {
-  // 보는 중에 오픈했는지. 화면 낭독기에 열렸다고 알린다
-  const [openedWhileViewing, setOpenedWhileViewing] = useState(false)
+  const [, rerender] = useReducer((count: number) => count + 1, 0)
+  const status = statusOf(schedule, clock.now())
+  // 처음 그릴 때 오픈 전이었으면 보는 중에 열린 것이다. 카운트다운의 onComplete로 알리면, 부모 갱신이 먼저 와
+  // 카운트다운이 사라질 때 불리지 않아 알림이 빠진다
+  const [openedLater] = useState(() => status === 'BEFORE_OPEN')
   const openAtId = `open-at-${schedule.scheduleId}`
 
   return (
@@ -350,7 +348,7 @@ function ChosenSchedule({
               targetAt={schedule.openAt}
               clock={clock}
               className="type-title"
-              onComplete={() => setOpenedWhileViewing(true)}
+              onComplete={rerender}
             />
           </div>
           <Button disabled size="lg" className="w-full" aria-describedby={openAtId}>
@@ -378,11 +376,13 @@ function ChosenSchedule({
         <p className="py-2 text-center type-body-sm text-gray-500">판매가 끝났어요</p>
       )}
       <p className="text-center type-caption text-gray-500">
-        1인 최대 {schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 골라요
+        {status === 'CLOSED'
+          ? `1인 최대 ${schedule.maxPerUser}매`
+          : `1인 최대 ${schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 골라요`}
       </p>
       {/* 카운트다운은 매초 읽지 않으므로(timer) 열린 순간만 알린다. 알림 영역은 처음부터 있어야 읽힌다 */}
       <p aria-live="polite" className="sr-only">
-        {openedWhileViewing && status === 'ON_SALE' ? '예매가 열렸어요' : ''}
+        {openedLater && status === 'ON_SALE' ? '예매가 열렸어요' : ''}
       </p>
     </div>
   )

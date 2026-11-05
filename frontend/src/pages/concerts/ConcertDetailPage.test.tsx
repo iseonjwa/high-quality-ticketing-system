@@ -94,6 +94,47 @@ describe('ConcertDetailPage', () => {
     expect(screen.getByText('예매가 열렸어요')).toHaveAttribute('aria-live', 'polite')
   })
 
+  it('카운트다운이 0을 보이는 순간 예매 패널의 1초 갱신을 기다리지 않고 예매하기가 켜진다', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{ openAt: iso(serverNow + 2100), saleStatus: 'BEFORE_OPEN' }]))
+    renderRoutes(routes, '/concerts/7')
+    await screen.findByRole('timer', { name: '오픈까지 남은 시간' })
+
+    await tick(2000)
+    expect(screen.getByRole('button', { name: '예매하기' })).toBeDisabled()
+
+    // 2250ms: 카운트다운(250ms)이 0을 본다. 예매 패널의 다음 갱신(3000ms)보다 먼저다
+    await tick(250)
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '예매하기' })).toHaveAttribute(
+      'href',
+      '/schedules/32/queue',
+    )
+  })
+
+  it('오픈 시각이 예매 패널의 갱신과 겹쳐 카운트다운이 0을 보기 전에 사라져도 열린 순간을 알린다', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{ openAt: iso(serverNow + 3000), saleStatus: 'BEFORE_OPEN' }]))
+    renderRoutes(routes, '/concerts/7')
+    await screen.findByRole('timer', { name: '오픈까지 남은 시간' })
+
+    await tick(3000)
+
+    expect(screen.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
+    expect(screen.getByText('예매가 열렸어요')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('처음부터 예매 중인 회차는 열렸다고 알리지 않는다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    renderRoutes(routes, '/concerts/7')
+
+    expect(await screen.findByRole('link', { name: '예매하기' })).toBeInTheDocument()
+    expect(screen.queryByText('예매가 열렸어요')).not.toBeInTheDocument()
+  })
+
   it('받은 뒤 다시 조회하다 실패해도 카운트다운과 예매하기를 오류 알림으로 바꾸지 않는다', async () => {
     const serverNow = Date.now()
     serveDetail(detail(serverNow, [{ openAt: iso(serverNow + HOUR), saleStatus: 'BEFORE_OPEN' }]))
