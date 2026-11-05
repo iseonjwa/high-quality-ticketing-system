@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.lottery.presentation.scheduling;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService.AssignmentError;
 import com.iseonjwa.reservation.lottery.application.LotteryAssignmentService.AssignmentRejected;
+import com.iseonjwa.reservation.lottery.observability.LotteryMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,11 +26,13 @@ public class LotteryAssignmentScheduler {
     static final int MAX_ASSIGN_ERRORS = 3;
 
     private final LotteryAssignmentService assignmentService;
+    private final LotteryMetrics lotteryMetrics;
     // 인스턴스마다 따로 세므로 여러 인스턴스면 포기까지 조금 더 걸리지만 결과는 같다
     private final Map<Long, Integer> errorCounts = new ConcurrentHashMap<>();
 
-    public LotteryAssignmentScheduler(LotteryAssignmentService assignmentService) {
+    public LotteryAssignmentScheduler(LotteryAssignmentService assignmentService, LotteryMetrics lotteryMetrics) {
         this.assignmentService = assignmentService;
+        this.lotteryMetrics = lotteryMetrics;
     }
 
     @Scheduled(fixedDelayString = "${lottery.scheduler.assign-interval:1s}")
@@ -42,9 +45,11 @@ public class LotteryAssignmentScheduler {
                 if (assignmentService.assignNext(skipped).isEmpty()) {
                     return;
                 }
+                lotteryMetrics.assigned();
             } catch (AssignmentRejected rejected) {
                 if (assignmentService.markRejected(rejected.entryId(), rejected.reason())) {
                     log.info("추첨 당첨 배정 거절: entryId={}, reason={}", rejected.entryId(), rejected.reason());
+                    lotteryMetrics.assignmentRejected(rejected.reason());
                 } else {
                     skipped.add(rejected.entryId());
                 }
@@ -54,6 +59,7 @@ public class LotteryAssignmentScheduler {
             } catch (RuntimeException exception) {
                 // AssignmentError로 감싸지 못한 실패(대상 조회·커밋 등)는 응모를 특정할 수 없으니 이번 주기를 멈춘다
                 log.error("추첨 당첨 배정 주기 중단, 다음 주기에 다시 시도", exception);
+                lotteryMetrics.jobFailed(LotteryMetrics.Job.ASSIGNMENT);
                 return;
             }
         }
@@ -63,9 +69,12 @@ public class LotteryAssignmentScheduler {
     private void recordError(AssignmentError error) {
         int failures = errorCounts.merge(error.entryId(), 1, Integer::sum);
         log.error("추첨 당첨 배정 실패: entryId={}, 연속 {}회", error.entryId(), failures, error);
+        lotteryMetrics.assignmentError();
         if (failures >= MAX_ASSIGN_ERRORS) {
             errorCounts.remove(error.entryId());
-            assignmentService.markRejected(error.entryId(), LotteryAssignmentService.ASSIGN_ERROR);
+            if (assignmentService.markRejected(error.entryId(), LotteryAssignmentService.ASSIGN_ERROR)) {
+                lotteryMetrics.assignmentRejected(LotteryAssignmentService.ASSIGN_ERROR);
+            }
         }
     }
 }

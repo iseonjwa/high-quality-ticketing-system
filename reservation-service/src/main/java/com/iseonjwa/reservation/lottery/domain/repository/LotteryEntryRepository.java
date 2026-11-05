@@ -116,6 +116,16 @@ public interface LotteryEntryRepository {
     boolean hasUnsettled(Long lotteryId);
 
     /**
+     * 모든 추첨에서 결제 결과를 기다리는 당첨자 수를 센다.
+     */
+    long countUnsettledWinners();
+
+    /**
+     * 예매에 연결된 응모가 속한 추첨의 추첨 시각을 읽는다.
+     */
+    Optional<Instant> findDrawAtByReservationId(Long reservationId);
+
+    /**
      * @param drawRank 전체 응모 중 순위(1부터)로, 예비자는 이 값의 오름차순으로 승계한다
      */
     record DrawResult(long entryId, LotteryEntryStatus status, int drawRank) {}

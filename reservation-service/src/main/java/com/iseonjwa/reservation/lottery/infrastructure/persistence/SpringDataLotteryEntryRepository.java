@@ -16,6 +16,15 @@ interface SpringDataLotteryEntryRepository extends JpaRepository<LotteryEntry, L
 
     Optional<LotteryEntry> findByRequestId(UUID requestId);
 
+    @Query(nativeQuery = true, value = "SELECT count(*) FROM lottery_entries WHERE status = 'WON' AND deleted_at IS NULL")
+    long countUnsettledWinners();
+
+    @Query("""
+            SELECT l.drawAt FROM LotteryEntry e, Lottery l
+            WHERE e.lotteryId = l.id AND e.reservationId = :reservationId
+            """)
+    Optional<Instant> findDrawAtByReservationId(@Param("reservationId") Long reservationId);
+
     Optional<LotteryEntry> findByLotteryIdAndUserId(Long lotteryId, Long userId);
 
     // Note: 마감을 DB 시각 하나로 판정하려고 조건 확인과 INSERT를 한 문장으로 하고, 제약 위반으로 트랜잭션이 중단되지 않게
