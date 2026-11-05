@@ -259,7 +259,7 @@
 
 ## 3. 결과
 
-본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(Q1은 2026-11-05 local 300명으로 동작만 확인). 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
+본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(Q1·Q2·G1은 2026-11-05 local에서 작은 규모로 동작만 확인). 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
 
 ## 4. 검토 요청
 

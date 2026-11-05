@@ -102,6 +102,7 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.
 
+- local Docker Desktop의 k6 컨테이너는 약 32초마다 3초씩 멈춘다(2026-11-05 확인, [loadtest/k6/README.md](../../loadtest/k6/README.md) 4절). local 결과의 3초 근처 최대값은 발생기 탓일 수 있다.
 - Gateway의 503 중 지연이 수 ms인 것은 인증 Redis 차단기(`auth-redis`)가 열린 것일 수 있다. Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`과 Gateway 로그 `No servers available`(Eureka 이탈)로 출처를 나눈다.
 - 좌석 조회 응답(15,000석, 약 1MB로 추정)을 `JSON.parse`하지 않고 문자열 검색으로 좌석을 고른다. 파싱하면 부하 생성기 CPU가 먼저 포화돼 서버 병목과 섞인다. 측정 중 `docker stats`로 k6 컨테이너 CPU도 같이 본다.
 
