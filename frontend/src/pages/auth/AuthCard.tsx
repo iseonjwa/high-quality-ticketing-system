@@ -15,7 +15,7 @@ interface AuthCardProps {
 const FEATURES = [
   { icon: ListOrdered, text: '대기열로 들어온 순서를 지켜요' },
   { icon: Armchair, text: '고른 좌석은 결제하는 동안 잡아 둬요' },
-  { icon: Ticket, text: '인기 회차는 추첨으로 공정하게 나눠요' },
+  { icon: Ticket, text: '일부 좌석은 추첨으로 공정하게 나눠요' },
 ] as const
 
 // 로그인·회원가입·비밀번호 변경이 함께 쓰는 틀. 넓은 화면에서는 왼쪽에 공연 그림과 서비스 소개를 두고

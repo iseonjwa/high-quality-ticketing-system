@@ -39,6 +39,6 @@ describe('AuthCard', () => {
 
     expect(screen.getByText('대기열로 들어온 순서를 지켜요')).toBeInTheDocument()
     expect(screen.getByText('고른 좌석은 결제하는 동안 잡아 둬요')).toBeInTheDocument()
-    expect(screen.getByText('인기 회차는 추첨으로 공정하게 나눠요')).toBeInTheDocument()
+    expect(screen.getByText('일부 좌석은 추첨으로 공정하게 나눠요')).toBeInTheDocument()
   })
 })
