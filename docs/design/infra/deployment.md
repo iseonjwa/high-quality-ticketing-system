@@ -114,7 +114,8 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 배포 EC2 | 22 | 팀원 IP, Jenkins EC2 보안그룹 | 키 인증만. Jenkins EC2는 SSH만 허용 |
 | 배포 EC2 | 80 | 전체(0.0.0.0/0) | 화면과 `/api/` 중계(프론트 nginx). 유일한 공개 진입점 |
 | 배포 EC2 | 8080 | 허용 없음. 부하 측정 중에만 발생기 보안그룹 | Gateway 직접 접근. 부하 도구용 |
-| 배포 EC2 | 3000, 8085, 9090, 9411, 8761 | 허용 없음 | SSH 터널로만 |
+| 배포 EC2 | 3000 | 팀원 IP `/32` | Grafana만. 익명 Viewer(보기만)이고 시연 모드 링크가 이 주소로 온다 |
+| 배포 EC2 | 8085, 9090, 9093, 9411, 8761 | 허용 없음 | SSH 터널로만 |
 | 배포 EC2 | 8081~8083, 8090, 8888, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 | Jenkins EC2 | 22 | 팀원 IP | Jenkins UI(8080)는 열지 않고 SSH 터널로만 접근 |
 | Jenkins EC2 | 웹훅 포트 | 허용 없음 `[가정]` | 폴링이 기본이다. 웹훅으로 바꿀 때만 GitHub 웹훅 IP 대역을 허용 |
@@ -163,7 +164,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
    - 시연 데이터: `script/deploy/seed-demo.sh`(ISE-177). 회차 둘을 만든다. "지금 예매"는 오픈 시각이 이미 지난 회차(공연 7일 뒤)이고, "오픈 시연"은 `OPEN_AT`(ISO-8601 UTC)으로 정한 시각에 열리는 회차(공연 8일 뒤)다. `OPEN_AT`이 없으면 지금부터 30분 뒤다. 예: `OPEN_AT=2026-11-06T05:00:00Z script/deploy/seed-demo.sh`. 회차를 고치는 API가 없으므로 오픈 시각은 바꿀 수 없다. 대신 리허설·시연 직전에 `script/deploy/seed-demo.sh open <OPEN_AT> [주소]`로 시연 공연에 "오픈 시연" 회차를 하나 더 만든다(좌석 포함, 공연 시작은 OPEN_AT 다음 날). 예: `script/deploy/seed-demo.sh open $(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)`. 끝에 새 회차 id와 오픈 시각이 나온다.
    - `OPEN_AT`은 API를 부르기 전에 형식과 "공연 시작(8일 뒤)보다 앞선다"를 검사하고, 틀리면 아무것도 만들지 않고 종료 코드 2로 끝난다. 공연만 있고 회차가 0개면(이전 실행이 중간에 실패) 기본 실행이 회차·좌석을 이어서 만든다.
    - 공연장 id는 조회 API가 없어 예약 DB 컨테이너에서 이름이 `KSPO DOME`인 공연장을 찾는다(없으면 `VENUE_ID`로 넘긴다). 오픈 시각 검증은 회차 등록이 `openAt`이 `startsAt`보다 앞서는지만 본다(`Schedule.create`). 지난 오픈 시각도 받는다. 샘플 사용자 비밀번호는 서버에서 `grep SAMPLE_USER_PASSWORD .env`로 본다.
-7. 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:3000`.
+7. Grafana는 `http://52.63.10.174:3000`으로 바로 연다(등록된 IP만, 로그인 없이 보기). 나머지 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:9090`.
 8. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
 
 - DB 스키마(Flyway) 변경이 있는 릴리스는 이미지만 되돌려서는 풀리지 않을 수 있다. 되돌림 가능한 마이그레이션 규칙은 정하지 않았다(미정).
@@ -262,6 +263,8 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | 프론트 nginx 공개 포트와 8080의 관계 | 정함(ISE-109): 80 공개, 8080은 발생기 보안그룹만 |
 | 서버 `.env` 키 갱신 절차 | 정함(ISE-174): `script/deploy/init-env.sh`가 빠진 키만 더한다. 키가 바뀌는 릴리스는 배포 전에 서버에서 한 번 돌린다 |
 | DB·캐시·브로커를 매니지드 서비스(RDS 등)로 분리 | 검토 예정: 11/7~11/12 서버 중지 기간([ADR 0047](../../decisions/0047-single-ec2-first-managed-split-review.md)). 그전까지는 단일 EC2 |
+| 관리 화면 접근 | 정함(2026-11-05, 사용자): Grafana만 3000을 팀원 IP로 열고 익명 보기, 나머지는 SSH 터널 |
+| HTTPS | 리허설 뒤 Let's Encrypt IP 인증서(무료, 약 6일 자동 갱신, certbot)로 붙인다. 지금은 HTTP만 연다 |
 | 서버 운영 일정 | 정함(ADR 0047): 11/6까지 켜 둠, 11/7~11/12 중지, 11/13~11/19 다시 켬, 그 뒤 삭제 |
 | DB 마이그레이션이 있는 릴리스의 되돌림 규칙 | 미정 |
 | 배포 DB 시드(시연용 관리자·샘플 계정, 공연 데이터) | 정함(ISE-177): `seed-demo.sh`. 관리자는 `.env`의 `ADMIN_EMAIL`로 기동 때 만들어진다 |
