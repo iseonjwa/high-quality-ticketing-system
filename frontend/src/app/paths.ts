@@ -1,4 +1,3 @@
-// 예매 상세·내 예매 화면은 ISE-117에서 만든다. 그 전까지 그 경로는 NotFound다.
 export const paths = {
   home: '/',
   concert: '/concerts/:concertId',

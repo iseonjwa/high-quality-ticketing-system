@@ -13,6 +13,8 @@ import { PasswordChangePage } from '@/pages/auth/PasswordChangePage'
 import { QueuePage } from '@/pages/queue/QueuePage'
 import { SeatsPage } from '@/pages/seats/SeatsPage'
 import { PaymentPage } from '@/pages/payment/PaymentPage'
+import { MyReservationsPage } from '@/pages/reservations/MyReservationsPage'
+import { ReservationPage } from '@/pages/reservations/ReservationPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { paths } from '@/app/paths'
 import { RequireAdmin } from '@/app/RequireAdmin'
@@ -56,6 +58,13 @@ export const routes: RouteObject[] = [
               { path: paths.queue, element: <QueuePage />, handle: bookingStepHandle(0) },
               { path: paths.seats, element: <SeatsPage />, handle: bookingStepHandle(1) },
               { path: paths.payment, element: <PaymentPage />, handle: bookingStepHandle(2) },
+              {
+                path: paths.reservationComplete,
+                element: <ReservationPage variant="complete" />,
+                handle: bookingStepHandle(3),
+              },
+              { path: paths.reservation, element: <ReservationPage variant="detail" /> },
+              { path: paths.myReservations, element: <MyReservationsPage /> },
               {
                 element: <RequireAdmin />,
                 children: [

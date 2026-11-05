@@ -195,11 +195,16 @@ export const reservationHandlers = [
     const url = new URL(request.url)
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Number(url.searchParams.get('size') ?? 20)
+    // 서버는 page ≥ 0, 1 ≤ size ≤ 100만 받고 벗어나거나 숫자가 아니면 400이다(ReservationController:35-36)
+    if (!Number.isInteger(page) || !Number.isInteger(size) || page < 0 || size < 1 || size > 100) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
 
     const owned = [...mockDb.reservations.values()].filter(
       (reservation) => reservation.userId === user.userId,
     )
     owned.forEach(advanceConfirmation)
+    // 서버는 created_at DESC, id DESC다. 목은 ID가 만든 순서대로 커지므로 ID 내림차순과 같다
     const mine = owned
       .sort((left, right) => right.reservationId - left.reservationId)
       .map((reservation) => {
@@ -230,7 +235,10 @@ export const reservationHandlers = [
     settleExpiredHolds()
     const reservation = ownReservation(request, reservationId)
     advanceConfirmation(reservation)
-    const seats = mockDb.seats.filter((seat) => reservation.seatIds.includes(seat.seatId))
+    // 서버는 좌석 ID 오름차순이다(ReservationDetailResult:17-18)
+    const seats = mockDb.seats
+      .filter((seat) => reservation.seatIds.includes(seat.seatId))
+      .sort((left, right) => left.seatId - right.seatId)
     return ok({
       reservationId: reservation.reservationId,
       reservationNo: reservation.reservationNo,

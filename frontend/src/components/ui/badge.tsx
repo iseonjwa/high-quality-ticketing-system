@@ -14,6 +14,8 @@ const badgeVariants = cva(
         upcoming: 'bg-info-50 text-info-600',
         soldOut: 'bg-gray-100 text-gray-600',
         lottery: 'bg-primary-50 text-primary-700',
+        // 결제 대기처럼 사용자가 할 일이 남은 상태
+        pending: 'bg-warning-50 text-warning-700',
       },
     },
     defaultVariants: { variant: 'onSale' },

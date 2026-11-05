@@ -42,6 +42,7 @@ export const reservationStatusSchema = z.enum([
   'RELEASED',
   'CANCELED',
 ])
+export type ReservationStatus = z.infer<typeof reservationStatusSchema>
 
 export const reservationDetailSchema = z.object({
   reservationId: entityId,

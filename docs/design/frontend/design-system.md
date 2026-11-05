@@ -249,6 +249,12 @@ PC를 먼저 맞춘다(P1은 퇴근 후 PC로 대기한다). 본문 최대 폭 1
 |---|---|---|
 | ![결제 수단 카드와 결제 금액, 결제하기 버튼](samples/screens/payment-ready.png) | ![버튼 자리가 결제를 확인하고 있어요 표시로 바뀐 상태](samples/screens/payment-checking.png) | ![결제가 거절됐다는 위험 알림과 좌석 다시 고르기](samples/screens/payment-declined.png) |
 
+[`samples/reservations.html`](samples/reservations.html)은 예매 결과·상세와 내 예매 목록이다(ISE-117). 조작판으로 결과(예매 확정), 상세(결제 대기·기한 만료), 내 예매 목록, 빈 목록을 바꿔 본다. 예매 상세 응답에 공연 제목이 없어 결제 화면·내 예매 목록에서 오면 화면 이동 값으로 받고, 주소로 열면 예매 번호를 제목으로 쓴다. 결제 상태는 예매 응답에 없어(결제 ID 없음) 예매 상태로만 보인다.
+
+| 결과(예매 확정) | 상세(결제 대기) | 내 예매 |
+|---|---|---|
+| ![예매가 확정됐다는 머리와 좌석별 티켓 번호](samples/screens/reservations-confirmed.png) | ![아직 결제하지 않았다는 경고와 결제하기](samples/screens/reservations-held.png) | ![상태 배지가 붙은 예매 목록과 더 보기](samples/screens/reservations-list.png) |
+
 ## 9. 확정한 방향
 
 샘플을 보고 초안 그대로 확정했다(2026-11-02, [판단 기록](../../ai-judgments/junhyun/2026-11-02-design-system-sample-accepted.md)).
