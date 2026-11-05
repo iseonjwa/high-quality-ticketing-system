@@ -5,8 +5,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 image=$(grep -m1 'image: prom/prometheus' compose.yml | awk '{print $2}')
 run() { docker run --rm -v "$PWD/infra:/infra:ro" -w /infra/prometheus/tests --entrypoint promtool "$image" "$@"; }
-run check rules /infra/prometheus/rules/payment-alerts.yml
-run test rules payment-alerts.test.yml
+run check rules /infra/prometheus/rules/payment-alerts.yml /infra/prometheus/rules/lottery-alerts.yml
+run test rules payment-alerts.test.yml lottery-alerts.test.yml
 # 설정 파일 검사(규칙 경로와 external_labels의 STACK_ENV 확장 포함)
 for config in prometheus.yml prometheus-local.yml; do
   docker run --rm -e STACK_ENV=local -v "$PWD/infra:/infra:ro" -v "$PWD/infra/prometheus/rules:/etc/prometheus/rules:ro" \
