@@ -34,22 +34,34 @@ export function createSchedule(adminToken, options = {}) {
     withSeats = true,
     prices = DEFAULT_PRICES,
   } = options;
-  const headers = jsonHeaders(adminToken);
+  const concertId = createConcert(adminToken, title);
+  const schedule = addSchedule(adminToken, concertId, { openInSeconds, startsInDays, maxPerUser, holdMinutes, venueId });
+  if (withSeats) {
+    addSeats(adminToken, schedule.scheduleId, prices);
+  }
+  return Object.assign({ concertId }, schedule);
+}
 
-  const concert = post('/api/v1/admin/concerts', { title, description: 'k6' }, headers);
+export function createConcert(adminToken, title) {
+  return post('/api/v1/admin/concerts', { title, description: 'k6' }, jsonHeaders(adminToken)).concertId;
+}
+
+export function addSchedule(adminToken, concertId, options = {}) {
+  const { openInSeconds = -60, startsInDays = 7, maxPerUser = 4, holdMinutes = 5, venueId = 1 } = options;
   const now = Date.now();
-  const schedule = post(`/api/v1/admin/concerts/${concert.concertId}/schedules`, {
+  const schedule = post(`/api/v1/admin/concerts/${concertId}/schedules`, {
     venueId,
     startsAt: new Date(now + startsInDays * 86400000).toISOString(),
     openAt: new Date(now + openInSeconds * 1000).toISOString(),
     maxPerUser,
     holdMinutes,
-  }, headers);
-  if (withSeats) {
-    // 15,000석을 한 번에 만든다. 수 초 걸리므로 시나리오의 setupTimeout을 넉넉히 둔다
-    post(`/api/v1/admin/schedules/${schedule.scheduleId}/seats`, { prices }, headers, 60);
-  }
-  return { concertId: concert.concertId, scheduleId: schedule.scheduleId, openAt: now + openInSeconds * 1000 };
+  }, jsonHeaders(adminToken));
+  return { scheduleId: schedule.scheduleId, openAt: now + openInSeconds * 1000 };
+}
+
+// 15,000석을 한 번에 만든다. 수 초 걸리므로 시나리오의 setupTimeout을 넉넉히 둔다
+export function addSeats(adminToken, scheduleId, prices = DEFAULT_PRICES) {
+  post(`/api/v1/admin/schedules/${scheduleId}/seats`, { prices }, jsonHeaders(adminToken), 60);
 }
 
 // 오픈 시각까지 기다린다. Note: 대기열의 회차 캐시는 30초마다 갱신되므로(queue.schedule-cache-refresh),

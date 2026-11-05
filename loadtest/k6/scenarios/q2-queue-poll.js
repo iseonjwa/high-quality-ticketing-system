@@ -2,18 +2,16 @@
 // 명세: docs/design/infra/open-peak-scenarios.md Q2. 실행: loadtest/k6/README.md
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv } from '../lib/env.js';
-import { accessToken, assertSigningKeys, userIdOf } from '../lib/tokens.js';
+import { assertSigningKeys } from '../lib/tokens.js';
 import { authHeaders, dataOf, errorCodeOf, outcomeOf, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
-import { assertAdmissionStopped, enterAll, positionPath } from '../lib/queue.js';
+import { assertAdmissionStopped, earliestWaiter, enterAll, positionPath, waitersOfThisVu } from '../lib/queue.js';
 
 const USERS = numberEnv('USERS', 30000);
 const DURATION_SECONDS = numberEnv('DURATION_SECONDS', 600);
-// Note: 대기자 한 명마다 VU를 두면 3만 VU가 필요해 발생기 메모리가 먼저 모자란다.
-// VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고, 가장 이른 사람부터 부른다
+// VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고, 가장 이른 사람부터 부른다(lib/queue.js waitersOfThisVu)
 const VUS = numberEnv('VUS', 300);
 const OPEN_IN_SECONDS = numberEnv('OPEN_IN_SECONDS', 40);
 // 첫 폴링을 진입 뒤 몇 초 안에 흩을지. 실제로는 진입이 10초에 걸쳐 오므로 10초
@@ -62,9 +60,9 @@ let waiting = null;
 
 export default function (data) {
   if (waiting === null) {
-    waiting = initWaiting();
+    waiting = waitersOfThisVu(USERS, VUS, FIRST_POLL_SPREAD_SECONDS);
   }
-  const next = earliest(waiting);
+  const next = earliestWaiter(waiting);
   if (next === null) {
     // 이 VU의 대기자가 모두 READY가 됐다. 입장 스케줄러가 켜진 경우에만 생긴다
     sleep(1);
@@ -93,28 +91,4 @@ export default function (data) {
     // 오류면 클라이언트가 3초 뒤 다시 부른다고 본다(poll-min)
     next.dueAt = Date.now() + 3000;
   }
-}
-
-function initWaiting() {
-  const perVu = USERS / VUS;
-  const first = (exec.vu.idInTest - 1) * perVu;
-  const now = Date.now();
-  const list = [];
-  for (let i = 0; i < perVu; i++) {
-    list.push({
-      headers: authHeaders(accessToken(userIdOf(first + i))),
-      dueAt: now + Math.random() * FIRST_POLL_SPREAD_SECONDS * 1000,
-    });
-  }
-  return list;
-}
-
-function earliest(list) {
-  let found = null;
-  for (const item of list) {
-    if (item.dueAt !== null && (found === null || item.dueAt < found.dueAt)) {
-      found = item;
-    }
-  }
-  return found;
 }

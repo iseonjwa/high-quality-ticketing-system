@@ -1,6 +1,7 @@
 // 대기열 준비와 응답 해석. Q2·G1·Q3이 같이 쓴다
 import http from 'k6/http';
 import { fail } from 'k6';
+import exec from 'k6/execution';
 import { accessToken, userIdOf } from './tokens.js';
 import { authHeaders, dataOf, url } from './http.js';
 
@@ -40,4 +41,32 @@ export function assertAdmissionStopped(scheduleId) {
   if (!data || data.status !== 'WAITING') {
     fail(`첫 대기자가 WAITING이 아닙니다(${data && data.status}). 입장 스케줄러를 끄고(loadtest/k6/compose.queue-hold.yml) 다시 실행합니다`);
   }
+}
+
+// Q2·Q3: VU 하나가 대기자 여러 명을 맡는다. 맡은 대기자마다 다음 폴링 시각(dueAt)과 헤더를 든다.
+// Note: 대기자 한 명마다 VU를 두면 3만 VU가 필요해 발생기 메모리가 먼저 모자란다
+export function waitersOfThisVu(users, vus, spreadSeconds) {
+  const perVu = users / vus;
+  const first = (exec.vu.idInTest - 1) * perVu;
+  const now = Date.now();
+  const list = [];
+  for (let i = 0; i < perVu; i++) {
+    list.push({
+      userId: userIdOf(first + i),
+      headers: authHeaders(accessToken(userIdOf(first + i))),
+      dueAt: now + Math.random() * spreadSeconds * 1000,
+    });
+  }
+  return list;
+}
+
+// 다음에 부를 대기자. 모두 끝났으면(dueAt null) null
+export function earliestWaiter(list) {
+  let found = null;
+  for (const item of list) {
+    if (item.dueAt !== null && (found === null || item.dueAt < found.dueAt)) {
+      found = item;
+    }
+  }
+  return found;
 }

@@ -13,11 +13,28 @@
 | `lib/tokens.js` | 측정용 Access 토큰·입장 토큰 서명(`TOKEN_MODE=sign`, local 전용), UUID |
 | `lib/http.js` | URL, 인증 헤더, 응답 `data`·오류 `code` 읽기, 결과 분류 |
 | `lib/admin.js` | 관리자 로그인, 공연·회차·좌석(15,000석) 만들기, 오픈 시각까지 기다리기 |
-| `lib/queue.js` | 대기자 미리 진입시키기(`http.batch`), 입장 스케줄러가 꺼졌는지 확인 |
+| `lib/queue.js` | 대기자 미리 진입시키기(`http.batch`), 입장 스케줄러가 꺼졌는지 확인, VU 하나가 대기자 여러 명을 맡는 폴링 도우미(Q2·Q3) |
+| `lib/booking.js` | 좌석 목록(조회 한 번), 선점, 결제, 예매 상태 조회 |
+| `lib/mockpg.js` | Mock PG 장애 주입(`/mock-pg/faults`). 승인 지연 걸기·풀기 |
+| `lib/lottery.js` | 추첨 설정, 응모 요청, 응모·빌링키 묶음 준비 |
 | `compose.queue-hold.yml` | Q2·G1용 덮어쓰기. reservation-service의 입장 스케줄러를 끈다 |
+| `compose.mockpg-loadtest.yml` | PAY1·R1·L2용 덮어쓰기. local mock-pg를 `local,loadtest` 프로필로 띄워 장애 주입 API를 연다 |
+| `compose.expiry-on.yml` | X1용 덮어쓰기. 배포 메모리 덮어쓰기가 끈 선점 만료 스케줄러를 다시 켠다 |
+| `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
+| `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
+| `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |
 | `scenarios/g1-gateway-auth.js` | G1 Gateway 인증 경로. 순번 조회에 초당 요청을 단계적으로 올린다 |
+| `scenarios/q3-admission.js` | Q3 입장 속도 유지. 입장 스케줄러를 켠 채 READY가 되면 입장 토큰을 받고 끝낸다 |
+| `scenarios/b1-browse.js` | B1 오픈 전 공연 상세·목록 조회. `ENTER_RATE`를 주면 대기열 진입을 같이 건다(B1-b) |
+| `scenarios/pay1-payment.js` | PAY1 결제 승인. 반복마다 1석 선점 → 결제, 요청 속도를 단계적으로 올린다 |
+| `scenarios/r1-confirm.js` | R1 결제 결과 반영. 선점 → 결제 → 예매 조회로 CONFIRMED까지의 시간을 잰다 |
+| `scenarios/x1-expiry.js` | X1 선점 만료. 선점 시간 1분 회차의 선점이 만료되는 동안 다른 회차에 선점 부하를 건다 |
+| `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다 |
+| `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
+| `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
+| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다 |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력. 커밋하지 않는다 |
 
 시나리오 상태:
@@ -27,7 +44,15 @@
 | Q1 | `scenarios/q1-queue-enter.js` | 있음. 2026-11-05 local에서 300명으로 동작 확인(오류 0, 순번 300 = 고유 사용자 300) |
 | Q2 | `scenarios/q2-queue-poll.js` | 있음. 2026-11-05 local에서 대기자 1,000명·60초로 동작 확인(폴링 8,638건 모두 200, p95 10ms) |
 | G1 | `scenarios/g1-gateway-auth.js` | 있음. 2026-11-05 local에서 초당 50 → 100건·각 10초로 동작 확인(오류 0, p95 11ms) |
-| B1, Q3, PAY1, R1, X1, L1, L2, L3, O1 | - | 명세만 있다. 순서는 계획 문서 4절 |
+| Q3 | `scenarios/q3-admission.js` | 있음. 2026-11-05 local 대기자 1,000명·60초: 1,000명 모두 토큰 발급, 오류 0, 토큰 발급 p95 15ms. 입장 수는 초당 50씩 늘었다 |
+| B1 | `scenarios/b1-browse.js` | 있음. 2026-11-05 local 초당 20 → 40건·각 10초, 진입 초당 10건 동시: 오류 0, 조회 p95 24ms |
+| PAY1 | `scenarios/pay1-payment.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초, PG 300ms: 승인 208, `PG_UNAVAILABLE` 4, 결제 p95 560ms |
+| R1 | `scenarios/r1-confirm.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초: 212건 모두 확정, 승인 → 확정 p95 624ms(0.5초 간격 조회) |
+| X1 | `scenarios/x1-expiry.js` | 있음. 2026-11-05 local 만료 대상 500건 + 선점 초당 10명·60초: 500건이 만료 시각부터 약 33초 안에 모두 EXPIRED, 그동안 선점 p95 34ms, 오류 0. 묵은 선점이 남아 있으면 결과가 틀어진다(4절 "만료 대기 건") |
+| L1 | `scenarios/l1-lottery-entry.js` | 있음. 2026-11-05 local 초당 10 → 20건·각 10초: 요청 449건(연타 포함) 오류 0, 응모 행 424 = 고유 사용자 424, p95 19ms |
+| L2 | `scenarios/l2-lottery-billing.js` | 있음. 2026-11-05 local 응모 300명, 추첨석 60석, PG 300ms: 추첨 뒤 약 10초에 당첨 39명, 그 뒤 약 20초 안에 39명 모두 배정·결제(PAID) |
+| L3 | `scenarios/l3-lottery-interference.js` | 있음. 2026-11-05 local 선점 초당 10명, 응모 300명: 선점 p95 추첨 전 28ms, 중 30ms, 후 23ms, 오류 0 |
+| O1 | `scenarios/o1-open-peak.js` | 있음. 2026-11-05 local 사용자 200명(오픈 전 40초, 오픈 뒤 120초): 확정 180, 결제 전 이탈 18(설정 10%), 오류 2. 좌석 조회 p95 4.15초로 가장 느렸다(K1과 같은 병목) |
 
 ## 2. 실행
 
@@ -56,6 +81,50 @@ USERS=500 STAGES=50,100 STAGE_SECONDS=10 bash loadtest/k6/run.sh scenarios/g1-ga
 
 측정이 끝나면 덮어쓰기 파일 없이 reservation-service를 다시 띄워 입장 스케줄러를 켠다.
 
+Q3은 입장 스케줄러를 켠 상태에서 잰다. 측정 중 다른 창에서 입장 수를 1초마다 기록한다.
+
+```bash
+bash loadtest/k6/run.sh scenarios/q3-admission.js
+# setup 출력의 회차 ID로
+bash loadtest/k6/tools/watch-admitted.sh <회차 ID> 700
+```
+
+B1은 공개 API라 덮어쓰기가 필요 없다. PAY1·R1은 mock-pg를 `loadtest` 프로필로 띄운다. mock-pg를 다시 띄운 직후에는 결제 서비스의 PG 연결이 끊겨 차단기가 열릴 수 있으니 30초 넘게 기다린 뒤 잰다.
+
+```bash
+bash loadtest/k6/run.sh scenarios/b1-browse.js
+ENTER_RATE=1000 bash loadtest/k6/run.sh scenarios/b1-browse.js   # B1-b
+docker compose -f compose.yml -f compose.local.yml -f loadtest/k6/compose.mockpg-loadtest.yml up -d --no-deps --wait mock-pg
+bash loadtest/k6/run.sh scenarios/pay1-payment.js
+PG_DELAY_MS=1900 STAGES=40 bash loadtest/k6/run.sh scenarios/pay1-payment.js   # PAY1-b
+bash loadtest/k6/run.sh scenarios/r1-confirm.js
+```
+
+추첨(L1~L3)은 덮어쓰기 없이 돈다. L2·L3의 자동결제는 PAY1처럼 mock-pg를 `loadtest` 프로필로 띄워 둔다. 빌링키는 사용자마다 하나라 실행마다 `USER_ID_BASE`를 바꾼다.
+
+```bash
+bash loadtest/k6/run.sh scenarios/l1-lottery-entry.js
+bash loadtest/k6/run.sh scenarios/l2-lottery-billing.js          # L2-a
+PAY_RATE=20 bash loadtest/k6/run.sh scenarios/l2-lottery-billing.js   # L2-b
+bash loadtest/k6/tools/watch-lottery.sh <추첨 ID> 720 10
+bash loadtest/k6/run.sh scenarios/l3-lottery-interference.js
+```
+
+O1은 기본값(3만 명, 오픈 전 10분, 오픈 뒤 15분)이 25분 넘게 돈다. 측정 뒤 teardown이 출력하는 대사 SQL로 예매 상태와 SOLD 좌석 수를 맞춘다.
+
+```bash
+bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+USERS=200 VUS=20 PRE_OPEN_SECONDS=40 AFTER_OPEN_SECONDS=120 bash loadtest/k6/run.sh scenarios/o1-open-peak.js   # 짧게 확인
+```
+
+X1은 만료 스케줄러를 켜고, **만료 시각이 지났는데 HELD로 남은 예매가 없는 DB**에서 잰다(4절).
+
+```bash
+docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml   -f reservation-service/k6/compose.g1.yml -f loadtest/k6/compose.expiry-on.yml up -d --no-deps --wait reservation-service
+bash loadtest/k6/run.sh scenarios/x1-expiry.js
+bash loadtest/k6/tools/watch-held.sh <만료 회차 ID> 420 10
+```
+
 - `USER_ID_BASE`를 실행마다 바꾸면 같은 회차에서도 앞 실행의 사용자와 겹치지 않는다. 기본은 매번 새 회차를 만든다.
 - Q1이 끝나면 teardown이 확인할 Redis 키를 출력한다. 순번이 정확한지 local에서는 이렇게 본다.
 
@@ -78,7 +147,20 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `PRE_VUS` / `MAX_VUS` | Q1: 초당 속도(최대 2000) / 5000, G1: 500 / 3000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `DURATION_SECONDS` / `VUS` | 600 / 300 | Q2: 측정 시간과 VU 수. `USERS`가 `VUS`로 나누어떨어져야 한다 |
 | `FIRST_POLL_SPREAD_SECONDS` | 10 | Q2: 첫 폴링을 흩는 시간. 실제 진입이 10초에 걸쳐 오는 것을 흉내 낸다 |
-| `STAGES` / `STAGE_SECONDS` | `1000,2000,4000,8000` / 60 | G1: 단계별 초당 요청 수(쉼표로)와 단계 유지 시간. 단계 사이 5초 동안 올린다 |
+| `STAGES` / `STAGE_SECONDS` | G1 `1000,2000,4000,8000` / 60, B1 `500,1000,2000,4000` / 60, PAY1 `20,40,80,160` / 45, R1 `25,50,100,200` / 30 | 단계별 초당 요청 수(쉼표로)와 단계 유지 시간. 단계 사이 5초 동안 올린다. PAY1·R1은 반복마다 1석을 쓰므로 합계가 15,000석을 넘지 않게 둔다 |
+| `CONCERTS` / `SCHEDULES_PER_CONCERT` / `DETAIL_RATIO` | 20 / 3 / 0.8 | B1: 미리 만들 공연·회차 수, 상세 조회 비율(나머지는 목록) |
+| `ENTER_RATE` | 0 | B1-b: 같이 걸 초당 대기열 진입 수 |
+| `PG_DELAY_MS` | PAY1 300, R1 0 | Mock PG 승인 지연(ms). 끝나면 teardown이 0으로 되돌린다 |
+| `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경) |
+| `CONFIRM_POLL_SECONDS` / `CONFIRM_MAX_POLLS` | 0.5 / 10 | R1: 확정 확인 간격과 횟수 |
+| `EXPIRING` / `RATE` | 5000 / 100 | X1: 만료시킬 선점 수, 측정 중 초당 선점 사용자 수(L3도 `RATE`를 쓴다) |
+| `START_IN_SECONDS` | 15 | L1: 추첨을 만든 뒤 응모 시작까지 |
+| `ENTRANTS` / `SEAT_COUNT` / `WAITLIST_COUNT` | 30000 / 3000 / 1000 | L2·L3: 응모자 수, 추첨석, 예비자 수 |
+| `PAY_RATE` | 0 | L2-b: 같이 걸 초당 일반 결제 수 |
+| `PG_MODE` / `DECLINE_RATE` | `delay` / 0.05 | L2: `delay`는 승인 지연 `PG_DELAY_MS`, `decline`은 승인의 일부를 거절. Mock PG는 호출 종류마다 규칙이 하나라 둘을 같이 걸 수 없다 |
+| `DRAW_AFTER_SECONDS` / `DRAW_WINDOW_SECONDS` / `WITH_BILLING` | 60 / 120 / 1 | L3: 측정 시작 뒤 추첨까지, 추첨 뒤 "중"으로 볼 시간, 빌링키 등록 여부(자동결제까지 겹칠지) |
+| `PRE_OPEN_SECONDS` / `AFTER_OPEN_SECONDS` | 600 / 900 | O1: 오픈 전 조회 시간, 오픈 뒤 진행 시간 |
+| `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도 |
 
 새 시나리오가 변수를 더하면 `run.sh`의 `PASS_ENV` 목록에도 더한다. Docker가 목록에 있는 변수만 컨테이너로 넘긴다.
 
@@ -95,4 +177,6 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 - 측정 결과는 측정 환경 기록표([load-test.md](../../docs/design/infra/load-test.md) 7절)와 함께 남긴다. local에서 잰 결과에는 "local"을 붙인다.
 - `.env`의 키와 관리자 비밀번호는 환경변수로만 넘어간다. 화면 출력과 결과 파일에 쓰지 않는다.
 - **local의 Docker Desktop에서는 k6 컨테이너가 약 32초마다 3초씩 멈춘다.** 2026-11-05에 서버 없이 `sleep(0.1)`만 반복하는 스크립트로 확인했다(멈춤 3,028~3,032ms). Q2의 `poll_lateness`(서버가 준 시각보다 늦게 부른 정도)가 같은 주기로 튀어 알았다. local 결과에서 3초 근처의 최대값과 이 주기의 몰림은 발생기 탓일 수 있다. 본 측정은 발생기 EC2에서 한다. 같은 멈춤이 Docker VM 전체에서 생기는지(서버 컨테이너도 멈추는지)는 확인하지 못했다.
+- **측정 전에 서비스 이미지가 지금 코드인지 확인한다.** 2026-11-05에 local reservation-service 이미지가 11-04 빌드라 예매 조회 API(ISE-171)가 없어 R1이 모두 404였다. `docker compose ... build <서비스>`로 다시 만들고, 측정 기록표의 커밋 해시는 이미지를 만든 커밋으로 적는다.
+- **만료 대기 건.** 배포 메모리 덮어쓰기는 만료 스케줄러를 끄므로, 그 상태로 잰 측정의 선점은 만료되지 않고 남는다. 스케줄러를 다시 켜면 그 묵은 선점부터 처리해 X1의 만료 대상이 뒤로 밀린다. X1 전에 `select count(*) from reservations where status='HELD' and hold_expires_at < now()`가 0인지 본다. 2026-11-05에는 묵은 선점 7,000여 건이 남아 있었다. 이를 처리하는 속도는 5초 주기·100건 묶음에서 초당 약 15.6건이었다(35주기 3,500건 224초, local 1회).
 - Gateway의 503 중 지연이 수 ms인 것은 인증 Redis 차단기(`auth-redis`)가 열린 것일 수 있다. Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`로 출처를 나눈다.

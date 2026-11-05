@@ -259,7 +259,14 @@
 
 ## 3. 결과
 
-본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(Q1·Q2·G1은 2026-11-05 local에서 작은 규모로 동작만 확인). 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
+본 측정 전이다. 시나리오 ID별로 표를 더한다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-35~TS-40에 있다.
+
+### 동작 확인 중 얻은 수치 (local, 1회, 참고용)
+
+| 시나리오 | 관찰 | 쓰임 |
+|---|---|---|
+| X1 | 만료 스케줄러가 묵은 선점을 5초 주기·100건 묶음으로 처리하는 속도는 초당 약 15.6건이었다(35주기 3,500건 224초). 한 주기가 5초 간격에 처리 약 1.4초를 더해 약 6.4초다 | 계획 문서 Z10의 계산값(초당 20건)보다 낮다. X-0 기준선의 예상값을 이 값으로 둔다 |
+| PAY1 | mock-pg를 다시 띄운 직후 결제 서비스의 PG 연결이 끊겨(`closed`, `UnresolvedAddressException`) 차단기가 열리고 `PG_UNAVAILABLE`이 났다. 안정된 뒤 다시 재면 초당 5~10건에서 `PG_UNAVAILABLE` 4건(발생기 멈춤 구간과 겹침) | 측정 절차: mock-pg 재기동 뒤 30초 넘게 기다린다 | 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
 
 ## 4. 검토 요청
 
