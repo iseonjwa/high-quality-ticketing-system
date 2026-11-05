@@ -8,6 +8,9 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-05 | 패키지 분리 PR의 base를 ISE-184 브랜치로 둔 구성을 거부하고 `dev`로 다시 올림 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-stacked-pr-base-to-dev.md) |
+| 2026-11-05 | 추첨 응모 취소의 변수 `canceled`를 `canceledNow`로 바꾸자는 제안 거부 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-keep-canceled-name.md) |
+| 2026-11-04 | 초기 구성 브랜치 `ggangmy/chore/init-env`를 남겨 두자는 추천을 거부하고 원격에서 삭제 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-04-delete-init-env-branch.md) |
 | 2026-11-04 | ISE-150 리뷰 지적 11건을 이번 PR 수정, 담당자 확인, 후속으로 나눔 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-04-ise-150-review-triage.md) |
 | 2026-11-04 | AWS 요금 절약 정보: Notion 데이터베이스 제안 대신 일반 페이지로 정함 | Claude(claude.ai) | **거부** | 아니오 | 아님 | [기록](2026-11-04-aws-cost-notes-notion-page.md) |
 | 2026-11-03 | 회의 자료·판단 기록의 "입구" 표현을 "인바운드 어댑터"로 바꾸자는 제안 거부 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-03-keep-entrance-wording.md) |
@@ -59,6 +62,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-05 | [daily/2026-11-05.md](daily/2026-11-05.md) |
 | 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |
 | 2026-11-02 | [daily/2026-11-02.md](daily/2026-11-02.md) |
 | 2026-11-03 | [daily/2026-11-03.md](daily/2026-11-03.md) |

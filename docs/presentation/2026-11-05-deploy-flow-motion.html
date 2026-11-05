@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이선좌 배포 노선도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* 노선도: 시스템마다 한 줄(노선), 커밋 하나가 열차처럼 정거장을 지난다. 위에서 개념, 가운데 움직이는 노선도, 아래 표로 정리 */
+:root {
+  --paper: #f2f4f3;
+  --surface: #ffffff;
+  --ink: #16201c;
+  --muted: #5a6762;
+  --rule: #d3dad7;
+  --token: #16201c;
+  --token-ink: #ffffff;
+  --l-git: #4b5661;
+  --l-ci: #2a62d4;
+  --l-reg: #0e8579;
+  --l-cd: #c03c37;
+  --l-srv: #b97606;
+  --l-msg: #7a45a6;
+  --ok: #1e7f4f;
+  --warn: #e08e00;
+  --bad: #d12b3a;
+  --mute: #8a94a6;
+  --lane-a: #f7f9f8;
+  --lane-b: #eef2f0;
+  --font-display: "Do Hyeon", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101614; --surface: #171e1b; --ink: #e5ece8; --muted: #9aa8a2; --rule: #2b3531;
+    --token: #e5ece8; --token-ink: #101614;
+    --l-git: #a3afba; --l-ci: #6f9bff; --l-reg: #3cc2b3; --l-cd: #f0716b; --l-srv: #f0b443; --l-msg: #b88ae0;
+    --ok: #4cc488; --warn: #ffb53d; --bad: #ff6b76; --mute: #9aa3b5;
+    --lane-a: #141a18; --lane-b: #1a221f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #101614; --surface: #171e1b; --ink: #e5ece8; --muted: #9aa8a2; --rule: #2b3531;
+  --token: #e5ece8; --token-ink: #101614;
+  --l-git: #a3afba; --l-ci: #6f9bff; --l-reg: #3cc2b3; --l-cd: #f0716b; --l-srv: #f0b443; --l-msg: #b88ae0;
+  --ok: #4cc488; --warn: #ffb53d; --bad: #ff6b76; --mute: #9aa3b5;
+  --lane-a: #141a18; --lane-b: #1a221f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--l-ci); }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--lane-b); padding: 0.05em 0.35em; border-radius: 4px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.01em; }
+p { margin: 0; }
+
+header.hero { padding: 48px 0 28px; border-bottom: 1px solid var(--rule); }
+.eyebrow { font-size: 13px; color: var(--muted); letter-spacing: 0.04em; }
+.hero h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.15; margin: 8px 0 14px; }
+.hero .lede { max-width: 68ch; color: var(--ink); font-size: 17px; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; padding: 0; list-style: none; }
+.facts li {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 999px;
+  padding: 6px 14px; font-size: 14px;
+}
+.facts .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+section { padding: 40px 0; border-bottom: 1px solid var(--rule); }
+section > .wrap > h2 { font-size: 30px; margin-bottom: 6px; }
+.section-lede { color: var(--muted); max-width: 70ch; margin-bottom: 22px; }
+
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.card h3 { font-size: 17px; }
+.card .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14.5px; }
+.card p { font-size: 15px; }
+.card.ci { border-top: 4px solid var(--l-ci); }
+.card.cd { border-top: 4px solid var(--l-cd); }
+.card.why { border-top: 4px solid var(--l-srv); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 8px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.btns { display: inline-flex; gap: 6px; }
+.btn { border: 1px solid var(--rule); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.btn:hover, .seg button:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); min-width: 88px; }
+button:focus-visible { outline: 3px solid var(--l-ci); outline-offset: 2px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress { flex: 1 1 160px; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; min-width: 120px; }
+.progress span { display: block; height: 100%; width: 0; background: var(--ink); transition: width 0.5s ease; }
+
+.map-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+svg.map { display: block; width: 100%; min-width: 980px; height: auto; color: var(--ink); font-family: var(--font-body); }
+.lane-bg.a { fill: var(--lane-a); }
+.lane-bg.b { fill: var(--lane-b); }
+.lane-name { font-size: 14px; font-weight: 700; fill: var(--ink); }
+.lane-sub { font-size: 11px; fill: var(--muted); }
+.track { stroke-width: 2; opacity: 0.22; }
+.route-base { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 3 5; opacity: 0.55; }
+.seg-done { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 0.85s ease; }
+.seg-done.on { stroke-dashoffset: 0; }
+.side { fill: none; stroke-width: 2; stroke-dasharray: 5 5; opacity: 0.35; transition: opacity 0.4s ease; }
+.side.on { opacity: 1; }
+.side-label { font-size: 11px; fill: var(--muted); }
+.bar { opacity: 0.25; transition: opacity 0.4s ease; }
+.bar.on { opacity: 0.75; }
+.node circle.ring { fill: var(--surface); stroke-width: 3; transition: r 0.3s ease, fill 0.3s ease; }
+.node.done circle.ring { fill: currentColor; }
+.node.active circle.ring { r: 11; fill: currentColor; }
+.node circle.halo { fill: none; stroke: currentColor; stroke-width: 2; opacity: 0; }
+.node.active circle.halo { animation: halo 1.6s ease-out infinite; }
+@keyframes halo { 0% { r: 11; opacity: 0.7; } 100% { r: 26; opacity: 0; } }
+.node text.label { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+.node text.note { font-size: 11px; fill: var(--muted); }
+.node.dim { opacity: 0.35; }
+.node.st-bad { color: var(--bad) !important; }
+.node.st-warn { color: var(--warn) !important; }
+.node.st-mute { color: var(--mute) !important; }
+.term { stroke-width: 2; }
+.term-label { font-size: 11px; fill: var(--muted); }
+.token rect { fill: var(--token); }
+.token text { fill: var(--token-ink); font-family: var(--font-mono); font-size: 11px; }
+.idle-note { font-size: 12px; fill: var(--muted); font-style: italic; }
+
+.panel { margin-top: 14px; background: var(--surface); border: 1px solid var(--rule); border-left: 6px solid var(--panel-color, var(--ink)); border-radius: 10px; padding: 18px 22px; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px 28px; min-height: 196px; }
+.panel .head { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--paper); white-space: nowrap; }
+.chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.panel h3 { grid-column: 1 / -1; font-size: 21px; }
+.panel .body { font-size: 15.5px; max-width: 68ch; }
+.panel dl { margin: 0; display: grid; gap: 8px; font-size: 14px; align-content: start; }
+.panel dt { color: var(--muted); font-size: 12px; }
+.panel dd { margin: 0; }
+
+ol.steps { list-style: none; padding: 0; margin: 22px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; counter-reset: step; }
+ol.steps li button {
+  width: 100%; text-align: left; font: inherit; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 10px 12px; cursor: pointer; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 10px;
+}
+ol.steps li button:hover { border-color: var(--muted); }
+ol.steps li button[aria-current="step"] { border-color: var(--ink); box-shadow: inset 4px 0 0 var(--step-color, var(--ink)); }
+ol.steps .n { grid-row: span 2; font-family: var(--font-mono); font-size: 13px; color: var(--muted); padding-top: 2px; }
+ol.steps .t { font-weight: 600; font-size: 14.5px; }
+ol.steps .s { font-size: 13px; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; font-size: 14.5px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 600; background: var(--lane-b); }
+tr:last-child td { border-bottom: 0; }
+.table-scroll { overflow-x: auto; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.two h3 { font-size: 16px; margin-bottom: 10px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+
+.real { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.real div { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; }
+.real b { display: block; font-family: var(--font-mono); font-size: 22px; font-variant-numeric: tabular-nums; }
+.real span { font-size: 13px; color: var(--muted); }
+.timeline { margin-top: 14px; }
+.timeline td:first-child { font-family: var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+footer { padding: 28px 0 48px; font-size: 13.5px; color: var(--muted); }
+footer ul { margin: 6px 0 0; padding-left: 18px; }
+
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; }
+  .panel { grid-template-columns: 1fr; }
+  ol.steps { grid-template-columns: 1fr; }
+  .two { grid-template-columns: 1fr; }
+  .real { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-done, .progress span, .side, .bar, .node circle.ring { transition: none; }
+  .node.active circle.halo { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">이선좌 배포 파이프라인 · 2026-11-05 기준 · ADR 0044</div>
+    <h1>main 머지에서 배포 서버까지</h1>
+    <p class="lede">릴리스 PR(dev → main)을 머지하면 사람이 할 일은 끝난다. GitHub Actions가 이미지 8개를 만들어 GHCR에 올리고, Jenkins가 그 이미지를 배포 서버에 띄워 확인한 뒤 슬랙으로 결과를 알린다. 아래 노선도는 11/5 릴리스 #338(머지 커밋 <code>ab274ab</code>)이 지나간 길이다.</p>
+    <ul class="facts">
+      <li><span class="dot" style="background: var(--l-git)"></span>사람이 하는 일: 릴리스 PR 머지 한 번</li>
+      <li><span class="dot" style="background: var(--l-reg)"></span>커밋 SHA 하나가 이미지 태그, 배포 버전, 되돌림 기준이 된다</li>
+      <li><span class="dot" style="background: var(--ok)"></span>확인에 실패하면 직전 버전으로 자동 되돌림</li>
+      <li><span class="dot" style="background: var(--l-msg)"></span>슬랙 알림 세 번: 배포 준비 → 배포 중 → 결과</li>
+    </ul>
+  </div>
+</header>
+
+<section id="cicd">
+  <div class="wrap">
+    <h2>CI와 CD</h2>
+    <p class="section-lede">CI는 합칠 때마다 자동으로 검사하는 일이고, CD는 검사를 통과한 결과물을 서버까지 옮기는 일이다. 이 프로젝트는 둘을 서로 다른 도구에 맡겼다.</p>
+    <div class="cards">
+      <article class="card ci">
+        <div class="tag">Continuous Integration · 지속적 통합</div>
+        <h3>CI: 합칠 때마다 자동 검사</h3>
+        <p>여러 사람이 작은 변경을 자주 합치고, 합칠 때마다 빌드와 테스트를 자동으로 돌려 깨진 곳을 바로 찾는다. 여기서는 PR마다 GitHub Actions가 돈다.</p>
+        <ul>
+          <li><b>build</b> (필수): Java 21로 <code>./gradlew verifyWorkspace</code></li>
+          <li><b>records-check</b> (필수): 학습·판단 기록 구조와 비밀값 흔적</li>
+          <li><b>frontend</b>: <code>frontend/</code>가 바뀐 PR에서 포맷·린트·테스트·빌드</li>
+          <li><b>prometheus-rules</b>: 알림 규칙이 바뀐 PR에서 문법·단위 테스트</li>
+          <li><b>images</b>: Dockerfile 등이 바뀐 PR에서 빌드만</li>
+        </ul>
+      </article>
+      <article class="card cd">
+        <div class="tag">Continuous Delivery / Deployment</div>
+        <h3>CD: 서버까지 옮기기</h3>
+        <p><b>지속적 전달</b>은 언제든 배포할 수 있는 결과물을 자동으로 만들어 두고, 배포 버튼은 사람이 누른다. <b>지속적 배포</b>는 관문을 통과하면 사람 없이 운영 서버까지 올린다.</p>
+        <p>이 프로젝트는 main에 들어온 커밋을 자동으로 배포하므로 지속적 배포에 가깝다. main에 넣는 일(릴리스 PR 머지)은 배포 담당이 하므로, 그 머지가 사람이 쥔 유일한 스위치다.</p>
+      </article>
+      <article class="card why">
+        <div class="tag">ADR 0044 · 왜 둘로 나눴나</div>
+        <h3>빌드는 Actions, 배포는 Jenkins</h3>
+        <ul>
+          <li>배포 서버에서 빌드하면 앱 7개 Gradle 빌드가 5~10분과 메모리를 운영 서비스와 다툰다. 그래서 빌드는 GitHub 실행기에서 한다.</li>
+          <li>Jenkins는 같은 VPC의 별도 서버에서 사설 IP로 배포 서버에 SSH한다. 배포 서버 SSH를 인터넷에 열지 않는다.</li>
+          <li>웹훅 대신 폴링이라 Jenkins도 외부에 열지 않는다. 대가로 최대 2분 늦게 시작한다.</li>
+          <li>main 머지가 곧 배포라, 시연·측정 중에는 머지를 멈춘다.</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="route">
+  <div class="wrap">
+    <h2>커밋 하나가 지나가는 길</h2>
+    <p class="section-lede">가로줄 하나가 시스템 하나다. 검은 알약이 커밋이고, 정거장을 지날 때마다 아래 설명이 바뀐다. 실패한 경우는 위 버튼으로 바꿔 본다.</p>
+
+    <div class="controls">
+      <div class="seg" role="group" aria-label="시나리오">
+        <button type="button" id="sc-ok" data-sc="ok" aria-pressed="true">성공</button>
+        <button type="button" id="sc-rb" data-sc="rb" aria-pressed="false">확인 실패 → 되돌림</button>
+        <button type="button" id="sc-ab" data-sc="ab" aria-pressed="false">이미지 없음 → 중단</button>
+      </div>
+      <div class="btns">
+        <button type="button" class="btn" id="b-first" aria-label="처음 단계로">처음</button>
+        <button type="button" class="btn" id="b-prev" aria-label="이전 단계">이전</button>
+        <button type="button" class="btn primary" id="b-play">재생</button>
+        <button type="button" class="btn" id="b-next" aria-label="다음 단계">다음</button>
+      </div>
+      <span class="counter" id="counter">1 / 16</span>
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+    </div>
+
+    <figure style="margin: 0">
+      <div class="map-scroll">
+        <svg class="map" id="map-svg" viewBox="0 0 1200 510" role="img" aria-label="main 머지 커밋이 GitHub, GitHub Actions, GHCR, Jenkins, 배포 서버, Slack을 차례로 지나 배포되는 노선도"></svg>
+      </div>
+      <figcaption class="section-lede" style="margin: 8px 0 0; font-size: 13px">시간 표기는 실측값이다. 11/4 값은 첫 릴리스(#315), 11/5 값은 이번 릴리스(#338) 기준.</figcaption>
+    </figure>
+
+    <div class="panel" id="panel" aria-live="polite">
+      <div class="head"><span class="chip" id="p-lane"><i></i><span></span></span><span class="counter" id="p-step"></span></div>
+      <h3 id="p-title"></h3>
+      <p class="body" id="p-body"></p>
+      <dl>
+        <div><dt>누가</dt><dd id="p-who"></dd></div>
+        <div><dt>시간</dt><dd id="p-time"></dd></div>
+        <div><dt>근거</dt><dd id="p-src" class="mono"></dd></div>
+      </dl>
+    </div>
+
+    <ol class="steps" id="steps"></ol>
+  </div>
+</section>
+
+<section id="real">
+  <div class="wrap">
+    <h2>11/5 릴리스 #338 실제 기록</h2>
+    <p class="section-lede">Jenkins를 거친 첫 자동 배포다. 시각은 UTC 기준이며 한국 시간은 9시간을 더한다.</p>
+    <div class="real" id="real-stats">
+      <div><b>4분 35초</b><span>머지에서 배포 완료까지</span></div>
+      <div><b>2분 9초</b><span>이미지 8개 빌드(images)</span></div>
+      <div><b>1분 4초</b><span>머지 뒤 Jenkins 시작</span></div>
+      <div><b>2분 4초</b><span>배포 서버 작업(deploy.sh)</span></div>
+    </div>
+    <div class="table-scroll timeline">
+      <table>
+        <thead><tr><th>시각(UTC)</th><th>일</th></tr></thead>
+        <tbody id="real-rows">
+          <tr><td>05:52:02</td><td>#338 머지(merge commit <code>ab274ab</code>)</td></tr>
+          <tr><td>05:52:04</td><td>GitHub Actions 시작: images, build, frontend, records-check</td></tr>
+          <tr><td>05:52:19</td><td>records-check 통과(15초)</td></tr>
+          <tr><td>05:53:06</td><td>Jenkins 빌드 #2 시작. 폴링이 새 커밋을 찾음</td></tr>
+          <tr><td>05:53:21</td><td>이미지 8개 기다리기 시작</td></tr>
+          <tr><td>05:53:59</td><td>frontend 이미지 하나만 남음</td></tr>
+          <tr><td>05:54:13</td><td>images 워크플로 끝(2분 9초)</td></tr>
+          <tr><td>05:54:31</td><td>Jenkins가 8개 모두 확인</td></tr>
+          <tr><td>05:54:33</td><td>deploy.sh 시작(직전 성공 <code>e27d54e</code>)</td></tr>
+          <tr><td>05:54:56</td><td>이미지 pull 끝, 앱 컨테이너 8개 다시 만들기 시작</td></tr>
+          <tr><td>05:56:15</td><td>헬스 대기 통과, 스모크 시작</td></tr>
+          <tr><td>05:56:37</td><td>스모크 4개 통과, 배포 성공(<code>.deploy/current</code> = <code>ab274ab</code>)</td></tr>
+          <tr><td>05:56:39</td><td>Jenkins #2 SUCCESS(3분 33초), 슬랙 알림 전송</td></tr>
+          <tr><td>05:57:43</td><td>main의 build 검사 끝. 배포는 이미 1분 전에 끝났다</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="who">
+  <div class="wrap">
+    <h2>누가 무엇을 맡나</h2>
+    <p class="section-lede">사람은 머지와 확인을 맡고, 나머지는 시스템이 한다.</p>
+    <div class="two">
+      <div>
+        <h3>사람</h3>
+        <div class="table-scroll"><table>
+          <thead><tr><th>누가</th><th>하는 일</th></tr></thead>
+          <tbody>
+            <tr><td>기능 PR 작성자<br>(팀원 모두)</td><td>기능 PR을 dev에 머지한다. 필수 검사가 통과해야 머지된다. 배포 알림이 오면 자기 기능 화면을 확인한다.</td></tr>
+            <tr><td>배포 담당<br>(안준현)</td><td>릴리스 PR(dev → main)을 만들어 merge commit으로 머지한다. images 워크플로, Jenkinsfile, deploy.sh 같은 파이프라인과 Jenkins·배포 서버를 관리하고 실패 알림에 대응한다.</td></tr>
+            <tr><td>시연·측정하는 사람</td><td>그동안 main 머지를 멈춰 달라고 알린다. 머지가 곧 배포라서다.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div>
+        <h3>시스템</h3>
+        <div class="table-scroll"><table>
+          <thead><tr><th>시스템</th><th>맡은 일</th><th>자리</th></tr></thead>
+          <tbody>
+            <tr><td><span class="swatch" style="background: var(--l-git)"></span>GitHub</td><td>코드, PR, 필수 검사(브랜치 보호)</td><td>github.com</td></tr>
+            <tr><td><span class="swatch" style="background: var(--l-ci)"></span>GitHub Actions</td><td>CI 검사, 이미지 빌드</td><td>매번 새 실행기</td></tr>
+            <tr><td><span class="swatch" style="background: var(--l-reg)"></span>GHCR</td><td>커밋별 이미지 보관</td><td><code>ghcr.io/iseonjwa</code></td></tr>
+            <tr><td><span class="swatch" style="background: var(--l-cd)"></span>Jenkins</td><td>main 감시, 이미지 확인, SSH 배포, 알림</td><td>t3.small, 화면은 SSH 터널</td></tr>
+            <tr><td><span class="swatch" style="background: var(--l-srv)"></span>배포 서버</td><td>deploy.sh, smoke.sh, 컨테이너 20개</td><td>m7i.xlarge</td></tr>
+            <tr><td><span class="swatch" style="background: var(--l-msg)"></span>Slack</td><td>배포 결과 알림</td><td>#이선좌-배포상태알림</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <h2>슬랙에 오는 알림</h2>
+    <p class="section-lede">배포 한 번에 알림이 세 번 온다. 앞의 두 번은 남색 띠의 진행 알림(<code>started</code> 배포 준비, <code>deploying</code> 배포 중)이고, 마지막은 Jenkins가 정한 결과(RESULT)에 따라 띠 색과 제목이 달라진다. 이미지를 못 찾으면 배포 중 알림 없이 결과가 바로 온다. 서버 상태 칸이 "확인 필요"면 배포 담당이 서버에 들어가 본다.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>결과</th><th>슬랙 제목</th><th>언제</th><th>서버 상태</th></tr></thead>
+      <tbody>
+        <tr><td><span class="swatch" style="background: #3B3BD4"></span><code>started</code></td><td>[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다</td><td>Jenkins가 커밋을 정한 직후(진행 알림)</td><td>아직 그대로</td></tr>
+        <tr><td><span class="swatch" style="background: #3B3BD4"></span><code>deploying</code></td><td>[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다</td><td>SSH 배포 직전(진행 알림)</td><td>반영 중</td></tr>
+        <tr><td><span class="swatch" style="background: #1E7F4F"></span><code>success</code></td><td>[배포 성공] 배포 서버에 새 버전을 올렸습니다</td><td>스모크까지 통과</td><td>새 버전</td></tr>
+        <tr><td><span class="swatch" style="background: #F59F00"></span><code>rolledback</code></td><td>[배포 실패] … 직전 버전으로 되돌렸습니다</td><td>헬스 대기 7분 초과나 스모크 실패, 되돌림은 통과</td><td>직전 버전</td></tr>
+        <tr><td><span class="swatch" style="background: #D12B3A"></span><code>rollbackfailed</code></td><td>[배포 실패] 배포와 되돌림이 모두 실패했습니다</td><td>되돌린 버전도 확인 실패</td><td>확인 필요</td></tr>
+        <tr><td><span class="swatch" style="background: #8A94A6"></span><code>aborted</code></td><td>[배포 중단] 이미지가 20분 안에 GHCR에 올라오지 않았습니다</td><td>images 실패 등</td><td>직전 버전 그대로</td></tr>
+        <tr><td><span class="swatch" style="background: #8A94A6"></span><code>cancelled</code></td><td>[배포 멈춤] 배포가 중간에 멈췄습니다</td><td>사람이 멈춤, 40분 제한</td><td>확인 필요</td></tr>
+        <tr><td><span class="swatch" style="background: #D12B3A"></span><code>error</code></td><td>[배포 오류] 파이프라인이 실패했습니다</td><td>그 밖의 오류</td><td>확인 필요</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    근거 파일
+    <ul>
+      <li><code>.github/workflows/build.yml</code>, <code>records-check.yml</code>, <code>frontend.yml</code>, <code>images.yml</code>, <code>prometheus-rules.yml</code>, <code>docker-bake.hcl</code></li>
+      <li><code>Jenkinsfile</code>, <code>infra/jenkins/casc.yaml</code>, <code>script/deploy/deploy.sh</code>, <code>smoke.sh</code>, <code>slack-payload.sh</code></li>
+      <li><code>docs/decisions/0044-deploy-actions-ghcr-jenkins.md</code>, <code>docs/design/infra/deployment.md</code>, <code>docs/guides/git-workflow.md</code> 5절</li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var LANES = [
+    { id: "git", name: "GitHub", sub: "코드 · PR", top: 40, h: 70 },
+    { id: "ci", name: "GitHub Actions", sub: "CI · 이미지 빌드", top: 110, h: 110 },
+    { id: "reg", name: "GHCR", sub: "이미지 저장소", top: 220, h: 70 },
+    { id: "cd", name: "Jenkins", sub: "CD · 배포 실행", top: 290, h: 70 },
+    { id: "srv", name: "배포 서버", sub: "deploy.sh · smoke.sh", top: 360, h: 70 },
+    { id: "msg", name: "Slack", sub: "#이선좌-배포상태알림", top: 430, h: 70 }
+  ];
+  var LANE = {};
+  LANES.forEach(function (l) { LANE[l.id] = l; });
+  function cy(lane, dy) { var l = LANE[lane]; return l.top + l.h / 2 + (dy || 0); }
+
+  var POS = {
+    pr: { lane: "git", x: 200 }, merge: { lane: "git", x: 300 },
+    checks: { lane: "ci", x: 400, dy: -25, side: "right" }, images: { lane: "ci", x: 400, dy: 25, side: "right" },
+    poll: { lane: "cd", x: 480 }, ghcr: { lane: "reg", x: 580 }, wait: { lane: "cd", x: 600 }, ssh: { lane: "cd", x: 700 },
+    checkout: { lane: "srv", x: 740 }, pull: { lane: "srv", x: 820 }, up: { lane: "srv", x: 900 },
+    smoke: { lane: "srv", x: 1020 }, record: { lane: "srv", x: 1100 },
+    slack: { lane: "msg", x: 1140 }, slackAbort: { lane: "msg", x: 700 },
+    slackStart: { lane: "msg", x: 530 }, slackDeploying: { lane: "msg", x: 760 }
+  };
+
+  var S = {
+    pr: { node: "pr", label: "PR 필수 검사", note: "build · records-check", move: true,
+      title: "릴리스 PR의 필수 검사 통과",
+      body: "dev를 main에 반영하는 PR(#338)도 다른 PR처럼 build와 records-check가 통과해야 머지 버튼이 열린다(브랜치 보호 규칙). 코드를 자동으로 거르는 관문은 배포 전에 여기 한 번뿐이다.",
+      who: "GitHub · 배포 담당이 PR을 만든다", time: "#338 build 4분 21초(PR 검사)", src: "git-workflow.md 5절, build.yml" },
+    merge: { node: "merge", label: "main 머지", note: "ab274ab", move: true,
+      title: "main에 머지하면 새 커밋 SHA가 생긴다",
+      body: "머지 방식은 Create a merge commit이다. 머지 커밋 ab274ab가 main의 새 머리가 되고, 이 40자 SHA가 이미지 태그, 배포 버전, 되돌림 기준으로 끝까지 따라간다. squash로 넣으면 main에 dev에 없는 커밋이 생겨 다음 반영 때 충돌한다.",
+      who: "배포 담당이 머지 버튼을 누른다. 사람이 하는 마지막 일", time: "11/5 05:52:02 UTC", src: "PR #338" },
+    checks: { node: "checks", label: "검사 3종 다시 실행 · build · records-check · frontend", note: "main에서도 돌지만 배포를 기다리게 하지 않는다", move: false, side: "checks",
+      title: "main push에서도 검사가 다시 돈다",
+      body: "build, records-check, frontend가 main에서 한 번 더 돈다. 결과는 커밋 옆에 표시만 되고 Jenkins는 이 결과를 기다리지 않는다. 그래서 이 줄은 배포 노선과 이어지지 않고 끝난다. 막아야 할 것은 PR 단계에서 이미 막았다는 전제다. 11/5에는 배포가 05:56:37에 끝나고 1분 뒤인 05:57:43에야 main의 build가 끝났다.",
+      who: "GitHub Actions", time: "build 5분 39초(11/5 main 실측)", src: "build.yml, records-check.yml, frontend.yml" },
+    images: { node: "images", label: "이미지 8개 빌드 · images", note: "11/5 실측 2분 9초", move: true, bar: 556,
+      title: "이미지 8개를 한 번에 만든다",
+      body: "images 워크플로가 docker-bake.hcl의 default 그룹(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend)을 buildx bake로 빌드한다. 앱 7개의 Gradle 빌드는 한 번만 돈다. Gradle·npm 캐시를 복원해 시간을 줄이고, 실행마다 GitHub이 주는 GITHUB_TOKEN으로 GHCR에 로그인한다. 개인 토큰은 두지 않는다.",
+      who: "GitHub Actions", time: "2분 9초(11/5), 3분 5초(11/4)", src: "images.yml, docker-bake.hcl" },
+    poll: { node: "poll", label: "새 커밋 발견", note: "deploy-main 시작", move: false, side: "poll",
+      title: "Jenkins는 이미 새 커밋을 찾았다",
+      body: "Jenkins 잡 deploy-main은 main을 2분마다 확인한다(POLL_SCHEDULE H/2). 새 커밋을 보면 빌드를 시작해 배포할 SHA를 정한다. 이미지는 아직 만들어지는 중이라 다음 단계에서 기다린다. 웹훅이 아니라 폴링이라 Jenkins를 인터넷에 열 필요가 없다.",
+      who: "Jenkins(Jenkins 서버 t3.small)", time: "머지 1분 4초 뒤 시작(11/5)", src: "infra/jenkins/casc.yaml, Jenkinsfile 「커밋 정하기」" },
+    ghcr: { node: "ghcr", label: "이미지 8개 보관", note: "SHA 태그", move: true,
+      title: "GHCR에 SHA 태그로 올라간다",
+      body: "이미지가 ghcr.io/iseonjwa/<서비스>:<40자 SHA> 형태로 8개 올라간다. 패키지가 공개라 Jenkins와 배포 서버가 토큰 없이 받는다. 커밋마다 이미지가 남아 있어서 아무 커밋으로나 다시 배포하거나 되돌릴 수 있다.",
+      who: "GHCR(GitHub Container Registry)", time: "images 워크플로가 끝나는 순간", src: "images.yml" },
+    wait: { node: "wait", label: "이미지 확인", note: "30초마다 확인", move: true,
+      title: "8개가 모두 있는지 확인한다",
+      body: "Jenkins가 GHCR에서 익명 토큰을 받아 8개 이미지의 매니페스트를 조회한다. 하나라도 없으면 30초 뒤 다시 본다. 모두 200이면 배포로 넘어가고, 20분이 지나도 없으면 「배포 중단」으로 끝낸다.",
+      who: "Jenkins", time: "1분 10초 기다림(11/5 실측). 30초 간격, 최대 20분", src: "Jenkinsfile 「이미지 기다리기」" },
+    ssh: { node: "ssh", label: "SSH 배포 호출", note: "사설 IP로", move: true,
+      title: "배포 서버에 SSH로 배포를 시킨다",
+      body: "Jenkins 전용 키(자격 증명 deploy-ssh)로 배포 서버의 사설 IP에 접속해 저장소를 그 SHA로 맞추고 script/deploy/deploy.sh <SHA>를 실행한다. 사설 IP를 쓰는 이유는 배포 서버 보안 그룹이 Jenkins 보안 그룹에서 오는 22만 받기 때문이다. 이 규칙은 VPC 안 연결에만 맞는다.",
+      who: "Jenkins → 배포 서버", time: "2초(11/5 실측)", src: "Jenkinsfile 「배포」" },
+    checkout: { node: "checkout", label: "checkout", note: "직전 버전 기억", move: true,
+      title: "저장소를 이미지와 같은 커밋으로 맞춘다",
+      body: "deploy.sh가 git checkout으로 compose 파일, config-repo, 관측 설정을 이미지와 같은 커밋으로 맞춘다. 지금 떠 있는 버전(직전 성공 커밋)은 .deploy/current에서 읽어 둔다. 실패하면 이 버전으로 돌아간다.",
+      who: "배포 서버(m7i.xlarge)", time: "몇 초", src: "script/deploy/deploy.sh" },
+    pull: { node: "pull", label: "이미지 pull", note: "앱 8개만 새로", move: true,
+      title: "새 이미지를 받는다",
+      body: "IMAGE_TAG=<SHA>로 compose.yml과 compose.deploy.yml을 합쳐 docker compose pull을 한다. 앱 이미지 8개만 새로 받고, PostgreSQL·Redis·Kafka 같은 이미지는 그대로다.",
+      who: "배포 서버", time: "23초(11/5 실측)", src: "deploy.sh, compose.deploy.yml" },
+    up: { node: "up", label: "up --wait", note: "실측 1분 19초", move: true, bar: 980,
+      title: "바뀐 컨테이너만 다시 띄우고 헬스를 기다린다",
+      body: "docker compose up -d --remove-orphans --wait가 이미지가 바뀐 컨테이너만 새로 만든다. healthcheck가 있는 컨테이너가 모두 healthy가 될 때까지 최대 420초 기다린다. 앱은 뜨면서 Flyway 마이그레이션을 돈다. DB 데이터는 볼륨에 있어 그대로다.",
+      who: "배포 서버", time: "1분 19초(11/5 실측), 최대 7분", src: "deploy.sh" },
+    smoke: { node: "smoke", label: "스모크 4개", note: "실측 22초", move: true,
+      title: "사용자 입장에서 네 가지를 확인한다",
+      body: "nginx 80을 거쳐 화면(200), 새로고침한 깊은 경로(200), 공연 목록 API(200), 내 정보 API(401, 로그인 없이 거절되는 것이 정상)를 본다. 앱이 Eureka에 등록되기까지 30초 남짓 걸려 항목마다 5초 간격으로 최대 120초 다시 확인한다(TS-34). 11/5에는 공연 목록이 22초 기다린 뒤 통과했다.",
+      who: "배포 서버(smoke.sh)", time: "22초(11/5 실측), 항목당 최대 120초", src: "script/deploy/smoke.sh" },
+    record: { node: "record", label: "버전 기록", note: ".deploy/current", move: true,
+      title: "성공한 버전을 기록한다",
+      body: ".deploy/current에 새 SHA를, .deploy/previous에 직전 SHA를 적고 종료 코드 0으로 끝난다. 다음 배포가 실패하면 이 기록이 되돌아갈 곳이 된다.",
+      who: "배포 서버", time: "곧바로", src: "deploy.sh" },
+    slack: { node: "slack", label: "성공 알림", note: "초록 띠", move: true, status: "ok",
+      title: "슬랙 세 번째 알림: 결과",
+      body: "Jenkins의 post 단계가 slack-payload.sh로 메시지를 만들어 #이선좌-배포상태알림에 보낸다. 초록 띠에 「[배포 성공] 배포 서버에 새 버전을 올렸습니다」, 커밋, 직전 버전, 계기, 걸린 시간, 비교 링크, 서비스 바로 가기가 붙는다. 전송에 실패해도 배포 결과는 바뀌지 않는다.",
+      who: "Jenkins → Slack. 팀원은 알림을 보고 자기 화면을 확인한다", time: "배포 끝나자마자", src: "Jenkinsfile post, slack-payload.sh" },
+    slackStart: { node: "slackStart", label: "배포 준비 알림", note: "남색 띠", move: false, side: "notify", from: "poll",
+      title: "슬랙 첫 알림: 배포 준비",
+      body: "Jenkins가 배포할 커밋을 정하자마자 「[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다」를 남색 띠로 보낸다. 커밋 제목, 커밋 링크, 계기만 담은 짧은 알림이다. #338 배포 뒤에 더한 알림이라 그다음 main 반영부터 온다(ISE-175).",
+      who: "Jenkins → Slack", time: "Jenkins 시작 직후", src: "Jenkinsfile notifySlack('started'), slack-payload.sh" },
+    slackDeploying: { node: "slackDeploying", label: "배포 중 알림", note: "남색 띠", move: false, side: "notify", from: "wait",
+      title: "슬랙 두 번째 알림: 배포 중",
+      body: "이미지 8개를 확인하고 배포 서버에 SSH로 배포를 시작하기 직전 「[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다」를 보낸다. 이미지를 못 찾아 중단되면 이 알림은 가지 않고 결과 알림이 바로 간다.",
+      who: "Jenkins → Slack", time: "SSH 배포 직전", src: "Jenkinsfile notifySlack('deploying'), slack-payload.sh" }
+  };
+
+  function variant(base, over) { var o = {}; var k; for (k in base) o[k] = base[k]; for (k in over) o[k] = over[k]; return o; }
+
+  var SCENARIOS = {
+    ok: [S.pr, S.merge, S.checks, S.images, S.poll, S.slackStart, S.ghcr, S.wait, S.slackDeploying, S.ssh, S.checkout, S.pull, S.up, S.smoke, S.record, S.slack],
+    rb: [S.pr, S.merge, S.checks, S.images, S.poll, S.slackStart, S.ghcr, S.wait, S.slackDeploying, S.ssh, S.checkout, S.pull, S.up,
+      variant(S.smoke, { label: "스모크 실패", note: "120초 안에 200 아님", status: "bad",
+        title: "확인을 통과하지 못한다",
+        body: "예를 들어 새 버전의 공연 목록 API가 120초 안에 200을 주지 못하면 스모크가 실패한다. up --wait가 7분 안에 healthy가 되지 못해도 같은 길로 간다." }),
+      variant(S.record, { label: "직전 버전으로", note: "e27d54e 재배포", status: "warn",
+        title: "직전 버전으로 자동 되돌린다",
+        body: "deploy.sh가 .deploy/current의 직전 성공 커밋(이번 경우 e27d54e)으로 checkout, pull, up, 스모크를 다시 한다. 되돌림이 통과하면 종료 코드 1로 끝나고 서버는 이전 버전으로 계속 돈다. 기록은 바꾸지 않는다.",
+        who: "배포 서버(deploy.sh)", time: "배포 한 번만큼 더" }),
+      variant(S.slack, { label: "되돌림 알림", note: "주황 띠", status: "warn",
+        title: "주황 알림: 되돌렸다",
+        body: "「[배포 실패] 새 버전이 확인을 통과하지 못해 직전 버전(e27d54e)으로 되돌렸습니다」가 온다. 되돌림까지 실패하면 종료 코드 3과 빨간 「배포와 되돌림이 모두 실패했습니다」가 오고, 배포 담당이 서버에 들어가 확인한다.",
+        who: "Jenkins → Slack. 배포 담당이 원인을 고친 커밋을 다시 main에 넣는다" })],
+    ab: [S.pr, S.merge, S.checks,
+      variant(S.images, { label: "이미지 빌드 실패 · images", note: "Dockerfile·의존성 오류 등", status: "bad",
+        title: "이미지 빌드가 실패한다",
+        body: "Dockerfile이나 의존성 문제로 images 워크플로가 실패하면 그 SHA의 이미지가 GHCR에 일부 또는 전부 없다." , time: "-" }),
+      S.poll, S.slackStart,
+      variant(S.ghcr, { label: "이미지 없음", note: "8개 중 일부 없음", status: "bad",
+        title: "GHCR에 그 SHA 이미지가 없다",
+        body: "8개 중 하나라도 없으면 배포할 수 없다. 커밋마다 이미지 8개가 모두 있어야 하는 이유다.", time: "-" }),
+      variant(S.wait, { label: "20분 초과", note: "배포로 넘어가지 않음", status: "bad",
+        title: "20분을 기다리고 멈춘다",
+        body: "Jenkins가 30초마다 확인하다가 20분이 지나면 배포 단계로 가지 않고 끝낸다. 배포 서버에는 아무것도 하지 않으므로 서비스는 직전 버전 그대로 돈다." }),
+      variant(S.slack, { node: "slackAbort", label: "중단 알림", note: "회색 띠", status: "mute",
+        title: "회색 알림: 배포 중단",
+        body: "「[배포 중단] 이미지가 20분 안에 GHCR에 올라오지 않았습니다」가 온다. 고친 뒤에는 Actions 화면에서 images를 다시 실행(Run workflow)해 이미지를 만들고, Jenkins에서 TAG 매개변수에 SHA를 넣어 다시 배포한다.",
+        who: "Jenkins → Slack. 배포 담당이 이미지를 다시 만들고 재배포한다", time: "대기 20분 뒤" })]
+  };
+
+  var svg = document.getElementById("map-svg");
+  var stepsEl = document.getElementById("steps");
+  var state = { sc: "ok", i: 0, playing: false, timer: null, raf: null };
+  var nodesEls = [], segEls = [], sideEls = [], barEls = [], token, tokenPos = { x: 0, y: 0 };
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, cls, s, anchor) {
+    var t = el("text", { x: x, y: y, "class": cls, "text-anchor": anchor || "middle" }, parent);
+    t.textContent = s;
+    return t;
+  }
+  function laneColor(lane) { return "var(--l-" + lane + ")"; }
+  function statusColor(st) { return st === "bad" ? "var(--bad)" : st === "warn" ? "var(--warn)" : st === "mute" ? "var(--mute)" : st === "ok" ? "var(--ok)" : null; }
+  function posOf(step) { var p = POS[step.node]; return { x: p.x, y: cy(p.lane, p.dy), lane: p.lane, side: p.side }; }
+  function elbow(a, b) {
+    if (a.y === b.y) return "M" + a.x + "," + a.y + " H" + b.x;
+    if (a.x === b.x) return "M" + a.x + "," + a.y + " V" + b.y;
+    var dx = b.x - a.x;
+    var xm = dx > 48 ? b.x - 24 : a.x + dx / 2;
+    return "M" + a.x + "," + a.y + " H" + xm + " V" + b.y + " H" + b.x;
+  }
+
+  function drawStatic() {
+    svg.innerHTML = "";
+    LANES.forEach(function (l, idx) {
+      el("rect", { x: 0, y: l.top, width: 1200, height: l.h, "class": "lane-bg " + (idx % 2 ? "b" : "a") }, svg);
+      el("rect", { x: 0, y: l.top, width: 5, height: l.h, fill: laneColor(l.id) }, svg);
+      txt(svg, 18, l.top + l.h / 2 - 2, "lane-name", l.name, "start");
+      txt(svg, 18, l.top + l.h / 2 + 15, "lane-sub", l.sub, "start");
+      var ys = l.id === "ci" ? [cy("ci", -25), cy("ci", 25)] : [cy(l.id)];
+      ys.forEach(function (y) { el("line", { x1: 168, y1: y, x2: 1188, y2: y, "class": "track", stroke: laneColor(l.id) }, svg); });
+    });
+    var axis = el("g", {}, svg);
+    txt(axis, 168, 26, "lane-sub", "시간 순서 →", "start");
+  }
+
+  function buildScenario() {
+    drawStatic();
+    var steps = SCENARIOS[state.sc];
+    nodesEls = []; segEls = []; sideEls = []; barEls = [];
+    var gRoute = el("g", {}, svg), gSide = el("g", {}, svg), gBars = el("g", {}, svg), gDone = el("g", {}, svg), gNodes = el("g", {}, svg);
+
+    var mergeP = posOf(S.merge);
+    steps.forEach(function (s, si) {
+      if (s.side === "checks") {
+        var p = posOf(s);
+        var path = el("path", { d: elbow(mergeP, p) + " H720", "class": "side", stroke: laneColor("ci") }, gSide);
+        var term = el("g", { "class": "side" , stroke: laneColor("ci") }, gSide);
+        el("line", { x1: 720, y1: p.y - 9, x2: 720, y2: p.y + 9, "class": "term" }, term);
+        var tl = txt(term, 732, p.y + 4, "term-label", "끝 · 배포 노선과 이어지지 않음", "start");
+        tl.setAttribute("stroke", "none");
+        sideEls.push({ i: si, els: [path, term] });
+      }
+      if (s.side === "poll") {
+        var q = posOf(s);
+        var d = "M" + mergeP.x + "," + mergeP.y + " V" + q.y + " H" + q.x;
+        var pp = el("path", { d: d, "class": "side", stroke: laneColor("cd") }, gSide);
+        var lab = txt(gSide, mergeP.x + 10, q.y - 8, "side-label", "2분마다 main 확인", "start");
+        sideEls.push({ i: si, els: [pp, lab] });
+      }
+      if (s.side === "notify") {
+        var f = POS[s.from], fp = { x: f.x, y: cy(f.lane, f.dy) }, tp2 = posOf(s);
+        var np = el("path", { d: "M" + fp.x + "," + fp.y + " V" + tp2.y + " H" + tp2.x, "class": "side", stroke: laneColor("msg") }, gSide);
+        sideEls.push({ i: si, els: [np] });
+      }
+    });
+
+    var prev = null;
+    steps.forEach(function (s, i) {
+      var p = posOf(s);
+      if (s.bar) {
+        var color = statusColor(s.status) || laneColor(p.lane);
+        var b = el("rect", { x: p.x, y: p.y - 3, width: s.bar - p.x, height: 6, rx: 3, fill: color, "class": "bar" }, gBars);
+        barEls.push({ i: i, el: b });
+      }
+      if (s.move) {
+        if (prev) {
+          var dd = elbow(prev.p, p);
+          el("path", { d: dd, "class": "route-base" }, gRoute);
+          var seg = el("path", { d: dd, "class": "seg-done", pathLength: 1 }, gDone);
+          segEls.push({ to: i, from: prev.i, el: seg });
+        }
+        prev = { p: p, i: i };
+      }
+    });
+
+    steps.forEach(function (s, i) {
+      var p = posOf(s);
+      var g = el("g", { "class": "node" + (s.status ? " st-" + s.status : ""), style: "color:" + laneColor(p.lane) }, gNodes);
+      el("circle", { cx: p.x, cy: p.y, r: 11, "class": "halo" }, g);
+      el("circle", { cx: p.x, cy: p.y, r: 8, "class": "ring", stroke: "currentColor" }, g);
+      if (p.side === "right") {
+        txt(g, p.x + 42, p.y - 10, "label", s.label, "start");
+        txt(g, p.x + 42, p.y + 19, "note", s.note, "start");
+      } else {
+        txt(g, p.x, p.y - 16, "label", s.label);
+        txt(g, p.x, p.y + 25, "note", s.note);
+      }
+      g.addEventListener("click", function () { pause(); go(i, true); });
+      g.style.cursor = "pointer";
+      nodesEls.push(g);
+    });
+
+    if (state.sc === "ab") {
+      txt(svg, 900, cy("srv") + 4, "idle-note", "배포 서버는 손대지 않음 · 직전 버전 e27d54e 그대로");
+    }
+
+    token = el("g", { "class": "token", "aria-hidden": "true" }, svg);
+    el("rect", { x: -34, y: -10, width: 68, height: 20, rx: 10 }, token);
+    txt(token, 0, 4, "", "ab274ab");
+    var p0 = posOf(steps[0]);
+    placeToken(p0.x, p0.y);
+
+    stepsEl.innerHTML = "";
+    steps.forEach(function (s, i) {
+      var li = document.createElement("li");
+      var bt = document.createElement("button");
+      bt.type = "button";
+      var lane = POS[s.node].lane;
+      bt.style.setProperty("--step-color", statusColor(s.status) || laneColor(lane));
+      bt.innerHTML = '<span class="n">' + String(i + 1).padStart(2, "0") + '</span><span class="t"></span><span class="s"></span>';
+      bt.querySelector(".t").textContent = s.title;
+      bt.querySelector(".s").textContent = LANE[lane].name + " · " + s.time;
+      bt.addEventListener("click", function () { pause(); go(i, true); });
+      li.appendChild(bt);
+      stepsEl.appendChild(li);
+    });
+  }
+
+  function placeToken(x, y) {
+    tokenPos = { x: x, y: y };
+    token.setAttribute("transform", "translate(" + x + "," + y + ")");
+  }
+  function moveTokenAlong(pathEl, done) {
+    if (state.raf) cancelAnimationFrame(state.raf);
+    var len = pathEl.getTotalLength();
+    var t0 = null, dur = 850;
+    function frame(ts) {
+      if (t0 === null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dur);
+      var e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      var pt = pathEl.getPointAtLength(len * e);
+      placeToken(pt.x, pt.y);
+      if (k < 1) state.raf = requestAnimationFrame(frame); else if (done) done();
+    }
+    state.raf = requestAnimationFrame(frame);
+  }
+
+  function lastMoveIndex(steps, i) { for (var j = i; j >= 0; j--) if (steps[j].move) return j; return 0; }
+
+  function go(i, jump) {
+    var steps = SCENARIOS[state.sc];
+    var prevI = state.i;
+    state.i = Math.max(0, Math.min(steps.length - 1, i));
+    var s = steps[state.i];
+
+    nodesEls.forEach(function (g, k) {
+      g.classList.toggle("active", k === state.i);
+      g.classList.toggle("done", k < state.i);
+    });
+    segEls.forEach(function (sg) { sg.el.classList.toggle("on", sg.to <= state.i); });
+    barEls.forEach(function (b) { b.el.classList.toggle("on", b.i <= state.i); });
+    sideEls.forEach(function (se) {
+      se.els.forEach(function (e) { e.classList.toggle("on", se.i <= state.i); });
+    });
+
+    var target = lastMoveIndex(steps, state.i);
+    var tp = posOf(steps[target]);
+    var seg = segEls.filter(function (sg) { return sg.to === target; })[0];
+    var forwardOne = !jump && state.i === prevI + 1 && steps[state.i].move && seg;
+    if (forwardOne && !reduce) moveTokenAlong(seg.el); else { if (state.raf) cancelAnimationFrame(state.raf); placeToken(tp.x, tp.y); }
+
+    var lane = POS[s.node].lane;
+    var color = statusColor(s.status) || laneColor(lane);
+    var panel = document.getElementById("panel");
+    panel.style.setProperty("--panel-color", color);
+    var chip = document.getElementById("p-lane");
+    chip.querySelector("i").style.background = color;
+    chip.querySelector("span").textContent = LANE[lane].name;
+    document.getElementById("p-step").textContent = "단계 " + (state.i + 1) + " / " + steps.length;
+    document.getElementById("p-title").textContent = s.title;
+    document.getElementById("p-body").textContent = s.body;
+    document.getElementById("p-who").textContent = s.who;
+    document.getElementById("p-time").textContent = s.time;
+    document.getElementById("p-src").textContent = s.src;
+    document.getElementById("counter").textContent = (state.i + 1) + " / " + steps.length;
+    document.getElementById("bar").style.width = ((state.i + 1) / steps.length * 100) + "%";
+    Array.prototype.forEach.call(stepsEl.querySelectorAll("button"), function (b, k) {
+      if (k === state.i) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    });
+  }
+
+  var playBtn = document.getElementById("b-play");
+  function tick() {
+    var n = SCENARIOS[state.sc].length;
+    if (state.i >= n - 1) { pause(); playBtn.textContent = "다시 재생"; return; }
+    go(state.i + 1, false);
+    state.timer = setTimeout(tick, 3200);
+  }
+  function play() {
+    var n = SCENARIOS[state.sc].length;
+    if (state.i >= n - 1) go(0, true);
+    state.playing = true;
+    playBtn.textContent = "일시정지";
+    clearTimeout(state.timer);
+    state.timer = setTimeout(tick, 1400);
+  }
+  function pause() {
+    state.playing = false;
+    clearTimeout(state.timer);
+    playBtn.textContent = "재생";
+  }
+  playBtn.addEventListener("click", function () { state.playing ? pause() : play(); });
+  document.getElementById("b-next").addEventListener("click", function () { pause(); go(state.i + 1, false); });
+  document.getElementById("b-prev").addEventListener("click", function () { pause(); go(state.i - 1, true); });
+  document.getElementById("b-first").addEventListener("click", function () { pause(); go(0, true); });
+  Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+    b.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      pause();
+      state.sc = b.getAttribute("data-sc");
+      state.i = 0;
+      buildScenario();
+      go(0, true);
+      if (!reduce) play();
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === "ArrowRight") { pause(); go(state.i + 1, false); }
+    if (e.key === "ArrowLeft") { pause(); go(state.i - 1, true); }
+  });
+
+  buildScenario();
+  go(0, true);
+  if (!reduce) play();
+})();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import com.iseonjwa.reservation.lottery.application.LotteryEntryService;
 import com.iseonjwa.reservation.lottery.application.LotteryFinishService;
 import com.iseonjwa.reservation.lottery.application.LotteryPaymentResultHandler;
 import com.iseonjwa.reservation.lottery.application.LotterySuccessionService;
-import com.iseonjwa.reservation.lottery.domain.Lottery.LotterySettings;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery.LotterySettings;
 import com.iseonjwa.reservation.reservation.application.PaymentResult;
 import com.iseonjwa.reservation.reservation.application.PaymentResultService;
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;

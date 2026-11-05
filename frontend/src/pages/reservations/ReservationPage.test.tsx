@@ -151,11 +151,15 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
 
     const steps = await screen.findByRole('list', { name: '예매 단계' })
     expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('완료')
+    // Note: 단계 목록은 조회 전에 그려진다. 조회가 끝나기 전에 테스트가 끝나면 남은 요청이 다음 테스트의 요청 기록에
+    // 잡힌다(목 ID가 테스트마다 같은 값부터 다시 시작해 경로가 같다). 조회 결과까지 기다려 요청을 이 테스트 안에서 끝낸다.
+    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
   })
 
   it('결제 화면이 넣은 확정 예매가 캐시에 있으면 조회하지 않고(확정은 60초 동안 신선) 확정을 보인다', async () => {
     // 서버(목)는 아직 HELD로 답한다. 보이는 확정은 캐시에서 온 것이고, 조회가 나가면 HELD로 바뀐다
-    const reservation = seedReservation({ status: 'HELD' })
+    // 다른 테스트가 남긴 요청이 같은 경로로 잡히지 않게 목 ID 카운터(1001부터)와 겹치지 않는 번호를 쓴다
+    const reservation = seedReservation({ status: 'HELD', reservationId: 99_001 })
     const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
     const primed: ReservationDetail = {
       reservationId: reservation.reservationId,

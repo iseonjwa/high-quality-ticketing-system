@@ -167,7 +167,7 @@ SA 9-3 합계 11,392m에 더하면 약 12,288m(12.0GB)다. 75% 규칙이면 필�
 
 ## 5. 시연 방식
 
-M3(사용자 결정): 나란히 띄우기. 발표자 노트북에서 SSH 터널로 Grafana를 열고, 프론트 화면과 나란히 둔다. 프론트가 요청마다 traceId를 보여 주면 Grafana 대시보드가 그 traceId로 서비스별 로그를 거른다.
+M3(사용자 결정): 나란히 띄우기. Grafana를 열고(로컬은 compose의 `localhost:3000`, 배포 서버는 `http://52.63.10.174:3000`으로 바로), 프론트 화면과 나란히 둔다. 프론트가 요청마다 traceId를 보여 주면 Grafana 대시보드가 그 traceId로 서비스별 로그를 거른다.
 
 - 프론트가 traceId를 읽는 곳은 응답 본문의 `traceId` 필드다. 성공은 `{status, message, data, traceId}`, 실패는 `{status, code, message, errors, traceId}`이고 모든 응답 본문에 있다. 2026-11-03에 로컬 Gateway로 보낸 실패 응답(401)에서 `traceId`가 본문에 있는 것을 확인했다. 같은 응답의 헤더에는 `traceId` 헤더가 없었다(확인한 헤더: `Content-Type`, `transfer-encoding`, `Date`). 그래서 본문 필드를 쓴다.
 - 요청 중 서비스가 응답을 만들지 못하는 경우(예: 게이트웨이 시간 초과)의 본문에도 `traceId`가 있는지는 미확인이다.
@@ -179,14 +179,16 @@ M4 후보: 프론트 안 로그 패널. 관리자 전용 API가 traceId로 Loki�
 프론트 시연 모드(주소에 `?demo=on`)가 화면 오른쪽 요청 로그 패널에 요청마다 메서드·경로·상태·traceId를 보이고, traceId를 누르면 아래 주소로 Grafana를 연다. 켜는 방식, 패널, 기록 범위는 [프론트 설계](../frontend/README.md) "시연 모드 규칙"에 있다.
 
 ```
-http://localhost:3000/d/iseonjwa-request-logs?orgId=1&var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>
+<Grafana 주소>/d/iseonjwa-request-logs?orgId=1&var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>
 ```
+
+`<Grafana 주소>`는 화면을 연 호스트의 3000번이다(로컬 `http://localhost:3000`, 배포 `http://52.63.10.174:3000`, 2026-11-05 사용자 결정). 배포 서버는 3000을 보안 그룹에서 팀원 IP에만 열고 익명 보기(Viewer)를 켠다. 로컬 compose는 그대로다.
 
 ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 - UID는 `iseonjwa-request-logs`다(기존 `iseonjwa-payment`, `iseonjwa-bootstrap`과 같은 규칙).
 - 텍스트 변수 이름은 `traceId`다. 값은 응답 본문의 32자 16진수이고 로그 줄 `[traceId-spanId]`의 앞 32자와 같다.
 - 시간 범위는 주소의 `from`·`to`(epoch ms)를 따른다. 앞뒤 15분은 브라우저·서버 시계 차이와 요청 뒤 Kafka 소비자 로그까지 넣으려는 값이다.
-- 기준 주소가 다르면 프론트 빌드의 `VITE_GRAFANA_URL`로 바꾼다.
+- 기준 주소가 호스트의 3000번이 아니면 프론트 빌드의 `VITE_GRAFANA_URL`로 바꾼다.
 
 ## 6. 남은 결정
 

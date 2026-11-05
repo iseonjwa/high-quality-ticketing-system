@@ -6,6 +6,11 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-05 | 추첨의 application과 domain 패키지는 어떤 기준으로 나눌 수 있는가 | [qna/2026-11-05-lottery-package-structure.md](qna/2026-11-05-lottery-package-structure.md) |
+| 2026-11-05 | IntelliJ의 @Transactional self-invocation 경고는 무슨 뜻인가 | [qna/2026-11-05-transactional-self-invocation.md](qna/2026-11-05-transactional-self-invocation.md) |
+| 2026-11-05 | Optional 분기를 if로 쓸 때와 map·orElseGet으로 쓸 때 무엇이 다른가 | [qna/2026-11-05-optional-if-vs-functional.md](qna/2026-11-05-optional-if-vs-functional.md) |
+| 2026-11-05 | m7i-flex.xlarge를 잠깐 띄워 통합·부하 테스트를 하면 비용이 걱정할 수준인가 | [qna/2026-11-05-load-test-ec2-cost.md](qna/2026-11-05-load-test-ec2-cost.md) |
+| 2026-11-04 | Java의 var는 자료형인가 | [qna/2026-11-04-java-var.md](qna/2026-11-04-java-var.md) |
 | 2026-11-04 | @ConditionalOnProperty의 havingValue와 matchIfMissing은 무엇을 뜻하는가 | [qna/2026-11-04-conditional-on-property.md](qna/2026-11-04-conditional-on-property.md) |
 | 2026-11-04 | 배포 서버 접속에 왜 SSH 공개 키와 내 IP를 모두 알려 줘야 하는가 | [qna/2026-11-04-ssh-key-and-ip-allowlist.md](qna/2026-11-04-ssh-key-and-ip-allowlist.md) |
 | 2026-11-04 | 구현은 메인 에이전트가 하고 코드 리뷰는 서브에이전트에 맡기면 무엇이 좋은가 | [qna/2026-11-04-main-implement-subagent-review.md](qna/2026-11-04-main-implement-subagent-review.md) |

@@ -3,12 +3,12 @@ package com.iseonjwa.reservation.lottery.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.common.response.ErrorCode;
-import com.iseonjwa.reservation.lottery.domain.Lottery;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntry;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryRepository;
-import com.iseonjwa.reservation.lottery.domain.LotteryEntryStatus;
 import com.iseonjwa.reservation.lottery.domain.LotteryErrorCode;
-import com.iseonjwa.reservation.lottery.domain.LotteryRepository;
+import com.iseonjwa.reservation.lottery.domain.entity.Lottery;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntry;
+import com.iseonjwa.reservation.lottery.domain.entity.LotteryEntryStatus;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryEntryRepository;
+import com.iseonjwa.reservation.lottery.domain.repository.LotteryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 추첨 응모·취소·조회(D3·D5, details.md 2절). 응모는 대기열·입장 토큰을 거치지 않는 동기 INSERT 기준선이다(D3).
- * 빌링키는 응모 때 확인하지 않고 결제 시점에 없으면 승계한다(D4).
+ * 대기열·입장 토큰을 거치지 않는 동기 INSERT 기준선의 추첨 응모·취소·조회로, 빌링키는 결제 시점에 확인한다(D3·D4·D5, details.md 2절).
  */
 @Service
 @RequiredArgsConstructor
@@ -27,19 +26,23 @@ public class LotteryEntryService {
     private final LotteryRepository lotteryRepository;
     private final LotteryEntryRepository lotteryEntryRepository;
 
-    // 멱등은 응모 행의 request_id UNIQUE가 맡는다. idempotency_records를 쓰지 않는다(선점의 seat_hold_requests와 같은 방식).
-    // INSERT가 0행이면 같은 멱등키를 다시 본다. 같은 키로 동시에 들어온 앞 요청이 방금 커밋했을 수 있기 때문이다
+    // 멱등은 응모 행의 request_id UNIQUE가 맡는다. idempotency_records를 쓰지 않는다(선점의 seat_hold_requests와 같은 방식)
     @Transactional
     public LotteryEntry enter(Long userId, UUID requestId, Long lotteryId, int quantity) {
-        var replay = findReplay(userId, requestId, lotteryId, quantity);
-        if (replay.isPresent()) {
-            return replay.get();
+        // 같은 멱등키의 재요청이면 새로 저장하지 않고 처음 응모를 돌려준다
+        Optional<LotteryEntry> previousEntry = findPreviousEntry(userId, requestId, lotteryId, quantity);
+        if (previousEntry.isPresent()) {
+            return previousEntry.get();
         }
-        var insertedId = lotteryEntryRepository.insertIfOpen(lotteryId, requestId, userId, quantity);
+
+        Optional<Long> insertedId = lotteryEntryRepository.insertIfOpen(lotteryId, requestId, userId, quantity);
         if (insertedId.isPresent()) {
+            // 방금 저장한 행은 항상 조회되므로, 없으면 서버 이상으로 보고 500으로 응답한다
             return lotteryEntryRepository.findById(insertedId.get()).orElseThrow();
         }
-        return findReplay(userId, requestId, lotteryId, quantity)
+
+        // INSERT가 0행이면 같은 멱등키로 동시에 들어온 앞 요청이 방금 커밋했을 수 있어 다시 조회한다
+        return findPreviousEntry(userId, requestId, lotteryId, quantity)
                 .orElseThrow(() -> new BusinessException(rejectReason(userId, lotteryId, quantity)));
     }
 
@@ -47,44 +50,53 @@ public class LotteryEntryService {
     @Transactional
     public LotteryEntry cancel(Long userId, Long lotteryId) {
         boolean canceled = lotteryEntryRepository.cancelIfOpen(lotteryId, userId);
-        var entry = lotteryEntryRepository.findByLotteryIdAndUserId(lotteryId, userId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        if (!canceled && entry.getStatus() != LotteryEntryStatus.CANCELED) {
+        LotteryEntry lotteryEntry = findEntry(lotteryId, userId);
+
+        // 이번에 취소하지 못했고 이미 취소된 응모도 아니면 마감됐거나 추첨이 끝난 응모다
+        if (!canceled && lotteryEntry.getStatus() != LotteryEntryStatus.CANCELED) {
             throw new BusinessException(LotteryErrorCode.LOTTERY_NOT_OPEN);
         }
-        return entry;
+
+        return lotteryEntry;
     }
 
     @Transactional(readOnly = true)
     public LotteryEntry myEntry(Long userId, Long lotteryId) {
-        return lotteryEntryRepository.findByLotteryIdAndUserId(lotteryId, userId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return findEntry(lotteryId, userId);
     }
 
     @Transactional(readOnly = true)
-    public Lottery lottery(Long lotteryId) {
+    public Lottery findLottery(Long lotteryId) {
         return lotteryRepository.findById(lotteryId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 
-    // 같은 멱등키가 있으면 같은 요청일 때만 처음 결과를 돌려준다. 내용이 다르면 409다
-    private Optional<LotteryEntry> findReplay(Long userId, UUID requestId, Long lotteryId, int quantity) {
-        var existing = lotteryEntryRepository.findByRequestId(requestId);
+    private LotteryEntry findEntry(Long lotteryId, Long userId) {
+        return lotteryEntryRepository.findByLotteryIdAndUserId(lotteryId, userId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+    }
+
+    // 같은 멱등키가 있으면 같은 요청일 때만 처음 결과를 돌려주고, 내용이 다르면 409로 거절한다
+    private Optional<LotteryEntry> findPreviousEntry(Long userId, UUID requestId, Long lotteryId, int quantity) {
+        Optional<LotteryEntry> existing = lotteryEntryRepository.findByRequestId(requestId);
         if (existing.isPresent() && !existing.get().isSameRequest(userId, lotteryId, quantity)) {
             throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
         }
+
         return existing;
     }
 
     private ErrorCode rejectReason(Long userId, Long lotteryId, int quantity) {
-        var lottery = lotteryRepository.findById(lotteryId)
+        Lottery lottery = lotteryRepository.findById(lotteryId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+
         if (lotteryEntryRepository.findByLotteryIdAndUserId(lotteryId, userId).isPresent()) {
             return LotteryErrorCode.LOTTERY_ALREADY_ENTERED;
         }
         if (quantity > lottery.getMaxPerEntry()) {
             return CommonErrorCode.VALIDATION_FAILED;
         }
+
         return LotteryErrorCode.LOTTERY_NOT_OPEN;
     }
 }

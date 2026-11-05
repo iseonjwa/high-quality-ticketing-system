@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# 프론트 SPA를 빌드해 nginx로 서빙한다(ADR 0040). 빌드 인자는 없고 VITE_GRAFANA_URL은 기본값을 쓴다.
+# 프론트 SPA를 빌드해 nginx로 서빙한다(ADR 0040). 빌드 인자는 없고 VITE_GRAFANA_URL은 기본값(화면을 연 호스트의 3000번)을 쓴다.
 FROM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85 AS builder
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./

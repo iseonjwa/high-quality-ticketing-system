@@ -1,8 +1,15 @@
 export const REQUEST_LOG_DASHBOARD_UID = 'iseonjwa-request-logs'
 export const REQUEST_LOG_TRACE_VARIABLE = 'traceId'
 
-// 발표자 노트북이 SSH 터널로 Grafana를 localhost:3000에 연다.
-const DEFAULT_GRAFANA_URL = 'http://localhost:3000'
+const GRAFANA_PORT = 3000
+
+// 기본 주소는 화면을 연 호스트의 3000번이다. 로컬 compose는 Grafana를 127.0.0.1:3000에 열어 `http://localhost:3000`이 되고,
+// 배포 서버는 3000을 팀원 IP에만 열어 `http://<서버 IP>:3000`이 된다. 다른 주소는 VITE_GRAFANA_URL로 정한다.
+export function defaultGrafanaUrl(
+  location: Pick<Location, 'protocol' | 'hostname'> = window.location,
+): string {
+  return `${location.protocol}//${location.hostname}:${GRAFANA_PORT}`
+}
 
 // 요청 시각 앞뒤로 15분을 본다. 브라우저와 서버 시계가 조금 어긋나도,
 // 요청 뒤 Kafka 소비자가 처리한 로그까지 같은 화면에 들어오게 하려는 것이다.
@@ -12,7 +19,7 @@ const TRACE_ID_PATTERN = /^[0-9a-f]{16,32}$/
 
 function configuredGrafanaUrl(): string {
   const configured = import.meta.env.VITE_GRAFANA_URL
-  return configured !== undefined && configured !== '' ? configured : DEFAULT_GRAFANA_URL
+  return configured !== undefined && configured !== '' ? configured : defaultGrafanaUrl()
 }
 
 // traceId로 Grafana "요청 로그" 대시보드를 여는 주소. 만들 수 없으면 null이다.
