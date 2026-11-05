@@ -22,7 +22,10 @@ fi
 
 mkdir -p "$K6_DIR/results"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-NAME="${SCRIPT%.js}-${MODEL:-open}-${STAMP}"
+# SEAT_MAP=once(K1-H)는 파일 이름에 holdonly를 붙여 K1 결과와 섞이지 않게 한다
+MODE_TAG=""
+[ "${SEAT_MAP:-each}" = "once" ] && MODE_TAG="-holdonly"
+NAME="${SCRIPT%.js}${MODE_TAG}-${MODEL:-open}-${STAMP}"
 
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
@@ -33,7 +36,7 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e MODEL -e RATE -e DURATION_SECONDS -e CLOSED_VUS \
   -e THINK_MIN -e THINK_MAX -e MAX_RETRY -e HOT_RATIO -e HOT_SHARE \
   -e PRE_VUS -e MAX_VUS -e USERS_CSV \
-  -e TOKEN_MODE -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
+  -e SEAT_MAP -e TOKEN_MODE -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
   "$K6_IMAGE" run \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \

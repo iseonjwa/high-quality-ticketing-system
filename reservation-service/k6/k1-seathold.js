@@ -1,5 +1,6 @@
 // 시나리오 K1: 대기열이 초당 RATE명씩 입장시킨 사용자가 좌석을 조회하고 선점한다.
-// 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1절. 실행 방법: 같은 폴더 README.md
+// SEAT_MAP=once면 K1-H: 좌석 목록을 setup에서 한 번만 받고, 반복은 그 목록에서 골라 선점만 보낸다.
+// 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1절(K1)·1-5절(K1-H). 실행 방법: 같은 폴더 README.md
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import exec from 'k6/execution';
@@ -23,6 +24,9 @@ const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.1);
 // csv: 미리 받은 토큰을 읽는다. sign: local 스택 전용으로 k6가 반복마다 토큰을 직접 서명한다(README 2절)
 const TOKEN_MODE = __ENV.TOKEN_MODE || 'csv';
 const USER_ID_BASE = Number(__ENV.USER_ID_BASE || 1000000);
+// each: K1(시도마다 좌석 조회). once: K1-H(좌석 조회 병목을 떼고 선점 경로만 잰다)
+const SEAT_MAP = __ENV.SEAT_MAP || 'each';
+const HOLD_ONLY = SEAT_MAP === 'once';
 
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
@@ -63,7 +67,7 @@ const scenario = MODEL === 'closed'
   };
 
 export const options = {
-  scenarios: { k1: scenario },
+  scenarios: HOLD_ONLY ? { k1h: scenario } : { k1: scenario },
   // 기본 요약에는 p(99)가 없다
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   // 목표값은 [가정]이다. 태그 조합마다 임계값을 걸어야 요약에 그 조합의 수치가 따로 나온다
@@ -97,31 +101,28 @@ export function setup() {
   if (res.status !== 200) {
     fail(`사전 확인 실패: GET seats ${res.status} ${res.body && res.body.substring(0, 200)}`);
   }
+  return HOLD_ONLY ? { seats: seatListOf(res.body) } : {};
 }
 
-export default function () {
+export default function (data) {
   // Note: 열린 모델에서는 반복 하나가 새로 입장한 사용자 한 명이다. 같은 사용자를 다시 쓰면 매수 한도(4매)와 입장 토큰 만료가 섞인다
   const user = userOf(exec.scenario.iterationInTest);
   const headers = headersOf(user);
   let requests = 0;
 
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
-    const seatMap = http.get(seatsUrl(), { headers, tags: { api: 'seats' } });
-    requests++;
-    if (seatMap.status !== 200) {
-      holdResults.add(1, { result: 'error' });
-      break;
+    const count = Math.random() < 0.5 ? 1 : 2;
+    let seatIds;
+    if (HOLD_ONLY) {
+      sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
+      seatIds = pickFromList(data.seats, count);
+    } else {
+      seatIds = seatsFromSeatMap(attempt, headers, count);
+      requests++;
+      if (seatIds === null) {
+        break;
+      }
     }
-    const body = seatMap.body;
-    const soldOut = body.indexOf(AVAILABLE) < 0;
-    seatMapDuration.add(seatMap.timings.duration, { phase: soldOut ? 'soldout' : 'sale' });
-    if (soldOut) {
-      usersFinished.add(1, { outcome: 'soldout' });
-      break;
-    }
-
-    sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
-    const seatIds = pickSeats(body, Math.random() < 0.5 ? 1 : 2);
     if (seatIds.length === 0) {
       holdResults.add(1, { result: 'error', code: 'SEAT_PARSE_FAILED' });
       usersFinished.add(1, { outcome: 'error' });
@@ -148,6 +149,24 @@ export default function () {
     }
   }
   requestsPerUser.add(requests);
+}
+
+// K1: 좌석을 조회하고 고민한 뒤 고른다. 조회 실패나 매진이면 사용자 결과를 남기고 null을 돌려준다
+function seatsFromSeatMap(attempt, headers, count) {
+  const seatMap = http.get(seatsUrl(), { headers, tags: { api: 'seats' } });
+  if (seatMap.status !== 200) {
+    holdResults.add(1, { result: 'error' });
+    return null;
+  }
+  const body = seatMap.body;
+  const soldOut = body.indexOf(AVAILABLE) < 0;
+  seatMapDuration.add(seatMap.timings.duration, { phase: soldOut ? 'soldout' : 'sale' });
+  if (soldOut) {
+    usersFinished.add(1, { outcome: 'soldout' });
+    return null;
+  }
+  sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
+  return pickSeats(body, count);
 }
 
 const AVAILABLE = '"available":true';
@@ -183,6 +202,40 @@ function seatIdAt(body, position) {
   const end = body.indexOf('}', position);
   const match = /"seatId":(\d+)/.exec(body.substring(start, end));
   return match ? Number(match[1]) : null;
+}
+
+// K1-H: setup에서 받은 응답의 선택 가능 좌석을 응답 순서(구역 → 열 → 번호)대로 모은다.
+// Note: setup 반환값은 VU마다 복사된다. 15,000개 배열을 VU 2,000개에 복사하지 않게, ID가 연속이면 시작값과 개수만 넘긴다
+function seatListOf(body) {
+  const ids = [];
+  let position = body.indexOf(AVAILABLE);
+  while (position >= 0) {
+    const seatId = seatIdAt(body, position);
+    if (seatId !== null) {
+      ids.push(seatId);
+    }
+    position = body.indexOf(AVAILABLE, position + AVAILABLE.length);
+  }
+  if (ids.length === 0) {
+    fail('K1-H 준비 실패: 선택 가능한 좌석이 없습니다. 새 회차로 측정합니다');
+  }
+  const contiguous = ids.every((id, i) => id === ids[0] + i);
+  console.log(`K1-H 좌석 목록: ${ids.length}석, ID ${contiguous ? '연속' : '비연속'}`);
+  return contiguous ? { first: ids[0], count: ids.length } : { ids, count: ids.length };
+}
+
+// pickSeats와 같은 쏠림(HOT_RATIO가 앞쪽 HOT_SHARE에서)으로 고르고, 두 번째 좌석은 목록의 바로 다음(옆자리)이다.
+// 목록은 측정 시작 시점에 고정이라 판매가 진행될수록 이미 잡힌 좌석을 골라 409가 K1보다 많아진다
+function pickFromList(seats, count) {
+  const hot = Math.random() < HOT_RATIO;
+  const range = hot ? Math.max(1, Math.floor(seats.count * HOT_SHARE)) : seats.count;
+  const start = Math.floor(Math.random() * range);
+  const seatIds = [];
+  for (let i = 0; i < count && i < seats.count; i++) {
+    const index = (start + i) % seats.count;
+    seatIds.push(seats.ids ? seats.ids[index] : seats.first + index);
+  }
+  return seatIds;
 }
 
 function errorCode(body) {

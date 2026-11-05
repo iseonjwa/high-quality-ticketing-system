@@ -8,7 +8,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| `k1-seathold.js` | K1: 초당 `RATE`명이 입장해 좌석 조회 → 고민 → 선점, 409면 다시 조회해 최대 `MAX_RETRY`번 재시도 |
+| `k1-seathold.js` | K1: 초당 `RATE`명이 입장해 좌석 조회 → 고민 → 선점, 409면 다시 조회해 최대 `MAX_RETRY`번 재시도. `SEAT_MAP=once`면 K1-H: 좌석 조회는 `setup`에서 한 번만 하고 반복은 선점만 보낸다 |
 | `run.sh` | Docker로 k6 실행, 결과를 `results/`에 저장 |
 | `compose.deploy-memory.yml` | local 스택에서 gateway와 reservation-service의 메모리만 배포 서버 값으로 맞추고, 선점 만료 스케줄러를 끄는 측정 전용 덮어쓰기 |
 | `compose.g1.yml` | 위 파일에 얹어 reservation-service의 GC를 G1으로 고정하고 GC 로그를 컨테이너 `/tmp/gc.log`에 남긴다. P0'' 이후 단계의 기본 환경 |
@@ -63,7 +63,11 @@ SCHEDULE_ID=12 bash reservation-service/k6/run.sh
 SCHEDULE_ID=12 MODEL=closed bash reservation-service/k6/run.sh
 # 짧게 시험(초당 10명, 30초, 사용자 300명)
 SCHEDULE_ID=12 RATE=10 DURATION_SECONDS=30 bash reservation-service/k6/run.sh
+# K1-H: 선점 경로만(좌석 조회는 setup에서 1번). 결과 파일 이름에 holdonly가 붙는다
+SCHEDULE_ID=12 TOKEN_MODE=sign SEAT_MAP=once bash reservation-service/k6/run.sh
 ```
+
+K1-H는 좌석 조회 병목(B2)을 떼고 선점 쪽 개선(P1~P3)을 재려고 만들었다. 좌석 목록이 측정 시작 시점에 고정이라 시간이 갈수록 409가 K1보다 많고, 좌석 조회와 커넥션을 나눠 쓰지 않아 실제보다 좋게 나온다. 그래서 K1 결과와 섞지 않는다. 설계는 계획 문서 1-5절, 기준선은 5-4절이다.
 
 ```powershell
 # PowerShell
@@ -82,6 +86,7 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 | `HOT_RATIO` / `HOT_SHARE` | 0.7 / 0.1 | 사용자의 70%가 응답 앞쪽 10%(구역 A~C 근처)에서 고른다 |
 | `PRE_VUS` / `MAX_VUS` | 600 / 2000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `TOKEN_MODE` / `USER_ID_BASE` | `csv` / 1000000 | `sign`이면 CSV 대신 local 키로 토큰을 서명한다(2절) |
+| `SEAT_MAP` | `each` | `each`는 K1(시도마다 좌석 조회), `once`는 K1-H(선점만) |
 
 ## 4. 결과 읽기
 
@@ -97,6 +102,7 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.
 
+- Gateway의 503 중 지연이 수 ms인 것은 인증 Redis 차단기(`auth-redis`)가 열린 것일 수 있다. Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`과 Gateway 로그 `No servers available`(Eureka 이탈)로 출처를 나눈다.
 - 좌석 조회 응답(15,000석, 약 1MB로 추정)을 `JSON.parse`하지 않고 문자열 검색으로 좌석을 고른다. 파싱하면 부하 생성기 CPU가 먼저 포화돼 서버 병목과 섞인다. 측정 중 `docker stats`로 k6 컨테이너 CPU도 같이 본다.
 
 ## 5. 준비 상태 (2026-11-04 확인)
