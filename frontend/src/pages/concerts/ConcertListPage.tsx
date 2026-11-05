@@ -291,11 +291,11 @@ function LotteryPromo() {
         <div className="grid gap-2">
           <p className="type-body-sm font-semibold text-primary-100">추첨 예매</p>
           <h2 id={titleId} className="type-title break-keep">
-            인기 회차는 추첨으로 공정하게 나눠요
+            일부 좌석은 추첨으로 공정하게 나눠요
           </h2>
           <p className="max-w-[560px] type-body-sm text-white/85">
-            응모 기간에 응모하면 추첨 시각에 당첨자를 정해요. 당첨되면 등록한 자동결제 카드로 바로
-            결제되니 카드를 미리 등록해 두세요.
+            운영자가 연 추첨에 응모 기간 동안 응모하면 추첨 시각에 당첨자를 정해요. 당첨되면 등록한
+            자동결제 카드로 바로 결제되니 카드를 미리 등록해 두세요.
           </p>
         </div>
         <Button
