@@ -16,6 +16,7 @@
 | L-04 | 보류 | 추첨 뒤 `lottery_entries` 조회 | 순위 1\~43 중복 없음, `LOST` 257건 | 결제까지 끝난 뒤에 조회해 `WON` 분포와 `DRAWN` 전환은 보지 못했다 |
 | L-05 | 보류 | `lottery_entries`, `payments` 조회 | `PAID` 28건(30석), 결제 `BILLING`·`APPROVED` 28건 | 예매 `CONFIRMED`, 티켓 `ISSUED`, 화면은 이 추첨 기준으로 기록하지 못했다 |
 | L-06 | 보류 | `lottery_entries`, `payments` 조회 | 순위 24 `FAILED`·`BILLING_KEY_MISSING`, 결제 `DECLINED`·`BILLING_KEY_MISSING` 1건. 순위 30(1매)이 승계해 `PAID`. 순위 29(2매)는 남은 1석에 들어가지 않아 `WAITLISTED` 유지 | 예매 `RELEASED`와 실패 화면은 이 추첨 기준으로 기록하지 못했다. 승계 순서는 결과와 `SuccessionPlanner`로 추론했다 |
+| L-08 | 보류 | 공개 API `GET /api/v1/lotteries/3`, 17:43 이후 2회 | 상태 `DONE` | 남은 예비 `LOST`와 회차 좌석 상태는 조회하지 않았다 |
 
 응모 결과 분포는 아래와 같다. 합계는 300건이다.
 
@@ -34,6 +35,5 @@
 ## 범위와 한계
 
 - 응모는 스크립트가 한 건씩 차례로 넣었다. 동시 부하 결과가 아니며 1건당 약 1.2초는 API 성능 값이 아니다. 로그인 등 스크립트의 앞뒤 호출이 포함된다.
-- 승계 마감(추첨 + 30분) 뒤의 L-08 종결은 이 기록을 쓸 때 확인하지 않았다.
 - `dead_letters`, outbox, Grafana `추첨` 대시보드, 슬랙 경보는 이 추첨 기준으로 기록하지 못했다.
 - 미등록 계정은 응모자의 10%인 30명이지만 당첨권에는 1명만 들어왔다. 순위가 무작위라 본 시연에서는 `FAILED`가 없을 수 있다.
