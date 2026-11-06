@@ -249,22 +249,22 @@ class SeatHoldConcurrencyTest {
         var wasted = new AtomicInteger();
         var errors = new AtomicInteger();
 
+        // S4부터 만료 처리 API가 건별 집기(expireNext)로 바뀌어 구동부를 바꿨다. 헛수고의 정의(집었지만 만료하지 않은 시도)는 같다
         Callable<String> instance = () -> {
             while (true) {
-                var ids = expiry.findExpiredReservationIds(20);
-                if (ids.isEmpty()) {
-                    return OK;
-                }
-                for (var id : ids) {
-                    try {
-                        if (expiry.expire(id)) {
-                            expired.incrementAndGet();
-                        } else {
-                            wasted.incrementAndGet();
-                        }
-                    } catch (RuntimeException exception) {
-                        errors.incrementAndGet();
+                try {
+                    var attempt = expiry.expireNext(java.util.Set.of());
+                    if (attempt.isEmpty()) {
+                        return OK;
                     }
+                    if (attempt.get().expired()) {
+                        expired.incrementAndGet();
+                    } else {
+                        wasted.incrementAndGet();
+                    }
+                } catch (RuntimeException exception) {
+                    errors.incrementAndGet();
+                    return "ERROR:" + exception.getClass().getSimpleName();
                 }
             }
         };

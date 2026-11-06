@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 결제되지 않고 선점 기한이 지난 예매를 회수한다(SA 8-3, E7). 예매 HELD → EXPIRED, 예매 좌석 HELD → RELEASED,
@@ -65,6 +67,45 @@ public class SeatHoldExpiryService {
     @Transactional(readOnly = true)
     public List<Long> findExpiredReservationIds(int limit) {
         return reservations.findExpiredHeldIds(clock.instant(), limit);
+    }
+
+    /**
+     * 기한이 지난 예매 하나를 잠가 집고 같은 트랜잭션에서 만료한다(TS-4, 검토 R3). 집을 대상이 없으면 빈 값을 돌려준다.
+     *
+     * <p>Note: ID 목록을 읽기 트랜잭션에서 따로 뽑으면 그 트랜잭션이 끝날 때 잠금이 풀려 여러 인스턴스가 같은 예매를 집는다.
+     * 집기와 처리를 한 트랜잭션에 두어야 {@code SKIP LOCKED}가 다른 인스턴스를 비켜 가게 한다. 잠금 순서는 지금처럼
+     * 예매 → 좌석 → 매수다. 회수 경로 공통 순서는 결제 결과 소비자 담당과 정한다(검토 R4)
+     *
+     * @param excludedIds 이번 주기에서 실패해 다시 집지 않을 예매
+     * @throws ExpiryFailedException 집은 예매의 만료가 실패했다. 트랜잭션은 롤백되고 예매는 HELD로 남는다
+     */
+    @Transactional
+    public Optional<ExpiryAttempt> expireNext(Collection<Long> excludedIds) {
+        var reservationId = reservations.lockNextExpiredHeldId(clock.instant(), excludedIds);
+        if (reservationId.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(new ExpiryAttempt(reservationId.get(), expire(reservationId.get())));
+        } catch (RuntimeException exception) {
+            throw new ExpiryFailedException(reservationId.get(), exception);
+        }
+    }
+
+    // expired가 false면 집었지만 만료하지 않은 것이다(추첨 예매 1회 연장)
+    public record ExpiryAttempt(Long reservationId, boolean expired) {}
+
+    public static final class ExpiryFailedException extends RuntimeException {
+        private final Long reservationId;
+
+        ExpiryFailedException(Long reservationId, Throwable cause) {
+            super("선점 만료에 실패했습니다: reservationId=" + reservationId, cause);
+            this.reservationId = reservationId;
+        }
+
+        public Long reservationId() {
+            return reservationId;
+        }
     }
 
     /**
