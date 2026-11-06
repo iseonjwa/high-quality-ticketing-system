@@ -64,8 +64,9 @@ fi
 
 echo "[$STEP-$KIND] 커밋 $COMMIT, 덮어쓰기: ${OVERLAYS[*]:-(없음)}"
 # 이 스크립트는 reservation-service만 다시 띄운다. Gateway가 측정 환경(k6measure 프로필)으로 떠 있지 않으면
-# 차단기가 공유 기준(느린 호출 50ms, 실패율 50%)으로 돌아 K1-H가 Gateway에서 막힌다. 그런 회는 다른 환경이므로 시작하지 않는다
-if ! docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' iseonjwa-gateway-1 2>/dev/null | grep -q '^SPRING_PROFILES_ACTIVE=.*k6measure'; then
+# 차단기가 공유 기준(느린 호출 50ms, 실패율 50%)으로, GC가 Serial로 돌아 K1-H가 Gateway에서 막힌다. 그런 회는 다른 환경이므로 시작하지 않는다
+GATEWAY_ENV="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' iseonjwa-gateway-1 2>/dev/null || true)"
+if ! grep -q '^SPRING_PROFILES_ACTIVE=.*k6measure' <<<"$GATEWAY_ENV" || ! grep -q '^JAVA_TOOL_OPTIONS=.*UseG1GC' <<<"$GATEWAY_ENV"; then
   echo "Gateway가 측정 환경으로 떠 있지 않습니다. STEPS.md 실행 방법대로 전체 스택을 다시 띄웁니다" >&2
   exit 1
 fi
