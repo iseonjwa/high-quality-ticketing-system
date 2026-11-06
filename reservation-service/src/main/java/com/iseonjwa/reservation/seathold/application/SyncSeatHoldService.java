@@ -21,6 +21,7 @@ import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -48,6 +49,8 @@ import java.util.List;
 @Service
 public class SyncSeatHoldService {
     private static final String HELD_REASON = "SEAT_HELD";
+    // SA 9-4. 핫 좌석에서 잠금을 오래 기다리며 커넥션을 쥐지 않게 한다
+    static final Duration LOCK_TIMEOUT = Duration.ofMillis(500);
 
     private final SeatHoldInventoryRepository inventory;
     private final UserScheduleQuotaRepository quotas;
@@ -110,9 +113,17 @@ public class SyncSeatHoldService {
         var seats = findSeatsOfSchedule(schedule.getId(), seatIds);
 
         claimRequest(command, schedule.getId(), seatIds);
-        addHeldCount(command.userId(), schedule, seatIds.size(), now);
-        holdSeats(schedule.getId(), seatIds, command.userId(), now);
-        var reservation = saveReservation(command, schedule, seats, now);
+        // Note: 멱등키 선점 뒤에 건다. 같은 키의 연타는 첫 요청이 끝날 때까지 기다려야 재조회로 같은 결과를 줄 수 있다
+        inventory.applyLockTimeout(LOCK_TIMEOUT);
+        Reservation reservation;
+        try {
+            addHeldCount(command.userId(), schedule, seatIds.size(), now);
+            holdSeats(schedule.getId(), seatIds, command.userId(), now);
+            reservation = saveReservation(command, schedule, seats, now);
+        } catch (PessimisticLockingFailureException timeout) {
+            // 다른 트랜잭션이 좌석이나 매수 행을 오래 쥐고 있다. 기다리는 대신 "이미 선택된 좌석"으로 바로 돌려보낸다(SA 12-7)
+            throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
+        }
         if (seatHoldRequests.markHeld(command.requestId(), reservation.getId(), now, command.userId()) != 1) {
             throw new IllegalStateException("선점 요청을 HELD로 바꾸지 못했습니다: " + command.requestId());
         }
