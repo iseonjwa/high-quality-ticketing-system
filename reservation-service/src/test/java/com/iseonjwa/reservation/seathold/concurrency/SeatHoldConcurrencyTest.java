@@ -139,6 +139,7 @@ class SeatHoldConcurrencyTest {
         var rounds = 3;
         var holdLockMillis = 2_000L;
         var all = new ArrayList<Outcome>();
+        var roundMaxMillis = new ArrayList<Long>();
         for (var round = 0; round < rounds; round++) {
             var scheduleId = fixture.createOnSaleSchedule();
             var seat = fixture.createSeats(scheduleId, 1);
@@ -152,14 +153,18 @@ class SeatHoldConcurrencyTest {
             locker.start();
             assertTrue(locked.await(5, TimeUnit.SECONDS));
 
+            // Note: 요청 수를 테스트 커넥션 풀(10)보다 충분히 작게 둔다. 잠금을 쥔 스레드도 커넥션 하나를 쓰므로 10개를 보내면
+            // 일부가 커넥션을 기다려 잠금 대기와 커넥션 대기가 섞인다(2026-11-03 S3 첫 측정: max 1,792ms). 커넥션 대기는 부하 시나리오에서 본다
             var tasks = new ArrayList<Callable<String>>();
-            for (var i = 0; i < 10; i++) {
+            for (var i = 0; i < 5; i++) {
                 tasks.add(holdTask(BASE_USER + i, UUID.randomUUID(), scheduleId, seat));
             }
-            all.addAll(runTogether(tasks));
+            var outcomes = runTogether(tasks);
+            roundMaxMillis.add(ConcurrentRunner.percentileMillis(outcomes, 100));
+            all.addAll(outcomes);
             locker.join();
         }
-        report("C3", rounds, all, Map.of("holdLockMillis", holdLockMillis));
+        report("C3", rounds, all, Map.of("holdLockMillis", holdLockMillis, "roundMaxMillis", roundMaxMillis));
 
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
         assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 1_000, "잠금을 1초 넘게 기다렸다");
