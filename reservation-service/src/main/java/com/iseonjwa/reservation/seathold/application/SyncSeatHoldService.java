@@ -10,7 +10,6 @@ import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatusHistory;
-import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuota;
 import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuotaId;
 import com.iseonjwa.reservation.reservation.domain.repository.ActiveSeatConflictException;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
@@ -163,14 +162,12 @@ public class SyncSeatHoldService {
         return seats;
     }
 
-    // Note: 보유 매수를 읽은 뒤 따로 더하므로, 같은 사용자의 요청이 동시에 오면 둘 다 검사를 통과할 수 있다(TS-2 재현 대상)
+    // 검사와 증가를 조건부 UPDATE 한 문장으로 한다(TS-2). 읽고 검사한 뒤 더하면 같은 사용자의 탭들이 같은 값을 읽고 모두 통과했다
     private void addHeldCount(Long userId, Schedule schedule, int quantity, Instant now) {
         var quotaId = new UserScheduleQuotaId(userId, schedule.getId());
-        var heldCount = quotas.findById(quotaId).map(UserScheduleQuota::getHeldCount).orElse(0);
-        if (heldCount + quantity > schedule.getMaxPerUser()) {
+        if (quotas.addHeldCountWithinLimit(quotaId, quantity, schedule.getMaxPerUser(), now, userId) == 0) {
             throw new BusinessException(SeatHoldErrorCode.PURCHASE_LIMIT_EXCEEDED);
         }
-        quotas.addHeldCount(quotaId, quantity, now, userId);
     }
 
     // 하나라도 AVAILABLE이 아니면 갱신 행 수가 모자란다. 예외로 트랜잭션이 롤백돼 먼저 바뀐 좌석과 매수도 되돌아간다
