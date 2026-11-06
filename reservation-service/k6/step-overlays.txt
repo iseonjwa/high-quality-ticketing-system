@@ -1,3 +1,5 @@
 # 단계 측정에서 기준 환경 위에 얹는 덮어쓰기 파일 목록이다. 한 줄에 하나, 저장소 루트 기준 경로다.
 # 설정으로 고치는 단계(G1, R1, P1 등)는 이 파일에 한 줄을 더하는 커밋 하나로 넣는다. 그래야 git log와 diff가 단계 기록이 된다.
 # 기본(수정 없음) 단계에서는 비어 있다.
+# G1: reservation-service GC를 Serial에서 G1으로(L·S의 GC 정지 66~69%)
+reservation-service/k6/compose.g1.yml
