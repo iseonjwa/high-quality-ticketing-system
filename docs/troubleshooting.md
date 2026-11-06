@@ -295,42 +295,67 @@
   - 테스트는 자기가 시작한 요청을 끝까지 기다린 뒤 끝낸다.
   - 요청 수를 세는 테스트는 다른 테스트와 겹치지 않는 ID를 쓴다.
 
-### TS-36 local 부하 측정에서 예매 조회 API가 모두 404(서비스 로그는 `GET /** 404`)
+### TS-36 Windows에서 요청 로그 테스트 8개만 실패(같은 커밋의 CI는 성공)
+- 서비스·작성: common·gateway / kangmin / 2026-11-05
+- 문제: `./gradlew test`에서 `RequestLogFilterTest` 3개와 `RequestLogWebFilterTest` 5개가 실패했다. 출력의 `요청`이 `??`로 찍혀 `CapturedOutput` 비교가 어긋났다. 같은 커밋의 Linux CI `build`는 성공했다.
+- 원인: Windows 기본 인코딩이 `cp1252`인 PC에서는 Gradle 테스트 JVM의 `file.encoding`도 그 값이 되어 한글 로그가 깨진다. `JAVA_TOOL_OPTIONS`의 `stdout.encoding=UTF-8`로는 해결되지 않았다.
+- 해결: 루트 `build.gradle`의 `tasks.withType(Test)`에 `defaultCharacterEncoding = 'UTF-8'`을 지정했다. 옵션 없이 `./gradlew test --rerun-tasks`를 다시 돌려 1,563개가 모두 통과했다.
+- 배운 점: 한글을 비교하는 출력 캡처 테스트는 실행 환경의 인코딩에 영향을 받는다. 코드 결함으로 판단하기 전에 CI 결과와 실제 출력을 비교한다.
+
+### TS-37 작업을 멈춰도 PaymentJobStalled가 울리지 않음(규칙 단위 테스트는 통과)
+- 서비스·작성: payment·infra / kangmin / 2026-11-05
+- 문제
+  - `payment_job_last_success_timestamp{application="payment-service",job="gauge-refresh"}` 조회가 0건이었고, `exported_job="gauge-refresh"`는 1건이었다.
+  - `PaymentJobStalled`는 시계열을 찾지 못해 작업이 멈춰도 울릴 수 없었다. 작업 실패 패널의 `sum by (job)`도 모든 작업을 `spring` 하나로 합쳤다.
+- 원인
+  - Micrometer 태그 `job`이 Prometheus 수집 작업 라벨과 겹쳤다. `honor_labels`가 없으면 Prometheus는 대상이 보낸 값을 `exported_job`으로 옮기고 `job`에 수집 작업 이름(`spring`)을 넣는다.
+  - promtool 테스트는 입력 시계열에 `job`을 직접 넣어 이 변환을 건너뛰었다. 그래서 테스트가 통과했다.
+- 해결: ISE-195
+  - `PaymentMetrics`의 태그를 `task`로 바꾸고 규칙, 대시보드, 슬랙 템플릿, 문서를 맞췄다.
+  - promtool 테스트 입력을 실제 수집 형태(`instance`, `job="spring"`, `task`)로 바꿨다.
+  - `PrometheusNamesTest`에 `job`·`instance` 태그를 막는 검사를 더했다.
+  - 임시 DB를 멈춰 `gauge-refresh` 72초, `recheck`·`refund-worker` 145초에 firing이 되는 것을 확인했다.
+- 배운 점
+  - 지표 태그에 `job`·`instance`를 쓰지 않는다.
+  - 규칙 단위 테스트의 입력은 실제 Prometheus 조회 결과를 옮겨 와 만든다.
+  - 경보는 실제로 장애를 내서 울리는지 본다.
+
+### TS-38 local 부하 측정에서 예매 조회 API가 모두 404(서비스 로그는 `GET /** 404`)
 - 서비스·작성: reservation / kwonwoo / 2026-11-05
 - 문제: k6 R1(선점 → 결제 → 예매 조회)에서 `GET /api/v1/reservations/{id}` 2,120건이 모두 404였다. DB에는 그 예매가 CONFIRMED로, 같은 사용자 ID로 있었다. reservation-service 요청 로그가 경로 대신 `요청 GET /** 404`였다(맞는 핸들러가 없다는 뜻).
 - 원인: local에서 돌던 reservation-service 이미지가 2026-11-04 10:20 빌드였다. 예매 조회 API(ISE-171, #318)는 그 뒤에 들어와 이미지에 없었다. `docker compose up`은 이미지가 있으면 다시 빌드하지 않는다.
 - 해결: `docker compose ... build reservation-service`로 현재 브랜치(`534187e`)에서 다시 빌드하고 띄웠다. R1 212건이 모두 확정됐다.
 - 배운 점: 측정 전에 `docker image inspect`로 이미지 빌드 시각을 보고, 측정 기록표의 커밋 해시는 이미지를 만든 커밋으로 적는다. 서비스 로그의 URI 템플릿이 `/**`이면 경로가 아니라 핸들러가 없는 것이다. 2026-11-05 이전 local K1 측정은 11-04 이미지로 잰 것이다.
 
-### TS-37 만료 스케줄러를 다시 켰는데 새로 만든 선점이 만료되지 않는다
+### TS-39 만료 스케줄러를 다시 켰는데 새로 만든 선점이 만료되지 않는다
 - 서비스·작성: reservation / kwonwoo / 2026-11-05
 - 문제: k6 X1에서 선점 시간 1분짜리 선점 500건이 만료 시각을 90초 넘게 지나도 HELD였다. 스케줄러는 켜져 있었고 로그에 `선점 만료 100건 처리 (대상 100건)`이 5~6초마다 찍혔다.
 - 원인: 배포 메모리 측정 덮어쓰기(`reservation-service/k6/compose.deploy-memory.yml`)가 측정 중 만료가 끼지 않게 `SEATHOLD_EXPIRY_ENABLED=false`로 둔다. 그 상태로 잰 측정들의 선점 7,222건이 만료되지 않고 남아 있었다. 스케줄러는 오래된 것부터 100건씩 집으므로 묵은 선점을 먼저 처리했다.
 - 해결: 묵은 선점이 0이 될 때까지 기다린 뒤 다시 쟀다. 500건이 만료 시각부터 약 33초 안에 모두 EXPIRED가 됐다. X1 전에 `select count(*) from reservations where status='HELD' and hold_expires_at < now()`가 0인지 보는 절차를 `loadtest/k6/README.md`에 적었다.
 - 배운 점: 기능을 끈 채 측정하면 그 기능이 처리할 데이터가 쌓인다. 묵은 선점을 처리하면서 실제 만료 속도(초당 약 15.6건, 한 주기 약 6.4초)도 쟀다. 계산값(초당 20건)은 주기 간격만 보고 처리 시간을 빠뜨렸다.
 
-### TS-38 mock-pg를 다시 띄운 직후 결제 부하에서 `PG_UNAVAILABLE`·504가 섞인다
+### TS-40 mock-pg를 다시 띄운 직후 결제 부하에서 `PG_UNAVAILABLE`·504가 섞인다
 - 서비스·작성: payment / kwonwoo / 2026-11-05
 - 문제: 장애 주입 API를 열려고 mock-pg를 `local,loadtest` 프로필로 다시 띄운 직후 k6 PAY1을 돌리자 초당 5~10건인데도 503 `PG_UNAVAILABLE` 34건, 504 11건이 났다(PG 동시 한도 10에 한참 못 미치는 속도). 결제 서비스 로그는 `ResourceAccessException: I/O error on POST request for "http://mock-pg:8090/mock-pg/payments": closed`, `UnresolvedAddressException`이었다.
 - 원인: mock-pg가 내려가 있던 동안과 직후에 결제 서비스의 PG 호출이 연결 끊김·주소 해석 실패로 실패했다. 이 실패가 `pg-approve` 차단기의 실패율로 세져 차단기가 열렸고, 열린 동안 승인 요청이 바로 503이 됐다.
-- 해결: mock-pg가 안정된 뒤 다시 쟀다. 같은 조건에서 승인 208건, `PG_UNAVAILABLE` 4건이었다. 남은 4건은 발생기 멈춤(TS-39) 구간에 요청이 몰린 때와 겹친다.
+- 해결: mock-pg가 안정된 뒤 다시 쟀다. 같은 조건에서 승인 208건, `PG_UNAVAILABLE` 4건이었다. 남은 4건은 발생기 멈춤(TS-41) 구간에 요청이 몰린 때와 겹친다.
 - 배운 점: 의존 서비스를 다시 띄운 직후에는 차단기 상태가 남는다. 측정 전에 30초(차단기 OPEN 10초 + 여유) 넘게 기다리거나 차단기 상태 지표를 확인한다.
 
-### TS-39 local Docker Desktop의 k6 컨테이너가 약 32초마다 3초씩 멈춘다
+### TS-41 local Docker Desktop의 k6 컨테이너가 약 32초마다 3초씩 멈춘다
 - 서비스·작성: loadtest / kwonwoo / 2026-11-05
 - 문제: k6 Q2(서버가 준 간격으로 폴링)의 `poll_lateness`(예정 시각보다 늦게 부른 정도)가 약 30초 간격으로 최대 3초까지 튀었다. VU를 10개에서 20개로 늘려도 같은 모양이었다. 서버 응답 시간(p95 10ms)과 연결 시간은 정상이었다.
 - 원인: 미확인. 서버 없이 `sleep(0.1)`만 반복하는 k6 스크립트에서도 같은 멈춤(3,028~3,032ms, 약 32초 간격)이 나와 서버나 스크립트가 아니라 Docker Desktop(WSL2) 쪽이다. 서버 컨테이너도 같이 멈추는지는 확인하지 못했다.
 - 해결: 우회. local 결과에서 3초 근처의 최대값과 그 주기의 몰림은 발생기 탓일 수 있다고 README에 적었고, 본 측정은 발생기 EC2(ADR 0046)에서 한다. Q2에 발생기 지연 지표(`poll_lateness`)를 두어 같은 문제를 바로 알 수 있게 했다.
 - 배운 점: 부하 생성기의 지연도 지표로 남겨야 서버 문제와 가를 수 있다. 열린 모델의 `dropped_iterations`가 0이어도 발생기가 멈췄을 수 있다.
 
-### TS-40 Gateway가 수 ms 만에 돌려주는 503을 Eureka 이탈로 잘못 읽었다
+### TS-42 Gateway가 수 ms 만에 돌려주는 503을 Eureka 이탈로 잘못 읽었다
 - 서비스·작성: gateway / kwonwoo / 2026-11-05
 - 문제: K1 부하 측정(P0'·P0'')과 K1-H에서 Gateway가 2~5ms 만에 503을 수천 건 돌려줬다. 처음에는 서비스가 Eureka에서 빠져 생긴 것으로 기록했다.
-- 원인: 그 시간대 Gateway 로그에 `No servers available for service`가 없었다. 대신 Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`이 503 구간과 겹쳤다. Gateway는 인증 요청마다 Redis로 로그아웃 토큰을 확인하는데, 이 호출이 50ms를 넘는 비율이 높으면 차단기가 10초 열리고 그동안 인증 요청을 모두 503으로 돌려준다(fail closed, ADR 0005). 노트북 한 대에서 k6와 전체 스택이 CPU를 나눠 쓰는 환경 영향으로 본다(TS-39과의 관계는 미확인).
+- 원인: 그 시간대 Gateway 로그에 `No servers available for service`가 없었다. 대신 Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`이 503 구간과 겹쳤다. Gateway는 인증 요청마다 Redis로 로그아웃 토큰을 확인하는데, 이 호출이 50ms를 넘는 비율이 높으면 차단기가 10초 열리고 그동안 인증 요청을 모두 503으로 돌려준다(fail closed, ADR 0005). 노트북 한 대에서 k6와 전체 스택이 CPU를 나눠 쓰는 환경 영향으로 본다(TS-41과의 관계는 미확인).
 - 해결: 측정 문서의 해석을 고쳤다([k6-seathold-bottleneck-plan.md](design/reservation/k6-seathold-bottleneck-plan.md) 5-2절 고침, 5-4절). 503을 출처별로 나누는 방법을 k6 README에 적었다. Eureka 이탈이 로그로 확인된 것은 P0(5-1절)뿐이다.
 - 배운 점: 같은 상태 코드도 출처가 여럿이다. 503은 로그(`No servers available`)와 차단기 지표로 출처를 먼저 가른 뒤 해석한다.
 
-### TS-41 측정 중 컨테이너 안에서 `java`를 실행하자 앱의 GC 로그가 `gc.log.0`으로 밀려났다
+### TS-43 측정 중 컨테이너 안에서 `java`를 실행하자 앱의 GC 로그가 `gc.log.0`으로 밀려났다
 - 서비스·작성: reservation / kwonwoo / 2026-11-05
 - 문제: G1 측정(P0'') 뒤 `/tmp/gc.log`를 읽으니 한 줄뿐이었다. Git Bash에서는 `docker exec ... cat /tmp/gc.log`가 Windows 경로로 바뀌어 파일을 찾지 못하기도 했다.
 - 원인: 컨테이너 안에서 설정 확인용으로 `java -XX:+PrintFlagsFinal`을 실행했다. 이 프로세스가 `JAVA_TOOL_OPTIONS`(`-Xlog:gc...:file=/tmp/gc.log`)를 물려받아 같은 파일을 새로 열면서 앱의 로그를 `gc.log.0`으로 돌렸다. 경로 문제는 Git Bash(MSYS)가 `/tmp`로 시작하는 인자를 Windows 경로로 바꾸기 때문이다.

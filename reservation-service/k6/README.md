@@ -12,6 +12,13 @@
 | `run.sh` | Docker로 k6 실행, 결과를 `results/`에 저장 |
 | `compose.deploy-memory.yml` | local 스택에서 gateway와 reservation-service의 메모리만 배포 서버 값으로 맞추고, 선점 만료 스케줄러를 끄는 측정 전용 덮어쓰기 |
 | `compose.g1.yml` | 위 파일에 얹어 reservation-service의 GC를 G1으로 고정하고 GC 로그를 컨테이너 `/tmp/gc.log`에 남긴다. P0'' 이후 단계의 기본 환경 |
+| `compose.b8-observe.yml` | B8(과부하 뒤 회복) 측정용. Tomcat MBean 지표와 요청 지연 1초·3초 경계 버킷을 켠다. 동작은 바꾸지 않는다 |
+| `compose.b8-r1.yml` / `compose.b8-r123.yml` | B8 대응 R1(커넥션 대기 1초), R2·R3(요청 스레드 50, 연결 상한 200, OS 대기열 50) 측정용 |
+| `compose.b8-r13.yml` | R3 재측정용(연결 상한 30, OS 대기열 10, 스레드 기본값). `compose.b8-r1.yml` 위에 얹는다 |
+| `tools/b8-run.sh` | B8 한 회: reservation-service를 덮어쓰기로 새로 띄우고 새 회차에 K1 + 회복 탐침(`RECOVERY_SECONDS`)을 건 뒤 지표를 모은다 |
+| `tools/create-schedule.sh` | 측정용 새 회차(판매 중, 15,000석)를 만들고 회차 ID만 출력한다. 관리자 계정은 `.env`에서 읽고 출력하지 않는다 |
+| `tools/b8_metrics.py` | Prometheus에서 Tomcat·Hikari·좌석 조회 지표를 10초 간격 CSV와 판정용 요약으로 꺼낸다 |
+| `tools/b8_k6.py` | k6 원자료에서 사용자 쪽 좌석 조회·선점 상태별 건수와 오류 응답 p50·p95를 센다 |
 | `data/users.csv` | 사용자 토큰(직접 준비, 커밋 금지) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력(커밋 금지) |
 
@@ -65,6 +72,14 @@ SCHEDULE_ID=12 MODEL=closed bash reservation-service/k6/run.sh
 SCHEDULE_ID=12 RATE=10 DURATION_SECONDS=30 bash reservation-service/k6/run.sh
 # K1-H: 선점 경로만(좌석 조회는 setup에서 1번). 결과 파일 이름에 holdonly가 붙는다
 SCHEDULE_ID=12 TOKEN_MODE=sign SEAT_MAP=once bash reservation-service/k6/run.sh
+# 측정 종류(계획 문서 1-6절). 워밍업용 회차를 하나 더 만든다
+WARM=$(bash reservation-service/k6/tools/create-schedule.sh "k6 warmup")
+# 부하(L): 초당 100명 5분, 30초 워밍업
+SCHEDULE_ID=12 TOKEN_MODE=sign WARMUP_SECONDS=30 WARMUP_SCHEDULE_ID=$WARM bash reservation-service/k6/run.sh
+# 스트레스(S)와 회복(R): 초당 5명부터 두 배씩 60초, 끝나고 120초 탐침. 높은 단계는 VU가 모자라면 MAX_VUS를 올린다
+SCHEDULE_ID=12 TOKEN_MODE=sign MODEL=ramp MAX_VUS=4000 RECOVERY_SECONDS=120 WARMUP_SECONDS=30 WARMUP_SCHEDULE_ID=$WARM bash reservation-service/k6/run.sh
+# K1-H 스트레스
+SCHEDULE_ID=12 TOKEN_MODE=sign SEAT_MAP=once MODEL=ramp STAGES=50,100,200,400,800 MAX_VUS=4000 bash reservation-service/k6/run.sh
 ```
 
 K1-H는 좌석 조회 병목(B2)을 떼고 선점 쪽 개선(P1~P3)을 재려고 만들었다. 좌석 목록이 측정 시작 시점에 고정이라 시간이 갈수록 409가 K1보다 많고, 좌석 조회와 커넥션을 나눠 쓰지 않아 실제보다 좋게 나온다. 그래서 K1 결과와 섞지 않는다. 설계는 계획 문서 1-5절, 기준선은 5-4절이다.
@@ -78,7 +93,9 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 |---|---|---|
 | `SCHEDULE_ID` | 없음(필수) | 대상 회차 |
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 컨테이너 안의 localhost는 컨테이너 자신이다 |
-| `MODEL` | `open` | `open`(초당 도착 고정) 또는 `closed`(VU 고정) |
+| `MODEL` | `open` | `open`(초당 도착 고정), `closed`(VU 고정), `ramp`(스트레스: 단계마다 도착률을 올림) |
+| `STAGES` / `STAGE_SECONDS` | `5,10,20,40,80,160,320` / 60 | `ramp`의 단계별 초당 도착 수와 단계 길이. 단계 사이 5초는 올리는 구간이라 `stage:ramp`로 따로 태그한다. K1-H는 `50,100,200,400,800`을 쓴다 |
+| `WARMUP_SECONDS` / `WARMUP_RATE` / `WARMUP_SCHEDULE_ID` | 0 / 10 / 없음 | 0보다 크면 부하 전에 다른 회차로 워밍업한다(`api:warmup` 태그, 결과에서 빠짐). `TOKEN_MODE=sign`에서만 된다 |
 | `RATE` / `DURATION_SECONDS` | 100 / 300 | 초당 입장 수와 측정 시간 |
 | `CLOSED_VUS` | 100 | 닫힌 모델의 VU 수 |
 | `THINK_MIN` / `THINK_MAX` | 1 / 3 | 첫 선점 전 고민 시간(초). 재시도 전에는 0.5~1초 |
@@ -87,6 +104,15 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 | `PRE_VUS` / `MAX_VUS` | 600 / 2000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `TOKEN_MODE` / `USER_ID_BASE` | `csv` / 1000000 | `sign`이면 CSV 대신 local 키로 토큰을 서명한다(2절) |
 | `SEAT_MAP` | `each` | `each`는 K1(시도마다 좌석 조회), `once`는 K1-H(선점만) |
+| `RECOVERY_SECONDS` | 0 | 0보다 크면 부하가 끝나고 30초 뒤부터 이 시간 동안 10초마다 좌석 조회 탐침을 보낸다(B8) |
+
+B8(과부하 뒤 회복) 측정은 `tools/b8-run.sh`로 한 회씩 돈다. 결과는 `results/b8-<이름>-<시각>-*`(k6 로그, 탐침, 지표 CSV, 요약)이다. 판정 기준은 [k6-overload-recovery.md](../../docs/design/reservation/k6-overload-recovery.md) 6절이다.
+
+```bash
+bash reservation-service/k6/tools/b8-run.sh r0
+bash reservation-service/k6/tools/b8-run.sh r1 reservation-service/k6/compose.b8-r1.yml
+bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.b8-r1.yml reservation-service/k6/compose.b8-r123.yml
+```
 
 ## 4. 결과 읽기
 
@@ -99,6 +125,7 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 | `users_finished` | 사용자 결과(`held`, `soldout`, `gave_up`, `error`) |
 | `requests_per_user` | 사용자당 요청 수. 409 재시도가 요청을 얼마나 불렸는지 |
 | `dropped_iterations` | 부하 생성기가 도착률을 못 맞춘 횟수. 0이 아니면 서버가 아니라 생성기 한계일 수 있다 |
+| `{stage:<초당 명>}` | `MODEL=ramp`에서 그 단계에 도착한 사용자의 요청. 단계별 `http_req_failed`·`http_req_duration{api:seats}`·`{api:hold}`가 요약에 따로 나온다 |
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.
 

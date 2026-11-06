@@ -67,4 +67,14 @@ public interface LotteryRepository {
      * DRAWN일 때만 DONE으로 바꾼다.
      */
     boolean markDone(Long id);
+
+    /**
+     * 종결되지 않은 추첨 수를 센다.
+     */
+    long countUnfinished();
+
+    /**
+     * 추첨을 마치고 종결되지 않은 가장 오래된 추첨의 경과 시간을 초로 읽으며, 없으면 0이다.
+     */
+    long findOldestUnfinishedSeconds();
 }

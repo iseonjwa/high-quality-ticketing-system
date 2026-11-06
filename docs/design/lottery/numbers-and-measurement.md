@@ -60,6 +60,35 @@
 - 판단: 최악값도 상한의 절반 이하라 한 트랜잭션(D8 A안)을 유지한다. 배포 환경(EC2)에서 다시 재고, 연속 시간 초과(`lottery.draw.consecutive.failures`)가 나면 청크(B안)로 바꾼다.
 - 측정 시나리오 1(마감 직전 초당 100건)과 그 결과로 정할 D3 전환·SA 반영은 부하 도구와 배포 환경이 필요해 측정 이슈(ISE-94)로 옮겼다(11/2 결정).
 
+## 4. 관측 지표 (ISE-94)
+
+이름과 라벨은 `lottery/observability/LotteryMetrics`에 모은다. 대시보드는 Grafana `추첨`(`infra/grafana/dashboards/lottery.json`), 경보는 `infra/prometheus/rules/lottery-alerts.yml`이다.
+
+| 영역 | Prometheus 이름 | 종류 | 라벨 |
+|---|---|---|---|
+| 추첨 | `lottery_draw_duration_seconds_*`, `lottery_draw_failures_total`, `lottery_draw_consecutive_failures` | Timer, Counter, Gauge | — |
+| 배정 | `lottery_assignment_results_total` | Counter | `result`(assigned·rejected·error) |
+| 자동결제 | `lottery_settlement_duration_seconds_*` | Timer(히스토그램, 600초 경계 포함) | `result`(paid·failed) |
+| 자동결제 | `lottery_entry_failures_total`, `lottery_payment_retries_total` | Counter | `reason`(사유 목록 밖은 `OTHER`), — |
+| 불변식 | `lottery_result_not_applied_total` | Counter | — |
+| 승계 | `lottery_succession_promoted_total`, `lottery_waitlist_closed_total` | Counter | — |
+| 종결 | `lottery_finish_seats_reverted_total`(판매된 좌석의 등급 복원 포함) | Counter | — |
+| 작업 | `lottery_job_failures_total` | Counter | `task`(assignment·succession·finish) |
+| 진행 상태 | `lottery_unfinished_count`, `lottery_unfinished_oldest_seconds`, `lottery_winners_unsettled`, `lottery_seats_remaining` | Gauge(종결 스케줄러가 1분마다 갱신) | — |
+
+- 결제 결과 지표는 커밋된 뒤에 기록한다. 트랜잭션 안에서 세면 롤백 뒤 Kafka 재처리 때 같은 결과가 두 번 집계된다.
+- 라벨 값을 미리 0으로 등록한다. 시계열이 첫 발생 때 생기면 `increase()`가 그 1건을 놓친다.
+- `lottery_settlement_duration_seconds`는 추첨 시각부터 잰다. 승계된 당첨자는 앞선 실패와 승계만큼 길게 나타난다.
+- 라벨 이름으로 `job`을 쓰지 않는다. Prometheus 수집 작업 라벨과 겹쳐 `exported_job`으로 바뀐다.
+- 시나리오 1의 "컨슈머 랙"은 접수형 전제다. 동기 INSERT 기준선에서는 응답 p95와 처리량을 보고, 접수형과 비교할 때 랙을 함께 본다.
+- 서버 쪽 API p95는 볼 수 없다. `http_server_requests_seconds_bucket`이 켜져 있지 않아, 응모 API p95는 k6 결과로 판정한다.
+
+### 4-1. 확인 결과(2026-11-05, 로컬 compose)
+- 추첨 E2E를 돌린 뒤 대시보드 쿼리를 Prometheus에 직접 실행했다. 평소 데이터가 없는 `ALERTS` 표를 빼면 모두 시계열을 돌려줬다. 부하가 없을 때의 지연 패널은 `NaN`이다.
+- 경보 규칙 6개는 `promtool` 단위 테스트를 통과했고 로컬 Prometheus에서 `ok`·`inactive`로 올라왔다. 실제로 울려 Slack까지 가는지는 확인하지 못했다.
+- 배포 서버에서는 확인하지 못했다.
+
 ## 이력
 - 2026-10-28: 초안
 - 2026-11-02: 추첨 실행 시간 측정 결과(3-1) 추가
+- 2026-11-05: 관측 지표(4절) 추가

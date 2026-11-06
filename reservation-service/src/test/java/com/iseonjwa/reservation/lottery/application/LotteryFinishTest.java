@@ -78,7 +78,7 @@ class LotteryFinishTest {
         insert("PAID", 1);
         insert("FAILED", 2);
         insert("LOST", 3);
-        long before = finishService.countRemainingLotterySeats();
+        long before = finishService.readProgress().remainingLotterySeats();
 
         assertTrue(finishService.findFinishDueIds().contains(lotteryId));
         assertEquals(Optional.of(4), finishService.finish(lotteryId));
@@ -87,7 +87,7 @@ class LotteryFinishTest {
         assertEquals(List.of("S", "S", "S", "S", "S", "S"), seatColumn("grade"));
         assertEquals(List.of("AVAILABLE", "HELD", "SOLD", "AVAILABLE", "AVAILABLE", "AVAILABLE"),
                 seatColumn("status"));
-        assertEquals(before - 4, finishService.countRemainingLotterySeats());
+        assertEquals(before - 4, finishService.readProgress().remainingLotterySeats());
         assertEquals(Optional.empty(), finishService.finish(lotteryId));
     }
 

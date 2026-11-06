@@ -1,6 +1,7 @@
 // 시나리오 K1: 대기열이 초당 RATE명씩 입장시킨 사용자가 좌석을 조회하고 선점한다.
 // SEAT_MAP=once면 K1-H: 좌석 목록을 setup에서 한 번만 받고, 반복은 그 목록에서 골라 선점만 보낸다.
-// 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1절(K1)·1-5절(K1-H). 실행 방법: 같은 폴더 README.md
+// MODEL=ramp면 스트레스: STAGES의 도착률을 STAGE_SECONDS씩 차례로 올리고 요청에 stage 태그를 붙인다.
+// 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1절(K1)·1-5절(K1-H)·1-6절(측정 종류). 실행 방법: 같은 폴더 README.md
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import exec from 'k6/execution';
@@ -27,9 +28,26 @@ const USER_ID_BASE = Number(__ENV.USER_ID_BASE || 1000000);
 // each: K1(시도마다 좌석 조회). once: K1-H(좌석 조회 병목을 떼고 선점 경로만 잰다)
 const SEAT_MAP = __ENV.SEAT_MAP || 'each';
 const HOLD_ONLY = SEAT_MAP === 'once';
+// 0보다 크면 부하가 끝난 뒤 이 시간 동안 10초마다 좌석 조회 한 건을 보내 회복을 본다(B8, k6-overload-recovery.md 6절)
+const RECOVERY_SECONDS = Number(__ENV.RECOVERY_SECONDS || 0);
+// 탐침 사용자는 부하 사용자와 겹치지 않게 뒤쪽 ID를 쓴다
+const PROBE_USER_OFFSET = 900000;
+// 스트레스(MODEL=ramp): 단계마다 초당 도착 수. 단계 사이는 RAMP_UP_SECONDS 동안 올린다
+const STAGES = (__ENV.STAGES || '5,10,20,40,80,160,320').split(',').map(Number);
+const STAGE_SECONDS = Number(__ENV.STAGE_SECONDS || 60);
+const RAMP_UP_SECONDS = 5;
+// 0보다 크면 부하 전에 WARMUP_SCHEDULE_ID 회차로 워밍업한다. 측정 회차의 좌석을 쓰지 않게 다른 회차를 쓴다(1-6절)
+const WARMUP_SECONDS = Number(__ENV.WARMUP_SECONDS || 0);
+const WARMUP_RATE = Number(__ENV.WARMUP_RATE || 10);
+const WARMUP_SCHEDULE_ID = __ENV.WARMUP_SCHEDULE_ID;
+const WARMUP_USER_OFFSET = 800000;
+const LOAD_SECONDS = MODEL === 'ramp' ? STAGES.length * STAGE_SECONDS : DURATION_SECONDS;
 
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
+}
+if (WARMUP_SECONDS > 0 && (!WARMUP_SCHEDULE_ID || TOKEN_MODE !== 'sign')) {
+  throw new Error('워밍업에는 WARMUP_SCHEDULE_ID와 TOKEN_MODE=sign이 필요합니다(입장 토큰이 회차마다 다르다)');
 }
 
 // 한 줄에 사용자 한 명: accessToken,entryToken. 첫 줄은 머리글이다
@@ -48,8 +66,21 @@ const holdDuration = new Trend('hold_duration', true);
 const holdResults = new Counter('hold_results');
 const usersFinished = new Counter('users_finished');
 const requestsPerUser = new Trend('requests_per_user');
+const probeDuration = new Trend('probe_duration', true);
 
-const scenario = MODEL === 'closed'
+const vuPool = { preAllocatedVUs: Number(__ENV.PRE_VUS || 600), maxVUs: Number(__ENV.MAX_VUS || 2000) };
+const scenario = MODEL === 'ramp'
+  ? Object.assign({
+    // 스트레스: 첫 단계는 startRate로 바로 시작하고, 다음 단계부터 RAMP_UP_SECONDS 동안 올린 뒤 유지한다
+    executor: 'ramping-arrival-rate',
+    startRate: STAGES[0],
+    timeUnit: '1s',
+    stages: STAGES.flatMap((rate, i) => (i === 0
+      ? [{ target: rate, duration: `${STAGE_SECONDS}s` }]
+      : [{ target: rate, duration: `${RAMP_UP_SECONDS}s` },
+        { target: rate, duration: `${STAGE_SECONDS - RAMP_UP_SECONDS}s` }])),
+  }, vuPool)
+  : MODEL === 'closed'
   ? {
     // 비교용 닫힌 모델: 서버가 느려지면 요청도 줄어든다
     executor: 'constant-vus',
@@ -62,33 +93,62 @@ const scenario = MODEL === 'closed'
     rate: RATE,
     timeUnit: '1s',
     duration: `${DURATION_SECONDS}s`,
-    preAllocatedVUs: Number(__ENV.PRE_VUS || 600),
-    maxVUs: Number(__ENV.MAX_VUS || 2000),
+    ...vuPool,
   };
 
+if (WARMUP_SECONDS > 0) {
+  scenario.startTime = `${WARMUP_SECONDS}s`;
+}
+const scenarios = HOLD_ONLY ? { k1h: scenario } : { k1: scenario };
+if (WARMUP_SECONDS > 0) {
+  // 워밍업 요청은 api:warmup 태그라 api:seats·api:hold 지표와 사용자 결과에 섞이지 않는다
+  scenarios.warmup = {
+    executor: 'constant-arrival-rate', exec: 'warmup', rate: WARMUP_RATE, timeUnit: '1s',
+    duration: `${WARMUP_SECONDS}s`, preAllocatedVUs: 50, maxVUs: 200,
+  };
+}
+if (RECOVERY_SECONDS > 0) {
+  // Note: 부하 시나리오의 gracefulStop(30초) 동안 남은 반복과 겹치지 않게 부하가 끝나고 30초 뒤부터 보낸다
+  scenarios.probe = {
+    executor: 'constant-arrival-rate', exec: 'probe', rate: 1, timeUnit: '10s',
+    startTime: `${WARMUP_SECONDS + LOAD_SECONDS + 30}s`, duration: `${RECOVERY_SECONDS}s`, preAllocatedVUs: 2, maxVUs: 5,
+  };
+}
+
+const thresholds = {
+  'http_req_failed': ['rate<0.01'],
+  'http_req_duration{api:seats}': ['p(95)<500', 'p(99)<1000'],
+  'http_req_duration{api:hold}': ['p(95)<1000', 'p(99)<2000'],
+  'seat_map_duration{phase:sale}': ['p(95)<500', 'p(99)<1000'],
+  'seat_map_duration{phase:soldout}': ['p(95)<500', 'p(99)<1000'],
+  'hold_duration{result:created}': ['p(95)<1000', 'p(99)<2000'],
+  'hold_duration{result:conflict}': ['p(95)<1000', 'p(99)<2000'],
+  'hold_results{result:error}': ['count<1'],
+  'dropped_iterations': ['count<1'],
+};
+if (MODEL === 'ramp') {
+  // 단계마다 임계값을 걸어야 요약에 단계별 수치가 따로 나온다. 판정 기준은 1-6절(p95가 Gateway 시한 3초의 절반 이하)
+  for (const rate of STAGES) {
+    thresholds[`http_req_failed{stage:${rate}}`] = ['rate<0.01'];
+    thresholds[`http_req_duration{api:seats,stage:${rate}}`] = ['p(95)<1500'];
+    thresholds[`http_req_duration{api:hold,stage:${rate}}`] = ['p(95)<1500'];
+  }
+}
+
 export const options = {
-  scenarios: HOLD_ONLY ? { k1h: scenario } : { k1: scenario },
+  scenarios,
   // 기본 요약에는 p(99)가 없다
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
   // 목표값은 [가정]이다. 태그 조합마다 임계값을 걸어야 요약에 그 조합의 수치가 따로 나온다
-  thresholds: {
-    'http_req_failed': ['rate<0.01'],
-    'http_req_duration{api:seats}': ['p(95)<500', 'p(99)<1000'],
-    'http_req_duration{api:hold}': ['p(95)<1000', 'p(99)<2000'],
-    'seat_map_duration{phase:sale}': ['p(95)<500', 'p(99)<1000'],
-    'seat_map_duration{phase:soldout}': ['p(95)<500', 'p(99)<1000'],
-    'hold_duration{result:created}': ['p(95)<1000', 'p(99)<2000'],
-    'hold_duration{result:conflict}': ['p(95)<1000', 'p(99)<2000'],
-    'hold_results{result:error}': ['count<1'],
-    'dropped_iterations': ['count<1'],
-  },
+  thresholds,
 };
 
 // 201·409는 정상 응답이다. 409를 실패로 세면 인기 좌석 거절이 오류율에 섞인다
 http.setResponseCallback(http.expectedStatuses(200, 201, 409));
 
 export function setup() {
-  const needed = MODEL === 'closed' ? 1 : RATE * DURATION_SECONDS;
+  const needed = MODEL === 'closed' ? 1
+    : MODEL === 'ramp' ? STAGES.reduce((sum, rate) => sum + rate * STAGE_SECONDS, 0) : RATE * DURATION_SECONDS;
   if (TOKEN_MODE === 'sign') {
     if (!__ENV.JWT_ACCESS_SECRET || !__ENV.ENTRY_TOKEN_SECRET) {
       fail('TOKEN_MODE=sign에는 JWT_ACCESS_SECRET과 ENTRY_TOKEN_SECRET이 필요합니다');
@@ -101,7 +161,10 @@ export function setup() {
   if (res.status !== 200) {
     fail(`사전 확인 실패: GET seats ${res.status} ${res.body && res.body.substring(0, 200)}`);
   }
-  return HOLD_ONLY ? { seats: seatListOf(res.body) } : {};
+  const data = HOLD_ONLY ? { seats: seatListOf(res.body) } : {};
+  // 부하 시나리오가 시작하는 시각이다(워밍업이 있으면 그만큼 뒤). 측정 뒤 지표 구간을 자르는 기준이다
+  console.log(`load_start epoch_ms=${Date.now() + WARMUP_SECONDS * 1000}`);
+  return data;
 }
 
 export default function (data) {
@@ -109,6 +172,10 @@ export default function (data) {
   const user = userOf(exec.scenario.iterationInTest);
   const headers = headersOf(user);
   let requests = 0;
+  if (MODEL === 'ramp') {
+    // 이 사용자가 도착한 단계로 모든 지표에 태그를 붙인다. VU는 반복을 이어 쓰므로 반복마다 다시 정한다
+    exec.vu.metrics.tags.stage = stageOf(Date.now() - exec.scenario.startTime);
+  }
 
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
     const count = Math.random() < 0.5 ? 1 : 2;
@@ -149,6 +216,42 @@ export default function (data) {
     }
   }
   requestsPerUser.add(requests);
+}
+
+// 워밍업: 다른 회차로 좌석 조회와 선점을 한 번씩 보내 JIT·커넥션을 데운다. 측정 회차의 좌석은 쓰지 않는다
+export function warmup() {
+  const user = userOf(WARMUP_USER_OFFSET + exec.scenario.iterationInTest, WARMUP_SCHEDULE_ID);
+  const headers = headersOf(user);
+  const seatMap = http.get(seatsUrl(WARMUP_SCHEDULE_ID), { headers, tags: { api: 'warmup' } });
+  if (seatMap.status !== 200) {
+    return;
+  }
+  const seatIds = pickSeats(seatMap.body, 1);
+  if (seatIds.length > 0) {
+    http.post(holdUrl(WARMUP_SCHEDULE_ID), JSON.stringify({ seatIds }), {
+      headers: Object.assign({ 'Content-Type': 'application/json', 'Idempotency-Key': uuid() }, headers),
+      tags: { api: 'warmup' },
+    });
+  }
+}
+
+// 단계 사이에 올리는 RAMP_UP_SECONDS는 'ramp'로 따로 둔다. 도착률이 단계 값보다 낮아 그 단계의 수치에 섞지 않는다
+function stageOf(elapsedMs) {
+  const elapsed = elapsedMs / 1000;
+  const index = Math.min(Math.floor(elapsed / STAGE_SECONDS), STAGES.length - 1);
+  if (index > 0 && elapsed - index * STAGE_SECONDS < RAMP_UP_SECONDS) {
+    return 'ramp';
+  }
+  return String(STAGES[index]);
+}
+
+// 회복 탐침: 좌석 조회 한 건의 상태와 지연을, 부하가 끝난 뒤 몇 초째인지와 함께 남긴다
+export function probe() {
+  const user = userOf(PROBE_USER_OFFSET + exec.scenario.iterationInTest);
+  const res = http.get(seatsUrl(), { headers: headersOf(user), tags: { api: 'probe' }, timeout: '10s' });
+  probeDuration.add(res.timings.duration, { status: String(res.status) });
+  // 부하가 끝난 뒤 몇 초째인지는 setup이 남긴 load_start로 측정 뒤에 계산한다(tools/b8-run.sh)
+  console.log(`probe epoch_ms=${Date.now()} status=${res.status} ${Math.round(res.timings.duration)}ms`);
 }
 
 // K1: 좌석을 조회하고 고민한 뒤 고른다. 조회 실패나 매진이면 사용자 결과를 남기고 null을 돌려준다
@@ -243,7 +346,7 @@ function errorCode(body) {
   return match ? match[1] : 'UNKNOWN';
 }
 
-function userOf(index) {
+function userOf(index, scheduleId = SCHEDULE_ID) {
   if (TOKEN_MODE !== 'sign') {
     return users[index % users.length];
   }
@@ -257,7 +360,7 @@ function userOf(index) {
       jti: uuid(), iat: now, exp: now + 1800,
     }, __ENV.JWT_ACCESS_SECRET),
     entryToken: signJwt({
-      typ: 'entry', aud: ['gateway'], sub: String(userId), scheduleId: Number(SCHEDULE_ID),
+      typ: 'entry', aud: ['gateway'], sub: String(userId), scheduleId: Number(scheduleId),
       jti: uuid(), iat: now, exp: now + 600,
     }, __ENV.ENTRY_TOKEN_SECRET),
   };
@@ -274,12 +377,12 @@ function headersOf(user) {
   return { Authorization: `Bearer ${user.accessToken}`, 'X-Entry-Token': user.entryToken };
 }
 
-function seatsUrl() {
-  return `${BASE_URL}/api/v1/schedules/${SCHEDULE_ID}/seats`;
+function seatsUrl(scheduleId = SCHEDULE_ID) {
+  return `${BASE_URL}/api/v1/schedules/${scheduleId}/seats`;
 }
 
-function holdUrl() {
-  return `${BASE_URL}/api/v1/schedules/${SCHEDULE_ID}/reservations`;
+function holdUrl(scheduleId = SCHEDULE_ID) {
+  return `${BASE_URL}/api/v1/schedules/${scheduleId}/reservations`;
 }
 
 function between(min, max) {

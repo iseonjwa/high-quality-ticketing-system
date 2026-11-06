@@ -1,0 +1,12 @@
+# B8(과부하 뒤 회복) 측정 전용 덮어쓰기다. compose.deploy-memory.yml·compose.g1.yml 위에 얹어 지표만 더 켠다. 동작은 바꾸지 않는다.
+# 설계: docs/design/reservation/k6-overload-recovery.md 6절
+#   - Tomcat MBean 지표(tomcat_threads_busy_threads, tomcat_connections_current_connections)
+#   - 요청 지연 SLO 경계 1초·3초(http_server_requests_seconds_bucket). Gateway 시한(3초)을 넘긴 "버려진 일"의 비율을 센다
+#
+# Note: 맵 키에 점이 들어가는 설정(http.server.requests)은 환경변수 이름으로 쓰기 어려워 SPRING_APPLICATION_JSON으로 넘긴다
+services:
+  reservation-service:
+    environment:
+      SPRING_APPLICATION_JSON: >-
+        {"server":{"tomcat":{"mbeanregistry":{"enabled":true}}},
+        "management":{"metrics":{"distribution":{"slo":{"http.server.requests":"1s,3s"}}}}}
