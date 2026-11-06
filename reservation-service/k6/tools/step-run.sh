@@ -10,7 +10,7 @@
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
 #
 # 기준 환경: 배포 메모리 + 만료 스케줄러 끔(compose.deploy-memory.yml), 지표·GC 로그(compose.b8-observe.yml, compose.step-observe.yml),
-# Gateway 인증 차단기의 느린 호출 판정 끔(compose.measure-gateway.yml),
+# Gateway 인증 차단기 완화(compose.measure-gateway.yml),
 # 60초 워밍업. 그 위에 step-overlays.txt의 덮어쓰기를 얹는다.
 # Note: 매 회 컨테이너를 새로 띄운다. 회복 단계(R1) 전에는 과부하 적체가 10분 가까이 남아 다음 측정을 오염시키기 때문이다.
 set -euo pipefail
@@ -64,7 +64,7 @@ fi
 
 echo "[$STEP-$KIND] 커밋 $COMMIT, 덮어쓰기: ${OVERLAYS[*]:-(없음)}"
 # 이 스크립트는 reservation-service만 다시 띄운다. Gateway가 측정 환경(k6measure 프로필)으로 떠 있지 않으면
-# 차단기가 공유 기준(느린 호출 50ms)으로 돌아 K1-H가 Gateway에서 막힌다. 그런 회는 다른 환경이므로 시작하지 않는다
+# 차단기가 공유 기준(느린 호출 50ms, 실패율 50%)으로 돌아 K1-H가 Gateway에서 막힌다. 그런 회는 다른 환경이므로 시작하지 않는다
 if ! docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' iseonjwa-gateway-1 2>/dev/null | grep -q '^SPRING_PROFILES_ACTIVE=.*k6measure'; then
   echo "Gateway가 측정 환경으로 떠 있지 않습니다. STEPS.md 실행 방법대로 전체 스택을 다시 띄웁니다" >&2
   exit 1

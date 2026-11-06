@@ -1,5 +1,5 @@
 # 단계 측정 기준 환경의 Gateway 덮어쓰기다. 측정 브랜치(experiment/ISE-79-k6-steps) 전용이다.
-# Gateway 인증 차단기의 느린 호출 판정을 끈다(설정 값과 이유는 config-measure/gateway-k6measure.yml).
+# Gateway 인증 차단기가 Gateway 자체 부하로 열리지 않게 한다(설정 값과 이유는 config-measure/gateway-k6measure.yml).
 #
 # config-server는 공유 config-repo에 더해 측정 전용 폴더를 읽고, Gateway는 local에 k6measure 프로필을 더한다.
 # 프로필 파일(gateway-k6measure.yml)이 gateway.yml보다 우선하므로, 공유 설정 파일은 고치지 않는다.

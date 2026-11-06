@@ -156,6 +156,6 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `tools/step-run.sh` | 한 회: 지금 커밋으로 reservation-service를 빌드해 새로 띄우고, 새 회차에 L·S·H 중 하나를 건 뒤 지표·GC 로그·대사·CPU를 모은다 |
 | `step-overlays.txt` | 기준 환경 위에 얹을 덮어쓰기 목록. 설정 단계(G1, R1, P1)는 여기에 한 줄을 더하는 커밋이다 |
 | `compose.step-observe.yml` | 기준 환경의 GC 로그 켜기. GC 종류는 JVM이 고르게 둔다 |
-| `compose.measure-gateway.yml`, `config-measure/` | 기준 환경의 Gateway 인증 차단기 느린 호출 판정 끄기(K1-H가 Gateway에서 막히지 않게). 공유 `config-repo`는 고치지 않는다 |
+| `compose.measure-gateway.yml`, `config-measure/` | 기준 환경의 Gateway 인증 차단기 완화(느린 호출 판정 끔, 실패율 100%. K1-H가 Gateway에서 막히지 않게). 공유 `config-repo`는 고치지 않는다 |
 | `tools/invariants.sql` | 회차 하나의 대사(중복 판매, 매수 불일치, 좌석 상태 불일치)와 마지막 선점 시각 |
 | `STEPS.md` | 단계 기록 |

@@ -1,15 +1,19 @@
 # 단계 측정 기준 환경 전용 Gateway 설정이다. 측정 브랜치(experiment/ISE-79-k6-steps)에만 있고 반영하지 않는다.
 # compose.measure-gateway.yml이 Gateway에 k6measure 프로필을 켜고 config-server가 이 폴더를 함께 읽게 한다.
 #
-# 인증 차단기(auth-redis)의 느린 호출 판정만 끈다. 공유 설정(config-repo/gateway.yml)은 느린 호출 50ms, 비율 50%다.
+# 인증 차단기(auth-redis)가 Gateway 자체 부하로 열리지 않게 한다. 공유 설정(config-repo/gateway.yml)은 느린 호출 50ms·비율 50%, 실패율 50%다.
 # base K1-H에서 초당 100명부터 Gateway CPU가 차 Redis 응답을 늦게 받았고, 느린 호출 비율이 90~100%가 되어 차단기가 열렸다.
 # 그 뒤 인증이 필요한 요청이 모두 즉시 503이라 선점 경로(reservation-service)까지 부하가 가지 않았다(STEPS.md base 절).
 #
-# Note: 기준을 호출 시한(GatewayAuthenticationFilter.REDIS_TIMEOUT, 100ms)과 같게 둔다. 시한을 넘긴 호출은 어차피 실패로 세므로
-# 남는 판정은 "시한 초과·오류가 절반 이상이면 연다"뿐이다. Redis가 실제로 응답하지 못할 때 막는 보호는 그대로 남는다.
+# Note: 느린 호출 기준을 호출 시한(GatewayAuthenticationFilter.REDIS_TIMEOUT, 100ms)과 같게 둔다. 시한을 넘긴 호출은 어차피 실패로 세므로
+# 느린 호출 판정은 사실상 꺼진다(2026-11-07 첫 완화).
+# Note: 실패율 기준은 100%로 둔다. 첫 완화 뒤 base H 400명 단계에서, 시한 초과 실패는 초당 1건 안팎인데 몰려서 나와
+# 최근 20번 중 절반을 채웠고, 차단기가 정상 요청까지 초당 300~750건 거절했다. 100%면 최근 20번이 모두 실패할 때만 열리므로
+# Redis가 완전히 응답하지 못할 때의 보호는 남는다. 실패한 요청은 그 요청만 503이다.
 # Note: 이 덮어쓰기는 단계가 아니라 측정 환경이다. 모든 단계(base 포함)에 똑같이 얹고, 실제 반영 여부는 Gateway 담당이 정한다.
 resilience4j:
   circuitbreaker:
     instances:
       auth-redis:
         slow-call-duration-threshold: 100ms
+        failure-rate-threshold: 100
