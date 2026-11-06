@@ -23,6 +23,8 @@ bash reservation-service/k6/tools/step-run.sh base H   # K1-H 스트레스 50→
 
 - 회마다 지금 커밋으로 reservation-service를 다시 빌드해 새로 띄운다. 커밋되지 않은 코드·단계 설정이 있으면 멈춘다.
 - 결과는 `results/step-<단계>-<종류>-<시각>-*`이다. k6 로그·요약·원자료, 회복 탐침, Prometheus 지표 CSV, GC 로그, 컨테이너 CPU와 잠금 대기 세션 수(`stats`), 대사(`invariants`), 조건(`meta`)이 남는다.
+- 조건부 단계를 판단하는 회(P4c의 K1 S, P3의 K1-H S)에만 `OBSERVE_JFR=1`을 붙인다. JFR 녹화가 `results/*.jfr`로 남고, 로컬 JDK의 `jfr view hot-methods <파일>`로 본다. 꺼내려고 측정 뒤 reservation-service를 멈춘다.
+- P5 근사 검증: base의 H 회 `metrics-summary.json`에서 `hold_time_s`와 `hikari_usage_s`가 20% 안인지 본다. 맞으면 이후 `hold_409_time_ratio`를 P5 판단에 쓴다.
 - 대사가 0이 아니면 그 회의 처리량은 쓰지 않는다. 대사 위반이 나오면 그것이 S4(정합성 수정)를 넣을 근거다.
 - 단계를 고르는 측정은 1회, 발표 비교점(기본, 각 묶음의 마지막 단계, 최종)은 3회 반복해 중앙값과 범위를 적는다.
 - 끝나면 원래 저장소에서 `docker compose build reservation-service`로 이미지를 되돌린다. Compose 프로젝트 이름이 같아(`iseonjwa`) 이 브랜치 이미지가 원래 스택을 대신하기 때문이다.
@@ -58,5 +60,7 @@ SEATHOLD_CONCURRENCY=true ./gradlew :reservation-service:test --tests '*SeatHold
 | S1 매수 한도 | C4 같은 사용자 탭 4개 × 30라운드 | 30라운드 모두 한도 초과, 최대 8매 보유 | 한도 초과 0, 최대 4매 | 결함 있음 |
 | S2 멱등키 | C5 같은 멱등키 3연타 × 30라운드 | 201 30건, 자기 요청에 409 60건 | 90건 모두 같은 201 | 결함 있음 |
 | S4 만료 | C6 만료 100건, 스케줄러 2개 | 헛수고 100건(다른 인스턴스가 처리한 건을 다시 집음), 1,494ms | 헛수고 0 | 결함 있음 |
+
+수정 S1~S4는 ISE-79 브랜치에 수정마다 커밋으로 넣었다. 이 브랜치에는 P1 앞에서 같은 순서로 cherry-pick하고, S1·S2 뒤에 K1-H S를 한 번씩 잰다. S4는 만료 경로만 바꾸고 측정 중 만료 스케줄러가 꺼져 있어 재지 않는다. S3은 잠금 대기를 직면하면 그 자리에, 아니면 S1·S2와 함께 넣는다.
 
 세 결과 모두 이전 측정의 S0 값([concurrency-results.md](../../docs/design/reservation/concurrency-results.md) 3절)과 같다. 결함은 지금 코드에도 그대로 있다.

@@ -12,6 +12,7 @@ import urllib.request
 PROM = "http://localhost:9090/api/v1"
 APP = 'application="reservation-service"'
 SEATS = APP + ',uri="/api/v1/schedules/{scheduleId}/seats"'
+HOLD = APP + ',uri="/api/v1/schedules/{scheduleId}/reservations"'
 
 SERIES = {
     "tomcat_busy_threads": f"sum(tomcat_threads_busy_threads{{{APP}}})",
@@ -21,6 +22,10 @@ SERIES = {
     "hikari_timeout_per_s": f"sum(rate(hikaricp_connections_timeout_total{{{APP}}}[10s]))",
     "seats_200_per_s": f'sum(rate(http_server_requests_seconds_count{{{SEATS},status="200"}}[10s]))',
     "seats_all_per_s": f"sum(rate(http_server_requests_seconds_count{{{SEATS}}}[10s]))",
+    # 선점 처리 시간과 커넥션 사용 시간(초당 합). P5 판단의 근사(409 처리 시간 비율)를 커넥션 사용 시간과 대조한다(계획 문서 3-4절)
+    "hold_time_per_s": f"sum(rate(http_server_requests_seconds_sum{{{HOLD}}}[10s]))",
+    "hold_409_time_per_s": f'sum(rate(http_server_requests_seconds_sum{{{HOLD},status="409"}}[10s]))',
+    "hikari_usage_time_per_s": f"sum(rate(hikaricp_connections_usage_seconds_sum{{{APP}}}[10s]))",
 }
 
 
@@ -55,6 +60,9 @@ def main():
     within3 = scalar(f'sum(increase(http_server_requests_seconds_bucket{{{SEATS},le="3.0"}}[{window}]))', end)
     load_seconds = load_end - start
     ok_during_load = scalar(f'sum(increase(http_server_requests_seconds_count{{{SEATS},status="200"}}[{load_seconds}s]))', load_end)
+    hold_time = scalar(f"sum(increase(http_server_requests_seconds_sum{{{HOLD}}}[{load_seconds}s]))", load_end)
+    hold_409_time = scalar(f'sum(increase(http_server_requests_seconds_sum{{{HOLD},status="409"}}[{load_seconds}s]))', load_end)
+    hikari_usage = scalar(f"sum(increase(hikaricp_connections_usage_seconds_sum{{{APP}}}[{load_seconds}s]))", load_end)
     timeouts = scalar(f"sum(increase(hikaricp_connections_timeout_total{{{APP}}}[{window}]))", end)
 
     # 회복 시각: 부하가 끝난 뒤 바쁜 요청 스레드가 처음으로 1 이하, 커넥션 대기가 0이 된 시점.
@@ -66,6 +74,9 @@ def main():
         "server_seats_200_per_s_during_load": round(ok_during_load / load_seconds, 1),
         "server_over_3s_ratio": round(1 - within3 / total, 4) if total else None,
         "hikari_timeouts": round(timeouts),
+        # 부하 구간의 합. K1-H는 선점만 커넥션을 쓰므로 hold_time과 hikari_usage가 20% 안이면 409 처리 시간 비율을 점유 비율로 쓴다
+        "hold_time_s": round(hold_time, 1), "hold_409_time_ratio": round(hold_409_time / hold_time, 3) if hold_time else None,
+        "hikari_usage_s": round(hikari_usage, 1),
         "recovered_after_load_s": recovered,
     }
     with open(f"{prefix}-metrics-summary.json", "w", encoding="utf-8") as f:

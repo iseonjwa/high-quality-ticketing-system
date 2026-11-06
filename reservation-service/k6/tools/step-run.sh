@@ -7,6 +7,7 @@
 #   S: K1 스트레스 + 회복. 초당 5명부터 두 배씩 60초, 끝나고 120초 탐침
 #   H: K1-H(선점만) 스트레스 + 회복. 초당 50명부터 두 배씩 60초
 #   예: bash reservation-service/k6/tools/step-run.sh base S
+#   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
 #
 # 기준 환경: 배포 메모리 + 만료 스케줄러 끔(compose.deploy-memory.yml), 지표·GC 로그(compose.b8-observe.yml, compose.step-observe.yml),
 # 60초 워밍업. 그 위에 step-overlays.txt의 덮어쓰기를 얹는다.
@@ -40,6 +41,8 @@ while IFS= read -r line; do
   line="${line%%#*}"; line="${line//[[:space:]]/}"
   [ -n "$line" ] && OVERLAYS+=("$line") && FILES+=(-f "$line")
 done < "$K6/step-overlays.txt"
+# JFR은 단계가 아니라 관찰 옵션이다. 단계 목록과 섞이지 않게 따로 얹는다
+[ "${OBSERVE_JFR:-0}" = 1 ] && FILES+=(-f "$K6/compose.jfr.yml")
 
 WARMUP_SECONDS="${WARMUP_SECONDS:-60}"
 case "$KIND" in
@@ -105,7 +108,13 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none}"
   echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
+  echo "jfr=${OBSERVE_JFR:-0}"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"
 } > "$PREFIX-meta.txt"
+if [ "${OBSERVE_JFR:-0}" = 1 ]; then
+  # 녹화는 JVM 종료 때 쓰인다. 기본 10초 시한이면 강제 종료로 파일이 남지 않을 수 있어 넉넉히 준다
+  docker stop -t 90 iseonjwa-reservation-service-1 >/dev/null
+  MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/rec.jfr "$PREFIX.jfr" >/dev/null     && echo "[$STEP-$KIND] JFR: $PREFIX.jfr (분석: jfr view hot-methods <파일>). reservation-service는 멈춘 상태다"     || echo "[$STEP-$KIND] JFR 파일을 꺼내지 못했습니다" >&2
+fi
 echo "[$STEP-$KIND] 끝: $PREFIX"
 cat "$PREFIX-invariants.txt"

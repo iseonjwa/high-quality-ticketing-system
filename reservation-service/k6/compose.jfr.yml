@@ -1,0 +1,10 @@
+# 단계 측정의 JFR 관찰 덮어쓰기다. 측정 브랜치(experiment/ISE-79-k6-steps) 전용이다.
+# step-run.sh에서 OBSERVE_JFR=1일 때만 얹는다. 조건부 단계를 판단하는 회(P4c의 K1 S, P3의 K1-H S)에만 켠다(계획 문서 3-4절).
+# 동작은 바꾸지 않는다. 기본 설정(settings=default)은 표본을 20ms마다 뜬다.
+#
+# Note: JAVA_TOOL_OPTIONS는 메모리·GC 덮어쓰기가 이미 쓰고 있어 통째로 바뀐다. 그래서 java 런처가 따로 읽는 JDK_JAVA_OPTIONS를 쓴다.
+# Note: 녹화는 JVM이 정상 종료할 때 파일로 쓴다(dumponexit). step-run.sh가 측정 뒤 컨테이너를 넉넉한 시한으로 멈추고 파일을 꺼낸다.
+services:
+  reservation-service:
+    environment:
+      JDK_JAVA_OPTIONS: -XX:StartFlightRecording=filename=/tmp/rec.jfr,settings=default,dumponexit=true
