@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-06 | 부하 측정에서 로컬과 배포 서버를 어떻게 나눠 쓰는가 | [qna/2026-11-06-local-vs-deploy-load-comparison.md](qna/2026-11-06-local-vs-deploy-load-comparison.md) |
 | 2026-11-05 | 이탈이나 결제 완료 뒤 줄을 다시 서게 하려면 입장 토큰을 어떻게 폐기할 수 있는가 | [qna/2026-11-05-entry-token-revocation-options.md](qna/2026-11-05-entry-token-revocation-options.md) |
 | 2026-11-05 | 추첨에서 관측하고 측정해야 할 요소는 무엇인가 | [qna/2026-11-05-lottery-observability-measurement.md](qna/2026-11-05-lottery-observability-measurement.md) |
 | 2026-11-05 | 배포 서버에 접속해 통합 테스트와 부하 측정을 어떤 순서로 진행하는가 | [qna/2026-11-05-deploy-server-test-and-load-steps.md](qna/2026-11-05-deploy-server-test-and-load-steps.md) |
