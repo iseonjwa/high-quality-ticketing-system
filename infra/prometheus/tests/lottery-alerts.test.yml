@@ -1,0 +1,106 @@
+# 추첨 알림 규칙 단위 테스트. 실행: script/check-prometheus-rules.sh(CI: prometheus-rules 워크플로)
+rule_files:
+  - ../rules/lottery-alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  # 결제 결과 미반영은 1건이면 바로 울린다
+  - interval: 1m
+    input_series:
+      - series: 'lottery_result_not_applied_total{application="reservation-service"}'
+        values: '0 0 0 1 1 1'
+      - series: 'lottery_result_not_applied_total{application="other-service"}'
+        values: '0 5 10 15 20 25'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LotteryResultNotApplied
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: LotteryResultNotApplied
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: immediate, severity: critical, application: reservation-service}
+            exp_annotations:
+              summary: "결제 결과를 반영할 당첨 응모를 찾지 못했습니다. event=LOTTERY_RESULT_NOT_APPLIED 로그의 reservationId를 확인하세요."
+              runbook: "docs/design/lottery/details.md 5절"
+
+  # 추첨석이 남아 있어도 진행 중인 추첨이 있으면 정상이고, 모두 끝났는데 남아 있으면 반환 누락이다
+  - interval: 1m
+    input_series:
+      - series: 'lottery_seats_remaining{application="reservation-service"}'
+        values: '3x12'
+      - series: 'lottery_unfinished_count{application="reservation-service"}'
+        values: '1 1 1 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LotterySeatsNotReturned
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: LotterySeatsNotReturned
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: immediate, severity: critical, application: reservation-service}
+            exp_annotations:
+              summary: "종결되지 않은 추첨이 없는데 추첨석 3석이 일반 판매로 돌아가지 않았습니다."
+              runbook: "docs/design/lottery/details.md 5절"
+
+  # 진행 중에는 조용하고 결제 대기가 10분을 넘게 이어지면 울린다
+  - interval: 1m
+    input_series:
+      - series: 'lottery_winners_unsettled{application="reservation-service"}'
+        values: '0 2000 1500 1000 800 600 400 300 200 100 50 20 20 20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LotterySettlementSlow
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: LotterySettlementSlow
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: threshold, severity: warning, application: reservation-service}
+            exp_annotations:
+              summary: "결제 결과를 기다리는 당첨자 20명이 10분 넘게 남아 있습니다(목표: 추첨 후 10분 안 95%)."
+              runbook: "docs/design/lottery/numbers-and-measurement.md 1-2절"
+
+  # 연속 실패가 사라지면 해제되고, 60분을 넘긴 미종결만 울린다
+  - interval: 1m
+    input_series:
+      - series: 'lottery_draw_consecutive_failures{application="reservation-service"}'
+        values: '0 2 2 2 0 0'
+      - series: 'lottery_unfinished_oldest_seconds{application="reservation-service"}'
+        values: '3500 3550 3601 3660 3720 3780 3840 3900 3960'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: LotteryDrawFailing
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: immediate, severity: critical, application: reservation-service}
+            exp_annotations:
+              summary: "추첨 실행이 연속 2회 실패했습니다. 시간 초과가 반복되면 청크 실행을 검토합니다(D8)."
+              runbook: "docs/design/lottery/details.md 5절"
+      - eval_time: 5m
+        alertname: LotteryDrawFailing
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: LotteryFinishOverdue
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: LotteryFinishOverdue
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: threshold, severity: warning, application: reservation-service}
+            exp_annotations:
+              summary: "추첨 후 60분이 지났는데 종결되지 않은 추첨이 있습니다(최장 경과 3960초, D14)."
+              runbook: "docs/design/lottery/details.md 5절"
+
+  # 한 번 실패하고 회복하면 조용하고 계속 실패할 때만 울린다
+  - interval: 1m
+    input_series:
+      - series: 'lottery_job_failures_total{application="reservation-service", task="finish"}'
+        values: '0 1 2 3 4 5 6 7 8 9 10 11 12'
+      - series: 'lottery_job_failures_total{application="reservation-service", task="succession"}'
+        values: '0 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: LotteryJobFailing
+        exp_alerts:
+          - exp_labels: {service: lottery, urgency: threshold, severity: warning, application: reservation-service, task: finish}
+            exp_annotations:
+              summary: "추첨 작업이 계속 실패합니다(task=finish). 다음 주기에 다시 시도하지만 늦어질 수 있습니다."
+              runbook: "docs/design/lottery/details.md 5절"

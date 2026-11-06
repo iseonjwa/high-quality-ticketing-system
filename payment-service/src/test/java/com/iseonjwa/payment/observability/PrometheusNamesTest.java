@@ -15,6 +15,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -61,6 +62,23 @@ class PrometheusNamesTest {
             assertTrue(scrape.lines().anyMatch(line -> line.startsWith(name + "{") || line.startsWith(name + " ")),
                     name + " 이(가) 없다\n" + names(scrape));
         }
+    }
+
+    // Note: 수집 작업 라벨과 겹치는 이름은 Prometheus에서 exported_ 접두사가 붙어, 코드의 이름으로 조회하면 찾지 못한다(ISE-195)
+    @Test
+    void 결제_지표가_Prometheus_예약_라벨을_쓰지_않는다() {
+        var prometheus = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        var metrics = new PaymentMetrics(prometheus);
+        metrics.trackDlqHandler("payment.command.dlq");
+        metrics.trackJob("recheck", Instant.now());
+
+        var series = prometheus.scrape().lines().filter(line -> !line.startsWith("#")).toList();
+
+        assertTrue(series.stream().anyMatch(line ->
+                        line.startsWith("payment_job_last_success_timestamp{") && line.contains("task=\"recheck\"")),
+                "작업 이름이 task 라벨로 나가야 한다\n" + String.join("\n", series));
+        assertFalse(series.stream().anyMatch(line -> line.matches(".*[{,](job|instance)=\".*")),
+                "job·instance 라벨은 Prometheus가 수집할 때 붙인다\n" + String.join("\n", series));
     }
 
     private static String names(String scrape) {

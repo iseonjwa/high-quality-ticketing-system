@@ -1,0 +1,52 @@
+# 추첨 알림 규칙(ISE-94). 기준값은 docs/design/lottery/numbers-and-measurement.md의 [가정]이며 측정 뒤 조정한다.
+# - urgency=immediate: 결제 결과 유실이나 추첨석 반환 누락처럼 사람이 봐야 하는 상태
+# - urgency=threshold: 자동 재시도가 진행 중이지만 늦어지는 상태
+#
+# Note: lottery_unfinished_*, lottery_winners_unsettled, lottery_seats_remaining은 종결 스케줄러가 1분마다 갱신하므로
+# 짧은 변화는 보이지 않는다. 스케줄러가 꺼져 있으면 값이 없어 이 규칙들은 울리지 않는다.
+groups:
+  - name: lottery-immediate
+    rules:
+      - alert: LotteryResultNotApplied
+        expr: sum by (application) (increase(lottery_result_not_applied_total{application="reservation-service"}[5m])) > 0
+        labels: {service: lottery, urgency: immediate, severity: critical}
+        annotations:
+          summary: "결제 결과를 반영할 당첨 응모를 찾지 못했습니다. event=LOTTERY_RESULT_NOT_APPLIED 로그의 reservationId를 확인하세요."
+          runbook: "docs/design/lottery/details.md 5절"
+      - alert: LotterySeatsNotReturned
+        expr: lottery_seats_remaining{application="reservation-service"} > 0 and on (application) lottery_unfinished_count{application="reservation-service"} == 0
+        for: 5m
+        labels: {service: lottery, urgency: immediate, severity: critical}
+        annotations:
+          summary: "종결되지 않은 추첨이 없는데 추첨석 {{ $value }}석이 일반 판매로 돌아가지 않았습니다."
+          runbook: "docs/design/lottery/details.md 5절"
+      - alert: LotteryDrawFailing
+        expr: lottery_draw_consecutive_failures{application="reservation-service"} > 0
+        for: 1m
+        labels: {service: lottery, urgency: immediate, severity: critical}
+        annotations:
+          summary: "추첨 실행이 연속 {{ $value }}회 실패했습니다. 시간 초과가 반복되면 청크 실행을 검토합니다(D8)."
+          runbook: "docs/design/lottery/details.md 5절"
+  - name: lottery-threshold
+    rules:
+      - alert: LotteryJobFailing
+        expr: sum by (application, task) (increase(lottery_job_failures_total{application="reservation-service"}[5m])) > 0
+        for: 5m
+        labels: {service: lottery, urgency: threshold, severity: warning}
+        annotations:
+          summary: "추첨 작업이 계속 실패합니다(task={{ $labels.task }}). 다음 주기에 다시 시도하지만 늦어질 수 있습니다."
+          runbook: "docs/design/lottery/details.md 5절"
+      - alert: LotterySettlementSlow
+        expr: lottery_winners_unsettled{application="reservation-service"} > 0
+        for: 10m
+        labels: {service: lottery, urgency: threshold, severity: warning}
+        annotations:
+          summary: "결제 결과를 기다리는 당첨자 {{ $value }}명이 10분 넘게 남아 있습니다(목표: 추첨 후 10분 안 95%)."
+          runbook: "docs/design/lottery/numbers-and-measurement.md 1-2절"
+      - alert: LotteryFinishOverdue
+        expr: lottery_unfinished_oldest_seconds{application="reservation-service"} > 3600
+        for: 5m
+        labels: {service: lottery, urgency: threshold, severity: warning}
+        annotations:
+          summary: "추첨 후 60분이 지났는데 종결되지 않은 추첨이 있습니다(최장 경과 {{ $value }}초, D14)."
+          runbook: "docs/design/lottery/details.md 5절"

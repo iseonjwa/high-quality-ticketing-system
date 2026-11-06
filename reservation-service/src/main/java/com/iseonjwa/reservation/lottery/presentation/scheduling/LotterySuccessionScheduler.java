@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.lottery.presentation.scheduling;
 
 import com.iseonjwa.reservation.lottery.application.LotterySuccessionService;
+import com.iseonjwa.reservation.lottery.observability.LotteryMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,9 +16,11 @@ import org.springframework.stereotype.Component;
 public class LotterySuccessionScheduler {
 
     private final LotterySuccessionService successionService;
+    private final LotteryMetrics lotteryMetrics;
 
-    public LotterySuccessionScheduler(LotterySuccessionService successionService) {
+    public LotterySuccessionScheduler(LotterySuccessionService successionService, LotteryMetrics lotteryMetrics) {
         this.successionService = successionService;
+        this.lotteryMetrics = lotteryMetrics;
     }
 
     // 한 추첨이 실패해도 다른 추첨의 승계는 계속한다
@@ -28,9 +31,11 @@ public class LotterySuccessionScheduler {
                 int promoted = successionService.succeed(lotteryId);
                 if (promoted > 0) {
                     log.info("추첨 예비자 승계: lotteryId={}, 새 당첨 {}명", lotteryId, promoted);
+                    lotteryMetrics.succeeded(promoted);
                 }
             } catch (RuntimeException exception) {
                 log.error("추첨 예비자 승계 실패: lotteryId={}", lotteryId, exception);
+                lotteryMetrics.jobFailed(LotteryMetrics.Job.SUCCESSION);
             }
         }
     }
@@ -40,6 +45,7 @@ public class LotterySuccessionScheduler {
         int closed = successionService.closeExpiredWaitlists();
         if (closed > 0) {
             log.info("추첨 승계 마감: 예비자 {}명 LOST", closed);
+            lotteryMetrics.waitlistClosed(closed);
         }
     }
 }

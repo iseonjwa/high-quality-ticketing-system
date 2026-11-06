@@ -1,7 +1,7 @@
 ---
 title: UPDATE ... IN (SELECT ... LIMIT n FOR UPDATE)가 n개보다 많이 바꿀 때 고치는 세 가지 방법은 어떻게 다른가
 date: 2026-11-04
-updated: 2026-11-04
+updated: 2026-11-06
 asker: GGangMY
 level: 고급
 tags: [postgresql, sql, query-plan, locking, flaky-test]
@@ -104,5 +104,19 @@ repository.updateGradeByIds(ids, actorId);                              // WHERE
 | 2안 | 1번 전환 | 2번 전환 |
 | 3안 | 1번 전환 | 2번 전환 |
 
-- 실험은 psql에서 단순화한 테이블로 했다. Spring Data 네이티브 쿼리로 실행하는 것과 전체 테스트에서 재발하지 않는 것은 아직 확인하지 못했다.
+- 실험은 psql에서 단순화한 테이블로 했다.
 - 실제 실패한 실행에서 이 계획을 탔는지는 직접 확인하지 못했다. 원리 재현과 증상 일치까지가 근거다.
+
+## 11/6 수정 결과
+1안으로 고쳤다. `LotteryGradeUpdateLimitTest`가 실제 `schedule_seats`와 Spring Data 네이티브 쿼리로 같은 조건을 만든다. 통계는 테스트 트랜잭션 안에서 `pg_class`를 고쳐 만들고 롤백한다.
+
+| 변이 | 결과 |
+|---|---|
+| 전환 쿼리를 `IN`으로 되돌림 | 전환 회귀 테스트만 실패(`expected 1, was 3`) |
+| 되돌리기 쿼리를 `IN`으로 되돌림 | 되돌리기 회귀 테스트만 실패(`expected 1, was 3`) |
+| `converted != count` 검사 제거 | `LotteryAdminServiceTest`만 실패 |
+
+- 되돌리기는 `ORDER BY id DESC`라 조건이 하나 더 필요했다. 물리 순서가 ID 오름차순이면 바깥 스캔이 마지막 행에서야 일치하므로 다시 실행돼도 넘칠 틈이 없다고 보았고, 테스트는 행 버전을 ID 내림차순으로 놓아 3행 전환을 재현했다. 오름차순 배치에서 1행만 바뀌는지는 실행하지 않았다.
+- 원래 쿼리를 그대로 돌리는 대조군을 두었다. 재현 조건이 깨지면 회귀 테스트가 그냥 통과하는 대신 대조군이 실패한다.
+- `RetentionCleanup`과 `IdempotencyRecordCleanup`의 `DELETE ... IN (SELECT ... LIMIT ?)`는 고치지 않았다. `FOR UPDATE`가 없어 잠금 단계에서 행을 건너뛰지 않으므로 같은 현상이 나지 않는다고 추론했고, 실행으로 확인하지는 않았다.
+- 경합 상황(다른 트랜잭션이 좌석을 선점 중일 때)의 결과는 위 psql 실험까지만 확인했다. 전체 테스트는 수정 뒤 2회 통과했지만, 가끔 실패하던 증상이 사라졌다고 말하기에는 횟수가 부족하다.
