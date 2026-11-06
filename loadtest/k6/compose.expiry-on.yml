@@ -1,0 +1,8 @@
+# X1 측정 전용 덮어쓰기다. reservation-service/k6/compose.deploy-memory.yml이 끈 선점 만료 스케줄러를 다시 켠다.
+# 배포 메모리 덮어쓰기 뒤에 얹는다.
+#   docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml \
+#     -f reservation-service/k6/compose.g1.yml -f loadtest/k6/compose.expiry-on.yml up -d --no-deps --wait reservation-service
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_EXPIRY_ENABLED: "true"
