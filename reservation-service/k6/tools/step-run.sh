@@ -45,6 +45,9 @@ done < "$K6/step-overlays.txt"
 [ "${OBSERVE_JFR:-0}" = 1 ] && FILES+=(-f "$K6/compose.jfr.yml")
 
 WARMUP_SECONDS="${WARMUP_SECONDS:-60}"
+# Note: 워밍업 속도는 모든 단계에서 초당 2명이다. k6 기본값(10명)은 base의 처리 한계(좌석 조회 초당 약 4건)를 넘어,
+# 워밍업만으로 요청 스레드 200개와 커넥션 대기가 쌓인 채 측정이 시작됐다(2026-11-06 base S 첫 회, 5명 단계부터 전부 504)
+WARMUP_RATE="${WARMUP_RATE:-2}"
 case "$KIND" in
   L) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-0}"
      LOAD_SECONDS="$DURATION_SECONDS" ;;
@@ -73,7 +76,7 @@ bash "$K6/tools/create-schedule.sh" "k6 $STEP prime" >/dev/null 2>&1 || true
 # 워밍업은 측정 회차의 좌석을 쓰지 않게 다른 회차로 한다(계획 문서 1-6절)
 WARMUP_SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP warmup")"
 SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
-export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS TOKEN_MODE=sign LABEL="$STEP-$KIND"
+export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS WARMUP_RATE TOKEN_MODE=sign LABEL="$STEP-$KIND"
 echo "[$STEP-$KIND] 측정 회차 $SCHEDULE_ID, 워밍업 회차 $WARMUP_SCHEDULE_ID"
 
 mkdir -p "$K6/results"
@@ -111,7 +114,7 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   < "$K6/tools/invariants.sql" > "$PREFIX-invariants.txt" 2>&1 || true
 {
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none}"
-  echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS"
+  echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
   echo "jfr=${OBSERVE_JFR:-0}"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"
