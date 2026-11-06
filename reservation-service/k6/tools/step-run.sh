@@ -72,10 +72,12 @@ echo "[$STEP-$KIND] 측정 회차 $SCHEDULE_ID, 워밍업 회차 $WARMUP_SCHEDUL
 
 mkdir -p "$K6/results"
 PREFIX="$K6/results/step-$STEP-$KIND-$(date +%Y%m%d-%H%M%S)"
-# 노트북 경합을 가리려고 컨테이너 CPU·메모리를 10초마다 남긴다(k6 컨테이너 포함)
+# 노트북 경합을 가리려고 컨테이너 CPU·메모리를 10초마다 남긴다(k6 컨테이너 포함). 잠금 대기 세션 수도 같이 남긴다
 ( while true; do
     echo "## $(date +%s)"
     docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' 2>/dev/null
+    # 행 잠금을 기다리는 세션 수(S3 직면 여부, 계획 문서 3-4절). 같은 좌석을 잡으려는 선점이 앞 트랜잭션의 커밋을 기다리는 수다
+    echo "lock_waits $(docker exec iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tAc       "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'" 2>/dev/null)"
     sleep 10
   done ) > "$PREFIX-stats.txt" &
 STATS_PID=$!
