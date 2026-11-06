@@ -6,7 +6,7 @@ set -euo pipefail
 
 TITLE="${1:-k6 K1}"
 BASE="${BASE:-http://localhost:8080}"
-ENV_FILE="$(cd "$(dirname "$0")/../../.." && pwd)/.env"
+ENV_FILE="${ENV_FILE:-$(cd "$(dirname "$0")/../../.." && pwd)/.env}"
 for key in ADMIN_EMAIL ADMIN_PASSWORD; do
   if [ -z "${!key:-}" ]; then
     value="$(grep -E "^${key}=" "$ENV_FILE" | head -1 | cut -d= -f2-)"

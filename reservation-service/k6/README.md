@@ -146,3 +146,15 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `loadtest` 프로필 | 일부 | `config-repo/application-loadtest.yml`에 추적 샘플링 0.01만 있다. 입장 속도·토큰 유효 시간·풀 크기 덮어쓰기는 없다 |
 | Gateway 요청 제한 | 없음 | `gateway`와 `config-repo`에서 rate limiter 설정을 찾지 못했다. 측정을 막지 않는다 |
 | Prometheus remote write | 없음 | `infra/prometheus.yml`에 수신 설정이 없다. 그래서 `run.sh`는 결과를 파일(요약 JSON, CSV)로 남긴다 |
+
+## 6. 단계 측정 (측정 브랜치 `experiment/ISE-79-k6-steps` 전용)
+
+수정하지 않은 기본 코드에서 시작해 직면한 병목을 하나씩 고치며 잰다. 규칙, 실행 방법, 단계별 예상·실측은 [STEPS.md](STEPS.md)에 있다.
+
+| 파일 | 내용 |
+|---|---|
+| `tools/step-run.sh` | 한 회: 지금 커밋으로 reservation-service를 빌드해 새로 띄우고, 새 회차에 L·S·H 중 하나를 건 뒤 지표·GC 로그·대사·CPU를 모은다 |
+| `step-overlays.txt` | 기준 환경 위에 얹을 덮어쓰기 목록. 설정 단계(G1, R1, P1)는 여기에 한 줄을 더하는 커밋이다 |
+| `compose.step-observe.yml` | 기준 환경의 GC 로그 켜기. GC 종류는 JVM이 고르게 둔다 |
+| `tools/invariants.sql` | 회차 하나의 대사(중복 판매, 매수 불일치, 좌석 상태 불일치)와 마지막 선점 시각 |
+| `STEPS.md` | 단계 기록 |
