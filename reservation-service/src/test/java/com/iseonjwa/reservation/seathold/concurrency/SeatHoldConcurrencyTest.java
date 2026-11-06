@@ -132,8 +132,8 @@ class SeatHoldConcurrencyTest {
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
     }
 
-    // C3(TS-1): 다른 트랜잭션이 좌석 행 잠금을 2초 쥐고 있으면, 선점 요청은 잠금을 오래 기다리지 않고
-    // lock_timeout(500ms) 안팎에서 409 SEAT_ALREADY_HELD로 빨리 실패해야 한다(SA 9-4)
+    // C3(TS-1): 다른 트랜잭션이 좌석 행 잠금을 2초 쥐고 있으면, 선점 요청은 잠금을 끝까지 기다리지 않고
+    // 409 SEAT_ALREADY_HELD로 빨리 실패해야 한다(SA 9-4 lock_timeout 500ms)
     @Test
     void C3_좌석_잠금_대기_빠른_실패() throws Exception {
         var rounds = 3;
@@ -167,7 +167,10 @@ class SeatHoldConcurrencyTest {
         report("C3", rounds, all, Map.of("holdLockMillis", holdLockMillis, "roundMaxMillis", roundMaxMillis));
 
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
-        assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 1_000, "잠금을 1초 넘게 기다렸다");
+        // Note: 목표는 lock_timeout의 3배인 1,500ms다. lock_timeout은 문장이 아니라 잠금 시도마다 걸린다. 같은 행을 여럿이 기다리면
+        // 뒤 요청은 튜플 잠금과 행을 쥔 트랜잭션을 차례로 기다려 약 2배(1초)까지 걸린다(실측 최대 1,060~1,305ms).
+        // 1,500ms는 그 상한에 여유를 더한 값이고, 잠금을 끝까지 기다린 기준선(2초 이상)과는 갈린다(concurrency-results.md 4-3절)
+        assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 1_500, "잠금을 1.5초 넘게 기다렸다");
         assertEquals((long) all.size(), countByResult(all).getOrDefault("SEAT_ALREADY_HELD", 0L));
     }
 
