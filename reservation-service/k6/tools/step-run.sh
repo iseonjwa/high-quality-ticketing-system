@@ -102,8 +102,10 @@ LOAD_END=$(( START + LOAD_SECONDS ))
 grep -oE 'probe epoch_ms=[0-9]+ status=[0-9]+ [0-9]+ms' "$PREFIX-k6.log" \
   | awk -v end="$LOAD_END" '{split($2,a,"="); printf "+%ds %s %s\n", a[2]/1000-end, $3, $4}' > "$PREFIX-probe.txt" || true
 python "$K6/tools/b8_metrics.py" "$START" "$LOAD_END" "$END" "$PREFIX"
-# Note: Git Bash는 /tmp를 Windows 경로로 바꾼다. MSYS_NO_PATHCONV로 막는다
-MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/gc.log "$PREFIX-gc.log" >/dev/null 2>&1 || true
+# Note: Git Bash는 /tmp를 Windows 경로로 바꾼다. MSYS_NO_PATHCONV로 막는다. 그러면 /e/... 같은 로컬 경로도 바뀌지 않아
+# Windows의 docker가 쓰지 못하므로, 로컬 쪽은 cygpath로 Windows 경로를 넘긴다
+LOCAL_PREFIX="$(cygpath -w "$PREFIX" 2>/dev/null || echo "$PREFIX")"
+MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/gc.log "$LOCAL_PREFIX-gc.log" >/dev/null 2>&1 || true
 # 정합성(대사). 0이 아니면 그 회의 처리량은 쓰지 않는다(계획 문서 1-4절)
 docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -v sid="$SCHEDULE_ID" \
   < "$K6/tools/invariants.sql" > "$PREFIX-invariants.txt" 2>&1 || true
@@ -117,7 +119,7 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
 if [ "${OBSERVE_JFR:-0}" = 1 ]; then
   # 녹화는 JVM 종료 때 쓰인다. 기본 10초 시한이면 강제 종료로 파일이 남지 않을 수 있어 넉넉히 준다
   docker stop -t 90 iseonjwa-reservation-service-1 >/dev/null
-  MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/rec.jfr "$PREFIX.jfr" >/dev/null     && echo "[$STEP-$KIND] JFR: $PREFIX.jfr (분석: jfr view hot-methods <파일>). reservation-service는 멈춘 상태다"     || echo "[$STEP-$KIND] JFR 파일을 꺼내지 못했습니다" >&2
+  MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/rec.jfr "$LOCAL_PREFIX.jfr" >/dev/null     && echo "[$STEP-$KIND] JFR: $PREFIX.jfr (분석: jfr view hot-methods <파일>). reservation-service는 멈춘 상태다"     || echo "[$STEP-$KIND] JFR 파일을 꺼내지 못했습니다" >&2
 fi
 echo "[$STEP-$KIND] 끝: $PREFIX"
 cat "$PREFIX-invariants.txt"
