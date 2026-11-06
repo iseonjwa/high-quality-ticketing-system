@@ -8,13 +8,16 @@
 - **직면한 것만 고친다.** 다음 단계는 앞 단계 측정에서 실제로 막힌 곳으로 정한다. 계획의 순서는 예상이고, 실측이 다르면 실측을 따르고 계획 문서에 이유를 적는다.
 - **측정 전에 예상을 적는다.** 단계마다 아래 표의 "예상"을 먼저 채우고 잰 뒤 "실측"과 대조한다.
 - **다른 이슈의 코드.** 이 브랜치에는 측정하려고 모든 단계를 쌓는다. 실제로 반영할 때는 이슈마다 따로 브랜치를 판다. 해당 단계는 P4(ISE-189, 반효승), R1(ISE-196), G1·P1(공유 설정, contract 이슈)이다. ISE-79 브랜치에는 선점 모듈 코드(S4, P3 등)와 측정 기록만 옮긴다.
-- **기준 환경.** 배포 메모리(gateway 768MB, reservation-service 1,152MB), 선점 만료 스케줄러 끔, 60초 워밍업(초당 2명. 기본값 10명은 base 한계를 넘어 워밍업만으로 적체가 생겼다), 지표·GC 로그 켬. 나머지는 계획 문서 1-6절의 측정 기준을 따른다. 측정은 모두 local에서 하고, 배포 환경 성능 테스트는 나중에 따로 한다.
+- **기준 환경.** 배포 메모리(gateway 768MB, reservation-service 1,152MB), 선점 만료 스케줄러 끔, 60초 워밍업(초당 2명. 기본값 10명은 base 한계를 넘어 워밍업만으로 적체가 생겼다), 지표·GC 로그 켬, Gateway 인증 차단기의 느린 호출 판정 끔(아래). 나머지는 계획 문서 1-6절의 측정 기준을 따른다. 측정은 모두 local에서 하고, 배포 환경 성능 테스트는 나중에 따로 한다.
 
 ## 실행
 
-워크트리 루트에서 Git Bash로 실행한다. 원래 저장소의 `.env`를 가리킨다.
+워크트리 루트에서 Git Bash로 실행한다. 원래 저장소의 `.env`를 가리킨다. 먼저 기준 환경으로 전체 스택을 띄운다. `step-run.sh`는 reservation-service만 다시 띄우므로, 기준 환경 파일을 바꿨거나 원래 저장소에서 스택을 띄운 뒤에는 이 명령을 다시 실행한다.
 
 ```bash
+K6=reservation-service/k6
+docker compose --env-file ../../../.env -f compose.yml -f compose.local.yml -f $K6/compose.deploy-memory.yml   -f $K6/compose.b8-observe.yml -f $K6/compose.step-observe.yml -f $K6/compose.measure-gateway.yml up -d --build --wait
+
 export ENV_FILE=../../../.env
 bash reservation-service/k6/tools/step-run.sh base L   # 부하: 초당 100명 300초
 bash reservation-service/k6/tools/step-run.sh base S   # 스트레스 5→320명 + 회복 120초
@@ -65,6 +68,15 @@ bash reservation-service/k6/tools/step-run.sh base H   # K1-H 스트레스 50→
 **P5 근사 검증: 통과하지 못했다.** H 회에서 `hold_time_s` 1,412.8초, `hikari_usage_s` 268.0초로 20% 안이 아니다(약 5.3배). 선점 처리 시간의 약 5분의 1만 커넥션을 쥔 시간이라 `hold_409_time_ratio`(0.758)를 P5 판단에 그대로 쓸 수 없다. 이 차이 자체는 커넥션 밖 처리 시간이 크다는 신호라 P2 판단(JFR)에서 다시 본다.
 
 **다음 단계:** K1(L·S)은 예상대로 G1(GC 정지)로 간다. K1-H는 Gateway 차단기가 reservation-service보다 먼저 막아, 선점 경로의 병목을 보려면 처리 방식을 정해야 한다.
+
+**차단기 처리 (2026-11-07 결정):** 측정 환경에서만 느린 호출 판정을 끈다. 단계가 아니라 기준 환경이므로 base부터 모든 단계에 똑같이 얹는다. 선점 쪽 개선이 수치로 보이지 않으면 그 개선을 재는 의미가 없기 때문이다. 발견 내용은 Gateway 담당에게 contract 이슈로 알리고, 공유 설정에 반영할지는 그쪽이 정한다.
+- 덮어쓰기: `compose.measure-gateway.yml`이 Gateway에 `k6measure` 프로필을 켜고, config-server가 `config-measure/`를 함께 읽게 한다. `config-measure/gateway-k6measure.yml`이 `slow-call-duration-threshold`를 50ms에서 100ms(호출 시한과 같음)로 올린다. 시한을 넘긴 호출은 어차피 실패로 세므로 느린 호출 판정만 사실상 꺼진다. "시한 초과·오류가 절반 이상이면 연다"는 보호는 남는다.
+- `step-run.sh`는 Gateway가 `k6measure` 프로필로 떠 있지 않으면 멈춘다.
+- base H는 이 환경에서 다시 잰다. 위 H 회는 공유 차단기 기준의 기록으로 남긴다. K1 L·S는 Gateway까지 부하가 가기 전에 reservation-service가 무너져 이 환경과 결과가 같다고 보고, 다시 재지 않는다. G1부터는 이 환경에서 잰다.
+
+| 회 | 예상 | 실측 | 대조 |
+|---|---|---|---|
+| H (차단기 완화) | 차단기가 느린 호출로 열리지 않아 부하가 reservation-service까지 간다. 100~200명에서 커넥션 5개가 차고 대기가 생긴다(선점 한 건이 DB 왕복 약 12~14번). 인기 구역 쏠림으로 잠금 대기 세션이 0보다 커진다(S3 직면 후보). 400명 이상에서는 Gateway CPU 포화로 Redis 호출이 시한 100ms를 넘겨 503(실패로 여는 차단기)이 다시 섞일 수 있다 | (측정 전) | |
 
 ## k6로 직면하지 않는 결함의 확인 (2026-11-06)
 

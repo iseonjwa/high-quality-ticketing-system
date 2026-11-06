@@ -10,6 +10,7 @@
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
 #
 # 기준 환경: 배포 메모리 + 만료 스케줄러 끔(compose.deploy-memory.yml), 지표·GC 로그(compose.b8-observe.yml, compose.step-observe.yml),
+# Gateway 인증 차단기의 느린 호출 판정 끔(compose.measure-gateway.yml),
 # 60초 워밍업. 그 위에 step-overlays.txt의 덮어쓰기를 얹는다.
 # Note: 매 회 컨테이너를 새로 띄운다. 회복 단계(R1) 전에는 과부하 적체가 10분 가까이 남아 다음 측정을 오염시키기 때문이다.
 set -euo pipefail
@@ -27,7 +28,7 @@ ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
 export ENV_FILE
 
 # 단계는 커밋과 같아야 한다. 측정 대상 코드나 단계 설정이 커밋되지 않았으면 멈춘다
-DIRTY="$(git status --porcelain -- reservation-service/src config-repo "$K6"/*.yml "$K6/step-overlays.txt")"
+DIRTY="$(git status --porcelain -- reservation-service/src config-repo "$K6"/*.yml "$K6/config-measure" "$K6/step-overlays.txt")"
 if [ -n "$DIRTY" ] && [ "${ALLOW_DIRTY:-0}" != 1 ]; then
   echo "커밋되지 않은 변경이 있습니다. 단계를 커밋한 뒤 잽니다(시험 실행은 ALLOW_DIRTY=1)" >&2
   echo "$DIRTY" >&2
@@ -35,7 +36,8 @@ if [ -n "$DIRTY" ] && [ "${ALLOW_DIRTY:-0}" != 1 ]; then
 fi
 COMMIT="$(git rev-parse --short HEAD)${DIRTY:+-dirty}"
 
-FILES=(-f compose.yml -f compose.local.yml -f "$K6/compose.deploy-memory.yml" -f "$K6/compose.b8-observe.yml" -f "$K6/compose.step-observe.yml")
+FILES=(-f compose.yml -f compose.local.yml -f "$K6/compose.deploy-memory.yml" -f "$K6/compose.b8-observe.yml" -f "$K6/compose.step-observe.yml"
+  -f "$K6/compose.measure-gateway.yml")
 OVERLAYS=()
 while IFS= read -r line; do
   line="${line%%#*}"; line="${line//[[:space:]]/}"
@@ -61,6 +63,12 @@ if [ "$MODEL" = ramp ]; then
 fi
 
 echo "[$STEP-$KIND] 커밋 $COMMIT, 덮어쓰기: ${OVERLAYS[*]:-(없음)}"
+# 이 스크립트는 reservation-service만 다시 띄운다. Gateway가 측정 환경(k6measure 프로필)으로 떠 있지 않으면
+# 차단기가 공유 기준(느린 호출 50ms)으로 돌아 K1-H가 Gateway에서 막힌다. 그런 회는 다른 환경이므로 시작하지 않는다
+if ! docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' iseonjwa-gateway-1 2>/dev/null | grep -q '^SPRING_PROFILES_ACTIVE=.*k6measure'; then
+  echo "Gateway가 측정 환경으로 떠 있지 않습니다. STEPS.md 실행 방법대로 전체 스택을 다시 띄웁니다" >&2
+  exit 1
+fi
 echo "[$STEP-$KIND] reservation-service 빌드 후 다시 띄움"
 docker compose --env-file "$ENV_FILE" "${FILES[@]}" up -d --build --no-deps --force-recreate --wait reservation-service >/dev/null
 # Gateway가 새 인스턴스를 Eureka에서 받을 때까지 공개 API로 확인한다
