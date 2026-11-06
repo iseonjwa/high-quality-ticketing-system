@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +63,13 @@ public class JpaReservationRepository implements ReservationRepository {
     @Override
     public List<Long> findExpiredHeldIds(Instant now, int limit) {
         return repository.findExpiredHeldIds(now, limit);
+    }
+
+    @Override
+    public Optional<Long> lockNextExpiredHeldId(Instant now, Collection<Long> excludedIds) {
+        var excluded = new ArrayList<Long>(excludedIds);
+        excluded.add(0L);
+        return repository.lockNextExpiredHeldId(now, excluded);
     }
 
     @Override
