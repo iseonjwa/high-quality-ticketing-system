@@ -67,6 +67,9 @@ for _ in $(seq 1 60); do
 done
 sleep 10
 
+# Note: 새로 띄운 직후에는 관리자 경로가 데워지지 않아 좌석 15,000개 생성이 Gateway 시한(3초)을 넘긴다(504, 데운 뒤 약 1초).
+# 측정과 무관한 준비 단계라, 버리는 회차를 하나 먼저 만들어 데운다. 실패해도 넘어간다
+bash "$K6/tools/create-schedule.sh" "k6 $STEP prime" >/dev/null 2>&1 || true
 # 워밍업은 측정 회차의 좌석을 쓰지 않게 다른 회차로 한다(계획 문서 1-6절)
 WARMUP_SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP warmup")"
 SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
