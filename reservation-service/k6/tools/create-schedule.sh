@@ -24,7 +24,15 @@ post() {
 }
 
 TOKEN=""
-TOKEN="$(post /api/v1/auth/login "$(json email="$ADMIN_EMAIL" password="$ADMIN_PASSWORD")" | field accessToken)"
+# Note: 스택을 새로 띄운 직후 첫 로그인은 user-service가 데워지지 않아 Gateway 시한(5초)을 넘길 수 있다(504, 이어서 503).
+# 측정과 무관한 준비 단계라 몇 번 다시 시도한다
+for attempt in 1 2 3 4 5; do
+  LOGIN="$(post /api/v1/auth/login "$(json email="$ADMIN_EMAIL" password="$ADMIN_PASSWORD")" || true)"
+  [ -n "$LOGIN" ] && break
+  echo "관리자 로그인 실패, 5초 뒤 다시 시도($attempt/5)" >&2
+  sleep 5
+done
+TOKEN="$(printf '%s' "$LOGIN" | field accessToken)"
 CONCERT="$(post /api/v1/admin/concerts "$(json title="$TITLE" description=k6)" | field concertId)"
 NOW="$(date -u +%s)"
 SCHEDULE_BODY="$(python -c "
