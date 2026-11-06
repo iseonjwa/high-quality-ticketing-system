@@ -1,6 +1,5 @@
 # 단계 측정 기준 환경의 Gateway 덮어쓰기다. 측정 브랜치(experiment/ISE-79-k6-steps) 전용이다.
 # Gateway 인증 차단기가 Gateway 자체 부하로 열리지 않게 한다(설정 값과 이유는 config-measure/gateway-k6measure.yml).
-# Gateway GC도 G1으로 둔다(아래 gateway 항목).
 #
 # config-server는 공유 config-repo에 더해 측정 전용 폴더를 읽고, Gateway는 local에 k6measure 프로필을 더한다.
 # 프로필 파일(gateway-k6measure.yml)이 gateway.yml보다 우선하므로, 공유 설정 파일은 고치지 않는다.
@@ -13,6 +12,3 @@ services:
   gateway:
     environment:
       SPRING_PROFILES_ACTIVE: local,k6measure
-      # Gateway GC를 Serial에서 G1으로(2026-11-07, 진단으로 넣음). 메모리 768MB라 JVM이 Serial을 고르고, 정지(최장 117ms)가
-      # Redis 확인 시한 100ms와 겹쳐 시한 초과가 몰리는 것으로 본다(STEPS.md G1 H). 메모리 값은 compose.deploy-memory.yml과 같게 둔다.
-      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:+UseG1GC
