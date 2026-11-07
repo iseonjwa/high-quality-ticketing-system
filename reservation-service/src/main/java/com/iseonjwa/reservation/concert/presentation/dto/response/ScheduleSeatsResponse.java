@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository.SeatMapRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -28,6 +29,16 @@ public class ScheduleSeatsResponse {
         for (ScheduleSeat seat : seats) {
             sections.computeIfAbsent(seat.getSection(), section -> SeatSectionResponse.from(seat))
                     .add(seat);
+        }
+        return new ScheduleSeatsResponse(scheduleId, serverTime, new ArrayList<>(sections.values()));
+    }
+
+    // P4a. 같은 JSON을 엔티티 대신 행으로 만든다. rows도 구역 → 열 → 번호 순이어야 한다
+    public static ScheduleSeatsResponse fromRows(Long scheduleId, Instant serverTime, List<SeatMapRow> rows) {
+        Map<String, SeatSectionResponse> sections = new LinkedHashMap<>();
+        for (SeatMapRow row : rows) {
+            sections.computeIfAbsent(row.layout().section(), section -> SeatSectionResponse.from(row))
+                    .add(row);
         }
         return new ScheduleSeatsResponse(scheduleId, serverTime, new ArrayList<>(sections.values()));
     }

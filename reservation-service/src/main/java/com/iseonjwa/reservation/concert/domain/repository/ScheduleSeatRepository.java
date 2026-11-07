@@ -4,6 +4,7 @@ import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.global.vo.Money;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,9 @@ public interface ScheduleSeatRepository {
 
     // 회차 좌석 배치 조회. 공연장 좌석(열·번호·원래 등급)을 같이 읽고, 구역 → 열 → 번호 순이다
     List<ScheduleSeat> findByScheduleIdWithVenueSeat(Long scheduleId);
+
+    // 좌석 조회 경량화 P4a. 엔티티 없이 응답에 필요한 열과 선택 가능 여부만 읽는다. 순서는 위와 같다
+    List<SeatMapRow> findSeatMapRows(Long scheduleId);
 
     // 공연장 좌석 배치를 회차 좌석으로 한 번에 복사하고, 만든 좌석 수를 돌려준다.
     // 가격은 좌석 등급으로 고르고 상태는 AVAILABLE이다.
@@ -43,4 +47,9 @@ public interface ScheduleSeatRepository {
     int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now);
 
     record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
+
+    // sectionGrade는 공연장 좌석의 원래 등급이다. 추첨석이면 회차 좌석 등급만 LOTTERY로 바뀐다
+    record SeatLayoutRow(long seatId, String section, SeatGrade sectionGrade, BigDecimal price, int rowNo, int seatNo) {}
+
+    record SeatMapRow(SeatLayoutRow layout, boolean available) {}
 }

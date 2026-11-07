@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.concert.presentation.dto.response;
 
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository.SeatMapRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -31,5 +32,14 @@ public class SeatSectionResponse {
 
     public void add(ScheduleSeat seat) {
         seats.add(SeatResponse.from(seat));
+    }
+
+    public static SeatSectionResponse from(SeatMapRow row) {
+        return new SeatSectionResponse(row.layout().section(), row.layout().sectionGrade(), row.layout().price(),
+                new ArrayList<>());
+    }
+
+    public void add(SeatMapRow row) {
+        seats.add(SeatResponse.from(row));
     }
 }

@@ -1,5 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation;
 
+import com.iseonjwa.reservation.concert.application.ScheduleSeatQueryService;
+import com.iseonjwa.reservation.concert.presentation.dto.response.ScheduleSeatsResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +39,10 @@ class ScheduleSeatApiTest {
     int port;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    ScheduleSeatQueryService service;
+    @Autowired
+    JsonMapper jsonMapper;
 
     private Long venueId;
     private Long scheduleId;
@@ -125,6 +132,20 @@ class ScheduleSeatApiTest {
         jdbc.update("UPDATE schedules SET deleted_at = now() WHERE id = ?", scheduleId);
 
         assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+    }
+
+    // P4a(측정 브랜치): 행으로 만든 응답이 기존 엔티티 경로와 글자 하나까지 같아야 한다.
+    // k6 K1은 응답 문자열에서 "available":true를 찾으므로 모양이 바뀌면 측정이 달라진다
+    @Test
+    void 행으로_만든_응답이_엔티티_경로와_JSON이_같다() {
+        jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
+        jdbc.update("UPDATE schedule_seats SET grade = 'LOTTERY' WHERE id = ?", seatIdOf("B", 1, 2));
+        var now = Instant.parse("2026-11-07T00:00:00Z");
+
+        var expected = ScheduleSeatsResponse.of(scheduleId, now, service.getSeats(scheduleId));
+        var actual = ScheduleSeatsResponse.fromRows(scheduleId, now, service.getSeatMap(scheduleId));
+
+        assertEquals(jsonMapper.writeValueAsString(expected), jsonMapper.writeValueAsString(actual));
     }
 
     private Long seatIdOf(String section, int rowNo, int seatNo) {
