@@ -15,8 +15,11 @@ public interface ScheduleSeatRepository {
     // 회차 좌석 배치 조회. 공연장 좌석(열·번호·원래 등급)을 같이 읽고, 구역 → 열 → 번호 순이다
     List<ScheduleSeat> findByScheduleIdWithVenueSeat(Long scheduleId);
 
-    // 좌석 조회 경량화 P4a. 엔티티 없이 응답에 필요한 열과 선택 가능 여부만 읽는다. 순서는 위와 같다
-    List<SeatMapRow> findSeatMapRows(Long scheduleId);
+    // 좌석 조회 경량화 P4b. 판매 중에 바뀌지 않는 배치만 엔티티 없이 읽는다. 순서는 위와 같다
+    List<SeatLayoutRow> findSeatLayout(Long scheduleId);
+
+    // 좌석 조회 경량화 P4b. 일반 선점이 잡을 수 있는 좌석 ID를 오름차순으로 돌려준다(isHoldable과 같은 기준)
+    long[] findHoldableSeatIds(Long scheduleId);
 
     // 공연장 좌석 배치를 회차 좌석으로 한 번에 복사하고, 만든 좌석 수를 돌려준다.
     // 가격은 좌석 등급으로 고르고 상태는 AVAILABLE이다.

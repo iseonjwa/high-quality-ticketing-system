@@ -5,11 +5,14 @@ import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleRepository;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository.SeatLayoutRow;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository.SeatMapRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -17,28 +20,38 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class ScheduleSeatQueryService {
 
     private final ScheduleRepository scheduleRepository;
     private final ScheduleSeatRepository scheduleSeatRepository;
+    private final SeatMapReader seatMapReader;
 
-    // 회차 좌석 배치를 엔티티로 읽는다(P4a 전 경로). 측정 브랜치에서는 P4a 응답과 JSON이 같은지 보는 테스트만 쓴다
+    // P4b: 배치는 판매 중에 바뀌지 않아 만료가 없다. 좌석을 아직 만들지 않은 회차(빈 목록)는 남기지 않는다
+    private final SharedLoadCache<Long, List<SeatLayoutRow>> layoutCache =
+            new SharedLoadCache<>(null, layout -> !layout.isEmpty());
+
+    // 회차 좌석 배치를 엔티티로 읽는다(P4a 전 경로). 측정 브랜치에서는 행 응답과 JSON이 같은지 보는 테스트만 쓴다
+    @Transactional(readOnly = true)
     public List<ScheduleSeat> getSeats(Long scheduleId) {
-        requireSchedule(scheduleId);
-        return scheduleSeatRepository.findByScheduleIdWithVenueSeat(scheduleId);
-    }
-
-    // P4a: 응답에 필요한 열만 행으로 읽는다. 구역 → 열 → 번호 순이다
-    // Note: 15,000석을 엔티티로 읽으면 엔티티와 변경 감지용 스냅숏을 커넥션을 쥔 채 그만큼 만든다
-    public List<SeatMapRow> getSeatMap(Long scheduleId) {
-        requireSchedule(scheduleId);
-        return scheduleSeatRepository.findSeatMapRows(scheduleId);
-    }
-
-    private void requireSchedule(Long scheduleId) {
         if (scheduleRepository.findById(scheduleId).isEmpty()) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
+        return scheduleSeatRepository.findByScheduleIdWithVenueSeat(scheduleId);
+    }
+
+    // P4b: 배치는 캐시에서, 선점 가능 여부만 요청마다 DB에서 읽는다. 구역 → 열 → 번호 순이다
+    public List<SeatMapRow> getSeatMap(Long scheduleId) {
+        List<SeatLayoutRow> layout = layoutCache.get(scheduleId, () -> seatMapReader.readLayout(scheduleId));
+        return merge(layout, seatMapReader.readHoldableSeatIds(scheduleId));
+    }
+
+    // Note: 배치를 읽은 뒤 생긴 좌석은 응답에 나오지 않는다. 측정은 좌석을 만든 회차만 부르므로 문제 되지 않는다.
+    // 본 구현(ISE-189)에서는 좌석 생성·삭제 때 배치 캐시를 비우는 경로가 필요하다
+    private static List<SeatMapRow> merge(List<SeatLayoutRow> layout, long[] holdableSeatIds) {
+        List<SeatMapRow> rows = new ArrayList<>(layout.size());
+        for (SeatLayoutRow seat : layout) {
+            rows.add(new SeatMapRow(seat, Arrays.binarySearch(holdableSeatIds, seat.seatId()) >= 0));
+        }
+        return rows;
     }
 }

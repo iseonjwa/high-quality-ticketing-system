@@ -148,6 +148,30 @@ class ScheduleSeatApiTest {
         assertEquals(jsonMapper.writeValueAsString(expected), jsonMapper.writeValueAsString(actual));
     }
 
+    // P4b(측정 브랜치): 배치만 캐시하므로 좌석 상태는 다음 요청에 바로 보여야 한다
+    @Test
+    void 배치를_캐시해도_상태는_요청마다_새로_읽는다() throws Exception {
+        assertTrue(firstSeatOfB().get("available").asBoolean());
+
+        jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
+
+        assertFalse(firstSeatOfB().get("available").asBoolean());
+    }
+
+    @Test
+    void 배치를_캐시한_뒤_지운_회차도_404다() throws Exception {
+        assertEquals(200, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+
+        jdbc.update("UPDATE schedules SET deleted_at = now() WHERE id = ?", scheduleId);
+
+        assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+    }
+
+    private JsonNode firstSeatOfB() throws Exception {
+        return get("/api/v1/schedules/" + scheduleId + "/seats").json()
+                .get("data").get("sections").get(1).get("seats").get(0);
+    }
+
     private Long seatIdOf(String section, int rowNo, int seatNo) {
         return jdbc.queryForObject("SELECT ss.id FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id"
                 + " WHERE ss.schedule_id = ? AND vs.section = ? AND vs.row_no = ? AND vs.seat_no = ?", Long.class,

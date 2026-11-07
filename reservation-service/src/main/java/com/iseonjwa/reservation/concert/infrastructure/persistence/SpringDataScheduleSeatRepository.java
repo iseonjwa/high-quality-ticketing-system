@@ -20,15 +20,23 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
             + " and ss.deletedAt is null order by ss.section asc, vs.rowNo asc, vs.seatNo asc")
     List<ScheduleSeat> findByScheduleIdWithVenueSeat(@Param("scheduleId") Long scheduleId);
 
-    // 위 조회와 같은 행·같은 순서를 엔티티 없이 읽는다. available은 ScheduleSeat#isHoldable과 같은 조건이다
+    // 위 조회와 같은 행·같은 순서의 배치를 엔티티 없이 읽는다
     @Query(nativeQuery = true, value = """
-            SELECT ss.id, ss.section, vs.grade, ss.price, vs.row_no, vs.seat_no,
-                   (ss.status = 'AVAILABLE' AND ss.grade <> 'LOTTERY') AS available
+            SELECT ss.id, ss.section, vs.grade, ss.price, vs.row_no, vs.seat_no
             FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id
             WHERE ss.schedule_id = :scheduleId AND ss.deleted_at IS NULL
             ORDER BY ss.section, vs.row_no, vs.seat_no
             """)
-    List<Object[]> findSeatMapRows(@Param("scheduleId") Long scheduleId);
+    List<Object[]> findSeatLayoutRows(@Param("scheduleId") Long scheduleId);
+
+    // 조건은 ScheduleSeat#isHoldable과 같다. 이진 탐색을 하려고 ID 순으로 준다
+    @Query(nativeQuery = true, value = """
+            SELECT ss.id FROM schedule_seats ss
+            WHERE ss.schedule_id = :scheduleId AND ss.deleted_at IS NULL
+              AND ss.status = 'AVAILABLE' AND ss.grade <> 'LOTTERY'
+            ORDER BY ss.id
+            """)
+    List<Number> findHoldableSeatIds(@Param("scheduleId") Long scheduleId);
 
     // Note: 15,000석을 엔티티로 하나씩 save하면 INSERT가 15,000번 나간다.
     // DB 안에서 venue_seats를 읽어 바로 넣는 INSERT ... SELECT 한 문장으로 만든다.

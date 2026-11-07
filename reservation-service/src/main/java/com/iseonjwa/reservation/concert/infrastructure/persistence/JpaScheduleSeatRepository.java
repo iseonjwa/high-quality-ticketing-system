@@ -29,10 +29,17 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     }
 
     @Override
-    public List<SeatMapRow> findSeatMapRows(Long scheduleId) {
-        return springDataScheduleSeatRepository.findSeatMapRows(scheduleId).stream()
-                .map(row -> new SeatMapRow(toLayout(row), (Boolean) row[6]))
+    public List<SeatLayoutRow> findSeatLayout(Long scheduleId) {
+        return springDataScheduleSeatRepository.findSeatLayoutRows(scheduleId).stream()
+                .map(JpaScheduleSeatRepository::toLayout)
                 .toList();
+    }
+
+    @Override
+    public long[] findHoldableSeatIds(Long scheduleId) {
+        return springDataScheduleSeatRepository.findHoldableSeatIds(scheduleId).stream()
+                .mapToLong(Number::longValue)
+                .toArray();
     }
 
     @Override
@@ -98,7 +105,7 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
                 .toList();
     }
 
-    // 열 순서는 findSeatMapRows의 SELECT 순서다
+    // 열 순서는 findSeatLayoutRows의 SELECT 순서다
     private static SeatLayoutRow toLayout(Object[] row) {
         return new SeatLayoutRow(((Number) row[0]).longValue(), (String) row[1], SeatGrade.valueOf((String) row[2]),
                 (BigDecimal) row[3], ((Number) row[4]).intValue(), ((Number) row[5]).intValue());
