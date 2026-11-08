@@ -1,0 +1,9 @@
+# B8 대응 R3 재측정용 덮어쓰기다. compose.b8-r1.yml 위에 얹어 R1+R3을 잰다.
+# 1회차 R3 시작값(연결 200)은 Tomcat 안 대기가 Gateway 시한(3초)보다 길어 R1보다 나빴다(k6-overload-recovery.md 7-3절).
+# 리틀의 법칙으로 다시 정한 값: Gateway 시한 3초 × 서버 처리량 초당 약 10건 = 연결 약 30개. OS 대기열도 작게 둔다.
+# 요청 스레드는 기본값(200)으로 둔다. 스레드 수는 P1(커넥션 풀)과 같이 정한다.
+services:
+  reservation-service:
+    environment:
+      SERVER_TOMCAT_MAXCONNECTIONS: "30"
+      SERVER_TOMCAT_ACCEPTCOUNT: "10"

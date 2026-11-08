@@ -1,0 +1,9 @@
+# B8 대응 R1 측정 전용 덮어쓰기다. compose.b8-observe.yml 위에 얹는다.
+# Hikari 커넥션 대기 시한을 30초(기본값)에서 1초로 줄인다. Gateway 응답 시한(3초) 안에 서버가 먼저 포기하게 한다.
+# 설계: docs/design/reservation/k6-overload-recovery.md 4절 R1
+#
+# Note: 실제 값은 config-repo/reservation-service.yml(공유 설정)에 넣어야 한다. 측정으로 효과를 확인한 뒤 contract 이슈로 제안한다
+services:
+  reservation-service:
+    environment:
+      SPRING_DATASOURCE_HIKARI_CONNECTIONTIMEOUT: "1000"

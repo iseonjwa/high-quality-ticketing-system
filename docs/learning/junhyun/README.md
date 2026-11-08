@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-08 | 접수형(async) 좌석 선점은 무엇이고, 왜 하며, 지금 어디까지 왔나 | [qna/2026-11-08-async-seat-hold-what-and-why.md](qna/2026-11-08-async-seat-hold-what-and-why.md) |
+| 2026-11-05 | EC2에 직접 올리는 것 말고, HTTPS까지 알아서 붙여 주는 AWS 서비스(Lightsail 등)는 무엇이 있나 | [qna/2026-11-05-aws-managed-https-options.md](qna/2026-11-05-aws-managed-https-options.md) |
 | 2026-11-05 | 외부에서 IP로 프론트가 안 열린다는데 왜이고, HTTPS는 무료로 달 수 있나 | [qna/2026-11-05-why-front-unreachable-by-ip.md](qna/2026-11-05-why-front-unreachable-by-ip.md) |
 | 2026-11-05 | 주소에 ?demo=on을 붙이면 보이는 요청 로그 패널은 어떻게 쓰나 | [qna/2026-11-05-demo-mode-request-log-panel.md](qna/2026-11-05-demo-mode-request-log-panel.md) |
 | 2026-11-05 | 팀원에게 받은 공개 키와 IP로 배포 서버 SSH 접속을 열어 주는 방법 | [qna/2026-11-05-team-ssh-access-to-deploy-server.md](qna/2026-11-05-team-ssh-access-to-deploy-server.md) |

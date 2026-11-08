@@ -1,0 +1,9 @@
+# Q2·G1 측정 전용 덮어쓰기다. reservation-service의 입장 스케줄러를 꺼서 대기자가 READY로 바뀌지 않게 한다.
+#   docker compose -f compose.yml -f compose.local.yml [배포 메모리 덮어쓰기...] -f loadtest/k6/compose.queue-hold.yml \
+#     up -d --no-deps --wait reservation-service
+# Note: queue.admission-enabled를 환경변수로 줄 때는 하이픈을 빼 QUEUE_ADMISSIONENABLED로 쓴다(Spring 완화 바인딩).
+# 측정이 끝나면 이 파일 없이 다시 띄워 스케줄러를 켠다.
+services:
+  reservation-service:
+    environment:
+      QUEUE_ADMISSIONENABLED: "false"

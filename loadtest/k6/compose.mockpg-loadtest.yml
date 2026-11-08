@@ -1,0 +1,7 @@
+# PAY1·R1·L2 측정 전용 덮어쓰기다. local의 mock-pg를 loadtest 프로필로 띄워 장애 주입 API(/mock-pg/faults)를 연다.
+#   docker compose -f compose.yml -f compose.local.yml -f loadtest/k6/compose.mockpg-loadtest.yml up -d --no-deps --wait mock-pg
+# Note: 장애 주입 API는 (test | loadtest) & !prod 프로필에서만 열린다(mock-pg.md 5절). 배포 서버는 이미 loadtest로 뜬다(compose.deploy.yml)
+services:
+  mock-pg:
+    environment:
+      SPRING_PROFILES_ACTIVE: local,loadtest

@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 36건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 7건, 일지 1일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 12건, 일지 4일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -42,21 +42,29 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-08-deploy-measure-token-key-swap.md) |
+| 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-08-linear-cleanup-plan-feedback.md) |
+| 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-06-ise25-final-comparison-on-deploy.md) |
+| 2026-11-06 | K1 local 결과를 ISE-25 기준선으로 인정하자는 제안을 측정 대상이 다르다는 이유로 거부함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-06-ise25-baseline-not-k1.md) |
 | 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-05-payment-job-label-task.md) |
 | 2026-11-05 | MVP 시연: 리허설 전 `main` 동결 제안 거부, `dev` 머지와 로컬 테스트 뒤 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-05-demo-main-merge-after-local-test.md) |
 | 2026-11-05 | MVP 시연: 장애 현장 대체 제안 거부, 장애 상황도 함께 보임 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-05-demo-show-failures-live.md) |
 | 2026-11-05 | MVP 시연: 추첨은 응모자를 적재해 실제처럼 모의 진행 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-05-demo-lottery-seeded-entries.md) |
 | 2026-11-05 | MVP 시연: 영역 담당별 진행 제안 거부, 통합 진행 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-05-demo-single-integrated-presenter.md) |
+| 2026-11-06 | 좌석 조회 경량화(P4) 측정을 반효승 담당에서 일부 가져와 좌석 선점과 같은 환경(측정 브랜치)에서 재고, 본 구현은 ISE-189에 둠 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-06-measure-p4-seat-map-in-own-environment.md) |
 | 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-05-grafana-link-deploy-host.md) |
 | 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
+| 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-05-g1-first-then-decide-p4-order.md) |
 | 2026-11-05 | 부하 테스트에 대비해 배포 EC2를 flex(m7i-flex.xlarge)에서 같은 크기의 일반 인스턴스(m7i.xlarge)로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-05-deploy-ec2-m7i-standard-for-load-test.md) |
 | 2026-11-05 | 핵심 흐름만 보이던 AI의 화면 구성을 실제 서비스형 레이아웃·그림 에셋으로 바꾸게 함(ISE-187) | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-05-frontend-service-like-layout.md) |
+| 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | kwonwoo | Claude Code | 거부 | 후보 | [기록](kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
 | 2026-11-04 | 지출 한도로 멈춘 배포·Jenkins 서버를 한도를 올려 살리되, 그 시점을 다음 날(11/5)로 미룸 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-spend-limit-raise-tomorrow.md) |
 | 2026-11-04 | ISE-150 리뷰 지적 11건을 이번 PR 수정, 담당자 확인, 후속으로 나눔 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-04-ise-150-review-triage.md) |
 | 2026-11-04 | 배포는 EC2 한 대로 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토하기로 함(ADR 0047) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-04-single-ec2-then-review-managed.md) |
 | 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-deploy-ec2-16gb-paid-plan.md) |
 | 2026-11-04 | M3 배포 순서(173·178 → 176 → 174·177 → 175)를 받아들이고 프론트 nginx(ISE-109)를 M4에서 M3로 당겨 이미지 워크플로(ISE-173)와 함께 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-m3-deploy-order-with-ise109.md) |
 | 2026-11-04 | 배포용 AWS 계정 운영: 시드니 리전 유지(서울 전환 안 함), 팀원은 각자 SSH 키와 IP로 접속하고 콘솔 초대는 필요한 사람만 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-aws-region-and-team-access.md) |
+| 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
 | 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | junhyun | Claude Code | 부분 수용 | 후보 | [기록](junhyun/2026-11-03-deploy-observability-loadtest-design.md) |
 | 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
 | 2026-11-03 | 대사 RC-5(예매 금액)·RC-6(사용자) 불일치를 APPROVED 결제로만 보도록 ADR 0029를 고침(환불하면 닫히는 경로) | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-reconciliation-rc5-rc6-approved-only.md) |

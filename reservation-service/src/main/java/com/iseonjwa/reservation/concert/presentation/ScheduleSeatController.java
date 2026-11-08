@@ -2,7 +2,7 @@ package com.iseonjwa.reservation.concert.presentation;
 
 import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.reservation.concert.application.ScheduleSeatQueryService;
-import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
 import com.iseonjwa.reservation.concert.presentation.dto.response.ScheduleSeatsResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
@@ -27,7 +27,7 @@ public class ScheduleSeatController {
     // 회차 좌석 배치와 선택 가능 여부
     @GetMapping("/{scheduleId}/seats")
     public ResponseEntity<SuccessResponse<ScheduleSeatsResponse>> getSeats(@PathVariable Long scheduleId) {
-        List<ScheduleSeat> seats = scheduleSeatQueryService.getSeats(scheduleId);
+        List<ScheduleSeatRow> seats = scheduleSeatQueryService.getSeats(scheduleId);
         return ResponseEntity.ok(SuccessResponse.of(200, "회차 좌석을 조회했습니다",
                 ScheduleSeatsResponse.of(scheduleId, clock.instant(), seats), MDC.get("traceId")));
     }

@@ -1,0 +1,17 @@
+# K1 측정 전용 덮어쓰기다. local 스택에서 측정 경로(gateway, reservation-service)의 메모리만 배포 서버 값으로 맞춘다.
+# 값은 compose.deploy.yml(SA 9-3 표, 16GB급 EC2)과 같다. 프로필(local)과 나머지 서비스는 그대로 두어 바뀐 변수를 메모리 하나로 묶는다.
+#   docker compose -f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml up -d --wait
+#
+# Note: 배포 값이 바뀌면 이 파일도 같이 고친다. 공유 설정(compose.yml, compose.deploy.yml)은 측정 때문에 고치지 않는다.
+# Note: 앱 전체를 배포 값으로 올리면 상한 합계가 13GB를 넘어 8GB급 Docker Desktop에서는 띄울 수 없다.
+services:
+  gateway:
+    mem_limit: 768m
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m
+  reservation-service:
+    mem_limit: 1152m
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms384m -Xmx768m
+      # 측정 중에는 선점 만료 스케줄러를 끈다(계획 문서 2절). 5분 측정과 holdMinutes 5가 겹쳐 만료 쓰기가 섞인다
+      SEATHOLD_EXPIRY_ENABLED: "false"

@@ -8,6 +8,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-06-ise25-final-comparison-on-deploy.md) |
+| 2026-11-06 | K1 local 결과를 ISE-25 기준선으로 인정하자는 제안을 측정 대상이 다르다는 이유로 거부함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-06-ise25-baseline-not-k1.md) |
 | 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-05-payment-job-label-task.md) |
 | 2026-11-05 | herdr 병렬 작업을 시연 뒤로 미루자는 제안을 거부하고 지금 전부 처리하기로 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-05-demo-parallel-herdr-now.md) |
 | 2026-11-05 | MVP 시연: 리허설 전 `main` 동결 제안 거부, `dev` 머지와 로컬 테스트 뒤 반영 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-demo-main-merge-after-local-test.md) |

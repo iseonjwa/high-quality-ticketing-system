@@ -2,9 +2,9 @@ package com.iseonjwa.reservation.concert.application;
 
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
-import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleRepository;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +23,10 @@ public class ScheduleSeatQueryService {
     private final ScheduleSeatRepository scheduleSeatRepository;
 
     // 회차 좌석 배치. 구역 → 열 → 번호 순이다
-    public List<ScheduleSeat> getSeats(Long scheduleId) {
+    public List<ScheduleSeatRow> getSeats(Long scheduleId) {
         if (scheduleRepository.findById(scheduleId).isEmpty()) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
-        return scheduleSeatRepository.findByScheduleIdWithVenueSeat(scheduleId);
+        return scheduleSeatRepository.findSeatRows(scheduleId);
     }
 }

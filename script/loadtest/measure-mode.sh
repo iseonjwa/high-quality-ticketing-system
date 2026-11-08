@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# 배포 서버를 부하 측정 모드로 바꾸고 되돌린다(ISE-191). 측정 날 계정 주인이 SSH로 접속해 실행한다.
+#   script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...]   예: on loadtest/k6/compose.queue-hold.yml
+#   script/loadtest/measure-mode.sh off
+#   script/loadtest/measure-mode.sh status
+# 설계: docs/design/infra/load-test.md 5절, ADR 0046 "변경(2026-11-08)".
+#
+# 하는 일
+# - on: 측정 전용 서명 키(JWT_ACCESS_SECRET, ENTRY_TOKEN_SECRET)를 새로 만들어 .env.measure에 두고(권한 600),
+#   .env 다음에 얹어 스택을 다시 띄운다. 덮어쓰기는 loadtest/deploy/compose.measure.yml(추적 샘플링 0.01, Prometheus remote write·9090)
+#   과 인자로 준 파일이다. 측정 전용 키를 발생기(k6)에 주면 운영 키를 발생기에 두지 않고도 k6가 토큰을 서명한다.
+# - off: 같은 커밋(.deploy/current)을 .env만으로 다시 띄워 운영 키·샘플링 1.0·닫힌 9090으로 돌아가고 스모크를 돌린다.
+#   그 뒤 .env.measure와 .deploy/measure-mode를 지운다.
+# - status: 측정 모드인지, 언제부터인지, 어떤 덮어쓰기 파일을 쓰는지 보여 준다.
+#
+# 주의
+# - 측정 모드 동안 기존 로그인이 끊긴다. Access 토큰 서명 키가 바뀌기 때문이다(Refresh 키는 그대로라 다시 로그인하면 된다).
+# - 측정 중에 main이 머지돼 Jenkins가 deploy.sh를 돌리면 측정 모드가 풀린다(deploy.sh는 .env와 compose.deploy.yml만 쓴다).
+#   측정 동안 main 머지를 멈추거나 Jenkins 잡을 잠시 끈다.
+# - 이 스크립트는 "서버에서 직접 docker compose up 하지 않는다" 규칙의 예외다. 계정 주인만 쓴다(docs/guides/deploy-server-access.md).
+# - 키 값은 출력하지 않는다. 키 이름과 다음 할 일만 출력한다.
+# - DRY_RUN=1이면 docker compose와 스모크를 실행하지 않고 부를 명령만 출력한다(스크립트 확인용).
+#
+# Note: --env-file을 여러 번 주면 뒤 파일의 값이 앞 파일을 덮고 나머지 키는 합쳐진다. Docker 문서의 CLI 설명에는 이 동작이
+# 적혀 있지 않아 Compose v5.6.0에서 직접 확인했다(같은 키를 가진 두 파일: 뒤 값 우선, 순서를 바꾸면 결과도 바뀜). 서버 Compose는 5.7이다.
+# --env-file을 하나라도 주면 기본 .env 자동 읽기가 꺼지므로 .env도 같이 적는다.
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+state=.deploy
+measure_env=.env.measure
+mode_file="$state/measure-mode"
+dry="${DRY_RUN:-0}"
+
+usage() {
+  echo "사용법: script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...] | off | status" >&2
+  exit 2
+}
+fail() { echo "오류: $*" >&2; exit 1; }
+
+# 현재 배포된 커밋. deploy.sh가 성공할 때마다 남긴다
+current_tag() {
+  [[ -f "$state/current" ]] || fail "$state/current가 없다. 먼저 deploy.sh로 배포한 서버에서 실행한다"
+  local tag
+  tag="$(cat "$state/current")"
+  [[ "$tag" =~ ^[0-9a-f]{40}$ ]] || fail "$state/current가 40자 커밋 SHA가 아니다"
+  echo "$tag"
+}
+
+run_compose() {
+  if [[ "$dry" == 1 ]]; then
+    printf 'DRY_RUN: IMAGE_TAG=<%s> docker compose' "${IMAGE_TAG:0:7}"
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    docker compose "$@"
+  fi
+}
+
+# .env.measure를 만든다. 이미 있으면 그대로 둔다(측정 중 다시 실행해도 발생기에 옮긴 키와 어긋나지 않게).
+# 값은 출력하지 않는다. 형식은 script/deploy/init-env.sh와 같다(openssl rand -hex 32).
+ensure_measure_env() {
+  if [[ -f "${measure_env}" ]]; then
+    chmod 600 "${measure_env}"
+    echo "${measure_env}가 이미 있어 그대로 쓴다"
+    return
+  fi
+  local old_umask
+  old_umask="$(umask)"
+  umask 077
+  {
+    echo "JWT_ACCESS_SECRET=$(openssl rand -hex 32)"
+    echo "ENTRY_TOKEN_SECRET=$(openssl rand -hex 32)"
+  } > "${measure_env}"
+  umask "$old_umask"
+  chmod 600 "${measure_env}"
+  echo "${measure_env}를 만들었다(권한 600, 키: JWT_ACCESS_SECRET, ENTRY_TOKEN_SECRET)"
+}
+
+cmd_on() {
+  [[ -f .env ]] || fail ".env가 없다. script/deploy/init-env.sh를 먼저 돌린다"
+  local extra=() file
+  for file in "$@"; do
+    [[ -f "$file" ]] || fail "덮어쓰기 파일이 없다: $file"
+    extra+=(-f "$file")
+  done
+  IMAGE_TAG="$(current_tag)"
+  export IMAGE_TAG
+  mkdir -p "$state"
+  ensure_measure_env
+
+  local started
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if [[ -f "$mode_file" ]]; then started="$(sed -n 's/^started=//p' "$mode_file")"; fi
+  run_compose --env-file .env --env-file "${measure_env}" \
+    -f compose.yml -f compose.deploy.yml -f loadtest/deploy/compose.measure.yml ${extra[@]+"${extra[@]}"} \
+    up -d --remove-orphans --wait --wait-timeout 420
+  {
+    echo "started=$started"
+    echo "overrides=loadtest/deploy/compose.measure.yml${*:+ $*}"
+    echo "commit=$IMAGE_TAG"
+  } > "$mode_file"
+
+  echo "== 측정 모드를 켰다(커밋 ${IMAGE_TAG:0:7})"
+  echo "다음 할 일"
+  echo "  1. 발생기에서 loadtest/k6/run.sh가 읽도록 ${measure_env}를 발생기 저장소 루트의 .env로 옮긴다(docs/design/infra/load-test.md 2-1절)"
+  echo "  2. 측정 동안 main 머지를 멈추거나 Jenkins 잡을 끈다. 배포가 돌면 측정 모드가 풀린다"
+  echo "  3. 끝나면 script/loadtest/measure-mode.sh off, 발생기의 .env를 지운다"
+}
+
+cmd_off() {
+  IMAGE_TAG="$(current_tag)"
+  export IMAGE_TAG
+  run_compose --env-file .env -f compose.yml -f compose.deploy.yml up -d --remove-orphans --wait --wait-timeout 420
+  # 운영 키로 돌아온 뒤에 측정 전용 키 파일을 지운다. 되돌리기가 실패하면 파일을 남겨 다시 시도할 수 있게 한다(set -e)
+  rm -f "${measure_env}" "$mode_file"
+  echo "== 측정 모드를 껐다(커밋 ${IMAGE_TAG:0:7}). 발생기의 .env도 지운다"
+  if [[ "$dry" == 1 ]]; then
+    echo "DRY_RUN: script/deploy/smoke.sh"
+  else
+    script/deploy/smoke.sh
+  fi
+}
+
+cmd_status() {
+  if [[ -f "$mode_file" ]]; then
+    echo "측정 모드: 켜짐"
+    sed -e 's/^started=/시작: /' -e 's/^overrides=/덮어쓰기 파일: /' -e 's/^commit=/커밋: /' "$mode_file"
+  else
+    echo "측정 모드: 꺼짐"
+  fi
+  if [[ -f "${measure_env}" ]]; then
+    echo "${measure_env}: 있음(권한 $(stat -c %a "${measure_env}" 2>/dev/null || stat -f %Lp "${measure_env}"))"
+  else
+    echo "${measure_env}: 없음"
+  fi
+}
+
+case "${1:-}" in
+  on) shift; cmd_on "$@" ;;
+  off) cmd_off ;;
+  status) cmd_status ;;
+  *) usage ;;
+esac

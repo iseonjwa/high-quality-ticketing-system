@@ -1,6 +1,6 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
-import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -23,10 +23,10 @@ public class ScheduleSeatsResponse {
     private List<SeatSectionResponse> sections;
 
     // seats는 구역 → 열 → 번호 순으로 와야 한다. LinkedHashMap이 구역이 처음 나온 순서를 지킨다
-    public static ScheduleSeatsResponse of(Long scheduleId, Instant serverTime, List<ScheduleSeat> seats) {
+    public static ScheduleSeatsResponse of(Long scheduleId, Instant serverTime, List<ScheduleSeatRow> seats) {
         Map<String, SeatSectionResponse> sections = new LinkedHashMap<>();
-        for (ScheduleSeat seat : seats) {
-            sections.computeIfAbsent(seat.getSection(), section -> SeatSectionResponse.from(seat))
+        for (ScheduleSeatRow seat : seats) {
+            sections.computeIfAbsent(seat.section(), section -> SeatSectionResponse.from(seat))
                     .add(seat);
         }
         return new ScheduleSeatsResponse(scheduleId, serverTime, new ArrayList<>(sections.values()));
