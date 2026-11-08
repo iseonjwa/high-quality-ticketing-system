@@ -15,6 +15,9 @@ const DURATION_SECONDS = numberEnv('DURATION_SECONDS', 660);
 const VUS = numberEnv('VUS', 300);
 const OPEN_IN_SECONDS = numberEnv('OPEN_IN_SECONDS', 40);
 const FIRST_POLL_SPREAD_SECONDS = numberEnv('FIRST_POLL_SPREAD_SECONDS', 10);
+// 기존 회차로 잴 때. 주면 관리자 로그인과 회차 만들기를 건너뛴다(배포 측정: 운영 관리자 비밀번호를 발생기에 두지 않으려는 것).
+// 회차는 열려 있어야 하고, 회차 캐시 갱신(30초)보다 일찍 만들어 둔다
+const SCHEDULE_ID = __ENV.SCHEDULE_ID;
 
 const pollResults = new Counter('poll_results');
 const tokenDuration = new Trend('token_issue_duration', true);
@@ -43,8 +46,13 @@ export function setup() {
   if (USERS % VUS !== 0) {
     throw new Error(`USERS(${USERS})는 VUS(${VUS})로 나누어떨어져야 합니다`);
   }
-  const schedule = createSchedule(adminLogin(), { title: 'k6 Q3', openInSeconds: OPEN_IN_SECONDS });
-  waitUntil(schedule.openAt + 1000);
+  let schedule;
+  if (SCHEDULE_ID) {
+    schedule = { scheduleId: Number(SCHEDULE_ID) };
+  } else {
+    schedule = createSchedule(adminLogin(), { title: 'k6 Q3', openInSeconds: OPEN_IN_SECONDS });
+    waitUntil(schedule.openAt + 1000);
+  }
   // Note: 진입하는 동안에도 입장이 시작된다. 실제 오픈과 같다
   enterAll(schedule.scheduleId, USERS);
   console.log(`Q3 회차 ${schedule.scheduleId}, 대기자 ${USERS}명, VU ${VUS}개. 입장 기록: bash loadtest/k6/tools/watch-admitted.sh ${schedule.scheduleId}`);
