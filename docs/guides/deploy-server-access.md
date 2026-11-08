@@ -84,7 +84,7 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
 | 하지 않는다 | 이유 |
 |---|---|
 | `docker compose down -v`, `docker volume rm` | DB·Kafka 데이터가 지워진다 |
-| 서버에서 직접 `deploy.sh`, `git checkout`, `docker compose up` | 배포는 main 머지 → Jenkins로만 한다. 손으로 바꾸면 기록(`.deploy/current`)과 실제 상태가 어긋난다 |
+| 서버에서 직접 `deploy.sh`, `git checkout`, `docker compose up` | 배포는 main 머지 → Jenkins로만 한다. 손으로 바꾸면 기록(`.deploy/current`)과 실제 상태가 어긋난다. 예외는 부하 측정 날 계정 주인이 쓰는 `script/loadtest/measure-mode.sh on/off`뿐이다(5-5절) |
 | `.env` 열기·복사·공유 | 운영 비밀값이 있다 |
 | `~/.ssh/authorized_keys` 수정 | 다른 사람과 Jenkins의 접속이 끊길 수 있다 |
 | 배포 서버에서 k6 실행 | 부하 도구가 서버 자원을 나눠 써서 측정이 왜곡된다(5절) |
@@ -111,7 +111,7 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
   - AWS 콘솔은 계정 주인만 쓰므로 발생기는 측정 시간이 정해지면 안준현이 만든다. 절차는 [`load-test.md`](../design/infra/load-test.md) 2-1절이다.
 - **발생기에서 부르는 곳**
   - Gateway 사설 주소 `http://172.31.4.93:8080`을 부른다. 프론트 nginx는 거치지 않는다.
-  - 배포 서버 보안 그룹은 측정 중에만 발생기 보안 그룹에서 오는 8080을 연다.
+  - 배포 서버 보안 그룹은 측정 중에만 발생기 보안 그룹에서 오는 8080(Gateway)과 9090(결과를 Prometheus remote write로 받음)을 연다.
 - **k6 실행 방식**
   - 설치하지 않고 Docker 이미지 `grafana/k6:1.0.0`으로 한 번 실행한다. K1 스크립트(`reservation-service/k6/run.sh`)와 같은 방식이다.
   - 발생기에서 `BASE_URL=http://172.31.4.93:8080`만 바꿔 쓴다.
@@ -130,10 +130,19 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
 | 11/19 | 결과 정리. 서버와 발생기를 지운다 |
 
 ### 5-4. 서버 측정 전에 남은 것
-- **토큰 준비**
-  - 가상 사용자 Access 토큰과 입장 토큰을 어떻게 만들지 정한다.
-  - 지금 입장 속도(`queue.admit-per-second` 50)와 입장 토큰 유효 시간(10분)으로는 3만 명분을 미리 받을 수 없다.
-  - 운영 키로 서명하는 방식은 키 노출 위험이 있어 정하지 않았다.
-- **`loadtest` 프로필**: 입장 속도·토큰 유효 시간 덮어쓰기와 Mock PG `local,loadtest`(ISE-71)가 필요하다.
-- **결과 보기**: k6 결과를 Prometheus remote write로 Grafana에 넣을지 정한다. 정하기 전에는 결과 파일(요약 JSON, CSV)로 남긴다.
+- **토큰 준비**: 정함(2026-11-08). 측정 동안만 측정 전용 서명 키로 바꿔 띄우고(`measure-mode.sh`), k6가 그 키로 직접 서명한다. 운영 키는 발생기에 두지 않는다(ADR 0046 변경).
+- **`loadtest` 프로필**: 추적 샘플링 0.01은 측정 모드 덮어쓰기가 맡는다. 배포 Mock PG는 이미 `loadtest` 프로필이다. 입장 속도·토큰 유효 시간 덮어쓰기는 필요할 때 측정 전에 정한다.
+- **결과 보기**: 정함(2026-11-08). k6 결과를 Prometheus remote write로 보내 Grafana에서 본다. 결과 파일(요약 JSON, CSV)도 남긴다.
 - **측정 환경 기록표**: [`load-test.md`](../design/infra/load-test.md) 7절 양식을 측정마다 채운다.
+
+### 5-5. 측정 날 순서
+
+배포 서버를 재는 날의 순서다. 서버 조작(2~4, 8번)은 계정 주인이 한다. 자세한 설계와 명령은 [`load-test.md`](../design/infra/load-test.md) 2-1, 5절과 [`loadtest/k6/README.md`](../../loadtest/k6/README.md) "배포 서버 측정"에 있다.
+
+1. **서버 켜기**: 배포 서버와 Jenkins 서버를 켜고 스모크가 통과하는지 본다.
+2. **발생기 만들기**: 같은 VPC·같은 가용 영역에 임시 EC2를 만들고, 배포 서버 보안 그룹에 발생기 보안 그룹의 8080·9090을 연다. 측정 담당 팀원의 SSH 키를 발생기에 넣는다.
+3. **측정 모드 켜기**: 서버에서 `script/loadtest/measure-mode.sh on`(Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로). 이때부터 기존 로그인이 끊기고, **main 머지를 멈추거나 Jenkins 잡을 끈다**(배포가 돌면 측정 모드가 풀린다).
+4. **키 옮기기**: 서버의 `~/iseonjwa/.env.measure`를 발생기 저장소 루트의 `.env`로 옮긴다. 측정 전용 키 두 개뿐이고 운영 키와 관리자 비밀번호는 옮기지 않는다.
+5. **측정**: 서버에서 회차를 만들고(`seed-demo.sh open`) 발생기에서 `SCHEDULE_ID`와 `PROM_RW_URL`을 주고 `run.sh`를 돌린다. Mock PG 지연 300ms는 서버에서 건다.
+6. **측정 모드 끄기**: `script/loadtest/measure-mode.sh off`. 운영 키로 돌아오고 스모크가 돈다. Jenkins 잡을 켠다.
+7. **발생기 지우기**: 결과 파일을 내려받고, 발생기의 `.env`를 지운 뒤 발생기를 종료한다. 8080·9090 보안 그룹 규칙도 지운다.

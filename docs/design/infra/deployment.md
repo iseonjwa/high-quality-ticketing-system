@@ -262,7 +262,7 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | AWS 계정 | 정함(2026-11-04): 안준현 계정, 새 가입 방식, 리전 시드니 `ap-southeast-2` |
 | 배포 EC2 크기 | 정함(2026-11-04, 사용자): 16GB급, AWS Paid plan. 측정은 배포 뒤 실제 사용량으로(ISE-176). 유형은 2026-11-05에 `m7i-flex.xlarge`에서 `m7i.xlarge`로 바꿨다(부하 측정 때문) |
 | Jenkins EC2 크기 | t3.small 2GB급 `[가정]` |
-| 앱 JVM GC | 정함(2026-11-05, 사용자): 리허설(11/6)까지는 지금처럼 JVM 자동 선택(Serial)을 둔다. 컨테이너 상한이 모두 약 1,792MB보다 작아 Serial이 골라진다. 다음 주 부하 측정 전에 contract 이슈로 알리고, 앱 7개 `JAVA_TOOL_OPTIONS`에 `-XX:+UseG1GC`를 명시한다. 근거는 ISE-79 측정과 [판단 기록](../../ai-judgments/junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
+| 앱 JVM GC | 적용(2026-11-08, ISE-193): 앱 7개 `JAVA_TOOL_OPTIONS`에 `-XX:+UseG1GC`를 명시했다. 컨테이너 메모리가 약 1,792MB보다 작으면 JVM이 Serial GC를 고르는데, 팀원 측정(K1 등)이 모두 "배포 메모리 + G1" 조건이라 배포 서버도 같게 맞춘다. 2026-11-05에는 리허설(11/6)까지 Serial을 두기로 했었다. 근거는 ISE-79 측정과 [판단 기록](../../ai-judgments/junhyun/2026-11-05-deploy-g1-after-rehearsal.md) |
 | Jenkins 구성·파이프라인 | 정함(ISE-175): JCasC 이미지 + `Jenkinsfile`(폴링 → 이미지 대기 20분 → SSH 배포 → 슬랙). 서버 설치는 EC2 준비 뒤 |
 | 슬랙 채널 이름 | 확정: 배포 결과 `#이선좌-배포상태알림`, 알림 `#이선좌-성능-모니터링`(2026-11-04 생성) |
 | GHCR 소유자·이미지 이름 규칙 | 정함(ISE-173): `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` |

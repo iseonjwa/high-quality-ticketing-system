@@ -8,16 +8,17 @@
 
 | 경로 | 내용 |
 |---|---|
-| `run.sh` | Docker로 시나리오 하나를 돌리고 결과를 `results/`에 남긴다. 저장소 루트 `.env`에서 서명 키와 관리자 계정을 읽어 환경변수로만 넘긴다 |
+| `run.sh` | Docker로 시나리오 하나를 돌리고 결과를 `results/`에 남긴다. 저장소 루트 `.env`에서 서명 키와 관리자 계정을 읽어 환경변수로만 넘긴다. `PROM_RW_URL`을 주면 결과를 Prometheus remote write로도 보낸다 |
 | `lib/env.js` | 공통 환경변수(`BASE_URL`, `TOKEN_MODE`, `USER_ID_BASE`)와 숫자 변수 읽기 |
-| `lib/tokens.js` | 측정용 Access 토큰·입장 토큰 서명(`TOKEN_MODE=sign`, local 전용), UUID |
+| `lib/tokens.js` | 측정용 Access 토큰·입장 토큰 서명(`TOKEN_MODE=sign`. 배포는 측정 전용 키), UUID |
 | `lib/http.js` | URL, 인증 헤더, 응답 `data`·오류 `code` 읽기, 결과 분류 |
 | `lib/admin.js` | 관리자 로그인, 공연·회차·좌석(15,000석) 만들기, 오픈 시각까지 기다리기 |
 | `lib/queue.js` | 대기자 미리 진입시키기(`http.batch`), 입장 스케줄러가 꺼졌는지 확인, VU 하나가 대기자 여러 명을 맡는 폴링 도우미(Q2·Q3) |
 | `lib/booking.js` | 좌석 목록(조회 한 번), 선점, 결제, 예매 상태 조회 |
 | `lib/mockpg.js` | Mock PG 장애 주입(`/mock-pg/faults`). 승인 지연 걸기·풀기 |
 | `lib/lottery.js` | 추첨 설정, 응모 요청, 응모·빌링키 묶음 준비 |
-| `compose.queue-hold.yml` | Q2·G1용 덮어쓰기. reservation-service의 입장 스케줄러를 끈다 |
+| `compose.queue-hold.yml` | Q2·G1용 덮어쓰기. reservation-service의 입장 스케줄러를 끈다. 배포 서버에서는 `measure-mode.sh on`에 인자로 준다 |
+| [`../deploy/compose.measure.yml`](../deploy/compose.measure.yml) | 배포 서버 측정 모드 덮어쓰기. 추적 샘플링 0.01, Prometheus remote write 수신과 9090 |
 | `compose.mockpg-loadtest.yml` | PAY1·R1·L2용 덮어쓰기. local mock-pg를 `local,loadtest` 프로필로 띄워 장애 주입 API를 연다 |
 | `compose.expiry-on.yml` | X1용 덮어쓰기. 배포 메모리 덮어쓰기가 끈 선점 만료 스케줄러를 다시 켠다 |
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
@@ -138,9 +139,9 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | 변수 | 기본값 | 뜻 |
 |---|---|---|
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 발생기 EC2에서는 Gateway 사설 주소 |
-| `TOKEN_MODE` | `sign` | k6가 토큰을 직접 서명한다(local 전용). 배포 측정 방식은 미정(load-test.md 5절) |
+| `TOKEN_MODE` | `sign` | k6가 토큰을 직접 서명한다. 배포는 측정 모드의 측정 전용 키를 발생기 `.env`에 두고 쓴다(아래 "배포 서버 측정") |
 | `USER_ID_BASE` | 1000000 | 가상 사용자 ID 시작값 |
-| `SCHEDULE_ID` | 없음 | 주면 회차를 만들지 않고 그 회차로 잰다 |
+| `SCHEDULE_ID` | 없음 | Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
 | `USERS` / `ENTER_SECONDS` | 30000 / 10 | Q1: 진입할 사용자 수와 그 시간(초). 초당 속도는 둘을 나눈 값 |
 | `DUP_RATIO` / `REPEAT` | 0 / 3 | Q1-c: 연타하는 사용자 비율과 횟수 |
 | `OPEN_IN_SECONDS` | 40 | 회차를 만든 뒤 오픈까지. 회차 캐시 갱신(30초)보다 길어야 진입이 캐시를 탄다 |
@@ -150,8 +151,9 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `STAGES` / `STAGE_SECONDS` | G1 `1000,2000,4000,8000` / 60, B1 `500,1000,2000,4000` / 60, PAY1 `20,40,80,160` / 45, R1 `25,50,100,200` / 30 | 단계별 초당 요청 수(쉼표로)와 단계 유지 시간. 단계 사이 5초 동안 올린다. PAY1·R1은 반복마다 1석을 쓰므로 합계가 15,000석을 넘지 않게 둔다 |
 | `CONCERTS` / `SCHEDULES_PER_CONCERT` / `DETAIL_RATIO` | 20 / 3 / 0.8 | B1: 미리 만들 공연·회차 수, 상세 조회 비율(나머지는 목록) |
 | `ENTER_RATE` | 0 | B1-b: 같이 걸 초당 대기열 진입 수 |
-| `PG_DELAY_MS` | PAY1 300, R1 0 | Mock PG 승인 지연(ms). 끝나면 teardown이 0으로 되돌린다 |
-| `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경) |
+| `PG_DELAY_MS` | O1·PAY1·L2 300, R1 0 | Mock PG 승인 지연(ms). 기준 지연은 300ms다(open-peak-load-plan.md 8절 4번, 2026-11-08). R1은 승인 → 확정 지연만 보려고 0이다. 끝나면 teardown이 0으로 되돌린다 |
+| `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경은 비우고 서버 안에서 따로 건다) |
+| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://<배포 서버 사설 IP>:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
 | `CONFIRM_POLL_SECONDS` / `CONFIRM_MAX_POLLS` | 0.5 / 10 | R1: 확정 확인 간격과 횟수 |
 | `EXPIRING` / `RATE` | 5000 / 100 | X1: 만료시킬 선점 수, 측정 중 초당 선점 사용자 수(L3도 `RATE`를 쓴다) |
 | `START_IN_SECONDS` | 15 | L1: 추첨을 만든 뒤 응모 시작까지 |
@@ -163,6 +165,61 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도 |
 
 새 시나리오가 변수를 더하면 `run.sh`의 `PASS_ENV` 목록에도 더한다. Docker가 목록에 있는 변수만 컨테이너로 넘긴다.
+
+### 배포 서버 측정 (ISE-191)
+
+배포 서버를 재는 날의 순서는 [`deploy-server-access.md`](../../docs/guides/deploy-server-access.md) 5-5절, 설계는 [`load-test.md`](../../docs/design/infra/load-test.md) 5절이다. 여기에는 k6 쪽만 적는다. 발생기에서 저장소 루트로 `cd`한 뒤 쓴다.
+
+**토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
+
+**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를 줘서 이 단계를 건너뛴다. 그 밖의 시나리오(B1, G1, PAY1, R1, X1, L1~L3, O1)는 아직 `SCHEDULE_ID`를 받지 않거나 공연·추첨을 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+
+**Q1~Q3 회차 준비**: 배포 서버에서 관리자 도구로 회차를 하나 만든다. 오픈 시각이 이미 지난 회차를 만들면 바로 측정할 수 있다. 회차 캐시 갱신(30초)이 있으므로 측정 1분 전에는 만든다. 시나리오마다 새 회차를 쓴다(앞 시나리오의 대기자가 남아 있으면 순번이 섞인다).
+
+```bash
+# 배포 서버에서: 5분 전에 열린 회차를 만든다. 출력의 "새 회차 id"가 SCHEDULE_ID다
+ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "-5 minutes" +%Y-%m-%dT%H:%M:%SZ)"'
+```
+
+**실행**(발생기에서). `BASE_URL`은 Gateway 사설 주소, `MOCK_PG_URL`은 비워 발생기에서 Mock PG를 부르지 않게 한다.
+
+```bash
+export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://<배포 서버 사설 IP>:9090/api/v1/write
+SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
+```
+
+| 측정 | 서버에서 켜는 것 | 회차 | k6 |
+|---|---|---|---|
+| Q1 대기열 진입 | `measure-mode.sh on` | Q1용 새 회차 | `SCHEDULE_ID=<id> ... q1-queue-enter.js` |
+| Q2 순번 폴링 | `measure-mode.sh on loadtest/k6/compose.queue-hold.yml` (입장 스케줄러 끔) | Q2용 새 회차 | `SCHEDULE_ID=<id> ... q2-queue-poll.js` |
+| Q3 입장 속도 | `measure-mode.sh on` (덮어쓰기 파일 없이 다시. 스케줄러 켬) | Q3용 새 회차 | `SCHEDULE_ID=<id> ... q3-admission.js`. 입장 기록은 아래 도구 |
+
+`measure-mode.sh on`은 인자로 준 파일이 전체 목록이다. Q2에서 Q3로 넘어갈 때 `queue-hold.yml` 없이 다시 실행하면 reservation-service가 다시 만들어지며 스케줄러가 켜진다. `.env.measure`의 키는 그대로라 발생기 `.env`를 다시 옮기지 않아도 된다. reservation-service가 다시 뜬 뒤 30초 넘게 기다렸다가 잰다.
+
+**Mock PG 장애 주입(O1, PAY1, L2 등 결제 시나리오)**: Mock PG 포트는 서버 밖에 열려 있지 않다. 서버 안에서 compose 네트워크(`iseonjwa_default`, 프로젝트 이름이 `iseonjwa`)에 일회용 curl 컨테이너를 붙여 건다. 앱이 다시 뜨면 설정이 사라지므로 `measure-mode.sh on` 뒤, 측정 직전에 건다. 기준 지연은 300ms다.
+
+```bash
+# 승인 지연 300ms를 건다 (서버에서)
+docker run --rm --network iseonjwa_default curlimages/curl:8.10.1 -s -X POST -H 'Content-Type: application/json' \
+  -d '{"target":"APPROVE","mode":"DELAY","delayMs":300}' http://mock-pg:8090/mock-pg/faults
+# 현재 설정 확인
+docker run --rm --network iseonjwa_default curlimages/curl:8.10.1 -s http://mock-pg:8090/mock-pg/faults
+# 풀기: mode를 NONE으로
+docker run --rm --network iseonjwa_default curlimages/curl:8.10.1 -s -X POST -H 'Content-Type: application/json' \
+  -d '{"target":"APPROVE","mode":"NONE"}' http://mock-pg:8090/mock-pg/faults
+```
+
+시나리오가 `MOCK_PG_URL`을 비워 장애 주입을 건너뛰므로(콘솔에 경고가 나온다) 위 명령으로 건 값이 그대로 쓰인다. 배포 mock-pg는 이미 `loadtest` 프로필이라 `compose.mockpg-loadtest.yml`은 필요 없다.
+
+**기록 도구(`tools/`)**: 세 스크립트는 컨테이너 이름(`iseonjwa-redis-1`, `iseonjwa-postgres-reservation-1`)이 배포 서버와 같아 고치지 않고 서버에서 돈다. 서버에서 k6를 돌리는 것이 아니라 기록만 한다. 측정과 같은 시간에 SSH 창을 따로 열어 실행하고, 결과 CSV는 `loadtest/k6/results/`(서버의 `~/iseonjwa`)에 쌓이니 `scp`로 내려받는다.
+
+```bash
+ssh iseonjwa 'cd ~/iseonjwa && bash loadtest/k6/tools/watch-admitted.sh <회차 ID> 700'   # Q3
+ssh iseonjwa 'cd ~/iseonjwa && bash loadtest/k6/tools/watch-held.sh <회차 ID> 420 10'    # X1
+ssh iseonjwa 'cd ~/iseonjwa && bash loadtest/k6/tools/watch-lottery.sh <추첨 ID> 720 10' # L2·L3
+```
+
+`watch-held.sh`·`watch-lottery.sh`는 DB 사용자 `iseonjwa`를 코드에 쓰고, 배포 `.env`의 `DB_USER`도 `iseonjwa`라 그대로 돈다. 시각은 서버의 `date +%s%3N`(GNU date)이다.
 
 ## 3. 시나리오를 더할 때
 

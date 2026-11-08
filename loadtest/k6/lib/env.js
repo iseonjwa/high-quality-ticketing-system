@@ -2,7 +2,7 @@
 // 실행 방법과 변수 목록: loadtest/k6/README.md
 export const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:8080';
 
-// sign: local 스택 전용으로 k6가 토큰을 직접 서명한다. 배포 환경의 키는 발생기에 두지 않는다(load-test.md 5절)
+// sign: k6가 토큰을 직접 서명한다. local은 .env의 키, 배포는 측정 모드의 측정 전용 키를 쓰고 운영 키는 발생기에 두지 않는다(load-test.md 5절)
 export const TOKEN_MODE = __ENV.TOKEN_MODE || 'sign';
 
 // 가상 사용자 ID 시작값. 실행마다 바꾸면 같은 회차에서도 앞 실행의 사용자와 겹치지 않는다

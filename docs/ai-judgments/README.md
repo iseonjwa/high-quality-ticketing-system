@@ -42,6 +42,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-08-deploy-measure-token-key-swap.md) |
+| 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-06-ise25-final-comparison-on-deploy.md) |
 | 2026-11-06 | K1 local 결과를 ISE-25 기준선으로 인정하자는 제안을 측정 대상이 다르다는 이유로 거부함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-06-ise25-baseline-not-k1.md) |
 | 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-05-payment-job-label-task.md) |
