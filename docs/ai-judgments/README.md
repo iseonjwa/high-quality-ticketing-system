@@ -42,6 +42,21 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 측정 전 main 반영에 팀원 PR을 넣을지 묻자는 제안을 두고, 팀원 PR은 측정하지 않을 때 상황을 봐서 넘기기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-team-prs-not-in-freeze-merge.md) |
+| 2026-11-09 | 측정 모드 알림을 성능-모니터링 채널에 두지 않고 별도 채널로 옮기고, 배포 알림처럼 꾸미기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-measure-mode-alert-own-channel.md) |
+| 2026-11-09 | dev→main을 측정 전 한 번에 넘기는 대신, 시험용으로 먼저 넘기고 이후에 다시 넘기기로 함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-09-main-merge-test-first.md) |
+| 2026-11-09 | 측정 모드를 켜고 끌 때 슬랙 자동 알림을 붙이기로 함(사람 알림만으로 두지 않음) | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-09-measure-mode-slack-alert.md) |
+| 2026-11-09 | 기록 검사 훅 속도 개선(약 25배)을 변이 31가지 비교로 검증한 뒤 올리고, 한글 경로 표시 개선을 함께 넣음 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-09-records-check-25x-faster.md) |
+| 2026-11-09 | 에이전트 k6 실행 토큰 과다(진행 표시줄 출력)와 느린 기록 검사 훅 진단을 중 k6 출력 건만 이슈로 올리기로 함(ISE-219) | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-09-agent-token-k6-output-and-hook.md) |
+| 2026-11-09 | 측정 모드를 AWS 담당 한 명이 아니라 측정자가 직접 켜고 끄고, 시작·끝 알림으로 겹침을 막기로 함 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-09-measure-mode-by-measurer.md) |
+| 2026-11-09 | AWS 담당 동의로 ISE-216(서버 추첨 생성 + k6 ID 전달)을 강민이 넘겨받아 처리하기로 함 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-09-ise216-take-over-after-aws-owner-ok.md) |
+| 2026-11-09 | L1~L3 ID 모드에서 일반 판매 회차를 SALE_SCHEDULE_ID로 나누고 회차 ID만 주면 실패하게 둠 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-09-k6-sale-schedule-id-split.md) |
+| 2026-11-09 | 배포 측정에서 L1~L3 관리자 로그인 문제를 서버 추첨 생성 + k6 ID 전달(1안)로 풀고 AWS 담당 리뷰를 받기로 함(ISE-216) | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-09-loadtest-lottery-seed-on-server.md) |
+| 2026-11-09 | 자동결제 겹침 contract 이슈를 추천안 하나로 좁히지 않고 모든 선택지·트레이드오프를 담아 결제 담당과 고르기로 함 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-09-billing-overlap-issue-all-options.md) |
+| 2026-11-09 | 입장 토큰 만료 시점으로 결제 완료 대신 좌석 선점 성공 시점을 고름 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-09-entry-token-consume-on-hold.md) |
+| 2026-11-09 | 부하 발생기 EC2 안내가 1인용 구성이라 팀 공용(팀원 IP·키, 각자 폴더, 한 번에 한 측정)으로 바꾸게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-loadgen-shared-by-team.md) |
+| 2026-11-08 | 커넥션 대기 1초 동의와 추첨 시나리오 L1~L3 검토 의견을 AI 초안 그대로 Linear에 올림 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-08-connection-timeout-and-lottery-scenario-review.md) |
+| 2026-11-08 | 서버 측정을 11/13 재가동 뒤로 두자는 일정안 거부, 11/9에 서버를 켬 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-08-server-start-tomorrow.md) |
 | 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-error-response-json-in-common.md) |
 | 2026-11-09 | 예매 문의 챗봇을 /help 페이지로 두자는 추천 대신 모든 화면에서 여는 떠 있는 위젯으로 바꾸기로 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-09-assistant-floating-widget.md) |
 | 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-09-home-renewal-draft-b-light-dark.md) |
