@@ -56,7 +56,7 @@ export function SelectionSummary({
       aria-labelledby="selection-summary-title"
       className="@min-[60rem]:sticky @min-[60rem]:top-[88px]"
     >
-      <Card className="gap-0 rounded-[22px] p-0">
+      <Card className="gap-0 overflow-visible rounded-[22px] p-0">
         <div className="grid gap-4 px-4 pt-5 pb-6 @min-[40rem]:px-6 @min-[40rem]:pt-6">
           <div className="flex items-baseline justify-between">
             <h2

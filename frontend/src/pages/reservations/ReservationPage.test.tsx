@@ -146,6 +146,7 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
     expect(within(tickets).getByText(formatDateTime(HEADING.startsAt))).toBeInTheDocument()
   })
 
@@ -261,7 +262,8 @@ describe('ReservationPage 티켓 카드', () => {
     const barcodes = barcodesOf(tickets)
     expect(barcodes).toHaveLength(2)
     for (const barcode of barcodes) {
-      expect(barcode.closest('[aria-hidden="true"]')).not.toBeNull()
+      // svg 자신도 aria-hidden이라, 감싼 떼는 칸(날짜 포함)이 낭독에서 빠지는지 부모부터 본다
+      expect(barcode.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull()
       expect(barcode.querySelectorAll('rect').length).toBeGreaterThan(0)
     }
   })

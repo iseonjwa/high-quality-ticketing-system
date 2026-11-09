@@ -71,7 +71,7 @@ function QueueScreen({ scheduleId }: { scheduleId: number }) {
       <Card
         ref={cardRef}
         tabIndex={-1}
-        className="gap-6 rounded-[24px] px-5 py-6 text-center outline-none @min-[40rem]:p-8"
+        className="gap-6 overflow-visible rounded-[24px] px-5 py-6 text-center outline-none @min-[40rem]:p-8"
       >
         <ConnectionStatus unstable={admission.connectionError !== null} />
         <QueueBody admission={admission} concert={concert} onRejoin={rejoin} />

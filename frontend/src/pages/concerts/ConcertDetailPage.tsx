@@ -81,7 +81,7 @@ export function ConcertDetailPage() {
       <div
         className={cn(
           CONTAINER,
-          'grid gap-10 py-6 @min-[48rem]:py-10 @min-[64rem]:grid-cols-[minmax(0,1fr)_380px] @min-[64rem]:items-start',
+          'grid gap-10 py-6 @min-[48rem]:py-10 @min-[64rem]:grid-cols-[minmax(0,1fr)_380px] @min-[64rem]:items-start @min-[64rem]:py-8',
         )}
       >
         {/* 예매 패널이 첫 화면 안에 들어오게 한다(design-system.md 1절 "다음 행동이 먼저 보인다").
@@ -143,10 +143,16 @@ function overallStatus(schedules: ScheduleSummary[], nowMillis: number): SaleSta
 }
 
 // 그림 위 글자: 홈 대표 배너와 같이 페이지 바탕색(gray-25)으로 덮는다. 라이트는 흰 막 + 검은 글자, 다크는 검은 막 +
-// 흰 글자가 된다. 글자가 놓이는 왼쪽 65%까지 90% 이상으로 덮어, 그림이 아주 밝거나 어두워도 보조 글자가 4.5:1을 넘는다.
-// 좁은 화면(56rem 미만)은 글자가 폭 전체를 쓰므로 고르게 덮는다
+// 흰 글자가 된다. 넓은 화면은 왼쪽 65%까지 90% 이상으로 덮어, 그림이 아주 밝거나 어두워도 보조 글자가 4.5:1을 넘는다.
+// Note: 글자 열 끝은 px로 고정이고 막은 화면 폭의 %라, 72rem보다 좁으면 글자 끝이 옅은 구간에 놓인다(900px에서
+// 2.4:1, 셀프 리뷰). 그래서 72rem 미만은 고르게 덮는다
 const ART_WASH =
-  'absolute inset-0 -z-10 bg-linear-to-r from-gray-25/95 via-gray-25/90 via-65% to-gray-25/40 @max-[56rem]:bg-none @max-[56rem]:bg-gray-25/90'
+  'absolute inset-0 -z-10 bg-linear-to-r from-gray-25/95 via-gray-25/90 via-65% to-gray-25/40 @max-[72rem]:bg-none @max-[72rem]:bg-gray-25/90'
+
+// 넓은 화면에서 배너 높이를 묶는다. 예매 패널이 배너 아래에 있어 배너가 길어지면 [예매하기]가 첫 화면 밖으로 밀린다
+// (3줄 제목이면 1366×650에서 잘렸다, 셀프 리뷰). 제목은 2줄까지, 요약 표는 넓은 화면에서 숨긴다(같은 값이 예매 패널과
+// 회차 일정 표에 있다). 48rem 이상에서 창 높이가 낮으면(620px 이하, 예: 1366×768 125% 배율) 포스터를 줄이고 소개·요약을 숨긴다
+// (`@min-[48rem]:[@media(max-height:620px)]:`). Tailwind가 소스에서 찾도록 클래스를 이어 붙이지 않고 그대로 쓴다
 
 // 배너: 공연 그림을 깔고 포스터와 공연 요약을 얹는다
 function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
@@ -169,28 +175,45 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
         className="absolute inset-0 -z-20 size-full object-cover"
       />
       <div aria-hidden="true" className={ART_WASH} />
-      <div className={cn(CONTAINER, 'grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-8')}>
+      <div
+        className={cn(
+          CONTAINER,
+          'grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-8 @min-[64rem]:gap-5 @min-[64rem]:py-7',
+        )}
+      >
         <BackLink />
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-5 @min-[48rem]:gap-8">
           <ConcertPoster
             concertId={concert.concertId}
             title={concert.title}
             loading="eager"
-            className="w-[104px] rounded-[10px] shadow-[0_18px_40px_rgba(0,0,0,0.3)] @min-[40rem]:w-[140px] @min-[48rem]:w-[160px] @min-[48rem]:rounded-[14px]"
+            className={cn(
+              'w-[104px] rounded-[10px] shadow-[0_18px_40px_rgba(0,0,0,0.3)] @min-[40rem]:w-[140px] @min-[48rem]:w-[160px] @min-[48rem]:rounded-[14px]',
+              '@min-[48rem]:[@media(max-height:620px)]:w-[112px]',
+            )}
           />
           <div className="grid min-w-0 max-w-[640px] gap-3 @min-[48rem]:gap-4">
             {clock ? <LiveSaleBadge schedules={schedules} clock={clock} /> : null}
-            <h1 className="text-[clamp(24px,3.6cqw,48px)] leading-[1.12] font-extrabold tracking-[-0.04em] break-keep">
+            <h1
+              title={concert.title}
+              className="text-[clamp(24px,3.6cqw,48px)] leading-[1.12] font-extrabold tracking-[-0.04em] break-keep @min-[64rem]:line-clamp-2"
+            >
               {concert.title}
             </h1>
             {concert.description ? (
-              <p className="line-clamp-2 type-body whitespace-pre-line text-gray-700 @max-[40rem]:hidden">
+              <p
+                className={cn(
+                  'line-clamp-2 type-body whitespace-pre-line text-gray-700 @max-[40rem]:hidden',
+                  '@min-[48rem]:[@media(max-height:620px)]:hidden',
+                )}
+              >
                 {concert.description}
               </p>
             ) : null}
-            {/* 좁은 화면에서는 예매 패널을 첫 화면에 올리려고 요약을 숨긴다(같은 값이 회차 일정 표에 있다) */}
+            {/* 좁은 화면(40rem 미만)과 넓은 화면(64rem 이상)에서는 예매 패널을 첫 화면에 올리려고 요약을 숨긴다
+                (같은 값이 예매 패널과 회차 일정 표에 있다) */}
             {first && last ? (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr]">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr] @min-[48rem]:[@media(max-height:620px)]:hidden @min-[64rem]:hidden">
                 <HeroFact label="장소">
                   {venues.length === 1 ? venues[0] : `${venues[0]} 외 ${venues.length - 1}곳`}
                 </HeroFact>
@@ -240,7 +263,8 @@ function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: Serve
   const groupName = useId()
 
   return (
-    <Card className="gap-0 rounded-[22px] p-0 shadow-md">
+    // overflow-visible: 절취선 양 끝 홈이 카드 테두리 선까지 덮게 한다(잘리면 테두리가 홈 위를 지나간다)
+    <Card className="gap-0 overflow-visible rounded-[22px] p-0 shadow-md">
       {schedules.length === 0 || clock === null ? (
         <div className="grid gap-1 p-5">
           <h2 className="type-body font-semibold text-gray-900">회차 선택</h2>
@@ -346,6 +370,8 @@ function ChosenSchedule({
 
   return (
     <div className="grid gap-3 px-5 pt-5 pb-6">
+      {/* 제목으로 이동해도 [예매하기]를 건너뛰지 않게 위 칸에도 제목을 둔다 */}
+      <h2 className="sr-only">고른 회차</h2>
       <p className="type-body-sm font-semibold text-gray-900 tabular-nums">
         {formatDateTime(schedule.startsAt)}
         <span className="font-normal text-gray-500"> · {schedule.venueName}</span>
@@ -369,19 +395,29 @@ function ChosenSchedule({
           </p>
         </>
       ) : status === 'ON_SALE' ? (
-        <Button asChild size="lg" className="w-full rounded-full">
-          <Link
-            to={queuePath(schedule.scheduleId)}
-            state={queueNavigationState({
-              concertId: concert.concertId,
-              title: concert.title,
-              startsAt: schedule.startsAt,
-              venueName: schedule.venueName,
-            })}
-          >
-            예매하기
-          </Link>
-        </Button>
+        <>
+          {/* 보는 중에 열렸으면 카운트다운 줄 자리를 남긴다. 줄이 사라지면 [예매하기]가 44px 위로 뛰어, 0초에 버튼이 있던
+            자리를 누르면 안내 글자를 누르게 된다(셀프 리뷰). 열린 사실은 아래 알림 영역이 읽는다 */}
+          {openedLater ? (
+            <div aria-hidden="true" className="flex items-baseline justify-between gap-3">
+              <span className="type-body-sm text-gray-500">티켓 오픈</span>
+              <span className="type-title text-gray-900">지금 열렸어요</span>
+            </div>
+          ) : null}
+          <Button asChild size="lg" className="w-full rounded-full">
+            <Link
+              to={queuePath(schedule.scheduleId)}
+              state={queueNavigationState({
+                concertId: concert.concertId,
+                title: concert.title,
+                startsAt: schedule.startsAt,
+                venueName: schedule.venueName,
+              })}
+            >
+              예매하기
+            </Link>
+          </Button>
+        </>
       ) : (
         <p className="py-2 text-center type-body-sm text-gray-500">판매가 끝났어요</p>
       )}

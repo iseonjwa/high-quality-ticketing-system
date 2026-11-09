@@ -349,17 +349,22 @@ function TicketsCard({
       <h2 id="tickets-title" className="sr-only">
         티켓 {total}매
       </h2>
-      <article className="flex overflow-hidden rounded-[26px] border border-gray-100 bg-gray-0 shadow-sm @max-[40rem]:flex-col">
+      {/* 자르지 않는다(overflow-visible): 떼는 칸 홈이 테두리 선까지 덮게 한다. 포스터 왼쪽 모서리는 따로 둥글린다 */}
+      <article className="flex rounded-[26px] border border-gray-100 bg-gray-0 shadow-sm @max-[40rem]:flex-col">
         {heading?.concertId !== undefined ? (
           <ConcertPoster
             concertId={heading.concertId}
             title={heading.title}
-            className="aspect-auto min-h-[270px] w-[180px] self-stretch rounded-none @max-[48rem]:hidden"
+            className="aspect-auto min-h-[270px] w-[180px] self-stretch rounded-[25px_0_0_25px] @max-[48rem]:hidden"
           />
         ) : null}
         <div className="grid min-w-0 flex-1 content-start gap-4 p-5 @min-[40rem]:px-7 @min-[40rem]:py-6">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[11px] font-bold tracking-[0.22em] text-gray-500 tabular-nums">
+            {/* 영어 꾸밈 글자다. 매수는 제목(티켓 n매)이 읽는다 */}
+            <span
+              aria-hidden="true"
+              className="text-[11px] font-bold tracking-[0.22em] text-gray-500 tabular-nums"
+            >
               ADMIT {total}
             </span>
             {showStatus ? <ReservationStatusBadge status={detail.status} /> : null}
