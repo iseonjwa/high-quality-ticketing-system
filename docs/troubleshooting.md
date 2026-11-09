@@ -380,3 +380,15 @@
 - 남은 한계: 머리말을 닫는 `---`가 없으면 원래·새 스크립트 모두 본문 끝까지 머리말로 읽어 통과시킨다(이번 범위 밖). Linux CI와 macOS bash 3.2에서는 이 PR 전에 실행하지 않았다.
 - AI 활용: 원인 분석과 수정은 Claude Code가 했고, 동작이 같은지는 다른 에이전트(herdr 작업자)가 저장소 밖 복제본에서 따로 검증했다. 판단 기록 `docs/ai-judgments/kangmin/2026-11-09-agent-token-k6-output-and-hook.md`, `docs/ai-judgments/kangmin/2026-11-09-records-check-25x-faster.md`.
 - 배운 점: Windows Git Bash에서 셸 스크립트의 실행 시간은 대개 "띄운 프로세스 수 × 수십 ms"로 정해진다. 파일마다 도는 반복문 안에서는 외부 명령을 띄우지 말고, 한 번에 처리하는 도구(`git grep`, `awk` 한 번)로 바꾼다. 검사 도구를 고칠 때는 일부러 틀린 입력을 넣어 전후 출력을 비교해야 검사가 약해지지 않았음을 보일 수 있다.
+
+### TS-45 리눅스 부하 발생기에서 k6가 결과 파일을 만들지 못했다(`permission denied`)
+- 서비스·작성: loadtest / kangmin / 2026-11-09
+- 문제: 배포 서버 측정용 발생기(EC2, Ubuntu)에서 `loadtest/k6/run.sh`를 실행하자 k6가 시작하자마자 멈췄다. 로컬 Windows에서는 같은 스크립트가 늘 동작했다.
+  ```
+  could not create the 'csv' output: open /scripts/results/l1-lottery-entry-...-raw.csv.gz: permission denied
+  ```
+- 원인: `grafana/k6:1.0.0` 컨테이너는 이미지 안의 사용자 `k6`(uid 12345)로 돈다(`docker run --entrypoint id grafana/k6:1.0.0`로 확인). 마운트한 `loadtest/k6/results`는 발생기의 `ubuntu`(uid 1000) 소유이고 권한이 755라, uid 12345는 쓸 수 없다. Windows Docker Desktop은 마운트 폴더의 리눅스 권한을 따지지 않아 로컬에서는 드러나지 않았다.
+- 재현: Docker 볼륨에 uid 1000 소유·755 폴더를 만들고 k6 이미지로 파일을 쓰면 `Permission denied`, `--user 1000:1000`을 붙이면 성공했다.
+- 해결(ISE-225): `run.sh`가 리눅스에서만 `docker run --user "$(id -u):$(id -g)"`를 붙인다. Windows(Git Bash)는 `uname -s`가 `MINGW64_NT-...`라 붙이지 않고 기존대로 돈다(로컬에서 summary·CSV 생성 확인).
+- 우회: 고치기 전에는 `chmod a+w ~/<영문 이름>/iseonjwa/loadtest/k6/results`로 열었다.
+- 배운 점: 컨테이너에 호스트 폴더를 마운트해 쓰게 할 때는 컨테이너 안 사용자(uid)와 폴더 소유자가 맞는지 본다. Windows·macOS의 Docker Desktop은 권한을 감춰서 리눅스 서버에서 처음 터진다. 측정 환경은 실제와 같은 OS에서 먼저 짧게 시험한다.
