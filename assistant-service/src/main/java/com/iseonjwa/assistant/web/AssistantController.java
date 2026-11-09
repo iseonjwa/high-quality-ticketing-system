@@ -75,6 +75,7 @@ class AssistantController {
     ResponseEntity<FailureResponse> rateLimited(RateLimitedException exception) {
         return ResponseEntity.status(CommonErrorCode.RATE_LIMITED.status())
                 .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(CommonErrorCode.RATE_LIMITED, null, MDC.get("traceId")));
     }
 }

@@ -171,4 +171,38 @@ class AssistantStreamApiTest {
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/json")))
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
     }
+
+    // Note: 화면의 EventSource·fetch는 Accept를 text/event-stream으로만 보낸다. 오류도 JSON으로 와야 읽을 수 있다
+    @Test
+    void Accept가_text_event_stream뿐이어도_검증_실패는_400_JSON이다() throws Exception {
+        mvc.perform(stream(newUser(), "{\"question\":\"   \"}").accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/json")))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void Accept가_text_event_stream뿐이어도_요청_제한은_429_JSON과_Retry_After를_준다() throws Exception {
+        var user = newUser();
+        for (var i = 0; i < 5; i++) {
+            var result = mvc.perform(stream(user, "{\"question\":\"오픈 시각이 언제예요?\"}")
+                    .accept(MediaType.TEXT_EVENT_STREAM)).andExpect(request().asyncStarted()).andReturn();
+            events(result);
+        }
+
+        mvc.perform(stream(user, "{\"question\":\"오픈 시각이 언제예요?\"}").accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/json")))
+                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+    }
+
+    @Test
+    void Accept가_text_event_stream뿐이어도_사용자_헤더가_없으면_401_JSON이다() throws Exception {
+        mvc.perform(post("/api/v1/assistant/messages/stream").accept(MediaType.TEXT_EVENT_STREAM)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"question\":\"환불\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("application/json")))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
 }
