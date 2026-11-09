@@ -111,7 +111,9 @@ class AssistantStreamApiTest {
         var events = events(result);
 
         assertThat(events).extracting(Event::name).containsExactly("meta", "delta", "delta", "sources", "done");
-        assertThat(events.get(0).data().propertyNames()).containsExactlyInAnyOrder("mode", "fallbackReason");
+        assertThat(events.get(0).data().propertyNames()).containsExactlyInAnyOrder("mode", "fallbackReason", "traceId");
+        // Note: 화면이 시연 모드 요청 로그를 찾는 데 쓰므로 가상 스레드로 넘어가도 요청의 traceId가 와야 한다
+        assertThat(events.get(0).data().get("traceId").asString()).isNotBlank();
         assertThat(events.get(0).data().get("mode").asString()).isEqualTo("AI");
         assertThat(events.get(0).data().get("fallbackReason").isNull()).isTrue();
         var joined = events.get(1).data().get("text").asString() + events.get(2).data().get("text").asString();
