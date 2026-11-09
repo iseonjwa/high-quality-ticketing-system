@@ -65,7 +65,7 @@
 
 | 순서 | `event` | `data` | 뜻 |
 |---|---|---|---|
-| 1 | `meta` | `{"mode":"AI"\|"SEARCH","fallbackReason":null\|"LLM_DISABLED"\|"LLM_UNAVAILABLE"}` | 첫 이벤트. `SEARCH`면 `delta` 없이 3으로 간다 |
+| 1 | `meta` | `{"mode":"AI"\|"SEARCH","fallbackReason":null\|"LLM_DISABLED"\|"LLM_UNAVAILABLE","traceId":"…"\|null}` | 첫 이벤트. `SEARCH`면 `delta` 없이 3으로 간다. `traceId`는 시연 모드에서 요청 로그를 찾는 링크용이며 없을 수 있다 |
 | 2 | `delta` | `{"text":"…"}` | 0번 이상. 답변 글자 조각. 받은 순서대로 이어 붙인다 |
 | 2' | `fallback` | `{"fallbackReason":"LLM_UNAVAILABLE"}` | `delta`가 나간 뒤 Claude가 실패하거나(시한·연결 끊김·refusal) 상한에 걸리면 한 번. 화면은 이어 붙이던 글을 버리고 검색 모드로 바꾼다 |
 | 3 | `sources` | `{"sources":[{"id","title","excerpt"}]}` | 한 번. `AI`면 인용한 절, `SEARCH`(또는 `fallback` 뒤)면 검색 상위 3절 |
@@ -182,6 +182,7 @@
 - 질문의 `<`·`>`는 전각 `＜`·`＞`로 바꿔 `</question>`으로 태그를 닫는 입력을 막는다.
 - 동시 호출 세마포어를 먼저 잡고, 잡은 뒤에만 일일 상한을 센다(세마포어에서 밀린 요청이 상한을 쓰지 않게).
 - 요청 제한은 유효한 요청(검증 통과)만 센다. 검증 실패(400)는 세지 않는다.
+- ISE-221: 오류 응답을 요청 Accept와 상관없이 `application/json`으로 고정했다(common 공통 예외 처리기, 모든 서비스에 적용). `Accept: text/event-stream`만 보내면 400은 빈 본문, 429는 500이던 결함의 수정이다. 스트림 `meta`에 `traceId`를 더했고, 스트림 가상 스레드에 요청 MDC를 이어 스트림 로그(`event=ASSISTANT_ANSWERED stream=true`)에도 traceId가 남는다.
 - 로컬 실행기(`LocalApps`)는 셸의 `ANTHROPIC_API_KEY`를 상담 서비스에만 넘긴다. 기존 서비스 테스트(`compose config`, `ConfigRepoTest`)가 서비스 목록을 검사해서 compose·compose.local은 뼈대 커밋에 함께 넣었다.
 
 ### 확인한 것 (2026-11-09)
