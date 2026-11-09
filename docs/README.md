@@ -25,6 +25,7 @@
 | 전체 Boot 앱·Config·인프라·인증 실행과 검증 | [`guides/workspace.md`](guides/workspace.md) | 현재 개발 워크스페이스 |
 | 배포·Jenkins 서버 접속(SSH 키, 터널), 서버에서 지킬 것, 부하 측정 계획 | [`guides/deploy-server-access.md`](guides/deploy-server-access.md) | 팀원용. 서버 주소·일정이 바뀌면 고친다 |
 | 팀 공용 부하 발생기(k6 EC2) 사용 규칙, 측정 시작·끝 체크리스트와 알림 문구, 연결 확인, 막혔을 때 | [`guides/loadgen.md`](guides/loadgen.md) | 발생기 IP·상태가 바뀌면 고친다 |
+| 발표·시연에서 결제 장애 시나리오를 보여 주는 순서(시연 장애 패널) | [`guides/demo-scenarios.md`](guides/demo-scenarios.md) | ISE-134 |
 | 완료 기준, 작업 흐름, 디버깅 | [`agents/quality-gates.md`](agents/quality-gates.md) | |
 
 스킬 정본은 [`.agents/skills/`](../.agents/skills/README.md)에 있다.

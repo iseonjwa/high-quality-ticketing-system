@@ -16,6 +16,9 @@ export interface SendOptions<T extends z.ZodType> {
   body?: unknown
   headers?: Record<string, string>
   signal?: AbortSignal
+  // 기본 true. false면 공통 응답 형식이 아닌 API(시연 패널이 Gateway로 부르는 Mock PG)라 성공 본문을 그대로 스키마로 본다.
+  // 실패는 Gateway가 만든 공통 실패 형식(401·403)이면 그대로 풀고, 아니면 응답 상태와 본문의 code로 오류를 만든다
+  envelope?: boolean
 }
 
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).
@@ -33,7 +36,9 @@ export async function send<T extends z.ZodType>(options: SendOptions<T>): Promis
     traceId = readTraceId(payload)
 
     if (!response.ok) {
-      throw toApiError(response, payload)
+      throw options.envelope === false
+        ? toRawApiError(response, payload)
+        : toApiError(response, payload)
     }
     return parseData(response, payload, options)
   } finally {
@@ -124,6 +129,26 @@ function toApiError(response: Response, payload: unknown): ApiError {
   })
 }
 
+// 공통 형식이 아닌 API의 실패. Mock PG는 `{code}`만 담고, 장애 주입이 꺼진 프로필의 404는 Boot 기본 본문이다
+function toRawApiError(response: Response, payload: unknown): ApiError {
+  const failure = failureEnvelopeSchema.safeParse(payload)
+  if (failure.success) {
+    return toApiError(response, payload)
+  }
+  const code =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'code' in payload &&
+    typeof payload.code === 'string'
+      ? payload.code
+      : CLIENT_ERROR_CODES.unexpectedResponse
+  return new ApiError({
+    status: response.status,
+    code,
+    message: `요청이 실패했습니다(${response.status})`,
+  })
+}
+
 // Retry-After는 정수 초다(SA 11-5 대기열). HTTP 날짜 형식은 서버가 쓰지 않아 받지 않는다.
 function parseRetryAfter(value: string | null): number | null {
   if (value === null || !/^\d+$/.test(value.trim())) {
@@ -137,8 +162,10 @@ function parseData<T extends z.ZodType>(
   payload: unknown,
   options: SendOptions<T>,
 ): z.output<T> {
-  const envelope = successEnvelopeSchema.safeParse(payload)
-  const data = envelope.success ? options.schema.safeParse(envelope.data.data) : envelope
+  const data =
+    options.envelope === false
+      ? options.schema.safeParse(payload)
+      : unwrapEnvelope(payload, options.schema)
   if (!data.success) {
     // Note: 응답 스키마 검증은 계약 어긋남을 화면이 깨지기 전에 드러내려는 것이다(ADR 0040 3절).
     // 필드를 더하는 변경은 통과한다(z.object는 모르는 필드를 버린다). 빠지거나 타입이 바뀌면 여기서 멈춘다.
@@ -154,6 +181,11 @@ function parseData<T extends z.ZodType>(
     })
   }
   return data.data
+}
+
+function unwrapEnvelope<T extends z.ZodType>(payload: unknown, schema: T) {
+  const envelope = successEnvelopeSchema.safeParse(payload)
+  return envelope.success ? schema.safeParse(envelope.data.data) : envelope
 }
 
 function readTraceId(payload: unknown): string | null {

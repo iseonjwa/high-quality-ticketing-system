@@ -6,6 +6,7 @@ import { MyPageLayout } from '@/pages/my/MyPageLayout'
 import { AssistantPage } from '@/pages/assistant/AssistantPage'
 import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
 import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
+import { AdminDemoFaultsPage } from '@/pages/admin/AdminDemoFaultsPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
 import { AdminLotteryNewPage } from '@/pages/admin/AdminLotteryNewPage'
 import { AdminLotteryPage } from '@/pages/admin/AdminLotteryPage'
@@ -90,6 +91,7 @@ export const routes: RouteObject[] = [
                   { path: paths.adminLotteryNew, element: <AdminLotteryNewPage /> },
                   { path: paths.adminLottery, element: <AdminLotteryPage /> },
                   { path: paths.adminPasswordReset, element: <AdminPasswordResetPage /> },
+                  { path: paths.adminDemoFaults, element: <AdminDemoFaultsPage /> },
                 ],
               },
             ],

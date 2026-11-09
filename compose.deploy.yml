@@ -95,7 +95,7 @@ services:
     logging: *deploy-logging
     environment:
       # Note: Mock PG는 외부 PG를 흉내 내는 시연·측정 도구라 prod가 아니라 loadtest로 띄운다. 그래야 장애 주입·원장 조회 API가
-      # 열린다(ISE-71). Gateway가 Mock PG로 가는 경로를 두지 않으므로 이 API는 compose 내부 네트워크에서만 닿는다.
+      # 열린다(ISE-71). 밖에서는 Gateway의 운영자 경로(/api/v1/admin/demo/pg/faults·ledger/summary, ADMIN만)로만 닿는다(ISE-134).
       SPRING_PROFILES_ACTIVE: loadtest
       JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseG1GC
   # 내부 AI 상담(ISE-126). DB·Kafka 없이 Claude API만 외부로 부른다. 키가 비면 검색 모드로 답한다
