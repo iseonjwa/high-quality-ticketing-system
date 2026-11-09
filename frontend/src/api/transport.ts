@@ -26,7 +26,8 @@ export type StreamOptions = Omit<SendOptions<z.ZodType>, 'schema'>
 
 const EVENT_STREAM = 'text/event-stream'
 // Note: 스트림 요청도 JSON을 함께 받겠다고 알린다. 서버(Spring)는 Accept로 응답 형식을 고르는데, text/event-stream만
-// 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못해 400은 빈 본문, 429는 500이 됐다(셀프 리뷰, bootJar로 재현)
+// 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못해 400은 빈 본문, 429는 500이 됐다(셀프 리뷰, bootJar로 재현).
+// 서버도 오류 응답을 늘 JSON으로 내게 고친다(ISE-221). 그 뒤에도 이 헤더는 그대로 둬도 된다
 const STREAM_ACCEPT = `${EVENT_STREAM}, application/json`
 
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).

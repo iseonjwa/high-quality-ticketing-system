@@ -47,7 +47,7 @@ export type AssistantStreamEvent =
     }
 
 const eventSchemas = {
-  // traceId는 선택 필드다(백엔드 후속 PR에서 더함). 있으면 시연 모드 요청 기록에 채운다
+  // traceId는 선택 필드다(백엔드 ISE-221에서 더함). 있으면 시연 모드 요청 기록에 채운다
   meta: z.object({
     mode: modeSchema,
     fallbackReason: fallbackReasonSchema.nullable(),

@@ -73,7 +73,7 @@
 
 - 시한: 첫 `delta`까지 8초(넘으면 `meta`를 `SEARCH`로 보내거나, 이미 `AI`를 보냈으면 `fallback`), 전체 20초. 서버는 `done`을 보낸 뒤 스트림을 닫는다.
 - 서버는 전체 시한(20초)을 넘기면 Claude 스트림을 닫고 `fallback`(첫 조각 전이면 `meta`의 `SEARCH`) → `sources` → `done`을 보낸 뒤 닫는다. `done` 없이 끝나는 것은 연결 끊김·서버 중단·검색 단계 예외·응답 안전망(30초)뿐이고, 화면은 이를 답변 중단으로 본다(7절 "실패").
-- 요청 헤더는 `Accept: text/event-stream, application/json`이다. 서버(Spring)는 Accept로 응답 형식을 고른다. 그래서 `text/event-stream`만 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못한다(셀프 리뷰에서 재현: 400은 빈 본문, 429는 500). 서버가 Accept와 상관없이 JSON 오류를 내도록, 공통 `CommonExceptionHandler`가 오류 응답의 Content-Type을 JSON으로 정하는 수정을 후속 PR로 한다(2026-11-09 사용자 결정).
+- 요청 헤더는 `Accept: text/event-stream, application/json`이다. 서버(Spring)는 Accept로 응답 형식을 고른다. 그래서 `text/event-stream`만 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못한다(셀프 리뷰에서 재현: 400은 빈 본문, 429는 500). 서버가 Accept와 상관없이 JSON 오류를 내도록, 공통 `CommonExceptionHandler`가 오류 응답의 Content-Type을 JSON으로 정하는 수정을 후속 PR(ISE-221)로 한다(2026-11-09 사용자 결정). 그 뒤에도 화면의 `application/json`은 그대로 둬도 된다.
 - 이벤트 순서
   - `fallback` 뒤에는 `delta`가 오지 않는다.
   - `done`의 `mode`·`fallbackReason`은 최종 값이다. `fallback`이 왔으면 `SEARCH`와 그 이유이고, 아니면 `meta`와 같다.
