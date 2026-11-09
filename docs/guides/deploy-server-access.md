@@ -95,6 +95,7 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
   - `docker stats`
   - Grafana 보기, 터널로 Zipkin 보기
 - 컨테이너 재시작이 필요하면 팀 채널에 먼저 알린다.
+- 배포 서버를 대상으로 하는 E2E(`frontend`의 `npm run e2e:compose`)는 팀 채널에 알린 뒤, 리허설 전용 회차로, 부하 측정 중이 아닐 때만 돌린다(`frontend/README.md` "배포 서버 리허설").
 
 ## 5. 부하 측정(k6) 계획
 
