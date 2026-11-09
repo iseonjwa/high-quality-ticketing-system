@@ -87,7 +87,9 @@ export function BillingKeyCard({
       aria-labelledby={titleId}
       className="scroll-mt-24 outline-none"
     >
-      <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
+      {/* @container/billing: 카드 그림과 안내의 두 칸은 앱 폭이 아니라 이 카드 폭을 본다. 추첨 화면 오른쪽 열(380px)에서
+          앱 폭 기준으로 두 칸이 켜져 안내가 68px 칸에서 10줄로 접혔다(셀프 리뷰) */}
+      <Card className="@container/billing gap-4 px-4 py-5 @min-[40rem]:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Title id={titleId} className="type-heading text-gray-900">
             자동결제 카드
@@ -102,7 +104,7 @@ export function BillingKeyCard({
           <RegisterError error={register.error} busy={busy} onRevoke={openRevoke} />
         ) : null}
         {record ? (
-          <div className="grid items-center gap-4 @min-[40rem]:grid-cols-[minmax(0,300px)_1fr] @min-[40rem]:gap-6">
+          <div className="grid items-center gap-4 @min-[34rem]/billing:grid-cols-[minmax(0,300px)_1fr] @min-[34rem]/billing:gap-6">
             {/* 실물 카드 모양. 카드사·카드 이름은 응답에 없어 "시연용 카드"로 쓴다 */}
             <div className="relative aspect-[1.586/1] w-full max-w-[300px] overflow-hidden rounded-lg bg-linear-135 from-ink-800 via-ink-900 to-brand-700 p-5 text-white shadow-lg">
               <span

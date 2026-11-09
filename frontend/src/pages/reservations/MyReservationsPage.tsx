@@ -99,7 +99,7 @@ export function MyReservationsPage() {
                     venueName: null,
                   })}
                   aria-label={ticketLinkName(item)}
-                  className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-25"
+                  className="group block rounded-[20px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-25"
                 >
                   <TicketRow item={item} />
                 </Link>
@@ -158,7 +158,7 @@ function TicketRow({ item }: { item: MyReservation }) {
   const ended = item.status !== 'CONFIRMED' && item.status !== 'HELD'
   const tone = STUB_TONE[item.status]
   return (
-    <div className="relative grid grid-cols-[84px_minmax(0,1fr)] overflow-hidden rounded-lg border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) group-hover:shadow-md @min-[40rem]:grid-cols-[104px_minmax(0,1fr)]">
+    <div className="relative grid grid-cols-[84px_minmax(0,1fr)] overflow-hidden rounded-[20px] border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) group-hover:shadow-md @min-[40rem]:grid-cols-[104px_minmax(0,1fr)]">
       <div
         aria-hidden="true"
         data-slot="ticket-stub"
