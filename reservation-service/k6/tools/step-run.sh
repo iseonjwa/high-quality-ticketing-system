@@ -137,6 +137,11 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,} k6_network=$K6_NETWORK base_url=$BASE_URL"
   # k6 메모리 상한과 종료 코드. k6_exit=137이면 k6가 상한에 닿아 죽은 회라 처리량을 쓰지 않는다
   echo "$(grep -oE 'k6_memory=[^ ]+ k6_gomemlimit=[^ ]+' "$PREFIX-k6.log" | head -1) $(grep -oE 'k6_exit=[0-9]+' "$PREFIX-k6.log" | tail -1)"
+  # 기기가 바뀌면 절대 수치가 달라져 단계끼리 비교할 수 없다. 어느 기기에서 잰 회인지 가리려고 남긴다
+  # (호스트 CPU·메모리: Windows Git Bash와 Linux는 /proc, macOS는 sysctl. Docker VM: docker info)
+  echo "host_cpu=$( (grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 || sysctl -n machdep.cpu.brand_string 2>/dev/null) | sed 's/^ *//; s/ /_/g')" \
+    "host_mem_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1024 )))" \
+    "docker=$(docker info --format '{{.ServerVersion}}_{{.OperatingSystem}}_{{.Architecture}}_cpus{{.NCPU}}_mem{{.MemTotal}}' 2>/dev/null | tr ' ' '_')"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"
 } > "$PREFIX-meta.txt"
 if [ "${OBSERVE_JFR:-0}" = 1 ]; then
