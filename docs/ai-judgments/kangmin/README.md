@@ -8,6 +8,25 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 측정 전 main 반영에 팀원 PR을 넣을지 묻자는 제안을 두고, 팀원 PR은 측정하지 않을 때 상황을 봐서 넘기기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-09-team-prs-not-in-freeze-merge.md) |
+| 2026-11-09 | 측정 모드 알림을 성능-모니터링 채널에 두지 않고 별도 채널로 옮기고, 배포 알림처럼 꾸미기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-09-measure-mode-alert-own-channel.md) |
+| 2026-11-09 | dev→main을 측정 전 한 번에 넘기는 대신, 시험용으로 먼저 넘기고 이후에 다시 넘기기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-main-merge-test-first.md) |
+| 2026-11-09 | 측정 모드를 켜고 끌 때 슬랙 자동 알림을 붙이기로 함(사람 알림만으로 두지 않음) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-measure-mode-slack-alert.md) |
+| 2026-11-09 | 기록 검사 훅 속도 개선(약 25배)을 변이 31가지 비교로 검증한 뒤 올리고, 한글 경로 표시 개선을 함께 넣음 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-records-check-25x-faster.md) |
+| 2026-11-09 | 이슈·PR·코멘트를 평서체 지시형으로 쓴 것을 건방지다고 지적하고 공손한 합니다체로 바꾸게 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-09-polite-tone-for-issues-and-prs.md) |
+| 2026-11-09 | 에이전트 k6 실행 토큰 과다(진행 표시줄 출력)와 느린 기록 검사 훅 진단을 중 k6 출력 건만 이슈로 올리기로 함(ISE-219) | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-agent-token-k6-output-and-hook.md) |
+| 2026-11-09 | 측정 모드를 AWS 담당 한 명이 아니라 측정자가 직접 켜고 끄고, 시작·끝 알림으로 겹침을 막기로 함 | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-09-measure-mode-by-measurer.md) |
+| 2026-11-09 | AWS 담당 동의로 ISE-216(서버 추첨 생성 + k6 ID 전달)을 강민이 넘겨받아 처리하기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-ise216-take-over-after-aws-owner-ok.md) |
+| 2026-11-09 | L1~L3 ID 모드에서 일반 판매 회차를 SALE_SCHEDULE_ID로 나누고 회차 ID만 주면 실패하게 둠 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-k6-sale-schedule-id-split.md) |
+| 2026-11-09 | herdr 지휘자 운영을 잠시 멈췄다가, 판단은 앱·실행은 herdr 지휘자로 나눠 다시 쓰기로 함 | Claude Code | 부분 수용 | 아니오 | 아님 | [기록](2026-11-09-herdr-conductor-hold-one-at-a-time.md) |
+| 2026-11-09 | 배포 측정에서 L1~L3 관리자 로그인 문제를 서버 추첨 생성 + k6 ID 전달(1안)로 풀고 AWS 담당 리뷰를 받기로 함(ISE-216) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-loadtest-lottery-seed-on-server.md) |
+| 2026-11-09 | 자동결제 겹침 contract 이슈를 추천안 하나로 좁히지 않고 모든 선택지·트레이드오프를 담아 결제 담당과 고르기로 함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-09-billing-overlap-issue-all-options.md) |
+| 2026-11-09 | 입장 토큰 만료 시점으로 결제 완료 대신 좌석 선점 성공 시점을 고름 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-entry-token-consume-on-hold.md) |
+| 2026-11-09 | 부하 발생기 EC2 안내가 1인용 구성이라 팀 공용(팀원 IP·키, 각자 폴더, 한 번에 한 측정)으로 바꾸게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-09-loadgen-shared-by-team.md) |
+| 2026-11-09 | 위클리 스크럼 "지난주 목표 및 일정" 초안이 작업 나열이라 주간 리뷰에 맞지 않는다고 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-09-weekly-scrum-last-week-section.md) |
+| 2026-11-08 | 커넥션 대기 1초 동의와 추첨 시나리오 L1~L3 검토 의견을 AI 초안 그대로 Linear에 올림 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-08-connection-timeout-and-lottery-scenario-review.md) |
+| 2026-11-08 | 서버 측정을 11/13 재가동 뒤로 두자는 일정안 거부, 11/9에 서버를 켬 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-08-server-start-tomorrow.md) |
+| 2026-11-06 | EC2 종료 동작 설명이 틀린 것 아니냐고 지적했고, 사실 오류가 아니라 용어 혼동으로 정리함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-06-ec2-stop-vs-terminate-wording.md) |
 | 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-06-ise25-final-comparison-on-deploy.md) |
 | 2026-11-06 | K1 local 결과를 ISE-25 기준선으로 인정하자는 제안을 측정 대상이 다르다는 이유로 거부함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-06-ise25-baseline-not-k1.md) |
 | 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-05-payment-job-label-task.md) |
@@ -70,6 +89,8 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) |
+| 2026-11-08 | [daily/2026-11-08.md](daily/2026-11-08.md) |
 | 2026-11-06 | [daily/2026-11-06.md](daily/2026-11-06.md) |
 | 2026-11-05 | [daily/2026-11-05.md](daily/2026-11-05.md) |
 | 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |
