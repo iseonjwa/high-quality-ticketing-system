@@ -30,6 +30,9 @@
 | 2026-11-09 | Spring AI는 어떤 프레임워크이고, 쓰면 무엇이 좋은가 (우리 챗봇과 비교) | [qna/2026-11-09-spring-ai-what-and-why.md](qna/2026-11-09-spring-ai-what-and-why.md) |
 | 2026-11-09 | 예매 문의 챗봇(ISE-126)은 어떻게 구현돼 있나, 왜 별도 모듈인가 | [qna/2026-11-09-assistant-chatbot-structure.md](qna/2026-11-09-assistant-chatbot-structure.md) |
 | 2026-11-09 | ISE-169 결제 TX1 커밋 응답 유실은 무엇이고, 왜 "재시도가 이어받기" 원안으로는 풀리지 않나 | [qna/2026-11-09-tx1-commit-response-loss.md](qna/2026-11-09-tx1-commit-response-loss.md) |
+| 2026-11-08 | 실제 티켓 서비스는 매크로와 직접 API 호출을 어떻게 막나 | [qna/2026-11-08-production-ticketing-anti-bot-layers.md](qna/2026-11-08-production-ticketing-anti-bot-layers.md) |
+| 2026-11-08 | 프론트를 거치는 사람은 API를 직접 쏘는 사람보다 대기열에 늦게 서지 않나 | [qna/2026-11-08-queue-fairness-frontend-vs-direct-api.md](qna/2026-11-08-queue-fairness-frontend-vs-direct-api.md) |
+| 2026-11-08 | 오픈 시각이 되면 새로고침 없이 [예매하기]가 켜지는 것을 어떻게 구현했나 | [qna/2026-11-08-open-countdown-button-without-refresh.md](qna/2026-11-08-open-countdown-button-without-refresh.md) |
 | 2026-11-08 | 접수형(async) 좌석 선점은 무엇이고, 왜 하며, 지금 어디까지 왔나 | [qna/2026-11-08-async-seat-hold-what-and-why.md](qna/2026-11-08-async-seat-hold-what-and-why.md) |
 | 2026-11-05 | EC2에 직접 올리는 것 말고, HTTPS까지 알아서 붙여 주는 AWS 서비스(Lightsail 등)는 무엇이 있나 | [qna/2026-11-05-aws-managed-https-options.md](qna/2026-11-05-aws-managed-https-options.md) |
 | 2026-11-05 | 외부에서 IP로 프론트가 안 열린다는데 왜이고, HTTPS는 무료로 달 수 있나 | [qna/2026-11-05-why-front-unreachable-by-ip.md](qna/2026-11-05-why-front-unreachable-by-ip.md) |
