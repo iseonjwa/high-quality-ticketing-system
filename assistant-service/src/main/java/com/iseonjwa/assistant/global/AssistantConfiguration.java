@@ -2,9 +2,12 @@ package com.iseonjwa.assistant.global;
 
 import com.iseonjwa.assistant.answer.AssistantService;
 import com.iseonjwa.assistant.knowledge.KnowledgeBase;
+import com.iseonjwa.assistant.limit.DailyBudget;
 import com.iseonjwa.assistant.limit.UserRateLimiter;
+import com.iseonjwa.assistant.llm.LlmClient;
 import com.iseonjwa.assistant.retrieval.Retriever;
 import com.iseonjwa.common.web.CommonWebConfiguration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +17,7 @@ import java.time.Clock;
 import java.time.ZoneId;
 
 @Configuration(proxyBeanMethods = false)
-@Import(CommonWebConfiguration.class)
+@Import({CommonWebConfiguration.class, AnthropicConfiguration.class})
 @EnableConfigurationProperties(AssistantProperties.class)
 class AssistantConfiguration {
     @Bean
@@ -38,7 +41,14 @@ class AssistantConfiguration {
     }
 
     @Bean
-    AssistantService assistantService(Retriever retriever, UserRateLimiter rateLimiter) {
-        return new AssistantService(retriever, rateLimiter);
+    DailyBudget dailyBudget(Clock clock, AssistantProperties properties) {
+        return new DailyBudget(clock, properties.llm().dailyLimit());
+    }
+
+    @Bean
+    AssistantService assistantService(Retriever retriever, UserRateLimiter rateLimiter, DailyBudget dailyBudget,
+            ObjectProvider<LlmClient> llm, AssistantProperties properties) {
+        return new AssistantService(retriever, rateLimiter, dailyBudget, llm.getIfAvailable(),
+                properties.llm().maxConcurrent());
     }
 }
