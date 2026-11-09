@@ -91,6 +91,10 @@ bash "$K6/tools/create-schedule.sh" "k6 $STEP prime" >/dev/null 2>&1 || true
 WARMUP_SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP warmup")"
 SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
 export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS WARMUP_RATE TOKEN_MODE=sign LABEL="$STEP-$KIND"
+# Note: k6는 compose 네트워크 안에서 Gateway를 직접 부른다. host.docker.internal로 부르면 830KB 좌석 응답이 호스트의
+# Docker 포트 전달(com.docker.backend)을 거쳐 다시 VM으로 들어오는데, P4b에서 서버가 빨라지자 이 경로가 먼저 막혔다(STEPS.md P4b 실측 4차).
+# 측정 대상은 Gateway부터이므로 부하 생성기와 Gateway 사이 경로는 측정에서 뺀다
+export K6_NETWORK="${K6_NETWORK:-iseonjwa_default}" BASE_URL="${BASE_URL:-http://gateway:8080}"
 echo "[$STEP-$KIND] 측정 회차 $SCHEDULE_ID, 워밍업 회차 $WARMUP_SCHEDULE_ID"
 
 mkdir -p "$K6/results"
@@ -130,7 +134,7 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none}"
   echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
-  echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,}"
+  echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,} k6_network=$K6_NETWORK base_url=$BASE_URL"
   # k6 메모리 상한과 종료 코드. k6_exit=137이면 k6가 상한에 닿아 죽은 회라 처리량을 쓰지 않는다
   echo "$(grep -oE 'k6_memory=[^ ]+ k6_gomemlimit=[^ ]+' "$PREFIX-k6.log" | head -1) $(grep -oE 'k6_exit=[0-9]+' "$PREFIX-k6.log" | tail -1)"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"

@@ -40,9 +40,13 @@ echo "k6_memory=$K6_MEMORY k6_gomemlimit=$K6_GOMEMLIMIT"
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
 # Note: --memory-swap을 --memory와 같게 둬야 스왑으로 넘치지 않고 상한에서 멈춘다
+# K6_NETWORK를 주면 k6를 그 Docker 네트워크에 붙인다. 이때 BASE_URL은 http://gateway:8080처럼 서비스 이름으로 준다
+NETWORK_ARGS=()
+[ -n "${K6_NETWORK:-}" ] && NETWORK_ARGS=(--network "$K6_NETWORK")
+echo "k6_network=${K6_NETWORK:-host} base_url=${BASE_URL:-http://host.docker.internal:8080}"
 set +e
 MSYS_NO_PATHCONV=1 docker run --rm \
-  --name "k6-${LABEL:-run}-${STAMP}" \
+  --name "k6-${LABEL:-run}-${STAMP}" "${NETWORK_ARGS[@]}" \
   --memory "$K6_MEMORY" --memory-swap "$K6_MEMORY" -e GOMEMLIMIT="$K6_GOMEMLIMIT" \
   -v "$K6_DIR:/scripts" \
   -e BASE_URL="${BASE_URL:-http://host.docker.internal:8080}" \
