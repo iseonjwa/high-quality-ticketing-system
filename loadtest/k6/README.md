@@ -19,12 +19,14 @@
 | `lib/lottery.js` | 추첨 설정, 응모 요청, 응모·빌링키 묶음 준비 |
 | `compose.queue-hold.yml` | Q2·G1용 덮어쓰기. reservation-service의 입장 스케줄러를 끈다. 배포 서버에서는 `measure-mode.sh on`에 인자로 준다 |
 | [`../deploy/compose.measure.yml`](../deploy/compose.measure.yml) | 배포 서버 측정 모드 덮어쓰기. 추적 샘플링 0.01, Prometheus remote write 수신과 9090 |
+| [`../deploy/compose.seat-before.yml`](../deploy/compose.seat-before.yml) | S1 개선 전 측정용 덮어쓰기. reservation-service 이미지만 P4a 이전 릴리스(4544d1a)로 바꾼다. `measure-mode.sh on`에 인자로 준다 |
 | `compose.mockpg-loadtest.yml` | PAY1·R1·L2용 덮어쓰기. local mock-pg를 `local,loadtest` 프로필로 띄워 장애 주입 API를 연다 |
 | `compose.expiry-on.yml` | X1용 덮어쓰기. 배포 메모리 덮어쓰기가 끈 선점 만료 스케줄러를 다시 켠다 |
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
+| `scenarios/q1d-queue-burst.js` | Q1-d 오픈 순간 몰림. 사용자 수만큼 VU를 미리 두고, 같은 출발 시각부터 `ENTER_SPREAD_SECONDS` 안에 앞쪽이 붐비게 한 번씩 진입한다 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |
 | `scenarios/g1-gateway-auth.js` | G1 Gateway 인증 경로. 순번 조회에 초당 요청을 단계적으로 올린다 |
 | `scenarios/q3-admission.js` | Q3 입장 속도 유지. 입장 스케줄러를 켠 채 READY가 되면 입장 토큰을 받고 끝낸다 |
@@ -36,6 +38,8 @@
 | `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
 | `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
 | `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다 |
+| `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
+| `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력. 커밋하지 않는다 |
 
 시나리오 상태:
@@ -43,6 +47,7 @@
 | ID | 스크립트 | 상태 |
 |---|---|---|
 | Q1 | `scenarios/q1-queue-enter.js` | 있음. 2026-11-05 local에서 300명으로 동작 확인(오류 0, 순번 300 = 고유 사용자 300) |
+| Q1-d | `scenarios/q1d-queue-burst.js` | 있음(ISE-217). 2026-11-09 local 100명·1초: 201 100건, 오류 0, `send_lag` p95 1.7ms, 순번 100 = 고유 사용자 100. 300명·0.1초와 300명·1초는 Gateway 인증 Redis 차단기(`auth-redis`)가 열려 503이 68~93%였다. 노트북 한계로 보고 Q1과의 비교는 배포 서버에서 한다 |
 | Q2 | `scenarios/q2-queue-poll.js` | 있음. 2026-11-05 local에서 대기자 1,000명·60초로 동작 확인(폴링 8,638건 모두 200, p95 10ms) |
 | G1 | `scenarios/g1-gateway-auth.js` | 있음. 2026-11-05 local에서 초당 50 → 100건·각 10초로 동작 확인(오류 0, p95 11ms) |
 | Q3 | `scenarios/q3-admission.js` | 있음. 2026-11-05 local 대기자 1,000명·60초: 1,000명 모두 토큰 발급, 오류 0, 토큰 발급 p95 15ms. 입장 수는 초당 50씩 늘었다 |
@@ -54,6 +59,8 @@
 | L2 | `scenarios/l2-lottery-billing.js` | 있음. 2026-11-05 local 응모 300명, 추첨석 60석, PG 300ms: 추첨 뒤 약 10초에 당첨 39명, 그 뒤 약 20초 안에 39명 모두 배정·결제(PAID) |
 | L3 | `scenarios/l3-lottery-interference.js` | 있음. 2026-11-05 local 선점 초당 10명, 응모 300명: 선점 p95 추첨 전 28ms, 중 30ms, 후 23ms, 오류 0 |
 | O1 | `scenarios/o1-open-peak.js` | 있음. 2026-11-05 local 사용자 200명(오픈 전 40초, 오픈 뒤 120초): 확정 180, 결제 전 이탈 18(설정 10%), 오류 2. 좌석 조회 p95 4.15초로 가장 느렸다(K1과 같은 병목) |
+| S1 | `scenarios/s1-seat-query.js` | 있음(ISE-189). 로컬(노트북 1대)에서 같은 방식으로 잰 단계별 결과는 ISE-189에 있다. 배포 서버 측정 전 |
+| B1-d | `scenarios/b1d-concert-detail.js` | 있음. 2026-11-06 local(같은 방식, 공연 상세 하나)에서 초당 10~400건으로 잰 결과는 개인 기록에 있다. 배포 서버 측정 전 |
 
 ## 2. 실행
 
@@ -64,7 +71,14 @@ Docker Desktop과 Gateway(`localhost:8080`)가 떠 있어야 한다. 저장소 �
 bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 # 짧게 확인: 300명, 10%가 연타
 USERS=300 DUP_RATIO=0.1 USER_ID_BASE=5000000 bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
+# Q1-d: 5,000명이 오픈 1초 뒤부터 1초 안에 앞쪽이 붐비게 진입(기본값)
+bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
+# 짧게 확인: 100명, 1초
+USERS=100 ENTER_SPREAD_SECONDS=1 USER_ID_BASE=6000000 bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 ```
+
+- `run.sh`는 k6 진행 표시줄을 기본으로 끈다(`--quiet`). 터미널이 아닌 곳에서는 진행 표시줄이 1초마다 새 줄로 찍혀 출력의 9할을 넘기기 때문이다(ISE-219). 화면에는 `setup()` 로그와 마지막 요약만 나온다. 진행 상황을 보려면 앞에 `K6_PROGRESS=1`을 붙인다.
+- 에이전트에게 결과를 읽힐 때는 stdout 전체가 아니라 `results/<이름>-summary.json`이나 stdout 끝부분(`tail -n 60`)만 읽게 한다.
 
 Q2·G1은 입장 스케줄러를 끈 상태에서 잰다. 끄지 않으면 Q2의 setup이 측정을 시작하지 않는다.
 
@@ -141,9 +155,12 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 발생기 EC2에서는 Gateway 사설 주소 |
 | `TOKEN_MODE` | `sign` | k6가 토큰을 직접 서명한다. 배포는 측정 모드의 측정 전용 키를 발생기 `.env`에 두고 쓴다(아래 "배포 서버 측정") |
 | `USER_ID_BASE` | 1000000 | 가상 사용자 ID 시작값 |
-| `SCHEDULE_ID` | 없음 | Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
+| `SCHEDULE_ID` | 없음 | 측정 대상 회차. Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). L1~L3: 선택이며, 주면 `LOTTERY_ID` 추첨의 회차와 같은지 확인한다(오타 방지). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
+| `LOTTERY_ID` | 없음 | L1~L3: 서버에서 만든 추첨(상태 `OPEN`). 주면 관리자 로그인과 회차·추첨 만들기를 건너뛰고, 로그인 없는 추첨 조회로 회차와 응모·추첨 시각을 읽는다. 이때 `START_IN_SECONDS`·`SEAT_COUNT`·`WAITLIST_COUNT`·`DRAW_AFTER_SECONDS`는 쓰지 않는다(서버에서 만들 때 정해진다). 회차 ID만 주고 `LOTTERY_ID`를 빼면 실패한다 |
+| `SALE_SCHEDULE_ID` | 없음 | L2-b(`PAY_RATE > 0`)·L3: 추첨 회차와 다른, 판매 중인 일반 판매 회차. `LOTTERY_ID`를 줄 때 반드시 같이 준다. L1·L2-a에 주면 실패한다 |
 | `USERS` / `ENTER_SECONDS` | 30000 / 10 | Q1: 진입할 사용자 수와 그 시간(초). 초당 속도는 둘을 나눈 값 |
 | `DUP_RATIO` / `REPEAT` | 0 / 3 | Q1-c: 연타하는 사용자 비율과 횟수 |
+| `USERS` / `ENTER_SPREAD_SECONDS` (Q1-d) | 5000 / 1 | Q1-d: 사용자 수(= VU 수)와, 출발 시각부터 마지막 사용자가 출발할 때까지의 시간(초). 앞쪽이 가장 붐비는 삼각 분포로 흩는다 |
 | `OPEN_IN_SECONDS` | 40 | 회차를 만든 뒤 오픈까지. 회차 캐시 갱신(30초)보다 길어야 진입이 캐시를 탄다 |
 | `PRE_VUS` / `MAX_VUS` | Q1: 초당 속도(최대 2000) / 5000, G1: 500 / 3000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `DURATION_SECONDS` / `VUS` | 600 / 300 | Q2: 측정 시간과 VU 수. `USERS`가 `VUS`로 나누어떨어져야 한다 |
@@ -153,10 +170,10 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `ENTER_RATE` | 0 | B1-b: 같이 걸 초당 대기열 진입 수 |
 | `PG_DELAY_MS` | O1·PAY1·L2 300, R1 0 | Mock PG 승인 지연(ms). 기준 지연은 300ms다(open-peak-load-plan.md 8절 4번, 2026-11-08). R1은 승인 → 확정 지연만 보려고 0이다. 끝나면 teardown이 0으로 되돌린다 |
 | `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경은 비우고 서버 안에서 따로 건다) |
-| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://<배포 서버 사설 IP>:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
+| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://172.31.4.93:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
 | `CONFIRM_POLL_SECONDS` / `CONFIRM_MAX_POLLS` | 0.5 / 10 | R1: 확정 확인 간격과 횟수 |
 | `EXPIRING` / `RATE` | 5000 / 100 | X1: 만료시킬 선점 수, 측정 중 초당 선점 사용자 수(L3도 `RATE`를 쓴다) |
-| `START_IN_SECONDS` | 15 | L1: 추첨을 만든 뒤 응모 시작까지 |
+| `START_IN_SECONDS` | L1: 15, Q1-d: 5 | L1: 추첨을 만든 뒤 응모 시작까지. Q1-d: `SCHEDULE_ID`를 줄 때 setup이 끝나고 출발까지 |
 | `ENTRANTS` / `SEAT_COUNT` / `WAITLIST_COUNT` | 30000 / 3000 / 1000 | L2·L3: 응모자 수, 추첨석, 예비자 수 |
 | `PAY_RATE` | 0 | L2-b: 같이 걸 초당 일반 결제 수 |
 | `PG_MODE` / `DECLINE_RATE` | `delay` / 0.05 | L2: `delay`는 승인 지연 `PG_DELAY_MS`, `decline`은 승인의 일부를 거절. Mock PG는 호출 종류마다 규칙이 하나라 둘을 같이 걸 수 없다 |
@@ -170,9 +187,27 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 
 배포 서버를 재는 날의 순서는 [`deploy-server-access.md`](../../docs/guides/deploy-server-access.md) 5-5절, 설계는 [`load-test.md`](../../docs/design/infra/load-test.md) 5절이다. 여기에는 k6 쪽만 적는다. 발생기에서 저장소 루트로 `cd`한 뒤 쓴다.
 
+팀 공용 발생기를 쓰는 규칙(한 번에 한 명, 팀 채널 알림, 각자 폴더 `~/<영문 이름>/iseonjwa`, 시작·끝 체크리스트)은 [`loadgen.md`](../../docs/guides/loadgen.md)에 있다. 주소는 사설 IP `172.31.4.93`만 쓴다. 공인 IP로 보내면 전송 요금이 붙고 보안 그룹에도 막힌다.
+
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
-**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를 줘서 이 단계를 건너뛴다. 그 밖의 시나리오(B1, G1, PAY1, R1, X1, L1~L3, O1)는 아직 `SCHEDULE_ID`를 받지 않거나 공연·추첨을 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). 그 밖의 시나리오(B1, G1, PAY1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+
+**L1~L3 추첨 준비**(서버에서 만들 때 맞출 시각):
+
+| 측정 | 서버에서 준비 | 응모 기간 | k6 |
+|---|---|---|---|
+| L1 응모 몰림 | 추첨 1개 | 측정 시간(기본 단계 4개 × 65초 = 약 260초)보다 길게. 짧으면 setup이 실패한다 | `LOTTERY_ID=<id> ... l1-lottery-entry.js` |
+| L2-a 자동결제 | 추첨 1개(좌석·예비 수 포함) | 빌링키 등록과 응모(`ENTRANTS`명, 초당 약 200건 가정)를 마감 전에 끝낼 만큼 | `LOTTERY_ID=<id> ... l2-lottery-billing.js` |
+| L2-b 간섭 | L2-a와 같은 추첨 + 판매 중인 다른 회차 | L2-a와 같음 | `LOTTERY_ID=<id> SALE_SCHEDULE_ID=<id> PAY_RATE=<n> ... l2-lottery-billing.js` |
+| L3 추첨·선점 간섭 | 추첨 1개 + 판매 중인 다른 회차 | L2-a와 같음. 추첨 시각은 응모 마감 뒤 측정 중에 오게 | `LOTTERY_ID=<id> SALE_SCHEDULE_ID=<id> ... l3-lottery-interference.js` |
+
+추첨은 배포 서버에서 `seed-demo.sh lottery`로 만든다. 마지막 두 줄에 나오는 `LOTTERY_ID`를 k6에 넘긴다(`SCHEDULE_ID`는 확인용으로 함께 줘도 된다). 회차 일반 오픈이 실행 시각 + 1시간이라 응모 시작은 그 안이어야 하므로 측정 직전에 만든다. 추첨석·예비 수·1인 매수는 `LOTTERY_SEAT_COUNT`(3000)·`LOTTERY_WAITLIST_COUNT`(1000)·`LOTTERY_MAX_PER_ENTRY`(2)로 바꾼다. L2-b·L3의 판매 중인 회차(`SALE_SCHEDULE_ID`)는 `seed-demo.sh open`으로 만든 회차를 쓴다.
+
+```bash
+# 배포 서버에서: 2분 뒤 응모 시작, 7분 동안 응모, 마감 1분 뒤 추첨
+ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh lottery "$(date -u -d "+2 minutes" +%Y-%m-%dT%H:%M:%SZ)" "$(date -u -d "+9 minutes" +%Y-%m-%dT%H:%M:%SZ)" "$(date -u -d "+10 minutes" +%Y-%m-%dT%H:%M:%SZ)"'
+```
 
 **Q1~Q3 회차 준비**: 배포 서버에서 관리자 도구로 회차를 하나 만든다. 오픈 시각이 이미 지난 회차를 만들면 바로 측정할 수 있다. 회차 캐시 갱신(30초)이 있으므로 측정 1분 전에는 만든다. 시나리오마다 새 회차를 쓴다(앞 시나리오의 대기자가 남아 있으면 순번이 섞인다).
 
@@ -184,7 +219,7 @@ ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "-5
 **실행**(발생기에서). `BASE_URL`은 Gateway 사설 주소, `MOCK_PG_URL`은 비워 발생기에서 Mock PG를 부르지 않게 한다.
 
 ```bash
-export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://<배포 서버 사설 IP>:9090/api/v1/write
+export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://172.31.4.93:9090/api/v1/write
 SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 ```
 
@@ -193,6 +228,18 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | Q1 대기열 진입 | `measure-mode.sh on` | Q1용 새 회차 | `SCHEDULE_ID=<id> ... q1-queue-enter.js` |
 | Q2 순번 폴링 | `measure-mode.sh on loadtest/k6/compose.queue-hold.yml` (입장 스케줄러 끔) | Q2용 새 회차 | `SCHEDULE_ID=<id> ... q2-queue-poll.js` |
 | Q3 입장 속도 | `measure-mode.sh on` (덮어쓰기 파일 없이 다시. 스케줄러 켬) | Q3용 새 회차 | `SCHEDULE_ID=<id> ... q3-admission.js`. 입장 기록은 아래 도구 |
+| S1 좌석 조회(현재 배포) | `measure-mode.sh on` | 15,000석 회차(`seed-demo.sh open`) | 아래 S1 명령. 초당 50·150·200·300을 차례로 |
+| S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
+| B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
+
+S1·B1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
+
+```bash
+# S1 좌석 조회 (발생기에서)
+BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> RATE=50 bash loadtest/k6/run.sh scenarios/s1-seat-query.js
+# B1-d 공연 상세 (발생기에서)
+BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write CONCERT_ID=<공연 id> RATE=100 bash loadtest/k6/run.sh scenarios/b1d-concert-detail.js
+```
 
 `measure-mode.sh on`은 인자로 준 파일이 전체 목록이다. Q2에서 Q3로 넘어갈 때 `queue-hold.yml` 없이 다시 실행하면 reservation-service가 다시 만들어지며 스케줄러가 켜진다. `.env.measure`의 키는 그대로라 발생기 `.env`를 다시 옮기지 않아도 된다. reservation-service가 다시 뜬 뒤 30초 넘게 기다렸다가 잰다.
 

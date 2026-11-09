@@ -15,10 +15,11 @@ import { savePaymentAttempt } from '@/auth/paymentAttempts'
 import { mockDb, toKstIso } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, kstParts } from '@/lib/format'
 import {
   readReservationHeading,
   reservationNavigationState,
+  type ReservationHeading,
 } from '@/pages/reservations/reservationNavigation'
 import { recordRequests, SEAT_A1, SEAT_A2, signInAsDemo } from '@/test/api'
 import { seedReservation } from '@/test/reservations'
@@ -40,7 +41,7 @@ afterEach(() => {
 
 interface RenderOptions {
   variant?: 'complete' | 'detail'
-  heading?: typeof HEADING | null
+  heading?: ReservationHeading | null
   // 화면을 그리기 전에 조회 캐시에 넣어 둘 값(결제 화면이 확정 뒤 넣고 오는 값)
   primed?: ReservationDetail
 }
@@ -59,12 +60,12 @@ function renderReservation(reservationId: number | string, options: RenderOption
   if (primed) {
     queryClient.setQueryData(reservationQueryKeys.detail(primed.reservationId), primed)
   }
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  return { router, queryClient }
+  return { router, queryClient, unmount: view.unmount }
 }
 
 function linkNamed(name: string) {
@@ -107,8 +108,13 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
     ).toBeInTheDocument()
-    expect(screen.getByText(HEADING_LINE)).toBeInTheDocument()
+    // 머리에는 예매 번호, 공연 제목·일시·공연장은 티켓에 있다
+    expect(screen.getByText(`예매 번호 ${reservation.reservationNo}`)).toBeInTheDocument()
     const tickets = screen.getByRole('region', { name: '티켓 2매' })
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(
+      within(tickets).getByText(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`),
+    ).toBeInTheDocument()
     const items = within(tickets).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('A구역 1열 1번')
@@ -132,17 +138,16 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(screen.queryByText(HEADING.title)).not.toBeInTheDocument()
   })
 
-  it('공연장 이름이 없는 값(내 예매 목록에서 넘김)이면 제목과 일시만 한 줄로 보인다', async () => {
+  it('공연장 이름이 없는 값(내 예매 목록에서 넘김)이면 티켓의 일시 줄에 일시만 보인다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, {
       variant: 'complete',
       heading: { ...HEADING, venueName: null },
     })
 
-    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
-    expect(
-      screen.getByText(`${HEADING.title} · ${formatDateTime(HEADING.startsAt)}`),
-    ).toBeInTheDocument()
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(within(tickets).getByText(formatDateTime(HEADING.startsAt))).toBeInTheDocument()
   })
 
   it('헤더 예매 단계가 "완료"를 현재 단계로 표시한다', async () => {
@@ -225,40 +230,45 @@ function confirmedDetail(
   }
 }
 
-// 좌석 티켓의 꾸밈 바코드(티켓 번호로 그린다)
-const barcodeOf = (ticket: HTMLElement) => ticket.querySelector('svg[preserveAspectRatio="none"]')
+// 떼는 칸의 꾸밈 바코드(예매 번호로 그린다). 넓은 화면용과 좁은 화면용이 하나씩 있다
+const barcodesOf = (ticket: HTMLElement) =>
+  Array.from(ticket.querySelectorAll('[data-slot="ticket-barcode"]'))
 
 describe('ReservationPage 티켓 카드', () => {
-  it('좌석 수만큼 티켓 카드를 두고 "Ticket n/N"으로 번호를 매긴다', async () => {
+  it('한 장짜리 티켓에 "ADMIT n"과 좌석마다 한 줄(좌석·등급·가격)을 둔다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    const cards = within(tickets).getAllByRole('listitem')
-    expect(cards).toHaveLength(2)
-    expect(cards[0]).toHaveTextContent('Ticket 1/2')
-    expect(cards[1]).toHaveTextContent('Ticket 2/2')
-    expect(cards[0]).toHaveTextContent('VIP')
-    expect(cards[0]).toHaveTextContent('A구역 1열 1번')
-    expect(cards[1]).toHaveTextContent('A구역 1열 2번')
+    expect(tickets).toHaveTextContent('ADMIT 2')
+    const rows = within(tickets).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('A구역 1열 1번')
+    expect(rows[0]).toHaveTextContent('VIP석')
+    expect(rows[0]).toHaveTextContent('165,000원')
+    expect(rows[1]).toHaveTextContent('A구역 1열 2번')
   })
 
-  it('티켓 번호가 있으면 글자로 보이고 꾸밈 바코드를 함께 그린다(낭독에서는 뺀다)', async () => {
+  it('티켓 번호는 좌석 줄에 글자로 보이고, 꾸밈 바코드는 떼는 칸에만 그린다(낭독에서는 뺀다)', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    for (const [index, card] of within(tickets).getAllByRole('listitem').entries()) {
+    for (const [index, row] of within(tickets).getAllByRole('listitem').entries()) {
       const seatId = [SEAT_A1, SEAT_A2][index]
-      expect(card).toHaveTextContent(`티켓 번호 T${reservation.reservationId}-${seatId}`)
-      const barcode = barcodeOf(card)
-      expect(barcode).not.toBeNull()
-      expect(barcode).toHaveAttribute('aria-hidden', 'true')
-      expect(barcode!.querySelectorAll('rect').length).toBeGreaterThan(0)
+      expect(row).toHaveTextContent(`티켓 번호 T${reservation.reservationId}-${seatId}`)
+      expect(barcodesOf(row)).toHaveLength(0)
+    }
+    const barcodes = barcodesOf(tickets)
+    expect(barcodes).toHaveLength(2)
+    for (const barcode of barcodes) {
+      // svg 자신도 aria-hidden이라, 감싼 떼는 칸(날짜 포함)이 낭독에서 빠지는지 부모부터 본다
+      expect(barcode.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull()
+      expect(barcode.querySelectorAll('rect').length).toBeGreaterThan(0)
     }
   })
 
-  it('티켓 번호가 없는 좌석은 번호도 바코드도 없고 좌석과 가격만 보인다', async () => {
+  it('티켓 번호가 없는 좌석은 번호 없이 좌석·등급·가격만 보인다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     // 두 좌석 중 첫 좌석의 티켓만 발급된 응답
     const detail = confirmedDetail(reservation, [
@@ -268,22 +278,40 @@ describe('ReservationPage 티켓 카드', () => {
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
     const [issued, notIssued] = within(tickets).getAllByRole('listitem')
-    expect(barcodeOf(issued)).not.toBeNull()
+    expect(issued).toHaveTextContent('티켓 번호')
     expect(notIssued).not.toHaveTextContent('티켓 번호')
-    expect(barcodeOf(notIssued)).toBeNull()
     expect(notIssued).toHaveTextContent('A구역 1열 2번')
+    expect(notIssued).toHaveTextContent('VIP석')
     expect(notIssued).toHaveTextContent('165,000원')
   })
 
-  it('화면 이동 값이 있으면 카드마다 공연 제목과 일시·공연장을 얹고, 없으면 얹지 않는다', async () => {
+  it('화면 이동 값이 있으면 공연 제목과 일시·공연장을 한 번 보이고, 떼는 칸에 공연 날짜를 둔다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'detail', heading: HEADING })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    for (const card of within(tickets).getAllByRole('listitem')) {
-      expect(card).toHaveTextContent(HEADING.title)
-      expect(card).toHaveTextContent(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`)
-    }
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(
+      within(tickets).getByText(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`),
+    ).toBeInTheDocument()
+    const { month, day } = kstParts(HEADING.startsAt)
+    expect(within(tickets).getAllByText(`${month}.${day}`)).toHaveLength(2)
+  })
+
+  it('화면 이동 값에 공연 번호가 있을 때만 포스터를 붙인다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    const view = renderReservation(reservation.reservationId, {
+      variant: 'complete',
+      heading: { ...HEADING, concertId: 7 },
+    })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(tickets.querySelector('img')).not.toBeNull()
+    view.unmount()
+
+    renderReservation(reservation.reservationId, { variant: 'complete', heading: HEADING })
+    const plain = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(plain.querySelector('img')).toBeNull()
   })
 
   it('화면 이동 값이 없으면 카드에 공연 제목이 없다', async () => {

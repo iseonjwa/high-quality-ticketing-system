@@ -44,6 +44,21 @@ compactor:
   retention_enabled: true
   delete_request_store: filesystem
 
+# 건별 알림 규칙(infra/loki/rules, ISE-183)을 평가해 Alertmanager로 보낸다. 규칙 파일은 compose가 테넌트 폴더(fake)로 읽기 전용
+# 마운트한다. 인증이 꺼져 있으면 테넌트 ID가 fake다. rule_path는 평가 중 쓰는 임시 위치이고 /loki 볼륨 안이다.
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true
+  evaluation_interval: 1m
+  ring:
+    kvstore:
+      store: inmemory
+
 # 사용 통계를 외부로 보내지 않는다.
 analytics:
   reporting_enabled: false

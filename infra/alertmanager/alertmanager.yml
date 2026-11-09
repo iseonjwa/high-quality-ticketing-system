@@ -10,6 +10,13 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    # 건별 알림(Loki 규칙, ISE-183): event 라벨이 있는 알림은 결제 한 건마다 한 메시지로 한 번만 보낸다. 아래 immediate 경로가
+    # urgency=immediate까지 같이 갖고 있어 먼저 가려야 하므로 위에 둔다. 해결 메시지는 보내지 않는다(수신자 slack-monitoring-event).
+    - matchers: ['event=~".+"']
+      receiver: slack-monitoring-event
+      group_by: [alertname, env, paymentId, reservationId, refundId, rule, eventKey]
+      group_wait: 10s
+      repeat_interval: 24h
     # 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태(urgency=immediate)는 더 자주 다시 알린다.
     - matchers: ['urgency="immediate"']
       receiver: slack-monitoring
@@ -28,7 +35,8 @@ templates:
 receivers:
   - name: slack-monitoring
     slack_configs:
-      - api_url_file: /etc/alertmanager/slack-monitoring-url
+      - &slack_config
+        api_url_file: /etc/alertmanager/slack-monitoring-url
         # 슬랙은 기본값이 false라 켜야 해결 알림이 간다.
         send_resolved: true
         color: '{{ template "iseonjwa.slack.color" . }}'
@@ -50,3 +58,8 @@ receivers:
           - title: 바로 가기
             value: '<http://localhost:3000/d/iseonjwa-payment|결제 대시보드> · <http://localhost:9090/alerts|Prometheus 알림> · <http://localhost:9093|Alertmanager>'
             short: false
+  # 건별 알림 수신자. 같은 슬랙 설정을 쓰고 해결 메시지만 끈다(건별 알림은 해결할 대상이 아니라 알린 사건이다).
+  - name: slack-monitoring-event
+    slack_configs:
+      - <<: *slack_config
+        send_resolved: false

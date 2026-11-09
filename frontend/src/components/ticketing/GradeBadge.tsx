@@ -13,7 +13,7 @@ export function GradeBadge({ grade, className }: { grade: string; className?: st
       data-grade={grade}
       style={{ '--c': gradeColor(grade) } as CSSProperties}
       className={cn(
-        'inline-grid h-5 min-w-9 place-items-center rounded-sm bg-(--c) px-1.5 text-[11px] font-extrabold text-white',
+        'inline-grid h-5 min-w-9 place-items-center rounded-sm bg-(--c) px-1.5 text-[11px] font-semibold text-white',
         className,
       )}
     >

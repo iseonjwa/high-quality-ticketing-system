@@ -201,7 +201,8 @@ describe('MyReservationsPage', () => {
     // 최신순: 만료, 결제 대기, 확정
     expect(captions[0]).toContain('text-gray-600')
     expect(captions[1]).toContain('text-warning-700')
-    expect(captions[2]).toContain('text-white/85')
+    // 확정 칸은 primary-600 바탕이라 글자도 모드에 따라 함께 뒤집히는 gray-0이다(다크에서 바탕이 밝아진다)
+    expect(captions[2]).toContain('text-gray-0/85')
   })
 
   it('끝난 예매(만료·반환·취소)의 제목은 흐린 색이고 확정·결제 대기는 진한 색이다', async () => {
