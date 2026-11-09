@@ -361,3 +361,10 @@
 - 원인: 컨테이너 안에서 설정 확인용으로 `java -XX:+PrintFlagsFinal`을 실행했다. 이 프로세스가 `JAVA_TOOL_OPTIONS`(`-Xlog:gc...:file=/tmp/gc.log`)를 물려받아 같은 파일을 새로 열면서 앱의 로그를 `gc.log.0`으로 돌렸다. 경로 문제는 Git Bash(MSYS)가 `/tmp`로 시작하는 인자를 Windows 경로로 바꾸기 때문이다.
 - 해결: 앱의 로그는 `gc.log.0`에 그대로 있어 그 파일로 분석했다. `MSYS_NO_PATHCONV=1`을 붙여 읽었다. 두 주의점을 `reservation-service/k6/README.md` 3절에 적었다.
 - 배운 점: `JAVA_TOOL_OPTIONS`는 그 컨테이너에서 뜨는 모든 JVM에 붙는다. 측정 중인 컨테이너에서는 다른 JVM을 띄우지 않거나, 띄울 때 `JAVA_TOOL_OPTIONS=`를 비운다.
+
+### TS-44 Windows에서 시각을 비교하는 reservation-service 테스트 4건만 실패
+- 서비스·작성: reservation / kwonwoo / 2026-11-09
+- 문제: `:reservation-service:test`에서 `LotteryPaymentMetricsTest`, `QueueApiTest`(토큰 발급), `ReservationApiTest`, `SeatHoldApiTest`의 시각 테스트 한 건씩 실패했다. 다시 돌려도 같았다. 실패 값이 몇 초씩 어긋나 있었다(`추첨 5분 뒤 반영한 시간이어야 한다: 294.1944835`, `PT10M5.3636334S`).
+- 원인: 테스트가 시작 시각은 컨테이너(PostgreSQL `now()`, Redis `TIME`)에서, 비교 기준은 호스트 JVM(`Instant.now()`, 앱 `Clock`)에서 받는다. Windows 시계가 실제보다 약 7초 늦었고(Windows 시간 서비스 `w32time` 정지), Docker Desktop VM 시계는 맞았다. 외부 시각(`www.google.com`의 `Date` 헤더)과 비교해 Windows만 틀린 것을 확인했다. 컨테이너에서 `hwclock -s`를 실행해 봤지만 차이가 그대로였다.
+- 해결: 관리자 PowerShell에서 `Start-Service w32time`, `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update`, `w32tm /resync /force`로 시계를 맞췄다. 다시 돌리니 374건 중 실패 0건이었다(건너뜀 11건).
+- 배운 점: 시간 테스트가 로컬에서만 실패하면 호스트·컨테이너·외부 시각 세 개를 먼저 비교한다. 테스트는 비교 양쪽을 같은 시계에서 얻거나 경계에 여유를 둔다. 자세히: [docs/learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md](learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md)

@@ -34,7 +34,7 @@ shared: 아니오
 
 ## 검증
 - `SeatLedgerReconciliationTest` 7건 통과(실제 PostgreSQL).
-- `:reservation-service:test` 전체에서 다른 테스트 4건이 실패했다. 모두 시각을 비교하는 테스트이고, 이 기기의 Windows 시계가 실제 시각보다 약 7초 늦었다(컨테이너와 인터넷 시각은 일치). 대사 변경과는 무관한 것으로 본다.
+- `:reservation-service:test` 전체: 처음에는 시각을 비교하는 다른 테스트 4건이 실패했다. 이 기기의 Windows 시계가 실제보다 약 7초 늦었기 때문이다(TS-44). 시계를 맞춘 뒤 374건 중 실패 0건, 건너뜀 11건이었다.
 
 ## 판단 이력
 - 2026-11-09 수용: 이 기기에서는 ISE-14를 먼저 구현한다.
