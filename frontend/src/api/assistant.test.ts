@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw'
+import { waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { streamAssistant, type AssistantStreamEvent } from '@/api/assistant'
@@ -255,5 +256,92 @@ describe('streamAssistant', () => {
     expect(answer.mode).toBe('AI')
     expect(refreshRequests).toHaveLength(1)
     expect(streamRequests).toHaveLength(2)
+  })
+
+  it('다음 조각을 기다리는 중에 취소하면 AbortError로 끝나고 서버 스트림이 끊긴다', async () => {
+    await signInAsDemo()
+    let cut = false
+    mockServer.use(
+      http.post(STREAM_PATH, () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                'event: meta\ndata: {"mode":"AI","fallbackReason":null}\n\n',
+              ),
+            )
+          },
+          cancel() {
+            cut = true
+          },
+        })
+        return new HttpResponse(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    )
+    const controller = new AbortController()
+    let opened: () => void = () => {}
+    const metaArrived = new Promise<void>((resolve) => {
+      opened = resolve
+    })
+
+    const pending = captureError(
+      streamAssistant('질문', { signal: controller.signal, onEvent: () => opened() }),
+    )
+    await metaArrived
+    controller.abort()
+
+    expect(await pending).toMatchObject({ name: 'AbortError' })
+    await waitFor(() => expect(cut).toBe(true))
+  })
+
+  it('읽는 중에 서버 스트림이 오류로 끊기면 NETWORK_ERROR다', async () => {
+    await signInAsDemo()
+    mockServer.use(
+      http.post(STREAM_PATH, () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                'event: meta\ndata: {"mode":"AI","fallbackReason":null}\n\n',
+              ),
+            )
+            setTimeout(() => controller.error(new Error('연결 끊김')), 5)
+          },
+        })
+        return new HttpResponse(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    )
+
+    const error = await captureError(ask('질문'))
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 0, code: CLIENT_ERROR_CODES.networkError })
+  })
+
+  it('한글이 바이트 중간에서 잘려 와도 맞게 읽는다', async () => {
+    await signInAsDemo()
+    const bytes = new TextEncoder().encode(
+      'event: delta\ndata: {"text":"한글 조각"}\n\n' +
+        'event: done\ndata: {"answer":"한글 답변입니다","mode":"AI","fallbackReason":null}\n\n',
+    )
+    mockServer.use(
+      http.post(STREAM_PATH, () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            // 한 바이트씩 보내 글자(3바이트) 중간에서 끊기게 한다
+            for (const byte of bytes) {
+              controller.enqueue(new Uint8Array([byte]))
+            }
+            controller.close()
+          },
+        })
+        return new HttpResponse(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    )
+
+    const { events, answer } = await ask('질문')
+
+    expect(events[0]).toEqual({ type: 'delta', text: '한글 조각' })
+    expect(answer.answer).toBe('한글 답변입니다')
   })
 })

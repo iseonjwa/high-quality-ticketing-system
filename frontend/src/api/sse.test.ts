@@ -109,4 +109,17 @@ describe('createSseParser', () => {
 
     expect(frames).toEqual([])
   })
+
+  it('바이트 단위로 자른 한글도 TextDecoder(stream)를 거치면 맞게 읽는다', () => {
+    const bytes = new TextEncoder().encode('event: delta\ndata: 예매 문의 답변\n\n')
+    const decoder = new TextDecoder()
+    const frames: SseFrame[] = []
+    const parser = createSseParser((frame) => frames.push(frame))
+
+    for (const byte of bytes) {
+      parser.push(decoder.decode(new Uint8Array([byte]), { stream: true }))
+    }
+
+    expect(frames).toEqual([{ event: 'delta', data: '예매 문의 답변' }])
+  })
 })
