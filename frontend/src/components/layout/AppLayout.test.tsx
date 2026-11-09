@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import type { NonIndexRouteObject, RouteObject } from 'react-router'
@@ -39,7 +39,8 @@ describe('AppLayout', () => {
 
     await userEvent.click(screen.getByRole('link', { name: '로그인' }))
 
-    expect(router.state.location.pathname).toBe('/login')
+    // 로그인 화면 코드를 받은 뒤에 이동이 끝난다
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(router.state.location.state).toEqual({ from: '/no-such-page?from=header' })
   })
 
