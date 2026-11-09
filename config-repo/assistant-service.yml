@@ -9,6 +9,9 @@ assistant:
     max-tokens: 1024
     # SDK 기본값은 10분·재시도 2회라 반드시 줄인다. Gateway 응답 시한(10초)보다 짧아야 한다
     timeout: 8s
+    # 스트리밍 답변(SSE): 첫 조각까지 시한과 전체 시한. Gateway 상담 라우트 시한(10초)은 읽기 사이 간격이라 첫 조각 시한이 그보다 짧아야 한다
+    stream-first-delta-timeout: 8s
+    stream-timeout: 20s
     max-concurrent: 4
     daily-limit: 1000
   retrieval:
