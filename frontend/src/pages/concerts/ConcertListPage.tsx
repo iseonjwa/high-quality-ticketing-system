@@ -231,7 +231,7 @@ function OpenCalendarCard({ item, nowMillis }: { item: HomeConcert; nowMillis: n
 function PosterCard({ item }: { item: HomeConcert }) {
   const { concert, next, status } = item
   return (
-    <article className="group relative grid gap-3 rounded-lg has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-offset-4">
+    <article className="group relative grid gap-3 rounded-lg has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-offset-4 has-[a:focus-visible]:ring-offset-gray-25">
       <div className="relative rounded-md shadow-sm transition duration-(--dur-base) ease-(--ease-out) group-hover:-translate-y-1 group-hover:shadow-lg motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
         <ConcertPoster
           concertId={concert.concertId}

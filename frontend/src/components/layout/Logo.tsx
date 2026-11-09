@@ -1,7 +1,8 @@
 import { cn } from '@/lib/utils'
 
 // 이선좌 로고 "조명이 비춘 내 자리"(design-system.md 10절). 어두운 칸에 위에서 비추는 조명과 빨간 좌석 하나를 둔다.
-// 빨간 좌석은 409 안내 "이미 선택된 좌석입니다"의 그 좌석이다. 파비콘 public/favicon.svg와 같은 그림이다.
+// 빨간 좌석은 409 안내 "이미 선택된 좌석입니다"의 그 좌석이다. 파비콘 public/favicon.svg는 16px에서 뭉개지는 바닥 빛만 뺀
+// 같은 그림이다.
 // 칸은 모드와 상관없이 어두워 라이트·다크 어디서나 같은 표시로 보인다. 표시는 꾸밈이라 읽지 않고, 링크 이름은 글자 "이선좌"만 남긴다.
 export function LogoMark({ className }: { className?: string }) {
   return (

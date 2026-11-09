@@ -7,8 +7,8 @@ import {
   Loader2Icon,
 } from 'lucide-react'
 
-// 설계 4절: 한 줄, 3초. 샘플(.toast)처럼 gray-900 바탕·흰 글자로 화면 아래 가운데에 띄운다.
-// 다크 모드를 만들지 않으므로 next-themes 없이 테마를 고정한다.
+// 설계 4절: 한 줄, 3초. 샘플(.toast)처럼 gray-900 바탕·gray-0 글자로 화면 아래 가운데에 띄운다.
+// 다크 모드에서는 같은 변수가 뒤집혀 밝은 바탕·어두운 글자가 된다(design-system.md 2-5절). sonner의 테마 기능은 쓰지 않는다.
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner

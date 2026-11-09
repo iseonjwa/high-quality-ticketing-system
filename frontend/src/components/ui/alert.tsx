@@ -74,7 +74,7 @@ function Alert({
           data-slot="alert-close"
           aria-label="닫기"
           onClick={onClose}
-          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-ring"
+          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-current/10 focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

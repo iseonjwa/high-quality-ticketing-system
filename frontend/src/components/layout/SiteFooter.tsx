@@ -39,8 +39,8 @@ export function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 type-caption text-gray-400 @min-[40rem]:px-6">
+      <div className="border-t border-gray-100">
+        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 type-caption text-gray-500 @min-[40rem]:px-6">
           <p>© 2026 이선좌 · 부트캠프 최종 프로젝트 5조</p>
           <a
             href={REPOSITORY_URL}

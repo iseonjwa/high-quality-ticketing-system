@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
-import { readStoredTheme, THEME_STORAGE_KEY } from '@/lib/theme'
+import { readStoredTheme, THEME_COLORS, THEME_STORAGE_KEY } from '@/lib/theme'
 
 // 운영체제 설정(prefers-color-scheme)을 흉내 낸다. set으로 바꾸면 change 이벤트를 보낸다
 function mockSystemTheme(dark: boolean) {
@@ -83,9 +83,37 @@ describe('ThemeToggle', () => {
     render(<ThemeToggle />)
     await userEvent.click(screen.getByRole('button', { name: '다크 모드로 바꾸기' }))
 
+    system.set(true)
     system.set(false)
 
     expect(currentTheme()).toBe('dark')
+  })
+
+  it('모드를 바꾸면 휴대폰 주소창 색도 바꾼다', async () => {
+    mockSystemTheme(false)
+    const meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    document.head.append(meta)
+    render(<ThemeToggle />)
+
+    await userEvent.click(screen.getByRole('button', { name: '다크 모드로 바꾸기' }))
+
+    expect(meta.getAttribute('content')).toBe(THEME_COLORS.dark)
+    meta.remove()
+  })
+
+  it('다른 탭에서 저장소를 비우면 운영체제 설정으로 돌아간다', () => {
+    mockSystemTheme(false)
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+    render(<ThemeToggle />)
+    expect(currentTheme()).toBe('dark')
+
+    localStorage.clear()
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
+    })
+
+    expect(currentTheme()).toBe('light')
   })
 
   it('다른 탭에서 고른 모드로 맞춘다', () => {

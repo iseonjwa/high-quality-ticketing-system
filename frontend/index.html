@@ -9,9 +9,9 @@
       content="티켓 오픈의 폭주 트래픽을 견디는 콘서트 예매 서비스, 이선좌"
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0c0d13" media="(prefers-color-scheme: dark)" />
-    <!-- 첫 그리기 전에 화면 모드를 정한다. 규칙과 키는 src/lib/theme.ts와 같다(design-system.md 2-5절) -->
+    <meta name="theme-color" content="#fbfbfd" />
+    <!-- 첫 그리기 전에 화면 모드를 정한다. 규칙·키·색은 src/lib/theme.ts와 같다(design-system.md 2-5절).
+         src/lib/themeScript.test.ts가 이 스크립트를 그대로 실행해 확인한다 -->
     <script>
       ;(function () {
         var theme =
@@ -27,6 +27,11 @@
           // 저장소를 막은 브라우저는 운영체제 설정을 따른다
         }
         document.documentElement.dataset.theme = theme
+        // 휴대폰 주소창 색도 고른 모드를 따른다
+        var themeColor = document.querySelector('meta[name="theme-color"]')
+        if (themeColor) {
+          themeColor.setAttribute('content', theme === 'dark' ? '#0c0d13' : '#fbfbfd')
+        }
       })()
     </script>
     <title>이선좌 · 콘서트 예매</title>

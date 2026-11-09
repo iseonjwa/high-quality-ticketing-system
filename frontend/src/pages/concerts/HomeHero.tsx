@@ -270,7 +270,7 @@ function BrandHero() {
       />
       <div className="absolute inset-0 bg-linear-to-r from-ink-900/95 via-ink-900/75 to-ink-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-ink-900/75" />
       <div className="relative mx-auto grid h-full max-w-[1200px] content-center gap-4 px-4 @min-[40rem]:px-6">
-        <p className="type-body font-semibold text-primary-300">콘서트 예매, 이선좌</p>
+        <p className="type-body font-semibold text-white/80">콘서트 예매, 이선좌</p>
         <h2 className="max-w-[620px] text-[clamp(28px,4.2cqw,46px)] leading-[1.15] font-extrabold tracking-[-0.03em] break-keep">
           오픈 순간에도 흔들리지 않는 예매
         </h2>

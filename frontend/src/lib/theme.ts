@@ -34,8 +34,12 @@ export function systemTheme(): Theme {
   return darkQuery()?.matches ? 'dark' : 'light'
 }
 
+// 휴대폰 주소창 색(meta theme-color). 페이지 바탕(gray-25)과 같다
+export const THEME_COLORS: Record<Theme, string> = { light: '#fbfbfd', dark: '#0c0d13' }
+
 export function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme])
 }
 
 // 지금 모드와 바꾸는 함수. 고른 값이 없으면 운영체제 설정이 바뀌는 대로 따라간다.
@@ -57,7 +61,8 @@ export function useTheme(): { theme: Theme; toggle: () => void } {
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key === THEME_STORAGE_KEY) {
+      // 다른 탭에서 저장소를 통째로 비우면 key가 null로 온다
+      if (event.key === THEME_STORAGE_KEY || event.key === null) {
         setStored(readStoredTheme())
       }
     }

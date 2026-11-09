@@ -99,7 +99,7 @@ export function MyReservationsPage() {
                     venueName: null,
                   })}
                   aria-label={ticketLinkName(item)}
-                  className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-25"
                 >
                   <TicketRow item={item} />
                 </Link>

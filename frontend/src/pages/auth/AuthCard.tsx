@@ -87,7 +87,7 @@ export function AuthFooterLink(props: Omit<LinkProps, 'className'>) {
   return (
     <Link
       {...props}
-      className="rounded-sm font-semibold text-primary outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
+      className="rounded-sm font-semibold text-primary-600 outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
     />
   )
 }
