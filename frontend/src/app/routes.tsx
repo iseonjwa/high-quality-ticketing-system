@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { MyInfoPage } from '@/pages/MyInfoPage'
 import { MyPageLayout } from '@/pages/my/MyPageLayout'
+import { AssistantPage } from '@/pages/assistant/AssistantPage'
 import { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
 import { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
@@ -79,6 +80,7 @@ export const routes: RouteObject[] = [
                 handle: bookingStepHandle(3),
               },
               { path: paths.reservation, element: <ReservationPage variant="detail" /> },
+              { path: paths.help, element: <AssistantPage /> },
               {
                 element: <RequireAdmin />,
                 children: [

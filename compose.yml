@@ -163,6 +163,21 @@ services:
         condition: service_healthy
       eureka:
         condition: service_healthy
+  # 내부 AI 상담(ISE-126). DB·Redis·Kafka 없이 Claude API만 외부로 부른다. 키가 비면 검색 모드로 답한다
+  assistant-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        APP_MODULE: assistant-service
+    environment:
+      <<: *app-env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
   postgres-user:
     image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     mem_limit: 256m

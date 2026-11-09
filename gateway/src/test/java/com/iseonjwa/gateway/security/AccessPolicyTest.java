@@ -35,7 +35,9 @@ class AccessPolicyTest {
             "GET, /api/v1/reservations/1",
             "GET, /api/v1/lotteries/10/entries/me",
             "POST, /api/v1/lotteries/10/entries",
-            "DELETE, /api/v1/lotteries/10/entries/me"
+            "DELETE, /api/v1/lotteries/10/entries/me",
+            "POST, /api/v1/assistant/messages",
+            "GET, /api/v1/assistant/messages"
     })
     void 공개로_지정하지_않은_요청은_로그인이_필요하다(String method, String path) {
         assertEquals(Access.USER, of(method, path));
