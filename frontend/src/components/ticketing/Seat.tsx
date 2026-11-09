@@ -78,7 +78,7 @@ export function Seat({
       {...props}
     >
       {effective === 'selected' ? (
-        <Check className="size-3.5 text-white" strokeWidth={3} aria-hidden="true" />
+        <Check className="size-3.5 text-gray-0" strokeWidth={3} aria-hidden="true" />
       ) : null}
     </button>
   )

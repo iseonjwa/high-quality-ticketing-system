@@ -350,11 +350,11 @@ function TicketsCard({
           return (
             <li
               key={seat.seatId}
-              className="relative overflow-hidden rounded-lg bg-gray-900 text-white shadow-md"
+              className="relative overflow-hidden rounded-lg bg-ink-900 text-white shadow-md"
             >
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -top-16 -right-12 size-44 rounded-full bg-primary-600/45 blur-3xl"
+                className="pointer-events-none absolute -top-16 -right-12 size-44 rounded-full bg-brand-600/45 blur-3xl"
               />
               <div className="relative grid gap-3 p-5">
                 <div className="flex items-center justify-between gap-3">
@@ -373,7 +373,7 @@ function TicketsCard({
                 ) : null}
                 <p className="type-title tabular-nums">
                   {seat.section}구역{' '}
-                  <b className="font-extrabold">
+                  <b className="font-bold">
                     {seat.row}열 {seat.number}번
                   </b>
                 </p>

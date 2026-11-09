@@ -54,7 +54,7 @@ export function ConcertListPage() {
       {page === 1 ? (
         sections === null ? (
           concerts.isError ? null : (
-            <div aria-hidden="true" className="h-[clamp(440px,46cqw,540px)] bg-gray-900" />
+            <div aria-hidden="true" className="h-[clamp(440px,46cqw,540px)] bg-ink-900" />
           )
         ) : (
           <HomeHero items={sections.featured} nowMillis={now} />
@@ -204,11 +204,11 @@ function OpenCalendarCard({ item, nowMillis }: { item: HomeConcert; nowMillis: n
     <article className="relative flex items-center gap-4 rounded-lg border border-gray-100 bg-gray-0 p-3 pr-5 transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
       <div
         aria-hidden="true"
-        className="grid w-16 shrink-0 justify-items-center rounded-md bg-gray-900 py-2 text-white"
+        className="grid w-16 shrink-0 justify-items-center rounded-md bg-gray-900 py-2 text-gray-0"
       >
-        <span className="type-caption text-white/70">{Number(open.month)}월</span>
-        <span className="text-[26px] leading-8 font-extrabold tabular-nums">{open.day}</span>
-        <span className="type-caption text-white/70">{open.weekday}요일</span>
+        <span className="type-caption text-gray-0/70">{Number(open.month)}월</span>
+        <span className="text-[26px] leading-8 font-bold tabular-nums">{open.day}</span>
+        <span className="type-caption text-gray-0/70">{open.weekday}요일</span>
       </div>
       <ConcertPoster concertId={concert.concertId} className="w-14 rounded-[4px]" />
       <div className="grid min-w-0 gap-1">
@@ -281,7 +281,7 @@ function LotteryPromo() {
   return (
     <section
       aria-labelledby={titleId}
-      className="relative overflow-hidden rounded-lg bg-linear-120 from-primary-700 via-primary-600 to-[#7a3ff2] px-6 py-8 text-white @min-[48rem]:px-10 @min-[48rem]:py-10"
+      className="relative overflow-hidden rounded-lg bg-linear-120 from-brand-700 via-brand-600 to-[#7a3ff2] px-6 py-8 text-white @min-[48rem]:px-10 @min-[48rem]:py-10"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/2">
         <Ticket className="absolute -top-6 right-10 size-40 rotate-12 text-white/10" />
@@ -289,7 +289,7 @@ function LotteryPromo() {
       </div>
       <div className="relative grid gap-5 @min-[48rem]:grid-cols-[1fr_auto] @min-[48rem]:items-center">
         <div className="grid gap-2">
-          <p className="type-body-sm font-semibold text-primary-100">추첨 예매</p>
+          <p className="type-body-sm font-semibold text-white/80">추첨 예매</p>
           <h2 id={titleId} className="type-title break-keep">
             일부 좌석은 추첨으로 공정하게 나눠요
           </h2>
@@ -301,7 +301,7 @@ function LotteryPromo() {
         <Button
           asChild
           variant="outline"
-          className="border-white bg-white text-primary-700 hover:bg-primary-50"
+          className="border-white bg-white text-brand-700 hover:bg-white/90"
         >
           <Link to={paths.me}>자동결제 카드 등록하기</Link>
         </Button>

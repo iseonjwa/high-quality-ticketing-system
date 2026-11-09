@@ -156,7 +156,7 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
   const last = schedules[schedules.length - 1]
 
   return (
-    <section className="relative overflow-hidden bg-gray-900 text-white">
+    <section className="relative overflow-hidden bg-ink-900 text-white">
       <img
         src={art.wide}
         alt=""
@@ -167,7 +167,7 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
         className="absolute inset-0 size-full scale-110 object-cover opacity-70 blur-2xl"
       />
       {/* 글자가 그림 위에서 읽히도록 위쪽부터 충분히 덮는다(밝은 그림에서 흰 글자 4.5:1) */}
-      <div className="absolute inset-0 bg-linear-to-b from-gray-900/60 via-gray-900/80 to-gray-900" />
+      <div className="absolute inset-0 bg-linear-to-b from-ink-900/60 via-ink-900/80 to-ink-900" />
       <div
         className={cn(
           CONTAINER,
@@ -316,7 +316,7 @@ function ScheduleChooser({
                 aria-hidden="true"
                 className="grid w-12 shrink-0 justify-items-center rounded-sm bg-gray-50 py-1 type-caption text-gray-500"
               >
-                <span className="text-[18px] leading-6 font-bold text-gray-900 tabular-nums">
+                <span className="text-[18px] leading-6 font-semibold text-gray-900 tabular-nums">
                   {parts.day}
                 </span>
                 {parts.weekday}

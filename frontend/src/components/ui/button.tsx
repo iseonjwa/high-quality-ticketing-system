@@ -17,7 +17,7 @@ const buttonVariants = cva(
         outline:
           'border-gray-200 bg-gray-0 text-gray-900 hover:bg-gray-50 disabled:bg-gray-0 disabled:text-gray-400',
         destructive:
-          'bg-danger-600 text-white hover:bg-danger-600/90 disabled:bg-gray-200 disabled:text-gray-400',
+          'bg-danger-600 text-gray-0 hover:bg-danger-600/90 disabled:bg-gray-200 disabled:text-gray-400',
         ghost: 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 disabled:text-gray-400',
         link: 'text-primary underline-offset-4 hover:underline disabled:text-gray-400',
       },

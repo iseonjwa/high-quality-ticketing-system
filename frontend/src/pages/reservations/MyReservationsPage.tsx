@@ -131,7 +131,7 @@ export function MyReservationsPage() {
 // 상태에 따라 티켓 왼쪽 날짜 칸의 색을 바꾼다. 색만으로 구분하지 않도록 오른쪽에 상태 배지를 함께 둔다.
 // 작은 글자(연.월, 요일 시:분)도 4.5:1을 넘기도록 바탕마다 글자 색을 따로 둔다(셀프 리뷰: 흐리게 해 3.1~3.7:1이었다)
 const STUB_TONE: Record<ReservationStatus, { box: string; caption: string }> = {
-  CONFIRMED: { box: 'bg-primary-600 text-white', caption: 'text-white/85' },
+  CONFIRMED: { box: 'bg-primary-600 text-gray-0', caption: 'text-gray-0/85' },
   HELD: { box: 'bg-warning-50 text-warning-700', caption: 'text-warning-700' },
   EXPIRED: { box: 'bg-gray-100 text-gray-600', caption: 'text-gray-600' },
   RELEASED: { box: 'bg-gray-100 text-gray-600', caption: 'text-gray-600' },
@@ -170,7 +170,7 @@ function TicketRow({ item }: { item: MyReservation }) {
         <span className={cn('type-caption', tone.caption)}>
           {date.year}.{date.month}
         </span>
-        <span className="text-[28px] leading-8 font-extrabold">{date.day}</span>
+        <span className="text-[28px] leading-8 font-bold">{date.day}</span>
         <span className={cn('type-caption', tone.caption)}>
           {date.weekday} {date.hour}:{date.minute}
         </span>
@@ -201,7 +201,7 @@ function TicketRow({ item }: { item: MyReservation }) {
           <span className="type-caption text-gray-500 tabular-nums">
             예매 번호 {item.reservationNo}
           </span>
-          <span className="font-bold text-gray-900 tabular-nums">
+          <span className="font-semibold text-gray-900 tabular-nums">
             {formatWon(item.totalAmount)}
           </span>
         </div>
