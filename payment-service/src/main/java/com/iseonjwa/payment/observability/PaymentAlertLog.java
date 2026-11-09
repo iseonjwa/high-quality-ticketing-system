@@ -10,6 +10,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 /**
  * 결제 건 하나에 묶이는 사건을 건별 알림용 로그 한 줄로 남긴다(ADR 0045 결정 4). Loki 규칙(infra/loki/rules)이 이 줄을
@@ -30,6 +31,8 @@ public class PaymentAlertLog {
     public static final String REFUND_NEEDS_MANUAL_CHECK = "REFUND_NEEDS_MANUAL_CHECK";
     public static final String RECONCILIATION_MISMATCH_OPEN = "RECONCILIATION_MISMATCH_OPEN";
     public static final String DEAD_LETTER_OPEN = "DEAD_LETTER_OPEN";
+    // 한 회차에 건별 줄을 다 못 남겼다는 요약. 이름이 달라 Loki 건별 규칙은 이 줄로 알리지 않는다
+    public static final String RECONCILIATION_MISMATCH_OPEN_SUMMARY = "RECONCILIATION_MISMATCH_OPEN_SUMMARY";
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter PAID_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx");
@@ -61,12 +64,18 @@ public class PaymentAlertLog {
         emit(line(RECONCILIATION_MISMATCH_OPEN, payment, "rule=" + rule));
     }
 
+    /** 한 회차에 새 OPEN이 상한을 넘어 건별 줄을 {@code logged}건까지만 남겼다는 요약 한 줄. */
+    public void reconciliationSummary(String rule, int newOpen, int logged) {
+        emit("event=" + RECONCILIATION_MISMATCH_OPEN_SUMMARY + " rule=" + rule + " newOpen=" + newOpen + " logged="
+                + logged);
+    }
+
     /**
      * 처리하지 못한 DLQ 메시지. 결제를 읽지 못하면 {@code -}다. 자유 문장인 사유는 라벨로 뽑지 않도록 맨 뒤에 둔다.
      */
     public void deadLetterOpen(Long paymentId, String eventKey, String reason) {
-        var payment = paymentId == null ? PaymentRef.none(null) : snapshot(paymentId);
-        emit(line(DEAD_LETTER_OPEN, payment, "eventKey=" + eventKey + " reason=" + reason));
+        var payment = lookup(paymentId).orElse(PaymentRef.none(null));
+        emit(line(DEAD_LETTER_OPEN, payment, "eventKey=" + eventKey + " reason=" + oneLine(reason)));
     }
 
     /** 줄 문자열만 만든다. 단위 테스트가 형식을 고정하는 지점이다. */
@@ -88,18 +97,27 @@ public class PaymentAlertLog {
         return snapshot(paymentId, null);
     }
 
-    // 결제를 못 읽어도 알림은 나가야 하므로 예외 없이 빈 값으로 대신한다(예매 번호는 호출한 쪽이 아는 만큼 남긴다)
-    private PaymentRef snapshot(Long paymentId, Long fallbackReservationId) {
-        if (paymentId == null) return PaymentRef.none(fallbackReservationId);
+    // 결제를 읽지 못하면(번호가 없거나 행이 없거나 조회 실패) 비어 있다
+    private Optional<PaymentRef> lookup(Long paymentId) {
+        if (paymentId == null) return Optional.empty();
         try {
-            return payments.findById(paymentId)
-                    .map(payment -> new PaymentRef(payment.getId(), payment.getUserId(), payment.getReservationId(),
-                            payment.getCreatedAt()))
-                    .orElseGet(() -> new PaymentRef(paymentId, null, fallbackReservationId, null));
+            return payments.findById(paymentId).map(payment -> new PaymentRef(payment.getId(), payment.getUserId(),
+                    payment.getReservationId(), payment.getCreatedAt()));
         } catch (RuntimeException exception) {
             log.warn("건별 알림용 결제 조회에 실패했다 paymentId={}", paymentId, exception);
-            return new PaymentRef(paymentId, null, fallbackReservationId, null);
+            return Optional.empty();
         }
+    }
+
+    // 자유 문장 사유가 줄을 나누지 않게 한다(Loki 항목은 줄 단위다)
+    private static String oneLine(String text) {
+        return text == null ? NONE : text.replaceAll("\\s+", " ");
+    }
+
+    // 결제를 못 읽어도 알림은 나가야 하므로 예외 없이 빈 값으로 대신한다(번호와 예매 번호는 호출한 쪽이 아는 만큼 남긴다)
+    private PaymentRef snapshot(Long paymentId, Long fallbackReservationId) {
+        if (paymentId == null) return PaymentRef.none(fallbackReservationId);
+        return lookup(paymentId).orElseGet(() -> new PaymentRef(paymentId, null, fallbackReservationId, null));
     }
 
     // Note: 트랜잭션 안에서 바로 찍으면 롤백된 전이가 알림으로 나간다. 커밋된 뒤에 찍는다.
