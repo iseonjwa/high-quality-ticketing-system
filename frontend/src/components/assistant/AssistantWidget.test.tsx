@@ -6,7 +6,7 @@ import { routes } from '@/app/routes'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
 import { recordRequests, signInAsAdmin, signInAsDemo } from '@/test/api'
-import { renderRoutes } from '@/test/render'
+import { renderRoutes, renderRoutesReady } from '@/test/render'
 
 const STREAM_PATH = '/api/v1/assistant/messages/stream'
 const ON_SALE_SCHEDULE_ID = 31
@@ -260,10 +260,8 @@ describe('예매 문의 위젯', () => {
     ['예매 흐름(대기열)', `/schedules/${ON_SALE_SCHEDULE_ID}/queue`, signInAsDemo],
   ])('%s에는 위젯을 두지 않는다', async (_name, path, signIn) => {
     await signIn()
-    renderRoutes(routes, path)
-
-    // 화면이 그려진 뒤(헤더 로고)에 확인한다
-    await screen.findAllByRole('link', { name: /이선좌/ })
+    // 세 화면 모두 lazy 경로다. 화면 코드를 받아 그린 뒤에 확인한다
+    await renderRoutesReady(routes, path)
     await act(() => Promise.resolve())
     expect(screen.queryByRole('button', { name: '예매 문의 열기' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예매 문의' })).not.toBeInTheDocument()

@@ -16,7 +16,7 @@ import {
   recordRequests,
   signInAsDemo,
 } from '@/test/api'
-import { renderRoutes } from '@/test/render'
+import { renderRoutesReady } from '@/test/render'
 
 const CONCERT_TITLE = '노을섬 단독 콘서트 〈새벽의 좌석〉'
 const QUEUE_PATH = `/schedules/${ON_SALE_SCHEDULE_ID}/queue`
@@ -30,7 +30,7 @@ beforeEach(async () => {
 })
 
 async function openFromConcertDetail() {
-  const rendered = renderRoutes(routes, `/concerts/${CONCERT_ID}`)
+  const rendered = await renderRoutesReady(routes, `/concerts/${CONCERT_ID}`)
   // 예매 패널에서 판매 중인 회차를 고르고 [예매하기] 링크를 누른다
   const radios = await screen.findAllByRole('radio')
   const onSale = radios.find((radio) => (radio as HTMLInputElement).value === '31')
@@ -65,7 +65,7 @@ describe('QueuePage', () => {
   }, 10_000)
 
   it('주소로 바로 열면 공연 줄 없이 그린다', async () => {
-    renderRoutes(routes, QUEUE_PATH)
+    await renderRoutesReady(routes, QUEUE_PATH)
 
     expect(await screen.findByText('내 순번')).toBeInTheDocument()
     expect(screen.queryByText(CONCERT_TITLE)).not.toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('QueuePage', () => {
     })
     const joins = recordRequests(JOIN_API)
     const polls = recordRequests(`${JOIN_API}/me`)
-    const { router } = renderRoutes(routes, QUEUE_PATH)
+    const { router } = await renderRoutesReady(routes, QUEUE_PATH)
 
     await waitFor(() => expect(router.state.location.pathname).toBe(SEATS_PATH))
     expect(joins).toHaveLength(0)
@@ -87,7 +87,7 @@ describe('QueuePage', () => {
 
   it('대기열이 잠시 불안정하면 안내를 보였다가 연결되면 지우고 순번을 보인다', async () => {
     setMockScenario({ queue: 'unavailable' })
-    renderRoutes(routes, QUEUE_PATH)
+    await renderRoutesReady(routes, QUEUE_PATH)
 
     // 알림 영역은 처음부터 있고 글자만 바뀐다(내용을 담은 채 새로 붙는 영역은 읽히지 않을 수 있다)
     const regions = screen.getAllByRole('status')
@@ -99,7 +99,7 @@ describe('QueuePage', () => {
 
   it('입장 시간이 지나 빠지면 제목에 초점을 두고, 다시 줄 서기는 카드로 초점을 옮긴 뒤 좌석으로 간다', async () => {
     setMockScenario({ queue: 'expired' })
-    const { router } = renderRoutes(routes, QUEUE_PATH)
+    const { router } = await renderRoutesReady(routes, QUEUE_PATH)
 
     const title = await screen.findByRole(
       'heading',
@@ -140,7 +140,7 @@ describe('QueuePage', () => {
   }, 10_000)
 
   it('오픈 전 회차면 제목에 초점을 두고 돌아가기가 주 행동이며 다시 시도 버튼은 없다', async () => {
-    renderRoutes(routes, `/schedules/${BEFORE_OPEN_SCHEDULE_ID}/queue`)
+    await renderRoutesReady(routes, `/schedules/${BEFORE_OPEN_SCHEDULE_ID}/queue`)
 
     const title = await screen.findByRole('heading', { name: '아직 오픈 전이에요' })
     expect(title).toHaveFocus()
@@ -150,7 +150,7 @@ describe('QueuePage', () => {
   })
 
   it('없는 회차면 다시 시도 없이 공연 목록으로 돌아가게 한다', async () => {
-    renderRoutes(routes, '/schedules/999/queue')
+    await renderRoutesReady(routes, '/schedules/999/queue')
 
     expect(await screen.findByRole('heading', { name: '찾는 정보가 없어요' })).toBeInTheDocument()
     expect(screen.getByText('목록에서 다시 골라 주세요.')).toBeInTheDocument()
@@ -169,7 +169,7 @@ describe('QueuePage', () => {
         }),
       ),
     )
-    renderRoutes(routes, QUEUE_PATH)
+    await renderRoutesReady(routes, QUEUE_PATH)
 
     expect(await screen.findByRole('heading', { name: '곧 입장해요' })).toBeInTheDocument()
     expect(screen.getByText('좌석 선택 화면을 준비하고 있어요.')).toBeInTheDocument()
@@ -186,7 +186,7 @@ describe('QueuePage', () => {
       ),
     )
     const joins = recordRequests(JOIN_API)
-    renderRoutes(routes, QUEUE_PATH)
+    await renderRoutesReady(routes, QUEUE_PATH)
 
     expect(await screen.findByRole('heading', { name: '문제가 생겼어요' })).toBeInTheDocument()
     expect(screen.getByText('문의 번호 trace-queue-1')).toBeInTheDocument()
@@ -199,7 +199,7 @@ describe('QueuePage', () => {
 
   it('주소의 회차 번호가 숫자가 아니면 안내만 보이고 대기열 요청을 보내지 않는다', async () => {
     const joins = recordRequests('/api/v1/schedules/abc/queue')
-    renderRoutes(routes, '/schedules/abc/queue')
+    await renderRoutesReady(routes, '/schedules/abc/queue')
 
     expect(
       await screen.findByText('찾는 회차가 없어요. 목록에서 다시 골라 주세요'),
@@ -211,7 +211,7 @@ describe('QueuePage', () => {
 describe('QueuePage 로그인 전', () => {
   it('로그인하지 않았으면 대기열 경로를 돌아올 곳으로 들고 로그인 화면으로 간다', async () => {
     clearSession()
-    const { router } = renderRoutes(routes, QUEUE_PATH)
+    const { router } = await renderRoutesReady(routes, QUEUE_PATH)
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(router.state.location.state).toEqual({ from: QUEUE_PATH })
