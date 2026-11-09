@@ -318,6 +318,62 @@
     opacity: 0.45;
     pointer-events: none;
   }
+
+  /* 티켓 모양(design-system.md 11절). 절취선 양 끝의 둥근 홈은 카드 뒤 바탕색(--notch-bg, 기본은 페이지 바탕)으로
+     칠한다. 카드가 페이지 바탕이 아닌 면 위에 있으면 그 면의 색을 --notch-bg로 넘긴다 */
+  .ticket-perf {
+    position: relative;
+    height: 0;
+    margin-inline: 14px;
+    border-top: 2px dashed var(--gray-200);
+  }
+  .ticket-perf::before,
+  .ticket-perf::after {
+    content: '';
+    position: absolute;
+    top: -12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--notch-bg, var(--gray-25));
+  }
+  .ticket-perf::before {
+    left: -26px;
+  }
+  .ticket-perf::after {
+    right: -26px;
+  }
+  /* 세로 절취선. 카드 오른쪽 끝에 붙는 떼는 칸(스텁)에 쓴다 */
+  .ticket-stub {
+    position: relative;
+    border-left: 2px dashed var(--gray-200);
+  }
+  .ticket-stub::before,
+  .ticket-stub::after {
+    content: '';
+    position: absolute;
+    left: -12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--notch-bg, var(--gray-25));
+  }
+  .ticket-stub::before {
+    top: -12px;
+  }
+  .ticket-stub::after {
+    bottom: -12px;
+  }
+  /* 그림 위에 놓이는 입장권. 바탕색으로 칠할 수 없어 실제로 구멍을 낸다. 절취선 높이는 --cut으로 받는다 */
+  .ticket-pass {
+    --cut-mask:
+      radial-gradient(circle 12px at 0 var(--cut), transparent 97%, #000 100%) left / 51% 100%
+        no-repeat,
+      radial-gradient(circle 12px at 100% var(--cut), transparent 97%, #000 100%) right / 51% 100%
+        no-repeat;
+    -webkit-mask: var(--cut-mask);
+    mask: var(--cut-mask);
+  }
 }
 
 @keyframes seat-taken {
