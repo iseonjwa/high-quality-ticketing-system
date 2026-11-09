@@ -74,6 +74,31 @@ tags: [performance, k6, measurement, docker, reproducibility]
 - Compose 프로젝트 이름이 같아(`iseonjwa`) 스택은 기기에 하나만 뜬다. 측정 워크트리에서 띄운 이미지가 원래 체크아웃의 스택을 대신하므로, 측정 중에는 저장소 루트에서 스택을 따로 띄우지 않는다.
 - 측정 결과를 실제 코드에 반영할 때는 이슈마다 dev에서 새 브랜치를 판다(P4 → ISE-189, R1 → ISE-196, G1·P1 → contract 이슈). 측정 브랜치는 머지하지 않는다.
 
+#### 3-3. 긴 측정이 Claude Code에 회수되지 않게 띄우기 (2026-11-09 보강)
+후속 질문: "그 환경변수 지정은 어떻게 하고 클로드 코드는 어디서 열어야해? 그냥 윈도우 터미널로 열면 되나?"
+
+새 기기(호스트 32GB, Docker VM 16GB)에서도 base-net H 1회째에 호스트 여유 메모리가 2.1GB로 떨어지자 Claude Code가 백그라운드 측정 반복을 회수했다. Claude Code는 호스트 메모리가 모자라면 대화가 쉬는 동안 백그라운드 셸을 멈춘다. `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1`이 이 회수를 끈다.
+
+- **변수는 Claude Code 프로세스가 시작될 때 환경에 있어야 한다.** Claude Code가 띄운 셸 안에서 `export`하면 그 셸과 자식에만 들어가고 Claude Code 자신은 모른다. 그래서 대화 안에서 넣으면 효과가 없다.
+- **어디서 열어도 된다.** Windows Terminal, IntelliJ 터미널 모두 PowerShell이면 같은 방법이다. 측정 중에는 IntelliJ를 닫아 메모리를 아끼므로 Windows Terminal이 낫다. IntelliJ 터미널에서 띄운 Claude Code는 IntelliJ를 닫으면 함께 꺼진다.
+- **저장소 루트에서 연다.** Claude Code 메모리 폴더와 대화 기록은 연 폴더 경로로 나뉜다(`~/.claude/projects/C--SPARTA-MSA-high-quality-ticketing-system/`). 같은 폴더에서 `claude --continue`로 열면 직전 대화를 이어 간다.
+
+PowerShell에서 이번 창에만 넣고 띄우기:
+```powershell
+cd C:\SPARTA_MSA\high-quality-ticketing-system
+$env:CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP = "1"
+claude --continue
+```
+
+매번 넣기 번거로우면 사용자 환경변수로 고정한다(새로 연 터미널부터 적용된다).
+```powershell
+[Environment]::SetEnvironmentVariable("CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP", "1", "User")
+```
+
+- 확인: 새 Claude Code에서 셸로 `echo $CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP`를 실행해 `1`이 나오면 Claude Code가 그 값을 갖고 시작했다(셸은 Claude Code의 환경을 물려받는다).
+- 회수를 끄면 호스트 메모리가 정말 바닥날 때 Claude Code가 막아 주지 않는다. Docker VM을 `.wslconfig`로 16GB에 묶어 두었으므로 호스트(32GB)에는 나머지가 남는다. 측정 중에는 IntelliJ·브라우저를 줄인다.
+- 회수돼도 셸 스크립트 자식은 계속 돌 수 있다(이번에도 H 1회째는 끝까지 돌았다). 끊기면 `step-run.sh` 프로세스가 남았는지 먼저 본다.
+
 ### 4. 기기 차이를 줄이는 방법 (선택)
 - 컨테이너마다 CPU 상한(`cpus`)을 걸면 기기 의존이 줄어든다. 다만 기준 환경이 바뀌므로 base부터 모두 다시 재야 하고, 상한을 무엇으로 둘지 정해야 한다.
 - 새 기기에서 Docker VM 메모리는 지금(약 7.6GiB) 이상으로 둔다. 여유가 있으면 10GiB 이상이 안전하다.
