@@ -142,7 +142,8 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
   - `mock-pg`는 가상 스레드(`spring.threads.virtual.enabled`)로 돌아서 긴 지연이 요청 스레드를 고갈시키지 않는다. 요청과 설정의 모르는 JSON 필드는 400이다(오타 필드가 `orderId` 한정 규칙을 전역 규칙으로 만들지 않게 한다).
   - (ISE-128) `REFUND`·`REFUND_LOOKUP` 대상과 `REJECT` 모드를 더했다. 모드×호출 적용 표대로 걸 수 없는 조합은 설정할 때 400이다. 환불 쪽 호출은 `orderId` 대신 `refundId`로 한정하고, 종류에 맞지 않는 쪽(`REFUND`에 `orderId`, 승인에 `refundId`)을 주면 400이다. 설정 조회 응답에 `refundId` 필드가 늘었다(없으면 null).
   - (ISE-128) 환불 `DELAY`는 판정·저장 전에 기다린다(8절 3번). `PROCESSING`·`SERVER_ERROR`는 원장에 닿지 않고, `DROP_RESPONSE`는 저장한 뒤 연결을 닫으며, `REJECT`는 422 `NOT_REFUNDABLE`을 답하고 저장하지 않는다. 환불 조회는 `DELAY`·`PROCESSING`·`SERVER_ERROR`만 걸 수 있다. 모두 호출 계수(2절)에 들어간다.
-  - 변조형 모드와 그 프로필 검사(`loadtest`에서 거절)는 ISE-130에서 더한다. 이번에는 `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사까지 구현했다.
+  - (ISE-129) `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사를 구현했다.
+  - (ISE-130) 변조형 4개(`BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`)를 모드와 적용 표대로 더했다. 변조형은 설정 API가 `test` 프로필일 때만 받고, 그 밖의 프로필(`loadtest`)에서는 400 `INVALID_REQUEST`로 거절하며 규칙을 바꾸지 않는다. `test`와 `loadtest`를 함께 켜면 `test`가 있으므로 받는다. `BAD_REQUEST`는 `PROCESSING`·`SERVER_ERROR`처럼 원장에 닿지 않고 호출만 센다. `MISSING_AMOUNT`는 저장은 정상으로 하고 승인·조회·환불·환불 조회의 성공 본문에서 `amount`·`currency` 필드를 뺀다. `WRONG_AMOUNT`·`FRACTIONAL_AMOUNT`는 새 주문을 승인으로 정하는 시점에 저장 금액을 바꾸므로, 이미 결과가 있는 주문에는 효과가 없고 `count`만 쓴다(`DECLINE`과 같다).
 
 ### 모드와 적용 표
 
