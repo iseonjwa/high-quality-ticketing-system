@@ -68,7 +68,9 @@ export function TimeChip({ label, expiresAt, clock, onExpire }: TimeChipProps) {
     >
       <span aria-hidden="true" className={cn('size-2 rounded-full', classes.dot)} />
       {label}
-      <b className={cn('font-bold tabular-nums', classes.strong)}>{formatRemaining(remaining)}</b>
+      <b className={cn('font-semibold tabular-nums', classes.strong)}>
+        {formatRemaining(remaining)}
+      </b>
     </span>
   )
 }

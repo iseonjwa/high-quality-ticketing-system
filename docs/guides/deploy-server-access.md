@@ -84,7 +84,7 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
 | 하지 않는다 | 이유 |
 |---|---|
 | `docker compose down -v`, `docker volume rm` | DB·Kafka 데이터가 지워진다 |
-| 서버에서 직접 `deploy.sh`, `git checkout`, `docker compose up` | 배포는 main 머지 → Jenkins로만 한다. 손으로 바꾸면 기록(`.deploy/current`)과 실제 상태가 어긋난다. 예외는 부하 측정 날 계정 주인이 쓰는 `script/loadtest/measure-mode.sh on/off`뿐이다(5-5절) |
+| 서버에서 직접 `deploy.sh`, `git checkout`, `docker compose up` | 배포는 main 머지 → Jenkins로만 한다. 손으로 바꾸면 기록(`.deploy/current`)과 실제 상태가 어긋난다. 예외는 부하 측정 날 그날 측정자가 쓰는 `script/loadtest/measure-mode.sh on/off`뿐이다(5-5절, ADR 0046 변경 2026-11-09) |
 | `.env` 열기·복사·공유 | 운영 비밀값이 있다 |
 | `~/.ssh/authorized_keys` 수정 | 다른 사람과 Jenkins의 접속이 끊길 수 있다 |
 | 배포 서버에서 k6 실행 | 부하 도구가 서버 자원을 나눠 써서 측정이 왜곡된다(5절) |
@@ -95,6 +95,7 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
   - `docker stats`
   - Grafana 보기, 터널로 Zipkin 보기
 - 컨테이너 재시작이 필요하면 팀 채널에 먼저 알린다.
+- 배포 서버를 대상으로 하는 E2E(`frontend`의 `npm run e2e:compose`)는 팀 채널에 알린 뒤, 리허설 전용 회차로, 부하 측정 중이 아닐 때만 돌린다(`frontend/README.md` "배포 서버 리허설").
 
 ## 5. 부하 측정(k6) 계획
 
@@ -138,12 +139,12 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
 
 ### 5-5. 측정 날 순서
 
-배포 서버를 재는 날의 순서다. 서버 조작(2~4, 8번)은 계정 주인이 한다. 자세한 설계와 명령은 [`load-test.md`](../design/infra/load-test.md) 2-1, 5절과 [`loadtest/k6/README.md`](../../loadtest/k6/README.md) "배포 서버 측정"에 있다.
+배포 서버를 재는 날의 순서다. 서버·발생기 켜기와 중지(AWS 콘솔)는 AWS 담당이, 측정 모드 켜기·끄기와 키 옮기기(3, 4, 6번)는 그날 측정자가 한다(ADR 0046 변경 2026-11-09). 자세한 설계와 명령은 [`load-test.md`](../design/infra/load-test.md) 2-1, 5절과 [`loadtest/k6/README.md`](../../loadtest/k6/README.md) "배포 서버 측정"에 있다.
 
 1. **서버 켜기**: 배포 서버와 Jenkins 서버를 켜고 스모크가 통과하는지 본다.
 2. **발생기 켜기**: 팀 공용 발생기가 중지돼 있으면 켜고 새 퍼블릭 IP를 팀 채널에 올린다. 측정자는 시작 알림을 올린다([`loadgen.md`](loadgen.md) 4절).
-3. **측정 모드 켜기**: 서버에서 `script/loadtest/measure-mode.sh on`(Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로). 이때부터 기존 로그인이 끊기고, **main 머지를 멈추거나 Jenkins 잡을 끈다**(배포가 돌면 측정 모드가 풀린다).
+3. **측정 모드 켜기**(측정자): 먼저 `script/loadtest/measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 본다. 그다음 `script/loadtest/measure-mode.sh on`(Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로). 이때부터 기존 로그인이 끊긴다. 시작 알림에 **main 머지 금지**를 넣고, Jenkins 잡을 끌 수 있으면 끈다(배포가 돌면 측정 모드가 풀린다).
 4. **키 옮기기**: 서버의 `~/iseonjwa/.env.measure`를 발생기 저장소 루트의 `.env`로 옮긴다. 측정 전용 키 두 개뿐이고 운영 키와 관리자 비밀번호는 옮기지 않는다.
 5. **측정**: 서버에서 회차를 만들고(`seed-demo.sh open`) 발생기에서 `SCHEDULE_ID`와 `PROM_RW_URL`을 주고 `run.sh`를 돌린다. Mock PG 지연 300ms는 서버에서 건다.
-6. **측정 모드 끄기**: `script/loadtest/measure-mode.sh off`. 운영 키로 돌아오고 스모크가 돈다. Jenkins 잡을 켠다.
+6. **측정 모드 끄기**(측정자): `script/loadtest/measure-mode.sh off`. 운영 키로 돌아오고 스모크가 돈다. `status`로 꺼졌는지 확인하고, 껐던 Jenkins 잡을 켠다. 끝 알림에 "측정 모드 끔"을 적는다.
 7. **발생기 정리**: 측정자는 결과 파일을 내려받고 자기 폴더의 `.env`를 지운 뒤 끝 알림을 올린다. 그날 측정이 모두 끝났으면 발생기를 중지하고, 팀 마지막 측정 뒤에는 종료하며 8080·9090 보안 그룹 규칙도 지운다([`loadgen.md`](loadgen.md) 5절).

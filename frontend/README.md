@@ -77,6 +77,9 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier로 고치기 / 검사만 |
 | `npm test` / `test:watch` | Vitest 한 번 실행 / 감시 모드 |
+| `npm run e2e:msw` | 시연 흐름 Playwright 테스트(MSW 모드). 아래 "시연 흐름 테스트" |
+| `npm run e2e:compose` | 같은 흐름을 실제 스택(compose)에 대해 돈다(직렬). 아래 "compose 모드" |
+| `npm run e2e` | 모든 대상 |
 
 ## 구조
 
@@ -111,9 +114,63 @@ tools/concert-art/  공연 그림 생성기(art.html 캔버스 그림, render.mj
 - shadcn/ui 컴포넌트는 `npx shadcn@4.23.0 add <이름>`으로 더한다. 설정은 `components.json`(Radix 기반)에 있다.
 - 테스트 파일은 대상 옆에 `*.test.ts(x)`로 둔다. API 테스트는 목 서버에 실제로 요청을 보내고, 목이 없는 경로를 부르면 실패한다.
 
+## 시연 흐름 테스트 (Playwright)
+
+로그인 → 공연 상세 → 대기열 → 좌석 선점 → 결제 → 결과·내 예매를 브라우저로 한 번에 도는 테스트다. `e2e/`에 있고 Vitest(`src/**/*.test.*`)와 따로 돈다.
+
+```bash
+npx playwright install chromium   # 처음 한 번
+npm run e2e:msw                   # 개발 서버(dev:mock, 5174 포트)를 띄워 MSW 모드로 돈다
+```
+
+- 시나리오 3개: 정상 / 409 이선좌 재선택(`?mock=seat-conflict`) / 결제 "확인 중"(`?mock=payment-unknown`).
+- 요소는 접근 가능한 이름으로 잡고 앱 코드의 `testid`는 쓰지 않는다. 흐름 중간에 `page.goto`를 하면 목 상태가 처음으로 돌아가므로 첫 이동과 로그인 직후 이동에만 쓴다.
+- 대상은 프로젝트(`msw`, `compose`)로 나눈다. spec은 `fixtures.ts`의 값(계정, 공연, 좌석, 시나리오 진입 주소)만 알아 두 대상이 같은 spec을 쓴다. compose 모드는 실제 스택에 붙는다.
+- 실패하면 `playwright-report/`, `test-results/`(trace·스크린샷)가 남는다. `npx playwright show-report`로 본다.
+
+### compose 모드 (실제 스택)
+
+같은 spec 3개를 `docker compose`로 띄운 스택의 화면(nginx)에 대해 돈다. CI는 compose를 돌리지 않는다(MSW만).
+
+```bash
+# 저장소 루트에서. 프론트 이미지를 꼭 다시 빌드한다
+docker compose -f compose.yml -f compose.local.yml up -d --build --wait
+cd frontend
+npx playwright install chromium   # 처음 한 번
+npm run e2e:compose
+```
+
+- 준비는 fixture가 한다. 제목 "E2E 시연 흐름 공연"을 찾고(없으면 관리자 API로 만든다), 판매 중 회차를 재사용하고(없을 때만 새로 만들고 좌석을 생성한다), 테스트마다 사용자 둘을 공개 가입 API로 만든다(`e2e-<시각>-<난수>-<n>@iseonjwa.dev`). 주인공은 화면으로 로그인하고, 경쟁자는 API로만 대기열·선점을 한다. 빈 좌석은 입장 토큰으로 좌석을 조회해 그때그때 고른다(A구역).
+- 409 시나리오는 주인공이 좌석을 고른 뒤 경쟁자가 같은 좌석을 먼저 선점해서 만든다.
+- 환경 변수(모두 선택).
+
+| 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `E2E_BASE_URL` | `http://127.0.0.1:8000` | 화면 주소 |
+| `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` | 저장소 루트 `.env`의 `ADMIN_EMAIL`, `ADMIN_PASSWORD` | 공연·회차를 만들 관리자 계정. 값은 코드나 로그에 남기지 않는다 |
+| `E2E_CONCERT_ID`, `E2E_SCHEDULE_ID` | 없음 | 둘 다 주면 관리자 단계를 건너뛰고 그 회차를 쓴다 |
+| `E2E_VENUE_ID` | `1` | 회차를 새로 만들 때의 공연장(가격 등급은 VIP·R·S 기준) |
+| `E2E_MOCK_PG_URL` | `http://127.0.0.1:8090` | Mock PG 주소(장애 주입 확인용) |
+
+- 결제 "확인 중" 시나리오는 Mock PG 장애 주입 API(`/mock-pg/faults`)가 열려 있을 때만 돈다. 닫혀 있으면 이유를 남기고 건너뛴다. 돌리려면 mock-pg를 loadtest 프로필로 다시 띄운다. 확정까지 10~25초 걸린다. 끝나면 원래 프로필로 되돌린다.
+
+```bash
+docker compose -f compose.yml -f compose.local.yml -f loadtest/k6/compose.mockpg-loadtest.yml up -d --no-deps --wait mock-pg
+npm run e2e:compose
+docker compose -f compose.yml -f compose.local.yml up -d --no-deps --wait mock-pg   # 되돌리기
+```
+
+- 좌석이 모자라면(A구역 빈 좌석 2개 미만) 새 회차를 쓰거나 `E2E_SCHEDULE_ID`를 바꾼다. 테스트가 남긴 가입 사용자와 선점·예매는 지우지 않는다.
+
+#### 배포 서버 리허설
+
+- 실행하기 전에 팀 채널에 알린다. 가입 사용자와 예매가 배포 DB에 남고, 부하 측정 중에는 돌리지 않는다.
+- 리허설 전용 회차를 하나 만들어 `E2E_BASE_URL`, `E2E_CONCERT_ID`, `E2E_SCHEDULE_ID`를 준다. 관리자 계정은 쓰지 않는다.
+- Mock PG 포트는 밖에 열려 있지 않아 "확인 중" 시나리오는 건너뛴다. 정상과 409만 돈다.
+
 ## CI
 
-`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다.
+`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다. 같은 파일의 `e2e-msw` job이 Chromium을 설치해 `npx playwright test --project=msw`를 따로 돌고, 실패하면 리포트를 7일 보관한다.
 
 ## 의존성
 

@@ -16,7 +16,7 @@ function Swatch({ state, grade }: { state: string; grade?: string }) {
       style={grade ? ({ '--c': gradeColor(grade) } as CSSProperties) : undefined}
       className="seat pointer-events-none grid place-items-center"
     >
-      {state === 'selected' ? <Check className="size-3.5 text-white" strokeWidth={3} /> : null}
+      {state === 'selected' ? <Check className="size-3.5 text-gray-0" strokeWidth={3} /> : null}
     </span>
   )
 }
