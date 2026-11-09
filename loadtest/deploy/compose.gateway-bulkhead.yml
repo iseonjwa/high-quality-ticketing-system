@@ -1,0 +1,19 @@
+# Gateway auth-redis 호출의 동시 실행 제한(bulkhead)을 바꿔 배포 서버에서 잴 때만 쓰는 덮어쓰기다(ISE-229).
+# 운영 설정(config-repo)은 바꾸지 않는다. 측정자가 measure-mode.sh on 의 인자로 준다. 값을 안 주면 지금과 같다(동시 25, 켬).
+#   AUTH_BULKHEAD=200 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
+#   AUTH_BULKHEAD_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
+# measure-mode.sh on은 인자로 준 파일만 얹으므로, 이 파일 없이 on 하거나 off 하면 gateway가 기본값으로 돌아온다.
+# 값을 바꿔 다시 on 하면 gateway만 다시 만들어진다. 재시작 직후 Gateway는 식어 있으니 워밍업 뒤에 잰다.
+#
+# 왜: 2026-11-09 배포 Q1 측정(ISE-202)에서 데운 상태 초당 약 3,000명에 2ms 안의 빠른 실패로 auth-redis 차단기가 열렸다.
+# 저장소 설정에 bulkhead 값이 없어 라이브러리 기본값(동시 25, 대기 0)으로 보이고, 25개를 넘은 호출의 즉시 거절이
+# 차단기 실패로 세어진 것으로 본다(확정 전). 값을 바꿔 Q1 한도가 따라 움직이는지로 확인한다.
+#
+# Note: auth-redis처럼 이름에 하이픈이 있는 키는 환경변수 완화 바인딩으로 넣기 어려워 SPRING_APPLICATION_JSON으로 넣는다.
+# 이 값은 config-repo에 없는 키만 바꾸므로 config 서버 값과 겹치지 않는다. 설정 이름은 Spring Cloud CircuitBreaker
+# 버전에 따라 다를 수 있으니 켠 뒤 Grafana에서 resilience4j_bulkhead_max_allowed_concurrent_calls{name="auth-redis"}가
+# 준 값인지 먼저 확인하고, 아니면 재지 않는다. 끈 경우에는 이 지표가 사라져야 한다.
+services:
+  gateway:
+    environment:
+      SPRING_APPLICATION_JSON: '{"resilience4j":{"bulkhead":{"instances":{"auth-redis":{"maxConcurrentCalls":${AUTH_BULKHEAD:-25}}}}},"spring":{"cloud":{"circuitbreaker":{"bulkhead":{"resilience4j":{"enabled":${AUTH_BULKHEAD_ENABLED:-true}}}}}}}'
