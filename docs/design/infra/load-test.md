@@ -45,7 +45,7 @@ AWS 콘솔은 계정 주인만 쓴다(팀원 콘솔 초대 안 함). 그래서 �
    - 저장소 clone
    - 팀원 공개 키 등록
    - `docker pull grafana/k6:1.0.0`
-3. **측정 모드를 켠다**(계정 주인이 배포 서버에서): `script/loadtest/measure-mode.sh on [덮어쓰기 파일...]`. Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로 준다.
+3. **측정 모드를 켠다**(그날 측정자가 배포 서버에서, ADR 0046 변경 2026-11-09. 켜기 전에 `measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 본다): `script/loadtest/measure-mode.sh on [덮어쓰기 파일...]`. Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로 준다.
 4. **키를 옮긴다**: 서버의 `~/iseonjwa/.env.measure`를 발생기 저장소 루트의 `.env`로 옮긴다. 내 노트북을 거치는 방법이 가장 단순하다. 키 파일이 노트북에 남지 않게 옮긴 뒤 지운다.
    ```bash
    scp iseonjwa:iseonjwa/.env.measure /tmp/measure.env && scp /tmp/measure.env <발생기 접속 주소>:iseonjwa/.env && rm /tmp/measure.env

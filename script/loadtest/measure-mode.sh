@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 배포 서버를 부하 측정 모드로 바꾸고 되돌린다(ISE-191). 측정 날 계정 주인이 SSH로 접속해 실행한다.
+# 배포 서버를 부하 측정 모드로 바꾸고 되돌린다(ISE-191). 측정 날 그날 측정자가 SSH로 접속해 실행한다(ISE-218).
 #   script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...]   예: on loadtest/k6/compose.queue-hold.yml
 #   script/loadtest/measure-mode.sh off
 #   script/loadtest/measure-mode.sh status
@@ -17,7 +17,8 @@
 # - 측정 모드 동안 기존 로그인이 끊긴다. Access 토큰 서명 키가 바뀌기 때문이다(Refresh 키는 그대로라 다시 로그인하면 된다).
 # - 측정 중에 main이 머지돼 Jenkins가 deploy.sh를 돌리면 측정 모드가 풀린다(deploy.sh는 .env와 compose.deploy.yml만 쓴다).
 #   측정 동안 main 머지를 멈추거나 Jenkins 잡을 잠시 끈다.
-# - 이 스크립트는 "서버에서 직접 docker compose up 하지 않는다" 규칙의 예외다. 계정 주인만 쓴다(docs/guides/deploy-server-access.md).
+# - 이 스크립트는 "서버에서 직접 docker compose up 하지 않는다" 규칙의 예외다. 그날 측정자만 쓴다(docs/guides/deploy-server-access.md).
+#   켜기 전에 status로 다른 사람이 켜 두지 않았는지 보고, 끄고 나서 status로 꺼졌는지 본다(ADR 0046 변경 2026-11-09).
 # - 키 값은 출력하지 않는다. 키 이름과 다음 할 일만 출력한다.
 # - DRY_RUN=1이면 docker compose와 스모크를 실행하지 않고 부를 명령만 출력한다(스크립트 확인용).
 #
