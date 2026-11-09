@@ -8,7 +8,7 @@ import { DEMO_USER, mockDb } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
 import { recordRequests, signInAsDemo } from '@/test/api'
-import { renderRoutes } from '@/test/render'
+import { renderRoutesReady } from '@/test/render'
 
 async function fillPasswordChange(currentPassword: string, newPassword: string, email?: string) {
   if (email !== undefined) {
@@ -24,11 +24,11 @@ describe('PasswordChangePage', () => {
   it('내 정보에서 바꾸면 새 비밀번호로 다시 로그인해 내 정보로 돌아간다', async () => {
     await signInAsDemo()
     const oldRefreshToken = sessionStore.getState().refreshToken
-    const { router } = renderRoutes(routes, '/me')
+    const { router } = await renderRoutesReady(routes, '/me')
     await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
 
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
-    expect(screen.getByLabelText('이메일')).toHaveValue(DEMO_USER.email)
+    expect(await screen.findByLabelText('이메일')).toHaveValue(DEMO_USER.email)
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678')
 
     expect(await screen.findByText('비밀번호를 바꿨어요')).toBeInTheDocument()
@@ -45,9 +45,10 @@ describe('PasswordChangePage', () => {
         fail(503, 'SERVICE_UNAVAILABLE', '일시적으로 서비스를 사용할 수 없습니다'),
       ),
     )
-    const { router } = renderRoutes(routes, '/me')
+    const { router } = await renderRoutesReady(routes, '/me')
     await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
+    await screen.findByLabelText('현재 비밀번호')
 
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678')
 
@@ -60,7 +61,7 @@ describe('PasswordChangePage', () => {
   })
 
   it('현재 비밀번호 칸을 고치면 "현재 비밀번호와 다른 비밀번호" 오류가 지워진다', async () => {
-    renderRoutes(routes, '/password-change')
+    await renderRoutesReady(routes, '/password-change')
     await fillPasswordChange(DEMO_USER.password, DEMO_USER.password, DEMO_USER.email)
     expect(
       await screen.findByText('현재 비밀번호와 다른 비밀번호를 입력해 주세요'),
@@ -75,7 +76,7 @@ describe('PasswordChangePage', () => {
 
   it('현재 비밀번호와 같은 새 비밀번호는 요청하지 않고 새 비밀번호 칸에 알린다', async () => {
     const changeRequests = recordRequests('/api/v1/auth/password-change')
-    renderRoutes(routes, '/password-change')
+    await renderRoutesReady(routes, '/password-change')
 
     await fillPasswordChange(DEMO_USER.password, DEMO_USER.password, DEMO_USER.email)
 
@@ -86,7 +87,7 @@ describe('PasswordChangePage', () => {
   })
 
   it('현재 비밀번호가 틀리면 그 칸에 알리고 잠금 기준을 보인다', async () => {
-    renderRoutes(routes, '/password-change')
+    await renderRoutesReady(routes, '/password-change')
 
     await fillPasswordChange('wrong-password', 'new-password-5678', DEMO_USER.email)
 
@@ -101,15 +102,15 @@ describe('PasswordChangePage', () => {
     if (demo !== undefined) {
       demo.locked = true
     }
-    renderRoutes(routes, '/password-change')
+    await renderRoutesReady(routes, '/password-change')
 
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678', DEMO_USER.email)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('계정이 잠겼어요')
   })
 
-  it('로그인 전이면 로그인 링크를 보인다', () => {
-    renderRoutes(routes, '/password-change')
+  it('로그인 전이면 로그인 링크를 보인다', async () => {
+    await renderRoutesReady(routes, '/password-change')
 
     const main = within(screen.getByRole('main'))
     expect(main.getByRole('link', { name: '로그인' })).toHaveAttribute('href', '/login')
@@ -117,7 +118,7 @@ describe('PasswordChangePage', () => {
 
   it('로그인한 채 들어왔으면 바꾸지 않고 원래 화면으로 돌아가는 링크를 보인다', async () => {
     await signInAsDemo()
-    const { router } = renderRoutes(routes, '/me')
+    const { router } = await renderRoutesReady(routes, '/me')
     await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
 

@@ -8,7 +8,7 @@ import { DEMO_USER } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
 import { recordRequests } from '@/test/api'
-import { renderRoutes } from '@/test/render'
+import { renderRoutesReady } from '@/test/render'
 
 interface SignupFields {
   email?: string
@@ -29,7 +29,7 @@ async function fillSignup(fields: SignupFields) {
 
 describe('SignupPage', () => {
   it('가입하면 같은 값으로 바로 로그인해 처음 화면으로 간다', async () => {
-    const { router } = renderRoutes(routes, '/signup')
+    const { router } = await renderRoutesReady(routes, '/signup')
 
     await fillSignup({ email: '  New@Iseonjwa.dev ' })
 
@@ -41,7 +41,7 @@ describe('SignupPage', () => {
 
   it('입력 규칙에 맞지 않으면 요청하지 않고 칸마다 알린다', async () => {
     const signupRequests = recordRequests('/api/v1/users')
-    renderRoutes(routes, '/signup')
+    await renderRoutesReady(routes, '/signup')
 
     await fillSignup({
       password: '가'.repeat(25),
@@ -60,7 +60,7 @@ describe('SignupPage', () => {
   })
 
   it('이미 가입한 이메일이면 이메일 칸에 알리고, 그 이메일을 채운 로그인 화면으로 갈 수 있다', async () => {
-    const { router } = renderRoutes(routes, '/signup')
+    const { router } = await renderRoutesReady(routes, '/signup')
 
     await fillSignup({ email: DEMO_USER.email })
 
@@ -81,7 +81,7 @@ describe('SignupPage', () => {
         }),
       ),
     )
-    renderRoutes(routes, '/signup')
+    await renderRoutesReady(routes, '/signup')
 
     await fillSignup({})
 
@@ -96,7 +96,7 @@ describe('SignupPage', () => {
         fail(503, 'SERVICE_UNAVAILABLE', '일시적으로 서비스를 사용할 수 없습니다'),
       ),
     )
-    const { router } = renderRoutes(routes, '/signup')
+    const { router } = await renderRoutesReady(routes, '/signup')
 
     await fillSignup({ email: 'new@iseonjwa.dev' })
 
@@ -106,7 +106,7 @@ describe('SignupPage', () => {
   })
 
   it('비밀번호 칸을 확인 칸과 같게 고치면 "서로 달라요"가 지워진다', async () => {
-    renderRoutes(routes, '/signup')
+    await renderRoutesReady(routes, '/signup')
     await fillSignup({ password: 'password1234', passwordConfirm: 'password12345' })
     expect(await screen.findByText('비밀번호가 서로 달라요')).toBeInTheDocument()
 
@@ -119,7 +119,7 @@ describe('SignupPage', () => {
     mockServer.use(
       http.post('/api/v1/users', () => fail(500, 'INTERNAL_SERVER_ERROR', '서버 오류')),
     )
-    renderRoutes(routes, '/signup')
+    await renderRoutesReady(routes, '/signup')
 
     await fillSignup({})
 
