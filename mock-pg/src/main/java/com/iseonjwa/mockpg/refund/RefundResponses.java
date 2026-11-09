@@ -1,5 +1,6 @@
 package com.iseonjwa.mockpg.refund;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.iseonjwa.mockpg.ledger.RefundOutcome;
 import com.iseonjwa.mockpg.ledger.RefundOutcome.Refunded;
 import com.iseonjwa.mockpg.ledger.RefundOutcome.Rejected;
@@ -17,19 +18,23 @@ final class RefundResponses {
     private RefundResponses() {
     }
 
-    static ResponseEntity<?> refund(RefundOutcome outcome) {
+    /** @param omitAmount true면 환불 본문에서 amount·currency를 뺀다(MISSING_AMOUNT) */
+    static ResponseEntity<?> refund(RefundOutcome outcome, boolean omitAmount) {
         return switch (outcome) {
-            case Refunded refunded -> ResponseEntity.ok(RefundedBody.of(refunded));
+            case Refunded refunded -> ResponseEntity.ok(RefundedBody.of(refunded, omitAmount));
             case Rejected rejected -> ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                     .body(new RejectedBody("REJECTED", rejected.code().name()));
         };
     }
 
-    record RefundedBody(String refundTxId, String pgTxId, String status, BigDecimal amount, String currency,
-            Instant refundedAt) {
-        static RefundedBody of(Refunded refunded) {
-            return new RefundedBody(refunded.refundTxId(), refunded.pgTxId(), "REFUNDED", refunded.amount(),
-                    refunded.currency(), refunded.refundedAt());
+    // Note: amount·currency는 MISSING_AMOUNT에서만 null이고, null이면 필드를 본문에서 뺀다
+    record RefundedBody(String refundTxId, String pgTxId, String status,
+            @JsonInclude(JsonInclude.Include.NON_NULL) BigDecimal amount,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String currency, Instant refundedAt) {
+        static RefundedBody of(Refunded refunded, boolean omitAmount) {
+            return new RefundedBody(refunded.refundTxId(), refunded.pgTxId(), "REFUNDED",
+                    omitAmount ? null : refunded.amount(), omitAmount ? null : refunded.currency(),
+                    refunded.refundedAt());
         }
     }
 

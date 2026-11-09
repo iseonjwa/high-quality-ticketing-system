@@ -31,7 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 36건, 일지 5일 |
+| [junhyun](junhyun/README.md) | 개별 기록 48건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 12건, 일지 4일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
@@ -43,7 +43,12 @@
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-11-09 | 예매 문의 챗봇을 /help 페이지로 두자는 추천 대신 모든 화면에서 여는 떠 있는 위젯으로 바꾸기로 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-09-assistant-floating-widget.md) |
+| 2026-11-09 | Q1-d 로컬 확인에서 출발 대기를 다시 계산하는 방식으로 고치고, Q1 ↔ Q1-d 수치 비교는 배포 서버로 넘김 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-09-q1d-local-limit-and-clock-drift.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-08-deploy-measure-token-key-swap.md) |
+| 2026-11-09 | 토스 어댑터의 orderId를 토큰에서 만들고, 늦은 승인 방지는 Prevented를 내지 않으며, 빌링은 지원하지 않고, 배포 기본은 mock으로 한 추천안을 수용함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-toss-adapter-order-id-and-late-approval.md) |
+| 2026-11-09 | 결제 건별 슬랙 알림(ISE-183)의 세부 여섯 가지(결제 시각 표기, 금액 불일치 합치기, 해결 메시지 없음, 대사 10건 상한, 환불 문구)를 추천안대로 정함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-payment-event-alert-details.md) |
+| 2026-11-09 | TX1 커밋 응답 유실 대책으로 AI가 낸 "재시도가 REQUESTED를 이어받아 승인" 방안을 거부하고 한계를 ADR로 기록함(ISE-169) | junhyun | Claude Code | **거부** | 후보 | [기록](junhyun/2026-11-09-ise169-reject-retry-takeover.md) |
+| 2026-11-09 | 백로그 설계안 중 AI 상담은 Claude API 키를 받아 Haiku 5.5로 시작하고, 토스 테스트 키는 수요일에 받고, 시연 장애 버튼은 Gateway 운영자 경로로 두기로 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-09-backlog-design-decisions.md) |
 | 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-06-ise25-final-comparison-on-deploy.md) |
 | 2026-11-06 | K1 local 결과를 ISE-25 기준선으로 인정하자는 제안을 측정 대상이 다르다는 이유로 거부함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-06-ise25-baseline-not-k1.md) |

@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.reconciliation.application;
 
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.reconciliation.domain.MismatchKey;
 import com.iseonjwa.payment.reconciliation.domain.MismatchRepository;
 import com.iseonjwa.payment.reconciliation.domain.Preparation;
@@ -10,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
 /**
@@ -24,10 +27,15 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ReconciliationRecorder {
-    private final MismatchRepository mismatches;
+    // 한 회차에 규칙 하나가 남기는 새 OPEN 건별 알림 줄의 상한. 넘으면 요약 한 줄만 더 남긴다(ISE-183)
+    static final int ALERT_LINE_LIMIT = 10;
 
-    public ReconciliationRecorder(MismatchRepository mismatches) {
+    private final MismatchRepository mismatches;
+    private final PaymentAlertLog alertLog;
+
+    public ReconciliationRecorder(MismatchRepository mismatches, PaymentAlertLog alertLog) {
         this.mismatches = mismatches;
+        this.alertLog = alertLog;
     }
 
     @Transactional
@@ -44,7 +52,19 @@ public class ReconciliationRecorder {
 
         mismatches.upsertOpen(rule.code(), evaluation.found(), now);
         var resolved = mismatches.resolve(rule.code(), toClose, now);
+        alertNewlyOpened(rule, evaluation.found().stream().map(finding -> finding.key()).toList(), open);
         return new RuleResult(rule.code().code(), evaluation.found().size(), resolved, evaluation.undecided().size(), false);
+    }
+
+    // 이전에 OPEN이 아니었던 불일치만 알린다. 같은 불일치가 이어지는 회차는 조용하고, 해결된 뒤 다시 생기면 새로 알린다.
+    // 줄은 커밋 뒤에 찍힌다(PaymentAlertLog)
+    private void alertNewlyOpened(ReconciliationRule rule, java.util.List<MismatchKey> found, Set<MismatchKey> open) {
+        var fresh = new LinkedHashSet<>(found);
+        fresh.removeAll(open);
+        var code = rule.code().code();
+        fresh.stream().limit(ALERT_LINE_LIMIT)
+                .forEach(key -> alertLog.reconciliationMismatchOpen(code, key.paymentId(), key.reservationId()));
+        if (fresh.size() > ALERT_LINE_LIMIT) alertLog.reconciliationSummary(code, fresh.size(), ALERT_LINE_LIMIT);
     }
 
     /** 한 규칙의 한 회차 결과. 로그와 테스트용이다. */

@@ -30,9 +30,23 @@ dependencies {
 def mockPgJar = project(':mock-pg').tasks.named('bootJar').flatMap { it.archiveFile }
 
 tasks.named('test') {
+    // 토스 테스트 환경을 실제로 부르는 테스트는 기본 실행에서 뺀다. 아래 tossSandboxTest로만 돈다
+    useJUnitPlatform { excludeTags 'toss-sandbox' }
     dependsOn ':prepareTestInfra', ':mock-pg:bootJar'
     inputs.file(mockPgJar).withPropertyName('mockPgJar').withPathSensitivity(PathSensitivity.NONE)
     doFirst {
         systemProperty 'mockPg.jar', mockPgJar.get().asFile.absolutePath
     }
+}
+
+// Note: 토스 테스트 환경(실제 api.tosspayments.com)을 부르는 통합 테스트(ISE-45). 기본 CI 밖이다.
+// TOSS_TEST_SECRET_KEY(test_sk_로 시작)를 환경변수로 줄 때만 돈다. 키는 저장소에 두지 않는다.
+//   TOSS_TEST_SECRET_KEY=test_sk_... ./gradlew :payment-service:tossSandboxTest
+tasks.register('tossSandboxTest', Test) {
+    group = 'verification'
+    description = '토스 테스트 환경을 부르는 통합 테스트(기본 CI 밖, TOSS_TEST_SECRET_KEY 필요)'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'toss-sandbox' }
+    shouldRunAfter tasks.named('test')
 }
