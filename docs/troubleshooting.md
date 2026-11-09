@@ -362,14 +362,33 @@
 - 해결: 앱의 로그는 `gc.log.0`에 그대로 있어 그 파일로 분석했다. `MSYS_NO_PATHCONV=1`을 붙여 읽었다. 두 주의점을 `reservation-service/k6/README.md` 3절에 적었다.
 - 배운 점: `JAVA_TOOL_OPTIONS`는 그 컨테이너에서 뜨는 모든 JVM에 붙는다. 측정 중인 컨테이너에서는 다른 JVM을 띄우지 않거나, 띄울 때 `JAVA_TOOL_OPTIONS=`를 비운다.
 
-### TS-44 건별 알림 템플릿 검사가 Linux CI에서만 `amtool: error: open /data/event.json: permission denied`로 실패했다
+### TS-44 기록 검사 훅(`records-check.sh`)이 Windows에서 한 번에 약 93초가 걸려 훅 시한(30초)을 넘겼다
+- 서비스·작성: 공통(에이전트 훅·CI) / kangmin / 2026-11-09
+- 문제: 에이전트가 응답을 끝낼 때마다 도는 `Stop` 훅(`script/records-check.sh --hook`)의 시한은 30초인데, Windows Git Bash에서 한 번에 92.8초가 걸렸다(dev 복제본, 3회 중앙값 93.7/92.8/88.4초). 손으로 돌릴 때도 `timeout 100`을 붙여야 했고, 다른 세션에서는 2분 제한을 넘겨 백그라운드로 밀려났다.
+- 원인: 파일마다 외부 프로세스를 여러 번 띄웠다. Windows Git Bash는 프로세스 하나를 띄우는 데 약 26ms가 든다(`/usr/bin/true` 200번 평균, 2026-11-09 이 PC).
+  - 판단 기록(138개)은 머리말 키마다 `awk`를 따로 띄웠다(파일당 약 12번).
+  - 비밀값 검사는 추적·새 파일(약 1,800개)마다 `grep`을 한 번씩 띄웠다.
+  - 합치면 약 3,500번이고, 26ms를 곱하면 약 90초다. 이 합계는 추정이고, 측정한 92.8초와 크기가 맞는다.
+- 해결(ISE-220):
+  - 머리말은 파일당 `awk` 한 번으로 필요한 키를 모두 읽는다.
+  - 색인은 한 번 읽어 bash 문자열 검색으로 찾는다.
+  - 비밀값은 `git grep --untracked` 한 번으로 본다.
+  - macOS 기본 bash 3.2에서도 돌도록 연관 배열을 쓰지 않았다.
+  - 결과는 3.6초다(3회 중앙값 3.9/3.6/3.6초, 약 25배).
+- 검증: 기록 구조를 일부러 망가뜨린 변이 31가지(머리말·필수 키 9개·verdict 값·색인·일지·공통 표·학습 노트 색인·파일 이름 규칙·비밀값·`--hook` 3가지)에서 원래 스크립트와 출력·종료 코드를 바이트 단위로 비교했다. 30가지가 같았고, 1가지는 원래 스크립트의 누락이 고쳐진 것이었다(아래).
+- 함께 고친 누락: 원래 방식(`git ls-files` + `[[ -f ]]`)은 한글 이름 파일의 경로를 git이 `"docs/\353..."`처럼 따옴표로 감싸 내보내 파일로 찾지 못했다. 그래서 그 파일의 비밀값을 건너뛰었다. 새 방식은 `git grep`으로 잡고, `-c core.quotePath=false`를 붙여 경로를 한글 그대로 보여 준다.
+- 남은 한계: 머리말을 닫는 `---`가 없으면 원래·새 스크립트 모두 본문 끝까지 머리말로 읽어 통과시킨다(이번 범위 밖). Linux CI와 macOS bash 3.2에서는 이 PR 전에 실행하지 않았다.
+- AI 활용: 원인 분석과 수정은 Claude Code가 했고, 동작이 같은지는 다른 에이전트(herdr 작업자)가 저장소 밖 복제본에서 따로 검증했다. 판단 기록 `docs/ai-judgments/kangmin/2026-11-09-agent-token-k6-output-and-hook.md`, `docs/ai-judgments/kangmin/2026-11-09-records-check-25x-faster.md`.
+- 배운 점: Windows Git Bash에서 셸 스크립트의 실행 시간은 대개 "띄운 프로세스 수 × 수십 ms"로 정해진다. 파일마다 도는 반복문 안에서는 외부 명령을 띄우지 말고, 한 번에 처리하는 도구(`git grep`, `awk` 한 번)로 바꾼다. 검사 도구를 고칠 때는 일부러 틀린 입력을 넣어 전후 출력을 비교해야 검사가 약해지지 않았음을 보일 수 있다.
+
+### TS-45 건별 알림 템플릿 검사가 Linux CI에서만 `amtool: error: open /data/event.json: permission denied`로 실패했다
 - 서비스·작성: infra / junhyun / 2026-11-09
 - 문제: #397(ISE-183)의 `script/check-prometheus-rules.sh`가 macOS 로컬에서는 통과하고, GitHub Actions(promtool 검사)에서만 `amtool: error: open /data/event.json: permission denied`와 "건별 알림 꼬리말이 그려지지 않는다"로 실패했다.
 - 원인: 스크립트가 `mktemp -d`로 만든 폴더에 JSON을 쓰고 `docker run -v "$data_dir:/data:ro"`로 amtool 컨테이너에 넘겼다. `mktemp -d`는 폴더를 0700으로 만들고, `prom/alertmanager` 이미지의 amtool은 `nobody`로 돈다. Linux에서는 폴더 주인(러너 사용자)이 아닌 `nobody`가 폴더에 들어가지 못한다. macOS Docker Desktop은 파일 공유 계층이 권한을 다르게 넘겨 로컬에서는 드러나지 않았다.
 - 해결: 폴더를 `chmod 755`, 파일을 `chmod 644`로 열었다(`script/check-prometheus-rules.sh`, 커밋 230f329b, #397에 포함).
 - 배운 점: 임시 폴더를 컨테이너에 마운트할 때는 컨테이너 안 사용자가 누구인지 보고 권한을 연다. macOS 로컬 통과가 Linux CI 통과를 보장하지 않는다.
 
-### TS-45 화면을 경로별로 나눈(route lazy) 뒤 일부 화면 테스트가 CI에서만 요소를 찾지 못했다
+### TS-46 화면을 경로별로 나눈(route lazy) 뒤 일부 화면 테스트가 CI에서만 요소를 찾지 못했다
 - 서비스·작성: frontend / junhyun / 2026-11-09
 - 문제: #400(ISE-212)에서 홈·공연 상세 밖의 화면을 route `lazy`로 바꾼 뒤였다. 로컬에서는 전부 통과했는데, CI에서는 `PasswordChangePage`·`SignupPage` 테스트가 `Unable to find an accessible element with the role "link" and name "바꾸지 않고 돌아가기"`, `Unable to find a label with the text of: 이메일`로 실패했다.
 - 원인: 테스트 도우미 `renderRoutesReady`는 `router.state.initialized`만 기다렸다. 라우터 상태가 먼저 바뀌고 React는 화면을 transition으로 나중에 그려서, 느린 CI에서는 그 사이에 `getBy`가 실행됐다. lazy 경로로 옮긴 직후에 `getBy`로 확인하는 곳도 같은 경쟁이 있었다.
