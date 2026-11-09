@@ -13,7 +13,8 @@ public final class LocalApps {
     public static final List<App> ALL = List.of(new App("config-server", 8888, 19888),
             new App("eureka", 8761, 18761), new App("gateway", 8080, 18080),
             new App("user-service", 8081, 18081), new App("reservation-service", 8082, 18082),
-            new App("payment-service", 8083, 18083), new App("mock-pg", 8090, 18090));
+            new App("payment-service", 8083, 18083), new App("mock-pg", 8090, 18090),
+            new App("assistant-service", 8095, 18095));
 
     private LocalApps() {}
 

@@ -21,7 +21,8 @@ import org.springframework.cloud.config.server.environment.EnvironmentRepository
 })
 class ConfigRepoTest {
     private static final List<String> SERVICES = List.of(
-            "gateway", "eureka", "user-service", "reservation-service", "payment-service", "mock-pg");
+            "gateway", "eureka", "user-service", "reservation-service", "payment-service", "mock-pg",
+            "assistant-service");
     private static final List<String> PROFILES = List.of("default", "local", "loadtest", "prod", "test");
 
     @Autowired
