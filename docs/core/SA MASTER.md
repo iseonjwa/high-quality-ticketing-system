@@ -10,6 +10,20 @@
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
+### 11/9 바뀐 점 (결제 담당, SA 변경 요청 PR1)
+
+돈·예매 계약 묶음(`docs/design/payment/sa-change-requests.md`의 PR1)을 반영했다. 내용은 해당 ADR과 변경 요청 목록에 있는 것만 옮겼다. 10-4의 처리 규칙은 반효승이 소유한 소비자 계약이라 리뷰를 받는다.
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | 예매의 결제 이벤트 처리를 상태별 규칙으로 바꿈. 같은 `paymentId`의 `CONFIRMED`·`CANCELED`는 멱등, 다른 `paymentId`는 중복 승인 환불, `EXPIRED`·`RELEASED`·대조 실패 승인은 확정하지 않고 `RefundRequested` (S-1) | 6-6, 8-3 | ADR 0016, 0027 |
+| 2 | Reservation의 `PaymentApproved`·`PaymentDeclined`·`PaymentRefunded` 처리 계약: 예매 원장과 `reservationId`·`paymentId`·`userId`·`amount`·`currency` 대조, 상태별 처리표, `CONFIRMED` + `PaymentRefunded`는 자동 좌석 해제 금지와 이상 격리, 상태 변경과 Outbox는 한 트랜잭션이고 영향 행 1일 때만 (S-17) | 10-4 | ADR 0027 |
+| 3 | 에러 코드 `PAYMENT_ALREADY_CLOSED`(409) 추가 (S-2) | 11-3 | ADR 0016 |
+| 4 | `NEEDS_MANUAL_CHECK`를 종결이 아니라 "운영자 확인 필요"로 정의하고 닫는 전이를 더함. 환불 `FAILED`는 운영자가 PG 환불 불가를 확인하고 외부 조치로 넘긴 종결 상태로만 쓰고, PG의 명확한 거절은 바로 `NEEDS_MANUAL_CHECK`. 결제 `REQUESTED` → `DECLINED(TOKEN_EXPIRED)` 추가 (S-5) | 8-2, 10-5, 12-4 | ADR 0020, 0028 |
+| 5 | `RefundRequested` 소비자는 환불 행만 영속화하고 PG를 부르지 않음. 교차 검증 실패는 재시도 없이 DLQ. PG 환불은 환불 워커만 부르고 재호출 전에 환불 조회 (S-19) | 6-6, 10-5, 12-4 | ADR 0020, 0023 |
+| 6 | `#58`의 "재결제가 가능하다"를 정정: 재선택은 새 예매라 영향이 없고 같은 예매의 재결제는 8-3에 따라 없음. 부록 A M6에 같은 내용 표시 (S-16) | 15장 #58, 부록 A, 부록 C | ADR 0026 |
+| 7 | 미해결 목록 정리: U1에 결제 토큰 claim 확정 표시, U22 해소(환불 이력은 `payment_status_histories`의 `target_type = REFUND`), U9는 같은 예매 재결제와의 관계만 적음 (S-15) | 12-4, 17-2 | `V3__refunds.sql`, ADR 0026 |
+
 ### 11/2 바뀐 점 (추첨 담당)
 
 추첨 테이블 마이그레이션(ISE-85)을 쓰면서 명세를 구현에 맞췄다.
@@ -53,7 +67,7 @@
 | 6 | 대기열 안전장치 제안(아래 "10/27 대기열 제안" 표) | 머리말, 7-3, 12-8 | PR `#26`, ADR 0015 (제안) |
 | 7 | 이미 머지된 결제·공통 마이그레이션에 맞춰 테이블 명세 갱신: `payments`의 `currency`·`pg_approved_amount`·`UNIQUE(pg_tx_id)`·상태별 CHECK, D3를 `UNIQUE(reservation_id)` 전체로, `payment_status_histories`의 `target_type`·`actor`, `idempotency_records`의 `resource_id`·`link_type`, `outbox_events`의 재시도 컬럼 3개 | 4장 D3, 12-4, 12-5, 12-6, 15장 #58 | SA 변경 요청 S-3·S-4·S-10(컬럼)·S-11, ADR 0019·0022·0026 (결제 담당 확인) |
 
-- 아직 반영하지 않은 것: 결제 담당의 SA 변경 요청 S-1~S-28(`docs/design/payment/sa-change-requests.md`) 중 위 7번 외의 항목(동작·계약·운영, 미구현 M3 테이블)은 팀 검토 전이라 넣지 않았다. 이미 머지된 payment-service 코드와 결제 설계 문서의 테이블 이름은 ISE-67에서 이 규칙으로 바꾼다. 그 전까지 코드는 단수형이다.
+- 아직 반영하지 않은 것: 결제 담당의 SA 변경 요청(`docs/design/payment/sa-change-requests.md`) 중 위 7번과 11/9 PR1 표(S-1·S-2·S-5·S-15·S-16·S-17·S-19)에 없는 항목(API 동작·운영·Mock PG, 미구현 M3 테이블)은 팀 검토 전이라 넣지 않았다. 상태는 그 목록의 "상태" 열이 기준이다. 이미 머지된 payment-service 코드와 결제 설계 문서의 테이블 이름은 ISE-67에서 이 규칙으로 바꾼다. 그 전까지 코드는 단수형이다.
 
 ### 10/27 바뀐 점 (초기 환경 통합 회의)
 
@@ -457,7 +471,7 @@ flowchart TD
 | MVP | PG 호출: 트랜잭션 밖, 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → PG 조회로 확정 | GET `/api/v1/payments/{id}` |
 | MVP | 결제 결과 이벤트 발행(Outbox) | 발행 `payment.result`(PaymentApproved·Declined·Refunded) |
 | MVP | 이벤트 신뢰성 공통 모듈: Outbox 릴레이, 처리 이력(processed_events), 재시도 3회 + DLQ | 각 토픽 `.dlq` |
-| MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
+| MVP | 만료 뒤 승인 환불 (E8), 환불 테이블·상태·멱등(12-4). `RefundRequested` 소비자는 환불 행만 저장하고 PG를 부르지 않는다. PG 환불은 환불 워커만 부르며, 재호출 전에 환불을 조회한다 (10-5) | 구독 `payment.command`(RefundRequested) → 발행 `payment.result`(PaymentRefunded) |
 | MVP | 재확인 스케줄러: REQUESTED 경과·UNKNOWN 결제와 REQUESTED·UNKNOWN 환불을 단계별 간격으로 재조회, 끝내 모르면 `NEEDS_MANUAL_CHECK` (10-5) | — |
 | MVP | Mock PG 서버: 승인·조회·환불, 멱등 승인, 망취소(같은 주문번호 취소 후 승인 거부), 환불 조회와 환불 멱등 | POST `/mock-pg/payments` · GET `/mock-pg/payments/{orderId}` · POST `/mock-pg/refunds` · GET `/mock-pg/refunds/{refundId}` |
 | MVP | Mock PG 장애 주입 모드: 지연·거절·승인 후 응답 유실 | POST `/mock-pg/faults` (측정·테스트 프로필 전용) |
@@ -625,7 +639,7 @@ sequenceDiagram
 - 선점 응답에 결제 토큰을 같이 준다. 이전에는 HELD 뒤에 `GET /reservations/{id}`를 한 번 더 불러야 했다. 조회 API는 그대로 남는다.
 - PG 타임아웃이면 `UNKNOWN`으로 저장하고 202를 돌려준다. 재확인 스케줄러가 PG에 물어 APPROVED·DECLINED로 확정한 뒤에만 이벤트를 발행한다(10-5).
 - Payment가 PG 호출 중에 죽어 `REQUESTED`로 남은 결제도 10초가 지나면 같은 재조회 대상이다. `pg_order_id`를 PG 호출 전에 저장하므로 PG에 물어볼 수 있다.
-- 결제 결과 이벤트가 도착했을 때 예매가 이미 EXPIRED면 확정하지 않고 `RefundRequested`를 발행한다(E8).
+- 결제 결과 이벤트가 도착했을 때 예매가 이미 EXPIRED면 확정하지 않고 `RefundRequested`를 발행한다(E8). 확정할 수 없는 다른 상태(`RELEASED`)나 예매 원장과 맞지 않는 승인도 같고, 같은 `paymentId`로 이미 `CONFIRMED`·`CANCELED`인 예매에 온 승인은 재전달이라 아무것도 하지 않는다. 상태별 규칙은 10-4다.
 - 좌석 조회는 `available`만 내려 준다. 누가 선점 중인지(HELD·SOLD) 노출하지 않는다.
 
 ### 8-2. 상태 머신
@@ -639,15 +653,22 @@ sequenceDiagram
 회차 좌석    AVAILABLE → HELD → SOLD · HELD → AVAILABLE · SOLD → AVAILABLE
 티켓        ISSUED → VOID
 결제        REQUESTED → APPROVED | DECLINED | UNKNOWN
+            REQUESTED → DECLINED (PG 호출 직전 토큰 만료, 미전송: TOKEN_EXPIRED)
             REQUESTED(10초 경과) · UNKNOWN → 재조회 → APPROVED | DECLINED | NEEDS_MANUAL_CHECK
+            NEEDS_MANUAL_CHECK → APPROVED | DECLINED (운영자가 PG 근거 확인)
             APPROVED → REFUNDED (환불 완료 시)
-환불        REQUESTED → REFUNDED | FAILED | UNKNOWN                                           (refunds)
-            UNKNOWN → 재조회 → REFUNDED | FAILED | NEEDS_MANUAL_CHECK
+            NEEDS_MANUAL_CHECK → REFUNDED (금액 불일치 승인의 환불 완료만)
+환불        REQUESTED → REFUNDED | UNKNOWN | NEEDS_MANUAL_CHECK (PG의 명확한 거절 포함)        (refunds)
+            UNKNOWN → 재조회 → REFUNDED | NEEDS_MANUAL_CHECK
+            NEEDS_MANUAL_CHECK → REQUESTED (원인 해소 뒤 재시도) | REFUNDED | FAILED (운영자 확인)
 추첨        OPEN → CLOSED → DRAWN → DONE
 응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
             ENTERED → CANCELED (마감 전 취소, 재응모 불가)
             WAITLISTED → WON (승계) · WAITLISTED → LOST (승계 마감) · WON → PAID | FAILED
 ```
+
+- `NEEDS_MANUAL_CHECK`는 종결이 아니라 **운영자 확인이 필요한 상태**다. 자동 경로가 끝내지 못한 건(PG의 명확한 거절, 재조회·재시도 소진, 승인 금액 불일치, 상태 충돌)이 온다. 결제 쪽 닫는 전이의 근거는 PG 조회 결과다.
+- 환불 `FAILED`는 운영자가 PG로는 환불할 수 없음을 확인하고 시스템 밖 조치로 넘긴 **종결 상태**다. 자동 경로는 `FAILED`를 쓰지 않는다. 환불이 `FAILED`여도 결제는 `APPROVED`로 남는다.
 
 ### 8-3. 전이 표
 
@@ -656,10 +677,15 @@ sequenceDiagram
 | 예매 → HELD | 매수 한도 +n → 회차 좌석 HELD → 예매·예매 좌석 HELD | 선점 API (동기형) · 선점 소비자 (접수형) |
 | 접수 요청 → HELD / REJECTED | 위 선점과 같은 트랜잭션에서 `seat_hold_requests` 갱신 + `processed_events` 기록 | 선점 소비자 (접수형) |
 | 접수 요청 → REJECTED(PROCESSING_FAILED·TIMEOUT) | `seat_hold_requests`만 | DLQ 처리기 / 재확인 스케줄러(30초 경과) |
-| 예매 HELD → CONFIRMED | 예매 좌석 CONFIRMED, 회차 좌석 SOLD, 좌석별 티켓 ISSUED | PaymentApproved 소비자 |
+| 예매 HELD → CONFIRMED | 예매 좌석 CONFIRMED, 회차 좌석 SOLD, 좌석별 티켓 ISSUED, `payment_id` 기록 (원장 대조 통과, `approvedAt` ≤ `hold_expires_at`) | PaymentApproved 소비자 |
 | 예매 HELD → EXPIRED / RELEASED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 매수 한도 −n | 만료 스케줄러 / PaymentDeclined 소비자 |
+| 예매 HELD → EXPIRED (승인이 선점 만료 뒤) | 위 만료와 같음 + RefundRequested(EXPIRED_AFTER_APPROVAL, Outbox) | PaymentApproved 소비자 (E8) |
+| HELD에 대조 실패 승인 도착 | 예매는 그대로, RefundRequested(NOT_CONFIRMABLE, Outbox) | PaymentApproved 소비자 |
 | 예매 CONFIRMED → CANCELED | 예매 좌석 RELEASED, 회차 좌석 AVAILABLE, 티켓 VOID, 매수 한도 −n, RefundRequested(Outbox) | 취소 API |
-| EXPIRED에 PaymentApproved 도착 | 예매는 그대로, RefundRequested(Outbox) | PaymentApproved 소비자 (E8) |
+| EXPIRED에 PaymentApproved 도착 | 예매는 그대로, RefundRequested(EXPIRED_AFTER_APPROVAL, Outbox) | PaymentApproved 소비자 (E8) |
+| RELEASED에 PaymentApproved 도착 | 예매는 그대로, RefundRequested(NOT_CONFIRMABLE, Outbox) | PaymentApproved 소비자 |
+| CONFIRMED·CANCELED에 다른 paymentId의 PaymentApproved 도착 | 예매는 그대로, RefundRequested(DUPLICATE_APPROVAL, Outbox) | PaymentApproved 소비자 |
+| CONFIRMED·CANCELED에 같은 paymentId의 PaymentApproved 도착 | 변경 없음(재전달, 멱등) | PaymentApproved 소비자 |
 | 결제·환불 재조회 | 상태 확정 또는 `next_check_at` 갱신, 확정 시 outbox | 재확인 스케줄러 |
 
 ### 8-4. 전이 규칙
@@ -892,6 +918,47 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 순서는 같은 키 안에서만 보장된다. 상태 전이는 조건부 UPDATE라, 순서가 뒤바뀐 이벤트는 0행 갱신 → 기록만 하고 건너뛴다.
 - 형식 변경은 필드 추가만 허용하고, 의미가 바뀌면 `version`을 올린다.
 
+**결제 결과 이벤트 처리 계약 (Reservation `reservation.payment-result` 소비자)**: 이벤트의 `reservationId`·`paymentId`·`userId`·`amount`·`currency`를 예매 원장(`user_id`·`total_amount`·`payment_id`)과 원화 상수 `KRW`에 대조하고, 예매 상태별로 처리한다. 결제 쪽 `RefundRequested` 교차 검증은 10-5다.
+
+`PaymentApproved`
+
+| 예매 상태 | 조건 | 처리 | 발행 | 알림 |
+| --- | --- | --- | --- | --- |
+| `HELD` | 대조 통과, `approvedAt` ≤ `hold_expires_at` | `CONFIRMED`, `payment_id` 기록, 좌석별 티켓 | — | — |
+| `HELD` | 대조 통과, `approvedAt` > `hold_expires_at` | 만료와 같은 전이(`EXPIRED`, 좌석 반환, 매수 한도 감소) | `RefundRequested(EXPIRED_AFTER_APPROVAL)` | — |
+| `HELD` | 사용자·금액·통화 불일치 | 상태 유지(만료 스케줄러가 처리) | `RefundRequested(NOT_CONFIRMABLE)` | 즉시 |
+| `CONFIRMED` | `paymentId` = 예매의 `payment_id` | 변경 없음(멱등) | — | — |
+| `CONFIRMED` | `paymentId` 다름 | 변경 없음 | `RefundRequested(DUPLICATE_APPROVAL)` | 즉시 |
+| `EXPIRED` | — | 변경 없음 | `RefundRequested(EXPIRED_AFTER_APPROVAL)` | 지표만 |
+| `RELEASED` | — | 변경 없음 | `RefundRequested(NOT_CONFIRMABLE)` | 즉시 |
+| `CANCELED` | `paymentId` = 예매의 `payment_id` | 변경 없음(취소 환불은 이미 요청됨) | — | — |
+| `CANCELED` | `paymentId` 다름 | 변경 없음 | `RefundRequested(DUPLICATE_APPROVAL)` | 즉시 |
+| 예매 없음 | — | 이상 기록 | — | 즉시 |
+
+`PaymentDeclined`
+
+| 예매 상태 | 처리 |
+| --- | --- |
+| `HELD`, `userId` 일치 | `RELEASED`, 좌석 반환, 매수 한도 감소 |
+| `HELD`, `userId` 불일치 | 변경 없음, 즉시 알림 |
+| `CONFIRMED`·`CANCELED` | 변경 없음, 즉시 알림(확정에 쓰인 결제는 거절될 수 없다) |
+| `EXPIRED`·`RELEASED` | 변경 없음(기록) |
+
+`PaymentRefunded`
+
+| 예매 상태 | 조건 | 처리 |
+| --- | --- | --- |
+| `CANCELED` | `paymentId` = 예매의 `payment_id` | 환불 완료 기록 |
+| `EXPIRED`·`RELEASED`·`HELD` | — | 기록(만료 뒤 승인·확정 불가 승인·금액 불일치 승인의 환불 완료) |
+| `CONFIRMED` | `paymentId` = 예매의 `payment_id` | **자동 좌석 해제 금지.** 취소 근거가 확인될 때까지 이상 상태로 격리하고 즉시 알림 |
+| `CONFIRMED` | `paymentId` 다름 | 기록(중복 승인의 환불 완료) |
+
+- 만료 시각 판단은 PG 승인 시각(`approvedAt`)으로 한다. 예매가 아직 `HELD`라면 좌석은 다른 사람에게 가지 않았으므로, 선점 시간 안에 승인된 결제는 소비가 늦어도 확정한다.
+- 한 트랜잭션에서 `processed_events`, 조건부 UPDATE, 예매 이력, Outbox(`RefundRequested`)를 쓰고, 조건부 UPDATE가 있는 처리는 영향 행이 1일 때만 Outbox를 쓴다. 조건부 UPDATE가 0행이면 처리 중에 상태가 바뀐 것이라 다시 읽어 바뀐 상태의 규칙을 적용한다. 상태 변경 없이 환불만 요청하는 줄은 `processed_events`와 Outbox를 한 트랜잭션에 쓴다.
+- "이상 격리"는 상태를 바꾸지 않고 이벤트와 사유를 기록해 사람이 보게 하는 것이다.
+- 같은 `paymentId`로 `RefundRequested`를 다시 내도 Payment는 결제당 환불 한 건으로 묶는다(12-4).
+- 소비 실패가 재시도 3회 뒤 DLQ로 가면 Reservation의 `payment.result` DLQ 처리기가 이어받는다.
+
 ### 10-5. 재확인 경로 (#46, #28)
 
 10/26 피드백 "몇 초 안에 재확인할 것은 Kafka로, 몇 분 이상 걸릴 것은 스케줄러로"를 이렇게 반영한다.
@@ -900,9 +967,10 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - 그래도 확정되지 않으면 DB 행의 상태가 남아 있으므로 재확인 스케줄러가 이어받는다. 상태의 기준은 항상 DB 행이라 둘 중 하나가 빠져도 건이 사라지지 않는다.
 - 재확인 스케줄러 하나가 `next_check_at <= now()`인 결제 `REQUESTED`(10초 경과분)·`UNKNOWN`과 환불 `REQUESTED`·`UNKNOWN`을 `SKIP LOCKED`로 집어 처리한다. 간격은 9-4.
 - PG 재조회 결과: 승인이면 `APPROVED`, 거절이면 `DECLINED`, 주문 자체를 모르면(`NOT_FOUND`) 같은 주문번호로 망취소를 보내 PG가 늦게 승인하는 경우를 막은 뒤 `DECLINED`(reasonCode `NOT_SENT`)로 닫는다(docs/sa-review/02).
-- `NEEDS_MANUAL_CHECK`는 종결 상태다. Grafana에 건수 지표와 알림 기준을 두고, 운영자가 PG 콘솔에서 확인해 수동으로 닫는다.
+- `NEEDS_MANUAL_CHECK`는 종결이 아니라 운영자 확인이 필요한 상태다(8-2). Grafana에 건수 지표와 알림 기준을 두고, 운영자가 PG에서 확인한 근거로 8-2의 전이로 닫는다.
 - 접수형 선점 소비가 재시도 3회 뒤 DLQ로 가면 DLQ 처리기가 `seat_hold_requests`를 `REJECTED(PROCESSING_FAILED)`로 바꿔 조회할 수 있게 한다(E15). REQUESTED가 30초 `[가정]` 넘게 남으면 재확인 스케줄러가 `REJECTED(TIMEOUT)`으로 닫고, 그 뒤 늦게 도착한 메시지는 조건부 갱신 0행이라 좌석을 잡지 않고 건너뛴다.
-- 환불이 `FAILED`(PG가 명확히 거절)면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다(#16).
+- 환불을 PG가 명확히 거절하면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다(#16). 환불 `FAILED`는 이 자동 경로가 아니라 운영자가 PG 환불 불가를 확인하고 외부 조치로 넘길 때만 쓴다.
+- `payment.command`의 `RefundRequested` 소비자는 검증한 뒤 환불 행(`REQUESTED`)만 저장하고 PG를 부르지 않는다. 이벤트와 결제 행의 교차 검증(`paymentId`·`reservationId`·`userId`·`amount`·`currency`·`reason`)이 어긋나면 영구 오류라 재시도 없이 DLQ로 보낸다. PG 환불은 환불 워커만 부르고, 첫 호출이 아니면 환불 조회를 먼저 한다.
 
 ## 11. API 명세
 
@@ -982,6 +1050,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `PAYMENT_TOKEN_INVALID` | 403 | 결제 토큰 서명 오류·만료, `typ`·`aud`가 맞지 않는 토큰 (E14) |
 | `PAYMENT_AMOUNT_MISMATCH` | 400 | 요청 금액 ≠ 토큰 금액 |
 | `PAYMENT_ALREADY_EXISTS` | 409 | 같은 예매에 진행 중·완료된 결제 있음 (D3) |
+| 🆕 `PAYMENT_ALREADY_CLOSED` | 409 | 같은 예매에 `DECLINED`·`REFUNDED` 결제가 있어 새 승인 요청을 거절함. PG를 호출하지 않는다 (ADR 0016) |
 | `PG_UNAVAILABLE` | 503 | Circuit Breaker OPEN·Bulkhead 초과 (E10) |
 | `LOTTERY_NOT_OPEN` · `LOTTERY_ALREADY_ENTERED` · `BILLING_KEY_REQUIRED` | 409 | 응모 기간 밖 · 중복 응모(취소 뒤 재응모 포함) · 빌링키 없음(확장안, 1단계는 결제 시점 실패 → 승계) |
 | `LOTTERY_ALREADY_EXISTS` · `LOTTERY_SETUP_CLOSED` · `LOTTERY_SEATS_NOT_ENOUGH` | 409 | 회차에 추첨이 이미 있음 · 일반 오픈이나 응모 시작이 지나 설정·수정 불가 · 원래 등급의 AVAILABLE 좌석이 추첨석 수보다 적음(좌석 변경 없이 롤백) |
@@ -1383,11 +1452,11 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | --- | --- | --- | --- |
 | id | BIGINT | PK |  |
 | payment_id | BIGINT | NOT NULL, FK | INDEX(payment_id, id) |
-| 🆕 target_type | VARCHAR(10) | NOT NULL, CHECK (PAYMENT·REFUND) | 결제 전이인지 환불 전이인지 (U22 관련) |
+| 🆕 target_type | VARCHAR(10) | NOT NULL, CHECK (PAYMENT·REFUND) | 결제 전이인지 환불 전이인지. 환불 이력도 이 테이블에 쓴다 (U22) |
 | from_status · to_status | VARCHAR(20) | to NOT NULL |  |
 | reason | VARCHAR(50) |  |  |
 | 🆕 actor | VARCHAR(40) | NOT NULL | 전이를 일으킨 주체 |
-- `target_type`·`actor`는 V1 마이그레이션에 있으나 SA 변경 요청 목록에는 없다. 의미는 결제 담당 확인이 필요하다 `(팀 확인)`.
+- `target_type`은 환불 전이도 이 테이블에 쓰려는 컬럼이다(U22 해소). `actor`는 V1 마이그레이션에 있으나 SA 변경 요청 목록에는 없다. 값의 목록은 결제 담당 확인이 필요하다 `(팀 확인)`.
 
 **refunds** (#16)
 
@@ -1397,15 +1466,16 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | payment_id | BIGINT | NOT NULL, UNIQUE, FK | 결제 1건당 환불 1건 (전액 환불만) |
 | pg_refund_id | UUID | NOT NULL, UNIQUE | PG 호출 전에 생성해 PG 멱등키로 사용 |
 | amount | NUMERIC(15,0) | NOT NULL |  |
-| reason | VARCHAR(30) | NOT NULL | EXPIRED_AFTER_APPROVAL, CANCELED |
+| reason | VARCHAR(30) | NOT NULL | EXPIRED_AFTER_APPROVAL, CANCELED, DUPLICATE_APPROVAL, NOT_CONFIRMABLE, PG_AMOUNT_MISMATCH(금액 불일치 승인의 환불) |
 | status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·REFUNDED·FAILED·UNKNOWN·NEEDS_MANUAL_CHECK) |  |
 | attempt | SMALLINT | NOT NULL, DEFAULT 0 | 재조회 횟수 |
 | next_check_at | TIMESTAMPTZ |  | 다음 재조회 시각 |
 |  |  | INDEX(next_check_at) WHERE status IN ('REQUESTED','UNKNOWN') | 재확인 스케줄러 |
-- 멱등: `RefundRequested`를 소비할 때 `INSERT ... ON CONFLICT (payment_id) DO NOTHING`. 만료 뒤 승인(E8)과 사용자 취소가 같은 결제에 동시에 환불을 요청해도 한 건만 생긴다(E13).
+- 멱등: `RefundRequested`를 소비할 때 환불 행만 `INSERT ... ON CONFLICT (payment_id) DO NOTHING`으로 저장하고 PG는 부르지 않는다. PG 환불은 환불 워커가 부른다(10-5). 만료 뒤 승인(E8)과 사용자 취소가 같은 결제에 동시에 환불을 요청해도 한 건만 생긴다(E13).
 - 환불은 결제가 APPROVED로 확정된 뒤에만 시작한다. 결제가 UNKNOWN인 동안 만료되면 나중에 PaymentApproved가 오고 Reservation이 RefundRequested를 내므로 순서가 지켜진다.
-- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_histories`에 reason과 함께 남긴다 `(팀 확인)`.
-- 환불 `FAILED`(PG가 명확히 거절)는 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다.
+- 결제의 REFUNDED 전이는 환불이 REFUNDED가 될 때 한다. 환불 상태 이력은 `payment_status_histories`에 `target_type = REFUND`와 reason으로 남긴다(U22).
+- PG가 환불을 명확히 거절하면 재시도해도 같은 결과라 바로 `NEEDS_MANUAL_CHECK`로 보내고 운영자에게 알린다. 환불 `FAILED`는 운영자가 PG로는 환불할 수 없음을 확인하고 외부 조치로 넘긴 종결 상태이며 자동 경로는 쓰지 않는다.
+- `NEEDS_MANUAL_CHECK`에서 닫는 전이: 결제 → `APPROVED`·`DECLINED`(운영자가 PG 근거 확인), 금액 불일치 승인의 환불이 끝나면 결제 → `REFUNDED`. 환불 → `REQUESTED`(원인 해소 뒤 재시도)·`REFUNDED`·`FAILED`(운영자 확인). 결제 `REQUESTED`는 PG 호출 직전에 토큰이 만료돼 미전송이면 `DECLINED(TOKEN_EXPIRED)`가 된다.
 
 **billing_keys** (이후)
 
@@ -1964,8 +2034,8 @@ high-quality-ticketing-system/
 | 분산락(Redis 등) | DB 접근 전에 경합을 거를 수 있음 | 락 획득·해제 왕복, 락 만료와 장애 시 정합성 위험, 결국 DB 제약이 필요 |
 | Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
 
-**부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)와 `payments`(D3: REQUESTED·APPROVED·UNKNOWN·NEEDS_MANUAL_CHECK)에 건다. RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
-- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 이 문단의 "재결제가 가능하다"를 고치는 것(S-16)은 U9 확인 뒤 결정 기록 #58과 함께 정정한다.
+**부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)에 건다. RELEASED는 제외해야 좌석 재선택이 가능하다. `payments`(D3)는 부분 유니크가 아니라 `UNIQUE(reservation_id)` 전체로 건다(12-4, ADR 0026). 거절 뒤 좌석 재선택은 새 예매라 영향이 없고, 같은 예매의 재결제는 8-3에 따라 없다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
+- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 11/9에 이 문단의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 위처럼 정정했다(S-16). Notion 결정 기록 #58의 같은 문장은 사용자가 요청할 때 따로 고친다. U9(추첨 결제 실패 재시도)가 같은 예매의 재결제를 요구하면 ADR 0026을 다시 연다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 
@@ -2001,9 +2071,9 @@ high-quality-ticketing-system/
 
 | # | 항목 | 정할 때 | 제안 담당 |
 | --- | --- | --- | --- |
-| U1 | 계약 4종 형식 통보 (17-1 #1) | 10/27 | 각 담당 |
+| U1 | 계약 4종 형식 통보 (17-1 #1). 결제 토큰 claim 이름은 10/29 확정(7-3, S-15) | 10/27 | 각 담당 |
 | U2 | 숫자 근거 실제 값과 출처 | 기준선 후 갱신 | 권영은 |
-| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 `contracts.md`에 "추첨은 사유별로 분기한다"와 `NOT_SENT` 보장 문구를 선반영했다(ADR 0038). 결제 담당 확인 대기(ISE-89) | 결제 담당 확인 뒤 | 이강민 |
+| U9 | 추첨 세부(실패 유형별 승계, 결제수단 확인, 늦은 응모) — 10/31 추첨 담당 결정: 당첨자 책임은 승계, `NOT_SENT`는 새 예매로 1회 재시도, 결과 미수신 만료는 같은 예매 1회 연장(ADR 0026 유지), 결제수단은 결제 시점 확인, 늦은 응모는 DB 시각 조건으로 거부. 결제 `contracts.md`에 "추첨은 사유별로 분기한다"와 `NOT_SENT` 보장 문구를 선반영했다(ADR 0038). 같은 예매의 재결제를 요구하면 ADR 0026(예매당 결제 하나)을 다시 연다(S-16). 결제 담당 확인 대기(ISE-89) | 결제 담당 확인 뒤 | 이강민 |
 | U10 | 측정 PC 사양, EC2 크기(9-3 기준 16GB급, AWS 지원금 범위 확인) | M1~M2 | 권영은 |
 | U12 | ~~포트·패키지 이름 확인~~ 해소(10/27): 패키지 `com.iseonjwa`, 포트는 9-1 표(통합 코드 기준) | 10/27 | 다 같이 |
 | U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
@@ -2011,9 +2081,8 @@ high-quality-ticketing-system/
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
 | U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 — 10/31: 동기 INSERT를 기준선으로 구현하고 측정 시나리오 1(마감 직전 초당 100건, p95 300ms)로 정한다. 4-2 ③·10-1·10-3·11장 202는 그 뒤에 고친다 | 측정 시나리오 1 뒤 (ISE-87) | 이강민 |
 | U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
-| U22 | 환불 상태 이력을 `payment_status_histories`에 둘지 별도 이력 테이블로 둘지 | M3 전 | 안준현 |
 
-해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58)
+해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58. v3.3에서 D3은 전체 UNIQUE라 의미 없음, ADR 0026) · U22(환불 상태 이력은 `payment_status_histories`의 `target_type = REFUND`에 둠 → 12-4, `V3__refunds.sql`)
 
 ### 17-3. 체크리스트
 
@@ -2065,7 +2134,7 @@ high-quality-ticketing-system/
 | M5 | 트랙 A 책임자, 프론트 담당, 공통 모듈 분담, H11 분담 | ✅ 10/25 합의 | 6장 |
 | M5 | 걷는 뼈대 10/29 | ✅ | 5-2 |
 | M6 | 추첨 1차 단순화 (등급별·1–2매·연석 미보장·같은 조건 승계·승계 마감) | ✅ | 4-3 · 12-3 |
-| M6 | 결제 실패 유형별 재시도·승계, 응모 시 결제수단 확인 방법, 추첨 재실행 방지, 마감 직후 늦은 응모 처리 | 재실행 방지는 ✅ (lottery.status), 나머지는 `⚠ 미해결` | 12-3 · U9 |
+| M6 | 결제 실패 유형별 재시도·승계, 응모 시 결제수단 확인 방법, 추첨 재실행 방지, 마감 직후 늦은 응모 처리 | 재실행 방지는 ✅ (lottery.status), 나머지는 `⚠ 미해결`. 같은 예매의 재결제는 없다(8-3, ADR 0026)이고 U9가 요구하면 다시 연다 | 12-3 · U9 |
 | M6 | 응모 Kafka 접수는 과함 | 🔀 Kafka 접수 유지 | AI 검증 #4 |
 | M7 | Outbox는 서비스별 트랜잭션 안, 소비 기록과 업무 변경 원자적, 재시도·DLQ 담당 | ✅ 공통 모듈은 결제 담당 | 10-4 · 12-5 · 6-6 |
 | M7 | Bulkhead | ✅ | 7-2 |
@@ -2150,7 +2219,9 @@ high-quality-ticketing-system/
 | Mock PG 담당과 결제 지원 | Mock PG·장애 주입·망취소·환불 조회는 이강민, 결제가 밀리면 이강민이 추첨 시작을 늦추고 돕는다 (v3.2 6-1·6-7·6-9) | Mock PG 포함 결제 전부 안준현, 지원 불필요. 이강민은 User·공통 모듈 개선 → 추첨 기획·설계 (10/28 결제 담당 확인) | 반영 (10/28) |
 | 테이블 이름 | `users`만 복수형, 나머지 단수형(`payment`, `outbox`, `reservation_status_history` 등) (v3.2 12장) | 모두 snake_case 복수형, `outbox` → `outbox_events` (ADR 0030 제안) | 반영 (v3.3, 결제 코드는 ISE-67) |
 | ERD | 예매 흐름 테이블 위주 2개 그림, 공통 테이블·빌링키·이력 속성 생략 (v3.2 12-6) | DB별 그림 5개, 명세의 모든 테이블·컬럼 | 반영 (v3.3) |
-| 같은 예매 중복 결제 방지 (D3) | `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안 (v3.2 12-4, #58) | `UNIQUE(reservation_id)` 전체, 예매당 결제 하나 (ADR 0026, payment-service V1) | 반영 (v3.3, #58 문장 정정은 U9 뒤 S-16) |
+| 같은 예매 중복 결제 방지 (D3) | `UNIQUE(reservation_id) WHERE status IN ('REQUESTED','UNKNOWN','APPROVED')`, NMC 포함 제안 (v3.2 12-4, #58) | `UNIQUE(reservation_id)` 전체, 예매당 결제 하나 (ADR 0026, payment-service V1) | 반영 (v3.3, #58 문장은 11/9 정정, S-16) |
+| `NEEDS_MANUAL_CHECK`의 뜻 | 종결 상태, 운영자가 PG 콘솔에서 확인해 수동으로 닫음, 환불 `FAILED`는 PG의 명확한 거절 (v3.3 8-2·10-5·12-4) | 운영자 확인 필요 상태이고 닫는 전이가 있음. 환불 `FAILED`는 운영자가 외부 조치로 넘긴 종결 상태 (ADR 0020) | 반영 (11/9, S-5) |
+| 예매의 결제 이벤트 처리 | 예매가 `EXPIRED`일 때 `PaymentApproved`가 오면 `RefundRequested`(E8)만 (v3.3 8-3) | 예매 원장 대조와 상태별 규칙, 같은 `paymentId`의 재전달은 멱등 (ADR 0027) | 반영 (11/9, S-1·S-17) |
 
 **본문에서 뺀 내용**
 
