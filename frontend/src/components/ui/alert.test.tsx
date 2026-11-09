@@ -36,4 +36,16 @@ describe('Alert', () => {
     expect(screen.queryByRole('button', { name: '닫기' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
   })
+
+  it('행동과 닫기가 함께 있으면 문서 순서가 행동 → 닫기다(보이는 순서와 Tab 순서)', () => {
+    render(
+      <Alert action={<button type="button">다시 시도</button>} onClose={() => {}}>
+        안내 문구
+      </Alert>,
+    )
+
+    const action = screen.getByRole('button', { name: '다시 시도' })
+    const close = screen.getByRole('button', { name: '닫기' })
+    expect(action.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })
