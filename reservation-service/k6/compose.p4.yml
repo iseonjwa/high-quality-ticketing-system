@@ -1,0 +1,14 @@
+# 좌석 조회 경량화(P4) 단계 선택 덮어쓰기. 측정 브랜치(experiment/ISE-79-p4-measure) 전용이다.
+# compose.deploy-memory.yml·compose.g1.yml 위에 얹는다. 단계는 앞 단계를 모두 포함한다.
+#   ENTITY(P0'', 기존 코드) / DTO(P4a) / LAYOUT_CACHE(P4b) / STATE_CACHE(P4c)
+#   SEATMAP_MODE=DTO docker compose --env-file ../../../.env -f compose.yml -f compose.local.yml \
+#     -f reservation-service/k6/compose.deploy-memory.yml -f reservation-service/k6/compose.g1.yml \
+#     -f reservation-service/k6/compose.p4.yml up -d --build --no-deps --wait reservation-service
+#
+# Note: 단계마다 다시 빌드하지 않고 같은 이미지에서 환경변수만 바꾼다. 빌드 차이가 결과에 섞이지 않게 하려는 것이다.
+# Note: SEATMAP_MODE를 빠뜨리면 기존 코드로 떠서 단계를 잘못 기록할 수 있어 필수로 둔다.
+services:
+  reservation-service:
+    environment:
+      RESERVATION_SEATMAP_MODE: ${SEATMAP_MODE:?ENTITY, DTO, LAYOUT_CACHE, STATE_CACHE 중 하나를 준다}
+      RESERVATION_SEATMAP_STATETTL: ${SEATMAP_STATE_TTL:-1s}

@@ -72,6 +72,14 @@ SCHEDULE_ID=12 MODEL=closed bash reservation-service/k6/run.sh
 SCHEDULE_ID=12 RATE=10 DURATION_SECONDS=30 bash reservation-service/k6/run.sh
 # K1-H: 선점 경로만(좌석 조회는 setup에서 1번). 결과 파일 이름에 holdonly가 붙는다
 SCHEDULE_ID=12 TOKEN_MODE=sign SEAT_MAP=once bash reservation-service/k6/run.sh
+# 측정 종류(계획 문서 1-6절). 워밍업용 회차를 하나 더 만든다
+WARM=$(bash reservation-service/k6/tools/create-schedule.sh "k6 warmup")
+# 부하(L): 초당 100명 5분, 30초 워밍업
+SCHEDULE_ID=12 TOKEN_MODE=sign WARMUP_SECONDS=30 WARMUP_SCHEDULE_ID=$WARM bash reservation-service/k6/run.sh
+# 스트레스(S)와 회복(R): 초당 5명부터 두 배씩 60초, 끝나고 120초 탐침. 높은 단계는 VU가 모자라면 MAX_VUS를 올린다
+SCHEDULE_ID=12 TOKEN_MODE=sign MODEL=ramp MAX_VUS=4000 RECOVERY_SECONDS=120 WARMUP_SECONDS=30 WARMUP_SCHEDULE_ID=$WARM bash reservation-service/k6/run.sh
+# K1-H 스트레스
+SCHEDULE_ID=12 TOKEN_MODE=sign SEAT_MAP=once MODEL=ramp STAGES=50,100,200,400,800 MAX_VUS=4000 bash reservation-service/k6/run.sh
 ```
 
 K1-H는 좌석 조회 병목(B2)을 떼고 선점 쪽 개선(P1~P3)을 재려고 만들었다. 좌석 목록이 측정 시작 시점에 고정이라 시간이 갈수록 409가 K1보다 많고, 좌석 조회와 커넥션을 나눠 쓰지 않아 실제보다 좋게 나온다. 그래서 K1 결과와 섞지 않는다. 설계는 계획 문서 1-5절, 기준선은 5-4절이다.
@@ -85,7 +93,9 @@ docker run --rm -v "${PWD}/reservation-service/k6:/scripts" -e BASE_URL=http://h
 |---|---|---|
 | `SCHEDULE_ID` | 없음(필수) | 대상 회차 |
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 컨테이너 안의 localhost는 컨테이너 자신이다 |
-| `MODEL` | `open` | `open`(초당 도착 고정) 또는 `closed`(VU 고정) |
+| `MODEL` | `open` | `open`(초당 도착 고정), `closed`(VU 고정), `ramp`(스트레스: 단계마다 도착률을 올림) |
+| `STAGES` / `STAGE_SECONDS` | `5,10,20,40,80,160,320` / 60 | `ramp`의 단계별 초당 도착 수와 단계 길이. 단계 사이 5초는 올리는 구간이라 `stage:ramp`로 따로 태그한다. K1-H는 `50,100,200,400,800`을 쓴다 |
+| `WARMUP_SECONDS` / `WARMUP_RATE` / `WARMUP_SCHEDULE_ID` | 0 / 10 / 없음 | 0보다 크면 부하 전에 다른 회차로 워밍업한다(`api:warmup` 태그, 결과에서 빠짐). `TOKEN_MODE=sign`에서만 된다 |
 | `RATE` / `DURATION_SECONDS` | 100 / 300 | 초당 입장 수와 측정 시간 |
 | `CLOSED_VUS` | 100 | 닫힌 모델의 VU 수 |
 | `THINK_MIN` / `THINK_MAX` | 1 / 3 | 첫 선점 전 고민 시간(초). 재시도 전에는 0.5~1초 |
@@ -115,6 +125,7 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `users_finished` | 사용자 결과(`held`, `soldout`, `gave_up`, `error`) |
 | `requests_per_user` | 사용자당 요청 수. 409 재시도가 요청을 얼마나 불렸는지 |
 | `dropped_iterations` | 부하 생성기가 도착률을 못 맞춘 횟수. 0이 아니면 서버가 아니라 생성기 한계일 수 있다 |
+| `{stage:<초당 명>}` | `MODEL=ramp`에서 그 단계에 도착한 사용자의 요청. 단계별 `http_req_failed`·`http_req_duration{api:seats}`·`{api:hold}`가 요약에 따로 나온다 |
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.
 
@@ -134,3 +145,37 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `loadtest` 프로필 | 일부 | `config-repo/application-loadtest.yml`에 추적 샘플링 0.01만 있다. 입장 속도·토큰 유효 시간·풀 크기 덮어쓰기는 없다 |
 | Gateway 요청 제한 | 없음 | `gateway`와 `config-repo`에서 rate limiter 설정을 찾지 못했다. 측정을 막지 않는다 |
 | Prometheus remote write | 없음 | `infra/prometheus.yml`에 수신 설정이 없다. 그래서 `run.sh`는 결과를 파일(요약 JSON, CSV)로 남긴다 |
+
+## 6. 좌석 조회 경량화(P4) 단계 측정 (측정 브랜치 `experiment/ISE-79-p4-measure` 전용)
+
+좌석 조회 단계 P4a·P4b·P4c를 K1과 같은 환경(배포 메모리 + G1)에서 재려고 둔 측정 전용 코드다. 본 구현은 ISE-189(반효승)이고 이 코드는 머지하지 않는다. 단계는 앞 단계를 모두 포함하고, 한 이미지에서 환경변수 `SEATMAP_MODE`만 바꿔 고른다.
+
+| `SEATMAP_MODE` | 단계 | 좌석 조회 한 건이 하는 일 |
+|---|---|---|
+| `ENTITY` | P0'' (기존 코드) | 15,000석을 엔티티로 읽는다(공연장 좌석 join fetch) |
+| `DTO` | P4a | 같은 행을 엔티티 없이 응답에 필요한 열만 읽는다 |
+| `LAYOUT_CACHE` | P4b | 배치(구역·열·번호·등급·가격)는 회차마다 한 번 읽어 두고, 요청마다 선택 가능한 좌석 ID만 읽는다 |
+| `STATE_CACHE` | P4c | P4b + 좌석 ID 목록을 `SEATMAP_STATE_TTL`(기본 `1s`) 동안 함께 쓴다. 캐시로 답하는 요청은 커넥션을 쓰지 않는다 |
+
+- 응답 JSON은 단계마다 글자 하나까지 같다(`ScheduleSeatApiP4Test`).
+- 캐시는 읽는 동안 들어온 요청이 같은 결과를 기다린다(`SharedLoadCache`). 오픈 직후 동시에 몰려도 DB 조회는 회차마다 하나다.
+- P4c의 TTL 비교(0·1·3초)는 `SEATMAP_STATE_TTL=0s|1s|3s`로 한다. `0s`는 P4b와 같다.
+
+워크트리에는 `.env`가 없으므로 원래 저장소의 `.env`를 가리킨다. 워크트리 루트에서 실행한다.
+
+```bash
+ENV=../../../.env
+# 계획 문서 3-2절: P4a부터는 R1(커넥션 대기 1초)을 켠 채 잰다. 지표 관찰용 compose.b8-observe.yml도 얹는다
+F="-f compose.yml -f compose.local.yml -f reservation-service/k6/compose.deploy-memory.yml -f reservation-service/k6/compose.g1.yml -f reservation-service/k6/compose.b8-observe.yml -f reservation-service/k6/compose.b8-r1.yml -f reservation-service/k6/compose.p4.yml"
+# 처음 한 번: 측정 브랜치 코드로 reservation-service 이미지를 만든다(같은 프로젝트 이름 iseonjwa라 원래 스택의 컨테이너를 바꾼다)
+SEATMAP_MODE=ENTITY docker compose --env-file $ENV $F build reservation-service
+# 단계마다: 환경변수만 바꿔 다시 띄우고 새 회차로 잰다
+SEATMAP_MODE=DTO docker compose --env-file $ENV $F up -d --no-deps --wait reservation-service
+SCHEDULE_ID=$(ENV_FILE=$ENV bash reservation-service/k6/tools/create-schedule.sh "k6 P4a")
+ENV_FILE=$ENV LABEL=p4a SCHEDULE_ID=$SCHEDULE_ID TOKEN_MODE=sign bash reservation-service/k6/run.sh
+```
+
+- 측정 순서는 `ENTITY`(같은 이미지로 P0'' + R1 다시 재기) → `DTO` → `LAYOUT_CACHE` → `STATE_CACHE`다. 5-3절 P0''는 다른 날 다른 이미지이고 R1이 없어서, 비교는 같은 날 다시 잰 `ENTITY + R1`과 한다(B8 R0과 같은 이유).
+- 단계마다 부하(L), 스트레스(S)+회복(R)을 잰다(계획 문서 1-6절, 위 3절의 실행 예). 단계를 고르는 측정은 1회, 발표 비교점(`ENTITY`, 마지막 단계)만 3회다.
+- 끝나면 원래 저장소에서 `docker compose ... build reservation-service`로 이미지를 되돌린다. 그대로 두면 다른 측정이 이 코드로 돈다.
+- 이 브랜치는 dev의 ISE-200(추첨석 전환 LIMIT 수정) 전이다. 전체 테스트에서 `AdminLotteryApiTest` 9건이 실행 계획에 따라 실패할 수 있다(단독 실행은 통과). K1 경로와 관계없다.

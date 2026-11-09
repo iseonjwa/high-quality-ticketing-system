@@ -29,6 +29,27 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     }
 
     @Override
+    public List<SeatMapRow> findSeatMapRows(Long scheduleId) {
+        return springDataScheduleSeatRepository.findSeatMapRows(scheduleId).stream()
+                .map(row -> new SeatMapRow(toLayout(row), (Boolean) row[6]))
+                .toList();
+    }
+
+    @Override
+    public List<SeatLayoutRow> findSeatLayout(Long scheduleId) {
+        return springDataScheduleSeatRepository.findSeatLayoutRows(scheduleId).stream()
+                .map(JpaScheduleSeatRepository::toLayout)
+                .toList();
+    }
+
+    @Override
+    public long[] findHoldableSeatIds(Long scheduleId) {
+        return springDataScheduleSeatRepository.findHoldableSeatIds(scheduleId).stream()
+                .mapToLong(Number::longValue)
+                .toArray();
+    }
+
+    @Override
     public int createFromVenueSeats(Long scheduleId, Long venueId, Map<SeatGrade, Money> prices, Long actorId) {
         return springDataScheduleSeatRepository.insertFromVenueSeats(scheduleId, venueId,
                 priceOf(prices, SeatGrade.VIP), priceOf(prices, SeatGrade.R), priceOf(prices, SeatGrade.S), actorId);
@@ -89,6 +110,12 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
                 .map(row -> new LotterySeatRow(((Number) row[0]).longValue(), (String) row[1],
                         ((Number) row[2]).intValue(), ((Number) row[3]).intValue()))
                 .toList();
+    }
+
+    // 열 순서는 findSeatMapRows·findSeatLayoutRows의 SELECT 순서다
+    private static SeatLayoutRow toLayout(Object[] row) {
+        return new SeatLayoutRow(((Number) row[0]).longValue(), (String) row[1], SeatGrade.valueOf((String) row[2]),
+                (BigDecimal) row[3], ((Number) row[4]).intValue(), ((Number) row[5]).intValue());
     }
 
     // 공연장에 없는 등급은 해당 좌석 행이 없어 쓰이지 않는다. SQL에 null을 넘기지 않으려고 0을 넣는다

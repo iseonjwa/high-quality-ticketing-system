@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository.SeatMapRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -21,5 +22,9 @@ public class SeatResponse {
     public static SeatResponse from(ScheduleSeat seat) {
         return new SeatResponse(seat.getId(), seat.getVenueSeat().getRowNo(), seat.getVenueSeat().getSeatNo(),
                 seat.isHoldable());
+    }
+
+    public static SeatResponse from(SeatMapRow row) {
+        return new SeatResponse(row.layout().seatId(), row.layout().rowNo(), row.layout().seatNo(), row.available());
     }
 }

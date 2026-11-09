@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation;
 
 import com.iseonjwa.common.response.SuccessResponse;
+import com.iseonjwa.reservation.concert.application.SeatMapProperties;
 import com.iseonjwa.reservation.concert.application.ScheduleSeatQueryService;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.concert.presentation.dto.response.ScheduleSeatsResponse;
@@ -27,8 +28,17 @@ public class ScheduleSeatController {
     // 회차 좌석 배치와 선택 가능 여부
     @GetMapping("/{scheduleId}/seats")
     public ResponseEntity<SuccessResponse<ScheduleSeatsResponse>> getSeats(@PathVariable Long scheduleId) {
-        List<ScheduleSeat> seats = scheduleSeatQueryService.getSeats(scheduleId);
-        return ResponseEntity.ok(SuccessResponse.of(200, "회차 좌석을 조회했습니다",
-                ScheduleSeatsResponse.of(scheduleId, clock.instant(), seats), MDC.get("traceId")));
+        return ResponseEntity.ok(SuccessResponse.of(200, "회차 좌석을 조회했습니다", seatsOf(scheduleId),
+                MDC.get("traceId")));
+    }
+
+    // 측정 브랜치 전용: ENTITY(P0'')는 기존 경로를 그대로 둬 기준선과 같은 코드로 잰다
+    private ScheduleSeatsResponse seatsOf(Long scheduleId) {
+        if (scheduleSeatQueryService.mode() == SeatMapProperties.Mode.ENTITY) {
+            List<ScheduleSeat> seats = scheduleSeatQueryService.getSeats(scheduleId);
+            return ScheduleSeatsResponse.of(scheduleId, clock.instant(), seats);
+        }
+        var rows = scheduleSeatQueryService.getSeatMap(scheduleId);
+        return ScheduleSeatsResponse.fromRows(scheduleId, clock.instant(), rows);
     }
 }

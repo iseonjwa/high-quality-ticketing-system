@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// 회차 좌석 조회 API(ISE-148). 로그인·입장 토큰은 Gateway가 보므로 여기서는 헤더 없이 부른다.
+// 회차 좌석 조회 API(ISE-148). 경량화 단계(P4a~P4c)도 같은 테스트를 상속해 같은 JSON인지 본다(ScheduleSeatApiP4Test).
+// 로그인·입장 토큰은 Gateway가 보므로 여기서는 헤더 없이 부른다.
 // 공연장: A구역 VIP 2석(1열 1·2번), B구역 S 3석(1열 2·1번, 2열 1번). B구역에 선점된 좌석과 추첨석을 하나씩 둔다.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
@@ -37,8 +38,8 @@ class ScheduleSeatApiTest {
     @Autowired
     JdbcTemplate jdbc;
 
-    private Long venueId;
-    private Long scheduleId;
+    Long venueId;
+    Long scheduleId;
 
     @BeforeEach
     void setUp() {
@@ -127,7 +128,7 @@ class ScheduleSeatApiTest {
         assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
     }
 
-    private Long seatIdOf(String section, int rowNo, int seatNo) {
+    Long seatIdOf(String section, int rowNo, int seatNo) {
         return jdbc.queryForObject("SELECT ss.id FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id"
                 + " WHERE ss.schedule_id = ? AND vs.section = ? AND vs.row_no = ? AND vs.seat_no = ?", Long.class,
                 scheduleId, section, rowNo, seatNo);
@@ -139,13 +140,13 @@ class ScheduleSeatApiTest {
         return result;
     }
 
-    private Response get(String path) throws Exception {
+    Response get(String path) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET().build();
         var response = http.send(request, HttpResponse.BodyHandlers.ofString());
         return new Response(response.statusCode(), response.body());
     }
 
-    private record Response(int status, String body) {
+    record Response(int status, String body) {
         JsonNode json() {
             return JsonMapper.builder().build().readTree(body);
         }
