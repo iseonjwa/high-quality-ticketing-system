@@ -22,7 +22,7 @@
 | FE-014 | 관리자 추첨 화면: 오픈 경과 경고, 칸 검증, 시간대 안내, 결과 표시 (S8) | 경계값 | P1 | 오픈 지나면 폼 없음, 값 규칙 위반 칸 안내, 새벽 3\~5시 밖 안내, 설정 후 추첨 번호 | `frontend/src/pages/admin/AdminLotteryPages.test.tsx`, `frontend/src/admin/lotteryFormSchema.test.ts` | 자동 테스트, 로컬, 서버 |
 | FE-015 | 관리자 공연·회차·좌석·비밀번호 초기화 화면 | 정상 | P1 | 세부는 테스트 본문 확인 필요 (근거: 추정) | `frontend/src/pages/admin/AdminPages.test.tsx`, `frontend/src/admin/formSchemas.test.ts` | 자동 테스트, 로컬, 서버 |
 | FE-016 | 시연 모드: ?demo=on, 요청 기록 패널, traceId 링크 (S1) | 정상 | P0 | 최신 기록 위, 상태 칩, 16진수 아닌 traceId는 글자만, 상태는 sessionStorage | `frontend/src/demo/demoMode.test.ts`, `frontend/src/demo/RequestLogPanel.test.tsx`, `frontend/src/demo/requestLog.test.ts` | 자동 테스트, 로컬, 서버 |
-| FE-017 | 브라우저 E2E: 가입부터 티켓 확인까지 (S1, S2, S3, S4) | 정상 | P1 | 확인할 질문: 끝까지 완료되는가. package.json에 Playwright·Cypress 없음, 리허설로 수동 실행 | 없음 | 로컬, 서버 |
+| FE-017 | 브라우저 E2E: 가입부터 티켓 확인까지 (S1, S2, S3, S4) | 정상 | P1 | 확인할 질문: 끝까지 완료되는가. MSW 모드 Playwright는 로그인부터 내 예매까지(409·확인 중 포함)를 자동으로 돈다. 가입과 실제 스택(compose) 대상은 아직 없어 리허설로 수동 실행 | `frontend/e2e/booking-flow.spec.ts`(MSW 모드) | 로컬, 서버 |
 
 ### 프론트 화면: 직접 실행할 때
 
