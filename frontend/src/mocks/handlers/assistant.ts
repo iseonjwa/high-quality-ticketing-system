@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { fail, ok, readBody, requireUser } from '@/mocks/respond'
+import { fail, nextTraceId, ok, readBody, requireUser } from '@/mocks/respond'
 
 // 내부 AI 상담(docs/design/assistant/README.md 2절)의 목. 서버의 키워드 검색 대신 질문 낱말로 절을 고른다.
 // 질문에 "검색"이 들어가면 LLM이 꺼진 검색 모드, "지연"이 들어가면 LLM 장애로 강등된 검색 모드를 돌려준다.
@@ -72,6 +72,12 @@ function chunksOf(text: string): string[] {
   return chunks
 }
 
+// 서버처럼 meta에 요청의 traceId를 싣는다(선택 필드)
+const meta = (mode: 'AI' | 'SEARCH', fallbackReason: string | null): StreamEvent => [
+  'meta',
+  { mode, fallbackReason, traceId: nextTraceId() },
+]
+
 const deltas = (text: string): StreamEvent[] =>
   chunksOf(text).map((chunk) => ['delta', { text: chunk }])
 
@@ -86,30 +92,24 @@ function streamScenario(question: string, sections: MockSection[]): StreamEvent[
   ]
 
   if (question.includes('검색')) {
-    return [
-      ['meta', { mode: 'SEARCH', fallbackReason: 'LLM_DISABLED' }],
-      ...searchDone('LLM_DISABLED'),
-    ]
+    return [meta('SEARCH', 'LLM_DISABLED'), ...searchDone('LLM_DISABLED')]
   }
   if (question.includes('지연')) {
-    return [
-      ['meta', { mode: 'SEARCH', fallbackReason: 'LLM_UNAVAILABLE' }],
-      ...searchDone('LLM_UNAVAILABLE'),
-    ]
+    return [meta('SEARCH', 'LLM_UNAVAILABLE'), ...searchDone('LLM_UNAVAILABLE')]
   }
   if (question.includes('끊김')) {
     return [
-      ['meta', { mode: 'AI', fallbackReason: null }],
+      meta('AI', null),
       ...deltas(answer).slice(0, 4),
       ['fallback', { fallbackReason: 'LLM_UNAVAILABLE' }],
       ...searchDone('LLM_UNAVAILABLE'),
     ]
   }
   if (question.includes('중단')) {
-    return [['meta', { mode: 'AI', fallbackReason: null }], ...deltas(answer).slice(0, 4)]
+    return [meta('AI', null), ...deltas(answer).slice(0, 4)]
   }
   return [
-    ['meta', { mode: 'AI', fallbackReason: null }],
+    meta('AI', null),
     ...deltas(answer),
     ['sources', { sources: [toSource(first)] }],
     ['done', { answer, mode: 'AI', fallbackReason: null }],

@@ -1,7 +1,7 @@
 import type { z } from 'zod'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { failureEnvelopeSchema, successEnvelopeSchema } from '@/api/envelope'
-import { recordRequest } from '@/demo/requestLog'
+import { recordRequest, setRequestTraceId } from '@/demo/requestLog'
 
 export const API_BASE_PATH = '/api/v1'
 
@@ -67,9 +67,10 @@ export async function openStream(options: StreamOptions): Promise<Response> {
   const startedTick = performance.now()
   let status = 0
   let traceId: string | null = null
+  let response: Response | undefined
 
   try {
-    const response = await fetchOrThrow(options, STREAM_ACCEPT)
+    response = await fetchOrThrow(options, STREAM_ACCEPT)
     status = response.status
     if (!response.ok) {
       const payload = await readJson(response)
@@ -87,7 +88,7 @@ export async function openStream(options: StreamOptions): Promise<Response> {
     return response
   } finally {
     if (!options.signal?.aborted) {
-      recordRequest({
+      const recordId = recordRequest({
         startedAt,
         method: options.method,
         path: loggedPath(options.path),
@@ -95,7 +96,20 @@ export async function openStream(options: StreamOptions): Promise<Response> {
         durationMs: Math.round(performance.now() - startedTick),
         traceId,
       })
+      if (recordId !== null && response !== undefined) {
+        streamRecordIds.set(response, recordId)
+      }
     }
+  }
+}
+
+// 스트림 응답과 그 요청 기록을 잇는다. 응답을 읽는 쪽이 첫 이벤트에서 traceId를 알면 noteStreamTraceId로 채운다
+const streamRecordIds = new WeakMap<Response, number>()
+
+export function noteStreamTraceId(response: Response, traceId: string) {
+  const recordId = streamRecordIds.get(response)
+  if (recordId !== undefined) {
+    setRequestTraceId(recordId, traceId)
   }
 }
 

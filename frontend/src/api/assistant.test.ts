@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { streamAssistant, type AssistantStreamEvent } from '@/api/assistant'
 import { sessionStore } from '@/auth/session'
+import { enableDemoMode } from '@/demo/demoMode'
+import { requestLogStore } from '@/demo/requestLog'
 import { expireMockAccessTokens } from '@/mocks/db'
 import { mockServer } from '@/mocks/server'
 import { recordRequests, signInAsDemo } from '@/test/api'
@@ -53,7 +55,11 @@ describe('streamAssistant', () => {
     const { events, answer } = await ask('검색해 주세요')
 
     expect(types(events)).toEqual(['meta', 'sources', 'done'])
-    expect(events[0]).toEqual({ type: 'meta', mode: 'SEARCH', fallbackReason: 'LLM_DISABLED' })
+    expect(events[0]).toMatchObject({
+      type: 'meta',
+      mode: 'SEARCH',
+      fallbackReason: 'LLM_DISABLED',
+    })
     expect(answer.mode).toBe('SEARCH')
     expect(answer.fallbackReason).toBe('LLM_DISABLED')
     expect(answer.sources.length).toBeGreaterThan(0)
@@ -90,6 +96,46 @@ describe('streamAssistant', () => {
     expect(error).toBeInstanceOf(ApiError)
     expect(error).toMatchObject({ status: 0, code: CLIENT_ERROR_CODES.networkError })
     expect(types(events)).toContain('delta')
+  })
+
+  it('meta의 traceId를 시연 모드 요청 기록에 채운다', async () => {
+    await signInAsDemo()
+    enableDemoMode()
+
+    const { events } = await ask('오픈 시각이 언제인가요?')
+
+    const meta = events[0]
+    expect(meta.type === 'meta' && meta.traceId).toMatch(/^[0-9a-f]{32}$/)
+    const streamEntries = requestLogStore
+      .getState()
+      .entries.filter((entry) => entry.path === STREAM_PATH)
+    expect(streamEntries).toHaveLength(1)
+    expect(streamEntries[0]).toMatchObject({
+      status: 200,
+      traceId: meta.type === 'meta' && meta.traceId,
+    })
+  })
+
+  it('meta에 traceId가 없어도 답을 받고, 요청 기록의 traceId는 비어 있다', async () => {
+    await signInAsDemo()
+    enableDemoMode()
+    mockServer.use(
+      http.post(STREAM_PATH, () =>
+        eventStreamResponse(
+          'event: meta\ndata: {"mode":"AI","fallbackReason":null}\n\n' +
+            'event: done\ndata: {"answer":"끝","mode":"AI","fallbackReason":null}\n\n',
+        ),
+      ),
+    )
+
+    const { answer } = await ask('질문')
+
+    expect(answer.answer).toBe('끝')
+    expect(requestLogStore.getState().entries[0]).toMatchObject({
+      path: STREAM_PATH,
+      status: 200,
+      traceId: null,
+    })
   })
 
   it('알 수 없는 이벤트는 무시한다', async () => {

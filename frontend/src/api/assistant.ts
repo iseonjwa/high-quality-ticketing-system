@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { apiStream } from '@/api/client'
+import { noteStreamTraceId } from '@/api/transport'
 import { createSseParser, type SseFrame } from '@/api/sse'
 
 // 내부 AI 상담(SA F8, docs/design/assistant/README.md 2-1절). 로그인한 사용자만 쓴다.
@@ -29,7 +30,12 @@ export interface AssistantAnswer {
 }
 
 export type AssistantStreamEvent =
-  | { type: 'meta'; mode: AssistantMode; fallbackReason: AssistantFallbackReason | null }
+  | {
+      type: 'meta'
+      mode: AssistantMode
+      fallbackReason: AssistantFallbackReason | null
+      traceId?: string | null
+    }
   | { type: 'delta'; text: string }
   | { type: 'fallback'; fallbackReason: AssistantFallbackReason }
   | { type: 'sources'; sources: AssistantSource[] }
@@ -41,7 +47,12 @@ export type AssistantStreamEvent =
     }
 
 const eventSchemas = {
-  meta: z.object({ mode: modeSchema, fallbackReason: fallbackReasonSchema.nullable() }),
+  // traceId는 선택 필드다(백엔드 후속 PR에서 더함). 있으면 시연 모드 요청 기록에 채운다
+  meta: z.object({
+    mode: modeSchema,
+    fallbackReason: fallbackReasonSchema.nullable(),
+    traceId: z.string().nullish(),
+  }),
   delta: z.object({ text: z.string() }),
   fallback: z.object({ fallbackReason: fallbackReasonSchema }),
   sources: z.object({ sources: z.array(assistantSourceSchema) }),
@@ -88,6 +99,9 @@ export async function streamAssistant(
     }
     if (event.type === 'sources') {
       sources = event.sources
+    }
+    if (event.type === 'meta' && event.traceId) {
+      noteStreamTraceId(response, event.traceId)
     }
     onEvent(event)
     if (event.type === 'done') {
