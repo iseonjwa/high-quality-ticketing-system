@@ -25,6 +25,9 @@ const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.1);
 // csv: 미리 받은 토큰을 읽는다. sign: local 스택 전용으로 k6가 반복마다 토큰을 직접 서명한다(README 2절)
 const TOKEN_MODE = __ENV.TOKEN_MODE || 'csv';
 const USER_ID_BASE = Number(__ENV.USER_ID_BASE || 1000000);
+// IDENTITY=direct: Gateway를 거치지 않고 reservation-service를 직접 부른다. Gateway가 검증 뒤 넣는 사용자 헤더를 k6가 넣는다.
+// Note: 로그인·입장 토큰 검증과 Gateway 인증 차단기가 빠지므로, 선점 경로 자체의 한계를 볼 때만 쓴다. Gateway 경유 수치와 섞지 않는다
+const DIRECT = __ENV.IDENTITY === 'direct';
 // each: K1(시도마다 좌석 조회). once: K1-H(좌석 조회 병목을 떼고 선점 경로만 잰다)
 const SEAT_MAP = __ENV.SEAT_MAP || 'each';
 const HOLD_ONLY = SEAT_MAP === 'once';
@@ -149,6 +152,9 @@ http.setResponseCallback(http.expectedStatuses(200, 201, 409));
 export function setup() {
   const needed = MODEL === 'closed' ? 1
     : MODEL === 'ramp' ? STAGES.reduce((sum, rate) => sum + rate * STAGE_SECONDS, 0) : RATE * DURATION_SECONDS;
+  if (DIRECT && TOKEN_MODE !== 'sign') {
+    fail('IDENTITY=direct에는 TOKEN_MODE=sign이 필요합니다(사용자 ID를 만들어 쓴다)');
+  }
   if (TOKEN_MODE === 'sign') {
     if (!__ENV.JWT_ACCESS_SECRET || !__ENV.ENTRY_TOKEN_SECRET) {
       fail('TOKEN_MODE=sign에는 JWT_ACCESS_SECRET과 ENTRY_TOKEN_SECRET이 필요합니다');
@@ -364,6 +370,9 @@ function userOf(index, scheduleId = SCHEDULE_ID) {
   // Note: 사용자 ID는 실제 가입자와 겹치지 않게 USER_ID_BASE부터 쓴다. 선점 경로는 user-service를 부르지 않아 가입 행이 없어도 된다.
   // 대기열·로그인 API를 거치지 않으므로 이 모드의 수치에는 토큰 발급 부하가 없다(K1의 가정과 같다)
   const userId = USER_ID_BASE + index;
+  if (DIRECT) {
+    return { userId };
+  }
   const now = Math.floor(Date.now() / 1000);
   return {
     accessToken: signJwt({
@@ -385,6 +394,9 @@ function signJwt(claims, secret) {
 }
 
 function headersOf(user) {
+  if (DIRECT) {
+    return { 'X-User-Id': String(user.userId), 'X-User-Role': 'USER' };
+  }
   return { Authorization: `Bearer ${user.accessToken}`, 'X-Entry-Token': user.entryToken };
 }
 
