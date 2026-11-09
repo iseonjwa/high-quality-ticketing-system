@@ -92,6 +92,8 @@ describe('ConcertDetailPage', () => {
     expect(detailRequests).toHaveLength(1)
     // 카운트다운은 매초 읽지 않으므로 열린 순간을 따로 알린다
     expect(screen.getByText('예매가 열렸어요')).toHaveAttribute('aria-live', 'polite')
+    // 카운트다운 줄 자리를 남겨 [예매하기]가 위로 뛰지 않는다
+    expect(screen.getByText('지금 열렸어요')).toBeInTheDocument()
   })
 
   it('카운트다운이 0을 보이는 순간 예매 패널의 1초 갱신을 기다리지 않고 예매하기가 켜진다', async () => {
@@ -133,6 +135,7 @@ describe('ConcertDetailPage', () => {
 
     expect(await screen.findByRole('link', { name: '예매하기' })).toBeInTheDocument()
     expect(screen.queryByText('예매가 열렸어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('지금 열렸어요')).not.toBeInTheDocument()
   })
 
   it('고르지 않은 기본 회차는 목록 앞 회차가 열려도 바뀌지 않는다(보던 회차의 대기열로 간다)', async () => {
@@ -163,12 +166,11 @@ describe('ConcertDetailPage', () => {
     )
   })
 
-  it('넓은 화면에서 예매 패널을 배너 위로 끌어올리고, 행동(카운트다운·예매하기)을 회차 목록보다 먼저 둔다', async () => {
+  it('예매 패널은 행동(카운트다운·예매하기)을 절취선 위에, 회차 목록을 그 아래에 둔다', async () => {
     serveDetail(detail(Date.now(), [{}, {}]))
     renderRoutes(routes, '/concerts/7')
 
     const aside = await bookingPanel()
-    expect(aside.className).toContain('@min-[64rem]:-mt-[320px]')
     const link = within(aside).getByRole('link', { name: '예매하기' })
     const firstRadio = within(aside).getAllByRole('radio')[0]
     expect(link.compareDocumentPosition(firstRadio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

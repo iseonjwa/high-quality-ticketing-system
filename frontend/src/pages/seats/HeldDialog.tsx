@@ -41,7 +41,7 @@ export function HeldDialog({
           event.preventDefault()
           onReturnFocus()
         }}
-        className="gap-4 px-6 pt-8 pb-6"
+        className="gap-4 rounded-[22px] px-6 pt-8 pb-6"
       >
         {expired ? (
           <span
@@ -70,7 +70,7 @@ export function HeldDialog({
           {seats.map((seat) => (
             <li
               key={seat.seatId}
-              className="grid grid-cols-[auto_1fr] items-center gap-3 rounded-md bg-gray-50 p-3 type-body-sm"
+              className="grid grid-cols-[auto_1fr] items-center gap-3 rounded-[14px] bg-gray-50 p-3 type-body-sm"
             >
               <GradeBadge grade={seat.grade} />
               <span className="tabular-nums">
@@ -91,11 +91,11 @@ export function HeldDialog({
           />
         </div>
         {expired ? (
-          <Button size="lg" className="w-full" onClick={onReselect}>
+          <Button size="lg" className="w-full rounded-full" onClick={onReselect}>
             좌석 다시 고르기
           </Button>
         ) : (
-          <Button size="lg" className="w-full" onClick={onPay}>
+          <Button size="lg" className="w-full rounded-full" onClick={onPay}>
             결제하러 가기
           </Button>
         )}

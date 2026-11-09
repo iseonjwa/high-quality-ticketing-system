@@ -6,6 +6,7 @@ import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgOrderIds;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.pg.application.UnknownCause;
@@ -384,7 +385,7 @@ class PaymentApprovalApiTest {
             var created = invocation.callRealMethod();
             Thread.sleep(3200);
             return created;
-        }).when(paymentTx).createRequested(any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any());
         var token = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
 
         var response = approve(USER, key(), token, AMOUNT);
@@ -405,7 +406,7 @@ class PaymentApprovalApiTest {
         var responses = concurrently(() -> approve(USER, key, token, AMOUNT), () -> approve(USER, key, token, AMOUNT));
 
         // 두 요청이 모두 TX1까지 들어온 뒤 진행해 유니크 위반 경로를 실제로 탄다
-        verify(paymentTx, times(2)).createRequested(any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         for (var response : responses) {
@@ -423,7 +424,7 @@ class PaymentApprovalApiTest {
         var keyB = key();
         var responses = concurrently(() -> approve(USER, keyA, token, AMOUNT), () -> approve(USER, keyB, token, AMOUNT));
 
-        verify(paymentTx, times(2)).createRequested(any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
@@ -459,7 +460,7 @@ class PaymentApprovalApiTest {
                 // 한 요청이 TX1에 도달하지 않는 경로(재생 등)면 기다리지 않고 진행한다
             }
             return invocation.callRealMethod();
-        }).when(paymentTx).createRequested(any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any());
         when(pg.approve(any())).thenAnswer(invocation -> {
             Thread.sleep(300);
             return approved(AMOUNT);
@@ -536,6 +537,62 @@ class PaymentApprovalApiTest {
 
         assertEquals(401, response.status());
         verify(pg, never()).approve(any());
+    }
+
+    @Test
+    void Mock_모드의_checkout은_provider만_알리고_orderId와_클라이언트_키는_내지_않는다() throws Exception {
+        var reservation = newReservation();
+
+        var response = checkout(USER, token(USER, reservation, AMOUNT).build());
+
+        assertEquals(200, response.status());
+        var data = response.json().get("data");
+        assertEquals("MOCK", data.get("provider").asString());
+        assertFalse(data.has("orderId"));
+        assertFalse(data.has("clientKey"));
+        assertEquals(AMOUNT, data.get("amount").asLong());
+        assertTrue(data.get("orderName").asString().contains(Long.toString(reservation)));
+        assertEquals(0, paymentCount(reservation), "checkout은 아무것도 저장하지 않는다");
+    }
+
+    @Test
+    void Mock_모드는_clientPaymentRef를_무시해서_pg_tx_id에_미리_저장하지_않고_PG_응답의_식별자를_기록한다() throws Exception {
+        var reservation = newReservation();
+        var stored = new String[] {"unset"};
+        when(pg.approve(any())).thenAnswer(invocation -> {
+            stored[0] = jdbc.queryForObject("SELECT pg_tx_id FROM payments WHERE reservation_id = ?", String.class, reservation);
+            return new PgClient.Approved(new PgPaymentRef("pg-mock-tx"), BigDecimal.valueOf(AMOUNT), "KRW", Instant.now());
+        });
+
+        var response = post(USER, key(), "{\"paymentToken\":\"" + token(USER, reservation, AMOUNT).build()
+                + "\",\"amount\":50000,\"method\":\"CARD\",\"clientPaymentRef\":\"ignored_ref\"}", true);
+
+        assertEquals(200, response.status());
+        assertNull(stored[0], "Mock 모드는 PG 호출 전에 pg_tx_id를 채우지 않는다");
+        assertEquals("pg-mock-tx", jdbc.queryForObject("SELECT pg_tx_id FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    @Test
+    void pg_order_id는_예매와_토큰_만료에서_결정적으로_만든_값이다() throws Exception {
+        var reservation = newReservation();
+        var expiresAt = Instant.now().plusSeconds(290);
+        var token = token(USER, reservation, AMOUNT).expiresAt(expiresAt).build();
+
+        approve(USER, key(), token, AMOUNT);
+
+        var expected = PgOrderIds.of(reservation, expiresAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+        assertEquals(expected.value().toString(), jdbc.queryForObject(
+                "SELECT pg_order_id::text FROM payments WHERE reservation_id = ?", String.class, reservation));
+    }
+
+    private Response checkout(long userId, String token) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/payments/checkout"))
+                .header("Content-Type", "application/json").header("X-User-Id", Long.toString(userId))
+                .header("X-User-Role", "USER")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"paymentToken\":\"" + token + "\"}")).build();
+        var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        return new Response(response.statusCode(), response.body(), null);
     }
 
     private long newReservation() {

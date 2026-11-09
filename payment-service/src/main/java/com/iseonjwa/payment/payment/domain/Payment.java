@@ -109,6 +109,18 @@ public class Payment extends BaseEntity {
         return new Payment(paymentNo, reservationId, userId, amount, method, pgOrderId, now);
     }
 
+    /**
+     * 토스처럼 승인 전에 PG가 거래 식별자를 정해 준 경우 TX1에서 먼저 저장한다(ADR 0023 결정 6).
+     * 저장하기 전의 새 결제에만 쓴다. 승인 응답이 와도 같은 값이 다시 기록된다.
+     */
+    public Payment withPgTxId(String pgTxId) {
+        if (status != PaymentStatus.REQUESTED || pgTxId == null || pgTxId.isBlank()) {
+            throw new IllegalStateException("REQUESTED 결제에만 비어 있지 않은 PG 거래 식별자를 미리 기록할 수 있습니다");
+        }
+        this.pgTxId = pgTxId;
+        return this;
+    }
+
     public Long getId() { return id; }
     public String getPaymentNo() { return paymentNo; }
     public Long getReservationId() { return reservationId; }

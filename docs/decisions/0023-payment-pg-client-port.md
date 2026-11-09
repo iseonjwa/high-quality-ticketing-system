@@ -1,6 +1,6 @@
 # 0023. PG 호출은 PgClient 포트와 PG 독립 결과 타입으로 나누고, 어댑터는 같은 계약 테스트를 통과한다
 
-- 상태: 제안 (SA 변경 요청 필요, 토스 관련 항목은 M4 시작 때 확인 후 갱신. 2026-10-28 개정)
+- 상태: 제안 (SA 변경 요청 필요, 토스 관련 항목은 실제 테스트 키로 확인한 뒤 갱신. 2026-10-28·2026-11-09 개정)
 - 날짜: 2026-10-27
 - 결정자: 안준현
 - 관련 AI 판단: [결제 상세 설계 빈틈 결정](../ai-judgments/junhyun/2026-10-27-payment-design-gaps.md)
@@ -86,9 +86,44 @@ SA는 M2에 Mock PG(결제 담당, 10/28 역할 변경)를 쓰고 M4에 토스�
 - M4 시작 시 "문서로 확정하지 못한 것" 다섯 가지와 `pg-integration.md` 7절의 추가 항목(`orderId` 사전 발급, 4xx 분류, 금액·통화 필드, `findRefund` 구현, 전액 취소된 결제의 재취소 응답)을 토스 테스트 환경에서 확인하고 이 ADR을 갱신한다.
 - 테스트: E9, N16, N19, N20, FT-2.
 
+## 2026-11-09 개정: 토스 어댑터와 확인 전 판단 (ISE-45)
+
+실제 토스 테스트 키는 11/11에 받는다. 이번 개정은 공식 문서(docs.tosspayments.com)에 적힌 사실과 가짜 토스 서버(JDK `HttpServer`, `FakeTossServer`)로 구현한 어댑터의 판단을 적는다. 실제 호출로 확인하지 못한 동작은 `[가정]`이며 11/11 이후 `tossSandboxTest`와 시연으로 확인한다.
+
+### 확인한 사실 (공식 문서 기준, 실제 호출 전)
+
+- 승인: `POST /v1/payments/confirm`, 본문 `{paymentKey(200자 이하), orderId(6~64자, 영문·숫자·-_=), amount}`. 인증은 `Authorization: Basic base64(secretKey + ":")`. 응답은 Payment 객체(`status`, `paymentKey`, `orderId`, `totalAmount`, `currency`, `approvedAt`(`+09:00` 오프셋 ISO 8601), `cancels[]`).
+- 상태: `IN_PROGRESS`(인증만 끝남), `DONE`, `ABORTED`(승인 실패), `EXPIRED`(유효 시간 지남), `CANCELED`, `PARTIAL_CANCELED`, `READY`. 인증 뒤 10분 안에 승인해야 하고 넘기면 404 `NOT_FOUND_PAYMENT_SESSION`이다(위 "10분과 30분이 엇갈림" 중 10분을 따른다 `[가정]`).
+- 조회: `GET /v1/payments/orders/{orderId}`(API 개별 연동 시크릿 키만), `GET /v1/payments/{paymentKey}`. 취소: `POST /v1/payments/{paymentKey}/cancel` 본문 `{cancelReason(필수), cancelAmount(빼면 전액)}`, 응답 `cancels[]`의 건마다 `transactionKey`·`cancelAmount`·`canceledAt`·`cancelStatus`.
+- 오류 본문은 `{code, message}`다. 승인: 403 `REJECT_CARD_COMPANY`·`REJECT_CARD_PAYMENT`, 400 `EXCEED_MAX_*`·`ALREADY_PROCESSED_PAYMENT`·`INVALID_REQUEST`, 401 `UNAUTHORIZED_KEY`, 403 `FORBIDDEN_REQUEST`, 500 `FAILED_*`·`UNKNOWN_PAYMENT_ERROR`. 400 `PROVIDER_ERROR`는 4xx지만 일시 오류다. 취소: 400 `ALREADY_CANCELED_PAYMENT`, 403 `NOT_CANCELABLE_*`.
+- `Idempotency-Key`(300자 이하, 15일)는 같은 키에 첫 응답을 돌려주고 처리 중이면 409 `IDEMPOTENT_REQUEST_PROCESSING`이다. confirm에 적용되는지는 `[가정]`이다. 이 구조는 결제 행당 승인을 한 번만 부르고 재확인은 조회만 쓰므로 가정이 틀려도 이중 승인(INV-1)은 막힌다.
+- 키는 `test_`로 시작하는 테스트 키(`test_ck_…` 클라이언트, `test_sk_…` 시크릿)와 라이브 키가 다르다.
+
+### 결정 (2026-11-09, 사용자 추천안 수용)
+
+1. **`orderId`는 서버가 결제 토큰에서 만든다**(결정 6의 "M4에서 정한다"를 확정): `PgOrderIds.of(reservationId, token.exp)`가 이름 기반 UUID를 만든다. 저장 없이 결제창을 열기 전(`POST /api/v1/payments/checkout`)과 TX1이 같은 값을 얻는다. TX1은 모드와 상관없이 이 값을 `pg_order_id`로 쓴다. 빌링(추첨 자동결제) 경로는 토큰이 없어 무작위 UUID를 그대로 쓴다.
+2. **`clientPaymentRef`(= 토스 `paymentKey`)를 승인 API가 받는다**(결정 6의 `ApproveCommand`): 토스 모드에서 빠지면 400 `VALIDATION_FAILED`이고 허가·TX1 전에 거절한다. Mock 모드는 무시한다. 토스 모드의 TX1은 `pg_tx_id`에 `paymentKey`를 먼저 저장해 응답을 잃어도 같은 식별자로 재확인한다. 요청 해시에는 넣되 값이 없으면 이전 해시와 같아 기존 멱등 기록과 호환된다. 같은 멱등키에 다른 `paymentKey`는 409 `IDEMPOTENCY_KEY_REUSED`, 다른 결제가 쓰는 `paymentKey`(`uq_payments_pg_tx_id`)는 503이 아니라 409 `PAYMENT_ALREADY_EXISTS`다.
+3. **`preventLateApproval`은 토스에서 `Prevented`를 내지 않는다**(결정 8을 확정): 토스에는 망취소 API가 문서에 없다. `DONE`이면 `AlreadyApproved`, 나머지는 모두 `Unknown`이다. 공통 계약 테스트에는 "늦은 승인 방지를 보장하는지" 훅(기본 true, Mock은 그대로)을 두고 토스는 false라서 `Prevented` 대신 `Unknown`을 기대한다. 결과적으로 토스 모드에서 승인 여부가 불확실한 결제는 재확인 조회로 확정되지 않으면 `NEEDS_MANUAL_CHECK`로 간다.
+4. **빌링은 토스 모드에서 지원하지 않는다**: `issueBillingKey`는 `Unknown(CLIENT_ERROR)`, `approveBilling`은 보내지 않았으므로 확실히 승인되지 않은 `Declined(NOT_SENT)`다.
+5. **배포 기본은 mock이다**: `payment.pg.provider`는 `${PAYMENT_PG_PROVIDER:mock}`이고 토스는 시연 때만 켠다. toss면 `test_sk_`·`test_ck_`로 시작하는 키만 받아 라이브 키로는 기동하지 못한다.
+
+### 어댑터 해석
+
+- 승인: 응답이 `DONE`이고 `paymentKey`가 요청과 같고 정수 `totalAmount`·`currency`·`approvedAt`이 있어야 `Approved`다. 그 밖의 200은 `Unknown(PG_ERROR)`다. `REJECT_CARD_COMPANY`는 `Declined(CARD_DECLINED)`, `REJECT_CARD_PAYMENT`·`EXCEED_MAX_*`는 `Declined(INSUFFICIENT_LIMIT)`, `NOT_FOUND_PAYMENT_SESSION`은 `Declined(OTHER)`다. `ALREADY_PROCESSED_PAYMENT`·409는 `Unknown(PROCESSING)`(재확인 조회가 확정), `PROVIDER_ERROR`·5xx는 `Unknown(PG_ERROR)`, 그 밖의 4xx와 모르는 코드는 `Unknown(CLIENT_ERROR)`, 시한 초과는 `TIMEOUT`, 연결 끊김은 `CONNECTION_LOST`다. `DeclineReason`에 `REJECT_CARD_PAYMENT`와 정확히 맞는 값이 없어 가장 가까운 `INSUFFICIENT_LIMIT`을 썼다.
+- 조회: 404 `NOT_FOUND_PAYMENT`는 `NotFound`, `DONE`은 `Approved`, `ABORTED`는 `Declined`, `EXPIRED`는 `NotFound`, `IN_PROGRESS`·`READY`는 `Unknown(PROCESSING)`, `CANCELED`·`PARTIAL_CANCELED`는 `Unknown(PG_ERROR)`와 경고 로그다. 코드 없는 404는 경로 오류일 수 있어 `NotFound`가 아니라 `Unknown(CLIENT_ERROR)`다(Mock 어댑터와 같다).
+- 환불: 멱등키는 `pg_refund_id`, `cancelAmount`를 명시하고 `cancelReason`은 고정 문구다. 응답 `cancels[]`의 완료 건이 하나면 `Refunded(transactionKey, cancelAmount, currency, canceledAt)`다. `ALREADY_CANCELED_PAYMENT`·`NOT_CANCELABLE_*`는 `RefundRejected(NOT_REFUNDABLE)`다. `findRefund`는 우리 환불 식별자로 취소 건을 찾을 수 없어 `GET /v1/payments/{paymentKey}`의 완료된 취소 건 하나를 우리 환불로 본다(결제당 전액 환불 한 번이라는 전제). 없으면 `NotFound`, 여럿이면 `Unknown(PG_ERROR)`다.
+- 시크릿 키는 `Authorization` 헤더로만 보내고 로그·예외 메시지·`toString`에 남기지 않는다(테스트로 확인).
+
+### 남은 위험과 `[가정]`
+
+- confirm의 `Idempotency-Key` 지원, 같은 키 다른 본문, 오류 응답 재생, 승인 권장 타임아웃, `paymentKey` 만료 시간 10분은 실제 호출로 확인하지 못했다. 어댑터는 기존 연결 0.5초·응답 2초를 그대로 쓴다.
+- 토스 모드에서는 TX1이 `pg_tx_id`를 먼저 채우므로 Ops `payment resolve`의 `requireNoRecordedApproval`(PG 거래가 기록된 결제를 `Declined`·`NotFound` 근거로 닫지 않는 규칙)이 "PG가 모른다는데 거래가 기록됨"으로 거부한다. 안전한 방향이지만 토스 모드의 `NEEDS_MANUAL_CHECK`는 담당자와 확인해 처리한다. 규칙을 바꿀지는 실제 토스 동작을 본 뒤 정한다.
+- 인증 뒤 10분이 지난 `paymentKey`로 승인하면 `Declined(OTHER)`로 닫힌다. 결제 토큰 수명(약 5분)이 더 짧아 보통 먼저 만료된다.
+
 ## 개정 이력
 
 - 2026-10-28: (1) 승인·환불 결과에 실제 금액·통화를 넣고 불일치 처리 규칙을 정했다(검토 H2·M5, 사용자 지정 수정). (2) 환불 조회 `NotFound` 뒤 같은 `pg_refund_id`로 재호출하는 규칙과 재호출 전 조회를 넣었다(H5·H6). (3) `approve`·`refund`를 부를 수 있는 곳을 하나씩으로 정했다(H6). (4) 토스 `orderId` 사전 발급과 4xx 분류를 M4 확인 항목에 넣었다(M9). (5) 호출 자원 그룹 대응을 적었다(0018).
+- 2026-11-09: 토스 어댑터를 가짜 토스 서버로 구현하고 확인한 사실, `orderId` 방식, `Prevented` 미반환, 빌링 미지원을 확정했다(위 개정 절, ISE-45).
 
 ## 면접에서 설명할 한 줄
 

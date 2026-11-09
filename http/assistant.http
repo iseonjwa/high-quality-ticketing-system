@@ -1,0 +1,56 @@
+### 내부 AI 상담(ISE-126) 요청 모음. 설계: docs/design/assistant/README.md
+### 사용자 계정은 http-client.private.env.json에 둔다(커밋 금지): {"local": {"userEmail": "...", "userPassword": "..."}}
+### 실제 Claude 답변(mode AI)은 ANTHROPIC_API_KEY를 .env에 넣고 assistant-service를 다시 띄운 뒤에만 나온다.
+### 키가 없으면 mode SEARCH, fallbackReason LLM_DISABLED로 검색 결과만 돌아온다.
+
+### 1. 로그인
+POST {{gateway}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email": "{{userEmail}}", "password": "{{userPassword}}"}
+
+> {% client.global.set("userToken", response.body.data.accessToken); %}
+
+### 2. 질문(환불 규정)
+POST {{gateway}}/api/v1/assistant/messages
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "환불은 언제 되나요?"}
+
+### 3. 질문(문서에 없는 내용: AI면 모른다고 답하고 출처가 비는지 본다)
+POST {{gateway}}/api/v1/assistant/messages
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "공연장 주차장은 몇 시까지 열어요?"}
+
+### 4. 검증 실패(400 VALIDATION_FAILED, errors[question])
+POST {{gateway}}/api/v1/assistant/messages
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "   "}
+
+### 5. 로그인 없이(401)
+POST {{gateway}}/api/v1/assistant/messages
+Content-Type: application/json
+
+{"question": "환불은 언제 되나요?"}
+
+### 6. 요청 제한(사용자당 분당 5회 초과 시 429, Retry-After 초). 2번을 연속으로 여섯 번 보낸다.
+POST {{gateway}}/api/v1/assistant/messages
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "오픈 시각이 언제예요?"}
+
+### 7. 스트리밍 답변(SSE). 조각이 시간차를 두고 오고 event: meta/delta/sources/done 순서다.
+### 요청 전에 걸러지는 실패(400·401·429)는 SSE가 아니라 JSON이다. 이 클라이언트는 응답이 끝날 때까지 한 번에 보여 줄 수 있어
+### 조각이 오는 모양은 터미널에서 curl -N으로 보는 편이 낫다:
+###   curl -N -X POST $GATEWAY/api/v1/assistant/messages/stream -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"question":"환불은 언제 되나요?"}'
+POST {{gateway}}/api/v1/assistant/messages/stream
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "환불은 언제 되나요?"}

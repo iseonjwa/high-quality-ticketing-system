@@ -72,7 +72,7 @@ export function SeatMap({
   return (
     <div data-slot="seat-map" data-locked={locked ? '' : undefined}>
       <div
-        className="mx-auto mb-6 grid h-9 place-items-center rounded-b-[40px] bg-gray-800 text-[13px] font-semibold tracking-[0.3em] text-white"
+        className="mx-auto mb-6 grid h-9 place-items-center rounded-b-[40px] bg-gray-800 text-[13px] font-semibold tracking-[0.3em] text-gray-0"
         style={{ width: stageWidth }}
       >
         무대
@@ -88,7 +88,7 @@ export function SeatMap({
                 aria-label={label}
                 data-section={section.section}
               >
-                <p className="mb-2 flex items-center gap-2 text-[13px] font-bold text-gray-500">
+                <p className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-gray-500">
                   <span
                     aria-hidden="true"
                     className="size-2.5 rounded-sm"

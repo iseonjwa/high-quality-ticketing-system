@@ -24,7 +24,7 @@ NAME="$(basename "${SCRIPT%.js}")-$(date +%Y%m%d-%H%M%S)"
 
 # k6에 넘길 변수. 새 시나리오가 변수를 더하면 이 목록에도 더한다
 PASS_ENV=(BASE_URL TOKEN_MODE USER_ID_BASE JWT_ACCESS_SECRET ENTRY_TOKEN_SECRET ADMIN_EMAIL ADMIN_PASSWORD
-  SCHEDULE_ID USERS ENTER_SECONDS DUP_RATIO REPEAT OPEN_IN_SECONDS PRE_VUS MAX_VUS
+  SCHEDULE_ID LOTTERY_ID SALE_SCHEDULE_ID USERS ENTER_SECONDS DUP_RATIO REPEAT OPEN_IN_SECONDS PRE_VUS MAX_VUS
   DURATION_SECONDS VUS FIRST_POLL_SPREAD_SECONDS STAGES STAGE_SECONDS
   CONCERTS SCHEDULES_PER_CONCERT DETAIL_RATIO ENTER_RATE PG_DELAY_MS MOCK_PG_URL CONFIRM_POLL_SECONDS CONFIRM_MAX_POLLS
   EXPIRING RATE ENTRANTS SEAT_COUNT WAITLIST_COUNT PAY_RATE PG_MODE DECLINE_RATE START_IN_SECONDS
@@ -46,12 +46,20 @@ if [ -n "${PROM_RW_URL:-}" ]; then
   RW_ARGS=(--out experimental-prometheus-rw --tag "testid=${NAME}")
 fi
 
+# Note: 터미널이 아닌 곳(에이전트, tee로 남기는 stdout 파일)에서는 k6가 진행 표시줄을 1초마다 새 줄로 찍어 출력의 9할을 넘긴다(ISE-219).
+# 기본은 --quiet로 끄고 마지막 요약만 남긴다. 진행 상황을 보고 싶으면 K6_PROGRESS=1을 준다
+QUIET_ARGS=(--quiet)
+if [ "${K6_PROGRESS:-0}" = 1 ]; then
+  QUIET_ARGS=()
+fi
+
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
 MSYS_NO_PATHCONV=1 docker run --rm \
   -v "$K6_DIR:/scripts" \
   "${ARGS[@]}" ${RW_ENV[@]+"${RW_ENV[@]}"} \
   "$K6_IMAGE" run \
+  ${QUIET_ARGS[@]+"${QUIET_ARGS[@]}"} \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \
   ${RW_ARGS[@]+"${RW_ARGS[@]}"} \

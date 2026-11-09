@@ -25,7 +25,7 @@ export function ZonePicker({ sections, current, pickedBySection, onSelect }: Zon
     <div className="grid gap-3">
       <div
         aria-hidden="true"
-        className="mx-auto mb-2 grid h-9 w-3/5 place-items-center rounded-b-[40px] bg-gray-800 text-[13px] font-semibold tracking-[0.3em] text-white"
+        className="mx-auto mb-2 grid h-9 w-3/5 place-items-center rounded-b-[40px] bg-gray-800 text-[13px] font-semibold tracking-[0.3em] text-gray-0"
       >
         무대
       </div>
@@ -58,7 +58,7 @@ export function ZonePicker({ sections, current, pickedBySection, onSelect }: Zon
               style={{ '--c': gradeColor(section.grade) } as CSSProperties}
               className="group/zone relative grid min-h-[60px] content-start justify-items-start gap-0.5 rounded-md border border-gray-100 bg-gray-0 px-2 py-2 text-left text-gray-700 outline-none transition-colors duration-(--dur-fast) hover:border-gray-200 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-gray-50 disabled:hover:border-gray-100 data-[state=on]:border-primary-600 data-[state=on]:bg-primary-50 data-[state=on]:shadow-[inset_0_0_0_1px_var(--primary-600)] @min-[40rem]:px-3 @min-[40rem]:py-2.5"
             >
-              <span className="flex items-center gap-1.5 text-[16px] leading-[22px] font-extrabold text-gray-900 group-disabled/zone:text-gray-400">
+              <span className="flex items-center gap-1.5 text-[16px] leading-[22px] font-semibold text-gray-900 group-disabled/zone:text-gray-400">
                 <span
                   aria-hidden="true"
                   className="size-2.5 shrink-0 rounded-[3px] bg-(--c) group-disabled/zone:bg-gray-200"
@@ -71,7 +71,7 @@ export function ZonePicker({ sections, current, pickedBySection, onSelect }: Zon
               {picked > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="absolute top-1.5 right-1.5 grid h-5 min-w-5 place-items-center rounded-pill bg-gray-900 px-1.5 text-[11px] font-bold text-white tabular-nums @min-[40rem]:top-2 @min-[40rem]:right-2"
+                  className="absolute top-1.5 right-1.5 grid h-5 min-w-5 place-items-center rounded-pill bg-gray-900 px-1.5 text-[11px] font-semibold text-gray-0 tabular-nums @min-[40rem]:top-2 @min-[40rem]:right-2"
                 >
                   {picked}
                 </span>

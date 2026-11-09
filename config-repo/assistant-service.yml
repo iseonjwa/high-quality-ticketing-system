@@ -1,0 +1,27 @@
+server:
+  port: 8095
+# 내부 AI 상담(ISE-126, docs/design/assistant/README.md). DB·Redis·Kafka를 쓰지 않는다
+assistant:
+  llm:
+    # 꺼 두거나 키가 비면 Claude를 부르지 않고 검색 모드로만 답한다
+    enabled: ${ASSISTANT_LLM_ENABLED:true}
+    model: ${ASSISTANT_MODEL:claude-haiku-5-5}
+    max-tokens: 1024
+    # SDK 기본값은 10분·재시도 2회라 반드시 줄인다. Gateway 응답 시한(10초)보다 짧아야 한다
+    timeout: 8s
+    # 스트리밍 답변(SSE): 첫 조각까지 시한과 전체 시한. Gateway 상담 라우트 시한(10초)은 읽기 사이 간격이라 첫 조각 시한이 그보다 짧아야 한다
+    stream-first-delta-timeout: 8s
+    stream-timeout: 20s
+    max-concurrent: 4
+    daily-limit: 1000
+  retrieval:
+    top-k: 4
+    search-result-count: 3
+    # 최고 점수가 이 값보다 낮으면 전체 절을 모델에 넘긴다
+    min-score: 3
+  rate-limit:
+    per-minute: 5
+    per-day: 30
+anthropic:
+  # 환경변수로만 주입한다. 저장소에 값을 두지 않는다
+  api-key: ${ANTHROPIC_API_KEY:}

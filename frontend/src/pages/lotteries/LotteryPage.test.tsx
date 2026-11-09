@@ -190,7 +190,8 @@ describe('LotteryPage 단계 배지', () => {
     renderLottery()
 
     await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
-    expect(screen.getByText('추첨 번호 1 · 회차 32 · 추첨석 10석')).toBeInTheDocument()
+    expect(screen.getByText('추첨 번호 1 · 회차 32')).toBeInTheDocument()
+    expect(screen.getByText('10석')).toBeInTheDocument()
     expect(
       screen.getByText(
         `${timeText(lottery.entryStartAtMillis)} ~ ${timeText(lottery.entryEndAtMillis)}`,
@@ -198,7 +199,9 @@ describe('LotteryPage 단계 배지', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(timeText(lottery.drawAtMillis))).toBeInTheDocument()
     expect(screen.getByText('1~2매')).toBeInTheDocument()
-    expect(screen.getByText('당첨되면 등록한 카드로 바로 자동결제돼요.')).toBeInTheDocument()
+    // 자동결제 안내는 3단계 설명이 가진다(알아 두세요에 같은 문장을 되풀이하지 않는다)
+    expect(screen.getByText('당첨되면 등록한 카드로 바로 결제해요')).toBeInTheDocument()
+    expect(screen.queryByText('당첨되면 등록한 카드로 바로 자동결제돼요.')).not.toBeInTheDocument()
     expect(
       screen.getByText('응모는 한 번만 할 수 있고, 취소한 뒤에는 다시 응모할 수 없어요.'),
     ).toBeInTheDocument()
@@ -250,6 +253,152 @@ describe('LotteryPage 단계 배지', () => {
     await advance(5_000)
 
     expect(within(infoSection()).getByText('추첨 중')).toBeInTheDocument()
+  })
+})
+
+describe('LotteryPage 남은 시간 칩', () => {
+  const chip = (prefix: string) => screen.queryByText(new RegExp(`^${prefix} `))
+  // "마감까지 00:09:55"의 시계를 초로 바꾼다(하루 이상이면 "1일 00:00:00")
+  function secondsOf(text: string): number {
+    const [, days = '0', h, m, sec] = /^[^\d]*(?:(\d+)일 )?(\d+):(\d+):(\d+)$/.exec(text)!
+    return Number(days) * 86400 + Number(h) * 3600 + Number(m) * 60 + Number(sec)
+  }
+
+  it('응모 중이면 "마감까지" 칩이 있고 1초마다 줄어든다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    placeLottery(OPEN, { end: 10 * MINUTE })
+    renderLottery()
+
+    const first = (await screen.findByText(/^마감까지 /)).textContent!
+    await advance(5_000)
+
+    const later = screen.getByText(/^마감까지 /).textContent!
+    const elapsed = secondsOf(first) - secondsOf(later)
+    expect(elapsed).toBeGreaterThanOrEqual(4)
+    expect(elapsed).toBeLessThanOrEqual(6)
+    expect(chip('응모 시작까지')).not.toBeInTheDocument()
+  })
+
+  it('응모 시작 전이면 "응모 시작까지" 칩이 있다', async () => {
+    placeLottery(BEFORE_START, { start: HOUR, end: DAY, draw: DAY + HOUR })
+    renderLottery(`/lotteries/${BEFORE_START}`)
+
+    expect(await screen.findByText(/^응모 시작까지 /)).toBeInTheDocument()
+    expect(chip('마감까지')).not.toBeInTheDocument()
+  })
+
+  it('마감 뒤에는 칩이 없다', async () => {
+    placeLottery(OPEN, { start: -2 * HOUR, end: -HOUR, draw: HOUR })
+    renderLottery()
+
+    await screen.findByText('응모 마감')
+    expect(chip('마감까지')).not.toBeInTheDocument()
+    expect(chip('응모 시작까지')).not.toBeInTheDocument()
+  })
+})
+
+describe('LotteryPage 추첨 순서와 안내', () => {
+  const flow = () => screen.getByRole('list', { name: '추첨 순서' })
+  const currentStep = () =>
+    within(flow())
+      .getAllByRole('listitem')
+      .filter((step) => step.getAttribute('aria-current') === 'step')
+
+  it('추첨 순서 4단계를 보이고, 응모 중이면 1단계 "응모"가 지금 단계다', async () => {
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    const steps = within(flow()).getAllByRole('listitem')
+    expect(steps).toHaveLength(4)
+    for (const [index, name] of ['응모', '추첨', '자동결제', '예매 확정'].entries()) {
+      expect(within(steps[index]).getByText(name)).toBeInTheDocument()
+    }
+    expect(currentStep()).toEqual([steps[0]])
+  })
+
+  it.each([
+    ['응모 시작 전', () => placeLottery(BEFORE_START, {}), BEFORE_START, 0],
+    ['응모 마감', () => placeLottery(OPEN, { start: -2 * HOUR, end: -HOUR, draw: HOUR }), OPEN, 1],
+    [
+      '추첨 중',
+      () => {
+        placeLottery(OPEN, { start: -3 * HOUR, end: -2 * HOUR, draw: -HOUR })
+        holdDrawing(OPEN)
+      },
+      OPEN,
+      1,
+    ],
+    ['추첨 완료', () => placeLottery(DRAWN, {}), DRAWN, 2],
+    ['종료', () => placeLottery(DRAWN, { status: 'DONE' }), DRAWN, 3],
+  ] as const)(
+    '%s이면 추첨 순서의 지금 단계가 바뀐다',
+    async (_label, arrange, lotteryId, index) => {
+      arrange()
+      renderLottery(`/lotteries/${lotteryId}`)
+
+      await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+      const steps = within(flow()).getAllByRole('listitem')
+      expect(currentStep()).toEqual([steps[index]])
+    },
+  )
+
+  it('응모 카드는 문서 순서상 추첨 순서(4단계)보다 앞에 있다', async () => {
+    renderLottery()
+
+    const title = await screen.findByRole('heading', { level: 2, name: '응모하기' })
+    expect(title.compareDocumentPosition(flow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('자동결제 카드가 필요 없는 추첨의 3단계 이름은 "결제"다', async () => {
+    mockServer.use(
+      http.get(infoApi(OPEN), () => {
+        const lottery = lotteryRow(OPEN)
+        return ok({
+          lotteryId: OPEN,
+          scheduleId: lottery.scheduleId,
+          status: 'OPEN',
+          seatCount: lottery.seatCount,
+          entryStartAt: instant(lottery.entryStartAtMillis),
+          entryEndAt: instant(lottery.entryEndAtMillis),
+          drawAt: instant(lottery.drawAtMillis),
+          rules: {
+            minPerEntry: 1,
+            maxPerEntry: lottery.maxPerEntry,
+            adjacentSeatsGuaranteed: false,
+            reentryAllowed: false,
+            billingKeyRequired: false,
+          },
+        })
+      }),
+    )
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    expect(within(flow()).getByText('결제')).toBeInTheDocument()
+    expect(within(flow()).queryByText('자동결제')).not.toBeInTheDocument()
+  })
+
+  it('"알아 두세요"에 승계 안내가 늘 있다', async () => {
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    expect(
+      screen.getByText(
+        '앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에 끝나요.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('응모 카드의 [n매 응모하기]는 절취선 아래에 있다', async () => {
+    renderLottery()
+
+    const button = await enterButton('1매 응모하기')
+    const card = button.closest('section')!
+    const perforation = card.querySelector('.ticket-perf')!
+    expect(perforation).not.toBeNull()
+    expect(
+      perforation.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })
 
