@@ -148,22 +148,27 @@ class ScheduleSeatApiTest {
         assertEquals(jsonMapper.writeValueAsString(expected), jsonMapper.writeValueAsString(actual));
     }
 
-    // P4b(측정 브랜치): 배치만 캐시하므로 좌석 상태는 다음 요청에 바로 보여야 한다
+    // P4c(측정 브랜치): 좌석 상태는 1초 동안 같은 값을 쓰고, 지나면 다시 읽는다
     @Test
-    void 배치를_캐시해도_상태는_요청마다_새로_읽는다() throws Exception {
+    void 상태는_1초_동안_같은_값을_쓰고_지나면_다시_읽는다() throws Exception {
         assertTrue(firstSeatOfB().get("available").asBoolean());
 
         jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
 
+        // Note: P4c의 트레이드오프다. 1초 안에는 이미 잡힌 좌석이 고를 수 있는 것으로 보인다
+        assertTrue(firstSeatOfB().get("available").asBoolean());
+        Thread.sleep(1_200);
         assertFalse(firstSeatOfB().get("available").asBoolean());
     }
 
     @Test
-    void 배치를_캐시한_뒤_지운_회차도_404다() throws Exception {
+    void 캐시한_뒤_지운_회차는_1초가_지나면_404다() throws Exception {
         assertEquals(200, get("/api/v1/schedules/" + scheduleId + "/seats").status());
 
         jdbc.update("UPDATE schedules SET deleted_at = now() WHERE id = ?", scheduleId);
 
+        assertEquals(200, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+        Thread.sleep(1_200);
         assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
     }
 
