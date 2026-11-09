@@ -52,6 +52,30 @@
   - 500
 - LLM 장애는 오류로 내지 않고 200 `SEARCH`로 강등한다. 컨테이너가 꺼져 있을 때만 Gateway가 503을 준다.
 
+### 2-1. 스트리밍 답변 (2026-11-09 사용자 요청)
+
+토큰이 만들어지는 대로 화면에 보이도록 SSE(Server-Sent Events) 엔드포인트를 둔다. 위 JSON 엔드포인트는 그대로 둔다(테스트·목·강등 비교용).
+
+`POST /api/v1/assistant/messages/stream`, 로그인 필요, 요청 본문은 위와 같다(`{question}`).
+
+- 요청 전에 걸러지는 실패는 **SSE가 아니라 지금과 같은 JSON 오류**다: 400 `VALIDATION_FAILED`, 401, 429 `RATE_LIMITED`(+`Retry-After`). 그래서 화면은 응답 `Content-Type`이 `text/event-stream`일 때만 스트림으로 읽는다.
+- 성공은 200, `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`(프론트 nginx가 모아 두지 않고 바로 흘려보내게 한다). 브라우저 `EventSource`는 GET만 되므로 화면은 `fetch` + `ReadableStream`으로 읽는다.
+
+이벤트(각 `data`는 JSON 한 줄):
+
+| 순서 | `event` | `data` | 뜻 |
+|---|---|---|---|
+| 1 | `meta` | `{"mode":"AI"\|"SEARCH","fallbackReason":null\|"LLM_DISABLED"\|"LLM_UNAVAILABLE"}` | 첫 이벤트. `SEARCH`면 `delta` 없이 3으로 간다 |
+| 2 | `delta` | `{"text":"…"}` | 0번 이상. 답변 글자 조각. 받은 순서대로 이어 붙인다 |
+| 2' | `fallback` | `{"fallbackReason":"LLM_UNAVAILABLE"}` | `delta`가 나간 뒤 Claude가 실패하거나(시한·연결 끊김·refusal) 상한에 걸리면 한 번. 화면은 이어 붙이던 글을 버리고 검색 모드로 바꾼다 |
+| 3 | `sources` | `{"sources":[{"id","title","excerpt"}]}` | 한 번. `AI`면 인용한 절, `SEARCH`(또는 `fallback` 뒤)면 검색 상위 3절 |
+| 4 | `done` | `{"answer":"…","mode":"AI"\|"SEARCH","fallbackReason":…}` | 마지막. 최종 답 전문과 모드. 화면은 이 값으로 확정한다(조각을 이어 붙인 결과와 같아야 한다) |
+
+- 시한: 첫 `delta`까지 8초(넘으면 `meta`를 `SEARCH`로 보내거나, 이미 `AI`를 보냈으면 `fallback`), 전체 20초. 서버는 `done`을 보낸 뒤 스트림을 닫는다.
+- Gateway `assistant` 라우트의 응답 시한(10초)이 스트림 전체를 끊지 않는지 구현 때 확인한다. 끊으면 이 경로의 시한을 늘린다(ADR 0049 개정).
+- 요청 제한·동시 호출 상한·일일 예산은 JSON 엔드포인트와 같다(같은 카운터를 쓴다).
+- 로그·개인정보 규칙도 같다(질문 원문을 남기지 않는다).
+
 ## 3. 문서 묶음과 검색
 - 위치: `assistant-service/src/main/resources/knowledge/*.md`. 7개: booking-flow, open-time, purchase-limit, queue, payment, cancel-refund, lottery
 - 형식: 절마다 `## [절ID] 제목`과 `keywords:` 줄을 둔다. 기동할 때 읽고, 절ID가 겹치거나 빈 절이 있으면 기동을 실패시킨다.
