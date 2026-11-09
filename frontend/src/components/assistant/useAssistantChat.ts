@@ -23,8 +23,8 @@ export interface ChatTurn {
 export interface AssistantChat {
   turns: ChatTurn[]
   streaming: boolean
-  // 입력 칸 아래에 보이는 400 오류
-  fieldError: string | null
+  // 입력 칸 아래에 보이는 400 오류와 그때 보낸 질문(입력 칸에 다시 채워 고쳐 보내게 한다)
+  fieldError: { reason: string; question: string } | null
   // 화면 낭독기에 한 번 알릴 문장. 토큰마다 읽지 않게 끝났을 때만 바꾼다
   announcement: string
   ask: (question: string) => void
@@ -37,7 +37,7 @@ export interface AssistantChat {
 // Note: 받는 중에는 새 질문을 보내지 못하게 화면이 막는다. 그래도 새 질문이 오면 앞 스트림을 끊고 시작한다
 export function useAssistantChat(): AssistantChat {
   const [turns, setTurns] = useState<ChatTurn[]>([])
-  const [fieldError, setFieldError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState<AssistantChat['fieldError']>(null)
   const [announcement, setAnnouncement] = useState('')
   const controllerRef = useRef<AbortController | null>(null)
   const nextIdRef = useRef(1)
@@ -68,13 +68,14 @@ export function useAssistantChat(): AssistantChat {
         },
       ])
 
-      // 실패 문장을 고르려고 받은 글이 있었는지 센다(중간에 끊긴 것과 처음부터 안 된 것을 나눈다)
-      let received = ''
+      // 스트림이 열렸는지(meta를 받았는지). 열린 뒤 done 없이 끝나면 중간에 끊긴 것이다(받은 글이 없어도)
+      let opened = false
       void streamAssistant(question, {
         signal: controller.signal,
         onEvent: (event) => {
           switch (event.type) {
             case 'meta':
+              opened = true
               update(id, (turn) => ({
                 ...turn,
                 mode: event.mode,
@@ -82,12 +83,10 @@ export function useAssistantChat(): AssistantChat {
               }))
               break
             case 'delta':
-              received += event.text
               update(id, (turn) => ({ ...turn, text: turn.text + event.text }))
               break
             case 'fallback':
               // 이어 붙이던 AI 답을 버리고 검색 모드로 바꾼다(2-1절)
-              received = ''
               update(id, (turn) => ({
                 ...turn,
                 text: '',
@@ -122,11 +121,14 @@ export function useAssistantChat(): AssistantChat {
           if (isApiError(error, 'VALIDATION_FAILED')) {
             // 질문을 고쳐 다시 보내게 대화에서 빼고 입력 칸 아래에 알린다
             setTurns((current) => current.filter((turn) => turn.id !== id))
-            setFieldError(error.fieldErrors?.[0]?.reason ?? '질문을 확인해 주세요')
+            setFieldError({
+              reason: error.fieldErrors?.[0]?.reason ?? '질문을 확인해 주세요',
+              question,
+            })
             return
           }
           update(id, (turn) => ({ ...turn, status: 'failed', error }))
-          setAnnouncement(failureTitle(error, received !== ''))
+          setAnnouncement(failureTitle(error, opened))
         })
         .finally(() => {
           if (controllerRef.current === controller) {
@@ -165,12 +167,12 @@ export function useAssistantChat(): AssistantChat {
   }
 }
 
-// 실패한 답의 제목. 화면과 알림 영역이 같은 문장을 쓴다
-export function failureTitle(error: unknown, hadText: boolean): string {
+// 실패한 답의 제목. 화면과 알림 영역이 같은 문장을 쓴다. streamOpened: 스트림이 열린 뒤(meta를 받은 뒤) 실패했는지
+export function failureTitle(error: unknown, streamOpened: boolean): string {
   if (isApiError(error) && error.status === 429) {
     return '질문이 많아요'
   }
-  if (isApiError(error, CLIENT_ERROR_CODES.networkError) && hadText) {
+  if (isApiError(error, CLIENT_ERROR_CODES.networkError) && streamOpened) {
     return '답변이 중간에 끊겼어요'
   }
   if (isApiError(error) && (error.status === 0 || error.status >= 500)) {

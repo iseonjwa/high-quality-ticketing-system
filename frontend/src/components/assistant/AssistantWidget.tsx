@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -65,8 +66,8 @@ interface WidgetState {
 const WidgetStateContext = createContext<WidgetState | null>(null)
 
 // 대화와 열림 상태를 들고 위젯을 두는 화면인지 정한다. 예매 흐름(대기열~완료)은 지금 단계에 집중하게, 로그인·가입과
-// 운영자 화면은 쓰임이 달라 두지 않는다(7절).
-// Note: 경로 요소에서 레이아웃을 감싼다. 레이아웃 안에서 감싸면 레이아웃 전체가 한 단계 들여 써져 바뀐 줄이 커진다
+// 운영자 화면은 쓰임이 달라 두지 않는다(7절). 레이아웃의 헤더 버튼과 레이아웃 안의 위젯이 같은 상태를 쓰도록
+// 레이아웃 바깥(경로 요소)에서 든다
 export function AssistantWidgetProvider({ children }: { children: ReactNode }) {
   const bookingStep = useBookingStep()
   const location = useLocation()
@@ -81,9 +82,16 @@ export function AssistantWidgetProvider({ children }: { children: ReactNode }) {
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const restoreFocusRef = useRef(false)
 
-  const open = useCallback(() => {
+  // trigger: 누른 버튼. Safari·Firefox(mac)는 마우스로 누른 버튼에 초점을 주지 않아 activeElement로는 알 수 없다
+  const open = useCallback((trigger?: HTMLElement | null) => {
+    // 이미 열려 있으면 창 안으로 초점만 옮긴다. 돌려줄 곳은 처음 연 버튼 그대로 둔다
+    const panel = document.querySelector<HTMLElement>('[data-slot="assistant-panel"]')
+    if (panel !== null) {
+      focusPanelStart(panel)
+      return
+    }
     returnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setOpen(true)
   }, [])
 
@@ -149,12 +157,19 @@ export function AssistantWidget() {
   )
 }
 
-function Launcher({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+// 창 안 첫 입력 자리(질문 칸, 로그인 전이면 닫기 버튼)
+function focusPanelStart(panel: HTMLElement) {
+  ;(
+    panel.querySelector<HTMLElement>('textarea') ?? panel.querySelector<HTMLElement>('button')
+  )?.focus()
+}
+
+function Launcher({ busy, onClick }: { busy: boolean; onClick: (trigger: HTMLElement) => void }) {
   return (
     <button
       data-slot="assistant-launcher"
       type="button"
-      onClick={onClick}
+      onClick={(event) => onClick(event.currentTarget)}
       aria-haspopup="dialog"
       // 헤더·사이트 아래의 [예매 문의]와 구분되게 이름을 따로 준다
       aria-label="예매 문의 열기"
@@ -187,9 +202,11 @@ function AssistantPanel({
   onClose: () => void
 }) {
   const titleId = useId()
+  const panelRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fullScreen = useCoversScreen(panelRef)
   // 사용자가 위로 올려 읽는 중이면 새 글자가 와도 끌어내리지 않는다
   const stickToBottomRef = useRef(true)
 
@@ -210,21 +227,28 @@ function AssistantPanel({
   }
 
   return (
-    // Note: 페이지를 함께 쓰는 비모달 창이라 초점을 가두지 않는다. Esc와 닫기 버튼으로 닫고, 닫으면 연 곳으로 초점을 돌려준다.
-    // 좁은 화면(40rem 미만)에서는 화면 전체를 덮는다
+    // Note: 넓은 화면에서는 페이지를 함께 쓰는 비모달 창이라 초점을 가두지 않는다. 좁은 앱 화면(40rem 미만)에서는 앱 화면
+    // 전체를 덮으므로 그동안만 모달로 둔다(aria-modal, 초점 가두기, 뒤 페이지 스크롤 잠금). 가려진 페이지로 초점과
+    // 스크롤이 새 나갔다(셀프 리뷰). Esc와 닫기 버튼으로 닫고, 닫으면 연 곳으로 초점을 돌려준다.
+    // 시연 모드 요청 로그 패널은 덮지 않게 오른쪽을 그 너비만큼 비운다
     <section
+      ref={panelRef}
+      data-slot="assistant-panel"
       role="dialog"
+      aria-modal={fullScreen ? true : undefined}
       aria-labelledby={titleId}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation()
           onClose()
+        } else if (event.key === 'Tab' && fullScreen) {
+          trapFocus(event.currentTarget, event)
         }
       }}
       className={cn(
         'fixed z-40 flex h-[min(640px,calc(100dvh-2.5rem))] w-[400px] flex-col overflow-hidden rounded-[22px] border border-gray-100 bg-gray-0 shadow-lg',
         CORNER,
-        '@max-[40rem]:inset-0 @max-[40rem]:h-dvh @max-[40rem]:w-auto @max-[40rem]:rounded-none @max-[40rem]:border-0',
+        '@max-[40rem]:inset-y-0 @max-[40rem]:right-[var(--demo-panel-width,0px)] @max-[40rem]:left-0 @max-[40rem]:h-dvh @max-[40rem]:w-auto @max-[40rem]:rounded-none @max-[40rem]:border-0',
       )}
     >
       <header className="flex items-center gap-3 border-b border-gray-100 px-5 py-3.5">
@@ -293,6 +317,63 @@ function AssistantPanel({
       {signedIn ? <Composer ref={textareaRef} chat={chat} onAsk={ask} /> : null}
     </section>
   )
+}
+
+// 창이 앱 화면 왼쪽 끝까지 덮는지(좁은 앱 화면). 창 크기는 @container 질의로 정해지므로 그린 결과를 잰다
+function useCoversScreen(ref: RefObject<HTMLElement | null>): boolean {
+  const [covers, setCovers] = useState(false)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (element === null) {
+      return
+    }
+    const measure = () => {
+      const rect = element.getBoundingClientRect()
+      setCovers(rect.width > 0 && rect.left <= 0)
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(document.documentElement)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+
+  useEffect(() => {
+    if (!covers) {
+      return
+    }
+    const root = document.documentElement
+    const previous = root.style.overflow
+    root.style.overflow = 'hidden'
+    return () => {
+      root.style.overflow = previous
+    }
+  }, [covers])
+
+  return covers
+}
+
+const FOCUSABLE =
+  'button:not([disabled]), a[href], textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// 창 안에서 Tab이 돌게 한다(끝에서 처음으로, 처음에서 끝으로)
+function trapFocus(panel: HTMLElement, event: KeyboardEvent<HTMLElement>) {
+  const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (first === undefined || last === undefined) {
+    return
+  }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 function SignInPrompt() {
@@ -384,7 +465,7 @@ function AnswerBubble({
       {turn.status === 'failed' ? (
         <FailureNote
           error={turn.error}
-          hadText={turn.text !== ''}
+          streamOpened={turn.mode !== null}
           retryDisabled={retryDisabled}
           onRetry={onRetry}
         />
@@ -430,18 +511,18 @@ function Sources({ sources }: { sources: AssistantSource[] }) {
 // 실패 안내. 429는 기다릴 시간을, 서버를 쓸 수 없으면 예매 안내가 있는 곳을 알린다. 자동으로 다시 묻지 않는다
 function FailureNote({
   error,
-  hadText,
+  streamOpened,
   retryDisabled,
   onRetry,
 }: {
   error: unknown
-  hadText: boolean
+  streamOpened: boolean
   retryDisabled: boolean
   onRetry: () => void
 }) {
   const limited = isApiError(error) && error.status === 429
   const wait = isApiError(error) ? error.retryAfterSeconds : null
-  const title = failureTitle(error, hadText)
+  const title = failureTitle(error, streamOpened)
   const body = limited
     ? wait !== null
       ? `${wait}초 뒤 다시 물어봐 주세요.`
@@ -477,6 +558,14 @@ function Composer({
   onAsk: (question: string) => void
 }) {
   const [question, setQuestion] = useState('')
+  // 400이면 보낸 질문을 입력 칸에 다시 채워 고쳐 보내게 한다(오류마다 한 번)
+  const [restoredFor, setRestoredFor] = useState<AssistantChat['fieldError']>(null)
+  if (chat.fieldError !== null && chat.fieldError !== restoredFor) {
+    setRestoredFor(chat.fieldError)
+    if (question === '') {
+      setQuestion(chat.fieldError.question)
+    }
+  }
   const inputId = useId()
   const hintId = useId()
   const errorId = useId()
@@ -525,15 +614,16 @@ function Composer({
           onKeyDown={handleKeyDown}
           className="max-h-32 min-h-10 flex-1 resize-none bg-transparent py-2 type-body-sm text-gray-900 outline-none field-sizing-content placeholder:text-gray-400"
         />
-        {/* Note: 보내기와 멈추기는 같은 버튼 하나다. 받기 시작·끝날 때 버튼을 바꿔 끼우면 그 버튼에 있던 초점이 body로
-            떨어져 Esc로 닫을 수도 없었다(테스트로 찾음) */}
+        {/* Note: 보내기와 멈추기는 같은 버튼 하나이고, 빈 질문일 때도 disabled가 아니라 aria-disabled로 둔다.
+            버튼을 바꿔 끼우거나 초점이 있는 버튼을 disabled로 만들면 초점이 body로 떨어져 Esc로 닫을 수도 없었다
+            (테스트와 셀프 리뷰로 찾음). 빈 질문은 submit이 거른다 */}
         <button
           type={chat.streaming ? 'button' : 'submit'}
           onClick={chat.streaming ? chat.stop : undefined}
           aria-label={chat.streaming ? '답변 멈추기' : '보내기'}
-          disabled={!chat.streaming && trimmed === ''}
+          aria-disabled={!chat.streaming && trimmed === '' ? true : undefined}
           className={cn(
-            'grid size-10 shrink-0 place-items-center rounded-full text-gray-0 outline-none transition-colors duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:bg-gray-200 disabled:text-gray-400',
+            'grid size-10 shrink-0 place-items-center rounded-full text-gray-0 outline-none transition-colors duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:bg-gray-200 aria-disabled:text-gray-400',
             chat.streaming ? 'bg-gray-900' : 'bg-primary-600',
           )}
         >
@@ -545,8 +635,8 @@ function Composer({
         </button>
       </div>
       {chat.fieldError !== null ? (
-        <p id={errorId} className="type-caption text-danger-600">
-          {chat.fieldError}
+        <p id={errorId} role="alert" className="type-caption text-danger-600">
+          {chat.fieldError.reason}
         </p>
       ) : null}
       <p id={hintId} className="flex justify-between gap-3 type-caption text-gray-500">

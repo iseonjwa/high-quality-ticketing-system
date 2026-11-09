@@ -22,6 +22,9 @@ export interface SendOptions<T extends z.ZodType> {
 export type StreamOptions = Omit<SendOptions<z.ZodType>, 'schema'>
 
 const EVENT_STREAM = 'text/event-stream'
+// Note: 스트림 요청도 JSON을 함께 받겠다고 알린다. 서버(Spring)는 Accept로 응답 형식을 고르는데, text/event-stream만
+// 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못해 400은 빈 본문, 429는 500이 됐다(셀프 리뷰, bootJar로 재현)
+const STREAM_ACCEPT = `${EVENT_STREAM}, application/json`
 
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).
 // 시연 모드용 요청 기록은 결과와 상관없이 요청마다 한 번 남긴다.
@@ -66,7 +69,7 @@ export async function openStream(options: StreamOptions): Promise<Response> {
   let traceId: string | null = null
 
   try {
-    const response = await fetchOrThrow(options, EVENT_STREAM)
+    const response = await fetchOrThrow(options, STREAM_ACCEPT)
     status = response.status
     if (!response.ok) {
       const payload = await readJson(response)

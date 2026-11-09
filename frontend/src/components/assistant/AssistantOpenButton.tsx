@@ -15,7 +15,12 @@ export function AssistantOpenButton({
     return null
   }
   return (
-    <button type="button" aria-haspopup="dialog" onClick={open} className={className}>
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={(event) => open(event.currentTarget)}
+      className={className}
+    >
       {children}
     </button>
   )

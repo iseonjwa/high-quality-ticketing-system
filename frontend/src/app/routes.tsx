@@ -46,7 +46,7 @@ const devRoutes: RouteObject[] = import.meta.env.DEV
 // 바깥 errorElement는 레이아웃 자체가 던진 오류용이다. 자식 오류를 바깥에서만 받으면 헤더까지 사라진다.
 export const routes: RouteObject[] = [
   {
-    // 예매 문의 위젯의 대화는 화면을 옮겨도 남아야 해서 레이아웃 바깥에서 들고 있는다
+    // 예매 문의 위젯 상태(대화·열림)는 레이아웃의 헤더 버튼과 레이아웃 안의 위젯이 같이 쓰도록 레이아웃 바깥에서 든다
     element: (
       <AssistantWidgetProvider>
         <AppLayout />

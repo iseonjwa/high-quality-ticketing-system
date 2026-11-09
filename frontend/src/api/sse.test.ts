@@ -74,7 +74,7 @@ describe('createSseParser', () => {
     ])
   })
 
-  it('조각이 값 중간에서 잘려도 읽는다(여러 바이트 글자 사이 포함)', () => {
+  it('조각이 값 중간에서 잘려도 읽는다(한글 글자 사이 포함)', () => {
     expect(parse(['data: 예매 문', '의 답변', '입니다\n\n'])).toEqual([
       { event: 'message', data: '예매 문의 답변입니다' },
     ])

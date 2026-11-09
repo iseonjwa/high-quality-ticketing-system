@@ -205,7 +205,8 @@ describe('streamAssistant', () => {
     await ask('환불')
 
     expect(requests).toHaveLength(1)
-    expect(requests[0].headers.get('Accept')).toBe('text/event-stream')
+    // 400·429를 JSON으로 받으려면 JSON도 함께 받겠다고 알려야 한다
+    expect(requests[0].headers.get('Accept')).toBe('text/event-stream, application/json')
     expect(requests[0].headers.get('Authorization')).toBe(
       `Bearer ${sessionStore.getState().accessToken}`,
     )
