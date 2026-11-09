@@ -2,7 +2,7 @@
 
 `mock-pg` 모듈에 만들 모의 PG 서버의 설계다. 응답 모양은 [pg-integration.md](pg-integration.md) 6절 "Mock PG 프로토콜"이 정본이고, 이 문서는 그 표가 정하지 않은 내부 구조(원장, 원자성, 장애 주입, 프로필 제한)와 구현 순서를 정한다. 근거는 SA 6-6·11-4·11-5, S-28·S-29([sa-change-requests.md](sa-change-requests.md)), INV-1·INV-2·INV-8([invariants.md](invariants.md)), ADR 0023이다.
 
-상태: 구현 중. 2026-10-30 Opus 리뷰와 사용자 결정 4건을 반영한 개정본이고, 결정 내용은 7절에 있다. 10절의 단계 0(스파이크, ISE-101)을 2026-11-02에 끝냈고 결과는 6절 "스파이크 결과"에 적었다. 10절의 단계 1(ISE-127)은 끝났고, 단계 2(ISE-128, 호출 계수·멱등 헤더 기록·원장 조회·환불 장애 주입·`reset`)는 구현을 마쳤다(2절·5절·9절의 "구현 메모"). 단계 3(ISE-129)과 5(ISE-132)도 끝났다. 단계 4(ISE-130)와 6(ISE-133)이 남았다.
+상태: 구현 중. 2026-10-30 Opus 리뷰와 사용자 결정 4건을 반영한 개정본이고, 결정 내용은 7절에 있다. 10절의 단계 0(스파이크, ISE-101)을 2026-11-02에 끝냈고 결과는 6절 "스파이크 결과"에 적었다. 10절의 단계 1(ISE-127)은 끝났고, 단계 2(ISE-128, 호출 계수·멱등 헤더 기록·원장 조회·환불 장애 주입·`reset`)는 구현을 마쳤다(2절·5절·9절의 "구현 메모"). 단계 3(ISE-129)과 5(ISE-132)도 끝났다. 단계 4(ISE-130)도 끝났다. 단계 6(ISE-133)이 남았다.
 
 ## 1. 완료 기준
 
@@ -142,7 +142,8 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
   - `mock-pg`는 가상 스레드(`spring.threads.virtual.enabled`)로 돌아서 긴 지연이 요청 스레드를 고갈시키지 않는다. 요청과 설정의 모르는 JSON 필드는 400이다(오타 필드가 `orderId` 한정 규칙을 전역 규칙으로 만들지 않게 한다).
   - (ISE-128) `REFUND`·`REFUND_LOOKUP` 대상과 `REJECT` 모드를 더했다. 모드×호출 적용 표대로 걸 수 없는 조합은 설정할 때 400이다. 환불 쪽 호출은 `orderId` 대신 `refundId`로 한정하고, 종류에 맞지 않는 쪽(`REFUND`에 `orderId`, 승인에 `refundId`)을 주면 400이다. 설정 조회 응답에 `refundId` 필드가 늘었다(없으면 null).
   - (ISE-128) 환불 `DELAY`는 판정·저장 전에 기다린다(8절 3번). `PROCESSING`·`SERVER_ERROR`는 원장에 닿지 않고, `DROP_RESPONSE`는 저장한 뒤 연결을 닫으며, `REJECT`는 422 `NOT_REFUNDABLE`을 답하고 저장하지 않는다. 환불 조회는 `DELAY`·`PROCESSING`·`SERVER_ERROR`만 걸 수 있다. 모두 호출 계수(2절)에 들어간다.
-  - 변조형 모드와 그 프로필 검사(`loadtest`에서 거절)는 ISE-130에서 더한다. 이번에는 `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사까지 구현했다.
+  - (ISE-129) `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사를 구현했다.
+  - (ISE-130) 변조형 4개(`BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`)를 모드와 적용 표대로 더했다. 변조형은 설정 API가 `test` 프로필일 때만 받고, 그 밖의 프로필(`loadtest`)에서는 400 `INVALID_REQUEST`로 거절하며 규칙을 바꾸지 않는다. `test`와 `loadtest`를 함께 켜면 `test`가 있으므로 받는다. `BAD_REQUEST`는 `PROCESSING`·`SERVER_ERROR`처럼 원장에 닿지 않고 호출만 센다. `MISSING_AMOUNT`는 저장은 정상으로 하고 승인·조회·환불·환불 조회의 성공 본문에서 `amount`·`currency` 필드를 뺀다. `WRONG_AMOUNT`·`FRACTIONAL_AMOUNT`는 새 주문을 승인으로 정하는 시점에 저장 금액을 바꾸므로, 이미 결과가 있는 주문에는 효과가 없고 `count`만 쓴다(`DECLINE`과 같다).
 
 ### 모드와 적용 표
 
@@ -295,7 +296,7 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 | 1 | ISE-127 | 원장 상태 머신(2~4절)과 승인·조회·망취소 | 승인·조회·망취소·늦은 승인 방지·망취소 409를 실제 mock-pg로 검증. 진행 중 |
 | 2 | ISE-128 | 호출 계수·멱등 헤더 기록과 원장 조회 5개(결제·환불·요약·주문 목록·`reset`, `inFlightCount`), 환불·환불 조회 장애 주입(ISE-133에서 당김) | 이관 '같은 주문 승인 1회'(`approveCalls`)·'멱등 헤더' 통과, 409 응답도 계수에 들어감, 처리 중 승인이 `inFlightCount`에 잡힘, `local`·`prod`에서 원장 조회 API가 열리지 않음, 이관 '같은 환불 1회'(`refundCalls`) 통과, 환불 장애 모드별 동작과 호출 계수. 완료 |
 | 3 | ISE-129 | 승인·조회·망취소 운영형 장애 주입 확장(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭)과 프로필 제한 | 5절 모드×호출 적용 표대로 적용, `local`·`prod`에서 `/faults`가 없음, `test`·`loadtest`에서 운영형 설정 가능, `prod`와 `loadtest`를 함께 켜면 기동 실패 |
-| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절 |
+| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절. **완료.** 환불 `@Tag` 제외는 하지 않았다. 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`, `REJECT`)·원장 조회·`reset`을 ISE-128·132에서 먼저 구현해서 처음부터 공통 계약 23개 전부를 실제 서버로 돌린다. `MockPgServerContractTest`가 `PgClientContractTest`를 상속하고 `PgScenario`는 장애 주입 API(`count=1`)로 구현했다. `awaitPendingEffects()`는 `inFlightCount` 폴링이다 |
 | 5 | ISE-132 | 환불·환불 조회·환불 멱등(8절) | 같은 `refundId` 동시 환불에서 `refundedTotal`이 한 번만 늚, 이관 '다른 결제의 환불 응답' 통과('같은 환불 1회'는 `refundCalls`가 필요해 ISE-128에서 옮겼다), 장애 주입이 필요 없는 환불 테스트 2개(환불 성공, 조회 NotFound 뒤 재호출) 통과 |
 | 6 | ISE-133 | 환불 `@Tag` 제외 해제(공통 계약 23개 완료, ISE-130 뒤). 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`), 주문 목록·환불 원장 조회, `reset`은 2026-11-03 ISE-128로 당겨 구현했다 | 공통 계약 23개 전체와 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김 |
 
