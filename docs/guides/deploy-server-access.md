@@ -143,8 +143,8 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.107.168.36
 
 1. **서버 켜기**: 배포 서버와 Jenkins 서버를 켜고 스모크가 통과하는지 본다.
 2. **발생기 켜기**: 팀 공용 발생기가 중지돼 있으면 켜고 새 퍼블릭 IP를 팀 채널에 올린다. 측정자는 시작 알림을 올린다([`loadgen.md`](loadgen.md) 4절).
-3. **측정 모드 켜기**(측정자): 먼저 `script/loadtest/measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 본다. 그다음 `script/loadtest/measure-mode.sh on`(Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로). 이때부터 기존 로그인이 끊긴다. 시작 알림에 **main 머지 금지**를 넣고, Jenkins 잡을 끌 수 있으면 끈다(배포가 돌면 측정 모드가 풀린다).
+3. **측정 모드 켜기**(측정자): 먼저 `script/loadtest/measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 본다. 그다음 `MEASURER=<영문 이름> script/loadtest/measure-mode.sh on`(Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로). 이때부터 기존 로그인이 끊긴다. 시작 알림에 **main 머지 금지**를 넣고, Jenkins 잡을 끌 수 있으면 끈다(배포가 돌면 측정 모드가 풀린다).
 4. **키 옮기기**: 서버의 `~/iseonjwa/.env.measure`를 발생기 저장소 루트의 `.env`로 옮긴다. 측정 전용 키 두 개뿐이고 운영 키와 관리자 비밀번호는 옮기지 않는다.
 5. **측정**: 서버에서 회차를 만들고(`seed-demo.sh open`) 발생기에서 `SCHEDULE_ID`와 `PROM_RW_URL`을 주고 `run.sh`를 돌린다. Mock PG 지연 300ms는 서버에서 건다.
-6. **측정 모드 끄기**(측정자): `script/loadtest/measure-mode.sh off`. 운영 키로 돌아오고 스모크가 돈다. `status`로 꺼졌는지 확인하고, 껐던 Jenkins 잡을 켠다. 끝 알림에 "측정 모드 끔"을 적는다.
+6. **측정 모드 끄기**(측정자): `MEASURER=<영문 이름> script/loadtest/measure-mode.sh off`. 운영 키로 돌아오고 스모크가 돈다. 켜고 끌 때마다 슬랙 모니터링 채널에 자동 알림이 간다(ISE-223, 웹훅이 없거나 실패하면 경고만 남기고 전환은 끝난다). `status`로 꺼졌는지 확인하고, 껐던 Jenkins 잡을 켠다. 끝 알림에 "측정 모드 끔"을 적는다.
 7. **발생기 정리**: 측정자는 결과 파일을 내려받고 자기 폴더의 `.env`를 지운 뒤 끝 알림을 올린다. 그날 측정이 모두 끝났으면 발생기를 중지하고, 팀 마지막 측정 뒤에는 종료하며 8080·9090 보안 그룹 규칙도 지운다([`loadgen.md`](loadgen.md) 5절).
