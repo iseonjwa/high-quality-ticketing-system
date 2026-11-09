@@ -24,7 +24,8 @@ import type { HomeConcert } from '@/pages/concerts/homeConcerts'
 // 처음부터 멈춰 둔다. 보이지 않는 장은 inert로 초점·낭독에서 뺀다.
 const ROTATE_MILLIS = 7000
 
-const HERO_HEIGHT = 'h-[clamp(500px,48cqw,620px)]'
+// 목록을 받는 동안 ConcertListPage가 같은 높이로 자리를 잡는다
+export const HERO_HEIGHT = 'h-[clamp(500px,48cqw,620px)]'
 
 // 그림 위 글자: 페이지 바탕색으로 왼쪽을 짙게 덮는다. 라이트는 흰 막에 검은 글자, 다크는 검은 막에 흰 글자가 된다.
 // 좁은 화면(56rem 미만)은 글자가 폭 전체를 쓰므로 고르게 덮는다(밝은 그림·어두운 그림 모두 본문 4.5:1)
@@ -44,32 +45,45 @@ function prefersReducedMotion(): boolean {
 }
 
 function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMillis: number }) {
-  const [index, setIndex] = useState(0)
+  // Note: 지금 장은 순서가 아니라 공연 번호로 기억한다. 홈은 10초마다 묶음을 다시 나누는데, 보던 공연이 오픈해
+  // 예매 중 묶음으로 옮겨 가면 순서가 바뀐다. 순서로 기억하면 0초를 지켜보던 장이 다른 공연으로 바뀐다(셀프 리뷰)
+  const [shown, setShown] = useState(() => ({ id: items[0].concert.concertId, position: 0 }))
   const [playing, setPlaying] = useState(() => !prefersReducedMotion())
   const [hovering, setHovering] = useState(false)
   const count = items.length
-  // 공연 묶음이 줄어 지금 장이 사라지면 마지막 장을 보인다
-  const current = Math.min(index, count - 1)
-  // 배너 그림을 받은 장. 지금 장과 다음 장만 받고(나머지는 넘길 때 받는다), 한 번 받은 그림은 남긴다
-  const next = (current + 1) % count
-  const [loaded, setLoaded] = useState<ReadonlySet<number>>(() => new Set([0, 1 % count]))
-  if (!loaded.has(current) || !loaded.has(next)) {
-    setLoaded(new Set(loaded).add(current).add(next))
+  const current = currentPosition(items, shown)
+  // 배너 그림을 받은 공연. 지금 장과 다음 장만 받고(나머지는 넘길 때 받는다), 한 번 받은 그림은 남긴다
+  const currentId = items[current].concert.concertId
+  const nextId = items[(current + 1) % count].concert.concertId
+  const [loaded, setLoaded] = useState<ReadonlySet<number>>(() => new Set([currentId, nextId]))
+  if (!loaded.has(currentId) || !loaded.has(nextId)) {
+    setLoaded(new Set(loaded).add(currentId).add(nextId))
   }
   const rotating = playing && !hovering && count > 1
 
+  // 자동 넘김 타이머는 묶음이 다시 나뉘어도 새로 걸지 않는다. 넘길 때 최신 묶음을 읽는다
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  })
   useEffect(() => {
     if (!rotating) {
       return
     }
-    const timer = setInterval(() => setIndex((value) => (value + 1) % count), ROTATE_MILLIS)
+    const timer = setInterval(
+      () =>
+        setShown((value) =>
+          shownAt(itemsRef.current, currentPosition(itemsRef.current, value) + 1),
+        ),
+      ROTATE_MILLIS,
+    )
     return () => clearInterval(timer)
-  }, [rotating, count])
+  }, [rotating])
 
   // 사용자가 직접 넘기면 자동 넘김을 끈다(다시 켜려면 재생 버튼)
-  const go = (next: number) => {
+  const go = (position: number) => {
     setPlaying(false)
-    setIndex(((next % count) + count) % count)
+    setShown(shownAt(items, position))
   }
 
   // 키보드 초점이 캐러셀 밖에서 들어올 때만 멈춘다. 마우스로 버튼을 누를 때 생기는 초점은 세지 않는다.
@@ -127,13 +141,26 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
             active={position === current}
             label={`${position + 1} / ${count}`}
             eager={position === 0}
-            loadArt={loaded.has(position)}
+            loadArt={loaded.has(item.concert.concertId)}
             nowMillis={nowMillis}
           />
         ))}
       </div>
     </section>
   )
+}
+
+type Shown = { id: number; position: number }
+
+// 지금 보이는 장. 보던 공연이 묶음에서 빠지면(판매 종료 등) 같은 자리, 그 자리도 없으면 마지막 장을 보인다
+function currentPosition(items: HomeConcert[], shown: Shown): number {
+  const found = items.findIndex((item) => item.concert.concertId === shown.id)
+  return found === -1 ? Math.min(shown.position, items.length - 1) : found
+}
+
+function shownAt(items: HomeConcert[], position: number): Shown {
+  const wrapped = ((position % items.length) + items.length) % items.length
+  return { id: items[wrapped].concert.concertId, position: wrapped }
 }
 
 function HeroControl({
@@ -214,7 +241,9 @@ function HeroSlide({
               {formatDateTime(next.startsAt)} 공연
             </p>
           ) : null}
-          {next && status === 'BEFORE_OPEN' ? <HeroCountdown openAt={next.openAt} /> : null}
+          {next && status === 'BEFORE_OPEN' ? (
+            <HeroCountdown openAt={next.openAt} active={active} nowMillis={nowMillis} />
+          ) : null}
           <div>
             <Button asChild size="lg" className="rounded-pill px-7">
               <Link to={concertPath(concert.concertId)}>
@@ -265,10 +294,42 @@ const SECOND = 1000
 
 // 오픈까지 남은 시간을 일·시간·분·초 칸으로 보인다. 초는 올림이다(design-system.md 7절).
 // Note: 목록 응답에는 서버 시각이 없어(ISE-99) 브라우저 시계로 센다. 보여 주기만 하고, [예매하기]가 켜지는 순간은
-// 서버 시각으로 보정하는 공연 상세가 정한다. 칸은 매초 바뀌지만 낭독기는 timer 역할이라 매초 읽지 않는다.
-function HeroCountdown({ openAt }: { openAt: string }) {
-  const now = useNow(SECOND)
-  const total = Math.max(0, Math.ceil((instantMillis(openAt) - now) / SECOND))
+// 서버 시각으로 보정하는 공연 상세가 정한다. 1초 시계는 보이는 장만 돌리고, 숨은 장은 묶음 시계(10초)로 그린다.
+function HeroCountdown({
+  openAt,
+  active,
+  nowMillis,
+}: {
+  openAt: string
+  active: boolean
+  nowMillis: number
+}) {
+  return active ? (
+    <LiveCountdown openAt={openAt} />
+  ) : (
+    <CountdownUnits total={secondsUntil(openAt, nowMillis)} />
+  )
+}
+
+function secondsUntil(openAt: string, nowMillis: number): number {
+  return Math.max(0, Math.ceil((instantMillis(openAt) - nowMillis) / SECOND))
+}
+
+function LiveCountdown({ openAt }: { openAt: string }) {
+  const total = secondsUntil(openAt, useNow(SECOND))
+  // 0이 된 뒤 묶음을 다시 나눌 때까지(최대 10초) "오픈 예정" 배지가 남는다. 0칸 대신 문장으로 바꿔 모순으로 보이지 않게 한다
+  return total === 0 ? (
+    <p className="type-body font-semibold text-gray-900">
+      티켓이 열렸어요. 공연 보기에서 예매해 주세요
+    </p>
+  ) : (
+    <CountdownUnits total={total} />
+  )
+}
+
+// Note: 칸은 낭독하지 않는다(aria-hidden). 장 묶음이 멈추면 polite 알림 영역이 되는데, 그 안에서 매초 바뀌는 숫자는
+// timer 역할이어도 Safari(VoiceOver)가 읽을 수 있다(셀프 리뷰). 같은 정보는 칩의 "오픈 일시 티켓 오픈"이 가진다
+function CountdownUnits({ total }: { total: number }) {
   const units = [
     { label: '일', value: Math.floor(total / 86400) },
     { label: '시간', value: Math.floor((total % 86400) / 3600) },
@@ -276,7 +337,7 @@ function HeroCountdown({ openAt }: { openAt: string }) {
     { label: '초', value: total % 60 },
   ]
   return (
-    <div role="timer" aria-label="오픈까지 남은 시간" className="flex flex-wrap gap-2.5">
+    <div aria-hidden="true" data-slot="hero-countdown" className="flex flex-wrap gap-2.5">
       {units.map((unit) => (
         <span
           key={unit.label}
@@ -296,6 +357,7 @@ const PASS_CUT = 296
 
 // 그림 위에 기울여 놓은 입장권. 포스터 아래 절취선에서 양옆을 실제로 파낸다(.ticket-pass).
 // 꾸밈이라 읽지 않는다(제목·일시는 왼쪽 글자가 같은 내용을 가진다)
+// Note: mask는 테두리 밖 box-shadow까지 자른다. 그림자는 바깥 래퍼의 drop-shadow로 그려, 파낸 홈 모양까지 따라가게 한다
 function HeroPass({ concertId, startsAt }: { concertId: number; startsAt: string }) {
   const art = concertArt(concertId)
   const when = kstParts(startsAt)
@@ -303,38 +365,42 @@ function HeroPass({ concertId, startsAt }: { concertId: number; startsAt: string
     <div
       aria-hidden="true"
       data-slot="hero-pass"
-      style={{ '--cut': `${PASS_CUT}px` } as CSSProperties}
-      className="ticket-pass relative hidden h-[440px] w-[280px] rotate-3 rounded-[22px] bg-gray-0 text-gray-900 shadow-[0_24px_60px_rgba(0,0,0,0.35)] @min-[56rem]:block"
+      className="hidden rotate-3 [filter:drop-shadow(0_24px_30px_rgba(0,0,0,0.35))] @min-[56rem]:block"
     >
-      <div className="p-3">
-        <img
-          src={art.poster}
-          alt=""
-          width={POSTER_SIZE.width}
-          height={POSTER_SIZE.height}
-          loading="lazy"
-          decoding="async"
-          className="h-[272px] w-full rounded-[14px] object-cover"
+      <div
+        style={{ '--cut': `${PASS_CUT}px` } as CSSProperties}
+        className="ticket-pass relative h-[440px] w-[280px] rounded-[22px] bg-gray-0 text-gray-900"
+      >
+        <div className="p-3">
+          <img
+            src={art.poster}
+            alt=""
+            width={POSTER_SIZE.width}
+            height={POSTER_SIZE.height}
+            loading="lazy"
+            decoding="async"
+            className="h-[272px] w-full rounded-[14px] object-cover"
+          />
+        </div>
+        <span
+          className="absolute inset-x-4 border-t-2 border-dashed border-gray-200"
+          style={{ top: PASS_CUT - 1 }}
         />
-      </div>
-      <span
-        className="absolute inset-x-4 border-t-2 border-dashed border-gray-200"
-        style={{ top: PASS_CUT - 1 }}
-      />
-      <div className="absolute inset-x-5 grid gap-2.5" style={{ top: PASS_CUT + 16 }}>
-        <div className="flex justify-between text-[11px] font-semibold tracking-[0.2em] text-gray-500">
-          <span>ADMIT ONE</span>
-          <span>TICKET</span>
+        <div className="absolute inset-x-5 grid gap-2.5" style={{ top: PASS_CUT + 16 }}>
+          <div className="flex justify-between text-[11px] font-semibold tracking-[0.2em] text-gray-500">
+            <span>ADMIT ONE</span>
+            <span>TICKET</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[32px] leading-none font-bold tracking-[-0.03em] tabular-nums">
+              {when.month}.{when.day}
+            </span>
+            <span className="type-body-sm font-semibold text-gray-700 tabular-nums">
+              {when.weekday}요일 {when.hour}:{when.minute}
+            </span>
+          </div>
+          <span className="block h-[34px] bg-[repeating-linear-gradient(90deg,currentColor_0_2px,transparent_2px_4px,currentColor_4px_7px,transparent_7px_9px,currentColor_9px_10px,transparent_10px_13px)]" />
         </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-[32px] leading-none font-bold tracking-[-0.03em] tabular-nums">
-            {when.month}.{when.day}
-          </span>
-          <span className="type-body-sm font-semibold text-gray-700 tabular-nums">
-            {when.weekday}요일 {when.hour}:{when.minute}
-          </span>
-        </div>
-        <span className="block h-[34px] bg-[repeating-linear-gradient(90deg,currentColor_0_2px,transparent_2px_4px,currentColor_4px_7px,transparent_7px_9px,currentColor_9px_10px,transparent_10px_13px)]" />
       </div>
     </div>
   )

@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatShortDateTime, kstDaysUntil, kstParts } from '@/lib/format'
 import { useNow } from '@/lib/serverClock'
 import { cn } from '@/lib/utils'
-import { HomeHero } from '@/pages/concerts/HomeHero'
+import { HERO_HEIGHT, HomeHero } from '@/pages/concerts/HomeHero'
 import { groupHomeConcerts, type HomeConcert } from '@/pages/concerts/homeConcerts'
 
 const PAGE_SIZE = 20
@@ -55,7 +55,7 @@ export function ConcertListPage() {
       {page === 1 ? (
         sections === null ? (
           concerts.isError ? null : (
-            <div aria-hidden="true" className="h-[clamp(440px,46cqw,540px)] bg-ink-900" />
+            <div aria-hidden="true" className={cn('bg-gray-25', HERO_HEIGHT)} />
           )
         ) : (
           <HomeHero items={sections.featured} nowMillis={now} />
@@ -237,7 +237,8 @@ function OpeningTicket({ item, nowMillis }: { item: HomeConcert; nowMillis: numb
             </p>
           </div>
         </div>
-        <div className="ticket-stub flex w-[76px] shrink-0 items-center justify-center">
+        {/* pointer-events-none: 떼는 칸은 position이 있어 제목 링크의 덮개(::after) 위에 그려진다. 눌러도 링크로 가게 한다 */}
+        <div className="ticket-stub pointer-events-none flex w-[76px] shrink-0 items-center justify-center">
           <span className="text-[20px] font-bold text-danger-600 tabular-nums">
             {days <= 0 ? '오늘' : `D-${days}`}
           </span>
@@ -286,9 +287,10 @@ function SaleTicketCard({ item }: { item: HomeConcert }) {
   )
 }
 
-// 목록 안 광고 카드를 넣을 자리. 셋째 공연 다음에 두고, 공연이 그보다 적으면 맨 끝에 둔다
+// 목록 안 광고 카드를 넣을 자리. 넷째 공연 다음에 두고, 공연이 그보다 적으면 맨 끝에 둔다.
+// 2·3·4열 모두 첫 줄이 공연으로 찬다(셋째 다음이면 4열 첫 줄 끝이 광고였다)
 function adSlot(count: number): number {
-  return Math.min(3, count)
+  return Math.min(4, count)
 }
 
 // 샘플 광고(design-system.md 11절). 광고 소재는 광고주가 만든 그림이라는 전제로 모드와 상관없이 같은 색이다.
@@ -297,7 +299,7 @@ function adSlot(count: number): number {
 function SampleAdBand() {
   return (
     <aside
-      aria-label="광고"
+      aria-label="광고: 밤결 스파클링"
       className="relative mx-[calc(50%-50cqw)] overflow-hidden bg-[#0f1d26] text-white"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -332,11 +334,13 @@ function SampleAdBand() {
   )
 }
 
-// 목록 안 광고 카드. 이웃한 티켓 카드와 같은 칸을 쓰고 같은 높이로 늘어난다
+// 목록 안 광고 카드. 이웃한 티켓 카드와 같은 칸을 쓰고 같은 높이로 늘어난다.
+// main 안 목록 항목이라 랜드마크(aside)로 두지 않고 이름 있는 묶음으로 둔다
 function SampleAdCard() {
   return (
-    <aside
-      aria-label="광고"
+    <div
+      role="group"
+      aria-label="광고: 라이드온 셔틀"
       className="flex w-full flex-col justify-between gap-4 rounded-[18px] bg-[#1d2030] p-5 text-[#f4f5f8]"
     >
       <span className="self-end">
@@ -358,7 +362,7 @@ function SampleAdCard() {
         </p>
         <p className="type-caption text-[#b9bdc9]">출구 앞 출발 · 미리 좌석 예약 · 샘플 광고</p>
       </div>
-    </aside>
+    </div>
   )
 }
 
@@ -427,10 +431,10 @@ function ConcertListSkeleton() {
     <div className="grid gap-5" role="status">
       <span className="sr-only">공연 목록을 불러오고 있어요</span>
       <Skeleton className="h-8 w-48" />
-      <div className="grid grid-cols-2 gap-x-4 gap-y-8 @min-[40rem]:grid-cols-3 @min-[64rem]:grid-cols-5">
-        {[0, 1, 2, 3, 4].map((key) => (
-          <div key={key} className="grid gap-3">
-            <Skeleton className="aspect-[2/3] w-full rounded-md" />
+      <div className="grid grid-cols-2 gap-x-3 gap-y-5 @min-[40rem]:grid-cols-3 @min-[40rem]:gap-x-5 @min-[64rem]:grid-cols-4">
+        {[0, 1, 2, 3].map((key) => (
+          <div key={key} className="grid gap-3 rounded-[18px] border border-gray-100 p-3">
+            <Skeleton className="aspect-square w-full rounded-[12px]" />
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
           </div>

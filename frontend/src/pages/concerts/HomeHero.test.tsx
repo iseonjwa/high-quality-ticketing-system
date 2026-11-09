@@ -304,8 +304,10 @@ describe('HomeHero 장의 내용', () => {
     expect(within(slide).getByText('오픈 예정')).toBeInTheDocument()
     expect(within(slide).getByText('2026.11.07 (토) 12:00 티켓 오픈')).toBeInTheDocument()
     // 3일 0시간 0분 0초 남음(브라우저 시계, 초는 올림)
-    const timer = within(slide).getByRole('timer', { name: '오픈까지 남은 시간' })
-    expect(Array.from(timer.children).map((unit) => unit.textContent)).toEqual([
+    // 칸은 낭독하지 않는다(같은 정보는 칩이 가진다)
+    const units = slide.querySelector('[data-slot="hero-countdown"]')!
+    expect(units).toHaveAttribute('aria-hidden', 'true')
+    expect(Array.from(units.children).map((unit) => unit.textContent)).toEqual([
       '03일',
       '00시간',
       '00분',
@@ -340,7 +342,7 @@ describe('HomeHero 장의 내용', () => {
   it('예매 중인 장에는 남은 시간 칸을 두지 않는다', () => {
     renderHero([onSale(1, 5 * DAY)])
 
-    expect(within(visibleSlide()).queryByRole('timer')).not.toBeInTheDocument()
+    expect(visibleSlide().querySelector('[data-slot="hero-countdown"]')).toBeNull()
   })
 
   it('공연 일시를 한국 시각으로 보인다', () => {
