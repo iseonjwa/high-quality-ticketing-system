@@ -26,7 +26,7 @@
 
 성공 응답은 컨트롤러가 SuccessResponse.of(status, message, data, traceId)로 직접 생성한다. 실제 HTTP 상태는 ResponseEntity에서도 동일하게 지정한다. 자동 응답 감싸기는 제공하지 않는다. 202 응답의 Location과 nextPollAfterSeconds는 해당 서비스가 제공하며, 본문이 없는 성공은 200과 data NULL을 사용한다.
 
-실패는 BusinessException의 ErrorCode나 Spring MVC 예외의 HTTP 상태로 응답한다. 도메인별 에러 코드는 각 서비스에서 ErrorCode를 구현한다. 검증 오류에는 필드와 사유를 싣고, 예상하지 못한 예외는 500 공통 문구만 내보낸다. traceId는 기존 MDC 값을 사용하며 없으면 NULL이다. 추적 ID 생성과 전파는 서비스·관측성 설정의 후속 범위다.
+실패는 BusinessException의 ErrorCode나 Spring MVC 예외의 HTTP 상태로 응답한다. 도메인별 에러 코드는 각 서비스에서 ErrorCode를 구현한다. 검증 오류에는 필드와 사유를 싣고, 예상하지 못한 예외는 500 공통 문구만 내보낸다. 오류 응답은 요청의 Accept와 상관없이 `application/json`이다(Content-Type을 미리 정해 Spring의 Accept 협상을 건너뛴다). traceId는 기존 MDC 값을 사용하며 없으면 NULL이다. 추적 ID 생성과 전파는 서비스·관측성 설정의 후속 범위다.
 
 예외 처리 대상 컨트롤러 패키지는 `com.iseonjwa`다. Actuator 등 다른 패키지에는 적용하지 않는다. Mock PG는 CommonWebConfiguration을 import하지 않아야 한다. Gateway는 WebFlux용 처리가 필요하므로 `web` 패키지를 사용하지 않는다. Kafka 이벤트에는 응답 클래스를 사용하지 않는다.
 

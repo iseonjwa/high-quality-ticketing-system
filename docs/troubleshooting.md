@@ -393,7 +393,21 @@
 - 우회: 고치기 전에는 `chmod a+w ~/<영문 이름>/iseonjwa/loadtest/k6/results`로 열었다.
 - 배운 점: 컨테이너에 호스트 폴더를 마운트해 쓰게 할 때는 컨테이너 안 사용자(uid)와 폴더 소유자가 맞는지 본다. Windows·macOS의 Docker Desktop은 권한을 감춰서 리눅스 서버에서 처음 터진다. 측정 환경은 실제와 같은 OS에서 먼저 짧게 시험한다.
 
-### TS-46 Windows에서 시각을 비교하는 reservation-service 테스트 4건만 실패
+### TS-46 건별 알림 템플릿 검사가 Linux CI에서만 `amtool: error: open /data/event.json: permission denied`로 실패했다
+- 서비스·작성: infra / junhyun / 2026-11-09
+- 문제: #397(ISE-183)의 `script/check-prometheus-rules.sh`가 macOS 로컬에서는 통과하고, GitHub Actions(promtool 검사)에서만 `amtool: error: open /data/event.json: permission denied`와 "건별 알림 꼬리말이 그려지지 않는다"로 실패했다.
+- 원인: 스크립트가 `mktemp -d`로 만든 폴더에 JSON을 쓰고 `docker run -v "$data_dir:/data:ro"`로 amtool 컨테이너에 넘겼다. `mktemp -d`는 폴더를 0700으로 만들고, `prom/alertmanager` 이미지의 amtool은 `nobody`로 돈다. Linux에서는 폴더 주인(러너 사용자)이 아닌 `nobody`가 폴더에 들어가지 못한다. macOS Docker Desktop은 파일 공유 계층이 권한을 다르게 넘겨 로컬에서는 드러나지 않았다.
+- 해결: 폴더를 `chmod 755`, 파일을 `chmod 644`로 열었다(`script/check-prometheus-rules.sh`, 커밋 230f329b, #397에 포함).
+- 배운 점: 임시 폴더를 컨테이너에 마운트할 때는 컨테이너 안 사용자가 누구인지 보고 권한을 연다. macOS 로컬 통과가 Linux CI 통과를 보장하지 않는다.
+
+### TS-47 화면을 경로별로 나눈(route lazy) 뒤 일부 화면 테스트가 CI에서만 요소를 찾지 못했다
+- 서비스·작성: frontend / junhyun / 2026-11-09
+- 문제: #400(ISE-212)에서 홈·공연 상세 밖의 화면을 route `lazy`로 바꾼 뒤였다. 로컬에서는 전부 통과했는데, CI에서는 `PasswordChangePage`·`SignupPage` 테스트가 `Unable to find an accessible element with the role "link" and name "바꾸지 않고 돌아가기"`, `Unable to find a label with the text of: 이메일`로 실패했다.
+- 원인: 테스트 도우미 `renderRoutesReady`는 `router.state.initialized`만 기다렸다. 라우터 상태가 먼저 바뀌고 React는 화면을 transition으로 나중에 그려서, 느린 CI에서는 그 사이에 `getBy`가 실행됐다. lazy 경로로 옮긴 직후에 `getBy`로 확인하는 곳도 같은 경쟁이 있었다.
+- 해결: `renderRoutesReady`가 자리표시(`role="status"`, "화면을 불러오는 중")가 사라질 때까지 함께 기다리게 했다. lazy 경로로 옮긴 직후의 확인 네 곳은 `findBy`·`waitFor`로 바꿨다(`frontend/src/test/render.tsx`, 커밋 504a74ab, #400에 포함). 나중에 dev를 합칠 때 디자인 묶음이 더한 대기열 테스트도 같은 이유로 `renderRoutesReady`로 바꿨다.
+- 배운 점: 라우터 상태와 DOM은 같은 순간에 바뀌지 않는다. lazy 경로를 쓰는 화면 테스트는 화면에 보이는 것(자리표시가 사라짐, `findBy`)으로 기다린다.
+
+### TS-48 Windows에서 시각을 비교하는 reservation-service 테스트 4건만 실패
 - 서비스·작성: reservation / kwonwoo / 2026-11-09
 - 문제: `:reservation-service:test`에서 `LotteryPaymentMetricsTest`, `QueueApiTest`(토큰 발급), `ReservationApiTest`, `SeatHoldApiTest`의 시각 테스트 한 건씩 실패했다. 다시 돌려도 같았다. 실패 값이 몇 초씩 어긋나 있었다(`추첨 5분 뒤 반영한 시간이어야 한다: 294.1944835`, `PT10M5.3636334S`).
 - 원인: 테스트가 시작 시각은 컨테이너(PostgreSQL `now()`, Redis `TIME`)에서, 비교 기준은 호스트 JVM(`Instant.now()`, 앱 `Clock`)에서 받는다. Windows 시계가 실제보다 약 7초 늦었고(Windows 시간 서비스 `w32time` 정지), Docker Desktop VM 시계는 맞았다. 외부 시각(`www.google.com`의 `Date` 헤더)과 비교해 Windows만 틀린 것을 확인했다. 컨테이너에서 `hwclock -s`를 실행해 봤지만 차이가 그대로였다.

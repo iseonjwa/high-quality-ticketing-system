@@ -15,11 +15,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class SseStreamSink implements StreamSink {
     private final SseEmitter emitter;
     private final JsonMapper json;
+    private final String traceId;
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    SseStreamSink(SseEmitter emitter, JsonMapper json) {
+    // Note: 이벤트는 가상 스레드에서 보내 그 스레드에는 MDC가 없다. 요청 스레드의 traceId를 컨트롤러가 읽어 넘긴다
+    SseStreamSink(SseEmitter emitter, JsonMapper json, String traceId) {
         this.emitter = emitter;
         this.json = json;
+        this.traceId = traceId;
         emitter.onCompletion(() -> closed.set(true));
         emitter.onTimeout(() -> closed.set(true));
         emitter.onError(error -> closed.set(true));
@@ -27,7 +30,7 @@ final class SseStreamSink implements StreamSink {
 
     @Override
     public void meta(Mode mode, FallbackReason fallbackReason) {
-        send("meta", new StreamEvents.Meta(mode, fallbackReason));
+        send("meta", new StreamEvents.Meta(mode, fallbackReason, traceId));
     }
 
     @Override
