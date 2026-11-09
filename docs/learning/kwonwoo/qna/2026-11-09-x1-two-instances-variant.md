@@ -55,8 +55,10 @@ S4는 대상을 건별 트랜잭션 안에서 `SELECT ... FOR UPDATE SKIP LOCKED
 
 AI 추천은 A다. 질문("두 스케줄러가 같은 행을 두고 헛수고하는가, S4가 없애는가")에 C6가 이미 답했고, X1의 본래 질문은 "만료 속도와 선점 지연"이기 때문이다.
 
+결정(2026-11-09): A로 뺐다. 사용자는 reservation-service를 모듈별로 나눠 띄울지 아직 정하지 않았으니, 여러 대 구성을 미리 시험할 필요가 없다고 봤다. 모듈 분리나 여러 대 배포를 정하면 그때 S4 효과를 부하 아래에서 다시 본다.
+
 ## 이 프로젝트에서는
-- 명세: `docs/design/infra/open-peak-scenarios.md` X1(2026-11-09 "결정 대기"로 표시)
+- 명세: `docs/design/infra/open-peak-scenarios.md` X1(2026-11-09 변형에서 뺌)
 - 스케줄러: `reservation-service/.../seathold/presentation/scheduling/SeatHoldExpiryScheduler.java`
 - C6 시나리오: `docs/design/reservation/concurrency-scenarios.md`
 
