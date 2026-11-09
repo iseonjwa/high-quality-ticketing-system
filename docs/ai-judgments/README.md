@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-error-response-json-in-common.md) |
 | 2026-11-09 | 예매 문의 챗봇을 /help 페이지로 두자는 추천 대신 모든 화면에서 여는 떠 있는 위젯으로 바꾸기로 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-09-assistant-floating-widget.md) |
 | 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-09-home-renewal-draft-b-light-dark.md) |
 | 2026-11-09 | Q1-d 로컬 확인에서 출발 대기를 다시 계산하는 방식으로 고치고, Q1 ↔ Q1-d 수치 비교는 배포 서버로 넘김 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-09-q1d-local-limit-and-clock-drift.md) |

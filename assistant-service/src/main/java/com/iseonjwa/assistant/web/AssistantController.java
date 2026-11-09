@@ -47,13 +47,20 @@ class AssistantController {
             @Valid @RequestBody AskRequest request) {
         var streaming = service.prepareStream(userId, request.question());
         var emitter = new SseEmitter(STREAM_TIMEOUT_MILLIS);
-        var sink = new SseStreamSink(emitter, json);
+        var sink = new SseStreamSink(emitter, json, MDC.get("traceId"));
+        // Note: 가상 스레드에는 요청 스레드의 MDC가 따라오지 않는다. 복사해 넣어 스트림 로그에도 traceId를 남긴다
+        var requestMdc = MDC.getCopyOfContextMap();
         Thread.ofVirtual().name("assistant-stream").start(() -> {
+            if (requestMdc != null) {
+                MDC.setContextMap(requestMdc);
+            }
             try {
                 streaming.run(sink);
                 emitter.complete();
             } catch (RuntimeException exception) {
                 emitter.completeWithError(exception);
+            } finally {
+                MDC.clear();
             }
         });
         return ResponseEntity.ok()
@@ -75,6 +82,7 @@ class AssistantController {
     ResponseEntity<FailureResponse> rateLimited(RateLimitedException exception) {
         return ResponseEntity.status(CommonErrorCode.RATE_LIMITED.status())
                 .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(CommonErrorCode.RATE_LIMITED, null, MDC.get("traceId")));
     }
 }
