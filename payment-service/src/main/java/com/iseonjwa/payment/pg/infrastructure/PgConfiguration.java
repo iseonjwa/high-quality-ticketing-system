@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
 import com.iseonjwa.payment.observability.PaymentMetrics;
+import com.iseonjwa.payment.pg.application.PgCheckoutProfile;
 import com.iseonjwa.payment.pg.application.PgClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -25,5 +26,13 @@ public class PgConfiguration {
         var toss = properties.toss();
         return new MeteredPgClient(TossPgAdapter.create(toss.baseUrl(), toss.secretKey(), properties.connectTimeout(),
                 properties.readTimeout()), metrics);
+    }
+
+    @Bean
+    PgCheckoutProfile pgCheckoutProfile(PgProperties properties) {
+        return switch (properties.provider()) {
+            case MOCK -> new PgCheckoutProfile(PgCheckoutProfile.Provider.MOCK, null);
+            case TOSS -> new PgCheckoutProfile(PgCheckoutProfile.Provider.TOSS, properties.toss().clientKey());
+        };
     }
 }
