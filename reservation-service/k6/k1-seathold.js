@@ -255,7 +255,19 @@ export function probe() {
 }
 
 // K1: 좌석을 조회하고 고민한 뒤 고른다. 조회 실패나 매진이면 사용자 결과를 남기고 null을 돌려준다
+// Note: 좌석은 고민(sleep) 전에 고른다. 고르는 기준은 이미 받은 본문이라 sleep 뒤에 골라도 결과 분포는 같다.
+// 본문(830KB)을 쥔 채 1~3초 sleep하면 동시에 살아 있는 본문이 수백 개로 늘어 k6 메모리가 GB 단위로 커졌다(STEPS.md P4b 실측 3차)
 function seatsFromSeatMap(attempt, headers, count) {
+  const seatIds = readSeatMap(headers, count);
+  if (seatIds === null) {
+    return null;
+  }
+  sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
+  return seatIds;
+}
+
+// 응답 본문은 이 함수 안에서만 쓰고 고른 좌석 ID만 돌려준다
+function readSeatMap(headers, count) {
   const seatMap = http.get(seatsUrl(), { headers, tags: { api: 'seats' } });
   if (seatMap.status !== 200) {
     holdResults.add(1, { result: 'error' });
@@ -268,7 +280,6 @@ function seatsFromSeatMap(attempt, headers, count) {
     usersFinished.add(1, { outcome: 'soldout' });
     return null;
   }
-  sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
   return pickSeats(body, count);
 }
 
