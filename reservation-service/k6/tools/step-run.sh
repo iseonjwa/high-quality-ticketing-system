@@ -125,6 +125,8 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
   echo "jfr=${OBSERVE_JFR:-0}"
+  # k6 메모리 상한과 종료 코드. k6_exit=137이면 k6가 상한에 닿아 죽은 회라 처리량을 쓰지 않는다
+  echo "$(grep -oE 'k6_memory=[^ ]+ k6_gomemlimit=[^ ]+' "$PREFIX-k6.log" | head -1) $(grep -oE 'k6_exit=[0-9]+' "$PREFIX-k6.log" | tail -1)"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"
 } > "$PREFIX-meta.txt"
 if [ "${OBSERVE_JFR:-0}" = 1 ]; then

@@ -29,9 +29,21 @@ MODE_TAG=""
 # LABEL(예: p4a-S)을 주면 파일 이름에 붙여 단계별 결과를 나눈다
 NAME="${SCRIPT%.js}${MODE_TAG}${LABEL:+-$LABEL}-${MODEL:-open}-${STAMP}"
 
+# Note: k6 메모리를 묶어 Docker VM을 지킨다. P4b 1차에서 서버가 빨라지자 830KB 좌석 응답을 쥔 VU가 늘어 k6가 3GB를 넘겼고,
+# VM(약 8GB)이 바닥나 서비스 컨테이너까지 함께 멈췄다(STEPS.md P4b 실측 1차). GOMEMLIMIT는 상한 근처에서 Go GC를 앞당겨 넘침을 늦추고,
+# 그래도 넘치면 컨테이너만 OOM으로 죽는다(종료 코드 137). 그 회는 서버가 아니라 부하 생성기의 한계로 기록한다.
+# P4a까지는 k6가 0.9GB 아래였으므로 이 상한은 앞 단계의 조건을 바꾸지 않는다
+K6_MEMORY="${K6_MEMORY:-2560m}"
+K6_GOMEMLIMIT="${K6_GOMEMLIMIT:-2GiB}"
+echo "k6_memory=$K6_MEMORY k6_gomemlimit=$K6_GOMEMLIMIT"
+
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
+# Note: --memory-swap을 --memory와 같게 둬야 스왑으로 넘치지 않고 상한에서 멈춘다
+set +e
 MSYS_NO_PATHCONV=1 docker run --rm \
+  --name "k6-${LABEL:-run}-${STAMP}" \
+  --memory "$K6_MEMORY" --memory-swap "$K6_MEMORY" -e GOMEMLIMIT="$K6_GOMEMLIMIT" \
   -v "$K6_DIR:/scripts" \
   -e BASE_URL="${BASE_URL:-http://host.docker.internal:8080}" \
   -e SCHEDULE_ID \
@@ -43,3 +55,8 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \
   "/scripts/${SCRIPT}" | tee "$K6_DIR/results/${NAME}-stdout.txt"
+K6_EXIT="${PIPESTATUS[0]}"
+set -e
+echo "k6_exit=$K6_EXIT"
+[ "$K6_EXIT" = 137 ] && echo "k6 컨테이너가 메모리 상한($K6_MEMORY)에 닿아 종료됐습니다. 이 회는 부하 생성기 한계로 기록합니다" >&2
+exit "$K6_EXIT"
