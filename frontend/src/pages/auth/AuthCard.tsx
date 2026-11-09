@@ -24,11 +24,11 @@ const FEATURES = [
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
   const art = concertArt(1)
   return (
-    <main className="mx-auto grid w-full max-w-[960px] overflow-hidden rounded-lg @min-[40rem]:my-6 @min-[56rem]:grid-cols-[1fr_1fr] @min-[56rem]:border @min-[56rem]:border-gray-100 @min-[56rem]:bg-gray-0 @min-[56rem]:shadow-md">
+    <main className="mx-auto grid w-full max-w-[960px] overflow-hidden rounded-[18px] @min-[40rem]:my-6 @min-[56rem]:grid-cols-[1fr_1fr] @min-[56rem]:border @min-[56rem]:border-gray-100 @min-[56rem]:bg-gray-0 @min-[56rem]:shadow-md">
       {/* 폼을 먼저 둬 화면 낭독기가 제목 h1부터 읽는다. 그림 패널은 넓은 화면에서 order로 왼쪽에 둔다 */}
       <div className="grid content-center justify-items-center py-4 @min-[40rem]:py-6 @min-[56rem]:px-10 @min-[56rem]:py-12">
         <div className="grid w-full max-w-[400px] gap-5">
-          <div className="grid gap-6 rounded-lg border border-gray-100 bg-gray-0 px-6 py-7 shadow-sm @min-[56rem]:rounded-none @min-[56rem]:border-0 @min-[56rem]:p-0 @min-[56rem]:shadow-none">
+          <div className="grid gap-6 rounded-[18px] border border-gray-100 bg-gray-0 px-6 py-7 shadow-sm @min-[56rem]:rounded-none @min-[56rem]:border-0 @min-[56rem]:p-0 @min-[56rem]:shadow-none">
             <div className="grid gap-1.5">
               <h1 className="type-title text-gray-900">{title}</h1>
               {description ? <p className="type-body-sm text-gray-500">{description}</p> : null}

@@ -66,7 +66,7 @@ function ProfileCard({ me, pending }: { me: Me | undefined; pending: boolean }) 
   return (
     <div
       data-slot="profile-card"
-      className="relative hidden overflow-hidden rounded-lg bg-ink-900 p-5 text-white @min-[56rem]:block"
+      className="relative hidden overflow-hidden rounded-[18px] bg-ink-900 p-5 text-white @min-[56rem]:block"
     >
       <span
         aria-hidden="true"

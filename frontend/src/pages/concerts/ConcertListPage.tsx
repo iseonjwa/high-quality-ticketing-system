@@ -377,7 +377,7 @@ function AdLabel() {
 function CompactConcertCard({ item }: { item: HomeConcert }) {
   const { concert, status } = item
   return (
-    <article className="relative flex items-center gap-4 rounded-lg border border-gray-100 bg-gray-0 p-3 transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
+    <article className="relative flex items-center gap-4 rounded-[18px] border border-gray-100 bg-gray-0 p-3 transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
       <ConcertPoster concertId={concert.concertId} className="w-12 rounded-[4px] opacity-80" />
       <div className="grid min-w-0 gap-1">
         <h3 className="line-clamp-2 type-body-sm font-semibold text-gray-900">

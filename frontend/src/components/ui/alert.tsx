@@ -63,25 +63,34 @@ function Alert({
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">{children}</div>
-      {/* 알림이 좁으면(28rem 미만: 좁은 화면, 옆 열) 버튼을 글자 아래 줄로 내려 글자가 한 줄에 몇 글자씩 접히지 않게 한다 */}
-      {action ? (
+      {/* 행동 버튼과 닫기를 한 묶음으로 둔다. 알림이 좁으면(28rem 미만: 좁은 화면, 옆 열) 묶음째 글자 아래 줄로 내려 글자가
+          한 줄에 몇 글자씩 접히지 않게 하고, 보이는 순서(행동 → 닫기)와 Tab 순서를 같게 둔다 */}
+      {action || onClose ? (
         <div
-          data-slot="alert-action"
-          className="shrink-0 @max-[28rem]/alert:order-last @max-[28rem]/alert:basis-full @max-[28rem]/alert:pl-7"
+          className={cn(
+            'flex shrink-0 items-start gap-2',
+            // 닫기만 있으면 첫 줄 오른쪽에 그대로 둔다
+            action &&
+              '@max-[28rem]/alert:order-last @max-[28rem]/alert:basis-full @max-[28rem]/alert:pl-7',
+          )}
         >
-          {action}
+          {action ? (
+            <div data-slot="alert-action" className="shrink-0">
+              {action}
+            </div>
+          ) : null}
+          {onClose ? (
+            <button
+              type="button"
+              data-slot="alert-close"
+              aria-label="닫기"
+              onClick={onClose}
+              className="-m-1 ml-auto shrink-0 rounded-sm p-1 outline-none hover:bg-current/10 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
-      ) : null}
-      {onClose ? (
-        <button
-          type="button"
-          data-slot="alert-close"
-          aria-label="닫기"
-          onClick={onClose}
-          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-current/10 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
       ) : null}
     </div>
   )

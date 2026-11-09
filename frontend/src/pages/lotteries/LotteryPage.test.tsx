@@ -190,7 +190,8 @@ describe('LotteryPage 단계 배지', () => {
     renderLottery()
 
     await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
-    expect(screen.getByText('추첨 번호 1 · 회차 32 · 추첨석 10석')).toBeInTheDocument()
+    expect(screen.getByText('추첨 번호 1 · 회차 32')).toBeInTheDocument()
+    expect(screen.getByText('10석')).toBeInTheDocument()
     expect(
       screen.getByText(
         `${timeText(lottery.entryStartAtMillis)} ~ ${timeText(lottery.entryEndAtMillis)}`,
@@ -198,7 +199,9 @@ describe('LotteryPage 단계 배지', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(timeText(lottery.drawAtMillis))).toBeInTheDocument()
     expect(screen.getByText('1~2매')).toBeInTheDocument()
-    expect(screen.getByText('당첨되면 등록한 카드로 바로 자동결제돼요.')).toBeInTheDocument()
+    // 자동결제 안내는 3단계 설명이 가진다(알아 두세요에 같은 문장을 되풀이하지 않는다)
+    expect(screen.getByText('당첨되면 등록한 카드로 바로 결제해요')).toBeInTheDocument()
+    expect(screen.queryByText('당첨되면 등록한 카드로 바로 자동결제돼요.')).not.toBeInTheDocument()
     expect(
       screen.getByText('응모는 한 번만 할 수 있고, 취소한 뒤에는 다시 응모할 수 없어요.'),
     ).toBeInTheDocument()
