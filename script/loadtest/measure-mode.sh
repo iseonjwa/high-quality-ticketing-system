@@ -12,7 +12,9 @@
 #   과 인자로 준 파일이다. 측정 전용 키를 발생기(k6)에 주면 운영 키를 발생기에 두지 않고도 k6가 토큰을 서명한다.
 # - off: 같은 커밋(.deploy/current)을 .env만으로 다시 띄워 운영 키·샘플링 1.0·닫힌 9090으로 돌아가고 스모크를 돌린다.
 #   그 뒤 .env.measure와 .deploy/measure-mode를 지운다.
-# - status: 측정 모드인지, 언제부터인지, 어떤 덮어쓰기 파일을 쓰는지 보여 준다.
+#   이미 꺼져 있으면(.env.measure·.deploy/measure-mode 모두 없음) 아무것도 하지 않는다. 강제로 다시 띄우려면 FORCE=1(ISE-228).
+# - 이미 켜져 있을 때 다시 on: 처음 켠 측정자면 "설정 변경"(파랑), 다른 측정자면 "겹침 주의"(주황)로 알린다(ISE-228).
+# - status: 측정 모드인지, 언제부터인지, 누가 켰는지, 어떤 덮어쓰기 파일을 쓰는지 보여 준다.
 #
 # 주의
 # - 측정 모드 동안 기존 로그인이 끊긴다. Access 토큰 서명 키가 바뀌기 때문이다(Refresh 키는 그대로라 다시 로그인하면 된다).
@@ -190,9 +192,15 @@ cmd_on() {
   mkdir -p "$state"
   ensure_measure_env
 
-  local started was_on=0
+  local started was_on=0 owner="$MEASURER" previous_overrides=""
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  if [[ -f "$mode_file" ]]; then started="$(sed -n 's/^started=//p' "$mode_file")"; was_on=1; fi
+  if [[ -f "$mode_file" ]]; then
+    started="$(sed -n 's/^started=//p' "$mode_file")"
+    previous_overrides="$(sed -n 's/^overrides=//p' "$mode_file")"
+    # 처음 켠 측정자를 그대로 남긴다. ISE-228 전에 만든 기록 파일에는 measurer가 없어 비어 있을 수 있다
+    owner="$(sed -n 's/^measurer=//p' "$mode_file")"
+    was_on=1
+  fi
   run_compose --env-file .env --env-file "${measure_env}" \
     -f compose.yml -f compose.deploy.yml -f loadtest/deploy/compose.measure.yml ${extra[@]+"${extra[@]}"} \
     up -d --remove-orphans --wait --wait-timeout 420
@@ -200,6 +208,7 @@ cmd_on() {
     echo "started=$started"
     echo "overrides=loadtest/deploy/compose.measure.yml${*:+ $*}"
     echo "commit=$IMAGE_TAG"
+    echo "measurer=${owner:-$MEASURER}"
   } > "$mode_file"
 
   echo "== 측정 모드를 켰다(커밋 ${IMAGE_TAG:0:7})"
@@ -207,12 +216,17 @@ cmd_on() {
   local text="측정이 끝나면 \`measure-mode.sh off\`로 꺼 주세요. 측정 중에는 main 머지를 멈춰 주세요."
   local fields=(측정자 "$(slack_escape "$MEASURER")" 시각 "$(kst_now)" 커밋 "<$repo/commit/$IMAGE_TAG|${IMAGE_TAG:0:7}>"
                 "덮어쓰기 파일" "loadtest/deploy/compose.measure.yml${*:+ $*}")
-  # 이미 켜져 있던 상태에서 다시 켠 것은 겹침일 수 있어 색과 제목으로 드러낸다
-  if [[ "$was_on" == 1 ]]; then
+  # 이미 켜져 있던 상태에서 다시 켠 경우를 둘로 나눈다(ISE-228).
+  # 처음 켠 측정자가 다시 켠 것은 설정 변경(예: Q2 → Q3로 덮어쓰기 파일을 바꿈)이고, 다른 측정자면 겹침일 수 있다
+  if [[ "$was_on" == 1 && "$owner" == "$MEASURER" ]]; then
+    title="[측정 모드 설정 변경] 켜져 있던 측정 모드에 다시 적용했습니다"
+    text="같은 측정자가 덮어쓰기 파일을 바꿔 다시 적용했습니다. ${text}"
+    fields+=("이전 덮어쓰기 파일" "${previous_overrides:-알 수 없음}" "기존 시작 시각" "$(to_kst "$started")")
+  elif [[ "$was_on" == 1 ]]; then
     color='#F59F00'
     title="[측정 모드 켬·겹침 주의] 이미 켜져 있던 측정 모드에 다시 적용했습니다"
     text="다른 분이 측정 중이 아닌지 확인 부탁드립니다. ${text}"
-    fields+=("기존 시작 시각" "$(to_kst "$started")")
+    fields+=("먼저 켠 측정자" "$(slack_escape "${owner:-알 수 없음}")" "기존 시작 시각" "$(to_kst "$started")")
   fi
   payload="$(build_payload "$color" "$title" "$text" "${fields[@]}")" || payload=""
   notify "$payload"
@@ -223,6 +237,14 @@ cmd_on() {
 }
 
 cmd_off() {
+  # 이미 꺼져 있으면(기록 파일·측정 전용 키 모두 없음) 다시 띄우지도, 알리지도 않는다(ISE-228).
+  # 끈 사람이 한 번 더 실행하면 서버가 1분 가까이 재기동되고 "알 수 없음" 알림이 남았다(2026-11-09).
+  # Note: 둘 중 하나라도 남아 있으면 끄기가 중간에 실패한 상태라 끝까지 끈다. FORCE=1은 강제로 다시 띄울 때 쓴다
+  if [[ ! -f "$mode_file" && ! -f "${measure_env}" && "${FORCE:-0}" != 1 ]]; then
+    echo "측정 모드가 이미 꺼져 있다(${mode_file}·${measure_env} 없음). 스택을 다시 띄우지 않고 알림도 보내지 않는다"
+    echo "운영 설정으로 강제로 다시 띄워야 하면 FORCE=1을 붙여 다시 실행한다"
+    return 0
+  fi
   IMAGE_TAG="$(current_tag)"
   export IMAGE_TAG
   # 켜져 있던 시간을 알림에 넣으려고, 기록 파일을 지우기 전에 시작 시각을 읽는다
@@ -263,7 +285,7 @@ cmd_off() {
 cmd_status() {
   if [[ -f "$mode_file" ]]; then
     echo "측정 모드: 켜짐"
-    sed -e 's/^started=/시작: /' -e 's/^overrides=/덮어쓰기 파일: /' -e 's/^commit=/커밋: /' "$mode_file"
+    sed -e 's/^started=/시작: /' -e 's/^overrides=/덮어쓰기 파일: /' -e 's/^commit=/커밋: /' -e 's/^measurer=/켠 측정자: /' "$mode_file"
   else
     echo "측정 모드: 꺼짐"
   fi
