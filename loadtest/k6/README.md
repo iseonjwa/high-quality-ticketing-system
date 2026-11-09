@@ -150,7 +150,9 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 발생기 EC2에서는 Gateway 사설 주소 |
 | `TOKEN_MODE` | `sign` | k6가 토큰을 직접 서명한다. 배포는 측정 모드의 측정 전용 키를 발생기 `.env`에 두고 쓴다(아래 "배포 서버 측정") |
 | `USER_ID_BASE` | 1000000 | 가상 사용자 ID 시작값 |
-| `SCHEDULE_ID` | 없음 | Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
+| `SCHEDULE_ID` | 없음 | 측정 대상 회차. Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). L1~L3: 선택이며, 주면 `LOTTERY_ID` 추첨의 회차와 같은지 확인한다(오타 방지). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
+| `LOTTERY_ID` | 없음 | L1~L3: 서버에서 만든 추첨(상태 `OPEN`). 주면 관리자 로그인과 회차·추첨 만들기를 건너뛰고, 로그인 없는 추첨 조회로 회차와 응모·추첨 시각을 읽는다. 이때 `START_IN_SECONDS`·`SEAT_COUNT`·`WAITLIST_COUNT`·`DRAW_AFTER_SECONDS`는 쓰지 않는다(서버에서 만들 때 정해진다). 회차 ID만 주고 `LOTTERY_ID`를 빼면 실패한다 |
+| `SALE_SCHEDULE_ID` | 없음 | L2-b(`PAY_RATE > 0`)·L3: 추첨 회차와 다른, 판매 중인 일반 판매 회차. `LOTTERY_ID`를 줄 때 반드시 같이 준다. L1·L2-a에 주면 실패한다 |
 | `USERS` / `ENTER_SECONDS` | 30000 / 10 | Q1: 진입할 사용자 수와 그 시간(초). 초당 속도는 둘을 나눈 값 |
 | `DUP_RATIO` / `REPEAT` | 0 / 3 | Q1-c: 연타하는 사용자 비율과 횟수 |
 | `USERS` / `ENTER_SPREAD_SECONDS` (Q1-d) | 5000 / 1 | Q1-d: 사용자 수(= VU 수)와, 출발 시각부터 마지막 사용자가 출발할 때까지의 시간(초). 앞쪽이 가장 붐비는 삼각 분포로 흩는다 |
@@ -184,7 +186,23 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
-**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를 줘서 이 단계를 건너뛴다. 그 밖의 시나리오(B1, G1, PAY1, R1, X1, L1~L3, O1)는 아직 `SCHEDULE_ID`를 받지 않거나 공연·추첨을 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). 그 밖의 시나리오(B1, G1, PAY1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+
+**L1~L3 추첨 준비**(서버에서 만들 때 맞출 시각):
+
+| 측정 | 서버에서 준비 | 응모 기간 | k6 |
+|---|---|---|---|
+| L1 응모 몰림 | 추첨 1개 | 측정 시간(기본 단계 4개 × 65초 = 약 260초)보다 길게. 짧으면 setup이 실패한다 | `LOTTERY_ID=<id> ... l1-lottery-entry.js` |
+| L2-a 자동결제 | 추첨 1개(좌석·예비 수 포함) | 빌링키 등록과 응모(`ENTRANTS`명, 초당 약 200건 가정)를 마감 전에 끝낼 만큼 | `LOTTERY_ID=<id> ... l2-lottery-billing.js` |
+| L2-b 간섭 | L2-a와 같은 추첨 + 판매 중인 다른 회차 | L2-a와 같음 | `LOTTERY_ID=<id> SALE_SCHEDULE_ID=<id> PAY_RATE=<n> ... l2-lottery-billing.js` |
+| L3 추첨·선점 간섭 | 추첨 1개 + 판매 중인 다른 회차 | L2-a와 같음. 추첨 시각은 응모 마감 뒤 측정 중에 오게 | `LOTTERY_ID=<id> SALE_SCHEDULE_ID=<id> ... l3-lottery-interference.js` |
+
+추첨은 배포 서버에서 `seed-demo.sh lottery`로 만든다. 마지막 두 줄에 나오는 `LOTTERY_ID`를 k6에 넘긴다(`SCHEDULE_ID`는 확인용으로 함께 줘도 된다). 회차 일반 오픈이 실행 시각 + 1시간이라 응모 시작은 그 안이어야 하므로 측정 직전에 만든다. 추첨석·예비 수·1인 매수는 `LOTTERY_SEAT_COUNT`(3000)·`LOTTERY_WAITLIST_COUNT`(1000)·`LOTTERY_MAX_PER_ENTRY`(2)로 바꾼다. L2-b·L3의 판매 중인 회차(`SALE_SCHEDULE_ID`)는 `seed-demo.sh open`으로 만든 회차를 쓴다.
+
+```bash
+# 배포 서버에서: 2분 뒤 응모 시작, 7분 동안 응모, 마감 1분 뒤 추첨
+ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh lottery "$(date -u -d "+2 minutes" +%Y-%m-%dT%H:%M:%SZ)" "$(date -u -d "+9 minutes" +%Y-%m-%dT%H:%M:%SZ)" "$(date -u -d "+10 minutes" +%Y-%m-%dT%H:%M:%SZ)"'
+```
 
 **Q1~Q3 회차 준비**: 배포 서버에서 관리자 도구로 회차를 하나 만든다. 오픈 시각이 이미 지난 회차를 만들면 바로 측정할 수 있다. 회차 캐시 갱신(30초)이 있으므로 측정 1분 전에는 만든다. 시나리오마다 새 회차를 쓴다(앞 시나리오의 대기자가 남아 있으면 순번이 섞인다).
 
