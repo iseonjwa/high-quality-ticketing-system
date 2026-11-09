@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-09 | Anthropic API 키는 어디에 넣고, 배포 때도 따라가나 | [qna/2026-11-09-anthropic-key-local-and-deploy.md](qna/2026-11-09-anthropic-key-local-and-deploy.md) |
 | 2026-11-09 | Spring AI는 어떤 프레임워크이고, 쓰면 무엇이 좋은가 (우리 챗봇과 비교) | [qna/2026-11-09-spring-ai-what-and-why.md](qna/2026-11-09-spring-ai-what-and-why.md) |
 | 2026-11-09 | 예매 문의 챗봇(ISE-126)은 어떻게 구현돼 있나, 왜 별도 모듈인가 | [qna/2026-11-09-assistant-chatbot-structure.md](qna/2026-11-09-assistant-chatbot-structure.md) |
 | 2026-11-09 | ISE-169 결제 TX1 커밋 응답 유실은 무엇이고, 왜 "재시도가 이어받기" 원안으로는 풀리지 않나 | [qna/2026-11-09-tx1-commit-response-loss.md](qna/2026-11-09-tx1-commit-response-loss.md) |
