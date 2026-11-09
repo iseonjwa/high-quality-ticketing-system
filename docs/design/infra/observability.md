@@ -141,14 +141,40 @@ flowchart LR
 - 확인 결과(2026-11-04, 로컬 compose): (1) 이미 울리던 환불 확인 알림 2건이 슬랙으로 갔다. (2) 결제 DB를 12초 멈춰 `PaymentDbConnectionTimeout`을 울리자 발생 메시지와 약 10분 뒤 해결 메시지가 갔다. (3) 새 모양의 미리보기 알림(발생, 발생·해결 섞임, 해결)이 갔다. 전송 실패는 0건이었다(`alertmanager_notifications_failed_total`).
 - 알림 문구(2026-11-04 사용자 요청): 결제 규칙의 `summary`를 합니다체로 바꾸고 해야 할 일을 끝에 붙였다(예: "결제 DB 연결 Timeout이 났습니다(pool=…). 이 시간의 결제 요청이 503으로 실패했을 수 있어 확인이 필요합니다"). 규칙 단위 테스트의 기대 문구도 함께 바꿨다.
 
-### 건별 알림(후속, ISE-183)
+### 건별 알림 (ISE-183)
 
-사용자는 "몇 번 유저가 언제 결제한 건인지"까지 알림에 담기를 원했다(2026-11-04). 지표 알림은 건수·최고령·횟수만 있어 결제 건 정보가 없고, DB 연결 시간 초과는 결제 한 건에 묶이지 않는다. 세 안(Loki 로그 알림, 결제 서비스가 슬랙에 직접 전송, 말투만 바꾸고 상세는 링크) 중 Loki 로그 알림을 골랐다.
+사용자는 "몇 번 유저가 언제 결제한 건인지"까지 알림에 담기를 원했다(2026-11-04). 지표 알림은 건수·최고령·횟수만 있어 결제 건 정보가 없고, DB 연결 시간 초과는 결제 한 건에 묶이지 않는다. 세 안(Loki 로그 알림, 결제 서비스가 슬랙에 직접 전송, 말투만 바꾸고 상세는 링크) 중 Loki 로그 알림을 골랐고, 2026-11-09에 아래 여섯 가지를 추천안대로 정했다.
 
-- 결제 서비스가 건별 사건(NEEDS_MANUAL_CHECK 전환, 금액 불일치, 대사 불일치 OPEN, DLQ OPEN)을 `event=… paymentId=… userId=… occurredAt=…` 한 줄로 남긴다.
-- Loki 규칙이 이 줄로 알림을 만들어 같은 Alertmanager로 보낸다. 경로가 하나라 묶기·반복·해결 알림과 메시지 모양을 그대로 쓴다.
-- 슬랙에는 내부 ID만 싣는다(이메일·이름 금지). 채널이 큰 워크스페이스의 공개 채널이기 때문이다.
-- Loki·Alloy(ISE-178) 뒤에 한다. 결제 한 건에 묶이지 않는 알림(DB 시간 초과, 작업 정체 등)은 지표 알림으로 둔다.
+| 결정(2026-11-09) | 내용 |
+|---|---|
+| 결제 시각 | `paidAt` = `payments.created_at`을 Asia/Seoul로 바꾼 ISO-8601(오프셋 포함, 초 단위). 시간대를 코드에 고정해 시스템 시간대에 기대지 않는다 |
+| 기존 지표 알림 | 그대로 둔다. 건별 알림은 그 위에 더한다 |
+| 금액 불일치 | 따로 알리지 않고 NMC 알림의 사유(`PG_AMOUNT_MISMATCH`·`REFUND_AMOUNT_MISMATCH`)로 합친다. 진단 로그 줄(`event=PG_AMOUNT_MISMATCH` 등)은 남긴다 |
+| 해결 메시지 | 건별 알림은 보내지 않는다 |
+| 대사 상한 | 한 회차에 규칙 하나가 남기는 새 OPEN 건별 줄은 10건까지이고, 넘으면 요약 한 줄(`event=RECONCILIATION_MISMATCH_OPEN_SUMMARY`)만 더 남긴다 |
+| 환불 문구 | "N번 유저가 YYMMDD HH:MM에 결제한 건의 환불입니다"(원 결제 시각) |
+
+**로그 줄**(ERROR, 필드 순서 고정, 값이 없으면 `-`). 결제 서비스의 `PaymentAlertLog`가 만든다.
+
+```
+event=<E> paymentId=<n> userId=<n> reservationId=<n> paidAt=2026-11-09T14:03:12+09:00 <추가 k=v>
+```
+
+| 사건 | 남기는 곳 | 추가 필드 |
+|---|---|---|
+| `PAYMENT_NEEDS_MANUAL_CHECK` | `PaymentTransitionService.markAmountMismatch`·`markUnresolved`(전이가 1행일 때만) | `reason=PG_AMOUNT_MISMATCH` 또는 `PG_UNRESOLVED` |
+| `REFUND_NEEDS_MANUAL_CHECK` | `RefundWorkerService.markNeedsManualCheck`(전이가 1행일 때만) | `refundId=<n> reason=<사유>`(`REFUND_AMOUNT_MISMATCH`, `REFUND_REJECTED`, `REFUND_UNRESOLVED`, `STATE_CONFLICT`) |
+| `RECONCILIATION_MISMATCH_OPEN` | `ReconciliationRecorder`(이전에 OPEN이 아니던 불일치만) | `rule=RC-n`. 결제 키가 없으면 결제 필드는 `-`이고 `reservationId`만 남는다 |
+| `DEAD_LETTER_OPEN` | `DeadLetterService`(OPEN으로 끝난 건) | `eventKey=<...>` 뒤에 자유 문장 `reason=...`. 봉투나 결제를 읽지 못하면 결제 필드는 `-` |
+
+- 줄은 호출한 트랜잭션 안에서 결제를 읽어 두고 커밋 뒤(`afterCommit`)에 찍는다. 롤백된 전이는 줄이 없고, 트랜잭션이 없으면 바로 찍는다. 개인정보는 내부 ID와 시각뿐이다(이메일·이름·카드 정보 금지, 공개 채널).
+- reservation-service에도 `DEAD_LETTER_OPEN` 로그가 있어 Loki 규칙이 `service="payment-service"` 라벨로 좁힌다. 예약 서비스 로그는 건드리지 않았다.
+- **Loki ruler**(`infra/loki/loki.yml`): `ruler.storage.local.directory: /etc/loki/rules`, `rule_path: /loki/rules-temp`, `alertmanager_url: http://alertmanager:9093`, `enable_api: true`, `evaluation_interval: 1m`, 링 `inmemory`. 키 이름은 Loki 3.7.9 `-verify-config`와 `-print-config-stderr`로 확인했다. `common.storage.filesystem.rules_directory`(`/loki/rules`)는 ruler 저장소 종류가 `filesystem`일 때의 값이라 `local` 저장소를 쓰는 지금은 쓰이지 않는다. 인증이 꺼진 Loki의 테넌트는 `fake`라 compose가 `./infra/loki/rules`를 `/etc/loki/rules/fake`에 읽기 전용으로 마운트한다(`compose.deploy.yml`은 loki의 볼륨을 건드리지 않는다).
+- **규칙**(`infra/loki/rules/payment-events.yml`): 사건마다 하나(`PaymentNeedsManualCheckEvent`, `RefundNeedsManualCheckEvent`, `ReconciliationMismatchOpenEvent`, `DeadLetterOpenEvent`). 최근 10분의 ERROR 줄을 정규식으로 읽어 라벨(`env`, `event`, `paymentId`, `userId`, `reservationId`, `paidAt`, 사건별 `reason`·`refundId`·`rule`·`eventKey`)로 뽑고 `service=payment`, `urgency=immediate`, `severity=critical`을 붙인다. `for`는 없다. 문구의 `YYMMDD HH:MM`은 annotation 템플릿의 `reReplaceAll`로 `paidAt`에서 만든다. Loki 3.7.9 ruler가 이 함수를 지원함을 검사 스크립트로 확인해서 `paidAtKst` 같은 보조 필드는 두지 않았다. regexp 뒤의 `| event="…"` 필터는 형식이 다른 줄을 걸러 낸다. regexp는 맞지 않는 줄을 오류 없이 라벨 없이 통과시키는데, 이 필터가 없으면 라벨이 없는 알림이 생겨 건별 경로를 타지 못했다(검사 스크립트의 미끼 줄이 잡았다).
+- **Alertmanager**: `event=~".+"` 하위 경로를 `urgency="immediate"` 경로보다 위에 둔다. 수신자는 `slack-monitoring-event`(같은 `slack_configs`를 YAML 앵커로 공유하고 `send_resolved: false`만 다르다). `group_by`는 `[alertname, env, paymentId, reservationId, refundId, rule, eventKey]`라 결제 한 건마다 메시지 하나이고, `group_wait` 10s, `repeat_interval` 24h다. 같은 줄은 10분 동안 매 평가마다 같은 라벨로 올라오지만 한 번만 보낸다. 슬랙 템플릿은 본문 라벨 줄에서 `event`·`userId`·`paidAt`·`reason`을 뺀다(요약 문장에 이미 있다). 꼬리말은 `event` 라벨이 있으면 "건별 알림 · 같은 사건은 한 번만 보냅니다"다. `event`가 없는 기존 알림(추첨 포함)은 경로·수신자·문구가 바뀌지 않는다.
+- **문구 예**: "결제가 운영자 확인 상태가 됐습니다(사유 PG_UNRESOLVED). 45번 유저가 261109 14:03에 결제한 건입니다. 확인이 필요합니다". 대사에서 결제 키가 없으면 "결제 없이 예매 7002번에서 찾은 건입니다", DLQ에서 결제를 읽지 못하면 "결제를 읽지 못해 어느 유저의 건인지 알 수 없습니다".
+- **검사**: `script/check-loki-rules.sh`(같은 Loki 이미지로 `-verify-config`, 평가 주기를 5초로 줄인 임시 Loki에 `/loki/api/v1/push`로 정상 줄 4건과 미끼 줄 3건을 넣고 ruler API를 jq로 확인), `script/check-prometheus-rules.sh`(event 알림이 건별 수신자로 가는지, event 없는 즉시 알림은 기존 수신자인지, 건별 수신자의 `send_resolved: false`, 건별 알림 꼬리말·라벨 줄 렌더). CI는 `loki-rules` 워크플로가 `infra/loki/**`가 바뀔 때 돈다.
+- **한계**: 결제 한 건에 묶이지 않는 알림(DB 연결 시간 초과, 작업 정체 등)은 지표 알림으로 둔다. 줄을 읽는 구간이 10분이라 Loki와 Alertmanager를 함께 다시 만들면(`--force-recreate`) 10분 안의 같은 줄이 새 알림으로 한 번 더 올 수 있다. 대사 요약 줄은 알림이 아니라 로그로만 남는다.
 
 ## 4. 메모리 추가분
 
@@ -162,6 +188,8 @@ SA 9-3 표에 아래 행을 더한다. 값은 모두 `[가정]`이고 [부하 �
 | 추가 합계 | 896m |
 
 SA 9-3 합계 11,392m에 더하면 약 12,288m(12.0GB)다. 75% 규칙이면 필요 메모리는 약 16.0GB로 16GB급이 정확히 한계에 닿는다. 이 값이 크기 결정에 영향을 주므로 측정 결과로 다시 본다. 로컬 compose의 현재 상한은 SA 표보다 작으므로 위 합계와 로컬 합계를 직접 비교하지 않는다.
+
+건별 알림 규칙(ISE-183)을 평가하는 Loki ruler는 같은 loki 프로세스에서 1분마다 쿼리 4개(최근 10분 ERROR 줄 검색)를 돈다. 상한(512m)은 그대로 `[가정]`으로 두고, 부하 측정 때 `docker stats`에서 ruler 평가 전후의 loki 메모리·CPU를 같이 본다.
 
 측정(2026-11-04, 로컬 compose 유휴, `docker stats`): loki 약 83MiB, alloy 약 53MiB. 부하가 없는 값이라 상한(512m·256m)은 그대로 `[가정]`이다.
 
@@ -202,7 +230,7 @@ ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 | 요청 단위 로그 부족 문제 | 공통 요청 로그 필터로 해결(사용자 결정, contract 이슈) |
 | Kafka 소비자 처리의 로그·트레이스 전파 | 구현 이슈에서 확인 |
 | 서비스 다운·Alertmanager 장애 알림 | 미정 |
-| 건별 결제 알림(유저·결제 시각) | Loki 로그 알림으로 정함(사용자, 2026-11-04), ISE-183 |
+| 건별 결제 알림(유저·결제 시각) | 구현함(ISE-183): Loki 규칙 → Alertmanager → 슬랙. 세부 결정은 3절. 실제 슬랙·실제 NMC 결제로 끝까지 보는 확인은 사용자가 한다 |
 | 프론트 안 로그 패널(M4) | 후보 |
 
 ## SA와 다른 점/더한 점 (SA 변경 요청 대상)

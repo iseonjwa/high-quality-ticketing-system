@@ -125,10 +125,19 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다).
+
+### 결제 PG 모드 전환 (ISE-45)
+
+- 환경변수: `PAYMENT_PG_PROVIDER`(`mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
+- 전환 절차: (1) 진행 중인 결제가 없는지 확인한다(`payments`에 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 없고 `refunds`가 `REQUESTED`로 남지 않음). 진행 중인 결제가 있는 채로 바꾸면 이미 한 PG에 기록된 결제를 다른 PG에서 조회하게 되어 `NotFound`로 보인다. (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
+- 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
+- 토스 모드는 빌링(추첨 자동결제)을 지원하지 않는다. 추첨 시연은 `mock`에서 한다.
+- 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요
 
@@ -154,6 +163,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - 2026-11-04 로컬에서 `IMAGE_TAG=<임의 SHA> docker compose -f compose.yml -f compose.deploy.yml config`로 합쳐진 설정(이미지, 빌드 없음, 상한, 포트, 프로필)을 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했고, `smoke.sh`를 로컬 nginx(8000)에 돌려 네 항목이 모두 통과했다. 실제 배포는 첫 main 릴리스로 GHCR 이미지가 생긴 뒤 확인한다.
 - `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
+- 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
 
 ### 내부 AI 상담 배포 (ISE-126)
 
