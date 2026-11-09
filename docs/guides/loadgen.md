@@ -68,7 +68,7 @@ cd iseonjwa && git switch dev && git log --oneline -1   # 측정한 코드 기�
 |---|---|---|
 | 1 | 측정자 | 팀 채널에서 다른 사람이 측정 중이 아닌지 보고 시작 알림을 올린다 |
 | 2 | AWS 담당 | 발생기가 중지 상태면 켜고 새 퍼블릭 IP를 올린다 |
-| 3 | 측정자 | 배포 서버에서 `script/loadtest/measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 보고, 측정 모드를 켠다(`MEASURER=<영문 이름> script/loadtest/measure-mode.sh on`). `MEASURER`가 없으면 사용법만 출력하고 멈춘다. 켜면 슬랙 측정 전용 채널(서버 `.env`의 `SLACK_WEBHOOK_LOADTEST`, 비어 있으면 성능-모니터링 채널)에 자동 알림이 간다(ISE-223, ISE-224). 이미 켜져 있던 상태에서 다시 켜면 주황색 "겹침 주의" 알림으로 나온다. 이때부터 기존 로그인이 끊긴다. Jenkins 잡을 끌 수 있으면 끈다(못 끄면 시작 알림의 "main 머지 금지"로 대신한다) |
+| 3 | 측정자 | 배포 서버에서 `script/loadtest/measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 보고, 측정 모드를 켠다(`MEASURER=<영문 이름> script/loadtest/measure-mode.sh on`). `MEASURER`가 없으면 사용법만 출력하고 멈춘다. 켜면 슬랙 측정 전용 채널(서버 `.env`의 `SLACK_WEBHOOK_LOADTEST`, 비어 있으면 성능-모니터링 채널)에 자동 알림이 간다(ISE-223, ISE-224). 이미 켜져 있던 상태에서 다시 켜면, 처음 켠 측정자는 파란색 "설정 변경"(예: Q2 → Q3로 덮어쓰기 파일을 바꿈), 다른 측정자는 주황색 "겹침 주의" 알림으로 나온다(ISE-228). 이때부터 기존 로그인이 끊긴다. Jenkins 잡을 끌 수 있으면 끈다(못 끄면 시작 알림의 "main 머지 금지"로 대신한다) |
 | 4 | 측정자 | 서버의 `~/iseonjwa/.env.measure`를 내 폴더 `~/<영문 이름>/iseonjwa/.env`로 옮기고 `chmod 600` 한다(`load-test.md` 2-1절 4번). 측정 전용 키 두 개뿐이고 서버 `.env`는 열지 않는다 |
 | 5 | 측정자 | 6절 연결 확인으로 8080·9090이 열렸는지 본다(측정 모드에서는 9090이 열려 `succeeded`가 나온다) |
 | 6 | 측정자 | 회차가 필요한 시나리오는 서버에서 회차를 만들고 그 ID로 실행한다(`loadtest/k6/README.md` "배포 서버 측정") |
@@ -87,7 +87,7 @@ cd iseonjwa && git switch dev && git log --oneline -1   # 측정한 코드 기�
 |---|---|---|
 | 1 | 측정자 | 결과 파일(`loadtest/k6/results/`)을 내 PC로 내려받는다. 결과는 커밋하지 않는다 |
 | 2 | 측정자 | 내 폴더의 `.env`를 지운다(`rm ~/<영문 이름>/iseonjwa/.env`) |
-| 3 | 측정자 | 측정 모드를 끈다(`MEASURER=<영문 이름> script/loadtest/measure-mode.sh off`). 운영 키, 샘플링 1.0, 닫힌 9090으로 돌아오고 스모크가 돈다. 켜져 있던 시간과 스모크 결과가 측정 전용 채널에 자동으로 알려진다(ISE-223, ISE-224). 스모크가 실패하면 빨간색 알림으로 나온다. `measure-mode.sh status`로 꺼졌는지 확인하고, 껐던 Jenkins 잡을 다시 켠다. 다음 측정자가 바로 이어서 쓰더라도 끄고 넘긴다(키를 사람마다 새로 만든다) |
+| 3 | 측정자 | 측정 모드를 끈다(`MEASURER=<영문 이름> script/loadtest/measure-mode.sh off`). 운영 키, 샘플링 1.0, 닫힌 9090으로 돌아오고 스모크가 돈다. 켜져 있던 시간과 스모크 결과가 측정 전용 채널에 자동으로 알려진다(ISE-223, ISE-224). 스모크가 실패하면 빨간색 알림으로 나온다. `measure-mode.sh status`로 꺼졌는지 확인하고, 껐던 Jenkins 잡을 다시 켠다. 다음 측정자가 바로 이어서 쓰더라도 끄고 넘긴다(키를 사람마다 새로 만든다). 이미 꺼져 있으면 아무것도 하지 않고 안내만 한다(ISE-228). 강제로 다시 띄워야 할 때만 `FORCE=1`을 붙인다 |
 | 4 | 측정자 | `load-test.md` 7절 측정 환경 기록표를 채운다 |
 | 5 | AWS 담당 | 그날 측정이 모두 끝났으면 발생기를 중지한다. 팀 마지막 측정 뒤에는 종료하고 8080·9090 규칙과 `iseonjwa-loadgen-sg`를 지운다 |
 

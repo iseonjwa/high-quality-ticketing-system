@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-09 | Windows 시계를 맞추자 통과한 테스트 4건은 왜 실패했나 | [qna/2026-11-09-host-clock-drift-test-failures.md](qna/2026-11-09-host-clock-drift-test-failures.md) |
 | 2026-11-05 | 기존 K1 부하 테스트는 어떻게 진행됐고, 선점만 떼어 재는 방식(K1-H)은 무엇이 다른가 | [qna/2026-11-05-k1-vs-hold-only-scenario.md](qna/2026-11-05-k1-vs-hold-only-scenario.md) |
 | 2026-11-05 | 좌석 선점 부하 테스트에서 타임아웃이 나는 원인과 캐시 도입 지점 | [qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md](qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md) |
 | 2026-11-05 | 좌석 조회 경량화(P4)를 먼저 하면 단계별 개선 수치화가 불가능한가, G1 GC는 무엇인가 | [qna/2026-11-05-p4-first-stepwise-measurement-and-g1.md](qna/2026-11-05-p4-first-stepwise-measurement-and-g1.md) |
