@@ -24,9 +24,10 @@
 {{ template "iseonjwa.slack.title" . }}: {{ (index .Alerts 0).Annotations.summary }}
 {{- end }}
 
-{{/* 같은 이름의 알림을 가르는 라벨(rule, topic, operation, pool, task 등). 묶음 공통 라벨과 수집 라벨은 뺀다. */}}
+{{/* 같은 이름의 알림을 가르는 라벨(rule, topic, operation, pool, task 등). 묶음 공통 라벨과 수집 라벨은 뺀다.
+     건별 알림(event 라벨)의 event·userId·paidAt·reason은 요약 문장에 이미 있어 뺀다. paymentId 등 번호는 운영 명령에 쓰려고 남긴다. */}}
 {{ define "iseonjwa.labels" -}}
-{{ range .Labels.SortedPairs }}{{ if not (match "^(alertname|service|severity|urgency|env|application|instance|job)$" .Name) }} `{{ .Name }}={{ .Value }}`{{ end }}{{ end }}
+{{ range .Labels.SortedPairs }}{{ if not (match "^(alertname|service|severity|urgency|env|application|instance|job|event|userId|paidAt|reason)$" .Name) }} `{{ .Name }}={{ .Value }}`{{ end }}{{ end }}
 {{- end }}
 
 {{/* runbook 주석("docs/... N절")을 GitHub 문서 링크로 바꾼다. */}}
@@ -48,5 +49,5 @@
 {{- end }}
 
 {{ define "iseonjwa.slack.footer" -}}
-이선좌 Alertmanager · {{ if eq .Status "firing" }}풀릴 때까지 {{ if eq .CommonLabels.urgency "immediate" }}1시간{{ else }}4시간{{ end }}마다 다시 알림{{ else }}해결 알림{{ end }}
+이선좌 Alertmanager · {{ if .CommonLabels.event }}건별 알림 · 같은 사건은 한 번만 보냅니다{{ else if eq .Status "firing" }}풀릴 때까지 {{ if eq .CommonLabels.urgency "immediate" }}1시간{{ else }}4시간{{ end }}마다 다시 알림{{ else }}해결 알림{{ end }}
 {{- end }}
