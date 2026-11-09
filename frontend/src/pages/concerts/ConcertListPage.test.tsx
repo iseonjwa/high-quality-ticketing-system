@@ -1,10 +1,11 @@
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
 import { fail, ok } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
+import { HERO_HEIGHT } from '@/pages/concerts/HomeHero'
 import { recordRequests } from '@/test/api'
 import { renderRoutes } from '@/test/render'
 
@@ -244,5 +245,136 @@ describe('ConcertListPage', () => {
 
     expect(await screen.findByText('공연 3페이지')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
+  })
+
+  describe('목록 안 광고와 떼는 칸', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    function mockOnSale(count: number) {
+      const now = Date.now()
+      mockServer.use(
+        http.get('/api/v1/concerts', () =>
+          ok({
+            content: Array.from({ length: count }, (_, index) =>
+              summary(index + 1, `예매 중 공연 ${index + 1}`, -DAY, now),
+            ),
+            page: 0,
+            size: 20,
+            totalElements: count,
+          }),
+        ),
+      )
+    }
+
+    // 지금 예매 중 목록의 항목을 순서대로 "공연 제목" 또는 "광고"로 바꾼다
+    async function onSaleOrder() {
+      const onSale = await screen.findByRole('region', { name: /^지금 예매 중/ })
+      return within(onSale)
+        .getAllByRole('listitem')
+        .map((item) =>
+          within(item).queryByRole('group', { name: '광고: 라이드온 셔틀' }) !== null
+            ? '광고'
+            : within(item).getByRole('heading', { level: 3 }).textContent,
+        )
+    }
+
+    it.each([
+      [1, 1],
+      [3, 3],
+      [4, 4],
+      [5, 4],
+    ])('예매 중 공연이 %i개면 광고 카드는 %i번째 칸 뒤에 온다', async (count, adIndex) => {
+      mockOnSale(count)
+      renderRoutes(routes, '/')
+
+      const titles = Array.from({ length: count }, (_, index) => `예매 중 공연 ${index + 1}`)
+      expect(await onSaleOrder()).toEqual([
+        ...titles.slice(0, adIndex),
+        '광고',
+        ...titles.slice(adIndex),
+      ])
+    })
+
+    it('예매 중 공연이 없으면 예매 중 묶음도 광고 카드도 없다', async () => {
+      mockOnSale(0)
+      renderRoutes(routes, '/')
+
+      expect(await screen.findByText('아직 예매할 수 있는 공연이 없어요')).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: /^지금 예매 중/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('group', { name: '광고: 라이드온 셔틀' })).not.toBeInTheDocument()
+    })
+
+    it('광고 카드는 지금 예매 중 제목 옆 수에 섞이지 않는다', async () => {
+      mockOnSale(5)
+      renderRoutes(routes, '/')
+
+      const onSale = await screen.findByRole('region', { name: /^지금 예매 중/ })
+      const count = within(onSale).getByRole('heading', { level: 2 }).lastElementChild
+      expect(count).toHaveTextContent(/^5$/)
+      // 항목은 공연 5개와 광고 1개다
+      expect(within(onSale).getAllByRole('listitem')).toHaveLength(6)
+    })
+
+    it('광고는 이름에 광고라고 밝히고, 띠는 보조 영역이고 목록 안 카드는 이름 있는 묶음이다', async () => {
+      renderRoutes(routes, '/')
+
+      const band = await screen.findByRole('complementary', { name: '광고: 밤결 스파클링' })
+      expect(band).toBeInTheDocument()
+      const onSale = screen.getByRole('region', { name: /^지금 예매 중/ })
+      expect(within(onSale).getAllByRole('group', { name: '광고: 라이드온 셔틀' })).toHaveLength(1)
+      expect(screen.getAllByRole('complementary', { name: /^광고/ })).toHaveLength(1)
+    })
+
+    it('오픈 예정 티켓의 떼는 칸은 오픈이 이틀 뒤면 "D-2", 오늘이면 "오늘"이고 눌림을 받지 않는다', async () => {
+      // 한국 시각 날짜로 세므로 자정에서 먼 한국 11월 4일 12:00에 둔다
+      const now = Date.parse('2026-11-04T03:00:00Z')
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(now)
+      mockServer.use(
+        http.get('/api/v1/concerts', () =>
+          ok({
+            content: [
+              summary(7, '이틀 뒤 오픈', 2 * DAY, now),
+              summary(8, '오늘 오픈', 2 * 60 * MINUTE, now),
+            ],
+            page: 0,
+            size: 20,
+            totalElements: 2,
+          }),
+        ),
+      )
+      renderRoutes(routes, '/')
+
+      const twoDays = (await screen.findByText('D-2')).closest('.ticket-stub')
+      const today = screen.getByText('오늘').closest('.ticket-stub')
+      // 떼는 칸을 눌러도 제목 링크로 가는지는 브라우저에서 확인했다. 여기서는 눌림을 받지 않게 하는 클래스만 본다
+      expect(twoDays).toHaveClass('pointer-events-none')
+      expect(today).toHaveClass('pointer-events-none')
+    })
+
+    it('받는 동안 배너 자리는 배너와 같은 높이·바탕색이고 낭독에서 뺀다', async () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockServer.use(
+        http.get('/api/v1/concerts', async () => {
+          await gate
+          return ok({ content: [], page: 0, size: 20, totalElements: 0 })
+        }),
+      )
+      renderRoutes(routes, '/')
+
+      const placeholder = await screen.findByRole('status')
+      const slot = document.querySelector('main > div[aria-hidden="true"]')
+      expect(slot).toHaveClass('bg-gray-25')
+      expect(slot).toHaveClass(HERO_HEIGHT)
+      expect(placeholder).toHaveTextContent('공연 목록을 불러오고 있어요')
+
+      release()
+      expect(await screen.findByText('아직 예매할 수 있는 공연이 없어요')).toBeInTheDocument()
+    })
   })
 })
