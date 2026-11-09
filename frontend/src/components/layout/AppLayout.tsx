@@ -90,7 +90,7 @@ export function AppLayout() {
             </Link>
             {/* 예매 흐름 화면에서는 단계 표시에 자리를 내준다. 앱 화면이 40rem보다 좁으면 워드마크가 홈 링크를 대신한다 */}
             {bookingStep === null ? (
-              <nav aria-label="둘러보기" className="@max-[40rem]:hidden">
+              <nav aria-label="둘러보기" className="flex items-center gap-6 @max-[40rem]:hidden">
                 {/* 공연 목록과 공연 상세에서 밑줄을 긋는다. 목록에만 aria-current(NavLink)가 붙는다 */}
                 <NavLink
                   to={paths.home}
@@ -103,6 +103,19 @@ export function AppLayout() {
                   )}
                 >
                   공연
+                </NavLink>
+                <NavLink
+                  to={paths.help}
+                  className={({ isActive }) =>
+                    cn(
+                      'relative rounded-sm py-1 type-body font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      isActive
+                        ? 'text-gray-900 after:absolute after:inset-x-0 after:-bottom-4 after:h-0.5 after:bg-gray-900'
+                        : 'text-gray-500 hover:text-gray-900',
+                    )
+                  }
+                >
+                  예매 문의
                 </NavLink>
               </nav>
             ) : null}

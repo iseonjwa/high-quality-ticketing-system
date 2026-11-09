@@ -33,6 +33,15 @@ spring:
               uri: lb://payment-service
               predicates:
                 - Path=/api/v1/payments/**
+            # 내부 AI 상담(ISE-126). LLM 답변은 전역 3초(SA 9-4)를 넘길 수 있어 이 라우트만 응답 시한 10초다(ADR 0049).
+            # 서비스 쪽 Claude 시한(8초)보다 길게 둬서, 시한 초과는 Gateway가 아니라 서비스가 검색 모드로 답한다
+            - id: assistant
+              uri: lb://assistant-service
+              predicates:
+                - Path=/api/v1/assistant/**
+              metadata:
+                response-timeout: 10000
+                connect-timeout: 1000
           observability:
             enabled: true
           metrics:

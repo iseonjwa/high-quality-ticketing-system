@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.observability.PgOperation;
 import com.iseonjwa.payment.observability.TransitionOperation;
@@ -61,12 +62,14 @@ public class RefundWorkerService {
     private final PgRecoveryGate recoveryGate;
     private final PgClient pg;
     private final PaymentMetrics metrics;
+    private final PaymentAlertLog alertLog;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public RefundWorkerService(RefundRepository refunds, PaymentRepository payments,
             PaymentStatusHistoryRepository histories, RefundSettlementService settlement, PgRecoveryGate recoveryGate,
-            PgClient pg, PaymentMetrics metrics, TransactionTemplate transactionTemplate, @Qualifier("commonAuditingClock") Clock clock) {
+            PgClient pg, PaymentMetrics metrics, PaymentAlertLog alertLog, TransactionTemplate transactionTemplate,
+            @Qualifier("commonAuditingClock") Clock clock) {
         this.refunds = refunds;
         this.payments = payments;
         this.histories = histories;
@@ -74,6 +77,7 @@ public class RefundWorkerService {
         this.recoveryGate = recoveryGate;
         this.pg = pg;
         this.metrics = metrics;
+        this.alertLog = alertLog;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
     }
@@ -284,7 +288,7 @@ public class RefundWorkerService {
         }
     }
 
-    // 환불을 운영자 확인으로 넘기고 이력에 사유를 남긴다. 0행이면 다른 경로가 먼저 바꾼 것이라 이력을 쓰지 않는다
+    // 환불을 운영자 확인으로 넘기고 이력에 사유를 남긴다(금액 불일치도 사유 REFUND_AMOUNT_MISMATCH로 여기서 알린다). 0행이면 다른 경로가 먼저 바꾼 것이라 이력을 쓰지 않는다
     private void markNeedsManualCheck(Long refundId, Long paymentId, RefundStatus from, String reason) {
         transactionTemplate.executeWithoutResult(status -> {
             var now = clock.instant();
@@ -294,6 +298,8 @@ public class RefundWorkerService {
             }
             histories.save(PaymentStatusHistory.ofRefund(paymentId, from, RefundStatus.NEEDS_MANUAL_CHECK, reason,
                     StatusActor.SYSTEM, now));
+            // 전이가 실제로 일어났을 때만, 커밋된 뒤에 건별 알림 줄을 남긴다
+            alertLog.refundNeedsManualCheck(paymentId, refundId, reason);
         });
     }
 

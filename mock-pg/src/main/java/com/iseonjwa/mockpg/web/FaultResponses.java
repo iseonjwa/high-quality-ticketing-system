@@ -22,6 +22,9 @@ public final class FaultResponses {
         if (fault.is(FaultMode.SERVER_ERROR)) {
             return Optional.of(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ErrorResponse.SERVER_ERROR));
         }
+        if (fault.is(FaultMode.BAD_REQUEST)) {
+            return Optional.of(ResponseEntity.badRequest().body(ErrorResponse.INVALID_REQUEST));
+        }
         return Optional.empty();
     }
 

@@ -12,6 +12,11 @@ public record Fault(FaultMode mode, long delayMs) {
         return mode == expected;
     }
 
+    /** 응답에서 amount·currency를 빼야 하는 장애인지({@link FaultMode#MISSING_AMOUNT}). */
+    public boolean omitsAmount() {
+        return is(FaultMode.MISSING_AMOUNT);
+    }
+
     /**
      * {@link FaultMode#DELAY}면 지연 시간만큼 기다린다. 원장 잠금 밖에서 불러야 다른 요청을 막지 않는다.
      */

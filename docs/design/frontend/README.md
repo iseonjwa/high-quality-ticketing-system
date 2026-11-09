@@ -57,7 +57,7 @@ nginx는 `/api/`만 Gateway로 넘기고 서비스로 직접 넘기지 않는다
 | 4. 운영자 | ISE-123 | 공연·회차·좌석 등록 | 있음 |
 | | ISE-124 | 추첨 설정·사용자 비밀번호 초기화 | 있음 |
 | 5. 기타 | ISE-125 | 토스 결제창(M4 토스 어댑터와 함께) | — |
-| | ISE-126 | AI 상담(Could) | 미설계 |
+| | ISE-126 | AI 상담 `/help` "예매 문의"(Could) | 설계 [design/assistant](../assistant/README.md). 화면은 MSW 목으로 먼저 만들었고 백엔드 `assistant-service`가 이어진다 |
 | 시연 도구 | ISE-180 | 시연 모드 요청 로그(요청별 traceId, Grafana 요청 로그 링크, M3) | 응답 본문 `traceId` 있음, 대시보드는 ISE-178 |
 | | ISE-134 | 시연 장애 패널(Mock PG 장애 주입·원장 요약) | Gateway 운영자 경로 `/api/v1/admin/demo/pg/**` |
 

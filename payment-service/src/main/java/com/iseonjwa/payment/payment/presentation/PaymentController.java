@@ -5,11 +5,14 @@ import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.common.response.FailureResponse;
 import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.payment.payment.application.ApprovePaymentCommand;
+import com.iseonjwa.payment.payment.application.CheckoutView;
 import com.iseonjwa.payment.payment.application.PaymentApprovalService;
+import com.iseonjwa.payment.payment.application.PaymentCheckoutService;
 import com.iseonjwa.payment.payment.application.PaymentDetail;
 import com.iseonjwa.payment.payment.application.PaymentOutcome;
 import com.iseonjwa.payment.payment.application.PaymentQueryService;
 import com.iseonjwa.payment.payment.presentation.PaymentDtos.ApproveRequest;
+import com.iseonjwa.payment.payment.presentation.PaymentDtos.CheckoutRequest;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
@@ -30,10 +33,13 @@ import java.util.regex.Pattern;
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
     private final PaymentApprovalService approval;
+    private final PaymentCheckoutService checkout;
     private final PaymentQueryService query;
 
-    public PaymentController(PaymentApprovalService approval, PaymentQueryService query) {
+    public PaymentController(PaymentApprovalService approval, PaymentCheckoutService checkout,
+            PaymentQueryService query) {
         this.approval = approval;
+        this.checkout = checkout;
         this.query = query;
     }
 
@@ -42,8 +48,16 @@ public class PaymentController {
     public ResponseEntity<?> approve(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @Valid @RequestBody ApproveRequest request) {
         var outcome = approval.approve(new ApprovePaymentCommand(currentUserId, parseKey(idempotencyKey),
-                request.paymentToken(), request.amount().longValueExact()));
+                request.paymentToken(), request.amount().longValueExact(), request.clientPaymentRef()));
         return toResponse(outcome);
+    }
+
+    // 결제창을 열기 전에 orderId·금액·클라이언트 키를 돌려준다. 저장하지 않는 조회성 POST라 멱등 키가 필요 없다
+    @PostMapping("/checkout")
+    public SuccessResponse<CheckoutView> checkout(@RequestAttribute Long currentUserId,
+            @Valid @RequestBody CheckoutRequest request) {
+        return SuccessResponse.of(200, "결제 준비 정보를 조회했습니다", checkout.checkout(currentUserId, request.paymentToken()),
+                MDC.get("traceId"));
     }
 
     // 결제 토큰이 필요 없어 토큰이 만료된 뒤에도 조회할 수 있다. 소유자 검사는 서비스가 맡는다(0021)

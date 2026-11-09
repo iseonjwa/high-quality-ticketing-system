@@ -11,6 +11,7 @@ export const paths = {
   reservation: '/reservations/:reservationId',
   reservationComplete: '/reservations/:reservationId/complete',
   myReservations: '/me/reservations',
+  help: '/help',
   lottery: '/lotteries/:lotteryId',
   admin: '/admin',
   adminConcertNew: '/admin/concerts/new',

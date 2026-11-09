@@ -1,13 +1,13 @@
 # 배포 이미지 워크플로 (ISE-173, ADR 0044)
 #
-# 하는 일: main에 커밋이 들어오면(dev → main 릴리스 PR 머지) 배포에 쓰는 이미지 8개를 만들어
+# 하는 일: main에 커밋이 들어오면(dev → main 릴리스 PR 머지) 배포에 쓰는 이미지 9개를 만들어
 # GHCR(GitHub 컨테이너 레지스트리)에 올린다.
 #   ghcr.io/iseonjwa/<서비스>:<main 커밋 SHA>
-#   서비스: config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend
+#   서비스: config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, assistant-service, frontend
 #
 # 배포와의 관계: 이 워크플로는 이미지를 만들기만 하고 서버에 손대지 않는다. Jenkins가 main을 폴링하다가
 # 새 SHA를 보면 이 SHA의 이미지를 배포 EC2에서 받아(docker compose pull) 띄운다(ISE-175). 그래서 main의
-# 커밋마다 8개 이미지가 모두 같은 SHA 태그로 있어야 한다. main push에는 paths 필터를 걸지 않는다.
+# 커밋마다 9개 이미지가 모두 같은 SHA 태그로 있어야 한다. main push에는 paths 필터를 걸지 않는다.
 #
 # 언제 무엇을 하나
 #   - main push: 빌드하고 GHCR에 올린다.
@@ -107,7 +107,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # docker-bake.hcl의 default 그룹(이미지 8개)을 한 번에 빌드한다. 앱 7개의 Gradle 빌드는 한 번만 돈다.
+      # docker-bake.hcl의 default 그룹(이미지 9개)을 한 번에 빌드한다. 앱 8개의 Gradle 빌드는 한 번만 돈다.
       - name: 이미지 빌드(main이면 GHCR에 올림)
         uses: docker/bake-action@v7
         env:

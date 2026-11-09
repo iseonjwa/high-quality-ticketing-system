@@ -28,6 +28,9 @@ export function SiteFooter() {
             <li>
               <FooterLink to={paths.me}>내 정보·자동결제 카드</FooterLink>
             </li>
+            <li>
+              <FooterLink to={paths.help}>예매 문의</FooterLink>
+            </li>
           </ul>
         </nav>
         <div className="grid content-start gap-3">

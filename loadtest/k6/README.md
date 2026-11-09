@@ -25,6 +25,7 @@
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
+| `scenarios/q1d-queue-burst.js` | Q1-d 오픈 순간 몰림. 사용자 수만큼 VU를 미리 두고, 같은 출발 시각부터 `ENTER_SPREAD_SECONDS` 안에 앞쪽이 붐비게 한 번씩 진입한다 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |
 | `scenarios/g1-gateway-auth.js` | G1 Gateway 인증 경로. 순번 조회에 초당 요청을 단계적으로 올린다 |
 | `scenarios/q3-admission.js` | Q3 입장 속도 유지. 입장 스케줄러를 켠 채 READY가 되면 입장 토큰을 받고 끝낸다 |
@@ -43,6 +44,7 @@
 | ID | 스크립트 | 상태 |
 |---|---|---|
 | Q1 | `scenarios/q1-queue-enter.js` | 있음. 2026-11-05 local에서 300명으로 동작 확인(오류 0, 순번 300 = 고유 사용자 300) |
+| Q1-d | `scenarios/q1d-queue-burst.js` | 있음(ISE-217). 2026-11-09 local 100명·1초: 201 100건, 오류 0, `send_lag` p95 1.7ms, 순번 100 = 고유 사용자 100. 300명·0.1초와 300명·1초는 Gateway 인증 Redis 차단기(`auth-redis`)가 열려 503이 68~93%였다. 노트북 한계로 보고 Q1과의 비교는 배포 서버에서 한다 |
 | Q2 | `scenarios/q2-queue-poll.js` | 있음. 2026-11-05 local에서 대기자 1,000명·60초로 동작 확인(폴링 8,638건 모두 200, p95 10ms) |
 | G1 | `scenarios/g1-gateway-auth.js` | 있음. 2026-11-05 local에서 초당 50 → 100건·각 10초로 동작 확인(오류 0, p95 11ms) |
 | Q3 | `scenarios/q3-admission.js` | 있음. 2026-11-05 local 대기자 1,000명·60초: 1,000명 모두 토큰 발급, 오류 0, 토큰 발급 p95 15ms. 입장 수는 초당 50씩 늘었다 |
@@ -64,6 +66,10 @@ Docker Desktop과 Gateway(`localhost:8080`)가 떠 있어야 한다. 저장소 �
 bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 # 짧게 확인: 300명, 10%가 연타
 USERS=300 DUP_RATIO=0.1 USER_ID_BASE=5000000 bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
+# Q1-d: 5,000명이 오픈 1초 뒤부터 1초 안에 앞쪽이 붐비게 진입(기본값)
+bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
+# 짧게 확인: 100명, 1초
+USERS=100 ENTER_SPREAD_SECONDS=1 USER_ID_BASE=6000000 bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 ```
 
 Q2·G1은 입장 스케줄러를 끈 상태에서 잰다. 끄지 않으면 Q2의 setup이 측정을 시작하지 않는다.
@@ -144,6 +150,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `SCHEDULE_ID` | 없음 | Q1·Q2·Q3: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
 | `USERS` / `ENTER_SECONDS` | 30000 / 10 | Q1: 진입할 사용자 수와 그 시간(초). 초당 속도는 둘을 나눈 값 |
 | `DUP_RATIO` / `REPEAT` | 0 / 3 | Q1-c: 연타하는 사용자 비율과 횟수 |
+| `USERS` / `ENTER_SPREAD_SECONDS` (Q1-d) | 5000 / 1 | Q1-d: 사용자 수(= VU 수)와, 출발 시각부터 마지막 사용자가 출발할 때까지의 시간(초). 앞쪽이 가장 붐비는 삼각 분포로 흩는다 |
 | `OPEN_IN_SECONDS` | 40 | 회차를 만든 뒤 오픈까지. 회차 캐시 갱신(30초)보다 길어야 진입이 캐시를 탄다 |
 | `PRE_VUS` / `MAX_VUS` | Q1: 초당 속도(최대 2000) / 5000, G1: 500 / 3000 | 열린 모델의 VU 풀. `dropped_iterations`가 생기면 늘린다 |
 | `DURATION_SECONDS` / `VUS` | 600 / 300 | Q2: 측정 시간과 VU 수. `USERS`가 `VUS`로 나누어떨어져야 한다 |
@@ -153,10 +160,10 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `ENTER_RATE` | 0 | B1-b: 같이 걸 초당 대기열 진입 수 |
 | `PG_DELAY_MS` | O1·PAY1·L2 300, R1 0 | Mock PG 승인 지연(ms). 기준 지연은 300ms다(open-peak-load-plan.md 8절 4번, 2026-11-08). R1은 승인 → 확정 지연만 보려고 0이다. 끝나면 teardown이 0으로 되돌린다 |
 | `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경은 비우고 서버 안에서 따로 건다) |
-| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://<배포 서버 사설 IP>:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
+| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://172.31.4.93:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
 | `CONFIRM_POLL_SECONDS` / `CONFIRM_MAX_POLLS` | 0.5 / 10 | R1: 확정 확인 간격과 횟수 |
 | `EXPIRING` / `RATE` | 5000 / 100 | X1: 만료시킬 선점 수, 측정 중 초당 선점 사용자 수(L3도 `RATE`를 쓴다) |
-| `START_IN_SECONDS` | 15 | L1: 추첨을 만든 뒤 응모 시작까지 |
+| `START_IN_SECONDS` | L1: 15, Q1-d: 5 | L1: 추첨을 만든 뒤 응모 시작까지. Q1-d: `SCHEDULE_ID`를 줄 때 setup이 끝나고 출발까지 |
 | `ENTRANTS` / `SEAT_COUNT` / `WAITLIST_COUNT` | 30000 / 3000 / 1000 | L2·L3: 응모자 수, 추첨석, 예비자 수 |
 | `PAY_RATE` | 0 | L2-b: 같이 걸 초당 일반 결제 수 |
 | `PG_MODE` / `DECLINE_RATE` | `delay` / 0.05 | L2: `delay`는 승인 지연 `PG_DELAY_MS`, `decline`은 승인의 일부를 거절. Mock PG는 호출 종류마다 규칙이 하나라 둘을 같이 걸 수 없다 |
@@ -169,6 +176,8 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 ### 배포 서버 측정 (ISE-191)
 
 배포 서버를 재는 날의 순서는 [`deploy-server-access.md`](../../docs/guides/deploy-server-access.md) 5-5절, 설계는 [`load-test.md`](../../docs/design/infra/load-test.md) 5절이다. 여기에는 k6 쪽만 적는다. 발생기에서 저장소 루트로 `cd`한 뒤 쓴다.
+
+팀 공용 발생기를 쓰는 규칙(한 번에 한 명, 팀 채널 알림, 각자 폴더 `~/<영문 이름>/iseonjwa`, 시작·끝 체크리스트)은 [`loadgen.md`](../../docs/guides/loadgen.md)에 있다. 주소는 사설 IP `172.31.4.93`만 쓴다. 공인 IP로 보내면 전송 요금이 붙고 보안 그룹에도 막힌다.
 
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
@@ -184,7 +193,7 @@ ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "-5
 **실행**(발생기에서). `BASE_URL`은 Gateway 사설 주소, `MOCK_PG_URL`은 비워 발생기에서 Mock PG를 부르지 않게 한다.
 
 ```bash
-export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://<배포 서버 사설 IP>:9090/api/v1/write
+export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://172.31.4.93:9090/api/v1/write
 SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 ```
 
