@@ -16,12 +16,13 @@ import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { Countdown } from '@/components/ticketing/Countdown'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { SaleStatusBadge } from '@/components/ticketing/SaleStatusBadge'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatDate, formatDateTime, kstParts } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
 import { saleStatusAt } from '@/lib/saleStatus'
 import { readRouteId } from '@/lib/routeId'
@@ -84,11 +85,11 @@ export function ConcertDetailPage() {
         )}
       >
         {/* 예매 패널이 첫 화면 안에 들어오게 한다(design-system.md 1절 "다음 행동이 먼저 보인다").
-            좁은 화면에서는 배너 바로 아래에 먼저 두고, 넓은 화면에서는 배너 오른쪽(비워 둔 자리)으로 끌어올려
-            겹치고 스크롤하면 위에 붙는다 */}
+            좁은 화면에서는 배너 바로 아래에 먼저 두고, 넓은 화면에서는 배너 아래 오른쪽 열에 두어 스크롤하면 위에 붙는다.
+            Note: 배너 위로 끌어올려 겹치면 절취선 양 끝 홈(페이지 바탕색으로 칠한다)이 그림 위에 점으로 보인다 */}
         <aside
           aria-label="예매"
-          className="relative z-10 @min-[64rem]:sticky @min-[64rem]:top-24 @min-[64rem]:order-2 @min-[64rem]:-mt-[320px]"
+          className="relative z-10 @min-[64rem]:sticky @min-[64rem]:top-24 @min-[64rem]:order-2"
         >
           <BookingPanel concert={data} clock={clock} />
         </aside>
@@ -112,16 +113,11 @@ function PlainPage({ children }: { children: ReactNode }) {
   )
 }
 
-function BackLink({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
+function BackLink() {
   return (
     <Link
       to={paths.home}
-      className={cn(
-        'inline-flex w-fit items-center gap-1 rounded-sm type-body-sm outline-none focus-visible:ring-2',
-        tone === 'dark'
-          ? 'text-gray-500 hover:text-gray-900 focus-visible:ring-ring'
-          : 'text-white/90 hover:text-white focus-visible:ring-white',
-      )}
+      className="inline-flex w-fit items-center gap-1 rounded-sm type-body-sm text-gray-600 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ChevronLeft className="size-4" aria-hidden="true" />
       공연 목록
@@ -146,7 +142,13 @@ function overallStatus(schedules: ScheduleSummary[], nowMillis: number): SaleSta
   return statuses.includes('BEFORE_OPEN') ? 'BEFORE_OPEN' : 'CLOSED'
 }
 
-// 배너: 공연 그림을 흐리게 깔고 포스터와 공연 요약을 얹는다
+// 그림 위 글자: 홈 대표 배너와 같이 페이지 바탕색(gray-25)으로 덮는다. 라이트는 흰 막 + 검은 글자, 다크는 검은 막 +
+// 흰 글자가 된다. 글자가 놓이는 왼쪽 65%까지 90% 이상으로 덮어, 그림이 아주 밝거나 어두워도 보조 글자가 4.5:1을 넘는다.
+// 좁은 화면(56rem 미만)은 글자가 폭 전체를 쓰므로 고르게 덮는다
+const ART_WASH =
+  'absolute inset-0 -z-10 bg-linear-to-r from-gray-25/95 via-gray-25/90 via-65% to-gray-25/40 @max-[56rem]:bg-none @max-[56rem]:bg-gray-25/90'
+
+// 배너: 공연 그림을 깔고 포스터와 공연 요약을 얹는다
 function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
   const art = concertArt(concert.concertId)
   const { schedules } = concert
@@ -156,7 +158,7 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
   const last = schedules[schedules.length - 1]
 
   return (
-    <section className="relative overflow-hidden bg-ink-900 text-white">
+    <section className="relative isolate overflow-hidden bg-gray-25 text-gray-900">
       <img
         src={art.wide}
         alt=""
@@ -164,37 +166,31 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
         height={WIDE_SIZE.height}
         fetchPriority="high"
         decoding="async"
-        className="absolute inset-0 size-full scale-110 object-cover opacity-70 blur-2xl"
+        className="absolute inset-0 -z-20 size-full object-cover"
       />
-      {/* 글자가 그림 위에서 읽히도록 위쪽부터 충분히 덮는다(밝은 그림에서 흰 글자 4.5:1) */}
-      <div className="absolute inset-0 bg-linear-to-b from-ink-900/60 via-ink-900/80 to-ink-900" />
-      <div
-        className={cn(
-          CONTAINER,
-          'relative grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-10 @min-[64rem]:pr-[436px]',
-        )}
-      >
-        <BackLink tone="light" />
+      <div aria-hidden="true" className={ART_WASH} />
+      <div className={cn(CONTAINER, 'grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-8')}>
+        <BackLink />
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-5 @min-[48rem]:gap-8">
           <ConcertPoster
             concertId={concert.concertId}
             title={concert.title}
             loading="eager"
-            className="w-[104px] rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.5)] ring-1 ring-white/10 @min-[40rem]:w-[150px] @min-[48rem]:w-[190px]"
+            className="w-[104px] rounded-[10px] shadow-[0_18px_40px_rgba(0,0,0,0.3)] @min-[40rem]:w-[140px] @min-[48rem]:w-[160px] @min-[48rem]:rounded-[14px]"
           />
-          <div className="grid min-w-0 gap-3 @min-[48rem]:gap-4">
+          <div className="grid min-w-0 max-w-[640px] gap-3 @min-[48rem]:gap-4">
             {clock ? <LiveSaleBadge schedules={schedules} clock={clock} /> : null}
-            <h1 className="text-[clamp(22px,3.4cqw,40px)] leading-[1.2] font-extrabold tracking-[-0.03em] break-keep">
+            <h1 className="text-[clamp(24px,3.6cqw,48px)] leading-[1.12] font-extrabold tracking-[-0.04em] break-keep">
               {concert.title}
             </h1>
             {concert.description ? (
-              <p className="line-clamp-2 max-w-[640px] type-body whitespace-pre-line text-white/85 @max-[40rem]:hidden">
+              <p className="line-clamp-2 type-body whitespace-pre-line text-gray-700 @max-[40rem]:hidden">
                 {concert.description}
               </p>
             ) : null}
             {/* 좁은 화면에서는 예매 패널을 첫 화면에 올리려고 요약을 숨긴다(같은 값이 회차 일정 표에 있다) */}
             {first && last ? (
-              <dl className="grid max-w-[680px] grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr]">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr]">
                 <HeroFact label="장소">
                   {venues.length === 1 ? venues[0] : `${venues[0]} 외 ${venues.length - 1}곳`}
                 </HeroFact>
@@ -219,8 +215,8 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
 function HeroFact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-white/70">{label}</dt>
-      <dd className="min-w-0 text-white/90 tabular-nums">{children}</dd>
+      <dt className="text-gray-600">{label}</dt>
+      <dd className="min-w-0 font-medium text-gray-900 tabular-nums">{children}</dd>
     </>
   )
 }
@@ -235,7 +231,8 @@ function LiveSaleBadge({ schedules, clock }: { schedules: ScheduleSummary[]; clo
   ) : null
 }
 
-// 예매 패널: 고른 회차의 오픈 카운트다운이나 [예매하기]를 먼저 두고, 그 아래에서 회차를 바꾼다.
+// 예매 패널(티켓 모양): 위 칸에 고른 회차의 오픈 카운트다운이나 [예매하기]를 두고, 절취선 아래에서 회차를 바꾼다.
+// Note: 시안은 회차 목록이 위였지만 행동을 위에 둔다. 회차가 많아도 오픈 순간 [예매하기]가 첫 화면에 있어야 한다.
 // Note: 판매 상태는 응답의 saleStatus를 그대로 쓰지 않고 서버 시각으로 보정한 지금으로 다시 정한다.
 // 회차 배지는 1초마다 다시 그리고(ScheduleChooser), 고른 회차는 카운트다운 완료로 바로 다시 그린다(ChosenSchedule).
 function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
@@ -243,13 +240,12 @@ function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: Serve
   const groupName = useId()
 
   return (
-    <Card className="gap-0 overflow-hidden p-0 shadow-md">
-      <div className="grid gap-1 border-b border-gray-100 px-5 py-4">
-        <h2 className="type-heading text-gray-900">회차 선택</h2>
-        <p className="type-body-sm text-gray-500">원하는 회차를 고르고 예매해 주세요</p>
-      </div>
+    <Card className="gap-0 rounded-[22px] p-0 shadow-md">
       {schedules.length === 0 || clock === null ? (
-        <p className="px-5 py-6 type-body-sm text-gray-500">등록된 회차가 없어요</p>
+        <div className="grid gap-1 p-5">
+          <h2 className="type-body font-semibold text-gray-900">회차 선택</h2>
+          <p className="type-body-sm text-gray-500">등록된 회차가 없어요</p>
+        </div>
       ) : (
         <ScheduleChooser concert={concert} clock={clock} groupName={groupName} />
       )}
@@ -286,23 +282,25 @@ function ScheduleChooser({
   const chosen =
     schedules.find((schedule) => schedule.scheduleId === chosenId) ??
     defaultSchedule(schedules, now)
+  const legendId = useId()
 
   return (
     <>
       <ChosenSchedule key={chosen.scheduleId} concert={concert} schedule={chosen} clock={clock} />
-      <fieldset className="grid max-h-[276px] gap-2 overflow-y-auto p-4">
-        <legend className="sr-only">회차</legend>
-        {schedules.length > 1 ? (
-          <p aria-hidden="true" className="type-caption text-gray-500">
-            다른 회차를 고르려면 눌러 주세요
-          </p>
-        ) : null}
-        {schedules.map((schedule) => {
-          const parts = kstParts(schedule.startsAt)
-          return (
+      <TicketPerforation />
+      <div className="grid gap-3 px-5 pt-4 pb-5">
+        <h2 id={legendId} className="type-body-sm font-semibold text-gray-900">
+          회차 선택
+        </h2>
+        {/* 회차가 많으면 이 칸만 스크롤한다. 안쪽 여백(p-1)은 초점 테두리가 잘리지 않게 둔다 */}
+        <fieldset
+          aria-labelledby={legendId}
+          className="-m-1 grid max-h-[252px] gap-2 overflow-y-auto p-1"
+        >
+          {schedules.map((schedule) => (
             <label
               key={schedule.scheduleId}
-              className="relative flex cursor-pointer items-center gap-3 rounded-md border border-gray-100 p-3 transition-colors duration-(--dur-fast) hover:border-gray-200 has-checked:border-primary-600 has-checked:bg-primary-50/60 has-focus-visible:ring-2 has-focus-visible:ring-ring"
+              className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-gray-100 p-3.5 transition-colors duration-(--dur-fast) hover:border-gray-200 has-checked:border-primary-600 has-checked:bg-primary-50 has-checked:ring-1 has-checked:ring-primary-600 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring"
             >
               <input
                 type="radio"
@@ -310,17 +308,8 @@ function ScheduleChooser({
                 value={schedule.scheduleId}
                 checked={schedule.scheduleId === chosen.scheduleId}
                 onChange={() => setChosenId(schedule.scheduleId)}
-                className="sr-only"
+                className="size-[18px] shrink-0 accent-primary-600 outline-none"
               />
-              <span
-                aria-hidden="true"
-                className="grid w-12 shrink-0 justify-items-center rounded-sm bg-gray-50 py-1 type-caption text-gray-500"
-              >
-                <span className="text-[18px] leading-6 font-semibold text-gray-900 tabular-nums">
-                  {parts.day}
-                </span>
-                {parts.weekday}
-              </span>
               <span className="grid min-w-0 flex-1 gap-0.5">
                 <span className="type-body-sm font-semibold text-gray-900 tabular-nums">
                   {formatDateTime(schedule.startsAt)}
@@ -329,9 +318,9 @@ function ScheduleChooser({
               </span>
               <SaleStatusBadge status={statusOf(schedule, now)} />
             </label>
-          )
-        })}
-      </fieldset>
+          ))}
+        </fieldset>
+      </div>
     </>
   )
 }
@@ -356,7 +345,7 @@ function ChosenSchedule({
   const openAtId = `open-at-${schedule.scheduleId}`
 
   return (
-    <div className="grid gap-3 border-b border-gray-100 bg-gray-25 p-5">
+    <div className="grid gap-3 px-5 pt-5 pb-6">
       <p className="type-body-sm font-semibold text-gray-900 tabular-nums">
         {formatDateTime(schedule.startsAt)}
         <span className="font-normal text-gray-500"> · {schedule.venueName}</span>
@@ -372,7 +361,7 @@ function ChosenSchedule({
               onComplete={rerender}
             />
           </div>
-          <Button disabled size="lg" className="w-full" aria-describedby={openAtId}>
+          <Button disabled size="lg" className="w-full rounded-full" aria-describedby={openAtId}>
             예매하기
           </Button>
           <p id={openAtId} className="text-center type-caption tabular-nums text-gray-500">
@@ -380,7 +369,7 @@ function ChosenSchedule({
           </p>
         </>
       ) : status === 'ON_SALE' ? (
-        <Button asChild size="lg" className="w-full">
+        <Button asChild size="lg" className="w-full rounded-full">
           <Link
             to={queuePath(schedule.scheduleId)}
             state={queueNavigationState({
@@ -412,7 +401,6 @@ function ChosenSchedule({
 }
 
 function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
-  const art = concertArt(concert.concertId)
   return (
     <Tabs defaultValue="info">
       <TabsList aria-label="공연 안내">
@@ -420,15 +408,6 @@ function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: Server
         <TabsTrigger value="guide">예매 안내</TabsTrigger>
       </TabsList>
       <TabsContent value="info" className="grid gap-10">
-        <img
-          src={art.wide}
-          alt=""
-          width={WIDE_SIZE.width}
-          height={WIDE_SIZE.height}
-          loading="lazy"
-          decoding="async"
-          className="aspect-[1600/667] w-full rounded-lg object-cover"
-        />
         <section className="grid gap-3">
           <h3 className="type-heading text-gray-900">공연 소개</h3>
           {concert.description ? (
@@ -453,23 +432,23 @@ function ScheduleTable({ schedules, clock }: { schedules: ScheduleSummary[]; clo
   return (
     <section className="grid gap-3">
       <h3 className="type-heading text-gray-900">회차 일정</h3>
-      <div className="overflow-x-auto rounded-md border border-gray-100 bg-gray-0">
+      <div className="overflow-x-auto rounded-[16px] border border-gray-100 bg-gray-0">
         <table className="w-full min-w-[600px] type-body-sm whitespace-nowrap">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="text-left type-caption text-gray-500">
             <tr>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 공연 일시
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 장소
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 티켓 오픈
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 1인 최대
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 상태
               </th>
             </tr>
@@ -477,11 +456,15 @@ function ScheduleTable({ schedules, clock }: { schedules: ScheduleSummary[]; clo
           <tbody className="divide-y divide-gray-100 text-gray-900">
             {schedules.map((schedule) => (
               <tr key={schedule.scheduleId}>
-                <td className="px-4 py-3 tabular-nums">{formatDateTime(schedule.startsAt)}</td>
-                <td className="px-4 py-3">{schedule.venueName}</td>
-                <td className="px-4 py-3 tabular-nums">{formatDateTime(schedule.openAt)}</td>
-                <td className="px-4 py-3 tabular-nums">{schedule.maxPerUser}매</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3.5 font-semibold tabular-nums">
+                  {formatDateTime(schedule.startsAt)}
+                </td>
+                <td className="px-4 py-3.5 text-gray-700">{schedule.venueName}</td>
+                <td className="px-4 py-3.5 text-gray-700 tabular-nums">
+                  {formatDateTime(schedule.openAt)}
+                </td>
+                <td className="px-4 py-3.5 text-gray-700 tabular-nums">{schedule.maxPerUser}매</td>
+                <td className="px-4 py-3.5 text-gray-700">
                   <SaleStatusBadge status={statusOf(schedule, now)} />
                 </td>
               </tr>

@@ -7,6 +7,7 @@ import { describeError, type ErrorTone } from '@/api/errorMessages'
 import { concertPath, paths, seatsPath } from '@/app/paths'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { QueuePosition } from '@/components/ticketing/QueuePosition'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -129,7 +130,7 @@ function QueueBody({
             <h2 className="type-title text-gray-900">줄을 서고 있어요</h2>
             <p className="type-body text-gray-500">차례가 되면 좌석 선택 화면으로 바로 넘어가요.</p>
           </div>
-          <TicketPerforation />
+          <TicketPerforation className="-mx-5 @min-[40rem]:-mx-8" />
           <QueuePosition
             position={admission.waiting.position}
             estimatedWaitSeconds={admission.waiting.estimatedWaitSeconds}
@@ -351,14 +352,5 @@ function StatusPill({ unstable = false }: { unstable?: boolean }) {
       />
       {unstable ? '연결이 잠시 불안정해요. 곧 다시 시도할게요' : '순번을 자동으로 확인하고 있어요'}
     </p>
-  )
-}
-
-// 카드 안쪽 여백을 넘어 카드 양 끝까지 닿는 절취선(design-system.md 11절 티켓 모양)
-function TicketPerforation() {
-  return (
-    <div aria-hidden="true" className="-mx-5 @min-[40rem]:-mx-8">
-      <span className="ticket-perf block" />
-    </div>
   )
 }

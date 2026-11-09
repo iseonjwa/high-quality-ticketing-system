@@ -163,12 +163,11 @@ describe('ConcertDetailPage', () => {
     )
   })
 
-  it('넓은 화면에서 예매 패널을 배너 위로 끌어올리고, 행동(카운트다운·예매하기)을 회차 목록보다 먼저 둔다', async () => {
+  it('예매 패널은 행동(카운트다운·예매하기)을 절취선 위에, 회차 목록을 그 아래에 둔다', async () => {
     serveDetail(detail(Date.now(), [{}, {}]))
     renderRoutes(routes, '/concerts/7')
 
     const aside = await bookingPanel()
-    expect(aside.className).toContain('@min-[64rem]:-mt-[320px]')
     const link = within(aside).getByRole('link', { name: '예매하기' })
     const firstRadio = within(aside).getAllByRole('radio')[0]
     expect(link.compareDocumentPosition(firstRadio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
