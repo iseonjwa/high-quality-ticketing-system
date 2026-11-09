@@ -768,7 +768,8 @@ function EntryCard({
   const titleRef = useTitleFocus()
   return (
     <section aria-labelledby="entry-title">
-      <Card className="gap-0 rounded-[22px] p-0">
+      {/* overflow-visible: 절취선 홈이 카드 테두리 선까지 덮게 한다(design-system.md 12절) */}
+      <Card className="gap-0 overflow-visible rounded-[22px] p-0">
         <div className="grid gap-4 px-4 py-5 @min-[40rem]:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2
