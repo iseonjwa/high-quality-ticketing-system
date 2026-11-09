@@ -118,7 +118,7 @@ describe('LoginPage', () => {
 
     await userEvent.click(screen.getByRole('link', { name: '로그인' }))
 
-    expect(screen.getByText('예매하려면 로그인해 주세요')).toBeInTheDocument()
+    expect(await screen.findByText('예매하려면 로그인해 주세요')).toBeInTheDocument()
   })
 
   it('재발급이 거절돼 세션이 끝났으면 다시 로그인하라고 알린다', async () => {

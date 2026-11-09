@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
@@ -69,8 +69,8 @@ describe('SignupPage', () => {
 
     await userEvent.click(screen.getByRole('link', { name: '이 이메일로 로그인하기' }))
 
-    expect(router.state.location.pathname).toBe('/login')
-    expect(screen.getByLabelText('이메일')).toHaveValue(DEMO_USER.email)
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(await screen.findByLabelText('이메일')).toHaveValue(DEMO_USER.email)
   })
 
   it('서버가 칸별 검증 오류를 주면 그 칸 아래에 공통 안내를 보인다', async () => {

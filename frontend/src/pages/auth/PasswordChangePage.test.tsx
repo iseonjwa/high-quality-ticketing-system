@@ -122,7 +122,7 @@ describe('PasswordChangePage', () => {
     await within(await screen.findByRole('main')).findByText(DEMO_USER.email)
     await userEvent.click(screen.getByRole('link', { name: '비밀번호 변경' }))
 
-    await userEvent.click(screen.getByRole('link', { name: '바꾸지 않고 돌아가기' }))
+    await userEvent.click(await screen.findByRole('link', { name: '바꾸지 않고 돌아가기' }))
 
     expect(router.state.location.pathname).toBe('/me')
   })

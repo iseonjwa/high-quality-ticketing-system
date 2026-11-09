@@ -100,7 +100,7 @@ describe('MyPageLayout 메뉴', () => {
 
     await userEvent.click(menu().getByRole('link', { name: '비밀번호 변경' }))
 
-    expect(router.state.location.pathname).toBe('/password-change')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/password-change'))
     expect(router.state.location.state).toEqual({ from: '/me', email: DEMO_USER.email })
   })
 
