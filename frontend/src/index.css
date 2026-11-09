@@ -319,7 +319,7 @@
     pointer-events: none;
   }
 
-  /* 티켓 모양(design-system.md 10절). 절취선 양 끝의 둥근 홈은 카드 뒤 바탕색(--notch-bg, 기본은 페이지 바탕)으로
+  /* 티켓 모양(design-system.md 11절). 절취선 양 끝의 둥근 홈은 카드 뒤 바탕색(--notch-bg, 기본은 페이지 바탕)으로
      칠한다. 카드가 페이지 바탕이 아닌 면 위에 있으면 그 면의 색을 --notch-bg로 넘긴다 */
   .ticket-perf {
     position: relative;
