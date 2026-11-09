@@ -9,7 +9,7 @@ final class StreamEvents {
     private StreamEvents() {
     }
 
-    record Meta(Answer.Mode mode, Answer.FallbackReason fallbackReason) {
+    record Meta(Answer.Mode mode, Answer.FallbackReason fallbackReason, String traceId) {
     }
 
     record Delta(String text) {

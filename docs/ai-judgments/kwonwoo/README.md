@@ -8,6 +8,7 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | k6 측정을 다른 기기로 옮긴 뒤, 이 기기에서는 AI가 추천한 정합성 대사(ISE-14)를 먼저 구현 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-09-ise14-reconciliation-while-measuring-elsewhere.md) |
 | 2026-11-06 | 좌석 조회 경량화(P4) 측정을 반효승 담당에서 일부 가져와 좌석 선점과 같은 환경(측정 브랜치)에서 재고, 본 구현은 ISE-189에 둠 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-06-measure-p4-seat-map-in-own-environment.md) |
 | 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-05-g1-first-then-decide-p4-order.md) |
 | 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | Claude Code | 거부 | 예 | 후보 | [기록](2026-11-04-k6-over-junit-load-approximation.md) |

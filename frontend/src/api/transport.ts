@@ -1,7 +1,7 @@
 import type { z } from 'zod'
 import { ApiError, CLIENT_ERROR_CODES } from '@/api/apiError'
 import { failureEnvelopeSchema, successEnvelopeSchema } from '@/api/envelope'
-import { recordRequest } from '@/demo/requestLog'
+import { recordRequest, setRequestTraceId } from '@/demo/requestLog'
 
 export const API_BASE_PATH = '/api/v1'
 
@@ -20,6 +20,15 @@ export interface SendOptions<T extends z.ZodType> {
   // 실패는 Gateway가 만든 공통 실패 형식(401·403)이면 그대로 풀고, 아니면 응답 상태와 본문의 code로 오류를 만든다
   envelope?: boolean
 }
+
+// 스트림 요청 옵션. 성공 본문을 푸는 일은 호출하는 쪽이 하므로 스키마가 없다.
+export type StreamOptions = Omit<SendOptions<z.ZodType>, 'schema'>
+
+const EVENT_STREAM = 'text/event-stream'
+// Note: 스트림 요청도 JSON을 함께 받겠다고 알린다. 서버(Spring)는 Accept로 응답 형식을 고르는데, text/event-stream만
+// 보내면 요청 전에 걸러진 400·429를 JSON으로 쓰지 못해 400은 빈 본문, 429는 500이 됐다(셀프 리뷰, bootJar로 재현).
+// 서버도 오류 응답을 늘 JSON으로 내게 고친다(ISE-221). 그 뒤에도 이 헤더는 그대로 둬도 된다
+const STREAM_ACCEPT = `${EVENT_STREAM}, application/json`
 
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).
 // 시연 모드용 요청 기록은 결과와 상관없이 요청마다 한 번 남긴다.
@@ -56,13 +65,70 @@ export async function send<T extends z.ZodType>(options: SendOptions<T>): Promis
   }
 }
 
+// 요청을 보내고 `text/event-stream` 응답을 본문을 읽기 전에 돌려준다. 본문 읽기와 닫기는 호출하는 쪽이 한다.
+// 요청 전에 걸러진 실패(400·401·429)는 스트림이 아니라 공통 실패 형식 JSON이라 `send`와 같은 ApiError로 던진다.
+// 요청 기록은 응답 상태를 받은 시점에 한 번 남긴다. 본문을 읽는 시간은 재지 않는다.
+export async function openStream(options: StreamOptions): Promise<Response> {
+  const startedAt = Date.now()
+  const startedTick = performance.now()
+  let status = 0
+  let traceId: string | null = null
+  let response: Response | undefined
+
+  try {
+    response = await fetchOrThrow(options, STREAM_ACCEPT)
+    status = response.status
+    if (!response.ok) {
+      const payload = await readJson(response)
+      traceId = readTraceId(payload)
+      throw toApiError(response, payload)
+    }
+    if (!(response.headers.get('Content-Type') ?? '').startsWith(EVENT_STREAM)) {
+      void response.body?.cancel().catch(() => undefined)
+      throw new ApiError({
+        status: response.status,
+        code: CLIENT_ERROR_CODES.unexpectedResponse,
+        message: '스트림이 아닌 200 응답입니다',
+      })
+    }
+    return response
+  } finally {
+    if (!options.signal?.aborted) {
+      const recordId = recordRequest({
+        startedAt,
+        method: options.method,
+        path: loggedPath(options.path),
+        status,
+        durationMs: Math.round(performance.now() - startedTick),
+        traceId,
+      })
+      if (recordId !== null && response !== undefined) {
+        streamRecordIds.set(response, recordId)
+      }
+    }
+  }
+}
+
+// 스트림 응답과 그 요청 기록을 잇는다. 응답을 읽는 쪽이 첫 이벤트에서 traceId를 알면 noteStreamTraceId로 채운다
+const streamRecordIds = new WeakMap<Response, number>()
+
+export function noteStreamTraceId(response: Response, traceId: string) {
+  const recordId = streamRecordIds.get(response)
+  if (recordId !== undefined) {
+    setRequestTraceId(recordId, traceId)
+  }
+}
+
 // Note: 쿼리 값은 남기지 않는다. 서버 공통 요청 로그 규칙과 같다.
 function loggedPath(path: string): string {
   return (API_BASE_PATH + path).split('?')[0]
 }
 
-async function fetchOrThrow(options: SendOptions<z.ZodType>): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
+async function fetchOrThrow(
+  options: StreamOptions,
+  accept = 'application/json',
+): Promise<Response> {
+  const headers: Record<string, string> = { Accept: accept, ...options.headers }
   let body: string | undefined
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
