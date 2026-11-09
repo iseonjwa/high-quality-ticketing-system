@@ -37,6 +37,8 @@ done
 # event 라벨이 있는 알림은 꼬리말이 달라지고, 문장에 이미 있는 라벨은 본문 라벨 줄에서 빠진다(amtool 예시 대신 JSON 데이터로 그린다).
 data_dir=$(mktemp -d)
 trap 'rm -rf "$data_dir"' EXIT
+# Note: mktemp -d는 0700으로 만든다. 컨테이너의 amtool은 nobody로 돌아 그대로면 파일을 열지 못한다(Linux CI에서 permission denied).
+chmod 755 "$data_dir"
 cat > "$data_dir/event.json" <<'JSON'
 {"receiver": "slack-monitoring-event", "status": "firing",
  "alerts": [{"status": "firing", "startsAt": "2026-11-09T05:03:12Z", "endsAt": "0001-01-01T00:00:00Z",
@@ -49,6 +51,7 @@ cat > "$data_dir/event.json" <<'JSON'
                   "urgency": "immediate", "event": "PAYMENT_NEEDS_MANUAL_CHECK", "paymentId": "1001"},
  "externalURL": "http://localhost:9093"}
 JSON
+chmod 644 "$data_dir/event.json"
 render_event() {
   docker run --rm -v "$PWD/infra:/infra:ro" -v "$data_dir:/data:ro" --entrypoint amtool "$am_image" template render \
     --template.glob='/infra/alertmanager/templates/*.tmpl' --template.data=/data/event.json --template.text="{{ template \"iseonjwa.slack.$1\" . }}"
