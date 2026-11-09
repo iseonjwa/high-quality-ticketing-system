@@ -39,7 +39,7 @@ class RefundController {
             ResponseDrop.request(servletRequest);
             return null;
         }
-        return RefundResponses.refund(result.outcome());
+        return RefundResponses.refund(result.outcome(), result.fault().omitsAmount());
     }
 
     @GetMapping("/{refundId}")
@@ -48,7 +48,8 @@ class RefundController {
         var faultResponse = FaultResponses.of(result.fault());
         if (faultResponse.isPresent()) return faultResponse.get();
         return result.refunded()
-                .<ResponseEntity<?>>map(refunded -> ResponseEntity.ok(RefundResponses.RefundedBody.of(refunded)))
+                .<ResponseEntity<?>>map(refunded -> ResponseEntity
+                        .ok(RefundResponses.RefundedBody.of(refunded, result.fault().omitsAmount())))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.NOT_FOUND));
     }
 }
