@@ -7,6 +7,7 @@ import { readEntryToken, saveEntryToken } from '@/auth/entryTokens'
 import { readQueueConcert } from '@/pages/queue/queueNavigation'
 import { clearSession } from '@/auth/session'
 import { setMockScenario } from '@/mocks/scenario'
+import { ok } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
 import {
   BEFORE_OPEN_SCHEDULE_ID,
@@ -155,6 +156,24 @@ describe('QueuePage', () => {
     expect(screen.getByText('목록에서 다시 골라 주세요.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '공연 목록으로' })).toHaveAttribute('href', '/')
+  })
+
+  it('다음 입장 묶음 안(예상 대기 1초 이하)이면 순번 대신 곧 입장한다고 보인다', async () => {
+    mockServer.use(
+      http.post(JOIN_API, () =>
+        ok({
+          status: 'WAITING',
+          position: 1,
+          estimatedWaitSeconds: 1,
+          nextPollAfterMillis: 60_000,
+        }),
+      ),
+    )
+    await renderRoutesReady(routes, QUEUE_PATH)
+
+    expect(await screen.findByRole('heading', { name: '곧 입장해요' })).toBeInTheDocument()
+    expect(screen.getByText('좌석 선택 화면을 준비하고 있어요.')).toBeInTheDocument()
+    expect(screen.queryByText('내 순번')).not.toBeInTheDocument()
   })
 
   it('예상하지 못한 오류면 문의 번호를 보이고 다시 시도하면 진입 요청을 다시 보낸다', async () => {

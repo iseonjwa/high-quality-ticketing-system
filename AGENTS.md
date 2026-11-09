@@ -33,6 +33,7 @@
 | 커밋·PR 작업 시 | `docs/guides/git-workflow.md`, `.github/pull_request_template.md` |
 | 작업 완료 보고·테스트 전 | `docs/agents/quality-gates.md` |
 | 작업을 시작할 때, 서비스 간 접점(이벤트·토큰·내부 API·공유 설정)을 바꿀 때 | `docs/guides/contract-issues.md` |
+| 배포 서버·부하 발생기(k6 EC2)에 접속하거나 배포 환경을 측정할 때 | `docs/guides/deploy-server-access.md`, `docs/guides/loadgen.md` |
 | 결정을 기록할 때 | `docs/decisions/README.md` |
 | 설계 검토 결과를 볼 때 | `docs/sa-review/` |
 

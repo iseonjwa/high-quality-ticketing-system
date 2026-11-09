@@ -13,6 +13,7 @@ import com.iseonjwa.payment.pg.application.PgClient.Refunded;
 import com.iseonjwa.payment.pg.application.PgClient.Unknown;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
 import com.iseonjwa.payment.pg.application.RefundCommand;
 import com.iseonjwa.payment.pg.application.RefundRejectReason;
@@ -39,9 +40,17 @@ public abstract class PgClientContractTest {
 
     protected abstract PgScenario scenario();
 
+    /**
+     * 어댑터가 처리 중인 승인까지 막는 늦은 승인 방지를 보장하는지. 보장하지 못하는 어댑터(토스)는 false로 바꾸고,
+     * 이때 아직 승인되지 않은 주문의 방지 결과로 Prevented 대신 Unknown을 기대한다.
+     */
+    protected boolean guaranteesLateApprovalPrevention() {
+        return true;
+    }
+
     @Test
     void 승인하면_PG가_처리한_금액과_통화를_돌려준다() {
-        var approved = assertInstanceOf(Approved.class, client().approve(approveCommand(newOrder())));
+        var approved = expectResult(Approved.class, client().approve(approveCommand(newOrder())));
 
         assertTrue(approved.matches(AMOUNT, KRW));
         assertFalse(approved.paymentRef().value().isBlank());
@@ -52,7 +61,7 @@ public abstract class PgClientContractTest {
     void PG가_명확히_거절하면_Declined다() {
         scenario().nextApprovalIsDeclined();
 
-        var declined = assertInstanceOf(Declined.class, client().approve(approveCommand(newOrder())));
+        var declined = expectResult(Declined.class, client().approve(approveCommand(newOrder())));
 
         assertEquals(DeclineReason.CARD_DECLINED, declined.reason());
     }
@@ -77,8 +86,8 @@ public abstract class PgClientContractTest {
         scenario().nextApprovalResponseIsLost();
         assertUnknown(UnknownCause.CONNECTION_LOST, client().approve(approveCommand(order)));
 
-        var retried = assertInstanceOf(Approved.class, client().approve(approveCommand(order)));
-        var again = assertInstanceOf(Approved.class, client().approve(approveCommand(order)));
+        var retried = expectResult(Approved.class, client().approve(approveCommand(order)));
+        var again = expectResult(Approved.class, client().approve(approveCommand(order)));
 
         assertEquals(retried.paymentRef(), again.paymentRef());
     }
@@ -89,14 +98,14 @@ public abstract class PgClientContractTest {
         scenario().nextApprovalResponseIsLost();
         client().approve(approveCommand(order));
 
-        var found = assertInstanceOf(Approved.class, client().findPayment(order));
+        var found = expectResult(Approved.class, client().findPayment(order));
 
         assertTrue(found.matches(AMOUNT, KRW));
     }
 
     @Test
     void 처음_보는_주문을_조회하면_NotFound다() {
-        assertInstanceOf(NotFound.class, client().findPayment(newOrder()));
+        expectResult(NotFound.class, client().findPayment(newOrder()));
     }
 
     @Test
@@ -124,7 +133,7 @@ public abstract class PgClientContractTest {
     void PG가_요청과_다른_금액을_승인하면_PG의_금액으로_구분할_수_있다() {
         scenario().nextApprovalUsesDifferentAmount();
 
-        var approved = assertInstanceOf(Approved.class, client().approve(approveCommand(newOrder())));
+        var approved = expectResult(Approved.class, client().approve(approveCommand(newOrder())));
 
         assertFalse(approved.matches(AMOUNT, KRW), "서비스가 불일치를 알아볼 수 있어야 한다");
         assertEquals(0, BigDecimal.valueOf(49000).compareTo(approved.amount()));
@@ -134,7 +143,7 @@ public abstract class PgClientContractTest {
     void 환불하면_PG가_처리한_금액과_통화를_돌려준다() {
         var approved = approve();
 
-        var refunded = assertInstanceOf(Refunded.class, client().refund(refundCommand(approved, newRefund())));
+        var refunded = expectResult(Refunded.class, client().refund(refundCommand(approved, newRefund())));
 
         assertTrue(refunded.matches(AMOUNT, KRW));
     }
@@ -144,7 +153,7 @@ public abstract class PgClientContractTest {
         var approved = approve();
         scenario().nextRefundIsRejected();
 
-        var rejected = assertInstanceOf(RefundRejected.class, client().refund(refundCommand(approved, newRefund())));
+        var rejected = expectResult(RefundRejected.class, client().refund(refundCommand(approved, newRefund())));
 
         assertEquals(RefundRejectReason.NOT_REFUNDABLE, rejected.reason());
     }
@@ -157,7 +166,7 @@ public abstract class PgClientContractTest {
 
         assertUnknown(UnknownCause.CONNECTION_LOST, client().refund(refundCommand(approved, refundId)));
 
-        var found = assertInstanceOf(Refunded.class, client().findRefund(refundId, approved.paymentRef()));
+        var found = expectResult(Refunded.class, client().findRefund(refundId, approved.paymentRef()));
         assertTrue(found.matches(AMOUNT, KRW));
     }
 
@@ -165,10 +174,10 @@ public abstract class PgClientContractTest {
     void 환불_조회가_NotFound이면_같은_환불_식별자로_다시_보내도_한_번만_환불된다() {
         var approved = approve();
         var refundId = newRefund();
-        assertInstanceOf(NotFound.class, client().findRefund(refundId, approved.paymentRef()));
+        expectResult(NotFound.class, client().findRefund(refundId, approved.paymentRef()));
 
-        var first = assertInstanceOf(Refunded.class, client().refund(refundCommand(approved, refundId)));
-        var second = assertInstanceOf(Refunded.class, client().refund(refundCommand(approved, refundId)));
+        var first = expectResult(Refunded.class, client().refund(refundCommand(approved, refundId)));
+        var second = expectResult(Refunded.class, client().refund(refundCommand(approved, refundId)));
 
         assertFalse(first.refundRef().isBlank());
         assertEquals(first.refundRef(), second.refundRef());
@@ -186,17 +195,23 @@ public abstract class PgClientContractTest {
     void 승인되지_않은_주문은_늦은_승인을_막고_이후에도_승인으로_조회되지_않는다() {
         var order = newOrder();
 
-        assertInstanceOf(Prevented.class, client().preventLateApproval(order));
+        var prevention = client().preventLateApproval(order);
+        if (guaranteesLateApprovalPrevention()) {
+            expectResult(Prevented.class, prevention);
+        } else {
+            expectResult(Unknown.class, prevention);
+        }
 
-        assertFalse(client().findPayment(order) instanceof Approved);
+        var found = client().findPayment(order);
+        assertFalse(found instanceof Approved, () -> "실제 결과=" + found);
     }
 
     @Test
     void 이미_승인된_주문은_늦은_승인_방지가_승인_사실을_알린다() {
         var order = newOrder();
-        var approved = assertInstanceOf(Approved.class, client().approve(approveCommand(order)));
+        var approved = expectResult(Approved.class, client().approve(approveCommand(order)));
 
-        var already = assertInstanceOf(AlreadyApproved.class, client().preventLateApproval(order));
+        var already = expectResult(AlreadyApproved.class, client().preventLateApproval(order));
 
         assertEquals(approved.paymentRef(), already.paymentRef());
         assertTrue(already.matches(AMOUNT, KRW));
@@ -215,10 +230,10 @@ public abstract class PgClientContractTest {
         if (prevention instanceof Prevented) {
             assertFalse(found instanceof Approved, "Prevented를 준 뒤에 승인이 저장됐다");
         } else if (prevention instanceof AlreadyApproved) {
-            assertInstanceOf(Approved.class, found);
+            expectResult(Approved.class, found);
         } else {
             // 보장할 수 없으면 Unknown이어야 한다. 서비스는 이때 DECLINED로 닫지 않는다
-            assertInstanceOf(Unknown.class, prevention);
+            expectResult(Unknown.class, prevention);
         }
     }
 
@@ -242,7 +257,7 @@ public abstract class PgClientContractTest {
         scenario().nextApprovalIsDeclined();
         client().approve(approveCommand(order));
 
-        assertInstanceOf(Declined.class, client().findPayment(order));
+        expectResult(Declined.class, client().findPayment(order));
     }
 
     @Test
@@ -262,7 +277,12 @@ public abstract class PgClientContractTest {
     }
 
     protected final ApproveCommand approveCommand(PgOrderId order) {
-        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), null);
+        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), clientPaymentRef(order));
+    }
+
+    // 결제창에서 받은 PG 식별자 역할. 주문에서 결정적으로 만들어 같은 주문의 재시도가 같은 값을 보내게 한다(Mock은 무시한다)
+    protected final PgPaymentRef clientPaymentRef(PgOrderId order) {
+        return new PgPaymentRef("tgen_" + order.value().toString().replace("-", ""));
     }
 
     protected final RefundCommand refundCommand(Approved approved, PgRefundId refundId) {
@@ -271,10 +291,15 @@ public abstract class PgClientContractTest {
     }
 
     private Approved approve() {
-        return assertInstanceOf(Approved.class, client().approve(approveCommand(newOrder())));
+        return expectResult(Approved.class, client().approve(approveCommand(newOrder())));
     }
 
     private static void assertUnknown(UnknownCause expected, Object result) {
-        assertEquals(expected, assertInstanceOf(Unknown.class, result).cause());
+        assertEquals(expected, expectResult(Unknown.class, result).cause());
+    }
+
+    // 결과 타입을 단정할 때 실패 메시지에 실제 결과를 남긴다. 타입 이름만으로는 어떤 Unknown 원인이었는지 알 수 없다
+    private static <T> T expectResult(Class<T> expected, Object result) {
+        return assertInstanceOf(expected, result, () -> "실제 결과=" + result);
     }
 }

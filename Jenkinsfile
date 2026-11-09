@@ -1,5 +1,5 @@
 // main의 새 커밋을 배포 서버에 배포하는 파이프라인(ISE-175). 설계: docs/design/infra/deployment.md "Jenkins"
-// 흐름: 커밋 정하기 → GHCR에 그 SHA 이미지 8개가 올라올 때까지 기다리기 → 배포 서버에 SSH로 deploy.sh → 슬랙에 결과.
+// 흐름: 커밋 정하기 → GHCR에 그 SHA 이미지 9개가 올라올 때까지 기다리기 → 배포 서버에 SSH로 deploy.sh → 슬랙에 결과.
 // 슬랙은 세 번 알린다: 커밋을 정하면 배포 준비(started), SSH 배포를 시작하기 직전 배포 중(deploying), 끝나면 결과.
 // 이미지를 못 찾아 중단되면 배포 중 알림 없이 준비 다음에 바로 결과가 간다.
 // 폴링은 잡 정의(infra/jenkins/casc.yaml)에 있다. 되돌리기·재배포는 매개변수 TAG에 40자 커밋 SHA를 넣고 실행한다.
@@ -48,8 +48,8 @@ pipeline {
     }
 
     environment {
-        // 서비스 이미지 8개(ghcr.io/iseonjwa/<이름>:<커밋 SHA>)
-        IMAGES = 'config-server eureka gateway user-service reservation-service payment-service mock-pg frontend'
+        // 서비스 이미지 9개(ghcr.io/iseonjwa/<이름>:<커밋 SHA>)
+        IMAGES = 'config-server eureka gateway user-service reservation-service payment-service mock-pg assistant-service frontend'
     }
 
     stages {
@@ -94,7 +94,7 @@ pipeline {
                         while :; do
                           missing=""
                           for name in $IMAGES; do exists "$name" || missing="$missing $name"; done
-                          if [ -z "$missing" ]; then echo "이미지 8개가 모두 있습니다: $SHA"; exit 0; fi
+                          if [ -z "$missing" ]; then echo "이미지 9개가 모두 있습니다: $SHA"; exit 0; fi
                           if [ "$(date +%s)" -ge "$deadline" ]; then echo "20분 안에 올라오지 않은 이미지:$missing"; exit 10; fi
                           echo "기다리는 이미지:$missing"
                           sleep 30

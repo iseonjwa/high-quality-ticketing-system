@@ -42,6 +42,7 @@ const booking = () => import('@/app/routeChunks/booking')
 const my = () => import('@/app/routeChunks/my')
 const admin = () => import('@/app/routeChunks/admin')
 const lottery = () => import('@/pages/lotteries/LotteryPage')
+const assistant = () => import('@/pages/assistant/AssistantPage')
 
 // Note: 홈(ConcertListPage)과 공연 상세(ConcertDetailPage)는 첫 방문자가 가장 먼저 여는 화면이라
 // 첫 덩어리에 남긴다. 나머지 화면은 경로에 들어갈 때 받는다. 진입점(index)은 이 두 화면과 공용 코드만 담는다.
@@ -105,6 +106,7 @@ export const routes: RouteObject[] = [
                   return { element: <ReservationPage variant="detail" /> }
                 },
               },
+              { path: paths.help, ...lazyPage(assistant, 'AssistantPage') },
               {
                 element: <RequireAdmin />,
                 children: [
@@ -114,6 +116,7 @@ export const routes: RouteObject[] = [
                   { path: paths.adminLotteryNew, ...lazyPage(admin, 'AdminLotteryNewPage') },
                   { path: paths.adminLottery, ...lazyPage(admin, 'AdminLotteryPage') },
                   { path: paths.adminPasswordReset, ...lazyPage(admin, 'AdminPasswordResetPage') },
+                  { path: paths.adminDemoFaults, ...lazyPage(admin, 'AdminDemoFaultsPage') },
                 ],
               },
             ],
