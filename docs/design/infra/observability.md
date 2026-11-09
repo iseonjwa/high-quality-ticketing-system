@@ -63,7 +63,7 @@ flowchart LR
 ### 구현 (ISE-178, 수집)
 
 - 파일: `infra/loki/loki.yml`, `infra/alloy/config.alloy`, Grafana 데이터 소스 `infra/grafana/provisioning/datasources/loki.yml`·`zipkin.yml`, compose의 `loki`(`grafana/loki:3.7.9`, 512m)·`alloy`(`grafana/alloy:v1.21.3`, 256m) 서비스. 이미지는 인덱스 digest로 고정했다. 호스트 포트는 열지 않고 Grafana가 `http://loki:3100`으로 읽는다.
-- 모으는 컨테이너: compose 프로젝트 `iseonjwa`의 앱 7개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg)만이다. DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 [부하 측정](load-test.md)(ISE-176)에서 예측할 수 있게 하려는 것이다.
+- 모으는 컨테이너: compose 프로젝트 `iseonjwa`의 앱 8개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, assistant-service)만이다. DB·Kafka·관측 도구 로그는 모으지 않는다. 로그 양과 메모리를 [부하 측정](load-test.md)(ISE-176)에서 예측할 수 있게 하려는 것이다.
 - 라벨(색인)은 `service`(compose 서비스 이름), `level`(INFO·WARN·ERROR), `env`(`STACK_ENV`, 없으면 `local`) 셋이다. `traceId`는 라벨이 아니라 구조화 메타데이터로 붙이고 로그 줄에도 그대로 남는다. 추적 정보가 없는 줄은 `traceId`가 없고 줄은 버리지 않는다. Loki가 `service`에서 `service_name`과 `detected_level` 라벨을 자동으로 더 붙인다.
 - 여러 줄 병합(정함): 새 로그는 `^\d{4}-\d{2}-\d{2}T`로 시작한다고 보고 이어지는 줄(예외 스택 트레이스)을 앞 항목에 붙인다(`stage.multiline`, 최대 대기 3s). 첫 줄의 `traceId`가 스택 트레이스까지 한 항목에 담긴다.
 - 보관 7일: Loki compactor 보존(`retention_enabled: true`, `retention_period: 168h`, `delete_request_store: filesystem`). compactor는 기동 뒤 10분 기다렸다가 시작한다.

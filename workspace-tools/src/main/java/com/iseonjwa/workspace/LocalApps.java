@@ -37,6 +37,8 @@ public final class LocalApps {
             Map<String, String> inherited) {
         var result = new HashMap<>(inherited);
         LocalEnvironment.KEYS.forEach(result::remove);
+        // Anthropic 키는 개인 셸 환경에서 상담 서비스에만 넘긴다. 없으면 상담은 검색 모드로 뜬다
+        if (!app.name().equals("assistant-service")) result.remove("ANTHROPIC_API_KEY");
         result.putAll(Map.of("SPRING_PROFILES_ACTIVE", app.name().equals("config-server") ? "native" : "local",
                 "CONFIG_REPO_PATH", root.resolve("config-repo").toUri().toString(),
                 "CONFIG_SERVER_URL", "http://127.0.0.1:8888", "EUREKA_URL", "http://127.0.0.1:8761/eureka/",

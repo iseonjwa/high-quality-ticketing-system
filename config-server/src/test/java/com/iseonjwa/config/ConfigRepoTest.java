@@ -40,6 +40,16 @@ class ConfigRepoTest {
     }
 
     @Test
+    void 상담_서비스는_키를_환경변수로만_받고_검색_모드가_기본으로_뜰_수_있다() {
+        Environment env = repository.findOne("assistant-service", "prod", null);
+
+        assertThat(firstValue(env, "server.port")).isEqualTo(8095);
+        assertThat(String.valueOf(firstValue(env, "anthropic.api-key"))).isEqualTo("${ANTHROPIC_API_KEY:}");
+        assertThat(String.valueOf(firstValue(env, "assistant.llm.enabled"))).isEqualTo("${ASSISTANT_LLM_ENABLED:true}");
+        assertThat(String.valueOf(firstValue(env, "assistant.llm.timeout"))).isEqualTo("8s");
+    }
+
+    @Test
     void loadtest_프로필은_추적_샘플링을_낮춘다() {
         Environment env = repository.findOne("reservation-service", "loadtest", null);
 

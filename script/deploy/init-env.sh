@@ -23,14 +23,14 @@ value_for() {
     # 공백이 있으면 셸에서 .env를 source할 때 깨지므로 공백 없이 둔다
     SAMPLE_USER_NICKNAME) echo 샘플사용자 ;;
     SAMPLE_USER_PASSWORD) hex 12 ;;
-    SLACK_WEBHOOK_MONITORING) echo "" ;;
+    SLACK_WEBHOOK_MONITORING|ANTHROPIC_API_KEY) echo "" ;;
     *) hex 16 ;;
   esac
 }
 
 keys=(DB_USER DB_PASSWORD JWT_ACCESS_SECRET JWT_REFRESH_SECRET PAYMENT_TOKEN_SECRET ENTRY_TOKEN_SECRET
       BILLING_KEY_SECRET ADMIN_EMAIL ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD STACK_ENV SLACK_WEBHOOK_MONITORING
-      SAMPLE_USER_EMAIL SAMPLE_USER_PASSWORD SAMPLE_USER_NICKNAME)
+      SAMPLE_USER_EMAIL SAMPLE_USER_PASSWORD SAMPLE_USER_NICKNAME ANTHROPIC_API_KEY)
 added=()
 # 마지막 줄에 줄바꿈이 없으면 새 키가 그 줄에 붙지 않게 먼저 줄을 바꾼다
 if [[ -s "$file" && "$(tail -c1 "$file")" != "" ]]; then echo >> "$file"; fi
@@ -46,4 +46,5 @@ if (( ${#added[@]} )); then
 else
   echo ".env에 빠진 키가 없다"
 fi
+echo "AI 상담(Claude)을 켜려면 .env의 ANTHROPIC_API_KEY에 키를 넣는다. 비워 두면 검색 모드로만 답한다(채팅·저장소에 붙이지 않는다)"
 echo "슬랙 알림을 받으려면 .env의 SLACK_WEBHOOK_MONITORING에 웹훅 주소를 넣는다(채팅·저장소에 붙이지 않는다)"
