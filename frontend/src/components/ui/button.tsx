@@ -24,7 +24,8 @@ const buttonVariants = cva(
       size: {
         default: 'h-11 px-5 text-[15px] leading-[22px]',
         sm: 'h-9 px-3 text-sm',
-        lg: 'h-[52px] px-6 text-base',
+        // 큰 행동 버튼은 알약 모양이다(design-system.md 12절, 시안 B)
+        lg: 'h-[52px] rounded-full px-6 text-base',
         icon: 'size-11',
         'icon-sm': 'size-9',
         'icon-lg': 'size-[52px]',

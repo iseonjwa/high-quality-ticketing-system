@@ -6,7 +6,7 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } fro
 // 설계 4절: 바탕 -50, 글자·아이콘 -600(경고는 글자 -700). 색에만 기대지 않도록 변형마다 아이콘이 다르다.
 // 테두리는 샘플(.alert-warning #FFD8A8, .alert-danger #F8C4CA) 값이다. 샘플에 없는 정보·성공은 글자색을 옅게 쓴다.
 const alertVariants = cva(
-  'relative flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left type-body-sm',
+  '@container/alert relative flex w-full flex-wrap items-start gap-3 rounded-md border px-4 py-3 text-left type-body-sm',
   {
     variants: {
       variant: {
@@ -63,8 +63,12 @@ function Alert({
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">{children}</div>
+      {/* 알림이 좁으면(28rem 미만: 좁은 화면, 옆 열) 버튼을 글자 아래 줄로 내려 글자가 한 줄에 몇 글자씩 접히지 않게 한다 */}
       {action ? (
-        <div data-slot="alert-action" className="shrink-0">
+        <div
+          data-slot="alert-action"
+          className="shrink-0 @max-[28rem]/alert:order-last @max-[28rem]/alert:basis-full @max-[28rem]/alert:pl-7"
+        >
           {action}
         </div>
       ) : null}
