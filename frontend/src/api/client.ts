@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import { ApiError, isApiError } from '@/api/apiError'
-import { send, type SendOptions } from '@/api/transport'
+import { openStream, send, type SendOptions, type StreamOptions } from '@/api/transport'
 import { readEntryToken, removeEntryToken } from '@/auth/entryTokens'
 import { refreshAccessToken } from '@/auth/refresh'
 import { expireSession, sessionStore } from '@/auth/session'
@@ -39,7 +39,7 @@ export async function apiRequest<T extends z.ZodType>(
   }
 
   try {
-    return await sendWithAuth(request)
+    return await sendWithAuth(request, send)
   } catch (error) {
     if (entry !== null && isApiError(error, 'ENTRY_TOKEN_INVALID')) {
       removeEntryToken(entry.scheduleId, entry.token)
@@ -48,19 +48,30 @@ export async function apiRequest<T extends z.ZodType>(
   }
 }
 
+export type ApiStreamOptions = Omit<StreamOptions, 'headers'>
+
+// 스트림(SSE) 요청. 인증 규칙은 apiRequest와 같다. 본문을 읽기 전의 응답을 돌려주고, 읽는 쪽이 본문을 닫는다.
+export function apiStream(options: ApiStreamOptions): Promise<Response> {
+  const request = { ...options, body: structuredClone(options.body) }
+  return sendWithAuth(request, openStream)
+}
+
 // Note: 재시도는 처음 요청과 같은 headers·본문을 쓴다. 401은 Gateway가 서비스에 넘기기 전에 주므로 첫 요청은
 // 서비스에 닿지 않았다. 그래도 같은 키를 쓰는 것은 "의도 하나에 키 하나"를 지키기 위해서다. 재시도가 응답 없이
 // 끊겨 화면이 그 키로 다시 보낼 때 서버에 저장된 키와 같아야 한다. 재시도는 한 번뿐이라 401이 반복돼도 무한히 돌지 않는다.
-async function sendWithAuth<T extends z.ZodType>(options: SendOptions<T>): Promise<z.output<T>> {
+async function sendWithAuth<O extends { headers?: Record<string, string> }, R>(
+  options: O,
+  sender: (options: O) => Promise<R>,
+): Promise<R> {
   const accessToken = await currentAccessToken()
   try {
-    return await send(withBearer(options, accessToken))
+    return await sender(withBearer(options, accessToken))
   } catch (error) {
     if (!isApiError(error) || error.status !== 401) {
       throw error
     }
     const renewedToken = await renewAfterUnauthorized(accessToken)
-    return await sendRenewed(withBearer(options, renewedToken), renewedToken)
+    return await sendRenewed(withBearer(options, renewedToken), renewedToken, sender)
   }
 }
 
@@ -88,12 +99,13 @@ async function renewAfterUnauthorized(rejectedToken: string): Promise<string> {
   return refreshAccessToken()
 }
 
-async function sendRenewed<T extends z.ZodType>(
-  options: SendOptions<T>,
+async function sendRenewed<O, R>(
+  options: O,
   renewedToken: string,
-): Promise<z.output<T>> {
+  sender: (options: O) => Promise<R>,
+): Promise<R> {
   try {
-    return await send(options)
+    return await sender(options)
   } catch (error) {
     // 방금 받은 토큰도 거절되면 이 세션으로는 더 할 수 없다. 로그인 화면으로 보내도록 세션을 지운다.
     // 재시도를 기다리는 사이 로그아웃하거나 다시 로그인했으면 지금 세션은 이 요청과 상관없으니 건드리지 않는다.
@@ -108,10 +120,10 @@ async function sendRenewed<T extends z.ZodType>(
   }
 }
 
-function withBearer<T extends z.ZodType>(
-  options: SendOptions<T>,
+function withBearer<O extends { headers?: Record<string, string> }>(
+  options: O,
   accessToken: string,
-): SendOptions<T> {
+): O {
   return { ...options, headers: { ...options.headers, Authorization: `Bearer ${accessToken}` } }
 }
 

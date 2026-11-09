@@ -7,6 +7,8 @@ import { resetUserQueries } from '@/api/queryClient'
 import { useBookingStep } from '@/app/bookingStep'
 import { useIsBleedLayout } from '@/app/pageLayout'
 import { paths } from '@/app/paths'
+import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
+import { AssistantWidget } from '@/components/assistant/AssistantWidget'
 import { HeaderSlotContext } from '@/components/layout/headerSlotContext'
 import { Logo } from '@/components/layout/Logo'
 import { SiteFooter } from '@/components/layout/SiteFooter'
@@ -105,19 +107,10 @@ export function AppLayout() {
                 >
                   공연
                 </NavLink>
-                <NavLink
-                  to={paths.help}
-                  className={({ isActive }) =>
-                    cn(
-                      'relative rounded-sm py-1 type-body font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      isActive
-                        ? 'text-gray-900 after:absolute after:inset-x-0 after:-bottom-4 after:h-0.5 after:bg-gray-900'
-                        : 'text-gray-500 hover:text-gray-900',
-                    )
-                  }
-                >
+                {/* 예매 문의는 페이지가 아니라 오른쪽 아래 위젯을 연다 */}
+                <AssistantOpenButton className="relative rounded-sm py-1 type-body font-semibold text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring">
                   예매 문의
-                </NavLink>
+                </AssistantOpenButton>
               </nav>
             ) : null}
           </div>
@@ -185,6 +178,7 @@ export function AppLayout() {
       {/* 예매 흐름 화면에서는 지금 단계에 집중하도록 사이트 아래 정보를 두지 않는다 */}
       {bookingStep === null ? <SiteFooter /> : null}
       <Toaster />
+      <AssistantWidget />
       {demoMode && (
         <Suspense fallback={null}>
           <RequestLogPanel />

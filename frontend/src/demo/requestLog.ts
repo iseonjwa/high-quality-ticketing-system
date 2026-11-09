@@ -29,13 +29,22 @@ export const requestLogStore = createStore<RequestLogState>()(() => ({ entries: 
 
 let nextId = 1
 
-export function recordRequest(entry: Omit<RequestLogEntry, 'id'>) {
+// 기록한 항목의 id를 돌려준다. 시연 모드가 꺼져 있으면 남기지 않고 null이다
+export function recordRequest(entry: Omit<RequestLogEntry, 'id'>): number | null {
   if (!isDemoModeEnabled()) {
-    return
+    return null
   }
   const recorded: RequestLogEntry = { ...entry, id: nextId++ }
   requestLogStore.setState((state) => ({
     entries: [recorded, ...state.entries].slice(0, REQUEST_LOG_LIMIT),
+  }))
+  return recorded.id
+}
+
+// 이미 남긴 항목에 traceId를 채운다. 스트림 응답은 공통 응답 형식이 없어 첫 이벤트(meta)에서야 traceId를 안다
+export function setRequestTraceId(id: number, traceId: string) {
+  requestLogStore.setState((state) => ({
+    entries: state.entries.map((entry) => (entry.id === id ? { ...entry, traceId } : entry)),
   }))
 }
 

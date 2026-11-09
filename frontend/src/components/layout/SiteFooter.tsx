@@ -1,5 +1,7 @@
 import { Link } from 'react-router'
 import { paths } from '@/app/paths'
+import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
+import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
 import { Logo } from '@/components/layout/Logo'
 
 const REPOSITORY_URL = 'https://github.com/iseonjwa/high-quality-ticketing-system'
@@ -28,9 +30,7 @@ export function SiteFooter() {
             <li>
               <FooterLink to={paths.me}>내 정보·자동결제 카드</FooterLink>
             </li>
-            <li>
-              <FooterLink to={paths.help}>예매 문의</FooterLink>
-            </li>
+            <AssistantFooterItem />
           </ul>
         </nav>
         <div className="grid content-start gap-3">
@@ -59,12 +59,22 @@ export function SiteFooter() {
   )
 }
 
+// 예매 문의는 위젯을 연다. 위젯이 없는 화면이면 항목을 두지 않는다
+function AssistantFooterItem() {
+  const { available } = useAssistantWidget()
+  return available ? (
+    <li>
+      <AssistantOpenButton className={FOOTER_LINK}>예매 문의</AssistantOpenButton>
+    </li>
+  ) : null
+}
+
+const FOOTER_LINK =
+  'rounded-sm text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring'
+
 function FooterLink({ to, children }: { to: string; children: string }) {
   return (
-    <Link
-      to={to}
-      className="rounded-sm text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <Link to={to} className={FOOTER_LINK}>
       {children}
     </Link>
   )
