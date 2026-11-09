@@ -71,12 +71,12 @@ describe('예매 흐름(좌석 → 결제 → 결과)', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        `${CONCERT.title} · ${formatDateTime(CONCERT.startsAt)} · ${CONCERT.venueName}`,
-      ),
-    ).toBeInTheDocument()
     const tickets = screen.getByRole('region', { name: '티켓 2매' })
+    // 포스터 위 꾸밈 제목과 겹치지 않게 제목 줄(p)만 찾는다
+    expect(within(tickets).getByText(CONCERT.title, { selector: 'p' })).toBeInTheDocument()
+    expect(
+      within(tickets).getByText(`${formatDateTime(CONCERT.startsAt)} · ${CONCERT.venueName}`),
+    ).toBeInTheDocument()
     expect(within(tickets).getAllByText(/티켓 번호/)).toHaveLength(2)
     expect(within(tickets).getByText('예매 확정')).toBeInTheDocument()
     const steps = screen.getByRole('list', { name: '예매 단계' })

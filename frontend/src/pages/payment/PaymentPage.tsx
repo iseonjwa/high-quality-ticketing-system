@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { CreditCard, Loader2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
@@ -9,7 +9,7 @@ import { removeHeldSeats, type HeldSeat } from '@/auth/heldSeats'
 import { HeaderSlot } from '@/components/layout/HeaderSlot'
 import { ConcertHeader } from '@/components/ticketing/ConcertHeader'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
-import { GradeBadge } from '@/components/ticketing/GradeBadge'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { TimeChip } from '@/components/ticketing/TimeChip'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -223,7 +223,12 @@ function endsHold(state: PaymentFlowState): boolean {
 function headingOf(concert: QueueConcert | null): ReservationHeading | null {
   return concert === null
     ? null
-    : { title: concert.title, startsAt: concert.startsAt, venueName: concert.venueName }
+    : {
+        title: concert.title,
+        startsAt: concert.startsAt,
+        venueName: concert.venueName,
+        concertId: concert.concertId,
+      }
 }
 
 function PaymentForm({
@@ -248,6 +253,7 @@ function PaymentForm({
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
   const alertRef = useRef<HTMLDivElement>(null)
+  const completionStartedRef = useRef(false)
   const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
   const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
 
@@ -269,8 +275,11 @@ function PaymentForm({
 
   // 확정을 보면 결과 화면으로 바꿔 들어간다. 뒤로 가면 공연 상세다.
   // 결과 화면이 쓰는 예매 상세 캐시에 확정된 예매를 넣어 HELD가 먼저 보이지 않게 한다
+  // Note: 결과 화면은 lazy라 이동이 끝나기 전까지 이 화면이 남아 다시 그려진다. 한 번만 이동하지 않으면
+  // 다시 그려질 때마다 이동을 새로 시작해 화면 코드를 받는 이동이 계속 취소된다.
   useEffect(() => {
-    if (state.step === 'confirmed') {
+    if (state.step === 'confirmed' && !completionStartedRef.current) {
+      completionStartedRef.current = true
       queryClient.setQueryData(reservationQueryKeys.detail(reservationId), state.reservation)
       // 내 예매 목록은 다음에 열 때 다시 받게 해 "결제 대기"가 남아 보이지 않게 한다
       void queryClient.invalidateQueries({ queryKey: reservationQueryKeys.mine })
@@ -316,7 +325,7 @@ function PaymentForm({
       )}
       <div className="grid items-start gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_340px]">
         <section aria-labelledby="payment-title">
-          <Card className="gap-5 px-4 py-5 @min-[40rem]:p-6">
+          <Card className="gap-5 rounded-[22px] px-4 py-5 @min-[40rem]:p-6">
             <div>
               <h2 id="payment-title" className="type-heading text-gray-900">
                 결제
@@ -337,7 +346,7 @@ function PaymentForm({
             </div>
             <fieldset className="grid gap-2">
               <legend className="mb-2 type-body-sm font-semibold text-gray-900">결제 수단</legend>
-              <label className="grid cursor-pointer grid-cols-[auto_1fr] items-center gap-x-3 gap-y-0.5 rounded-md border border-primary-600 bg-primary-50 p-4 shadow-[inset_0_0_0_1px_var(--primary-600)]">
+              <label className="grid cursor-pointer grid-cols-[auto_auto_1fr] items-center gap-x-3.5 gap-y-0.5 rounded-[16px] border border-primary-600 bg-primary-50 px-4 py-3.5 shadow-[inset_0_0_0_1px_var(--primary-600)]">
                 <input
                   type="radio"
                   name="payment-method"
@@ -345,7 +354,8 @@ function PaymentForm({
                   defaultChecked
                   className="row-span-2 size-[18px] accent-primary-600"
                 />
-                <span className="type-body font-bold text-gray-900">신용·체크카드</span>
+                <CreditCard aria-hidden="true" className="row-span-2 size-7 text-gray-900" />
+                <span className="type-body font-semibold text-gray-900">신용·체크카드</span>
                 <span className="type-caption text-gray-500">
                   시연용 결제라 카드 정보를 받지 않아요
                 </span>
@@ -365,58 +375,60 @@ function PaymentForm({
           aria-labelledby="payment-summary-title"
           className="@min-[60rem]:sticky @min-[60rem]:top-[88px]"
         >
-          <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-            <div className="flex items-baseline justify-between">
-              <h2
-                ref={summaryHeadingRef}
-                id="payment-summary-title"
-                tabIndex={-1}
-                className="type-heading text-gray-900 outline-none"
-              >
-                결제 금액
-              </h2>
-              <span className="type-body-sm text-gray-500 tabular-nums">
-                <b className="text-gray-900">{source.seats.length}</b>매
-              </span>
-            </div>
-            <ul className="grid gap-2">
-              {source.seats.map((seat) => (
-                <li
-                  key={seat.seatId}
-                  className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md bg-gray-50 px-3 py-2.5 type-body-sm"
+          {/* 티켓 모양: 절취선 위에 좌석별 금액, 아래에 합계와 결제 버튼을 둔다 */}
+          <Card className="gap-0 overflow-visible rounded-[22px] p-0">
+            <div className="grid gap-4 px-4 pt-5 pb-6 @min-[40rem]:px-6 @min-[40rem]:pt-6">
+              <div className="flex items-baseline justify-between">
+                <h2
+                  ref={summaryHeadingRef}
+                  id="payment-summary-title"
+                  tabIndex={-1}
+                  className="type-heading text-gray-900 outline-none"
                 >
-                  <GradeBadge grade={seat.grade} />
-                  <span className="tabular-nums">
-                    {seat.section}구역{' '}
-                    <b className="font-semibold text-gray-900">
-                      {seat.row}열 {seat.number}번
-                    </b>
-                  </span>
-                  <span className="tabular-nums">{formatWon(seat.price)}</span>
-                </li>
-              ))}
-            </ul>
-            <dl className="flex items-baseline justify-between border-t border-gray-100 pt-4">
-              <dt className="type-body-sm text-gray-500">합계</dt>
-              <dd className="text-[22px] leading-[30px] font-extrabold text-gray-900 tabular-nums">
-                {formatWon(source.amount)}
-              </dd>
-            </dl>
-            {/* 확인 중 표시를 끼워 넣으면 화면 낭독기가 읽지 않을 수 있어, 늘 있는 알림 영역의 글자만 바꾼다 */}
-            <p role="status" className="sr-only">
-              {statusText(state)}
-            </p>
-            <PayAction
-              state={state}
-              amount={source.amount}
-              disabled={notPayable || tokenExpired}
-              onPay={submit}
-            />
-            {showTimer && !tokenExpired ? (
-              <p className="type-caption text-gray-500">
-                결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.
+                  결제 금액
+                </h2>
+                <span className="type-body-sm text-gray-500 tabular-nums">
+                  <b className="text-gray-900">{source.seats.length}</b>매
+                </span>
+              </div>
+              <ul className="grid gap-2.5 type-body-sm">
+                {source.seats.map((seat) => (
+                  <li key={seat.seatId} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-gray-700 tabular-nums">
+                      {seat.section}구역 {seat.row}열 {seat.number}번
+                      <span className="text-gray-500"> · {seat.grade}석</span>
+                    </span>
+                    <span className="shrink-0 text-gray-900 tabular-nums">
+                      {formatWon(seat.price)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <TicketPerforation />
+            <div className="grid gap-4 px-4 pt-5 pb-5 @min-[40rem]:px-6 @min-[40rem]:pb-6">
+              <dl className="flex items-baseline justify-between">
+                <dt className="type-body-sm text-gray-500">합계</dt>
+                <dd className="text-[28px] leading-9 font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
+                  {formatWon(source.amount)}
+                </dd>
+              </dl>
+              {/* 확인 중 표시를 끼워 넣으면 화면 낭독기가 읽지 않을 수 있어, 늘 있는 알림 영역의 글자만 바꾼다 */}
+              <p role="status" className="sr-only">
+                {statusText(state)}
               </p>
-            ) : null}
+              <PayAction
+                state={state}
+                amount={source.amount}
+                disabled={notPayable || tokenExpired}
+                onPay={submit}
+              />
+              {showTimer && !tokenExpired ? (
+                <p className="text-center type-caption text-gray-500">
+                  결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.
+                </p>
+              ) : null}
+            </div>
           </Card>
         </aside>
       </div>
@@ -443,7 +455,7 @@ function PayAction({
       return (
         <Button
           size="lg"
-          className="w-full"
+          className="w-full rounded-full"
           disabled={disabled || state.step === 'tokenExpired'}
           loading={state.step === 'paying'}
           onClick={onPay}
@@ -454,14 +466,14 @@ function PayAction({
     case 'pgUnavailable':
     case 'failed':
       return (
-        <Button size="lg" className="w-full" disabled={disabled} onClick={onPay}>
+        <Button size="lg" className="w-full rounded-full" disabled={disabled} onClick={onPay}>
           다시 결제하기
         </Button>
       )
     case 'slowConfirm':
       // 승인을 받지 못한 채 끝났다. 같은 키로 다시 보내면 서버가 처음 결과를 돌려준다(결제가 없었으면 결제한다)
       return state.approved ? null : (
-        <Button size="lg" variant="outline" className="w-full" onClick={onPay}>
+        <Button size="lg" variant="outline" className="w-full rounded-full" onClick={onPay}>
           결제 결과 확인하기
         </Button>
       )

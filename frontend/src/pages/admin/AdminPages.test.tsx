@@ -6,7 +6,7 @@ import { routes } from '@/app/routes'
 import { mockDb } from '@/mocks/db'
 import { mockServer } from '@/mocks/server'
 import { CONCERT_ID, recordRequests, requestStarted, signInAsAdmin, signInAsDemo } from '@/test/api'
-import { renderRoutes } from '@/test/render'
+import { renderRoutesReady } from '@/test/render'
 
 const UNKNOWN_OUTCOME_FAILURE = {
   status: 504,
@@ -53,7 +53,7 @@ describe('운영자 경로 보호', () => {
     async (path) => {
       await signInAsDemo()
       const adminPosts = recordAdminPosts()
-      const { router } = renderRoutes(routes, path)
+      const { router } = await renderRoutesReady(routes, path)
 
       expect(await screen.findByText(NOT_ADMIN_NOTICE)).toBeInTheDocument()
       expect(router.state.location.pathname).toBe(path)
@@ -63,10 +63,10 @@ describe('운영자 경로 보호', () => {
     },
   )
 
-  it('로그인하지 않았으면 운영 경로를 돌아올 곳으로 넘기고 로그인 화면으로 보낸다', () => {
-    const { router } = renderRoutes(routes, '/admin/concerts/new')
+  it('로그인하지 않았으면 운영 경로를 돌아올 곳으로 넘기고 로그인 화면으로 보낸다', async () => {
+    const { router } = await renderRoutesReady(routes, '/admin/concerts/new')
 
-    expect(router.state.location.pathname).toBe('/login')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(router.state.location.state).toEqual({ from: '/admin/concerts/new' })
   })
 })
@@ -75,7 +75,7 @@ describe('운영 첫 화면', () => {
   it('공연 목록을 보이고 각 줄은 회차 관리 화면으로, 공연 등록은 등록 화면으로 간다', async () => {
     await signInAsAdmin()
     const user = userEvent.setup()
-    const { router } = renderRoutes(routes, '/admin')
+    const { router } = await renderRoutesReady(routes, '/admin')
 
     for (const concert of mockDb.concerts) {
       const link = await screen.findByRole('link', { name: new RegExp(concert.title) })
@@ -92,7 +92,7 @@ describe('공연 등록', () => {
     await signInAsAdmin()
     const adminPosts = recordAdminPosts()
     const user = userEvent.setup()
-    renderRoutes(routes, '/admin/concerts/new')
+    await renderRoutesReady(routes, '/admin/concerts/new')
 
     await user.click(await screen.findByRole('button', { name: '등록하기' }))
 
@@ -104,7 +104,7 @@ describe('공연 등록', () => {
     await signInAsAdmin()
     const user = userEvent.setup()
     // 운영 첫 화면에서 등록 화면으로 들어가야 등록 화면이 history에 남는지 알 수 있다
-    const { router } = renderRoutes(routes, '/admin')
+    const { router } = await renderRoutesReady(routes, '/admin')
 
     await user.click(await screen.findByRole('link', { name: '공연 등록' }))
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
@@ -132,7 +132,7 @@ describe('공연 등록: 결과를 모를 때', () => {
       ),
     )
     const user = userEvent.setup()
-    const { router } = renderRoutes(routes, '/admin/concerts/new')
+    const { router } = await renderRoutesReady(routes, '/admin/concerts/new')
 
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
     await user.click(screen.getByRole('button', { name: '등록하기' }))
@@ -147,7 +147,7 @@ describe('공연 등록: 결과를 모를 때', () => {
     await signInAsAdmin()
     mockServer.use(http.post('/api/v1/admin/concerts', () => HttpResponse.error()))
     const user = userEvent.setup()
-    const { router } = renderRoutes(routes, '/admin/concerts/new')
+    const { router } = await renderRoutesReady(routes, '/admin/concerts/new')
 
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
     await user.click(screen.getByRole('button', { name: '등록하기' }))
@@ -161,7 +161,7 @@ describe('회차 추가', () => {
   async function openConcert() {
     await signInAsAdmin()
     const user = userEvent.setup()
-    const rendered = renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+    const rendered = await renderRoutesReady(routes, `/admin/concerts/${CONCERT_ID}`)
     await screen.findByRole('heading', { name: '회차 추가' })
     return { user, ...rendered }
   }
@@ -255,7 +255,7 @@ describe('회차 추가: 결과를 모를 때', () => {
       ),
     )
     const user = userEvent.setup()
-    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+    await renderRoutesReady(routes, `/admin/concerts/${CONCERT_ID}`)
     await screen.findByRole('heading', { name: '회차 추가' })
     const detailRequests = recordRequests(`/api/v1/concerts/${CONCERT_ID}`)
 
@@ -276,7 +276,7 @@ describe('좌석 만들기', () => {
   async function openConcert() {
     await signInAsAdmin()
     const user = userEvent.setup()
-    renderRoutes(routes, `/admin/concerts/${CONCERT_ID}`)
+    await renderRoutesReady(routes, `/admin/concerts/${CONCERT_ID}`)
     await screen.findByRole('heading', { name: '회차 추가' })
     return user
   }
@@ -433,7 +433,7 @@ describe('없는 공연', () => {
     '%s 는 찾는 공연이 없다고 안내한다',
     async (path) => {
       await signInAsAdmin()
-      renderRoutes(routes, path)
+      await renderRoutesReady(routes, path)
 
       expect(await screen.findByText(/찾는 공연이 없어요/)).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '회차 등록' })).not.toBeInTheDocument()
@@ -444,7 +444,7 @@ describe('없는 공연', () => {
 describe('내 정보의 운영 화면 링크', () => {
   it('운영자에게만 보인다', async () => {
     await signInAsAdmin()
-    renderRoutes(routes, '/me')
+    await renderRoutesReady(routes, '/me')
 
     const link = await screen.findByRole('link', { name: '운영 화면' })
     expect(link).toHaveAttribute('href', '/admin')
@@ -452,7 +452,7 @@ describe('내 정보의 운영 화면 링크', () => {
 
   it('일반 사용자에게는 보이지 않는다', async () => {
     await signInAsDemo()
-    renderRoutes(routes, '/me')
+    await renderRoutesReady(routes, '/me')
 
     await screen.findByText('일반 회원')
     expect(screen.queryByRole('link', { name: '운영 화면' })).not.toBeInTheDocument()

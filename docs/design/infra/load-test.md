@@ -1,6 +1,6 @@
 # 부하 측정 설계
 
-결론: 부하 도구는 k6이고, 측정할 때만 같은 VPC에 임시 발생기 EC2를 띄워 Gateway를 내부 주소로 부른다. 결과는 Prometheus remote write로 서버 지표와 같은 Grafana에서 본다. 결정은 2026-11-03에 사용자가 했고 기록은 ADR 0046이다([README](README.md)). 값은 따로 적지 않은 한 `[가정]`이다.
+결론: 부하 도구는 k6이고, 같은 VPC의 팀 공용 발생기 EC2(측정 날 사이 중지)에서 Gateway를 내부 주소로 부른다. 결과는 Prometheus remote write로 서버 지표와 같은 Grafana에서 본다. 결정은 2026-11-03에 사용자가 했고 기록은 ADR 0046이다([README](README.md)). 값은 따로 적지 않은 한 `[가정]`이다.
 
 ## 1. 도구와 결과 보관
 
@@ -10,7 +10,8 @@
 
 ## 2. 발생기
 
-- 측정할 때만 같은 리전·같은 VPC에 연산형 임시 EC2(c6i.large급 `[가정]`)를 띄우고 끝나면 지운다.
+- 같은 리전·같은 VPC에 연산형 EC2를 둔다. 2026-11-09에 팀 공용 발생기 `iseonjwa-loadgen`(`c6i.xlarge`)을 만들었고, 측정 날 사이에는 중지하고 팀 마지막 측정 뒤 종료한다. 쓰는 규칙과 11/9 준비 결과는 [`guides/loadgen.md`](../../guides/loadgen.md)에 있다.
+- k6 주소는 사설 IP(`172.31.4.93`)만 쓴다. 공인 IP로 보내면 같은 서브넷이어도 GB당 0.01달러가 양방향으로 붙고, 보안 그룹 규칙(소스 = 발생기 보안 그룹)에도 막힌다.
 - Gateway는 VPC 내부 주소로 부른다. 배포 EC2 보안그룹은 발생기 보안그룹에서 8080만 허용한다([deployment.md](deployment.md) 3절). SA 3-1과 9-2의 "측정 기기 IP 허용"을 같은 VPC 방식으로 구체화한 것이다.
 - 이 경로는 프론트 nginx를 거치지 않는다. 부하 도구는 Gateway를 직접 부른다([ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절).
 - 발생기 자체의 한계(CPU 포화)로 측정이 왜곡되지 않는지 확인하는 방법은 미정이다. 발생기 CPU를 같이 기록하는 것을 기본으로 둔다.
@@ -27,7 +28,7 @@ AWS 콘솔은 계정 주인만 쓴다(팀원 콘솔 초대 안 함). 그래서 �
 | 키 페어 | `iseonjwa-deploy` | 계정 주인(또는 에이전트)이 처음 접속해 팀원 공개 키를 넣는다 |
 | 보안 그룹 | 새 `iseonjwa-loadgen-sg`: 인바운드 22 = 팀원 IP `/32`만 | 3절 표의 "발생기 EC2" 행 |
 | 배포 서버 보안 그룹 | `iseonjwa-deploy-sg`에 인바운드 TCP 8080과 9090, 소스 = 보안 그룹 `iseonjwa-loadgen-sg` | 측정 중에만 둔다. 8080은 Gateway, 9090은 k6 결과를 Prometheus remote write로 보내는 길이다 |
-| 발생기 SSH 키 | 측정을 맡은 팀원의 공개 키를 발생기 `~/.ssh/authorized_keys`에 더한다 | 계정 주인이 만든 뒤 팀원이 직접 접속한다 |
+| 발생기 SSH 키 | 배포 서버 `~/.ssh/authorized_keys`(팀원 키)를 발생기로 복사한다 | 팀 공용이라 팀원 모두 직접 접속한다(2026-11-09 변경) |
 | 디스크 | gp3 20GB | k6 이미지와 결과 파일이면 충분하다 |
 
 **유형:** 좌석 선점 K1은 좌석 조회 응답이 약 830KB이다. 초당 100건이면 응답만 초당 약 83MB(약 0.66Gbps)다.
@@ -44,7 +45,7 @@ AWS 콘솔은 계정 주인만 쓴다(팀원 콘솔 초대 안 함). 그래서 �
    - 저장소 clone
    - 팀원 공개 키 등록
    - `docker pull grafana/k6:1.0.0`
-3. **측정 모드를 켠다**(계정 주인이 배포 서버에서): `script/loadtest/measure-mode.sh on [덮어쓰기 파일...]`. Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로 준다.
+3. **측정 모드를 켠다**(그날 측정자가 배포 서버에서, ADR 0046 변경 2026-11-09. 켜기 전에 `measure-mode.sh status`로 다른 사람이 켜 두지 않았는지 본다): `script/loadtest/measure-mode.sh on [덮어쓰기 파일...]`. Q2는 `loadtest/k6/compose.queue-hold.yml`을 인자로 준다.
 4. **키를 옮긴다**: 서버의 `~/iseonjwa/.env.measure`를 발생기 저장소 루트의 `.env`로 옮긴다. 내 노트북을 거치는 방법이 가장 단순하다. 키 파일이 노트북에 남지 않게 옮긴 뒤 지운다.
    ```bash
    scp iseonjwa:iseonjwa/.env.measure /tmp/measure.env && scp /tmp/measure.env <발생기 접속 주소>:iseonjwa/.env && rm /tmp/measure.env
@@ -55,8 +56,8 @@ AWS 콘솔은 계정 주인만 쓴다(팀원 콘솔 초대 안 함). 그래서 �
 6. 측정하는 동안에는 main 릴리스를 하지 않는다. Jenkins가 main을 2분마다 확인해 새 커밋이 있으면 배포하고, 그러면 측정 모드가 풀린다.
 7. 끝나면 결과 파일(`results/`)을 내려받는다.
 8. **측정 모드를 끈다**: `script/loadtest/measure-mode.sh off`. 운영 키와 샘플링 1.0, 닫힌 9090으로 돌아오고 스모크를 돈다.
-9. 발생기의 `.env`를 지우고 발생기를 **종료(Terminate)**한다. 발생기에는 지킬 데이터가 없어 종료가 맞다.
-10. 배포 서버 보안 그룹의 8080·9090 규칙과 `iseonjwa-loadgen-sg`도 지운다.
+9. 측정자 폴더의 `.env`를 지운다. 그날 측정이 모두 끝났으면 발생기를 **중지(Stop)**한다. 팀 공용이라 측정 날 사이에는 중지만 한다(2026-11-09 변경).
+10. 팀 마지막 측정 뒤에는 발생기를 **종료(Terminate)**하고 배포 서버 보안 그룹의 8080·9090 규칙과 `iseonjwa-loadgen-sg`를 지운다. 발생기에는 지킬 데이터가 없어 종료가 맞다.
 
 ## 3. 범위와 분담
 

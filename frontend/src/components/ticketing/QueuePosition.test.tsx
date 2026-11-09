@@ -12,11 +12,21 @@ function liveRegion() {
 }
 
 describe('QueuePosition', () => {
+  it('큰 순번(7자리)도 숫자 중간에서 줄바꿈하지 않게 한 덩어리로 둔다', () => {
+    render(<QueuePosition position={1234567} estimatedWaitSeconds={3600} />)
+
+    // 전역 overflow-wrap: anywhere가 숫자를 끊지 않게 숫자 덩어리는 nowrap이다(실제 폭은 브라우저에서 확인)
+    const number = screen.getByText('1,234,567')
+    expect(number).toHaveClass('whitespace-nowrap')
+    expect(number).toHaveTextContent('1,234,567번')
+  })
+
   it('순번과 예상 대기 시간을 문구로 보인다', () => {
     render(<QueuePosition position={15234} estimatedWaitSeconds={300} />)
 
     expect(liveRegion()).toHaveTextContent('내 순번 15,234번')
-    expect(screen.getByText(/예상 대기/)).toHaveTextContent('예상 대기 약 5분')
+    // 이름(예상 대기)과 값(약 5분)을 줄을 나눠 그리므로 둘을 묶은 문단으로 확인한다
+    expect(screen.getByText('예상 대기').closest('p')).toHaveTextContent('예상 대기 약 5분')
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 

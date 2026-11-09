@@ -8,7 +8,14 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | '지금 예매 중' 카드를 줄였다는 AI의 말과 달리 포스터가 그대로 길었던 것을 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-09-home-card-shorten-not-applied.md) |
+| 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-home-renewal-draft-b-light-dark.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-08-deploy-measure-token-key-swap.md) |
+| 2026-11-09 | 토스 어댑터의 orderId를 토큰에서 만들고, 늦은 승인 방지는 Prevented를 내지 않으며, 빌링은 지원하지 않고, 배포 기본은 mock으로 한 추천안을 수용함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-toss-adapter-order-id-and-late-approval.md) |
+| 2026-11-09 | 결제 건별 슬랙 알림(ISE-183)의 세부 여섯 가지(결제 시각 표기, 금액 불일치 합치기, 해결 메시지 없음, 대사 10건 상한, 환불 문구)를 추천안대로 정함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-payment-event-alert-details.md) |
+| 2026-11-09 | TX1 커밋 응답 유실 대책으로 AI가 낸 "재시도가 REQUESTED를 이어받아 승인" 방안을 거부하고 한계를 ADR로 기록함(ISE-169) | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-09-ise169-reject-retry-takeover.md) |
+| 2026-11-09 | 백로그 설계안 중 AI 상담은 Claude API 키를 받아 Haiku 5.5로 시작하고, 토스 테스트 키는 수요일에 받고, 시연 장애 버튼은 Gateway 운영자 경로로 두기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-backlog-design-decisions.md) |
+| 2026-11-08 | 프론트 사용자가 API를 직접 쏘는 사람보다 대기열에 늦게 선다는 문제를 제기하고 AI 답(rate limit·사전 대기실 등)을 받았으나 기록만 남김 | Claude Code | 보류 | 예 | 후보 | [기록](2026-11-08-queue-fairness-direct-api-record-only.md) |
 | 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-grafana-link-deploy-host.md) |
 | 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-05-deploy-g1-after-rehearsal.md) |
