@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: assistant-service
+  profiles:
+    default: local
+  # LLM 대기가 길어도 요청 스레드가 막히지 않게 가상 스레드를 쓴다. 동시 호출 수는 세마포어가 따로 제한한다
+  threads:
+    virtual:
+      enabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: "!test"
+    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8888}?fail-fast=true&max-attempts=6&initial-interval=1000&max-interval=5000&multiplier=1.5"
+server:
+  port: 8095

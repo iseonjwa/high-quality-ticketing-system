@@ -6,14 +6,14 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } fro
 // 설계 4절: 바탕 -50, 글자·아이콘 -600(경고는 글자 -700). 색에만 기대지 않도록 변형마다 아이콘이 다르다.
 // 테두리는 샘플(.alert-warning #FFD8A8, .alert-danger #F8C4CA) 값이다. 샘플에 없는 정보·성공은 글자색을 옅게 쓴다.
 const alertVariants = cva(
-  'relative flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left type-body-sm',
+  '@container/alert relative flex w-full flex-wrap items-start gap-3 rounded-md border px-4 py-3 text-left type-body-sm',
   {
     variants: {
       variant: {
         info: 'border-info-600/20 bg-info-50 text-info-600',
         success: 'border-success-600/20 bg-success-50 text-success-600',
-        warning: 'border-[#ffd8a8] bg-warning-50 text-warning-700',
-        danger: 'border-[#f8c4ca] bg-danger-50 text-danger-600',
+        warning: 'border-[#ffd8a8] bg-warning-50 text-warning-700 dark:border-warning-700/30',
+        danger: 'border-[#f8c4ca] bg-danger-50 text-danger-600 dark:border-danger-600/30',
       },
     },
     defaultVariants: { variant: 'info' },
@@ -63,21 +63,34 @@ function Alert({
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">{children}</div>
-      {action ? (
-        <div data-slot="alert-action" className="shrink-0">
-          {action}
-        </div>
-      ) : null}
-      {onClose ? (
-        <button
-          type="button"
-          data-slot="alert-close"
-          aria-label="닫기"
-          onClick={onClose}
-          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-ring"
+      {/* 행동 버튼과 닫기를 한 묶음으로 둔다. 알림이 좁으면(28rem 미만: 좁은 화면, 옆 열) 묶음째 글자 아래 줄로 내려 글자가
+          한 줄에 몇 글자씩 접히지 않게 하고, 보이는 순서(행동 → 닫기)와 Tab 순서를 같게 둔다 */}
+      {action || onClose ? (
+        <div
+          className={cn(
+            'flex shrink-0 items-start gap-2',
+            // 닫기만 있으면 첫 줄 오른쪽에 그대로 둔다
+            action &&
+              '@max-[28rem]/alert:order-last @max-[28rem]/alert:basis-full @max-[28rem]/alert:pl-7',
+          )}
         >
-          <X className="size-4" aria-hidden="true" />
-        </button>
+          {action ? (
+            <div data-slot="alert-action" className="shrink-0">
+              {action}
+            </div>
+          ) : null}
+          {onClose ? (
+            <button
+              type="button"
+              data-slot="alert-close"
+              aria-label="닫기"
+              onClick={onClose}
+              className="-m-1 ml-auto shrink-0 rounded-sm p-1 outline-none hover:bg-current/10 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

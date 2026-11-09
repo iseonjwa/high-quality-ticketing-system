@@ -31,6 +31,8 @@ afterEach(() => {
   sessionStorage.clear()
   // 자동결제 카드 기록(billingKeyRecord)이 localStorage에 있다. 테스트끼리 섞이지 않게 함께 비운다
   localStorage.clear()
+  // 화면 모드 테스트가 <html data-theme>을 바꾼다
+  delete document.documentElement.dataset.theme
 })
 
 afterAll(() => {

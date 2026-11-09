@@ -46,13 +46,13 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 
 | 계기 | 하는 일 | 이유 |
 |---|---|---|
-| main push(dev → main 릴리스 머지) | 이미지 8개를 빌드해 GHCR에 올린다 | Jenkins가 main 커밋마다 그 SHA의 이미지를 배포하고 되돌린다. 그래서 paths 필터 없이 매번 8개를 모두 만든다 |
+| main push(dev → main 릴리스 머지) | 이미지 9개를 빌드해 GHCR에 올린다 | Jenkins가 main 커밋마다 그 SHA의 이미지를 배포하고 되돌린다. 그래서 paths 필터 없이 매번 9개를 모두 만든다 |
 | PR(Dockerfile, `.dockerignore`, `docker-bake.hcl`, `frontend/Dockerfile`, `frontend/nginx/**`, 프론트 의존성 파일(`package.json`, `package-lock.json`, `.npmrc`, `.nvmrc`), 이 워크플로가 바뀐 경우) | 빌드만 하고 올리지 않는다 | 이미지 정의가 깨진 것을 main에 가기 전에 본다. 필수 검사가 아니다(paths 필터 워크플로라 필수로 두면 해당 없는 PR의 머지가 막힌다) |
 | 수동 실행(Actions → images → Run workflow) | main에서 돌리면 그 시점 main SHA로 다시 올린다. 다른 브랜치는 빌드만 한다 | 실패한 릴리스 이미지를 다시 만들 때 |
 
 **무엇을 만드나**
 
-- `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` 8개: `config-server`, `eureka`, `gateway`, `user-service`, `reservation-service`, `payment-service`, `mock-pg`, `frontend`.
+- `ghcr.io/iseonjwa/<서비스>:<40자 커밋 SHA>` 9개: `config-server`, `eureka`, `gateway`, `user-service`, `reservation-service`, `payment-service`, `mock-pg`, `assistant-service`, `frontend`.
 - 태그는 커밋 SHA 하나만 붙인다. `latest` 같은 움직이는 태그를 두지 않아, 서버에 무엇이 떠 있는지를 언제나 커밋 하나로 말할 수 있다.
 - `linux/amd64`로 만든다. 배포 EC2가 x86이다.
 - 라벨 `org.opencontainers.image.source`로 GHCR 패키지를 이 저장소에 연결하고, `org.opencontainers.image.revision`에 SHA를 남긴다.
@@ -65,7 +65,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 | buildx 준비 | BuildKit 빌더를 띄운다 | 여러 이미지를 한 번에(bake), 다른 CPU용(amd64)으로 만든다 |
 | 의존성 캐시 | `actions/cache`로 Gradle·npm 다운로드 폴더를 복원하고, `buildkit-cache-dance`가 그 폴더를 Dockerfile의 캐시 마운트(`/root/.gradle`, `/root/.npm`)에 넣었다가 빌드 뒤 꺼내 저장한다 | Dockerfile의 캐시 마운트는 빌드 머신 안에만 남는데, GitHub 실행기는 매번 새 머신이다. 넣지 않으면 매번 의존성을 처음부터 받는다 |
 | 로그인 | main일 때만 GHCR에 로그인한다 | PR은 올리지 않는다 |
-| bake | `docker-bake.hcl`의 8개를 한 번에 빌드한다 | 앱 7개의 builder 단계(`gradlew bootJar`)가 `APP_MODULE`과 무관해서 BuildKit이 한 번만 돌린다. 앱마다 워크플로 매트릭스로 나누면 같은 Gradle 빌드를 7번 한다. 2026-11-04 로컬에서 앱 두 개를 함께 빌드해 Gradle 단계가 한 번만 도는 것을 확인했다 |
+| bake | `docker-bake.hcl`의 9개를 한 번에 빌드한다 | 앱 8개의 builder 단계(`gradlew bootJar`)가 `APP_MODULE`과 무관해서 BuildKit이 한 번만 돌린다. 앱마다 워크플로 매트릭스로 나누면 같은 Gradle 빌드를 8번 한다. 2026-11-04 로컬에서 앱 두 개를 함께 빌드해 Gradle 단계가 한 번만 도는 것을 확인했다 |
 | 요약 | 올린(또는 빌드만 한) 이미지 이름을 실행 요약에 적는다 | Jenkins나 사람이 배포할 태그를 바로 찾는다 |
 
 - 동시 실행: PR은 같은 PR의 이전 실행을 취소한다. main은 커밋마다 그룹을 따로 둔다. GitHub은 한 그룹에 대기 실행을 하나만 남기고 먼저 기다리던 실행을 취소하므로, main을 그룹 하나로 두면 빌드 중에 머지가 연달아 올 때 가운데 커밋의 이미지가 빠진다.
@@ -81,7 +81,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 
 **첫 실행 뒤 할 일** (이 워크플로가 들어간 dev가 main으로 처음 릴리스된 뒤)
 
-1. 조직의 Packages에 8개가 생겼고 태그가 그 커밋 SHA인지 본다.
+1. 조직의 Packages에 9개가 생겼고 태그가 그 커밋 SHA인지 본다.
 2. 공개 여부를 정한다(ISE-174). 저장소가 공개이고 이미지에는 비밀값이 없다(비밀값은 서버 `.env`가 실행할 때 넣는다). 공개로 바꾸면 배포 EC2와 Jenkins가 토큰 없이 받는다. 바꾸는 곳은 패키지 설정의 Change visibility이고 조직 관리자 권한이 필요하다. 비공개로 두면 `read:packages` 토큰을 Jenkins Credentials에 둔다(4절).
 3. `docker pull ghcr.io/iseonjwa/gateway:<SHA>`로 받아지는지 확인한다.
 
@@ -98,7 +98,7 @@ TAG=local docker buildx bake -f docker-bake.hcl gateway \
 - 서비스 이미지는 `ghcr.io/iseonjwa/<서비스>:<커밋 SHA>` 형태를 쓴다(위 "이미지 워크플로").
 - 지금 `compose.yml`은 `build:`로 로컬에서 빌드한다. 배포 서버는 `compose.yml` 위에 `compose.deploy.yml`을 덮어 GHCR의 커밋 이미지를 받는다(아래 "배포 compose와 스크립트").
 - 인프라 이미지(PostgreSQL, Redis, Kafka 등)는 지금처럼 digest로 고정한다.
-- 현재 Dockerfile은 `APP_MODULE` 인자 하나로 모듈을 골라 `bootJar`를 만든다. 서비스 7개는 매트릭스가 아니라 bake 한 번으로 빌드한다(위 "이미지 워크플로").
+- 현재 Dockerfile은 `APP_MODULE` 인자 하나로 모듈을 골라 `bootJar`를 만든다. 서비스 8개는 매트릭스가 아니라 bake 한 번으로 빌드한다(위 "이미지 워크플로").
 - 프론트 SPA는 nginx 컨테이너가 서빙하고 `/api`를 Gateway로 중계한다([ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md), ISE-109). 배포 compose에 포함한다. `frontend/Dockerfile`(node 빌드 → nginx)과 compose의 `frontend` 서비스는 ISE-109에서 만들었다(로컬 `127.0.0.1:8000:80`, `mem_limit` 64m).
 
 ### 외부 노출 (SA 9-2)
@@ -125,10 +125,19 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다).
+
+### 결제 PG 모드 전환 (ISE-45)
+
+- 환경변수: `PAYMENT_PG_PROVIDER`(`mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
+- 전환 절차: (1) 진행 중인 결제가 없는지 확인한다(`payments`에 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 없고 `refunds`가 `REQUESTED`로 남지 않음). 진행 중인 결제가 있는 채로 바꾸면 이미 한 PG에 기록된 결제를 다른 PG에서 조회하게 되어 `NotFound`로 보인다. (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
+- 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
+- 토스 모드는 빌링(추첨 자동결제)을 지원하지 않는다. 추첨 시연은 `mock`에서 한다.
+- 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요
 
@@ -140,7 +149,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 | 파일 | 하는 일 |
 |---|---|
-| `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 8개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
+| `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 9개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
 | `script/deploy/deploy.sh <SHA>` | 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
@@ -150,10 +159,27 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
 
 - 앱 프로필은 `prod`다. `local` 전용 컨트롤러(`LocalIdentityController` 등)가 배포 서버에 뜨지 않게 하려는 것이다. `application-prod.yml`의 샘플링은 `${TRACING_SAMPLE_RATE:0.1}`로 바꾸고 배포 compose가 1.0을 넣는다(시연에서 traceId로 트레이스를 본다). 부하 측정 때는 0.01(`loadtest`)로 바꿀지 측정 이슈에서 정한다.
-- 상한 합계는 약 12.1GB(앱 4.8GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 77%로 SA 9-3의 75% 기준을 조금 넘는다. 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
+- 상한 합계는 약 12.5GB(앱 5.2GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 78%로 SA 9-3의 75% 기준을 조금 넘는다. 앱에 `assistant-service` 384m가 더해진 값이다(2026-11-09, ISE-126, 아래 "내부 AI 상담 배포"). 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
 - 2026-11-04 로컬에서 `IMAGE_TAG=<임의 SHA> docker compose -f compose.yml -f compose.deploy.yml config`로 합쳐진 설정(이미지, 빌드 없음, 상한, 포트, 프로필)을 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했고, `smoke.sh`를 로컬 nginx(8000)에 돌려 네 항목이 모두 통과했다. 실제 배포는 첫 main 릴리스로 GHCR 이미지가 생긴 뒤 확인한다.
 - `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
+- 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
+
+### 내부 AI 상담 배포 (ISE-126)
+
+설계는 [`design/assistant/README.md`](../assistant/README.md), 결정은 [ADR 0049](../../decisions/0049-assistant-service-claude-api.md)다.
+
+| 항목 | 값 |
+|---|---|
+| 서비스 | `assistant-service`(Spring Boot, 포트 8095, 관리 포트 9080). DB·Redis·Kafka를 쓰지 않는다. 설정 서버와 Eureka에만 의존한다 |
+| 컨테이너 | `mem_limit` 384m, `JAVA_TOOL_OPTIONS=-Xms96m -Xmx192m -XX:+UseG1GC`, `restart: unless-stopped`, 로그 20MB×5. 프로필 `prod` |
+| 이미지 | `ghcr.io/iseonjwa/assistant-service:<SHA>`. bake·images 워크플로·Jenkins 대기 목록에 더했다 |
+| Gateway | 라우트 `assistant`(`lb://assistant-service`, `Path=/api/v1/assistant/**`). 이 라우트만 응답 시한 10초·연결 1초다. 인증은 `AccessPolicy`가 목록에 없는 경로를 로그인 필요(USER)로 판정한다 |
+| 관측 | Prometheus 대상 `assistant-service:9080`, Alloy 로그 수집 대상에 추가 |
+| 키 | 서버 `.env`의 `ANTHROPIC_API_KEY`. `init-env.sh`가 빈 값으로 만들어 두고, 키를 받으면 사람이 채운 뒤 `docker compose ... up -d assistant-service`로 컨테이너만 다시 만든다. 비어 있으면 검색 모드로 답한다 |
+
+- 메모리: 앱 상한 합계가 384m 늘어 배포 EC2 상한 합계는 약 12.5GB다(위). 유휴 실제 사용량은 배포 뒤 `docker stats`로 잰다.
+- 첫 릴리스 뒤 `assistant-service` GHCR 패키지를 공개로 바꿔야 한다(위 "GHCR 패키지 공개").
 
 ### 서버 준비 순서 (배포 EC2, 처음 한 번)
 
@@ -184,13 +210,13 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | `infra/jenkins/compose.yml` | Jenkins EC2용. `127.0.0.1:8080`, `jenkins_home` 볼륨, `mem_limit` 1200m, `-Xmx768m`, `restart: unless-stopped`, 로그 20MB×5 |
 | `Jenkinsfile` | 파이프라인(아래) |
 
-**잡 흐름**: 폴링(`POLL_SCHEDULE`, 서버 기본 `H/2 * * * *`) → 커밋 정하기 → GHCR 이미지 8개 기다리기 → 배포 서버에 SSH로 `deploy.sh` → 슬랙. 슬랙은 세 번 알린다: 커밋을 정한 직후 `started`(배포 준비), 이미지 8개를 확인하고 SSH 배포를 시작하기 직전 `deploying`(배포 중), 끝나면 결과.
+**잡 흐름**: 폴링(`POLL_SCHEDULE`, 서버 기본 `H/2 * * * *`) → 커밋 정하기 → GHCR 이미지 9개 기다리기 → 배포 서버에 SSH로 `deploy.sh` → 슬랙. 슬랙은 세 번 알린다: 커밋을 정한 직후 `started`(배포 준비), 이미지 9개를 확인하고 SSH 배포를 시작하기 직전 `deploying`(배포 중), 끝나면 결과.
 
 1. 커밋 정하기: 매개변수 `TAG`가 비면 checkout한 main의 HEAD SHA, 있으면 그 40자 SHA(16진이 아니면 실패)를 쓴다. 커밋 제목도 함께 읽는다.
-2. 이미지 기다리기: 8개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, frontend)에 그 SHA 태그가 모두 생길 때까지 30초마다 확인하고 최대 20분 기다린다. 익명 토큰(`https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull`)으로 매니페스트에 HEAD 요청을 보내 200을 본다. 이 방식은 패키지가 공개일 때만 동작한다(아래 "GHCR 패키지 공개"). 아직 올라오지 않은 이미지는 토큰 요청이 403(`DENIED`)으로 끝나는데, 이것도 "없음"으로 센다.
+2. 이미지 기다리기: 9개(config-server, eureka, gateway, user-service, reservation-service, payment-service, mock-pg, assistant-service, frontend)에 그 SHA 태그가 모두 생길 때까지 30초마다 확인하고 최대 20분 기다린다. 익명 토큰(`https://ghcr.io/token?scope=repository:iseonjwa/<이름>:pull`)으로 매니페스트에 HEAD 요청을 보내 200을 본다. 이 방식은 패키지가 공개일 때만 동작한다(아래 "GHCR 패키지 공개"). 아직 올라오지 않은 이미지는 토큰 요청이 403(`DENIED`)으로 끝나는데, 이것도 "없음"으로 센다.
 3. 배포: `sshagent(['deploy-ssh'])` 안에서 `ssh ubuntu@${DEPLOY_HOST} "cd ~/iseonjwa && git fetch -q origin && git checkout -q --detach <SHA> && script/deploy/deploy.sh <SHA>"`를 실행한다. 종료 코드 0은 성공, 1은 실패(되돌림 성공), 3은 되돌림도 실패, 그 밖(예: SSH 접속 실패 255)은 오류다.
 4. 슬랙: 단계 알림 둘과 결과를 `#이선좌-배포상태알림`에 보낸다(Jenkinsfile의 `notifySlack`). 이미지를 못 찾아 중단되면 배포 중 알림은 가지 않고 배포 준비 다음에 바로 결과가 간다. 메시지는 `script/deploy/slack-payload.sh`가 만들고 모양은 Alertmanager 알림(`infra/alertmanager/templates/slack.tmpl`)과 맞췄다(2026-11-04, 처음의 한 줄 메시지는 커밋·직전 버전을 찾기 어려워 바꿨다).
-   - 단계 알림: 남색 띠에 `[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다`와 `[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다`다. 직전 버전은 `deploy.sh`가 알려 주므로 이 시점에는 모른다. 그래서 커밋 제목과 필드 둘(커밋, 계기), 꼬리말만 담고 직전 버전·걸린 시간·바뀐 내용·바로 가기는 뺀다.
+   - 단계 알림: 남색 띠에 `[배포 준비] 새 커밋을 찾았습니다. 이미지 9개를 기다립니다`와 `[배포 중] 이미지 9개를 확인했습니다. 배포 서버에 반영합니다`다. 직전 버전은 `deploy.sh`가 알려 주므로 이 시점에는 모른다. 그래서 커밋 제목과 필드 둘(커밋, 계기), 꼬리말만 담고 직전 버전·걸린 시간·바뀐 내용·바로 가기는 뺀다.
    - 결과 알림의 왼쪽 색 띠와 제목 한 줄: 성공 초록 `[배포 성공] 배포 서버에 새 버전을 올렸습니다`, 되돌림 주황 `[배포 실패] 새 버전이 확인을 통과하지 못해 직전 버전(def5678)으로 되돌렸습니다`, 되돌림도 실패 빨강 `[배포 실패] 배포와 되돌림이 모두 실패했습니다. 서버 확인이 필요합니다`, 이미지 대기 초과 회색 `[배포 중단] …`, 사람이 멈췄거나 40분 제한 회색 `[배포 멈춤] …`, 그 밖 빨강 `[배포 오류] …`. 제목은 GitHub 커밋 페이지로 이어진다.
    - 본문: 굵은 커밋 제목, 그리고 짧은 필드 커밋(링크)·직전 버전(링크, 처음 배포면 "없음")·계기(`main 새 커밋`, `수동 재배포(TAG)`, `수동 실행(main 최신)`)·걸린 시간·바뀐 내용(직전 버전과 새 버전의 GitHub 비교 링크)·바로 가기(`PUBLIC_URL`이 있을 때 서비스 링크). 꼬리말은 `이선좌 Jenkins #<빌드 번호> · 배포 서버`다.
    - 직전 버전은 `deploy.sh`가 남기는 `== 배포 시작: <SHA> (직전 성공: <SHA>|없음)` 줄에서 뽑는다. 휴대폰 푸시 알림에는 제목, 짧은 SHA, 커밋 제목이 한 줄로 보인다.
@@ -212,7 +238,7 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 4. 배포 EC2의 `~/.ssh/authorized_keys`에 `/opt/jenkins/deploy_ssh_key.pub` 한 줄을 더한다.
 5. `docker compose -f infra/jenkins/compose.yml up -d --build`.
 
-**GHCR 패키지 공개**: 이미지 대기 확인은 익명 토큰을 쓰므로 패키지 8개를 공개로 바꿔야 한다(위 "첫 실행 뒤 할 일"). 비공개로 두면 확인이 항상 403이라 20분 뒤 "[배포 중단]"이 된다.
+**GHCR 패키지 공개**: 이미지 대기 확인은 익명 토큰을 쓰므로 패키지 9개를 공개로 바꿔야 한다(위 "첫 실행 뒤 할 일"). 비공개로 두면 확인이 항상 403이라 20분 뒤 "[배포 중단]"이 된다. 새로 생기는 `assistant-service` 패키지도 첫 이미지가 올라온 뒤 공개로 바꿔야 한다. 그 전에는 이 확인이 이 이미지를 "없음"으로 세어 배포가 중단된다.
 
 **로컬 확인(2026-11-04, 맥 Docker)**: 가짜 값(무작위 관리자 비밀번호, 막힌 슬랙 주소, `ssh-keygen`으로 만든 가짜 키)으로 따로 띄웠다(프로젝트 `iseonjwa-jenkins-test`, 포트 28080).
 - 이미지 빌드와 기동 성공. 설치 마법사 없이 로그인 페이지가 200. 익명 `/api/json`은 403, 틀린 비밀번호는 401.

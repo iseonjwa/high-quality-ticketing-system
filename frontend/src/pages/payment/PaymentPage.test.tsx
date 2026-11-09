@@ -514,7 +514,11 @@ describe('PaymentPage 결제하기', () => {
 
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+    // 공연 요약에서 왔으면 공연 번호도 넘겨 결과 티켓에 포스터를 붙인다
+    expect(readReservationHeading(router.state.location.state)).toEqual({
+      ...HEADING,
+      concertId: CONCERT.concertId,
+    })
     expect(
       queryClient.getQueryData(reservationQueryKeys.detail(held.hold.reservationId)),
     ).toMatchObject({ reservationId: held.hold.reservationId, status: 'CONFIRMED' })
@@ -530,10 +534,10 @@ describe('PaymentPage 결제하기', () => {
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
 
     expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
+    const tickets = await screen.findByRole('region', { name: /^티켓 \d+매$/ })
+    expect(within(tickets).getByText(HEADING.title, { selector: 'p' })).toBeInTheDocument()
     expect(
-      await screen.findByText(
-        `${HEADING.title} · ${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`,
-      ),
+      within(tickets).getByText(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`),
     ).toBeInTheDocument()
   })
 

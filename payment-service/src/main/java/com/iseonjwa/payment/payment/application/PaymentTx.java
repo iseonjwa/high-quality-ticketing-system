@@ -12,6 +12,7 @@ import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.StatusActor;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgOrderIds;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,9 +66,22 @@ public class PaymentTx {
      */
     @Transactional
     public Payment createRequested(ApprovePaymentCommand command, PaymentToken token, String requestHash) {
+        return createRequested(command, token, requestHash, null);
+    }
+
+    /**
+     * @param pgTxId 승인 전에 구매자가 PG에서 받은 거래 식별자(토스 paymentKey). 있으면 결제에 먼저 저장해
+     *         응답을 잃어도 같은 식별자로 재확인할 수 있게 한다. 다른 결제가 이미 쓰는 값이면 {@code uq_payments_pg_tx_id} 위반이다.
+     */
+    @Transactional
+    public Payment createRequested(ApprovePaymentCommand command, PaymentToken token, String requestHash,
+            String pgTxId) {
         var now = clock.instant();
-        var payment = payments.save(Payment.request(paymentNos.next(), token.reservationId(), command.userId(),
-                token.amount(), PaymentMethod.CARD, UUID.randomUUID(), now));
+        // Note: 주문 식별자는 토큰에서 결정적으로 만든다. 결제창을 열기 전(checkout)에 같은 값을 알려 줘야 하기 때문이다
+        var orderId = PgOrderIds.of(token.reservationId(), token.expiresAt()).value();
+        var request = Payment.request(paymentNos.next(), token.reservationId(), command.userId(), token.amount(),
+                PaymentMethod.CARD, orderId, now);
+        var payment = payments.save(pgTxId == null ? request : request.withPgTxId(pgTxId));
         idempotency.save(IdempotencyRecord.origin(command.userId(), command.idempotencyKey(), requestHash,
                 payment.getId(), now));
         return payment;

@@ -11,6 +11,7 @@ export const paths = {
   reservation: '/reservations/:reservationId',
   reservationComplete: '/reservations/:reservationId/complete',
   myReservations: '/me/reservations',
+  help: '/help',
   lottery: '/lotteries/:lotteryId',
   admin: '/admin',
   adminConcertNew: '/admin/concerts/new',
@@ -18,6 +19,7 @@ export const paths = {
   adminLotteryNew: '/admin/concerts/:concertId/schedules/:scheduleId/lottery',
   adminLottery: '/admin/lotteries/:lotteryId',
   adminPasswordReset: '/admin/users/password-reset',
+  adminDemoFaults: '/admin/demo/faults',
 } as const
 
 export function concertPath(concertId: number): string {
