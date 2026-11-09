@@ -8,6 +8,8 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-error-response-json-in-common.md) |
+| 2026-11-09 | 상담 스트림에 error 이벤트를 두지 않고, 사용자가 멈춘 요청도 요청 제한과 일일 예산에 넣기로 함 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-09-assistant-stream-error-and-cancel-counting.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-08-deploy-measure-token-key-swap.md) |
 | 2026-11-09 | 토스 어댑터의 orderId를 토큰에서 만들고, 늦은 승인 방지는 Prevented를 내지 않으며, 빌링은 지원하지 않고, 배포 기본은 mock으로 한 추천안을 수용함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-toss-adapter-order-id-and-late-approval.md) |
 | 2026-11-09 | 결제 건별 슬랙 알림(ISE-183)의 세부 여섯 가지(결제 시각 표기, 금액 불일치 합치기, 해결 메시지 없음, 대사 10건 상한, 환불 문구)를 추천안대로 정함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-payment-event-alert-details.md) |
@@ -63,6 +65,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) |
 | 2026-11-05 | [daily/2026-11-05.md](daily/2026-11-05.md) |
 | 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |
 | 2026-11-03 | [daily/2026-11-03.md](daily/2026-11-03.md) |
