@@ -1,5 +1,10 @@
 package com.iseonjwa.payment.refund.application;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
@@ -14,6 +19,7 @@ import com.iseonjwa.payment.support.RefundWorkerFixtures.Created;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,9 +77,13 @@ class RefundWorkerServiceTest {
     PgClient pg;
 
     private RefundWorkerFixtures fixtures;
+    private final ListAppender<ILoggingEvent> alertLogs = new ListAppender<>();
+    private final Logger alertLogger = (Logger) LoggerFactory.getLogger(PaymentAlertLog.class);
 
     @BeforeEach
     void setUp() {
+        alertLogs.start();
+        alertLogger.addAppender(alertLogs);
         reset(pg, refunds);
         recoveryGate.circuitBreaker().reset();
         fixtures = RefundWorkerFixtures.forService(jdbc);
@@ -83,6 +93,7 @@ class RefundWorkerServiceTest {
 
     @AfterEach
     void tearDown() {
+        alertLogger.detachAppender(alertLogs);
         // 어떤 경로로 끝나도 허가가 새지 않아야 한다(0018)
         assertEquals(MAX_PERMITS, recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "복구 허가가 새고 있다");
         recoveryGate.circuitBreaker().reset();
@@ -144,6 +155,7 @@ class RefundWorkerServiceTest {
         assertEquals("REQUESTED->NEEDS_MANUAL_CHECK:REFUND_AMOUNT_MISMATCH", fixtures.lastHistory(refund, "REFUND"));
         assertEquals("APPROVED", fixtures.paymentStatus(refund));
         assertEquals(0, fixtures.outboxCount(refund));
+        assertAlert(refund, "reason=REFUND_AMOUNT_MISMATCH");
     }
 
     @Test
@@ -168,6 +180,7 @@ class RefundWorkerServiceTest {
         assertEquals("REQUESTED->NEEDS_MANUAL_CHECK:REFUND_REJECTED", fixtures.lastHistory(refund, "REFUND"));
         assertEquals("APPROVED", fixtures.paymentStatus(refund));
         assertEquals(0, fixtures.outboxCount(refund));
+        assertAlert(refund, "reason=REFUND_REJECTED");
     }
 
     @Test
@@ -251,6 +264,7 @@ class RefundWorkerServiceTest {
         assertEquals(0, fixtures.historyCount(refund, "PAYMENT"));
         assertEquals("APPROVED", fixtures.paymentStatus(refund));
         assertEquals(0, fixtures.outboxCount(refund));
+        assertEquals(0, alertLogs.list.size(), "0행 경합이면 건별 알림 줄을 남기지 않는다");
     }
 
     @Test
@@ -487,6 +501,17 @@ class RefundWorkerServiceTest {
     }
 
     // 예약한 시각이 지금부터 기대한 간격 안팎(±3초)에 있는지 본다
+    // 건별 알림 줄이 정확히 한 건이고, 환불·결제 번호와 서울 시각이 붙는다
+    private void assertAlert(Created refund, String reason) {
+        assertEquals(1, alertLogs.list.size());
+        var event = alertLogs.list.get(0);
+        assertEquals(Level.ERROR, event.getLevel());
+        var line = event.getFormattedMessage();
+        assertTrue(line.startsWith("event=REFUND_NEEDS_MANUAL_CHECK paymentId=" + refund.paymentId() + " userId=42 "), line);
+        assertTrue(line.matches(".* paidAt=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+09:00 refundId="
+                + refund.refundId() + " " + reason), line);
+    }
+
     private static void assertAbout(Duration expected, Instant actual) {
         var delta = Duration.between(Instant.now(), actual).minus(expected).abs();
         assertTrue(delta.compareTo(Duration.ofSeconds(3)) < 0, "예약 시각이 기대와 다르다 actual=" + actual);

@@ -6,4 +6,6 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-09 | k6에서 요청량 기준과 VU 기준은 무엇이 다르고, 오픈 순간 몰림은 어떻게 재현하는가 | [qna/2026-11-09-k6-arrival-rate-and-burst.md](qna/2026-11-09-k6-arrival-rate-and-burst.md) |
+| 2026-11-09 | 한 번 구매한 사용자의 입장 토큰을 어떻게 무효화하는가 | [qna/2026-11-09-one-time-entry-token.md](qna/2026-11-09-one-time-entry-token.md) |
 | 2026-10-26 | Redis Sorted Set의 ZRANK는 시간 복잡도가 어떻게 되는가 | [qna/2026-10-26-redis-zrank-time-complexity.md](qna/2026-10-26-redis-zrank-time-complexity.md) |

@@ -3,7 +3,7 @@ plugins {
 }
 
 def applicationModules = ['gateway', 'eureka', 'config-server', 'user-service',
-                          'reservation-service', 'payment-service', 'mock-pg']
+                          'reservation-service', 'payment-service', 'mock-pg', 'assistant-service']
 ext.workspaceApplicationModules = applicationModules
 
 def workspaceTool = { String taskName, String operation ->
