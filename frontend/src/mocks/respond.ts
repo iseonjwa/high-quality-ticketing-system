@@ -5,7 +5,7 @@ import { ENTRY_TOKEN_MILLIS, mockDb, type MockUser } from '@/mocks/db'
 
 let traceSequence = 0
 
-function nextTraceId(): string {
+export function nextTraceId(): string {
   traceSequence += 1
   return traceSequence.toString(16).padStart(32, '0')
 }
