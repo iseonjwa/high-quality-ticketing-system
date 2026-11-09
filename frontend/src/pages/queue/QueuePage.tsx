@@ -252,7 +252,7 @@ function StateMessage({
       <span
         aria-hidden="true"
         className={cn(
-          'grid size-14 place-items-center rounded-full text-[26px] font-extrabold',
+          'grid size-14 place-items-center rounded-full text-[26px] font-bold',
           ICON_TONE[tone],
         )}
       >

@@ -102,7 +102,7 @@ export function SelectionSummary({
         )}
         <dl className="flex items-baseline justify-between border-t border-gray-100 pt-4">
           <dt className="type-body-sm text-gray-500">합계</dt>
-          <dd className="text-[22px] leading-[30px] font-extrabold text-gray-900 tabular-nums">
+          <dd className="text-[22px] leading-[30px] font-bold text-gray-900 tabular-nums">
             {formatWon(total)}
           </dd>
         </dl>

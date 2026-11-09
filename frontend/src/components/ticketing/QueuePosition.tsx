@@ -27,14 +27,14 @@ export function QueuePosition({
             조회마다 읽히므로 화면 낭독기에는 순번 한 줄만 읽힌다(aria-live를 이 줄에만 둔다). */}
         <p aria-live="polite" aria-atomic="true" className="grid gap-1">
           <span className="text-[15px] leading-[22px] font-medium text-gray-500">내 순번</span>{' '}
-          <span className="text-[48px] leading-[56px] font-extrabold tracking-[-0.02em] text-gray-900 tabular-nums">
+          <span className="text-[48px] leading-[56px] font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
             {numberFormat.format(position)}
             <span className="ml-0.5 text-[24px] font-bold">번</span>
           </span>
         </p>
         <p className="text-[15px] leading-[22px] text-gray-700">
           예상 대기{' '}
-          <b className="font-bold text-gray-900 tabular-nums">
+          <b className="font-semibold text-gray-900 tabular-nums">
             {formatWaitTime(estimatedWaitSeconds)}
           </b>
         </p>

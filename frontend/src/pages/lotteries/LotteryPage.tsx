@@ -748,7 +748,7 @@ function ResultCard({
         {rank ? (
           <p className="grid justify-items-center">
             <span className="type-caption text-gray-500">추첨 순위</span>
-            <span className="text-[40px] leading-[48px] font-extrabold text-gray-900 tabular-nums">
+            <span className="text-[40px] leading-[48px] font-bold text-gray-900 tabular-nums">
               {rank}
               <span className="type-heading text-gray-500">위</span>
             </span>
