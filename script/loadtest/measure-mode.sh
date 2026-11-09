@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 배포 서버를 부하 측정 모드로 바꾸고 되돌린다(ISE-191). 측정 날 그날 측정자가 SSH로 접속해 실행한다(ISE-218).
-#   script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...]   예: on loadtest/k6/compose.queue-hold.yml
-#   script/loadtest/measure-mode.sh off
+#   MEASURER=<영문 이름> script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...]   예: on loadtest/k6/compose.queue-hold.yml
+#   MEASURER=<영문 이름> script/loadtest/measure-mode.sh off
 #   script/loadtest/measure-mode.sh status
-#   켜고 끌 때 MEASURER=<이름>을 앞에 붙이면 슬랙 알림에 측정자로 남는다. 예: MEASURER=kangmin script/loadtest/measure-mode.sh on
+#   on·off는 MEASURER가 있어야 돈다. 누가 켜고 껐는지 남기는 것이 알림의 목적이라 이름 없이 실행하면 사용법을 출력하고 멈춘다(ISE-224).
 # 설계: docs/design/infra/load-test.md 5절, ADR 0046 "변경(2026-11-08)".
 #
 # 하는 일
@@ -22,8 +22,9 @@
 #   켜기 전에 status로 다른 사람이 켜 두지 않았는지 보고, 끄고 나서 status로 꺼졌는지 본다(ADR 0046 변경 2026-11-09).
 # - 키 값은 출력하지 않는다. 키 이름과 다음 할 일만 출력한다.
 # - DRY_RUN=1이면 docker compose와 스모크를 실행하지 않고 부를 명령만 출력한다(스크립트 확인용). 슬랙 알림도 보내지 않고 보낼 내용만 출력한다.
-# - on·off가 끝나면 슬랙(서버 .env의 SLACK_WEBHOOK_MONITORING)으로 알린다(ISE-223). 웹훅 주소는 출력하지 않는다.
-#   알림을 보내지 못해도 측정 모드 전환은 그대로 끝난다.
+# - on·off가 끝나면 슬랙으로 알린다(ISE-223). 측정 전용 채널(SLACK_WEBHOOK_LOADTEST)이 있으면 그리로, 비어 있으면
+#   성능-모니터링 채널(SLACK_WEBHOOK_MONITORING)로 보낸다(ISE-224). 모양은 배포 알림(script/deploy/slack-payload.sh)과 같다.
+#   웹훅 주소는 출력하지 않고 키 이름만 출력한다. 알림을 보내지 못해도 측정 모드 전환은 그대로 끝난다.
 #
 # Note: --env-file을 여러 번 주면 뒤 파일의 값이 앞 파일을 덮고 나머지 키는 합쳐진다. Docker 문서의 CLI 설명에는 이 동작이
 # 적혀 있지 않아 Compose v5.6.0에서 직접 확인했다(같은 키를 가진 두 파일: 뒤 값 우선, 순서를 바꾸면 결과도 바뀜). 서버 Compose는 5.7이다.
@@ -37,43 +38,104 @@ mode_file="$state/measure-mode"
 dry="${DRY_RUN:-0}"
 
 usage() {
-  echo "사용법: script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...] | off | status" >&2
+  echo "사용법: MEASURER=<영문 이름> script/loadtest/measure-mode.sh on [추가 덮어쓰기 파일...]" >&2
+  echo "        MEASURER=<영문 이름> script/loadtest/measure-mode.sh off" >&2
+  echo "        script/loadtest/measure-mode.sh status" >&2
+  echo "  on·off는 슬랙 알림에 측정자를 남기려고 MEASURER가 필요하다. 예: MEASURER=kangmin script/loadtest/measure-mode.sh on" >&2
   exit 2
 }
 fail() { echo "오류: $*" >&2; exit 1; }
+require_measurer() { [[ -n "${MEASURER:-}" ]] || usage; }
 
-measurer="${MEASURER:-이름 미지정}"
+repo=https://github.com/iseonjwa/high-quality-ticketing-system
+footer="이선좌 측정 모드 · 배포 서버"
 # Note: TZ=Asia/Seoul은 시간대 자료(tzdata)가 없는 환경에서 UTC로 떨어진다. POSIX 표기 KST-9는 자료 없이도 UTC+9다
 kst_now() { TZ=KST-9 date '+%Y-%m-%d %H:%M KST'; }
+# .deploy/measure-mode의 started(UTC)를 KST로 바꾼다. 읽지 못하면 원래 값을 그대로 쓴다
+to_kst() { TZ=KST-9 date -d "$1" '+%Y-%m-%d %H:%M KST' 2> /dev/null || echo "$1"; }
+# 슬랙 mrkdwn에서 링크·멘션으로 읽히는 문자를 바꾼다(사람이 넣은 MEASURER 값에 쓴다)
+# Note: bash 5.2부터 치환 문자열의 &는 찾은 문자열을 뜻한다(patsub_replacement). 따옴표 친 변수로 넘겨야 글자 그대로 들어간다
+slack_escape() {
+  local amp='&amp;' lt='&lt;' gt='&gt;' s
+  s="${1//&/"$amp"}"; s="${s//</"$lt"}"
+  printf '%s' "${s//>/"$gt"}"
+}
+# JSON 문자열 리터럴. jq가 없을 때만 쓴다. 역슬래시·따옴표·줄바꿈·CR·탭을 이스케이프한다(값에 다른 제어 문자는 들어오지 않는다)
+json_str() {
+  local s="${1//\\/\\\\}"
+  s="${s//\"/\\\"}"; s="${s//$'\n'/\\n}"; s="${s//$'\r'/\\r}"; s="${s//$'\t'/\\t}"
+  printf '"%s"' "$s"
+}
 
-# 슬랙 알림(ISE-223). 겹쳐 켜거나 끄는 것을 잊는 위험(ADR 0046 변경 2026-11-09)을 줄이려고, 켜고 끈 기록을 사람 손을 거치지 않고 남긴다.
-# 웹훅은 환경 변수 SLACK_WEBHOOK_MONITORING이 있으면 그것을, 없으면 .env에서 그 키만 읽는다. 주소는 출력하지 않는다.
-# Note: 알림 실패로 측정 모드 전환을 되돌리지 않는다. 전환이 이미 끝난 뒤라 되돌리면 상태만 더 어긋난다
-notify() {
-  local text="$1" url payload
-  url="${SLACK_WEBHOOK_MONITORING:-}"
+# 슬랙 메시지 JSON을 한 줄로 낸다. 인자: 색, 제목, 본문, 그 뒤로 필드 이름과 값을 번갈아.
+# 모양은 script/deploy/slack-payload.sh와 같다: 왼쪽 색 띠, 굵은 제목(커밋 링크), 두 열 필드, 꼬리말.
+build_payload() {
+  local color="$1" title="$2" text="$3" link fallback ts
+  shift 3
+  link="$repo/commit/$IMAGE_TAG"
+  fallback="$title · 측정자 $(slack_escape "$MEASURER")"
+  ts="$(date +%s)"
+  if command -v jq > /dev/null; then
+    jq -nc --arg color "$color" --arg title "$title" --arg link "$link" --arg text "$text" \
+      --arg fallback "$fallback" --arg footer "$footer" --argjson ts "$ts" '
+      {attachments: [{
+        color: $color, fallback: $fallback, title: $title, title_link: $link, text: $text,
+        mrkdwn_in: ["text", "fields"],
+        fields: [range(0; $ARGS.positional | length; 2) as $i
+                 | {title: $ARGS.positional[$i], value: $ARGS.positional[$i + 1], short: true}],
+        footer: $footer, ts: $ts
+      }]}' --args "$@"
+    return
+  fi
+  local fields="" sep=""
+  while (( $# >= 2 )); do
+    fields+="${sep}{\"title\":$(json_str "$1"),\"value\":$(json_str "$2"),\"short\":true}"
+    sep=","
+    shift 2
+  done
+  printf '{"attachments":[{"color":%s,"fallback":%s,"title":%s,"title_link":%s,"text":%s,"mrkdwn_in":["text","fields"],"fields":[%s],"footer":%s,"ts":%s}]}\n' \
+    "$(json_str "$color")" "$(json_str "$fallback")" "$(json_str "$title")" "$(json_str "$link")" \
+    "$(json_str "$text")" "$fields" "$(json_str "$footer")" "$ts"
+}
+
+# 웹훅 주소 하나를 읽는다. 환경 변수가 있으면 그것을, 없으면 .env에서 그 키만 읽는다
+webhook_from() {
+  local key="$1" url="${!1:-}"
   if [[ -z "$url" && -f .env ]]; then
-    url="$(sed -n 's/^SLACK_WEBHOOK_MONITORING=//p' .env | tail -n 1)"
+    url="$(sed -n "s/^${key}=//p" .env | tail -n 1)"
     url="${url%\"}"; url="${url#\"}"
   fi
-  if command -v jq > /dev/null; then
-    payload="$(jq -n --arg t "$text" '{text: $t}')"
-  else
-    payload="{\"text\": \"$(printf '%s' "$text" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk '{printf "%s\\n", $0}')\"}"
+  printf '%s' "$url"
+}
+
+# 슬랙 알림(ISE-223). 겹쳐 켜거나 끄는 것을 잊는 위험(ADR 0046 변경 2026-11-09)을 줄이려고, 켜고 끈 기록을 사람 손을 거치지 않고 남긴다.
+# 측정 전용 채널(SLACK_WEBHOOK_LOADTEST)을 먼저 쓰고, 비어 있으면 성능-모니터링 채널(SLACK_WEBHOOK_MONITORING)로 보낸다(ISE-224).
+# 주소는 출력하지 않고 키 이름만 출력한다.
+# Note: 알림 실패로 측정 모드 전환을 되돌리지 않는다. 전환이 이미 끝난 뒤라 되돌리면 상태만 더 어긋난다
+notify() {
+  local payload="$1" key="" candidate url=""
+  for candidate in SLACK_WEBHOOK_LOADTEST SLACK_WEBHOOK_MONITORING; do
+    url="$(webhook_from "$candidate")"
+    if [[ -n "$url" ]]; then key="$candidate"; break; fi
+  done
+  if [[ -z "$payload" ]]; then
+    echo "경고: 슬랙 메시지를 만들지 못해 알림을 보내지 않았다. 팀 채널에 직접 알린다" >&2
+    return 0
   fi
   if [[ "$dry" == 1 ]]; then
-    echo "DRY_RUN: 슬랙 알림(보내지 않음): $payload"
+    echo "DRY_RUN: 슬랙 알림(보내지 않음, 보낼 곳: ${key:-없음})"
+    echo "$payload"
     return 0
   fi
   if [[ -z "$url" ]]; then
-    echo "경고: SLACK_WEBHOOK_MONITORING이 없어 슬랙 알림을 보내지 않았다. 팀 채널에 직접 알린다" >&2
+    echo "경고: SLACK_WEBHOOK_LOADTEST·SLACK_WEBHOOK_MONITORING이 모두 비어 슬랙 알림을 보내지 않았다. 팀 채널에 직접 알린다" >&2
     return 0
   fi
   # Note: 본문을 인자(-d "$payload")로 넘기면 Windows Git Bash에서 한글이 ?로 깨졌다. 표준 입력으로 바이트 그대로 넘긴다
   if printf '%s' "$payload" | curl -fsS --max-time 5 -H 'Content-Type: application/json; charset=utf-8' --data-binary @- "$url" > /dev/null 2>&1; then
-    echo "슬랙 알림을 보냈다"
+    echo "슬랙 알림을 보냈다(${key})"
   else
-    echo "경고: 슬랙 알림을 보내지 못했다. 측정 모드 전환은 끝났으니 팀 채널에 직접 알린다" >&2
+    echo "경고: 슬랙 알림을 보내지 못했다(${key}). 측정 모드 전환은 끝났으니 팀 채널에 직접 알린다" >&2
   fi
 }
 
@@ -141,11 +203,19 @@ cmd_on() {
   } > "$mode_file"
 
   echo "== 측정 모드를 켰다(커밋 ${IMAGE_TAG:0:7})"
-  local note="측정이 끝나면 measure-mode.sh off로 꺼 주세요. 측정 중에는 main 머지를 멈춰 주세요."
-  # 이미 켜져 있던 상태에서 다시 켠 것은 겹침일 수 있어 알림에 드러낸다
-  if [[ "$was_on" == 1 ]]; then note="이미 켜져 있던 측정 모드(시작 ${started})에 다시 적용했습니다. 다른 분이 측정 중이 아닌지 확인 부탁드립니다. ${note}"; fi
-  notify "[측정 모드 켬] 측정자: ${measurer} / 시각: $(kst_now) / 커밋: ${IMAGE_TAG:0:7} / 덮어쓰기: loadtest/deploy/compose.measure.yml${*:+ $*}
-${note}"
+  local color='#3B3BD4' title="[측정 모드 켬] 측정을 시작했습니다" payload
+  local text="측정이 끝나면 \`measure-mode.sh off\`로 꺼 주세요. 측정 중에는 main 머지를 멈춰 주세요."
+  local fields=(측정자 "$(slack_escape "$MEASURER")" 시각 "$(kst_now)" 커밋 "<$repo/commit/$IMAGE_TAG|${IMAGE_TAG:0:7}>"
+                "덮어쓰기 파일" "loadtest/deploy/compose.measure.yml${*:+ $*}")
+  # 이미 켜져 있던 상태에서 다시 켠 것은 겹침일 수 있어 색과 제목으로 드러낸다
+  if [[ "$was_on" == 1 ]]; then
+    color='#F59F00'
+    title="[측정 모드 켬·겹침 주의] 이미 켜져 있던 측정 모드에 다시 적용했습니다"
+    text="다른 분이 측정 중이 아닌지 확인 부탁드립니다. ${text}"
+    fields+=("기존 시작 시각" "$(to_kst "$started")")
+  fi
+  payload="$(build_payload "$color" "$title" "$text" "${fields[@]}")" || payload=""
+  notify "$payload"
   echo "다음 할 일"
   echo "  1. 발생기에서 loadtest/k6/run.sh가 읽도록 ${measure_env}를 발생기 저장소 루트의 .env로 옮긴다(docs/design/infra/load-test.md 2-1절)"
   echo "  2. 측정 동안 main 머지를 멈추거나 Jenkins 잡을 끈다. 배포가 돌면 측정 모드가 풀린다"
@@ -156,8 +226,11 @@ cmd_off() {
   IMAGE_TAG="$(current_tag)"
   export IMAGE_TAG
   # 켜져 있던 시간을 알림에 넣으려고, 기록 파일을 지우기 전에 시작 시각을 읽는다
-  local started="" duration="알 수 없음" start_epoch
-  if [[ -f "$mode_file" ]]; then started="$(sed -n 's/^started=//p' "$mode_file")"; fi
+  local started="" overrides="알 수 없음" duration="알 수 없음" start_epoch
+  if [[ -f "$mode_file" ]]; then
+    started="$(sed -n 's/^started=//p' "$mode_file")"
+    overrides="$(sed -n 's/^overrides=//p' "$mode_file")"
+  fi
   if [[ -n "$started" ]] && start_epoch="$(date -u -d "$started" +%s 2> /dev/null)"; then
     duration="$(( ($(date -u +%s) - start_epoch) / 60 ))분"
   fi
@@ -172,8 +245,17 @@ cmd_off() {
   else
     script/deploy/smoke.sh || { smoke_rc=$?; smoke="실패(종료 코드 ${smoke_rc})"; }
   fi
-  notify "[측정 모드 끔] 측정자: ${measurer} / 시각: $(kst_now) / 켜져 있던 시간: ${duration} / 커밋: ${IMAGE_TAG:0:7}
-운영 키·추적 샘플링 1.0·닫힌 9090으로 돌아왔습니다. 스모크: ${smoke}. 발생기의 .env도 지워 주세요."
+  local color='#1E7F4F' title="[측정 모드 끔] 운영 설정으로 돌아왔습니다" payload
+  local text="운영 키·추적 샘플링 1.0·닫힌 9090으로 돌아왔습니다. 발생기의 .env도 지워 주세요."
+  if (( smoke_rc != 0 )); then
+    color='#D12B3A'
+    title="[측정 모드 끔·스모크 실패] 서버 확인이 필요합니다"
+    text="운영 설정으로 되돌렸지만 스모크가 실패했습니다. 서버 상태를 확인해 주세요. 발생기의 .env도 지워 주세요."
+  fi
+  payload="$(build_payload "$color" "$title" "$text" \
+    측정자 "$(slack_escape "$MEASURER")" 시각 "$(kst_now)" 커밋 "<$repo/commit/$IMAGE_TAG|${IMAGE_TAG:0:7}>" \
+    "덮어쓰기 파일" "${overrides:-알 수 없음}" "켜져 있던 시간" "$duration" "스모크 결과" "$smoke")" || payload=""
+  notify "$payload"
   # 스모크가 실패하면 알림은 보내되 종료 코드로도 알린다(기존 동작 유지)
   return "$smoke_rc"
 }
@@ -193,8 +275,8 @@ cmd_status() {
 }
 
 case "${1:-}" in
-  on) shift; cmd_on "$@" ;;
-  off) cmd_off ;;
+  on) shift; require_measurer; cmd_on "$@" ;;
+  off) require_measurer; cmd_off ;;
   status) cmd_status ;;
   *) usage ;;
 esac
