@@ -1,13 +1,11 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
 import com.iseonjwa.payment.payment.domain.DeclineReason;
-import com.iseonjwa.payment.pg.application.ApproveCommand;
+import com.iseonjwa.payment.pg.PgClientContractTest;
+import com.iseonjwa.payment.pg.PgScenario;
 import com.iseonjwa.payment.pg.application.PgClient;
-import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
-import com.iseonjwa.payment.pg.application.PgRefundId;
-import com.iseonjwa.payment.pg.application.RefundCommand;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -15,34 +13,49 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link MockPgAdapter}를 실제 mock-pg 앱에 돌리는 계약 테스트(mock-pg.md 1·10절). 가짜 서버가 아니라 실제 서버의
- * 응답으로 어댑터의 해석을 확인한다.
+ * {@link MockPgAdapter}를 실제 mock-pg 앱에 돌리는 계약 테스트(mock-pg.md 1·10절). 공통 계약
+ * {@link PgClientContractTest}를 상속해 가짜 서버가 아니라 실제 서버의 응답으로 어댑터의 해석을 확인한다.
+ * {@link PgScenario}의 각 메서드는 장애 주입 API({@code POST /mock-pg/faults}, {@code count=1})로 구현한다.
  *
- * <p>호출 수와 헤더는 서버 원장({@link MockPgLedgerClient})이 센 값으로 단정한다(mock-pg.md 2·9절).
- *
- * <p>TODO: ISE-130에서 공통 계약 {@code PgClientContractTest}를 상속하고, 같은 항목을 검사하는 이 클래스의
- * 테스트는 정리한다. 경과 시간 단정과 이관한 어댑터 고유 테스트는 공통 계약에 없으므로 남긴다.
+ * <p>공통 계약에 없는 것만 이 클래스에 둔다: 응답 유실의 경과 시간 단정, 호출 수·헤더(서버 원장이 센 값,
+ * mock-pg.md 2·9절), 어댑터 고유 테스트에서 이관한 것, 원장 조회, 빌링키.
  */
-class MockPgServerContractTest {
+class MockPgServerContractTest extends PgClientContractTest {
     // Note: 응답 유실이 연결이 끊겨서가 아니라 읽기 시한이 지나서 CONNECTION_LOST가 되는 경우를 걸러내려고
     // 경과 시간을 이 값과 비교한다. 첫 호출의 클라이언트 준비 시간이 끼어도 넉넉하게 1초로 둔다
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
 
-    private static final BigDecimal AMOUNT = BigDecimal.valueOf(50000);
-    private static final String KRW = "KRW";
+    // Note: 응답 시간 초과는 지연이 읽기 시한(1초)보다 넉넉히 길어야 확실히 난다
+    private static final long SLOW_DELAY_MILLIS = 2_500;
+    private static final Duration PENDING_EFFECTS_TIMEOUT = Duration.ofSeconds(10);
 
     private static MockPgProcess server;
     private static PgClient client;
+
+    private final PgScenario scenario = new PgScenario() {
+        public void nextApprovalIsDeclined() { server.applyFault("APPROVE", "DECLINE", 1); }
+        public void nextApprovalIsSlow() { server.applyDelay("APPROVE", SLOW_DELAY_MILLIS, 1); }
+        public void nextApprovalResponseIsLost() { server.applyFault("APPROVE", "DROP_RESPONSE", 1); }
+        public void nextApprovalIsProcessing() { server.applyFault("APPROVE", "PROCESSING", 1); }
+        public void nextApprovalIsBadRequest() { server.applyFault("APPROVE", "BAD_REQUEST", 1); }
+        public void nextApprovalIsServerError() { server.applyFault("APPROVE", "SERVER_ERROR", 1); }
+        public void nextApprovalHasFractionalAmount() { server.applyFault("APPROVE", "FRACTIONAL_AMOUNT", 1); }
+        public void nextRefundOmitsAmountAndCurrency() { server.applyFault("REFUND", "MISSING_AMOUNT", 1); }
+        public void awaitPendingEffects() { server.ledger().awaitNoInFlight(PENDING_EFFECTS_TIMEOUT); }
+        public void nextApprovalOmitsAmountAndCurrency() { server.applyFault("APPROVE", "MISSING_AMOUNT", 1); }
+        public void nextApprovalUsesDifferentAmount() { server.applyFault("APPROVE", "WRONG_AMOUNT", 1); }
+        public void nextRefundIsRejected() { server.applyFault("REFUND", "REJECT", 1); }
+        public void nextRefundResponseIsLost() { server.applyFault("REFUND", "DROP_RESPONSE", 1); }
+        public void nextRefundIsProcessing() { server.applyFault("REFUND", "PROCESSING", 1); }
+    };
 
     @BeforeAll
     static void startServer() {
@@ -55,17 +68,22 @@ class MockPgServerContractTest {
         if (server != null) server.close();
     }
 
+    @Override
+    protected PgClient client() {
+        return client;
+    }
+
+    @Override
+    protected PgScenario scenario() {
+        return scenario;
+    }
+
     // 요약과 계수는 서버 전체를 세므로 테스트마다 새 원장에서 시작한다. 테스트가 장애를 소비하기 전에 실패해도
     // 남은 설정이 다음 테스트의 호출을 바꾸지 않게 reset이 장애 설정도 함께 지운다
     @BeforeEach
     @AfterEach
     void resetServer() {
         server.ledger().reset();
-    }
-
-    @Test
-    void 처음_보는_주문을_조회하면_NotFound다() {
-        assertInstanceOf(PgClient.NotFound.class, client.findPayment(newOrder()));
     }
 
     @Test
@@ -80,37 +98,6 @@ class MockPgServerContractTest {
         assertTrue(elapsed.compareTo(READ_TIMEOUT) < 0, "읽기 시한이 지나서 끊겼다 elapsed=" + elapsed);
     }
 
-    @Test
-    void 응답을_잃은_승인은_조회로_확인한다() {
-        var order = newOrder();
-        server.applyFault("APPROVE", "DROP_RESPONSE", 1);
-        assertEquals(new PgClient.Unknown(UnknownCause.CONNECTION_LOST), client.approve(approveCommand(order)));
-
-        var found = assertInstanceOf(PgClient.Approved.class, client.findPayment(order));
-
-        assertTrue(found.matches(BigDecimal.valueOf(50000), "KRW"));
-    }
-
-    @Test
-    void 승인되지_않은_주문은_늦은_승인을_막고_이후에도_승인으로_조회되지_않는다() {
-        var order = newOrder();
-
-        assertInstanceOf(PgClient.Prevented.class, client.preventLateApproval(order));
-
-        assertInstanceOf(PgClient.NotFound.class, client.findPayment(order));
-    }
-
-    @Test
-    void 이미_승인된_주문은_늦은_승인_방지가_승인_사실을_알린다() {
-        var order = newOrder();
-        var approved = assertInstanceOf(PgClient.Approved.class, client.approve(approveCommand(order)));
-
-        var already = assertInstanceOf(PgClient.AlreadyApproved.class, client.preventLateApproval(order));
-
-        assertEquals(approved.paymentRef(), already.paymentRef());
-        assertTrue(already.matches(BigDecimal.valueOf(50000), "KRW"));
-    }
-
     // 이관: MockPgAdapterContractTest(가짜 서버)에서 옮겼다(mock-pg.md 1절)
     @Test
     void 망취소된_주문의_승인은_PG가_거부하므로_NOT_SENT로_거절한다() {
@@ -120,28 +107,6 @@ class MockPgServerContractTest {
         var declined = assertInstanceOf(PgClient.Declined.class, client.approve(approveCommand(order)));
 
         assertEquals(DeclineReason.NOT_SENT, declined.reason());
-    }
-
-    @Test
-    void 환불하면_PG가_처리한_금액과_통화를_돌려준다() {
-        var approved = approve();
-
-        var refunded = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, newRefund())));
-
-        assertTrue(refunded.matches(AMOUNT, KRW));
-    }
-
-    @Test
-    void 환불_조회가_NotFound이면_같은_환불_식별자로_다시_보내도_한_번만_환불된다() {
-        var approved = approve();
-        var refundId = newRefund();
-        assertInstanceOf(PgClient.NotFound.class, client.findRefund(refundId, approved.paymentRef()));
-
-        var first = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, refundId)));
-        var second = assertInstanceOf(PgClient.Refunded.class, client.refund(refundCommand(approved, refundId)));
-
-        assertFalse(first.refundRef().isBlank());
-        assertEquals(first.refundRef(), second.refundRef());
     }
 
     // 이관: MockPgAdapterContractTest(가짜 서버)에서 옮겼다(mock-pg.md 1절)
@@ -220,6 +185,23 @@ class MockPgServerContractTest {
         assertEquals(1, refund.distinctIdempotencyKeys());
     }
 
+    // 이관: MockPgAdapterContractTest(가짜 서버)에서 옮겼다(mock-pg.md 1절). 첫 승인에 DELAY를 걸고 지연 중에 같은 주문을
+    // 다시 승인하면 서버가 409 REQUEST_IN_PROGRESS를 주고, 어댑터는 거절이 아니라 처리 중으로 분류한다
+    @Test
+    void 처리_중인_주문을_다시_승인하면_409이고_거절이_아니라_PROCESSING인_Unknown이다() {
+        var order = newOrder();
+        server.applyDelay("APPROVE", SLOW_DELAY_MILLIS, 1);
+        var first = CompletableFuture.supplyAsync(() -> client.approve(approveCommand(order)));
+        awaitInFlight(order);
+
+        var second = client.approve(approveCommand(order));
+
+        assertEquals(new PgClient.Unknown(UnknownCause.PROCESSING), second);
+        // 첫 요청은 읽기 시한이 지나 포기했고, 409도 호출로 센다
+        assertEquals(new PgClient.Unknown(UnknownCause.TIMEOUT), first.join());
+        assertEquals(2, server.ledger().payment(order.value().toString()).orElseThrow().approveCalls());
+    }
+
     @Test
     void 환불_응답이_유실돼도_PG에는_한_번만_보내고_저장되어_있다() {
         var approved = approve();
@@ -288,20 +270,19 @@ class MockPgServerContractTest {
         return assertInstanceOf(PgClient.Approved.class, client.approve(approveCommand(newOrder())));
     }
 
-    private static PgRefundId newRefund() {
-        return new PgRefundId(UUID.randomUUID());
-    }
-
-    private static RefundCommand refundCommand(PgClient.Approved approved, PgRefundId refundId) {
-        return new RefundCommand(approved.paymentRef(), refundId, AMOUNT, KRW, "CANCELED",
-                PgIdempotencyKey.ofRefund(refundId));
-    }
-
-    private static PgOrderId newOrder() {
-        return new PgOrderId(UUID.randomUUID());
-    }
-
-    private static ApproveCommand approveCommand(PgOrderId order) {
-        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), null);
+    // 지연 중인 첫 승인이 원장에 IN_FLIGHT로 올라올 때까지 기다린다. 그래야 다음 요청이 지연 중에 도착한다
+    private static void awaitInFlight(PgOrderId order) {
+        var deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (System.nanoTime() < deadline) {
+            var ledger = server.ledger().payment(order.value().toString());
+            if (ledger.isPresent() && "IN_FLIGHT".equals(ledger.get().status())) return;
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("처리 중 대기 중 인터럽트", exception);
+            }
+        }
+        throw new AssertionError("승인이 IN_FLIGHT가 되지 않았다 order=" + order.value());
     }
 }

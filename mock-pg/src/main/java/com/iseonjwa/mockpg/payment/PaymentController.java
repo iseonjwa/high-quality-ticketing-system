@@ -35,8 +35,9 @@ class PaymentController {
     ResponseEntity<?> approve(@RequestBody ApproveRequest request,
                               @RequestHeader(value = IDEMPOTENCY_KEY, required = false) String idempotencyKey,
                               HttpServletRequest servletRequest) {
-        return respond(payments.approve(request, idempotencyKey), servletRequest,
-                state -> PaymentResponses.approval(state.orElseThrow()));
+        var outcome = payments.approve(request, idempotencyKey);
+        return respond(outcome, servletRequest,
+                state -> PaymentResponses.approval(state.orElseThrow(), outcome.fault().omitsAmount()));
     }
 
     @PostMapping("/{orderId}/cancel")
@@ -47,7 +48,8 @@ class PaymentController {
 
     @GetMapping("/{orderId}")
     ResponseEntity<?> find(@PathVariable String orderId, HttpServletRequest servletRequest) {
-        return respond(payments.find(orderId), servletRequest, PaymentResponses::lookup);
+        var outcome = payments.find(orderId);
+        return respond(outcome, servletRequest, state -> PaymentResponses.lookup(state, outcome.fault().omitsAmount()));
     }
 
     private ResponseEntity<?> respond(PaymentService.Outcome outcome, HttpServletRequest servletRequest,
