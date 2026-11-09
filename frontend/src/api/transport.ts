@@ -18,6 +18,11 @@ export interface SendOptions<T extends z.ZodType> {
   signal?: AbortSignal
 }
 
+// 스트림 요청 옵션. 성공 본문을 푸는 일은 호출하는 쪽이 하므로 스키마가 없다.
+export type StreamOptions = Omit<SendOptions<z.ZodType>, 'schema'>
+
+const EVENT_STREAM = 'text/event-stream'
+
 // 요청 한 번을 보내고 공통 응답을 푼다. 인증·재시도는 하지 않는다(`client.ts`가 맡는다).
 // 시연 모드용 요청 기록은 결과와 상관없이 요청마다 한 번 남긴다.
 export async function send<T extends z.ZodType>(options: SendOptions<T>): Promise<z.output<T>> {
@@ -51,13 +56,56 @@ export async function send<T extends z.ZodType>(options: SendOptions<T>): Promis
   }
 }
 
+// 요청을 보내고 `text/event-stream` 응답을 본문을 읽기 전에 돌려준다. 본문 읽기와 닫기는 호출하는 쪽이 한다.
+// 요청 전에 걸러진 실패(400·401·429)는 스트림이 아니라 공통 실패 형식 JSON이라 `send`와 같은 ApiError로 던진다.
+// 요청 기록은 응답 상태를 받은 시점에 한 번 남긴다. 본문을 읽는 시간은 재지 않는다.
+export async function openStream(options: StreamOptions): Promise<Response> {
+  const startedAt = Date.now()
+  const startedTick = performance.now()
+  let status = 0
+  let traceId: string | null = null
+
+  try {
+    const response = await fetchOrThrow(options, EVENT_STREAM)
+    status = response.status
+    if (!response.ok) {
+      const payload = await readJson(response)
+      traceId = readTraceId(payload)
+      throw toApiError(response, payload)
+    }
+    if (!(response.headers.get('Content-Type') ?? '').startsWith(EVENT_STREAM)) {
+      void response.body?.cancel().catch(() => undefined)
+      throw new ApiError({
+        status: response.status,
+        code: CLIENT_ERROR_CODES.unexpectedResponse,
+        message: '스트림이 아닌 200 응답입니다',
+      })
+    }
+    return response
+  } finally {
+    if (!options.signal?.aborted) {
+      recordRequest({
+        startedAt,
+        method: options.method,
+        path: loggedPath(options.path),
+        status,
+        durationMs: Math.round(performance.now() - startedTick),
+        traceId,
+      })
+    }
+  }
+}
+
 // Note: 쿼리 값은 남기지 않는다. 서버 공통 요청 로그 규칙과 같다.
 function loggedPath(path: string): string {
   return (API_BASE_PATH + path).split('?')[0]
 }
 
-async function fetchOrThrow(options: SendOptions<z.ZodType>): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
+async function fetchOrThrow(
+  options: StreamOptions,
+  accept = 'application/json',
+): Promise<Response> {
+  const headers: Record<string, string> = { Accept: accept, ...options.headers }
   let body: string | undefined
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
