@@ -102,3 +102,45 @@ describe('send 요청 기록', () => {
     expect(entries()).toEqual([])
   })
 })
+
+describe('send 공통 형식이 아닌 응답(envelope: false)', () => {
+  it('성공 본문을 그대로 스키마로 검사한다', async () => {
+    mockServer.use(http.get('/api/v1/raw', () => HttpResponse.json({ value: 7 })))
+
+    await expect(send({ method: 'GET', path: '/raw', schema, envelope: false })).resolves.toEqual({
+      value: 7,
+    })
+  })
+
+  it('본문의 code로 실패를 만든다', async () => {
+    mockServer.use(
+      http.post('/api/v1/raw', () =>
+        HttpResponse.json({ code: 'INVALID_REQUEST' }, { status: 400 }),
+      ),
+    )
+
+    await expect(
+      send({ method: 'POST', path: '/raw', schema, body: {}, envelope: false }),
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_REQUEST' })
+  })
+
+  it('Gateway의 공통 실패 형식은 그대로 푼다', async () => {
+    mockServer.use(http.get('/api/v1/raw', () => failure(403)))
+
+    await expect(
+      send({ method: 'GET', path: '/raw', schema, envelope: false }),
+    ).rejects.toMatchObject({ status: 403, code: 'SOMETHING', traceId: TRACE_ID })
+  })
+
+  it('code가 없는 실패는 응답 상태만 남긴다', async () => {
+    mockServer.use(
+      http.get('/api/v1/raw', () =>
+        HttpResponse.json({ status: 404, error: 'Not Found' }, { status: 404 }),
+      ),
+    )
+
+    await expect(
+      send({ method: 'GET', path: '/raw', schema, envelope: false }),
+    ).rejects.toMatchObject({ status: 404, code: 'UNEXPECTED_RESPONSE' })
+  })
+})
