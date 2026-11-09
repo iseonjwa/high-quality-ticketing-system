@@ -179,7 +179,7 @@ class PaymentApprovalMetricsTest {
     @Test
     void PG_호출_전_구간의_DB_오류는_error로_센다() {
         doThrow(new DataAccessResourceFailureException("DB 연결 실패")).when(paymentTx).createRequested(any(), any(),
-                any());
+                any(), any());
         var before = counts();
 
         assertThrows(BusinessException.class, () -> service.approve(command(newReservation(), UUID.randomUUID())));
@@ -189,7 +189,7 @@ class PaymentApprovalMetricsTest {
 
     @Test
     void 처리_중_예상하지_못한_예외도_error로_센다() {
-        doThrow(new IllegalStateException("예상하지 못한 오류")).when(paymentTx).createRequested(any(), any(), any());
+        doThrow(new IllegalStateException("예상하지 못한 오류")).when(paymentTx).createRequested(any(), any(), any(), any());
         var before = counts();
 
         assertThrows(IllegalStateException.class, () -> service.approve(command(newReservation(), UUID.randomUUID())));

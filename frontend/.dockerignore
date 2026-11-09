@@ -5,3 +5,6 @@ coverage
 *.local
 .git
 *.log
+test-results
+playwright-report
+blob-report

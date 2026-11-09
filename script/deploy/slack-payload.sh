@@ -28,9 +28,9 @@ if (( seconds >= 60 )); then duration="$(( seconds / 60 ))분 $(( seconds % 60 )
 progress=0
 case "${RESULT:-error}" in
   started)
-    progress=1; color='#3B3BD4'; headline="[배포 준비] 새 커밋을 찾았습니다. 이미지 8개를 기다립니다" ;;
+    progress=1; color='#3B3BD4'; headline="[배포 준비] 새 커밋을 찾았습니다. 이미지 9개를 기다립니다" ;;
   deploying)
-    progress=1; color='#3B3BD4'; headline="[배포 중] 이미지 8개를 확인했습니다. 배포 서버에 반영합니다" ;;
+    progress=1; color='#3B3BD4'; headline="[배포 중] 이미지 9개를 확인했습니다. 배포 서버에 반영합니다" ;;
   success)
     color='#1E7F4F'; headline="[배포 성공] 배포 서버에 새 버전을 올렸습니다" ;;
   rolledback)
