@@ -253,6 +253,97 @@ describe('LotteryPage 단계 배지', () => {
   })
 })
 
+describe('LotteryPage 추첨 순서와 안내', () => {
+  const flow = () => screen.getByRole('list', { name: '추첨 순서' })
+  const currentStep = () =>
+    within(flow())
+      .getAllByRole('listitem')
+      .filter((step) => step.getAttribute('aria-current') === 'step')
+
+  it('추첨 순서 4단계를 보이고, 응모 중이면 1단계 "응모"가 지금 단계다', async () => {
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    const steps = within(flow()).getAllByRole('listitem')
+    expect(steps).toHaveLength(4)
+    expect(steps.map((step) => step.querySelector('span:nth-of-type(2)')?.textContent)).toEqual([
+      '응모',
+      '추첨',
+      '자동결제',
+      '예매 확정',
+    ])
+    expect(currentStep()).toEqual([steps[0]])
+  })
+
+  it.each([
+    ['응모 마감', () => placeLottery(OPEN, { start: -2 * HOUR, end: -HOUR, draw: HOUR }), OPEN, 1],
+    ['추첨 완료', () => placeLottery(DRAWN, {}), DRAWN, 2],
+    ['종료', () => placeLottery(DRAWN, { status: 'DONE' }), DRAWN, 3],
+  ] as const)(
+    '%s이면 추첨 순서의 지금 단계가 바뀐다',
+    async (_label, arrange, lotteryId, index) => {
+      arrange()
+      renderLottery(`/lotteries/${lotteryId}`)
+
+      await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+      const steps = within(flow()).getAllByRole('listitem')
+      expect(currentStep()).toEqual([steps[index]])
+    },
+  )
+
+  it('자동결제 카드가 필요 없는 추첨의 3단계 이름은 "결제"다', async () => {
+    mockServer.use(
+      http.get(infoApi(OPEN), () => {
+        const lottery = lotteryRow(OPEN)
+        return ok({
+          lotteryId: OPEN,
+          scheduleId: lottery.scheduleId,
+          status: 'OPEN',
+          seatCount: lottery.seatCount,
+          entryStartAt: instant(lottery.entryStartAtMillis),
+          entryEndAt: instant(lottery.entryEndAtMillis),
+          drawAt: instant(lottery.drawAtMillis),
+          rules: {
+            minPerEntry: 1,
+            maxPerEntry: lottery.maxPerEntry,
+            adjacentSeatsGuaranteed: false,
+            reentryAllowed: false,
+            billingKeyRequired: false,
+          },
+        })
+      }),
+    )
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    expect(within(flow()).getByText('결제')).toBeInTheDocument()
+    expect(within(flow()).queryByText('자동결제')).not.toBeInTheDocument()
+  })
+
+  it('"알아 두세요"에 승계 안내가 늘 있다', async () => {
+    renderLottery()
+
+    await screen.findByRole('heading', { level: 1, name: '추첨 응모' })
+    expect(
+      screen.getByText(
+        '앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에 끝나요.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('응모 카드의 [n매 응모하기]는 절취선 아래에 있다', async () => {
+    renderLottery()
+
+    const button = await enterButton('1매 응모하기')
+    const card = button.closest('section')!
+    const perforation = card.querySelector('.ticket-perf')!
+    expect(perforation).not.toBeNull()
+    expect(
+      perforation.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
+
 describe('LotteryPage 응모하기', () => {
   it('결과를 모르는 응모는 마감이 지나도 [응모 결과 확인하기]를 남기고, 서버에 응모가 없었으면 "응모하지 않았어요"로 바뀐다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
