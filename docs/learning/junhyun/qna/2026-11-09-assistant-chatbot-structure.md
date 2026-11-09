@@ -105,6 +105,27 @@ tags: [assistant, rag, llm, claude-api, msa, graceful-degradation]
 - 요청 제한은 메모리에 있어서 재시작하면 초기화된다. 인스턴스가 하나라 지금은 충분하다.
 - 첫 배포 때 GHCR 이미지 패키지를 공개로 바꿔야 한다.
 
+### 5. RAG 단계별 코드 위치 (추가 질문: "RAG는 어디서 구현돼 있나")
+경로는 `assistant-service/src/main/` 아래다(PR #404, 브랜치 `feat/ISE-126-assistant`). 프레임워크(Spring AI, LangChain 등)를 쓰지 않고 직접 짰다. 외부 라이브러리는 Claude 호출용 `com.anthropic:anthropic-java`뿐이다.
+
+| RAG 단계 | 파일 | 하는 일 |
+|---|---|---|
+| 0. 지식 저장소 | `resources/knowledge/*.md`(7개) | 규정 문서. 절마다 `## [절ID] 제목`과 `keywords:` 줄 |
+| 0. 적재 | `knowledge/KnowledgeParser.java` `parse`(25줄), `knowledge/KnowledgeBase.java` `loadFromClasspath`(35줄) | 기동할 때 마크다운을 절 단위(`KnowledgeSection`)로 나눈다. 절ID 중복·빈 절이면 기동 실패 |
+| 1. 색인 | `retrieval/Retriever.java` 생성자(37줄) | 절마다 bigram 집합을 만들고, 드문 bigram일수록 큰 가중치(IDF, `log(1 + 전체 절 수 / 그 bigram이 나온 절 수)`)를 미리 계산한다 |
+| 2. 검색(R) | `Retriever.rank`(57줄)·`score`(81줄) | 질문의 bigram이 절에 있으면 가중치를 더한다. 제목·keywords에서 맞으면 2배, 본문에 반복되면 조금 더. 질문 말투(`QUESTION_FILLER`, 23줄)는 뺀다 |
+| 2. 고르기 | `Retriever.forModel`(68줄), `forSearch`(77줄) | 모델에는 상위 4절(최고 점수가 낮으면 전체), 검색 모드에는 상위 3절 |
+| 3. 근거 주입(A) | `llm/AnthropicLlmClient.java` `request`(58줄 근처) | 고른 절을 citations가 켜진 `DocumentBlockParam`(텍스트, 제목 = 절ID)으로, 그 뒤에 `<question>` 질문을 넣는다. 시스템 프롬프트는 `SYSTEM_PROMPT`(27줄) |
+| 4. 생성(G) | `AnthropicLlmClient.answer`(47줄) | `client.messages().create(...)`로 Claude Haiku 5.5 호출(effort low, 최대 1024 토큰) |
+| 5. 출처 | `AnthropicLlmClient.toAnswer`(84줄) | 응답 text 블록을 이어 붙이고, 각 `TextCitation`의 `documentIndex`로 넣었던 절을 찾아 출처로 만든다. `refusal`이면 예외 |
+| 조립·강등 | `answer/AssistantService.java` `ask`·`answer` | 요청 제한 → 키 없음·동시 상한·일일 예산 확인 → 검색 → Claude → 실패하면 검색 모드 |
+| 키 없으면 끔 | `global/AnthropicConfiguration.java`(16줄 `@ConditionalOnExpression`) | 키가 비었거나 `enabled=false`면 `LlmClient` 빈을 만들지 않는다. 그러면 `AssistantService`가 검색 모드로만 답한다 |
+| 시한·재시도 | `AnthropicConfiguration` 24~25줄 | `.timeout(8s)`, `.maxRetries(0)` |
+| 설정값 | `config-repo/assistant-service.yml` | 모델, 시한, top-k, 최소 점수, 요청 제한 |
+
+- 벡터 DB 대신 "bigram + IDF 가중치"가 검색(R)을 맡는다. 벡터 검색과 목적은 같고(질문과 닮은 문서 찾기), 닮음을 재는 방법만 다르다.
+- 근거 주입(A)과 출처(citations)는 Claude API의 document 블록 기능을 쓴다. 우리가 "이 문장은 몇 번 문서에서 왔다"를 따로 계산하지 않아도, 모델이 인용 위치를 돌려준다.
+
 ## 면접 포인트
 - "RAG를 했다"보다 "왜 벡터 DB를 안 썼나"를 설명할 수 있어야 한다. 문서가 수천 토큰이면 키워드 검색으로 충분하다. 벡터 검색은 키·메모리·구현 비용이 크다. 문서가 커지면 다시 본다는 재검토 조건을 ADR에 남겼다.
 - 외부 LLM을 붙일 때 핵심은 실패 설계다.
