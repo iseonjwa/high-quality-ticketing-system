@@ -8,6 +8,8 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | '지금 예매 중' 카드를 줄였다는 AI의 말과 달리 포스터가 그대로 길었던 것을 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-09-home-card-shorten-not-applied.md) |
+| 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-home-renewal-draft-b-light-dark.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-08-deploy-measure-token-key-swap.md) |
 | 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-grafana-link-deploy-host.md) |

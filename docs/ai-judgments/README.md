@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-09-home-renewal-draft-b-light-dark.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-08-deploy-measure-token-key-swap.md) |
 | 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-06 | 선점 기준선 비교를 로컬에서 하자는 추천 대신 로컬은 사전 측정, 수치화는 배포 서버로 제시함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-06-ise25-final-comparison-on-deploy.md) |
