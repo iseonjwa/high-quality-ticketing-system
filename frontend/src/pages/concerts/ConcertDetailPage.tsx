@@ -559,6 +559,16 @@ function BookingGuide() {
             카드로 결제돼요.
           </li>
         </ul>
+        <p className="type-body-sm text-gray-700">
+          더 궁금한 점은{' '}
+          <Link
+            to={paths.help}
+            className="font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            예매 문의
+          </Link>
+          에서 물어볼 수 있어요.
+        </p>
       </section>
     </div>
   )

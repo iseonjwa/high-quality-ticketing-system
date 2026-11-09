@@ -1,0 +1,21 @@
+name: loki-rules
+
+# Loki 설정·건별 알림 규칙이 바뀔 때만 설정 검사와 규칙 동작 검사를 돌린다(임시 Loki를 띄워 로그를 넣고 ruler API를 본다).
+# 필수 검사가 아니라 paths 필터를 쓴다.
+on:
+  pull_request:
+    paths: ["infra/loki/**", "script/check-loki-rules.sh", ".github/workflows/loki-rules.yml"]
+  push:
+    branches: [main, dev]
+    paths: ["infra/loki/**", "script/check-loki-rules.sh", ".github/workflows/loki-rules.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  loki:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 설정 검사와 규칙 동작 검사
+        run: script/check-loki-rules.sh
