@@ -1,6 +1,7 @@
 import { adminHandlers } from '@/mocks/handlers/admin'
 import { adminLotteryHandlers } from '@/mocks/handlers/adminLotteries'
 import { adminUserHandlers } from '@/mocks/handlers/adminUsers'
+import { assistantHandlers } from '@/mocks/handlers/assistant'
 import { authHandlers } from '@/mocks/handlers/auth'
 import { billingKeyHandlers } from '@/mocks/handlers/billingKeys'
 import { concertHandlers } from '@/mocks/handlers/concerts'
@@ -21,4 +22,5 @@ export const handlers = [
   ...paymentHandlers,
   ...billingKeyHandlers,
   ...lotteryHandlers,
+  ...assistantHandlers,
 ]
