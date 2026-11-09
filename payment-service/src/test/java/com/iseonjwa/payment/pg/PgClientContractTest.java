@@ -13,6 +13,7 @@ import com.iseonjwa.payment.pg.application.PgClient.Refunded;
 import com.iseonjwa.payment.pg.application.PgClient.Unknown;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
 import com.iseonjwa.payment.pg.application.RefundCommand;
 import com.iseonjwa.payment.pg.application.RefundRejectReason;
@@ -38,6 +39,14 @@ public abstract class PgClientContractTest {
     protected abstract PgClient client();
 
     protected abstract PgScenario scenario();
+
+    /**
+     * 어댑터가 처리 중인 승인까지 막는 늦은 승인 방지를 보장하는지. 보장하지 못하는 어댑터(토스)는 false로 바꾸고,
+     * 이때 아직 승인되지 않은 주문의 방지 결과로 Prevented 대신 Unknown을 기대한다.
+     */
+    protected boolean guaranteesLateApprovalPrevention() {
+        return true;
+    }
 
     @Test
     void 승인하면_PG가_처리한_금액과_통화를_돌려준다() {
@@ -186,7 +195,12 @@ public abstract class PgClientContractTest {
     void 승인되지_않은_주문은_늦은_승인을_막고_이후에도_승인으로_조회되지_않는다() {
         var order = newOrder();
 
-        assertInstanceOf(Prevented.class, client().preventLateApproval(order));
+        var prevention = client().preventLateApproval(order);
+        if (guaranteesLateApprovalPrevention()) {
+            assertInstanceOf(Prevented.class, prevention);
+        } else {
+            assertInstanceOf(Unknown.class, prevention);
+        }
 
         assertFalse(client().findPayment(order) instanceof Approved);
     }
@@ -262,7 +276,12 @@ public abstract class PgClientContractTest {
     }
 
     protected final ApproveCommand approveCommand(PgOrderId order) {
-        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), null);
+        return new ApproveCommand(order, AMOUNT, KRW, PgIdempotencyKey.ofApproval(order), clientPaymentRef(order));
+    }
+
+    // 결제창에서 받은 PG 식별자 역할. 주문에서 결정적으로 만들어 같은 주문의 재시도가 같은 값을 보내게 한다(Mock은 무시한다)
+    protected final PgPaymentRef clientPaymentRef(PgOrderId order) {
+        return new PgPaymentRef("tgen_" + order.value().toString().replace("-", ""));
     }
 
     protected final RefundCommand refundCommand(Approved approved, PgRefundId refundId) {
