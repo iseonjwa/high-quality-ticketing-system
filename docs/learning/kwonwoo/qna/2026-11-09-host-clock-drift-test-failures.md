@@ -71,4 +71,4 @@ w32tm /resync /force
 ## 참고
 - 실행 결과: 동기화 전 실패 4건(위 표의 실패 메시지), 동기화 뒤 `:reservation-service:test` 374건 중 실패 0건, 건너뜀 11건.
 - 코드: `reservation-service/src/main/resources/redis/queue/issue-token.lua`(`redis.call('TIME')`), `queue/infrastructure/JwtEntryTokenIssuer.java`, `lottery/application/LotteryPaymentMetricsTest.java` 106행.
-- `docs/troubleshooting.md` TS-45
+- `docs/troubleshooting.md` TS-46
