@@ -21,7 +21,8 @@ import org.springframework.cloud.config.server.environment.EnvironmentRepository
 })
 class ConfigRepoTest {
     private static final List<String> SERVICES = List.of(
-            "gateway", "eureka", "user-service", "reservation-service", "payment-service", "mock-pg");
+            "gateway", "eureka", "user-service", "reservation-service", "payment-service", "mock-pg",
+            "assistant-service");
     private static final List<String> PROFILES = List.of("default", "local", "loadtest", "prod", "test");
 
     @Autowired
@@ -36,6 +37,16 @@ class ConfigRepoTest {
                 .map(name -> name.substring(name.lastIndexOf('/') + 1))
                 .containsExactly("application-local.yml", "user-service.yml", "application.yml");
         assertThat(firstValue(env, "management.tracing.sampling.probability")).isEqualTo(1.0);
+    }
+
+    @Test
+    void 상담_서비스는_키를_환경변수로만_받고_검색_모드가_기본으로_뜰_수_있다() {
+        Environment env = repository.findOne("assistant-service", "prod", null);
+
+        assertThat(firstValue(env, "server.port")).isEqualTo(8095);
+        assertThat(String.valueOf(firstValue(env, "anthropic.api-key"))).isEqualTo("${ANTHROPIC_API_KEY:}");
+        assertThat(String.valueOf(firstValue(env, "assistant.llm.enabled"))).isEqualTo("${ASSISTANT_LLM_ENABLED:true}");
+        assertThat(String.valueOf(firstValue(env, "assistant.llm.timeout"))).isEqualTo("8s");
     }
 
     @Test

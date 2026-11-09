@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { ChevronRight, KeyRound, Plus } from 'lucide-react'
+import { ChevronRight, KeyRound, Plus, Zap } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { getConcerts } from '@/api/concerts'
@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/lib/format'
 
 // 운영 첫 화면. 공연을 고르면 회차·좌석·추첨을 만드는 화면으로 간다. 추첨 번호로 추첨 설정을 열고, 회원 비밀번호를 초기화한다.
+// 시연 장애 패널(ISE-134)로 Mock PG 장애를 건다.
 // 공연 목록 API(최근 등록순)를 그대로 쓴다. 운영자 전용 목록 API는 없다
 const PAGE_SIZE = 50
 
@@ -54,6 +55,21 @@ export function AdminHomePage() {
               <span className="type-body font-semibold text-gray-900">비밀번호 초기화</span>
               <span className="type-body-sm text-gray-500">
                 회원 번호로 임시 비밀번호를 만들어요
+              </span>
+            </span>
+            <ChevronRight aria-hidden="true" className="size-4 text-gray-400" />
+          </Link>
+        </Card>
+        <Card className="justify-center px-5 py-4">
+          <Link
+            to={paths.adminDemoFaults}
+            className="flex items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Zap aria-hidden="true" className="size-5 text-gray-500" />
+            <span className="grid flex-1 gap-0.5">
+              <span className="type-body font-semibold text-gray-900">시연 장애 패널</span>
+              <span className="type-body-sm text-gray-500">
+                Mock PG에 장애를 걸어 결제 실패 흐름을 보여 줘요
               </span>
             </span>
             <ChevronRight aria-hidden="true" className="size-4 text-gray-400" />

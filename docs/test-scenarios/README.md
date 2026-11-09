@@ -43,7 +43,7 @@
 | ID | 내용 | 확인 범위 |
 |---|---|---|
 | HOLD-016 | 한 좌석에 여러 사용자가 동시에 선점 | 테스트 메서드 이름에서 API 단위 동시 요청을 찾지 못했다. 본문까지 찾아보지는 않았다. DB 제약 테스트만 확인했다 |
-| FE-017 | 브라우저 E2E | `frontend/package.json`에 Playwright와 Cypress가 없다 |
+| FE-017 | 브라우저 E2E | Playwright 테스트는 MSW 모드와 compose 모드(`npm run e2e:compose`)가 있다. compose의 확인 중은 Mock PG 장애 주입이 닫혀 있으면 건너뛰고, 배포 서버 대상 실행은 리허설 전용 회차로 팀 공지 뒤에만 한다 |
 
 ## 표 읽는 법
 

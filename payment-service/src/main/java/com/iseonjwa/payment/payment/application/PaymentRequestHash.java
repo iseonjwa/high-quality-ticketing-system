@@ -14,9 +14,15 @@ final class PaymentRequestHash {
     private PaymentRequestHash() {}
 
     static String of(String paymentToken, long amount) {
+        return of(paymentToken, amount, null);
+    }
+
+    static String of(String paymentToken, long amount, String clientPaymentRef) {
         // Note: 토큰 원문이 해시에 들어간다. 같은 키로 재발급된 다른 토큰을 보내면 다른 본문으로 보고 409다(SA의 "같은 본문").
-        // 금액은 숫자, 수단은 고정값이라 이어 붙이는 경계가 모호하지 않다
-        var canonical = paymentToken + "\n" + amount + "\n" + METHOD_CARD;
+        // 금액은 숫자, 수단은 고정값이라 이어 붙이는 경계가 모호하지 않다.
+        // clientPaymentRef가 없으면 이전 형식 그대로라 이 필드가 생기기 전에 저장된 멱등 기록과 해시가 같다
+        var canonical = paymentToken + "\n" + amount + "\n" + METHOD_CARD
+                + (clientPaymentRef == null ? "" : "\n" + clientPaymentRef);
         try {
             var digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);

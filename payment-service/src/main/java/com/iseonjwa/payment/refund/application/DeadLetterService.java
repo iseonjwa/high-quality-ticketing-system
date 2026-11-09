@@ -1,6 +1,7 @@
 package com.iseonjwa.payment.refund.application;
 
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.payment.domain.StatusActor;
 import com.iseonjwa.payment.refund.domain.DeadLetterRepository;
 import com.iseonjwa.payment.refund.domain.DeadLetterResolution;
@@ -42,15 +43,17 @@ public class DeadLetterService {
     private final DeadLetterRepository deadLetters;
     private final RefundRequestService refundRequests;
     private final ProcessedEventRepository processedEvents;
+    private final PaymentAlertLog alertLog;
     private final TransactionTemplate transaction;
     private final Clock clock;
 
     public DeadLetterService(DeadLetterRepository deadLetters, RefundRequestService refundRequests,
-            ProcessedEventRepository processedEvents, TransactionTemplate transaction,
+            ProcessedEventRepository processedEvents, PaymentAlertLog alertLog, TransactionTemplate transaction,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.deadLetters = deadLetters;
         this.refundRequests = refundRequests;
         this.processedEvents = processedEvents;
+        this.alertLog = alertLog;
         this.transaction = transaction;
         this.clock = clock;
     }
@@ -69,7 +72,7 @@ public class DeadLetterService {
     // eventKey: 봉투를 읽었으면 eventId, 못 읽었으면 원본 위치(positionKey)
     private void run(DeadLetterInput input, String eventKey, UUID eventId, RefundRequestedPayload payload,
             String unparsableReason) {
-        var openReason = transaction.execute(status -> {
+        transaction.execute(status -> {
             var now = clock.instant();
             var id = deadLetters.insertOpen(new NewDeadLetter(truncate(input.sourceTopic(), KEY_LENGTH),
                     input.sourcePartition(), input.sourceOffset(), truncate(clean(input.messageKey()), KEY_LENGTH),
@@ -81,24 +84,25 @@ public class DeadLetterService {
             }
             if (eventId != null) processedEvents.markProcessed(eventId, CONSUMER_GROUP, now);
 
-            if (payload == null) return open(id.get(), unparsableReason);
-            return switch (refundRequests.settle(payload, RefundSource.DLQ, eventId, StatusActor.SYSTEM)) {
-                case RefundRequestOutcome.Rejected rejected -> open(id.get(), rejected.message());
-                case RefundRequestOutcome.Created created -> {
-                    deadLetters.resolve(id.get(), DeadLetterResolution.AUTO_PERSISTED, created.refundId(), now);
-                    yield Optional.<String>empty();
-                }
-                case RefundRequestOutcome.Duplicate duplicate -> {
-                    deadLetters.resolve(id.get(), DeadLetterResolution.DUPLICATE, duplicate.refundId(), now);
-                    yield Optional.<String>empty();
-                }
-            };
+            var opened = payload == null ? open(id.get(), unparsableReason)
+                    : switch (refundRequests.settle(payload, RefundSource.DLQ, eventId, StatusActor.SYSTEM)) {
+                        case RefundRequestOutcome.Rejected rejected -> open(id.get(), rejected.message());
+                        case RefundRequestOutcome.Created created -> {
+                            deadLetters.resolve(id.get(), DeadLetterResolution.AUTO_PERSISTED, created.refundId(), now);
+                            yield Optional.<String>empty();
+                        }
+                        case RefundRequestOutcome.Duplicate duplicate -> {
+                            deadLetters.resolve(id.get(), DeadLetterResolution.DUPLICATE, duplicate.refundId(), now);
+                            yield Optional.<String>empty();
+                        }
+                    };
+            // 이 트랜잭션이 커밋된 뒤에 건별 알림 줄이 찍힌다(PaymentAlertLog). 커밋이 실패하면 OPEN 기록도 알림도 남지 않는다.
+            // 봉투를 못 읽었거나 결제를 못 읽으면 결제 정보는 '-'다
+            opened.ifPresent(reason -> alertLog.deadLetterOpen(payload == null ? null : payload.paymentId(), eventKey,
+                    reason));
+            return opened;
         });
-        // 커밋된 뒤에 알린다. 커밋이 실패하면 OPEN 기록도 남지 않으므로 알림이 거짓이 되지 않게 한다
-        if (openReason != null && openReason.isPresent()) {
-            // 즉시 알림은 PaymentDeadLetterOpen 규칙이 낸다. 건수와 최고령은 gauge-refresh가 센다
-            log.error("event=DEAD_LETTER_OPEN eventKey={} reason={}", eventKey, openReason.get());
-        }
+        // 즉시 알림은 PaymentDeadLetterOpen 규칙(지표)과 Loki 건별 규칙이 낸다. 건수와 최고령은 gauge-refresh가 센다
     }
 
     private Optional<String> open(Long id, String reason) {
