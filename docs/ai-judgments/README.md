@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
 | [junhyun](junhyun/README.md) | 개별 기록 36건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 13건, 일지 5일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 15건, 일지 7일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -42,11 +42,13 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | 측정 기기를 옮길 때 번들 대신 브랜치를 푸시하고, 세션 핸드오프 메모는 푸시하지 않고 직접 옮김 | kwonwoo | Claude Code | **거부** | 아님 | [기록](kwonwoo/2026-11-09-push-measurement-branches-keep-handoff-local.md) |
 | 2026-11-05 | 결제 작업 지표의 job 라벨 충돌을 규칙 수정이 아니라 태그를 task로 바꿔 풀기로 함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-05-payment-job-label-task.md) |
 | 2026-11-05 | MVP 시연: 리허설 전 `main` 동결 제안 거부, `dev` 머지와 로컬 테스트 뒤 반영 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-05-demo-main-merge-after-local-test.md) |
 | 2026-11-05 | MVP 시연: 장애 현장 대체 제안 거부, 장애 상황도 함께 보임 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-05-demo-show-failures-live.md) |
 | 2026-11-05 | MVP 시연: 추첨은 응모자를 적재해 실제처럼 모의 진행 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-05-demo-lottery-seeded-entries.md) |
 | 2026-11-05 | MVP 시연: 영역 담당별 진행 제안 거부, 통합 진행 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-05-demo-single-integrated-presenter.md) |
+| 2026-11-07 | K1-H를 막은 Gateway 인증 차단기를 측정 환경에서만 완화(느린 호출 판정 끔)하고, Gateway 담당과의 조율은 측정이 끝난 뒤로 보류 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-07-k1h-relax-gateway-breaker-in-measurement.md) |
 | 2026-11-06 | k6 단계별 개선을 수정 없는 기본 코드에서 시작해 병목을 직면하는 순서로 다시 설계(G1·R1·S4도 단계로, 워밍업 1분, 최종도 local) | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-06-k6-steps-from-unmodified-base.md) |
 | 2026-11-06 | 좌석 조회 경량화(P4) 측정을 반효승 담당에서 일부 가져와 좌석 선점과 같은 환경(측정 브랜치)에서 재고, 본 구현은 ISE-189에 둠 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-06-measure-p4-seat-map-in-own-environment.md) |
 | 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-05-grafana-link-deploy-host.md) |
