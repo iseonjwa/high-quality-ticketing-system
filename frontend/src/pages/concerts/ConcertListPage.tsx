@@ -1,9 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Ticket } from 'lucide-react'
-import { useId, useMemo, type ReactNode } from 'react'
+import { Fragment, useId, useMemo, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { concertQueryKeys, getConcerts } from '@/api/concerts'
 import { concertPath, paths } from '@/app/paths'
+import { concertArt, POSTER_SIZE } from '@/components/ticketing/concertArt'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { EmptyState } from '@/components/ticketing/EmptyState'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
@@ -100,15 +101,17 @@ export function ConcertListPage() {
                 description="오픈 시각이 되면 공연 상세에서 예매하기가 열려요"
                 count={sections.openingSoon.length}
               >
-                <ol className="grid gap-3 @min-[48rem]:grid-cols-2">
+                <ol className="grid gap-x-6 gap-y-8 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
                   {sections.openingSoon.map((item) => (
                     <li key={item.concert.concertId}>
-                      <OpenCalendarCard item={item} nowMillis={now} />
+                      <OpeningTicket item={item} nowMillis={now} />
                     </li>
                   ))}
                 </ol>
               </HomeSection>
             ) : null}
+
+            <SampleAdBand />
 
             {sections.onSale.length > 0 ? (
               <HomeSection
@@ -116,12 +119,24 @@ export function ConcertListPage() {
                 description="공연이 가까운 순서예요"
                 count={sections.onSale.length}
               >
-                <ul className="grid grid-cols-2 gap-x-4 gap-y-8 @min-[40rem]:grid-cols-3 @min-[64rem]:grid-cols-5 @min-[64rem]:gap-x-6">
-                  {sections.onSale.map((item) => (
-                    <li key={item.concert.concertId}>
-                      <PosterCard item={item} />
-                    </li>
+                <ul className="grid grid-cols-2 gap-x-3 gap-y-5 @min-[40rem]:grid-cols-3 @min-[40rem]:gap-x-5 @min-[64rem]:grid-cols-4">
+                  {sections.onSale.map((item, position) => (
+                    <Fragment key={item.concert.concertId}>
+                      {position === adSlot(sections.onSale.length) ? (
+                        <li className="flex">
+                          <SampleAdCard />
+                        </li>
+                      ) : null}
+                      <li className="flex">
+                        <SaleTicketCard item={item} />
+                      </li>
+                    </Fragment>
                   ))}
+                  {adSlot(sections.onSale.length) === sections.onSale.length ? (
+                    <li className="flex">
+                      <SampleAdCard />
+                    </li>
+                  ) : null}
                 </ul>
               </HomeSection>
             ) : null}
@@ -192,8 +207,8 @@ function CardTitleLink({ concertId, children }: { concertId: number; children: s
   )
 }
 
-// 오픈 달력: 오픈 날짜를 왼쪽 달력 칸에 크게 둔다
-function OpenCalendarCard({ item, nowMillis }: { item: HomeConcert; nowMillis: number }) {
+// 오픈 예정 티켓: 오픈 날짜를 위에 크게 두고, 카드 오른쪽 떼는 칸(스텁)에 남은 날을 둔다
+function OpeningTicket({ item, nowMillis }: { item: HomeConcert; nowMillis: number }) {
   const { concert, next } = item
   if (next === null) {
     return null
@@ -201,60 +216,157 @@ function OpenCalendarCard({ item, nowMillis }: { item: HomeConcert; nowMillis: n
   const open = kstParts(next.openAt)
   const days = kstDaysUntil(next.openAt, nowMillis)
   return (
-    <article className="relative flex items-center gap-4 rounded-lg border border-gray-100 bg-gray-0 p-3 pr-5 transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
-      <div
-        aria-hidden="true"
-        className="grid w-16 shrink-0 justify-items-center rounded-md bg-gray-900 py-2 text-gray-0"
-      >
-        <span className="type-caption text-gray-0/70">{Number(open.month)}월</span>
-        <span className="text-[26px] leading-8 font-bold tabular-nums">{open.day}</span>
-        <span className="type-caption text-gray-0/70">{open.weekday}요일</span>
-      </div>
-      <ConcertPoster concertId={concert.concertId} className="w-14 rounded-[4px]" />
-      <div className="grid min-w-0 gap-1">
-        <p className="type-body-sm font-semibold text-primary-600 tabular-nums">
-          {open.hour}:{open.minute} 티켓 오픈
-          <span className="ml-2 text-gray-500">{days <= 0 ? '오늘' : `D-${days}`}</span>
-        </p>
-        <h3 className="line-clamp-2 type-body font-semibold text-gray-900">
-          <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>
-        </h3>
-        <p className="type-caption text-gray-500 tabular-nums">
-          공연 {formatShortDateTime(next.startsAt)}
-        </p>
-      </div>
-    </article>
+    <div className="grid gap-3">
+      <p className="flex items-baseline gap-2.5">
+        <span className="text-[28px] leading-8 font-bold tracking-[-0.03em] text-gray-900 tabular-nums">
+          {open.month}.{open.day}
+        </span>
+        <span className="type-body-sm font-semibold text-gray-600 tabular-nums">
+          {open.weekday} {open.hour}:{open.minute} 티켓 오픈
+        </span>
+      </p>
+      <article className="relative flex rounded-[18px] border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
+        <div className="flex min-w-0 flex-1 items-center gap-3.5 p-3">
+          <ConcertPoster concertId={concert.concertId} className="w-[60px] rounded-[8px]" />
+          <div className="grid min-w-0 gap-1">
+            <h3 className="line-clamp-2 type-body font-semibold text-gray-900">
+              <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>
+            </h3>
+            <p className="type-caption text-gray-600 tabular-nums">
+              {formatShortDateTime(next.startsAt)} 공연
+            </p>
+          </div>
+        </div>
+        <div className="ticket-stub flex w-[76px] shrink-0 items-center justify-center">
+          <span className="text-[20px] font-bold text-danger-600 tabular-nums">
+            {days <= 0 ? '오늘' : `D-${days}`}
+          </span>
+        </div>
+      </article>
+    </div>
   )
 }
 
-// 포스터가 큰 카드. 예매 중인 공연을 격자로 보인다
-function PosterCard({ item }: { item: HomeConcert }) {
+// 예매 중 티켓 카드. 포스터를 정사각형으로 잘라 위에 두고, 절취선 아래에 제목과 일시를 둔다(시안 B, 가로:세로 약 3:4)
+function SaleTicketCard({ item }: { item: HomeConcert }) {
   const { concert, next, status } = item
+  const art = concertArt(concert.concertId)
   return (
-    <article className="group relative grid gap-3 rounded-lg has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-offset-4 has-[a:focus-visible]:ring-offset-gray-25">
-      <div className="relative rounded-md shadow-sm transition duration-(--dur-base) ease-(--ease-out) group-hover:-translate-y-1 group-hover:shadow-lg motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
-        <ConcertPoster
-          concertId={concert.concertId}
-          title={concert.title}
-          className="w-full rounded-md"
+    <article className="group relative flex w-full flex-col rounded-[18px] border border-gray-100 bg-gray-0 shadow-sm transition duration-(--dur-base) ease-(--ease-out) hover:-translate-y-0.5 hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+      <div className="relative p-2.5 pb-3">
+        {/* Note: width·height 속성은 받는 동안 자리를 잡는 데 쓰고, 정사각형 비율은 h-auto + aspect-square로 정한다.
+            h-auto가 없으면 height 속성(720)이 CSS 높이로 남아 aspect-ratio가 무시된다 */}
+        <img
+          src={art.poster}
+          alt=""
+          width={POSTER_SIZE.width}
+          height={POSTER_SIZE.height}
+          loading="lazy"
+          decoding="async"
+          className="aspect-square h-auto w-full rounded-[12px] object-cover object-[center_40%]"
         />
         {status ? (
-          <span className="absolute top-2 left-2">
+          <span className="absolute top-5 left-5">
             <SaleStatusBadge status={status} />
           </span>
         ) : null}
       </div>
-      <div className="grid gap-1">
+      <span aria-hidden="true" className="ticket-perf" />
+      <div className="grid gap-1 px-4 pt-3 pb-3.5">
         <h3 className="line-clamp-2 type-body font-semibold text-gray-900">
           <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>
         </h3>
         {next ? (
-          <p className="type-body-sm text-gray-500 tabular-nums">
+          <p className="type-body-sm text-gray-600 tabular-nums">
             {formatShortDateTime(next.startsAt)} 공연
           </p>
         ) : null}
       </div>
     </article>
+  )
+}
+
+// 목록 안 광고 카드를 넣을 자리. 셋째 공연 다음에 두고, 공연이 그보다 적으면 맨 끝에 둔다
+function adSlot(count: number): number {
+  return Math.min(3, count)
+}
+
+// 샘플 광고(design-system.md 11절). 광고 소재는 광고주가 만든 그림이라는 전제로 모드와 상관없이 같은 색이다.
+// 외부 광고 스크립트를 쓰지 않고, 자리 높이를 미리 잡아 받는 동안 화면이 밀리지 않게 한다. 실제 광고주가 없어 링크를 두지 않는다
+// Note: 화면 폭 전체로 깔되 음수 여백으로 넓힌다. width로 넓히면 목록 격자의 칸 너비가 같이 넓어져 다른 띠가 넘친다
+function SampleAdBand() {
+  return (
+    <aside
+      aria-label="광고"
+      className="relative mx-[calc(50%-50cqw)] overflow-hidden bg-[#0f1d26] text-white"
+    >
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <span className="absolute top-[-40px] right-[8%] size-[220px] rounded-full border border-[#7ee0d4]/30" />
+        <span className="absolute right-[22%] bottom-[-60px] size-[140px] rounded-full border border-[#7ee0d4]/25" />
+        <span className="absolute top-[60px] right-[16%] size-[26px] rounded-full bg-[#7ee0d4]/30" />
+      </div>
+      <div className="relative mx-auto flex min-h-[200px] max-w-[1200px] flex-wrap items-center gap-x-10 gap-y-5 px-4 py-8 @min-[40rem]:px-6">
+        <div
+          aria-hidden="true"
+          className="relative h-[130px] w-[80px] shrink-0 rounded-[16px] bg-[#7ee0d4]"
+        >
+          <span className="absolute inset-x-0 top-5 h-[11px] bg-[#0f1d26]/85" />
+          <span className="absolute inset-x-0 bottom-4 text-center text-[9px] font-extrabold tracking-[0.02em] text-[#0f1d26]">
+            BAMGYEOL
+          </span>
+        </div>
+        <div className="grid flex-1 basis-[320px] gap-2">
+          <p className="flex items-center gap-2">
+            <AdLabel />
+            <span className="type-body-sm font-semibold text-[#7ee0d4]">밤결 스파클링</span>
+          </p>
+          <p className="text-[clamp(24px,3cqw,32px)] leading-tight font-extrabold tracking-[-0.04em]">
+            앵콜까지, 청량하게
+          </p>
+          <p className="type-body-sm text-white/80">
+            공연장 매점과 편의점에서 만나요 · 샘플 광고예요. 실제 상품이 아니에요
+          </p>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// 목록 안 광고 카드. 이웃한 티켓 카드와 같은 칸을 쓰고 같은 높이로 늘어난다
+function SampleAdCard() {
+  return (
+    <aside
+      aria-label="광고"
+      className="flex w-full flex-col justify-between gap-4 rounded-[18px] bg-[#1d2030] p-5 text-[#f4f5f8]"
+    >
+      <span className="self-end">
+        <AdLabel />
+      </span>
+      <svg width="120" height="80" viewBox="0 0 120 80" aria-hidden="true" className="max-w-full">
+        <rect x="6" y="10" width="104" height="52" rx="12" fill="#ffd43b" />
+        <rect x="16" y="20" width="22" height="16" rx="3" fill="#1d2030" />
+        <rect x="44" y="20" width="22" height="16" rx="3" fill="#1d2030" />
+        <rect x="72" y="20" width="22" height="16" rx="3" fill="#1d2030" />
+        <rect x="6" y="44" width="104" height="5" fill="#f59f00" />
+        <circle cx="30" cy="64" r="9" fill="#0c0d13" stroke="#ffd43b" strokeWidth="3" />
+        <circle cx="88" cy="64" r="9" fill="#0c0d13" stroke="#ffd43b" strokeWidth="3" />
+      </svg>
+      <div className="grid gap-1">
+        <p className="type-body-sm font-semibold text-[#ffd43b]">라이드온 셔틀</p>
+        <p className="text-[18px] leading-6 font-bold tracking-[-0.02em]">
+          공연 끝나고 집까지, 셔틀로
+        </p>
+        <p className="type-caption text-[#b9bdc9]">출구 앞 출발 · 미리 좌석 예약 · 샘플 광고</p>
+      </div>
+    </aside>
+  )
+}
+
+function AdLabel() {
+  return (
+    <span className="rounded-[6px] border border-white/40 px-1.5 py-0.5 text-[11px] leading-4 font-semibold text-white/85">
+      광고
+    </span>
   )
 }
 
