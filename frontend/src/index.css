@@ -3,12 +3,20 @@
 @import 'shadcn/tailwind.css';
 @import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
-/* Note: 다크 모드는 만들지 않는다(디자인 결정 9-4). 이 변형을 지우면 Tailwind 기본(OS 다크 모드)으로
-   바뀌어 shadcn 컴포넌트의 `dark:` 클래스가 켜진다. `.dark` 클래스를 어디에도 붙이지 않으므로 `dark:`는 적용되지 않는다. */
-@custom-variant dark (&:is(.dark *));
+/* Note: 모드는 <html data-theme>로 정한다(design-system.md 2-5절). 운영체제 설정(prefers-color-scheme)을 CSS가 바로
+   읽지 않는 것은 헤더 버튼으로 고른 값이 운영체제 설정보다 앞서야 하기 때문이다. shadcn 컴포넌트의 `dark:`도 같은 속성을 따른다. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /* 값의 정본은 docs/design/frontend/design-system.md 2절이고 샘플 화면과 같다. */
 :root {
+  color-scheme: light;
+
+  /* 모드와 상관없는 색. 그림 위 배너·실물 카드처럼 늘 어두워야 하는 곳과 늘 같은 인디고여야 하는 곳에만 쓴다 */
+  --ink-900: #14161e;
+  --ink-800: #232631;
+  --brand-600: #3b3bd4;
+  --brand-700: #2f2fae;
+
   --gray-0: #ffffff;
   --gray-25: #fbfbfd;
   --gray-50: #f4f5f8;
@@ -73,6 +81,46 @@
   --ring: var(--primary-600);
 }
 
+/* 다크 모드(design-system.md 2-5절). 같은 이름의 값을 바꿔 화면 코드가 모드를 몰라도 되게 한다.
+   회색은 순서를 뒤집는다(gray-0은 카드 면, gray-900은 가장 밝은 글자). 상태 색은 어두운 바탕에서 읽히게 옅은 바탕을
+   짙게, 글자 색을 밝게 바꾼다. 좌석 등급 색과 ink·brand는 그대로다. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --gray-0: #161824;
+  --gray-25: #0c0d13;
+  --gray-50: #1d2030;
+  --gray-100: #272a3a;
+  --gray-200: #33374a;
+  --gray-300: #4a4f63;
+  --gray-400: #7d8296;
+  --gray-500: #a3a8b8;
+  --gray-600: #b9bdc9;
+  --gray-700: #d7dae2;
+  --gray-800: #e9ebf0;
+  --gray-900: #f4f5f8;
+
+  --primary-50: #1f2242;
+  --primary-100: #2a2e5c;
+  --primary-300: #6f74e8;
+  --primary-500: #8e95ff;
+  --primary-600: #a9b0ff;
+  --primary-700: #dde1ff;
+
+  --success-50: #11291f;
+  --success-600: #69db9a;
+  --warning-50: #2e2210;
+  --warning-700: #ffc078;
+  --danger-50: #331a1e;
+  --danger-600: #ff8a8f;
+  --info-50: #13233a;
+  --info-600: #7cb7ff;
+
+  /* 주 버튼은 시안대로 흰 바탕에 검은 글자다. 인디고(primary-600)는 링크·강조 글자로 남는다 */
+  --primary: var(--gray-900);
+  --primary-foreground: #14161e;
+}
+
 @theme inline {
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
@@ -118,6 +166,11 @@
   --color-seat-lottery-line: var(--seat-lottery-line);
   --color-seat-lottery-a: var(--seat-lottery-a);
   --color-seat-lottery-b: var(--seat-lottery-b);
+
+  --color-ink-900: var(--ink-900);
+  --color-ink-800: var(--ink-800);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
