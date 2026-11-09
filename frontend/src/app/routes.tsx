@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { RouteObject } from 'react-router'
+import { AssistantWidgetProvider } from '@/components/assistant/AssistantWidget'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -42,7 +43,6 @@ const booking = () => import('@/app/routeChunks/booking')
 const my = () => import('@/app/routeChunks/my')
 const admin = () => import('@/app/routeChunks/admin')
 const lottery = () => import('@/pages/lotteries/LotteryPage')
-const assistant = () => import('@/pages/assistant/AssistantPage')
 
 // Note: 홈(ConcertListPage)과 공연 상세(ConcertDetailPage)는 첫 방문자가 가장 먼저 여는 화면이라
 // 첫 덩어리에 남긴다. 나머지 화면은 경로에 들어갈 때 받는다. 진입점(index)은 이 두 화면과 공용 코드만 담는다.
@@ -50,7 +50,12 @@ const assistant = () => import('@/pages/assistant/AssistantPage')
 // 바깥 errorElement는 레이아웃 자체가 던진 오류용이다. 자식 오류를 바깥에서만 받으면 헤더까지 사라진다.
 export const routes: RouteObject[] = [
   {
-    element: <AppLayout />,
+    // 예매 문의 위젯 상태(대화·열림)는 레이아웃의 헤더 버튼과 레이아웃 안의 위젯이 같이 쓰도록 레이아웃 바깥에서 든다
+    element: (
+      <AssistantWidgetProvider>
+        <AppLayout />
+      </AssistantWidgetProvider>
+    ),
     errorElement: <RouteErrorPage />,
     children: [
       {
@@ -106,7 +111,6 @@ export const routes: RouteObject[] = [
                   return { element: <ReservationPage variant="detail" /> }
                 },
               },
-              { path: paths.help, ...lazyPage(assistant, 'AssistantPage') },
               {
                 element: <RequireAdmin />,
                 children: [

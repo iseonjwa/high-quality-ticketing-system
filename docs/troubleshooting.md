@@ -381,14 +381,26 @@
 - AI 활용: 원인 분석과 수정은 Claude Code가 했고, 동작이 같은지는 다른 에이전트(herdr 작업자)가 저장소 밖 복제본에서 따로 검증했다. 판단 기록 `docs/ai-judgments/kangmin/2026-11-09-agent-token-k6-output-and-hook.md`, `docs/ai-judgments/kangmin/2026-11-09-records-check-25x-faster.md`.
 - 배운 점: Windows Git Bash에서 셸 스크립트의 실행 시간은 대개 "띄운 프로세스 수 × 수십 ms"로 정해진다. 파일마다 도는 반복문 안에서는 외부 명령을 띄우지 말고, 한 번에 처리하는 도구(`git grep`, `awk` 한 번)로 바꾼다. 검사 도구를 고칠 때는 일부러 틀린 입력을 넣어 전후 출력을 비교해야 검사가 약해지지 않았음을 보일 수 있다.
 
-### TS-45 건별 알림 템플릿 검사가 Linux CI에서만 `amtool: error: open /data/event.json: permission denied`로 실패했다
+### TS-45 리눅스 부하 발생기에서 k6가 결과 파일을 만들지 못했다(`permission denied`)
+- 서비스·작성: loadtest / kangmin / 2026-11-09
+- 문제: 배포 서버 측정용 발생기(EC2, Ubuntu)에서 `loadtest/k6/run.sh`를 실행하자 k6가 시작하자마자 멈췄다. 로컬 Windows에서는 같은 스크립트가 늘 동작했다.
+  ```
+  could not create the 'csv' output: open /scripts/results/l1-lottery-entry-...-raw.csv.gz: permission denied
+  ```
+- 원인: `grafana/k6:1.0.0` 컨테이너는 이미지 안의 사용자 `k6`(uid 12345)로 돈다(`docker run --entrypoint id grafana/k6:1.0.0`로 확인). 마운트한 `loadtest/k6/results`는 발생기의 `ubuntu`(uid 1000) 소유이고 권한이 755라, uid 12345는 쓸 수 없다. Windows Docker Desktop은 마운트 폴더의 리눅스 권한을 따지지 않아 로컬에서는 드러나지 않았다.
+- 재현: Docker 볼륨에 uid 1000 소유·755 폴더를 만들고 k6 이미지로 파일을 쓰면 `Permission denied`, `--user 1000:1000`을 붙이면 성공했다.
+- 해결(ISE-225): `run.sh`가 리눅스에서만 `docker run --user "$(id -u):$(id -g)"`를 붙인다. Windows(Git Bash)는 `uname -s`가 `MINGW64_NT-...`라 붙이지 않고 기존대로 돈다(로컬에서 summary·CSV 생성 확인).
+- 우회: 고치기 전에는 `chmod a+w ~/<영문 이름>/iseonjwa/loadtest/k6/results`로 열었다.
+- 배운 점: 컨테이너에 호스트 폴더를 마운트해 쓰게 할 때는 컨테이너 안 사용자(uid)와 폴더 소유자가 맞는지 본다. Windows·macOS의 Docker Desktop은 권한을 감춰서 리눅스 서버에서 처음 터진다. 측정 환경은 실제와 같은 OS에서 먼저 짧게 시험한다.
+
+### TS-46 건별 알림 템플릿 검사가 Linux CI에서만 `amtool: error: open /data/event.json: permission denied`로 실패했다
 - 서비스·작성: infra / junhyun / 2026-11-09
 - 문제: #397(ISE-183)의 `script/check-prometheus-rules.sh`가 macOS 로컬에서는 통과하고, GitHub Actions(promtool 검사)에서만 `amtool: error: open /data/event.json: permission denied`와 "건별 알림 꼬리말이 그려지지 않는다"로 실패했다.
 - 원인: 스크립트가 `mktemp -d`로 만든 폴더에 JSON을 쓰고 `docker run -v "$data_dir:/data:ro"`로 amtool 컨테이너에 넘겼다. `mktemp -d`는 폴더를 0700으로 만들고, `prom/alertmanager` 이미지의 amtool은 `nobody`로 돈다. Linux에서는 폴더 주인(러너 사용자)이 아닌 `nobody`가 폴더에 들어가지 못한다. macOS Docker Desktop은 파일 공유 계층이 권한을 다르게 넘겨 로컬에서는 드러나지 않았다.
 - 해결: 폴더를 `chmod 755`, 파일을 `chmod 644`로 열었다(`script/check-prometheus-rules.sh`, 커밋 230f329b, #397에 포함).
 - 배운 점: 임시 폴더를 컨테이너에 마운트할 때는 컨테이너 안 사용자가 누구인지 보고 권한을 연다. macOS 로컬 통과가 Linux CI 통과를 보장하지 않는다.
 
-### TS-46 화면을 경로별로 나눈(route lazy) 뒤 일부 화면 테스트가 CI에서만 요소를 찾지 못했다
+### TS-47 화면을 경로별로 나눈(route lazy) 뒤 일부 화면 테스트가 CI에서만 요소를 찾지 못했다
 - 서비스·작성: frontend / junhyun / 2026-11-09
 - 문제: #400(ISE-212)에서 홈·공연 상세 밖의 화면을 route `lazy`로 바꾼 뒤였다. 로컬에서는 전부 통과했는데, CI에서는 `PasswordChangePage`·`SignupPage` 테스트가 `Unable to find an accessible element with the role "link" and name "바꾸지 않고 돌아가기"`, `Unable to find a label with the text of: 이메일`로 실패했다.
 - 원인: 테스트 도우미 `renderRoutesReady`는 `router.state.initialized`만 기다렸다. 라우터 상태가 먼저 바뀌고 React는 화면을 transition으로 나중에 그려서, 느린 CI에서는 그 사이에 `getBy`가 실행됐다. lazy 경로로 옮긴 직후에 `getBy`로 확인하는 곳도 같은 경쟁이 있었다.
