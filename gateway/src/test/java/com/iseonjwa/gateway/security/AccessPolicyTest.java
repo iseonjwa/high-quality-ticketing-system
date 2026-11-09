@@ -48,6 +48,8 @@ class AccessPolicyTest {
             "GET, /api/v1/admin/check",
             "GET, /api/v1/admin",
             "POST, /api/v1/admin/users/1/password-reset",
+            "POST, /api/v1/admin/demo/pg/faults",
+            "GET, /api/v1/admin/demo/pg/ledger/summary",
             "GET, /api/v1/admin;x=1/check",
             "GET, /api/v1/%61dmin/check",
             "GET, /api/%76%31/admin/check"

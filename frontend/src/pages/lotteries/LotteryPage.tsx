@@ -30,6 +30,7 @@ import { useIsSignedIn } from '@/auth/session'
 import { BillingKeyCard } from '@/components/ticketing/BillingKeyCard'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { QuantitySelector } from '@/components/ticketing/QuantitySelector'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTime } from '@/lib/format'
+import { formatCountdown, formatDateTime } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
 import { readRouteId } from '@/lib/routeId'
 import { useNow } from '@/lib/serverClock'
@@ -105,14 +106,21 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
       </main>
     )
   }
+  const phase = phaseOf(lottery.data, now)
+  // 넓은 화면(60rem 이상)은 왼쪽에 머리와 추첨 안내, 오른쪽에 응모 티켓과 자동결제 카드를 둔다(시안). 오른쪽은 두 줄에
+  // 걸치고 스크롤하면 위에 붙는다. 좁은 화면은 머리 → 응모 → 추첨 안내 순이다
+  // Note: 좁은 화면에서 추첨 안내를 먼저 두면 응모 카드가 390px에서 959px 아래로 밀렸다(셀프 리뷰)
   return (
-    <main className="mx-auto grid w-full max-w-[720px] gap-5">
-      <LotteryInfo lottery={lottery.data} phase={phaseOf(lottery.data, now)} />
-      {signedIn ? (
-        <MyEntrySection lottery={lottery.data} now={now} pollMillis={pollMillis} />
-      ) : (
-        <SignInPrompt phase={phaseOf(lottery.data, now)} />
-      )}
+    <main className="grid w-full gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_380px] @min-[60rem]:grid-rows-[auto_1fr] @min-[60rem]:gap-x-7">
+      <LotteryHead lottery={lottery.data} phase={phase} now={now} />
+      <div className="grid min-w-0 content-start gap-5 @min-[60rem]:sticky @min-[60rem]:top-[88px] @min-[60rem]:col-start-2 @min-[60rem]:row-span-2 @min-[60rem]:row-start-1 @min-[60rem]:self-start">
+        {signedIn ? (
+          <MyEntrySection lottery={lottery.data} now={now} pollMillis={pollMillis} />
+        ) : (
+          <SignInPrompt phase={phase} />
+        )}
+      </div>
+      <LotteryDetails lottery={lottery.data} phase={phase} />
     </main>
   )
 }
@@ -153,28 +161,57 @@ const PHASE_BADGES: Record<Phase, { variant: 'lottery' | 'upcoming' | 'soldOut';
     done: { variant: 'soldOut', label: '종료' },
   }
 
-function LotteryInfo({ lottery, phase }: { lottery: Lottery; phase: Phase }) {
+// 추첨 머리(시안): 상태 배지, 응모 시작·마감까지 남은 시간, 제목, 추첨 번호·회차.
+// Note: 시안의 공연 그림 배너는 두지 않는다. 추첨 응답에 공연 번호·제목이 없다(회차 번호만 있다)
+function LotteryHead({ lottery, phase, now }: { lottery: Lottery; phase: Phase; now: number }) {
   const badge = PHASE_BADGES[phase]
+  // 남은 시간은 브라우저 시계로 센다(phaseOf와 같은 시계). 1초마다 바뀌지만 알림 영역 밖이라 낭독기가 매초 읽지 않는다
+  const until =
+    phase === 'beforeEntry'
+      ? { label: '응모 시작까지', at: lottery.entryStartAt }
+      : phase === 'entry'
+        ? { label: '마감까지', at: lottery.entryEndAt }
+        : null
+  return (
+    <section aria-labelledby="lottery-title" className="grid min-w-0 content-start gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={badge.variant}>{badge.label}</Badge>
+        {until ? (
+          <span className="inline-flex h-6 items-center rounded-pill bg-danger-50 px-2.5 text-[12px] font-semibold text-gray-900 ring-1 ring-danger-600/30 tabular-nums">
+            {until.label} {formatCountdown(instantMillis(until.at) - now)}
+          </span>
+        ) : null}
+      </div>
+      <h1
+        id="lottery-title"
+        className="text-[clamp(26px,3.2cqw,36px)] leading-tight font-bold tracking-[-0.04em] text-gray-900"
+      >
+        추첨 응모
+      </h1>
+      <p className="type-body-sm text-gray-600 tabular-nums">
+        추첨 번호 {lottery.lotteryId} · 회차 {lottery.scheduleId}
+      </p>
+    </section>
+  )
+}
+
+// 추첨 안내(시안): 추첨 순서 4단계, 추첨 정보, 알아 두세요
+function LotteryDetails({ lottery, phase }: { lottery: Lottery; phase: Phase }) {
   const { rules } = lottery
   return (
-    <section aria-labelledby="lottery-title">
-      <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 id="lottery-title" className="type-title text-gray-900">
-            추첨 응모
-          </h1>
-          <Badge variant={badge.variant}>{badge.label}</Badge>
-        </div>
-        <p className="-mt-2 type-body-sm text-gray-500 tabular-nums">
-          추첨 번호 {lottery.lotteryId} · 회차 {lottery.scheduleId} · 추첨석 {lottery.seatCount}석
-        </p>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 type-body-sm">
+    <div className="grid min-w-0 content-start gap-5 @min-[60rem]:col-start-1">
+      <LotteryFlow phase={phase} billingKeyRequired={rules.billingKeyRequired} />
+      <Card className="gap-4 rounded-[22px] px-4 py-5 @min-[40rem]:p-6">
+        <h2 className="type-heading text-gray-900">추첨 정보</h2>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 type-body-sm">
           <dt className="text-gray-500">응모 기간</dt>
-          <dd className="text-gray-900 tabular-nums">
+          <dd className="font-semibold text-gray-900 tabular-nums">
             {formatDateTime(lottery.entryStartAt)} ~ {formatDateTime(lottery.entryEndAt)}
           </dd>
           <dt className="text-gray-500">추첨 시각</dt>
           <dd className="text-gray-900 tabular-nums">{formatDateTime(lottery.drawAt)}</dd>
+          <dt className="text-gray-500">추첨 좌석</dt>
+          <dd className="text-gray-900 tabular-nums">{lottery.seatCount}석</dd>
           <dt className="text-gray-500">한 번에</dt>
           <dd className="text-gray-900">
             {rules.minPerEntry === rules.maxPerEntry
@@ -182,15 +219,65 @@ function LotteryInfo({ lottery, phase }: { lottery: Lottery; phase: Phase }) {
               : `${rules.minPerEntry}~${rules.maxPerEntry}매`}
           </dd>
         </dl>
+      </Card>
+      <div className="grid gap-2.5 rounded-[18px] bg-gray-50 px-5 py-4">
+        <h2 className="type-body-sm font-semibold text-gray-900">알아 두세요</h2>
+        {/* 자동결제 안내는 3단계와 응모 버튼 아래에 있어 여기에는 두지 않는다(같은 문장 반복, 셀프 리뷰) */}
         <ul className="grid gap-2 type-body-sm text-gray-700">
-          {rules.billingKeyRequired ? <Rule>당첨되면 등록한 카드로 바로 자동결제돼요.</Rule> : null}
           {rules.reentryAllowed ? null : (
             <Rule>응모는 한 번만 할 수 있고, 취소한 뒤에는 다시 응모할 수 없어요.</Rule>
           )}
+          <Rule>
+            앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에
+            끝나요.
+          </Rule>
           {rules.adjacentSeatsGuaranteed ? null : <Rule>연석은 보장하지 않아요.</Rule>}
         </ul>
-      </Card>
-    </section>
+      </div>
+    </div>
+  )
+}
+
+// 추첨 순서 4단계. 지금 단계를 aria-current로 표시한다(추첨 완료 뒤 배정·자동결제 중이면 3, 종료면 4)
+function LotteryFlow({ phase, billingKeyRequired }: { phase: Phase; billingKeyRequired: boolean }) {
+  const current =
+    phase === 'beforeEntry' || phase === 'entry'
+      ? 0
+      : phase === 'afterEntry' || phase === 'drawing'
+        ? 1
+        : phase === 'drawn'
+          ? 2
+          : 3
+  const steps = [
+    { title: '응모', body: '응모 기간에 한 번 응모해요' },
+    { title: '추첨', body: '마감 뒤 추첨 시각에 순위를 정해요' },
+    billingKeyRequired
+      ? { title: '자동결제', body: '당첨되면 등록한 카드로 바로 결제해요' }
+      : { title: '결제', body: '당첨되면 좌석을 배정하고 결제해요' },
+    { title: '예매 확정', body: '내 예매에서 티켓을 확인해요' },
+  ]
+  return (
+    <ol aria-label="추첨 순서" className="grid grid-cols-2 gap-2.5 @min-[40rem]:grid-cols-4">
+      {steps.map((step, index) => (
+        <li
+          key={step.title}
+          aria-current={index === current ? 'step' : undefined}
+          className="grid content-start gap-1.5 rounded-[16px] border border-gray-100 bg-gray-0 p-4 aria-[current=step]:border-primary-600 aria-[current=step]:bg-primary-50 aria-[current=step]:ring-1 aria-[current=step]:ring-primary-600"
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              'grid size-7 place-items-center rounded-full text-[13px] font-semibold tabular-nums',
+              index === current ? 'bg-primary-600 text-gray-0' : 'bg-gray-100 text-gray-600',
+            )}
+          >
+            {index + 1}
+          </span>
+          <span className="type-body-sm font-semibold text-gray-900">{step.title}</span>
+          <span className="type-caption text-gray-600">{step.body}</span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -372,7 +459,27 @@ function EntryForm({
     )
   }
   return (
-    <EntryCard title="응모하기">
+    <EntryCard
+      title="응모하기"
+      footer={
+        <>
+          <Button
+            size="lg"
+            className="w-full"
+            loading={enter.isPending}
+            disabled={phase === 'beforeEntry'}
+            onClick={() => enter.mutate(quantity)}
+          >
+            {unknown ? '응모 결과 확인하기' : `${quantity}매 응모하기`}
+          </Button>
+          {lottery.rules.billingKeyRequired ? (
+            <p className="text-center type-caption text-gray-500">
+              당첨되면 등록한 자동결제 카드로 바로 결제돼요.
+            </p>
+          ) : null}
+        </>
+      }
+    >
       {enter.isError ? <EntryError error={enter.error} /> : null}
       {phase === 'beforeEntry' ? (
         <Alert variant="info">{formatDateTime(lottery.entryStartAt)}부터 응모할 수 있어요.</Alert>
@@ -389,15 +496,6 @@ function EntryForm({
           />
         </div>
       ) : null}
-      <Button
-        size="lg"
-        className="w-full"
-        loading={enter.isPending}
-        disabled={phase === 'beforeEntry'}
-        onClick={() => enter.mutate(quantity)}
-      >
-        {unknown ? '응모 결과 확인하기' : `${quantity}매 응모하기`}
-      </Button>
     </EntryCard>
   )
 }
@@ -677,31 +775,45 @@ function EnteredCard({
   )
 }
 
+// 응모 카드. footer(행동)가 있으면 절취선 아래에 둔다(티켓 모양, 시안)
 function EntryCard({
   title,
   badge,
+  footer,
   children,
 }: {
   title: string
   badge?: ReactNode
+  footer?: ReactNode
   children: ReactNode
 }) {
   const titleRef = useTitleFocus()
   return (
     <section aria-labelledby="entry-title">
-      <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2
-            ref={titleRef}
-            id="entry-title"
-            tabIndex={-1}
-            className="type-heading text-gray-900 outline-none"
-          >
-            {title}
-          </h2>
-          {badge}
+      {/* overflow-visible: 절취선 홈이 카드 테두리 선까지 덮게 한다(design-system.md 12절) */}
+      <Card className="gap-0 overflow-visible rounded-[22px] p-0">
+        <div className="grid gap-4 px-4 py-5 @min-[40rem]:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2
+              ref={titleRef}
+              id="entry-title"
+              tabIndex={-1}
+              className="type-heading text-gray-900 outline-none"
+            >
+              {title}
+            </h2>
+            {badge}
+          </div>
+          {children}
         </div>
-        {children}
+        {footer ? (
+          <>
+            <TicketPerforation />
+            <div className="grid gap-3 px-4 pt-5 pb-5 @min-[40rem]:px-6 @min-[40rem]:pb-6">
+              {footer}
+            </div>
+          </>
+        ) : null}
       </Card>
     </section>
   )
@@ -724,7 +836,7 @@ function ResultCard({
   const titleRef = useTitleFocus()
   return (
     <section aria-labelledby="entry-result-title">
-      <Card className="items-center gap-2 px-4 pt-8 pb-6 text-center @min-[40rem]:px-6">
+      <Card className="items-center gap-2 rounded-[22px] px-4 pt-8 pb-6 text-center @min-[40rem]:px-6">
         <span
           aria-hidden="true"
           className={cn(
@@ -748,7 +860,7 @@ function ResultCard({
         {rank ? (
           <p className="grid justify-items-center">
             <span className="type-caption text-gray-500">추첨 순위</span>
-            <span className="text-[40px] leading-[48px] font-extrabold text-gray-900 tabular-nums">
+            <span className="text-[40px] leading-[48px] font-bold text-gray-900 tabular-nums">
               {rank}
               <span className="type-heading text-gray-500">위</span>
             </span>
@@ -766,17 +878,21 @@ function SignInPrompt({ phase }: { phase: Phase }) {
   const state: AuthNavigationState = { from: toReturnPath(location) }
   const canEnter = phase === 'beforeEntry' || phase === 'entry'
   return (
-    <EntryCard title={canEnter ? '응모하기' : '응모 결과'}>
+    <EntryCard
+      title={canEnter ? '응모하기' : '응모 결과'}
+      footer={
+        <Button asChild size="lg" className="w-full">
+          <Link to={paths.login} state={state}>
+            {canEnter ? '로그인하고 응모하기' : '로그인하고 결과 보기'}
+          </Link>
+        </Button>
+      }
+    >
       <p className="type-body-sm text-gray-500">
         {canEnter
           ? '로그인하면 응모하고 결과를 볼 수 있어요.'
           : '로그인하면 내 응모 결과를 볼 수 있어요.'}
       </p>
-      <Button asChild size="lg" className="w-full">
-        <Link to={paths.login} state={state}>
-          {canEnter ? '로그인하고 응모하기' : '로그인하고 결과 보기'}
-        </Link>
-      </Button>
     </EntryCard>
   )
 }
@@ -801,8 +917,12 @@ function MissingLottery() {
 
 function LotterySkeleton() {
   return (
-    <main className="mx-auto w-full max-w-[720px]">
-      <div role="status" className="grid gap-5">
+    <main className="w-full">
+      {/* 본 화면과 같은 두 열로 잡아 받은 뒤 화면이 흔들리지 않게 한다 */}
+      <div
+        role="status"
+        className="grid gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_380px] @min-[60rem]:gap-x-7"
+      >
         <span className="sr-only">추첨 정보를 불러오고 있어요</span>
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-48 w-full" />
