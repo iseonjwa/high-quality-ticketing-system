@@ -122,3 +122,42 @@
   - 답변 서비스: 스텁 성공 → `AI`. 시한·refusal·세마포어 초과 → `SEARCH`. 키 없음 → 호출 0회
 - MockMvc: 400 응답 형식, 429와 `Retry-After`, `X-User-Id` 없음
 - 실제 API 호출은 `http/assistant.http`로 손으로만 한다(키가 있을 때).
+
+## 10. 구현 메모 (2026-11-09, ISE-126 백엔드)
+
+### 실행과 설정
+- 모듈 `assistant-service`, 업무 포트 8095, 관리 포트 9080(로컬 호스트 `18095`). 기동 방법은 다른 앱과 같다(`./gradlew runLocal -Papp=assistant-service`, compose의 `assistant-service`). 키가 없어도 뜬다.
+- 설정은 `config-repo/assistant-service.yml`이다. 설정 서버 없이 뜨는 `test` 프로필을 위해 `AssistantProperties`에 같은 기본값을 둔다.
+
+| 키 | 기본값 | 뜻 |
+|---|---|---|
+| `anthropic.api-key` | `${ANTHROPIC_API_KEY:}` | 비었거나 공백이면 Claude 클라이언트 빈을 만들지 않는다 |
+| `anthropic.base-url` | 없음 | 테스트용 가짜 서버 주소. 비우면 SDK 기본 주소 |
+| `assistant.llm.enabled` | `${ASSISTANT_LLM_ENABLED:true}` | `false`면 키가 있어도 검색 모드 |
+| `assistant.llm.model` | `${ASSISTANT_MODEL:claude-haiku-5-5}` | 모델 |
+| `assistant.llm.max-tokens` / `timeout` | 1024 / 8s | SDK 시한(재시도는 0회로 고정) |
+| `assistant.llm.max-concurrent` / `daily-limit` | 4 / 1000 | 동시 호출 세마포어 / 전체 일일 호출 상한(서울 날짜 기준) |
+| `assistant.retrieval.top-k` / `search-result-count` / `min-score` | 4 / 3 / 2.0 | 모델에 넘길 절 수 / 검색 모드로 보일 절 수 / 이 점수보다 낮으면 전체 절 |
+| `assistant.rate-limit.per-minute` / `per-day` | 5 / 30 | 사용자당 상한(최근 60초 / 24시간) |
+
+### 설계와 달라지거나 더한 점
+- 검색 점수는 단순 겹침이 아니라 묶음 희소도(IDF)로 가중하고, 제목·keywords에서 맞으면 두 배, 본문에서 반복되면 조금 더한다. 질문 말투 묶음("되나요", "어떻게" 같은)은 색인과 질문에서 모두 뺀다. 이것 없이는 "환불은 언제 되나요?"가 매수 초과 절에 먼저 붙었다. 점수가 같으면 문서에 적힌 순서다.
+- 절 ID는 파일 이름을 접두로 한 `<분류>.<이름>`이다(18개). 화면 목(`mocks/handlers/assistant.ts`)의 ID 일부와 다르지만 화면은 ID를 해석하지 않고 `title`·`excerpt`만 그린다. `title`은 `분류 > 절 제목`이다.
+- 질문의 `<`·`>`는 전각 `＜`·`＞`로 바꿔 `</question>`으로 태그를 닫는 입력을 막는다.
+- 동시 호출 세마포어를 먼저 잡고, 잡은 뒤에만 일일 상한을 센다(세마포어에서 밀린 요청이 상한을 쓰지 않게).
+- 요청 제한은 유효한 요청(검증 통과)만 센다. 검증 실패(400)는 세지 않는다.
+- 로컬 실행기(`LocalApps`)는 셸의 `ANTHROPIC_API_KEY`를 상담 서비스에만 넘긴다. 기존 서비스 테스트(`compose config`, `ConfigRepoTest`)가 서비스 목록을 검사해서 compose·compose.local은 뼈대 커밋에 함께 넣었다.
+
+### 확인한 것 (2026-11-09)
+- Anthropic SDK `com.anthropic:anthropic-java:3.3.0`은 Maven Central에서 받아진다. SDK(Jackson 2)와 Boot 4(Jackson 3)는 한 앱에서 함께 뜨고, 키가 있는 앱을 가짜 서버에 붙인 `AssistantAiApiTest`가 통과한다. 의존성이 커서 `app.jar`가 약 102MB다.
+- `./gradlew :assistant-service:test :gateway:test :config-server:test :workspace-tools:test` 통과(상담 서비스 테스트 64개). `./gradlew build -x test`로 전체 모듈 컴파일.
+- `bootJar`를 `test` 프로필로 띄워 `POST /api/v1/assistant/messages`가 200 `SEARCH`/`LLM_DISABLED`와 출처 3개로 답하고, `X-User-Id`가 없으면 401이다. 로그에 질문 원문은 없다.
+- 요청 JSON은 프론트 계약(`frontend/src/api/assistant.ts`)과 같다. `AssistantApiTest`가 `data`와 `sources[]`의 키 집합을 고정한다.
+- Anthropic 요청 본문(모델, `output_config.effort=low`, 문서 블록이 질문보다 앞, 제목=절ID, citations 켬, structured outputs 없음, userId 없음)과 응답 해석(여러 text 블록 이어 붙이기, `document_index`→절 중복 제거)은 가짜 서버로 확인했다.
+
+### 아직 확인하지 못한 것
+- 실제 Anthropic API 호출. 키를 받은 뒤 `http/assistant.http`로 손으로 확인한다(답 품질, 실제 지연이 8초 안인지, Haiku 5.5의 citations 모양).
+- 골든 질문에 대한 Haiku 답 품질. 모자라면 `ASSISTANT_MODEL`만 바꾼다.
+- 배포 EC2에서의 실제 메모리. 384m 상한과 힙 192m은 가정이다(`docker stats`로 잰다).
+- 첫 릴리스 뒤 GHCR `assistant-service` 패키지를 공개로 바꿔야 한다. 그 전에는 Jenkins 이미지 대기가 20분 뒤 중단된다.
+- 사용자 취소 기능이 생기면(ISE-206) `cancel-refund.user-cancel` 절을 고친다.
