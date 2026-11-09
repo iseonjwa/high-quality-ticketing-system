@@ -153,7 +153,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `ENTER_RATE` | 0 | B1-b: 같이 걸 초당 대기열 진입 수 |
 | `PG_DELAY_MS` | O1·PAY1·L2 300, R1 0 | Mock PG 승인 지연(ms). 기준 지연은 300ms다(open-peak-load-plan.md 8절 4번, 2026-11-08). R1은 승인 → 확정 지연만 보려고 0이다. 끝나면 teardown이 0으로 되돌린다 |
 | `MOCK_PG_URL` | `http://host.docker.internal:8090` | Mock PG 주소. 비우면 장애 주입을 건너뛴다(배포 환경은 비우고 서버 안에서 따로 건다) |
-| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://<배포 서버 사설 IP>:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
+| `PROM_RW_URL` | 없음 | 있으면 결과를 Prometheus remote write로 보낸다. 쓰기 주소 전체(`http://172.31.4.93:9090/api/v1/write`). 지표 `k6_*`에 `testid`(결과 파일 이름) 태그가 붙는다. 추세 통계는 `K6_PROMETHEUS_RW_TREND_STATS`로 바꾼다(기본 `p(95),p(99),avg,max`) |
 | `CONFIRM_POLL_SECONDS` / `CONFIRM_MAX_POLLS` | 0.5 / 10 | R1: 확정 확인 간격과 횟수 |
 | `EXPIRING` / `RATE` | 5000 / 100 | X1: 만료시킬 선점 수, 측정 중 초당 선점 사용자 수(L3도 `RATE`를 쓴다) |
 | `START_IN_SECONDS` | 15 | L1: 추첨을 만든 뒤 응모 시작까지 |
@@ -170,6 +170,8 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 
 배포 서버를 재는 날의 순서는 [`deploy-server-access.md`](../../docs/guides/deploy-server-access.md) 5-5절, 설계는 [`load-test.md`](../../docs/design/infra/load-test.md) 5절이다. 여기에는 k6 쪽만 적는다. 발생기에서 저장소 루트로 `cd`한 뒤 쓴다.
 
+팀 공용 발생기를 쓰는 규칙(한 번에 한 명, 팀 채널 알림, 각자 폴더 `~/<영문 이름>/iseonjwa`, 시작·끝 체크리스트)은 [`loadgen.md`](../../docs/guides/loadgen.md)에 있다. 주소는 사설 IP `172.31.4.93`만 쓴다. 공인 IP로 보내면 전송 요금이 붙고 보안 그룹에도 막힌다.
+
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
 **관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를 줘서 이 단계를 건너뛴다. 그 밖의 시나리오(B1, G1, PAY1, R1, X1, L1~L3, O1)는 아직 `SCHEDULE_ID`를 받지 않거나 공연·추첨을 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
@@ -184,7 +186,7 @@ ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "-5
 **실행**(발생기에서). `BASE_URL`은 Gateway 사설 주소, `MOCK_PG_URL`은 비워 발생기에서 Mock PG를 부르지 않게 한다.
 
 ```bash
-export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://<배포 서버 사설 IP>:9090/api/v1/write
+export BASE_URL=http://172.31.4.93:8080 MOCK_PG_URL= PROM_RW_URL=http://172.31.4.93:9090/api/v1/write
 SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 ```
 
