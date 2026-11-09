@@ -5,3 +5,5 @@
 reservation-service/k6/compose.g1.yml
 # R1: Hikari 커넥션 대기 시한 30초 → 1초(G1 S에서 커넥션 대기 197건, 부하 뒤 3분 동안 회복 실패)
 reservation-service/k6/compose.b8-r1.yml
+# P1: DB 커넥션 풀 5 → 10(Gateway 우회 K1-H 800명에서 커넥션 5개 모두 사용, 대기 196건)
+reservation-service/k6/compose.p1-pool10.yml
