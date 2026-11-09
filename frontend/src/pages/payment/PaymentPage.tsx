@@ -253,6 +253,7 @@ function PaymentForm({
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
   const alertRef = useRef<HTMLDivElement>(null)
+  const completionStartedRef = useRef(false)
   const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
   const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
 
@@ -274,8 +275,11 @@ function PaymentForm({
 
   // 확정을 보면 결과 화면으로 바꿔 들어간다. 뒤로 가면 공연 상세다.
   // 결과 화면이 쓰는 예매 상세 캐시에 확정된 예매를 넣어 HELD가 먼저 보이지 않게 한다
+  // Note: 결과 화면은 lazy라 이동이 끝나기 전까지 이 화면이 남아 다시 그려진다. 한 번만 이동하지 않으면
+  // 다시 그려질 때마다 이동을 새로 시작해 화면 코드를 받는 이동이 계속 취소된다.
   useEffect(() => {
-    if (state.step === 'confirmed') {
+    if (state.step === 'confirmed' && !completionStartedRef.current) {
+      completionStartedRef.current = true
       queryClient.setQueryData(reservationQueryKeys.detail(reservationId), state.reservation)
       // 내 예매 목록은 다음에 열 때 다시 받게 해 "결제 대기"가 남아 보이지 않게 한다
       void queryClient.invalidateQueries({ queryKey: reservationQueryKeys.mine })
