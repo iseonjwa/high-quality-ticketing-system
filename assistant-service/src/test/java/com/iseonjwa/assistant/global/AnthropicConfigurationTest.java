@@ -13,7 +13,8 @@ class AnthropicConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(AnthropicConfiguration.class)
             .withBean(AssistantProperties.class, () -> new AssistantProperties(
-                    new AssistantProperties.Llm(true, "claude-haiku-5-5", 1024, java.time.Duration.ofSeconds(8), 4, 1000),
+                    new AssistantProperties.Llm(true, "claude-haiku-5-5", 1024, java.time.Duration.ofSeconds(8), 4, 1000,
+                            java.time.Duration.ofSeconds(8), java.time.Duration.ofSeconds(20)),
                     new AssistantProperties.Retrieval(4, 3, 2.0), new AssistantProperties.RateLimit(5, 30)));
 
     // Note: 실제 키처럼 보이는 문자열을 저장소에 두지 않으려고 실행할 때마다 무작위 값을 만든다

@@ -31,6 +31,8 @@ class AnthropicConfiguration {
 
     @Bean
     LlmClient llmClient(AnthropicClient client, AssistantProperties properties) {
-        return new AnthropicLlmClient(client, properties.llm().model(), properties.llm().maxTokens());
+        var llm = properties.llm();
+        return new AnthropicLlmClient(client, llm.model(), llm.maxTokens(), llm.streamFirstDeltaTimeout(),
+                llm.streamTimeout());
     }
 }

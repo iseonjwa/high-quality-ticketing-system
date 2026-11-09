@@ -14,7 +14,9 @@ public record AssistantProperties(@DefaultValue Llm llm, @DefaultValue Retrieval
 
     public record Llm(@DefaultValue("true") boolean enabled, @DefaultValue("claude-haiku-5-5") String model,
                       @DefaultValue("1024") int maxTokens, @DefaultValue("8s") Duration timeout,
-                      @DefaultValue("4") int maxConcurrent, @DefaultValue("1000") int dailyLimit) {
+                      @DefaultValue("4") int maxConcurrent, @DefaultValue("1000") int dailyLimit,
+                      @DefaultValue("8s") Duration streamFirstDeltaTimeout,
+                      @DefaultValue("20s") Duration streamTimeout) {
     }
 
     public record Retrieval(@DefaultValue("4") int topK, @DefaultValue("3") int searchResultCount,
