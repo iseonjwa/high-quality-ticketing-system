@@ -22,7 +22,7 @@ export function ConcertPoster({
       aria-hidden="true"
       data-slot="concert-poster"
       className={cn(
-        '@container relative aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-sm bg-gray-800',
+        '@container relative aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-sm bg-ink-800',
         className,
       )}
     >
@@ -41,14 +41,14 @@ export function ConcertPoster({
           className={cn(
             'absolute inset-x-0 bottom-0 grid gap-[3cqw] px-[8cqw] pt-[24cqw] pb-[8cqw]',
             light
-              ? 'bg-linear-to-t from-[#efeae0] via-[#efeae0]/85 to-transparent text-gray-900'
+              ? 'bg-linear-to-t from-[#efeae0] via-[#efeae0]/85 to-transparent text-ink-900'
               : 'bg-linear-to-t from-black/85 via-black/45 to-transparent text-white',
           )}
         >
           <span
             className={cn(
               'text-[5.5cqw] leading-none font-semibold tracking-[0.18em] uppercase',
-              light ? 'text-primary-600' : 'text-white/70',
+              light ? 'text-brand-600' : 'text-white/70',
             )}
           >
             Live Concert

@@ -447,8 +447,9 @@ function SeatSelection({
 
   return (
     <div className="grid items-start gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_340px]">
-      <section aria-labelledby="seat-map-title">
-        <Card className="gap-0 px-4 py-5 @min-[40rem]:p-6">
+      {/* 구역 카드와 좌석 카드를 나눈다(시안). 매수·안내·구역은 위 카드, 고른 구역의 좌석표는 아래 카드다 */}
+      <section aria-labelledby="seat-map-title" className="grid gap-5">
+        <Card className="gap-0 rounded-[22px] px-4 py-5 @min-[40rem]:p-6">
           <div className="mb-5 flex flex-col gap-4 @min-[40rem]:flex-row @min-[40rem]:items-end @min-[40rem]:justify-between">
             <div>
               <h2
@@ -518,7 +519,9 @@ function SeatSelection({
             pickedBySection={pickedBySection}
             onSelect={setSectionChoice}
           />
-          <div className="mt-6 mb-3 flex flex-wrap items-baseline justify-between gap-3 border-t border-gray-100 pt-5">
+        </Card>
+        <Card className="gap-0 rounded-[22px] px-4 py-5 @min-[40rem]:p-6">
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
             <h3 className="flex items-center gap-2 type-heading text-gray-900">
               <GradeBadge grade={current.grade} />
               {current.section}구역
