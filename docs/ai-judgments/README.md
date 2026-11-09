@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | Q1-d 로컬 확인에서 출발 대기를 다시 계산하는 방식으로 고치고, Q1 ↔ Q1-d 수치 비교는 배포 서버로 넘김 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-09-q1d-local-limit-and-clock-drift.md) |
 | 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-08-deploy-measure-token-key-swap.md) |
 | 2026-11-09 | 토스 어댑터의 orderId를 토큰에서 만들고, 늦은 승인 방지는 Prevented를 내지 않으며, 빌링은 지원하지 않고, 배포 기본은 mock으로 한 추천안을 수용함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-toss-adapter-order-id-and-late-approval.md) |
 | 2026-11-09 | 결제 건별 슬랙 알림(ISE-183)의 세부 여섯 가지(결제 시각 표기, 금액 불일치 합치기, 해결 메시지 없음, 대사 10건 상한, 환불 문구)를 추천안대로 정함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-payment-event-alert-details.md) |
