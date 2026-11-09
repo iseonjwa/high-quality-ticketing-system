@@ -69,6 +69,12 @@ if ! docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' iseonjwa-gate
   echo "Gateway가 측정 환경으로 떠 있지 않습니다. STEPS.md 실행 방법대로 전체 스택을 다시 띄웁니다" >&2
   exit 1
 fi
+# Note: 측정 경로에 없는 컨테이너는 측정 중에 멈춘다. P4b부터 k6가 GB 단위 메모리를 쓰면서 서비스 전체(약 4.5GiB)와 합쳐
+# Docker VM(약 7.6GiB)이 스왑으로 넘어가 모든 컨테이너가 함께 멈췄다(STEPS.md P4b 실측 2차). 이 컨테이너들은 앞 단계에서도 거의 놀았다.
+# Prometheus는 지표 수집에 쓰므로 남긴다. 다시 켜려면 STEPS.md 실행 절의 전체 스택 명령을 다시 실행한다
+IDLE_CONTAINERS="${IDLE_CONTAINERS:-grafana loki alloy zipkin kafka-ui alertmanager frontend}"
+for c in $IDLE_CONTAINERS; do docker stop "iseonjwa-$c-1" >/dev/null 2>&1 || true; done
+echo "[$STEP-$KIND] 측정 무관 컨테이너 멈춤: $IDLE_CONTAINERS"
 echo "[$STEP-$KIND] reservation-service 빌드 후 다시 띄움"
 docker compose --env-file "$ENV_FILE" "${FILES[@]}" up -d --build --no-deps --force-recreate --wait reservation-service >/dev/null
 # Gateway가 새 인스턴스를 Eureka에서 받을 때까지 공개 API로 확인한다
@@ -124,7 +130,7 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none}"
   echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
-  echo "jfr=${OBSERVE_JFR:-0}"
+  echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,}"
   # k6 메모리 상한과 종료 코드. k6_exit=137이면 k6가 상한에 닿아 죽은 회라 처리량을 쓰지 않는다
   echo "$(grep -oE 'k6_memory=[^ ]+ k6_gomemlimit=[^ ]+' "$PREFIX-k6.log" | head -1) $(grep -oE 'k6_exit=[0-9]+' "$PREFIX-k6.log" | tail -1)"
   echo "gc=$(MSYS_NO_PATHCONV=1 docker exec iseonjwa-reservation-service-1 sh -c 'head -c 4000 /tmp/gc.log' 2>/dev/null | grep -oE 'Using [A-Za-z0-9 ]+' | head -1)"
