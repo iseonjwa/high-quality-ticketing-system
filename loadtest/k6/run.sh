@@ -29,7 +29,7 @@ PASS_ENV=(BASE_URL TOKEN_MODE USER_ID_BASE JWT_ACCESS_SECRET ENTRY_TOKEN_SECRET 
   CONCERTS SCHEDULES_PER_CONCERT DETAIL_RATIO ENTER_RATE PG_DELAY_MS MOCK_PG_URL CONFIRM_POLL_SECONDS CONFIRM_MAX_POLLS
   EXPIRING RATE ENTRANTS SEAT_COUNT WAITLIST_COUNT PAY_RATE PG_MODE DECLINE_RATE START_IN_SECONDS
   DRAW_AFTER_SECONDS DRAW_WINDOW_SECONDS WITH_BILLING PRE_OPEN_SECONDS AFTER_OPEN_SECONDS ENTER_SPREAD_SECONDS
-  ABANDON_RATIO MAX_RETRY)
+  ABANDON_RATIO MAX_RETRY CONCERT_ID)
 ARGS=()
 for key in "${PASS_ENV[@]}"; do
   ARGS+=(-e "$key")
@@ -53,9 +53,18 @@ if [ "${K6_PROGRESS:-0}" = 1 ]; then
   QUIET_ARGS=()
 fi
 
+# Note: grafana/k6 컨테이너는 이미지 안의 사용자로 돈다. 리눅스 발생기에서는 마운트한 results/가 실행한 사람(ubuntu) 소유라
+#       k6가 결과 파일을 만들지 못했다(permission denied, ISE-225). 리눅스에서만 실행한 사람의 uid:gid로 돌린다.
+#       Windows Docker Desktop은 마운트 폴더 권한을 따지지 않고, Git Bash의 id는 리눅스 uid가 아니라서 붙이지 않는다
+USER_ARGS=()
+if [ "$(uname -s)" = Linux ]; then
+  USER_ARGS=(--user "$(id -u):$(id -g)")
+fi
+
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
 MSYS_NO_PATHCONV=1 docker run --rm \
+  ${USER_ARGS[@]+"${USER_ARGS[@]}"} \
   -v "$K6_DIR:/scripts" \
   "${ARGS[@]}" ${RW_ENV[@]+"${RW_ENV[@]}"} \
   "$K6_IMAGE" run \
