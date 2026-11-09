@@ -125,10 +125,19 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다).
+
+### 결제 PG 모드 전환 (ISE-45)
+
+- 환경변수: `PAYMENT_PG_PROVIDER`(`mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
+- 전환 절차: (1) 진행 중인 결제가 없는지 확인한다(`payments`에 `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK`가 없고 `refunds`가 `REQUESTED`로 남지 않음). 진행 중인 결제가 있는 채로 바꾸면 이미 한 PG에 기록된 결제를 다른 PG에서 조회하게 되어 `NotFound`로 보인다. (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
+- 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
+- 토스 모드는 빌링(추첨 자동결제)을 지원하지 않는다. 추첨 시연은 `mock`에서 한다.
+- 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요
 
