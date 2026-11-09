@@ -51,3 +51,4 @@
 | 0045 | [로그는 Grafana Alloy로 모아 Loki에 두고 요청마다 한 줄을 남기며, Prometheus 알림은 Alertmanager로 팀 슬랙에 보낸다](0045-logs-loki-alerts-slack.md) | 제안 (팀 공유 필요, 공통 요청 로그는 contract 이슈 ISE-182) | 2026-11-03 |
 | 0046 | [부하 측정은 k6를 같은 리전의 임시 EC2에서 돌리고, 오픈 피크 전체 시나리오와 공통 측정 기반을 함께 만든다](0046-load-test-k6.md) | 제안 (팀 공유 필요, ISE-25 분담 확인. 측정용 토큰 키는 2026-11-08 변경) | 2026-11-03 |
 | 0047 | [배포는 EC2 한 대에 DB·캐시·브로커까지 띄워 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토한다](0047-single-ec2-first-managed-split-review.md) | 채택 (분리는 11/7~11/12 검토) | 2026-11-04 |
+| 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
