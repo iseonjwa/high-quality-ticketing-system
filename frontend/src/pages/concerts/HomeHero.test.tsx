@@ -77,6 +77,8 @@ function stubReducedMotion(reduce: boolean) {
 beforeEach(() => {
   // 자동 넘김은 setInterval이다. setTimeout까지 가짜로 두면 testing-library의 비동기 대기가 멈춘다
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+  // 남은 시간 칸은 브라우저 시계(Date.now)로 센다. 장의 날짜(nowMillis)와 같은 시각에 둔다
+  vi.setSystemTime(NOW)
   stubReducedMotion(false)
 })
 
@@ -163,10 +165,10 @@ describe('HomeHero 넘기기', () => {
 })
 
 describe('HomeHero 배너 그림 받기', () => {
-  // 장 안의 배너 그림(포스터 그림은 data-slot="concert-poster" 안에 있어 뺀다)
+  // 장 안의 배너 그림(오른쪽 입장권의 포스터 그림은 data-slot="hero-pass" 안에 있어 뺀다)
   const artOf = (slide: HTMLElement) =>
     Array.from(slide.querySelectorAll('img')).filter(
-      (img) => img.closest('[data-slot="concert-poster"]') === null,
+      (img) => img.closest('[data-slot="hero-pass"]') === null,
     )
 
   it('처음에는 보이는 장과 다음 장의 배너 그림만 받고, 넘기면 그다음 장 그림을 받는다', async () => {
@@ -294,13 +296,21 @@ describe('HomeHero 자동 넘김', () => {
 })
 
 describe('HomeHero 장의 내용', () => {
-  it('오픈 예정은 "오픈 D-n"과 [공연 보기], 공연 상세 링크를 보인다', async () => {
+  it('오픈 예정은 오픈 일시와 남은 시간 칸, [공연 보기], 공연 상세 링크를 보인다', async () => {
     const user = renderHero(THREE)
     await user.click(screen.getByRole('button', { name: '이전 공연' }))
 
     const slide = visibleSlide()
     expect(within(slide).getByText('오픈 예정')).toBeInTheDocument()
-    expect(within(slide).getByText('오픈 D-3')).toBeInTheDocument()
+    expect(within(slide).getByText('2026.11.07 (토) 12:00 티켓 오픈')).toBeInTheDocument()
+    // 3일 0시간 0분 0초 남음(브라우저 시계, 초는 올림)
+    const timer = within(slide).getByRole('timer', { name: '오픈까지 남은 시간' })
+    expect(Array.from(timer.children).map((unit) => unit.textContent)).toEqual([
+      '03일',
+      '00시간',
+      '00분',
+      '00초',
+    ])
     expect(within(slide).getByRole('link', { name: '공연 보기' })).toHaveAttribute(
       'href',
       '/concerts/3',
@@ -321,21 +331,21 @@ describe('HomeHero 장의 내용', () => {
     expect(within(slide).queryByRole('link', { name: '공연 보기' })).not.toBeInTheDocument()
   })
 
-  it('공연이 오늘이면 "오늘 공연", 오픈이 오늘이면 "오늘 오픈"이라고 쓴다', async () => {
-    const user = renderHero([onSale(1, 2 * 60 * 60 * 1000), opening(2, 60 * 60 * 1000)])
+  it('공연이 오늘이면 "오늘 공연"이라고 쓴다', () => {
+    renderHero([onSale(1, 2 * 60 * 60 * 1000)])
 
     expect(within(visibleSlide()).getByText('오늘 공연')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: '다음 공연' }))
-
-    expect(within(visibleSlide()).getByText('오늘 오픈')).toBeInTheDocument()
   })
 
-  it('공연·오픈 일시를 한국 시각으로 보인다', () => {
+  it('예매 중인 장에는 남은 시간 칸을 두지 않는다', () => {
     renderHero([onSale(1, 5 * DAY)])
 
-    const slide = visibleSlide()
-    expect(within(slide).getByText('2026.11.09 (월) 12:00')).toBeInTheDocument()
-    expect(within(slide).getByText('2026.11.03 (화) 12:00')).toBeInTheDocument()
+    expect(within(visibleSlide()).queryByRole('timer')).not.toBeInTheDocument()
+  })
+
+  it('공연 일시를 한국 시각으로 보인다', () => {
+    renderHero([onSale(1, 5 * DAY)])
+
+    expect(within(visibleSlide()).getByText('2026.11.09 (월) 12:00 공연')).toBeInTheDocument()
   })
 })
