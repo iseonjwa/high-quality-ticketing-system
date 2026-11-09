@@ -1,0 +1,6 @@
+export { AdminHomePage } from '@/pages/admin/AdminHomePage'
+export { AdminConcertNewPage } from '@/pages/admin/AdminConcertNewPage'
+export { AdminConcertPage } from '@/pages/admin/AdminConcertPage'
+export { AdminLotteryNewPage } from '@/pages/admin/AdminLotteryNewPage'
+export { AdminLotteryPage } from '@/pages/admin/AdminLotteryPage'
+export { AdminPasswordResetPage } from '@/pages/admin/AdminPasswordResetPage'
