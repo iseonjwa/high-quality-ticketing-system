@@ -12,8 +12,8 @@ const alertVariants = cva(
       variant: {
         info: 'border-info-600/20 bg-info-50 text-info-600',
         success: 'border-success-600/20 bg-success-50 text-success-600',
-        warning: 'border-[#ffd8a8] bg-warning-50 text-warning-700',
-        danger: 'border-[#f8c4ca] bg-danger-50 text-danger-600',
+        warning: 'border-[#ffd8a8] bg-warning-50 text-warning-700 dark:border-warning-700/30',
+        danger: 'border-[#f8c4ca] bg-danger-50 text-danger-600 dark:border-danger-600/30',
       },
     },
     defaultVariants: { variant: 'info' },
@@ -74,7 +74,7 @@ function Alert({
           data-slot="alert-close"
           aria-label="닫기"
           onClick={onClose}
-          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-ring"
+          className="-m-1 shrink-0 rounded-sm p-1 outline-none hover:bg-current/10 focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

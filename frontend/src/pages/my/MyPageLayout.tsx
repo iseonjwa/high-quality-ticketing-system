@@ -66,17 +66,17 @@ function ProfileCard({ me, pending }: { me: Me | undefined; pending: boolean }) 
   return (
     <div
       data-slot="profile-card"
-      className="relative hidden overflow-hidden rounded-lg bg-gray-900 p-5 text-white @min-[56rem]:block"
+      className="relative hidden overflow-hidden rounded-lg bg-ink-900 p-5 text-white @min-[56rem]:block"
     >
       <span
         aria-hidden="true"
-        className="absolute -top-10 -right-10 size-32 rounded-full bg-primary-600/40 blur-2xl"
+        className="absolute -top-10 -right-10 size-32 rounded-full bg-brand-600/40 blur-2xl"
       />
       {me ? (
         <div className="relative grid gap-3">
           <span
             aria-hidden="true"
-            className="inline-flex size-12 items-center justify-center rounded-full bg-primary-600 text-[20px] font-bold"
+            className="inline-flex size-12 items-center justify-center rounded-full bg-brand-600 text-[20px] font-semibold"
           >
             {[...me.nickname][0]?.toUpperCase()}
           </span>
@@ -128,7 +128,7 @@ function MyNavItem({
             'flex h-10 items-center gap-2.5 rounded-md px-3 type-body-sm font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring',
             '@max-[56rem]:rounded-pill @max-[56rem]:border @max-[56rem]:border-gray-200 @max-[56rem]:bg-gray-0',
             isActive
-              ? 'bg-gray-900 text-white @max-[56rem]:border-gray-900 @max-[56rem]:bg-gray-900'
+              ? 'bg-gray-900 text-gray-0 @max-[56rem]:border-gray-900 @max-[56rem]:bg-gray-900'
               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
           )
         }

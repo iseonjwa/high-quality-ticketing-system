@@ -73,7 +73,7 @@ function FeaturedCarousel({ items, nowMillis }: { items: HomeConcert[]; nowMilli
       aria-roledescription="carousel"
       aria-label="추천 공연"
       // isolate: 안의 z-index(조작판)가 sticky 헤더 위로 올라가지 않게 쌓임 맥락을 가둔다
-      className={cn('relative isolate overflow-hidden bg-gray-900 text-white', HERO_HEIGHT)}
+      className={cn('relative isolate overflow-hidden bg-ink-900 text-white', HERO_HEIGHT)}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       onPointerDown={() => {
@@ -189,8 +189,8 @@ function HeroSlide({
       ) : null}
       {/* 글자가 그림 위에서 읽히도록 왼쪽과 아래를 어둡게 덮는다 */}
       {/* 좁은 화면에서는 글자가 폭 전체를 쓰므로 그라데이션 대신 고르게 덮는다(밝은 그림에서도 흰 글자 4.5:1) */}
-      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/75 to-gray-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-gray-900/75" />
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-gray-900/70 to-transparent" />
+      <div className="absolute inset-0 bg-linear-to-r from-ink-900/95 via-ink-900/75 to-ink-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-ink-900/75" />
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-ink-900/70 to-transparent" />
       <div className="relative mx-auto grid h-full max-w-[1200px] items-center gap-10 px-4 @min-[40rem]:px-6 @min-[56rem]:grid-cols-[1fr_auto]">
         <div className="grid max-w-[620px] gap-5 pb-12">
           <div className="flex flex-wrap items-center gap-2">
@@ -257,7 +257,7 @@ function BrandHero() {
   return (
     <section
       aria-label="이선좌 소개"
-      className={cn('relative overflow-hidden bg-gray-900 text-white', HERO_HEIGHT)}
+      className={cn('relative overflow-hidden bg-ink-900 text-white', HERO_HEIGHT)}
     >
       <img
         src={art.wide}
@@ -268,9 +268,9 @@ function BrandHero() {
         decoding="async"
         className="absolute inset-0 size-full object-cover"
       />
-      <div className="absolute inset-0 bg-linear-to-r from-gray-900/95 via-gray-900/75 to-gray-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-gray-900/75" />
+      <div className="absolute inset-0 bg-linear-to-r from-ink-900/95 via-ink-900/75 to-ink-900/10 @max-[56rem]:bg-none @max-[56rem]:bg-ink-900/75" />
       <div className="relative mx-auto grid h-full max-w-[1200px] content-center gap-4 px-4 @min-[40rem]:px-6">
-        <p className="type-body font-semibold text-primary-300">콘서트 예매, 이선좌</p>
+        <p className="type-body font-semibold text-white/80">콘서트 예매, 이선좌</p>
         <h2 className="max-w-[620px] text-[clamp(28px,4.2cqw,46px)] leading-[1.15] font-extrabold tracking-[-0.03em] break-keep">
           오픈 순간에도 흔들리지 않는 예매
         </h2>

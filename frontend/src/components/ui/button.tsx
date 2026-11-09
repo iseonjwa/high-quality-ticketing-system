@@ -8,7 +8,7 @@ import { Slot } from 'radix-ui'
 // ghost·link는 헤더처럼 버튼 모양이 부담스러운 곳에 쓴다.
 // 글자와 비활성 모양은 샘플(.btn: 15px·600, 큰 버튼 16px, 비활성 gray-200 바탕·gray-400 글자)을 따른다.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding font-semibold whitespace-nowrap transition-colors duration-(--dur-fast) ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 aria-busy:cursor-wait aria-busy:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding font-semibold whitespace-nowrap transition-colors duration-(--dur-fast) ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-0 active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 aria-busy:cursor-wait aria-busy:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -17,9 +17,9 @@ const buttonVariants = cva(
         outline:
           'border-gray-200 bg-gray-0 text-gray-900 hover:bg-gray-50 disabled:bg-gray-0 disabled:text-gray-400',
         destructive:
-          'bg-danger-600 text-white hover:bg-danger-600/90 disabled:bg-gray-200 disabled:text-gray-400',
+          'bg-danger-600 text-gray-0 hover:bg-danger-600/90 disabled:bg-gray-200 disabled:text-gray-400',
         ghost: 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 disabled:text-gray-400',
-        link: 'text-primary underline-offset-4 hover:underline disabled:text-gray-400',
+        link: 'text-primary-600 underline-offset-4 hover:underline disabled:text-gray-400',
       },
       size: {
         default: 'h-11 px-5 text-[15px] leading-[22px]',

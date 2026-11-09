@@ -345,7 +345,7 @@ function PaymentForm({
                   defaultChecked
                   className="row-span-2 size-[18px] accent-primary-600"
                 />
-                <span className="type-body font-bold text-gray-900">신용·체크카드</span>
+                <span className="type-body font-semibold text-gray-900">신용·체크카드</span>
                 <span className="type-caption text-gray-500">
                   시연용 결제라 카드 정보를 받지 않아요
                 </span>
@@ -398,7 +398,7 @@ function PaymentForm({
             </ul>
             <dl className="flex items-baseline justify-between border-t border-gray-100 pt-4">
               <dt className="type-body-sm text-gray-500">합계</dt>
-              <dd className="text-[22px] leading-[30px] font-extrabold text-gray-900 tabular-nums">
+              <dd className="text-[22px] leading-[30px] font-bold text-gray-900 tabular-nums">
                 {formatWon(source.amount)}
               </dd>
             </dl>

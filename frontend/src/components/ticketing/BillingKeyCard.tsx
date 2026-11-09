@@ -104,14 +104,14 @@ export function BillingKeyCard({
         {record ? (
           <div className="grid items-center gap-4 @min-[40rem]:grid-cols-[minmax(0,300px)_1fr] @min-[40rem]:gap-6">
             {/* 실물 카드 모양. 카드사·카드 이름은 응답에 없어 "시연용 카드"로 쓴다 */}
-            <div className="relative aspect-[1.586/1] w-full max-w-[300px] overflow-hidden rounded-lg bg-linear-135 from-gray-800 via-gray-900 to-primary-700 p-5 text-white shadow-lg">
+            <div className="relative aspect-[1.586/1] w-full max-w-[300px] overflow-hidden rounded-lg bg-linear-135 from-ink-800 via-ink-900 to-brand-700 p-5 text-white shadow-lg">
               <span
                 aria-hidden="true"
                 className="absolute -right-12 -bottom-16 size-48 rounded-full border-[22px] border-white/5"
               />
               <span
                 aria-hidden="true"
-                className="absolute -top-10 -right-6 size-28 rounded-full bg-primary-500/30 blur-2xl"
+                className="absolute -top-10 -right-6 size-28 rounded-full bg-brand-600/30 blur-2xl"
               />
               <div className="relative flex h-full flex-col justify-between">
                 <div className="flex items-center justify-between gap-3">

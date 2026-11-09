@@ -42,7 +42,7 @@ export function AuthCard({ title, description, children, footer }: AuthCardProps
           ) : null}
         </div>
       </div>
-      <div className="relative hidden min-h-[560px] overflow-hidden bg-gray-900 text-white @min-[56rem]:order-first @min-[56rem]:block">
+      <div className="relative hidden min-h-[560px] overflow-hidden bg-ink-900 text-white @min-[56rem]:order-first @min-[56rem]:block">
         <img
           src={art.poster}
           alt=""
@@ -52,9 +52,9 @@ export function AuthCard({ title, description, children, footer }: AuthCardProps
           decoding="async"
           className="absolute inset-0 size-full object-cover"
         />
-        <div className="absolute inset-0 bg-linear-to-t from-gray-900 via-gray-900/60 to-gray-900/10" />
+        <div className="absolute inset-0 bg-linear-to-t from-ink-900 via-ink-900/60 to-ink-900/10" />
         <div className="relative flex h-full flex-col justify-between p-8">
-          <Logo tone="light" />
+          <Logo onImage />
           <div className="grid gap-5">
             <p className="text-[28px] leading-[1.25] font-extrabold tracking-[-0.03em] break-keep">
               오픈 순간에도
@@ -87,7 +87,7 @@ export function AuthFooterLink(props: Omit<LinkProps, 'className'>) {
   return (
     <Link
       {...props}
-      className="rounded-sm font-semibold text-primary outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
+      className="rounded-sm font-semibold text-primary-600 outline-none hover:underline hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
     />
   )
 }
