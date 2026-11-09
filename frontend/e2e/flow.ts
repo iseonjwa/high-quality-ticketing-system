@@ -60,14 +60,16 @@ export async function expectPaymentChecking(page: Page) {
   ).toBeAttached()
 }
 
-export async function expectConfirmed(page: Page): Promise<string> {
-  await expect(page.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeVisible()
+export async function expectConfirmed(page: Page, timeout?: number): Promise<string> {
+  await expect(page.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeVisible({
+    timeout,
+  })
   // 확정 화면은 '예매 번호' 용어(dt) 바로 뒤 정의(dd)에 번호를 둔다.
   const reservationNo = await page
     .locator('dt', { hasText: /^예매 번호$/ })
     .locator('xpath=following-sibling::dd[1]')
     .innerText()
-  expect(reservationNo).toMatch(/^R\d+-\d+$/)
+  expect(reservationNo).toMatch(/^R\d+-[0-9A-Z]+$/)
   return reservationNo
 }
 

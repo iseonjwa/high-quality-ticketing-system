@@ -20,17 +20,13 @@ test.describe('시연 흐름', () => {
     concertId,
     seats,
     entryPath,
-    beforeHold,
-    beforePay,
   }) => {
     await login(page, entryPath('normal'), account)
     await openConcert(page, concertId)
     await enterQueueAndWaitSeats(page)
     await pickOneSeat(page, seats.first)
-    await beforeHold(seats.first)
     await hold(page)
     await goToPayment(page)
-    await beforePay()
     await pay(page)
     const reservationNo = await expectConfirmed(page)
     await expectInMyReservations(page, reservationNo)
@@ -66,7 +62,11 @@ test.describe('시연 흐름', () => {
     seats,
     entryPath,
     beforePay,
+    skipReason,
   }) => {
+    const reason = skipReason('payment-unknown')
+    test.skip(reason !== null, reason ?? '')
+    test.setTimeout(180_000)
     await login(page, entryPath('payment-unknown'), account)
     await openConcert(page, concertId)
     await enterQueueAndWaitSeats(page)
@@ -76,7 +76,8 @@ test.describe('시연 흐름', () => {
     await beforePay()
     await pay(page)
     await expectPaymentChecking(page)
-    await expectConfirmed(page)
+    // 서버 조회 간격이 10초라 확정까지 10~25초 걸릴 수 있다.
+    await expectConfirmed(page, 40_000)
     await expect(page).toHaveURL(/\/complete/)
   })
 })

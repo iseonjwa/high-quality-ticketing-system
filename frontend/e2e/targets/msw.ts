@@ -9,5 +9,6 @@ export const mswTarget: TargetFixtures = {
   seats: { first: 'A구역 1열 1번', second: 'A구역 1열 2번' },
   beforeHold: async () => {},
   beforePay: async () => {},
+  skipReason: () => null,
   entryPath: (scenario) => (scenario === 'normal' ? '/login' : `/login?mock=${scenario}`),
 }

@@ -1,5 +1,5 @@
 import { test as base } from '@playwright/test'
-import { composeTarget } from './targets/compose.ts'
+import { prepareStack, prepareTarget, type ComposeStack } from './targets/compose.ts'
 import { mswTarget } from './targets/msw.ts'
 
 export type E2eTarget = 'msw' | 'compose'
@@ -21,32 +21,49 @@ export interface TargetFixtures {
   beforePay: () => Promise<void>
   // 시나리오를 고른 첫 이동 주소. 흐름 중간에 goto하면 MSW 상태가 초기화되므로 첫 이동에만 쓴다.
   entryPath: (scenario: Scenario) => string
+  // 이 대상이 시나리오를 돌릴 수 없는 이유. 돌릴 수 있으면 null이다(예: Mock PG 장애 주입이 닫혀 있다).
+  skipReason: (scenario: Scenario) => string | null
 }
 
 export interface E2eOptions {
   target: E2eTarget
 }
 
-export const test = base.extend<E2eOptions & TargetFixtures & { composeNotReady: void }>({
-  target: ['msw', { option: true }],
-  // 2부에서 compose 대상을 구현하면 이 fixture를 지운다.
-  composeNotReady: [
-    async ({ target }, use, testInfo) => {
-      testInfo.skip(target === 'compose', 'compose 대상은 2부에서 구현')
-      await use()
-    },
-    { auto: true },
+interface Prepared {
+  fixtures: TargetFixtures
+  dispose: () => Promise<void>
+}
+
+export const test = base.extend<
+  TargetFixtures & { prepared: Prepared },
+  E2eOptions & { stack: ComposeStack | null }
+>({
+  target: ['msw', { option: true, scope: 'worker' }],
+  // compose일 때만 worker마다 한 번 공연·회차를 준비한다.
+  stack: [
+    async ({ target }, use) => use(target === 'compose' ? await prepareStack() : null),
+    { scope: 'worker', timeout: 180_000 },
   ],
-  account: async ({ target }, use) => use(pick(target).account),
-  concertId: async ({ target }, use) => use(pick(target).concertId),
-  seats: async ({ target }, use) => use(pick(target).seats),
-  beforeHold: async ({ target }, use) => use(pick(target).beforeHold),
-  beforePay: async ({ target }, use) => use(pick(target).beforePay),
-  entryPath: async ({ target }, use) => use(pick(target).entryPath),
+  // 테스트마다 사용자·좌석을 준비한다. compose는 끝날 때 장애 주입도 푼다.
+  prepared: async ({ target, stack }, use) => {
+    if (target === 'compose' && stack !== null) {
+      const composed = await prepareTarget(stack)
+      try {
+        await use(composed)
+      } finally {
+        await composed.dispose()
+      }
+    } else {
+      await use({ fixtures: mswTarget, dispose: async () => {} })
+    }
+  },
+  account: async ({ prepared }, use) => use(prepared.fixtures.account),
+  concertId: async ({ prepared }, use) => use(prepared.fixtures.concertId),
+  seats: async ({ prepared }, use) => use(prepared.fixtures.seats),
+  beforeHold: async ({ prepared }, use) => use(prepared.fixtures.beforeHold),
+  beforePay: async ({ prepared }, use) => use(prepared.fixtures.beforePay),
+  entryPath: async ({ prepared }, use) => use(prepared.fixtures.entryPath),
+  skipReason: async ({ prepared }, use) => use(prepared.fixtures.skipReason),
 })
 
 export { expect } from '@playwright/test'
-
-function pick(target: E2eTarget): TargetFixtures {
-  return target === 'msw' ? mswTarget : composeTarget
-}
