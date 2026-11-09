@@ -44,3 +44,13 @@ Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {"question": "오픈 시각이 언제예요?"}
+
+### 7. 스트리밍 답변(SSE). 조각이 시간차를 두고 오고 event: meta/delta/sources/done 순서다.
+### 요청 전에 걸러지는 실패(400·401·429)는 SSE가 아니라 JSON이다. 이 클라이언트는 응답이 끝날 때까지 한 번에 보여 줄 수 있어
+### 조각이 오는 모양은 터미널에서 curl -N으로 보는 편이 낫다:
+###   curl -N -X POST $GATEWAY/api/v1/assistant/messages/stream -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"question":"환불은 언제 되나요?"}'
+POST {{gateway}}/api/v1/assistant/messages/stream
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{"question": "환불은 언제 되나요?"}

@@ -76,6 +76,18 @@
 - 요청 제한·동시 호출 상한·일일 예산은 JSON 엔드포인트와 같다(같은 카운터를 쓴다).
 - 로그·개인정보 규칙도 같다(질문 원문을 남기지 않는다).
 
+구현 메모(2026-11-09, 계약은 위와 같다):
+- 구조: `AssistantService.prepareStream`이 요청 제한(429)을 SSE 전에 검사하고, 통과하면 이벤트를 `StreamSink`로 흘려보내는 작업을 돌려준다. 컨트롤러가 `SseEmitter`를 만들어 가상 스레드에서 돌린다. 동시 호출 세마포어는 스트림이 끝날 때까지 쥔다.
+- `meta(AI)`는 첫 `delta` 직전에 보낸다. 첫 조각 전에 실패하면 `meta`를 `SEARCH`로 보내므로 화면은 `fallback`을 못 보고 시작한다.
+- 시한 처리
+  - SDK 클라이언트 전역 `timeout`(8초)은 OkHttp `callTimeout`이라 스트림 전체를 8초에 끊는다. 스트림 호출에만 요청 옵션으로 읽기 간격 8초·전체 22초를 주고, 첫 조각 8초·전체 20초는 감시 스레드가 직접 재서 시한이 되면 `StreamResponse`를 닫는다(`assistant.llm.stream-first-delta-timeout`, `stream-timeout`).
+  - 닫힌 스트림이나 중간에 끊긴 스트림은 예외 없이 끝날 수 있어 `message_stop`을 봐야 완결로 본다.
+- 인용·`stop_reason`은 조각마다 판단하지 않고, SDK `MessageAccumulator`에 이벤트를 모두 넣어 만든 최종 메시지로 기존 `toAnswer`가 판단한다. `refusal`이면 조각이 나간 뒤라도 `fallback`으로 마무리한다.
+- 클라이언트가 끊기면 다음 이벤트를 쓸 때 알아채고(`ClientDisconnectedException`) Claude 스트림을 닫고 세마포어를 돌려준다. 이벤트 사이가 길면 알아채는 데 그만큼 걸린다(전체 시한 20초가 상한).
+- Gateway 확인: `metadata.response-timeout`은 Reactor Netty `HttpClient.responseTimeout`으로 전달되고, 이는 요청을 보낸 뒤 Netty `ReadTimeoutHandler`를 붙이는 것이다(reactor-netty-http 1.3.8 `HttpClientOperations` 바이트코드). 이 핸들러는 마지막 읽기 뒤 정해진 시간 동안 읽을 것이 없을 때만 발동하므로 **읽기 사이 간격 시한이지 응답 전체 시한이 아니다.** 스트림이 계속 조각을 보내면 전체가 20초여도 끊기지 않는다. 가장 긴 공백은 첫 조각 전(최대 8초)이라 10초 안이다. 그래서 라우트 시한은 10초 그대로 둔다. 서비스 쪽 첫 조각 시한(8초)은 이 10초보다 짧아야 한다.
+- 실제 키 확인(2026-11-09, `claude-haiku-5-5`): 질문 2개 모두 `meta(AI)` → `delta` 여러 개(조각이 약 0.02~0.15초 간격으로 도착) → `sources` → `done`. 첫 조각까지 0.8~1.4초, 전체 1.3~2.1초. 두 번째 질문(문서에 없는 내용)은 `sources`가 빈 배열이다.
+- 로그: `ASSISTANT_ANSWERED`·`ASSISTANT_LLM_DONE`에 `stream=true`가 붙는다.
+
 ## 3. 문서 묶음과 검색
 - 위치: `assistant-service/src/main/resources/knowledge/*.md`. 7개: booking-flow, open-time, purchase-limit, queue, payment, cancel-refund, lottery
 - 형식: 절마다 `## [절ID] 제목`과 `keywords:` 줄을 둔다. 기동할 때 읽고, 절ID가 겹치거나 빈 절이 있으면 기동을 실패시킨다.
