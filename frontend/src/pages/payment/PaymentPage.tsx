@@ -223,7 +223,12 @@ function endsHold(state: PaymentFlowState): boolean {
 function headingOf(concert: QueueConcert | null): ReservationHeading | null {
   return concert === null
     ? null
-    : { title: concert.title, startsAt: concert.startsAt, venueName: concert.venueName }
+    : {
+        title: concert.title,
+        startsAt: concert.startsAt,
+        venueName: concert.venueName,
+        concertId: concert.concertId,
+      }
 }
 
 function PaymentForm({

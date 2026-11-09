@@ -164,7 +164,7 @@ function QueueBody({
             focus
           />
           <Actions concert={concert}>
-            <Button size="lg" className="w-full" onClick={onRejoin}>
+            <Button size="lg" className="w-full rounded-full" onClick={onRejoin}>
               다시 줄 서기
             </Button>
           </Actions>
@@ -217,7 +217,7 @@ function FailedMessage({
         <Actions concert={null} primaryBack />
       ) : (
         <Actions concert={concert}>
-          <Button size="lg" className="w-full" onClick={onRetry}>
+          <Button size="lg" className="w-full rounded-full" onClick={onRetry}>
             다시 시도
           </Button>
         </Actions>
@@ -315,7 +315,7 @@ function Actions({
         asChild
         variant={primaryBack ? 'default' : 'ghost'}
         size={primaryBack ? 'lg' : 'default'}
-        className="w-full"
+        className="w-full rounded-full"
       >
         <Link to={back.to}>{back.label}</Link>
       </Button>
