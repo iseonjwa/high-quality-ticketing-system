@@ -76,6 +76,8 @@ npm run dev:mock   # MSW가 계약 문서대로 응답한다
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier로 고치기 / 검사만 |
 | `npm test` / `test:watch` | Vitest 한 번 실행 / 감시 모드 |
+| `npm run e2e:msw` | 시연 흐름 Playwright 테스트(MSW 모드). 아래 "시연 흐름 테스트" |
+| `npm run e2e` / `e2e:compose` | 모든 대상 / compose 대상(준비 중) |
 
 ## 구조
 
@@ -110,9 +112,23 @@ tools/concert-art/  공연 그림 생성기(art.html 캔버스 그림, render.mj
 - shadcn/ui 컴포넌트는 `npx shadcn@4.23.0 add <이름>`으로 더한다. 설정은 `components.json`(Radix 기반)에 있다.
 - 테스트 파일은 대상 옆에 `*.test.ts(x)`로 둔다. API 테스트는 목 서버에 실제로 요청을 보내고, 목이 없는 경로를 부르면 실패한다.
 
+## 시연 흐름 테스트 (Playwright)
+
+로그인 → 공연 상세 → 대기열 → 좌석 선점 → 결제 → 결과·내 예매를 브라우저로 한 번에 도는 테스트다. `e2e/`에 있고 Vitest(`src/**/*.test.*`)와 따로 돈다.
+
+```bash
+npx playwright install chromium   # 처음 한 번
+npm run e2e:msw                   # 개발 서버(dev:mock, 5174 포트)를 띄워 MSW 모드로 돈다
+```
+
+- 시나리오 3개: 정상 / 409 이선좌 재선택(`?mock=seat-conflict`) / 결제 "확인 중"(`?mock=payment-unknown`).
+- 요소는 접근 가능한 이름으로 잡고 앱 코드의 `testid`는 쓰지 않는다. 흐름 중간에 `page.goto`를 하면 목 상태가 처음으로 돌아가므로 첫 이동과 로그인 직후 이동에만 쓴다.
+- 대상은 프로젝트(`msw`, `compose`)로 나눈다. spec은 `fixtures.ts`의 값(계정, 공연, 좌석, 시나리오 진입 주소)만 알아 두 대상이 같은 spec을 쓴다. compose 모드(실제 스택)는 준비 중이라 지금은 건너뛴다.
+- 실패하면 `playwright-report/`, `test-results/`(trace·스크린샷)가 남는다. `npx playwright show-report`로 본다.
+
 ## CI
 
-`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다.
+`.github/workflows/frontend.yml`은 `frontend/`(또는 이 워크플로)가 바뀐 PR과 main·dev push에서만 뜬다. `npm ci` → `format:check` → `lint` → `test` → `build`를 차례로 돈다. 필수 검사가 아니라서 빨간 체크가 떠도 머지가 막히지 않는다. 머지 전에 직접 확인한다. `frontend/`만 바뀐 PR에서는 `build` 워크플로가 Java 검사를 건너뛴다. PR 전에 로컬에서 같은 순서로 돌려 본다. 같은 파일의 `e2e-msw` job이 Chromium을 설치해 `npx playwright test --project=msw`를 따로 돌고, 실패하면 리포트를 7일 보관한다.
 
 ## 의존성
 
