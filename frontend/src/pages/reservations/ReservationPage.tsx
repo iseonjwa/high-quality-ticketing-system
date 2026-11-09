@@ -6,17 +6,20 @@ import { isApiError } from '@/api/apiError'
 import { getReservation, reservationQueryKeys, type ReservationDetail } from '@/api/reservations'
 import { paths, paymentPath } from '@/app/paths'
 import { readPaymentAttempt } from '@/auth/paymentAttempts'
+import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { GradeBadge } from '@/components/ticketing/GradeBadge'
 import { ReservationStatusBadge } from '@/components/ticketing/ReservationStatusBadge'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTime, formatWon } from '@/lib/format'
+import { formatDateTime, formatWon, kstParts } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
 import { readRouteId } from '@/lib/routeId'
 import { cn } from '@/lib/utils'
+import { seatLabel } from '@/pages/seats/seatSections'
 import {
   readReservationHeading,
   reservationNavigationState,
@@ -119,17 +122,18 @@ function ConfirmedResult({
 }) {
   return (
     <>
+      {/* 공연 제목·일시는 티켓이 가진다. 머리에는 예매 번호를 둔다(시안) */}
       <ResultHead
         tone="success"
         title="예매가 확정됐어요"
-        description={heading ? headingLine(heading) : `예매 번호 ${detail.reservationNo}`}
+        description={`예매 번호 ${detail.reservationNo}`}
       />
       <TicketsCard detail={detail} heading={heading} showStatus />
       <Actions>
-        <Button asChild variant="outline" size="lg">
+        <Button asChild size="lg">
           <Link to={paths.myReservations}>내 예매 목록</Link>
         </Button>
-        <Button asChild size="lg">
+        <Button asChild variant="outline" size="lg">
           <Link to={paths.home}>다른 공연 보기</Link>
         </Button>
       </Actions>
@@ -281,7 +285,7 @@ function ResultHead({
   description: string
 }) {
   return (
-    <Card className="items-center gap-2 px-4 pt-8 pb-6 text-center @min-[40rem]:px-6">
+    <div className="grid justify-items-center gap-2 pt-4 pb-2 text-center">
       <span
         aria-hidden="true"
         className={cn(
@@ -295,9 +299,11 @@ function ResultHead({
           <TriangleAlert className="size-7" />
         )}
       </span>
-      <h1 className="mt-2 type-title text-gray-900">{title}</h1>
+      <h1 className="mt-2 text-[clamp(24px,3cqw,32px)] leading-tight font-bold tracking-[-0.03em] text-gray-900">
+        {title}
+      </h1>
       <p className="type-body-sm text-gray-500 tabular-nums">{description}</p>
-    </Card>
+    </div>
   )
 }
 
@@ -323,8 +329,9 @@ function DetailHead({
   )
 }
 
-// 확정 예매의 좌석별 티켓. 좌석마다 실제 모바일 티켓처럼 어두운 카드에 좌석·티켓 번호를 크게 둔다
-// showStatus: 머리에 상태 배지가 없을 때(결과 화면)만 카드에 둔다
+// 확정 예매 티켓(시안). 한 장짜리 가로 티켓에 공연과 좌석별 티켓 번호를 두고, 오른쪽 떼는 칸에 공연 날짜와 꾸밈
+// 바코드를 둔다. 좁은 화면(40rem 미만)은 떼는 칸을 아래로 내려 가로 절취선으로 나눈다.
+// showStatus: 머리에 상태 배지가 없을 때(결과 화면)만 티켓에 둔다
 function TicketsCard({
   detail,
   heading,
@@ -336,87 +343,112 @@ function TicketsCard({
 }) {
   const ticketBySeat = new Map(detail.tickets.map((ticket) => [ticket.seatId, ticket.ticketNo]))
   const total = detail.seats.length
+  const when = heading ? kstParts(heading.startsAt) : null
   return (
-    <section aria-labelledby="tickets-title" className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="tickets-title" className="type-heading text-gray-900">
-          티켓 {total}매
-        </h2>
-        {showStatus ? <ReservationStatusBadge status={detail.status} /> : null}
-      </div>
-      <ul className="grid gap-4 @min-[48rem]:grid-cols-2">
-        {detail.seats.map((seat, index) => {
-          const ticketNo = ticketBySeat.get(seat.seatId)
-          return (
-            <li
-              key={seat.seatId}
-              className="relative overflow-hidden rounded-lg bg-ink-900 text-white shadow-md"
+    <section aria-labelledby="tickets-title">
+      <h2 id="tickets-title" className="sr-only">
+        티켓 {total}매
+      </h2>
+      {/* 자르지 않는다(overflow-visible): 떼는 칸 홈이 테두리 선까지 덮게 한다. 포스터 왼쪽 모서리는 따로 둥글린다 */}
+      <article className="flex rounded-[26px] border border-gray-100 bg-gray-0 shadow-sm @max-[40rem]:flex-col">
+        {heading?.concertId !== undefined ? (
+          <ConcertPoster
+            concertId={heading.concertId}
+            title={heading.title}
+            className="aspect-auto min-h-[270px] w-[180px] self-stretch rounded-[25px_0_0_25px] @max-[48rem]:hidden"
+          />
+        ) : null}
+        <div className="grid min-w-0 flex-1 content-start gap-4 p-5 @min-[40rem]:px-7 @min-[40rem]:py-6">
+          <div className="flex items-center justify-between gap-3">
+            {/* 영어 꾸밈 글자다. 매수는 제목(티켓 n매)이 읽는다 */}
+            <span
+              aria-hidden="true"
+              className="text-[11px] font-bold tracking-[0.22em] text-gray-500 tabular-nums"
             >
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute -top-16 -right-12 size-44 rounded-full bg-brand-600/45 blur-3xl"
-              />
-              <div className="relative grid gap-3 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="type-caption tracking-[0.18em] text-white/70 uppercase tabular-nums">
-                    Ticket {index + 1}/{total}
+              ADMIT {total}
+            </span>
+            {showStatus ? <ReservationStatusBadge status={detail.status} /> : null}
+          </div>
+          {heading ? (
+            <div className="grid gap-1">
+              <p className="text-[clamp(20px,2.6cqw,28px)] leading-tight font-bold tracking-[-0.03em] break-keep text-gray-900">
+                {heading.title}
+              </p>
+              <p className="type-body-sm text-gray-600 tabular-nums">{headingMeta(heading)}</p>
+            </div>
+          ) : null}
+          <ul className="grid divide-y divide-gray-100 border-y border-gray-100">
+            {detail.seats.map((seat) => {
+              const ticketNo = ticketBySeat.get(seat.seatId)
+              return (
+                <li
+                  key={seat.seatId}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 py-3"
+                >
+                  <span className="type-body-sm font-semibold text-gray-900 tabular-nums">
+                    {seatLabel(seat)}
                   </span>
-                  <GradeBadge grade={seat.grade} />
-                </div>
-                {heading ? (
-                  <div className="grid gap-0.5">
-                    <p className="line-clamp-1 type-body font-semibold">{heading.title}</p>
-                    <p className="type-caption text-white/60 tabular-nums">
-                      {headingMeta(heading)}
-                    </p>
-                  </div>
-                ) : null}
-                <p className="type-title tabular-nums">
-                  {seat.section}구역{' '}
-                  <b className="font-bold">
-                    {seat.row}열 {seat.number}번
-                  </b>
-                </p>
-              </div>
-              {/* 절취선: 점선과 양옆 반원 홈 */}
-              <div aria-hidden="true" className="relative h-4">
-                <span className="absolute inset-x-5 top-1/2 border-t-2 border-dashed border-white/15" />
-                <span className="absolute top-0 -left-2 size-4 rounded-full bg-background" />
-                <span className="absolute top-0 -right-2 size-4 rounded-full bg-background" />
-              </div>
-              <div className="relative flex items-end justify-between gap-4 px-5 pt-3 pb-5">
-                <div className="grid min-w-0 gap-1 type-body-sm">
-                  {ticketNo ? (
-                    <span className="type-caption text-white/60 tabular-nums">
-                      티켓 번호{' '}
-                      <b className="block type-body-sm font-semibold break-all text-white">
-                        {ticketNo}
-                      </b>
-                    </span>
-                  ) : null}
-                  <span className="tabular-nums">{formatWon(seat.price)}</span>
-                </div>
-                {ticketNo ? <TicketBarcode value={ticketNo} /> : null}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-      <Card className="px-4 py-4 @min-[40rem]:px-6">
-        <Facts
-          bordered={false}
-          rows={[
-            ['예매 번호', detail.reservationNo],
-            ['결제 금액', formatWon(detail.totalAmount)],
-          ]}
-        />
-      </Card>
+                  <span className="type-body-sm text-gray-700 tabular-nums">
+                    {formatWon(seat.price)}
+                  </span>
+                  <span className="col-span-2 type-caption break-all text-gray-500 tabular-nums">
+                    {seat.grade}석
+                    {ticketNo ? (
+                      <>
+                        {' · '}티켓 번호 <b className="font-semibold text-gray-900">{ticketNo}</b>
+                      </>
+                    ) : null}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          <Facts
+            bordered={false}
+            rows={[
+              ['예매 번호', detail.reservationNo],
+              ['결제 금액', formatWon(detail.totalAmount)],
+            ]}
+          />
+        </div>
+        {/* 떼는 칸은 꾸밈이다(날짜는 위 일시 줄이 가진다) */}
+        <div
+          aria-hidden="true"
+          className="ticket-stub grid w-[180px] shrink-0 content-between gap-4 p-5 @max-[40rem]:hidden"
+        >
+          <StubDate when={when} />
+          <TicketBarcode value={detail.reservationNo} className="h-[90px] w-full text-gray-900" />
+        </div>
+        <TicketPerforation className="@min-[40rem]:hidden" />
+        <div
+          aria-hidden="true"
+          className="flex items-end justify-between gap-4 p-5 @min-[40rem]:hidden"
+        >
+          <StubDate when={when} />
+          <TicketBarcode value={detail.reservationNo} className="h-12 w-32 text-gray-900" />
+        </div>
+      </article>
     </section>
   )
 }
 
-// 티켓 번호로 그리는 꾸밈 바코드. 읽을 수 있는 코드가 아니라 모양만 낸다(티켓 번호는 글자로 따로 보인다)
-function TicketBarcode({ value }: { value: string }) {
+function StubDate({ when }: { when: ReturnType<typeof kstParts> | null }) {
+  return when ? (
+    <div>
+      <p className="text-[40px] leading-none font-bold tracking-[-0.04em] text-gray-900 tabular-nums">
+        {when.month}.{when.day}
+      </p>
+      <p className="mt-2 type-body-sm font-semibold text-gray-700 tabular-nums">
+        {when.weekday}요일 {when.hour}:{when.minute}
+      </p>
+    </div>
+  ) : (
+    <p className="text-[11px] font-bold tracking-[0.22em] text-gray-500">TICKET</p>
+  )
+}
+
+// 예매 번호로 그리는 꾸밈 바코드. 읽을 수 있는 코드가 아니라 모양만 낸다(번호는 글자로 따로 보인다)
+function TicketBarcode({ value, className }: { value: string; className?: string }) {
   const bars: { x: number; width: number }[] = []
   let x = 0
   for (const char of value) {
@@ -432,7 +464,8 @@ function TicketBarcode({ value }: { value: string }) {
       aria-hidden="true"
       viewBox={`0 0 ${x} 40`}
       preserveAspectRatio="none"
-      className="h-10 w-24 shrink-0 text-white/85"
+      data-slot="ticket-barcode"
+      className={cn('shrink-0', className)}
     >
       {bars.map((bar) => (
         <rect key={bar.x} x={bar.x} y="0" width={bar.width} height="40" fill="currentColor" />
@@ -505,9 +538,10 @@ function Facts({ rows, bordered = true }: { rows: [string, string][]; bordered?:
   )
 }
 
+// 아래 이동 버튼. 결과 화면 시안대로 알약 모양이다
 function Actions({ children }: { children: ReactNode }) {
   return (
-    <div className="grid gap-2 @min-[40rem]:grid-flow-col @min-[40rem]:auto-cols-fr">
+    <div className="grid gap-2 @min-[40rem]:grid-flow-col @min-[40rem]:auto-cols-fr [&>*]:rounded-full">
       {children}
     </div>
   )

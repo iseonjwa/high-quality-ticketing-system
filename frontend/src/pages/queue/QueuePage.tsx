@@ -7,6 +7,7 @@ import { describeError, type ErrorTone } from '@/api/errorMessages'
 import { concertPath, paths, seatsPath } from '@/app/paths'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { QueuePosition } from '@/components/ticketing/QueuePosition'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -70,7 +71,7 @@ function QueueScreen({ scheduleId }: { scheduleId: number }) {
       <Card
         ref={cardRef}
         tabIndex={-1}
-        className="gap-6 px-5 py-6 text-center outline-none @min-[40rem]:p-8"
+        className="gap-6 overflow-visible rounded-[24px] px-5 py-6 text-center outline-none @min-[40rem]:p-8"
       >
         <ConnectionStatus unstable={admission.connectionError !== null} />
         <QueueBody admission={admission} concert={concert} onRejoin={rejoin} />
@@ -115,18 +116,30 @@ function QueueBody({
           title="순번을 확인하고 있어요"
           description="잠시만 기다려 주세요."
         />
+      ) : admission.waiting.estimatedWaitSeconds <= 1 ? (
+        // 다음 입장 묶음 안(예상 대기 1초 이하)이면 순번 숫자 대신 준비 화면을 보인다. 혼자 들어와도 대기 1번을 받아
+        // 다음 조회(최소 3초)까지 대기열이 보이던 것을 덜 어색하게 한다. 그 시간 자체는 서버 쪽 개선으로 줄인다(ISE-210)
+        <StateMessage
+          tone="pending"
+          title="곧 입장해요"
+          description="좌석 선택 화면을 준비하고 있어요."
+        />
       ) : (
         <>
-          {admission.connectionError === null ? <StatusPill /> : null}
+          <div className="grid gap-1 text-left">
+            <h2 className="type-title text-gray-900">줄을 서고 있어요</h2>
+            <p className="type-body text-gray-500">차례가 되면 좌석 선택 화면으로 바로 넘어가요.</p>
+          </div>
+          <TicketPerforation className="-mx-5 @min-[40rem]:-mx-8" />
           <QueuePosition
             position={admission.waiting.position}
             estimatedWaitSeconds={admission.waiting.estimatedWaitSeconds}
             initialPosition={admission.waiting.initialPosition}
           />
-          <ul className="grid gap-2 border-t border-gray-100 pt-4 text-left type-body-sm text-gray-500">
-            <Note>차례가 되면 좌석 선택 화면으로 바로 넘어가요.</Note>
-            <Note>새로고침하거나 창을 닫았다 다시 열어도 자리는 그대로예요.</Note>
-          </ul>
+          {admission.connectionError === null ? <StatusPill /> : null}
+          <p className="rounded-md bg-gray-50 px-3.5 py-3 text-left type-body-sm text-gray-600">
+            새로고침하거나 창을 닫았다 다시 열어도 자리는 그대로예요.
+          </p>
         </>
       )
     case 'admitting':
@@ -151,7 +164,7 @@ function QueueBody({
             focus
           />
           <Actions concert={concert}>
-            <Button size="lg" className="w-full" onClick={onRejoin}>
+            <Button size="lg" className="w-full rounded-full" onClick={onRejoin}>
               다시 줄 서기
             </Button>
           </Actions>
@@ -204,7 +217,7 @@ function FailedMessage({
         <Actions concert={null} primaryBack />
       ) : (
         <Actions concert={concert}>
-          <Button size="lg" className="w-full" onClick={onRetry}>
+          <Button size="lg" className="w-full rounded-full" onClick={onRetry}>
             다시 시도
           </Button>
         </Actions>
@@ -302,7 +315,7 @@ function Actions({
         asChild
         variant={primaryBack ? 'default' : 'ghost'}
         size={primaryBack ? 'lg' : 'default'}
-        className="w-full"
+        className="w-full rounded-full"
       >
         <Link to={back.to}>{back.label}</Link>
       </Button>
@@ -339,13 +352,5 @@ function StatusPill({ unstable = false }: { unstable?: boolean }) {
       />
       {unstable ? '연결이 잠시 불안정해요. 곧 다시 시도할게요' : '순번을 자동으로 확인하고 있어요'}
     </p>
-  )
-}
-
-function Note({ children }: { children: ReactNode }) {
-  return (
-    <li className="grid grid-cols-[16px_1fr] gap-2 before:mt-2 before:ml-[5px] before:size-[5px] before:rounded-full before:bg-gray-300">
-      {children}
-    </li>
   )
 }

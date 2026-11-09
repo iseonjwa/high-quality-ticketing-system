@@ -1,7 +1,8 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useRef } from 'react'
 import { flushSync } from 'react-dom'
-import { GradeBadge } from '@/components/ticketing/GradeBadge'
+import { gradeColor } from '@/components/ticketing/grade'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { formatWon } from '@/lib/format'
@@ -22,7 +23,8 @@ interface SelectionSummaryProps {
   onSubmit: () => void
 }
 
-// 선택 요약(샘플 .summary). 앱 화면이 60rem 이상이면 좌석표 옆에 붙어 따라 내려온다
+// 선택 요약(티켓 모양). 절취선 위에 고른 좌석, 아래에 합계와 행동을 둔다. 앱 화면이 60rem 이상이면 좌석표 옆에 붙어
+// 따라 내려온다
 export function SelectionSummary({
   seats,
   quantity,
@@ -54,92 +56,109 @@ export function SelectionSummary({
       aria-labelledby="selection-summary-title"
       className="@min-[60rem]:sticky @min-[60rem]:top-[88px]"
     >
-      <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-        <div className="flex items-baseline justify-between">
-          <h2
-            ref={headingRef}
-            id="selection-summary-title"
-            tabIndex={-1}
-            className="type-heading text-gray-900 outline-none"
-          >
-            선택한 좌석
-          </h2>
-          <span className="type-body-sm text-gray-500 tabular-nums">
-            <b className="text-gray-900">{seats.length}</b> / {quantity}매
-          </span>
-        </div>
-        {seats.length === 0 ? (
-          <p className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center type-body-sm text-gray-500">
-            아직 고른 좌석이 없어요
-          </p>
-        ) : (
-          <ul ref={listRef} className="grid gap-2">
-            {seats.map((seat, index) => (
-              <li
-                key={seat.seatId}
-                className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md bg-gray-50 py-2 pr-1.5 pl-3 type-body-sm"
-              >
-                <GradeBadge grade={seat.grade} />
-                <span className="min-w-0 tabular-nums">
-                  {seat.section}구역{' '}
-                  <b className="font-semibold text-gray-900">
-                    {seat.row}열 {seat.number}번
-                  </b>
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500"
-                  disabled={frozen}
-                  aria-label={`${seatLabel(seat)} 해제`}
-                  onClick={() => remove(seat.seatId, index)}
-                >
-                  해제
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <dl className="flex items-baseline justify-between border-t border-gray-100 pt-4">
-          <dt className="type-body-sm text-gray-500">합계</dt>
-          <dd className="text-[22px] leading-[30px] font-bold text-gray-900 tabular-nums">
-            {formatWon(total)}
-          </dd>
-        </dl>
-        {request === 'retrying' ? (
-          <div
-            role="status"
-            className="grid grid-cols-[auto_1fr] items-start gap-3 rounded-md bg-info-50 p-4 text-info-600"
-          >
-            <Loader2 aria-hidden="true" className="mt-0.5 size-[18px] motion-safe:animate-spin" />
-            <div>
-              <p className="type-body font-semibold">좌석을 확인하고 있어요</p>
-              <p className="type-body-sm">
-                연결이 잠시 끊겼어요. 같은 요청으로 결과를 확인하는 중이에요.
-              </p>
-            </div>
+      <Card className="gap-0 overflow-visible rounded-[22px] p-0">
+        <div className="grid gap-4 px-4 pt-5 pb-6 @min-[40rem]:px-6 @min-[40rem]:pt-6">
+          <div className="flex items-baseline justify-between">
+            <h2
+              ref={headingRef}
+              id="selection-summary-title"
+              tabIndex={-1}
+              className="type-heading text-gray-900 outline-none"
+            >
+              선택한 좌석
+            </h2>
+            <span className="type-body-sm text-gray-500 tabular-nums">
+              <b className="text-gray-900">{seats.length}</b> / {quantity}매
+            </span>
           </div>
-        ) : (
+          {seats.length === 0 ? (
+            <p className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center type-body-sm text-gray-500">
+              아직 고른 좌석이 없어요
+            </p>
+          ) : (
+            <ul ref={listRef} className="grid gap-2">
+              {seats.map((seat, index) => (
+                <li
+                  key={seat.seatId}
+                  className="grid grid-cols-[4px_1fr_auto] items-center gap-3 rounded-[14px] bg-gray-50 py-2.5 pr-1.5 pl-3"
+                >
+                  {/* 등급 색 띠. 등급은 아래 글자로도 적어 색만으로 알리지 않는다 */}
+                  <span
+                    aria-hidden="true"
+                    className="self-stretch rounded-[2px]"
+                    style={{ background: gradeColor(seat.grade) }}
+                  />
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="type-body-sm font-semibold text-gray-900 tabular-nums">
+                      {seatLabel(seat)}
+                    </span>
+                    <span className="type-caption text-gray-500 tabular-nums">
+                      {seat.grade}석 · {formatWon(seat.price)}
+                    </span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full text-gray-500"
+                    disabled={frozen}
+                    aria-label={`${seatLabel(seat)} 해제`}
+                    onClick={() => remove(seat.seatId, index)}
+                  >
+                    <X />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <TicketPerforation />
+        <div className="grid gap-4 px-4 pt-5 pb-5 @min-[40rem]:px-6 @min-[40rem]:pb-6">
+          <dl className="flex items-baseline justify-between">
+            <dt className="type-body-sm text-gray-500">합계</dt>
+            <dd className="text-[28px] leading-9 font-bold tracking-[-0.02em] text-gray-900 tabular-nums">
+              {formatWon(total)}
+            </dd>
+          </dl>
+          {request === 'retrying' ? (
+            <div
+              role="status"
+              className="grid grid-cols-[auto_1fr] items-start gap-3 rounded-md bg-info-50 p-4 text-info-600"
+            >
+              <Loader2 aria-hidden="true" className="mt-0.5 size-[18px] motion-safe:animate-spin" />
+              <div>
+                <p className="type-body font-semibold">좌석을 확인하고 있어요</p>
+                <p className="type-body-sm">
+                  연결이 잠시 끊겼어요. 같은 요청으로 결과를 확인하는 중이에요.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="lg"
+              className="w-full rounded-full"
+              disabled={need !== 0 || locked}
+              loading={request === 'sending'}
+              onClick={onSubmit}
+            >
+              {outstanding
+                ? '결과 확인하기'
+                : need > 0
+                  ? `${need}석 더 골라 주세요`
+                  : `${quantity}매 선택 완료`}
+            </Button>
+          )}
           <Button
-            size="lg"
-            className="w-full"
-            disabled={need !== 0 || locked}
-            loading={request === 'sending'}
-            onClick={onSubmit}
+            variant="outline"
+            className="w-full rounded-full"
+            disabled={frozen}
+            onClick={onClear}
           >
-            {outstanding
-              ? '결과 확인하기'
-              : need > 0
-                ? `${need}석 더 골라 주세요`
-                : `${quantity}매 선택 완료`}
+            다시 고르기
           </Button>
-        )}
-        <Button variant="outline" className="w-full" disabled={frozen} onClick={onClear}>
-          다시 고르기
-        </Button>
-        <p className="type-caption text-gray-500">
-          선택 완료를 누르면 좌석이 잠시 유지돼요. 그 안에 결제해 주세요.
-        </p>
+          <p className="text-center type-caption text-gray-500">
+            선택 완료를 누르면 좌석이 잠시 유지돼요. 그 안에 결제해 주세요.
+          </p>
+        </div>
       </Card>
     </aside>
   )
