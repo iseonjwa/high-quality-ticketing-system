@@ -1,4 +1,5 @@
 import type { RouteObject } from 'react-router'
+import { AssistantWidgetProvider } from '@/components/assistant/AssistantWidget'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteErrorPage } from '@/components/layout/RouteErrorPage'
 import { MyInfoPage } from '@/pages/MyInfoPage'
@@ -45,7 +46,12 @@ const devRoutes: RouteObject[] = import.meta.env.DEV
 // 바깥 errorElement는 레이아웃 자체가 던진 오류용이다. 자식 오류를 바깥에서만 받으면 헤더까지 사라진다.
 export const routes: RouteObject[] = [
   {
-    element: <AppLayout />,
+    // 예매 문의 위젯의 대화는 화면을 옮겨도 남아야 해서 레이아웃 바깥에서 들고 있는다
+    element: (
+      <AssistantWidgetProvider>
+        <AppLayout />
+      </AssistantWidgetProvider>
+    ),
     errorElement: <RouteErrorPage />,
     children: [
       {

@@ -1,6 +1,8 @@
 import { ArrowUp, MessageCircleQuestion, Square, X } from 'lucide-react'
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useMemo,
@@ -14,11 +16,13 @@ import {
 import { Link, useLocation } from 'react-router'
 import { isApiError } from '@/api/apiError'
 import { QUESTION_MAX_LENGTH, type AssistantSource } from '@/api/assistant'
+import { useBookingStep } from '@/app/bookingStep'
 import { paths } from '@/app/paths'
-import { toReturnPath, type AuthNavigationState } from '@/auth/navigation'
+import { isAuthPath, toReturnPath, type AuthNavigationState } from '@/auth/navigation'
 import { useIsSignedIn } from '@/auth/session'
 import {
   AssistantWidgetContext,
+  useAssistantWidget,
   type AssistantWidgetControls,
 } from '@/components/assistant/assistantWidgetContext'
 import {
@@ -49,18 +53,30 @@ const FALLBACK_NOTICE = {
 // 시연 모드 요청 로그 패널(오른쪽 고정)만큼 비켜 둔다
 const CORNER = 'right-[calc(var(--demo-panel-width,0px)+1.25rem)] bottom-5'
 
-// available: 위젯을 두는 화면인지. 예매 흐름(대기열~완료)에서는 지금 단계에 집중하게 숨긴다(7절)
-export function AssistantWidgetProvider({
-  available,
-  children,
-}: {
-  available: boolean
-  children: ReactNode
-}) {
+// 위젯 안쪽 상태. 레이아웃 바깥(경로 요소)의 Provider가 들고, 레이아웃 안의 AssistantWidget이 그린다
+interface WidgetState {
+  isOpen: boolean
+  open: () => void
+  close: () => void
+  chat: AssistantChat
+  signedIn: boolean
+}
+
+const WidgetStateContext = createContext<WidgetState | null>(null)
+
+// 대화와 열림 상태를 들고 위젯을 두는 화면인지 정한다. 예매 흐름(대기열~완료)은 지금 단계에 집중하게, 로그인·가입과
+// 운영자 화면은 쓰임이 달라 두지 않는다(7절).
+// Note: 경로 요소에서 레이아웃을 감싼다. 레이아웃 안에서 감싸면 레이아웃 전체가 한 단계 들여 써져 바뀐 줄이 커진다
+export function AssistantWidgetProvider({ children }: { children: ReactNode }) {
+  const bookingStep = useBookingStep()
+  const location = useLocation()
+  const available =
+    bookingStep === null &&
+    !isAuthPath(location.pathname) &&
+    !location.pathname.startsWith(paths.admin)
   const [isOpen, setOpen] = useState(false)
   const chat = useAssistantChat()
   const signedIn = useIsSignedIn()
-  const launcherRef = useRef<HTMLButtonElement>(null)
   // 닫은 뒤 초점을 돌려줄 곳(연 버튼). 화면을 옮겨 사라졌으면 여는 버튼으로 간다
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const restoreFocusRef = useRef(false)
@@ -85,7 +101,10 @@ export function AssistantWidgetProvider({
     if (!isOpen && restoreFocusRef.current) {
       restoreFocusRef.current = false
       const target = returnFocusRef.current
-      ;(target?.isConnected ? target : launcherRef.current)?.focus()
+      ;(target?.isConnected
+        ? target
+        : document.querySelector<HTMLElement>('[data-slot="assistant-launcher"]')
+      )?.focus()
     }
   }, [isOpen])
 
@@ -104,33 +123,36 @@ export function AssistantWidgetProvider({
   }, [signedIn, reset])
 
   const controls = useMemo<AssistantWidgetControls>(() => ({ available, open }), [available, open])
+  const state = useMemo<WidgetState>(
+    () => ({ isOpen, open, close, chat, signedIn }),
+    [isOpen, open, close, chat, signedIn],
+  )
 
   return (
     <AssistantWidgetContext value={controls}>
-      {children}
-      {available ? (
-        isOpen ? (
-          <AssistantPanel chat={chat} signedIn={signedIn} onClose={close} />
-        ) : (
-          <Launcher ref={launcherRef} busy={chat.streaming} onClick={open} />
-        )
-      ) : null}
+      <WidgetStateContext value={state}>{children}</WidgetStateContext>
     </AssistantWidgetContext>
   )
 }
 
-function Launcher({
-  ref,
-  busy,
-  onClick,
-}: {
-  ref: RefObject<HTMLButtonElement | null>
-  busy: boolean
-  onClick: () => void
-}) {
+// 오른쪽 아래 버튼과 대화 창. 레이아웃의 @container 안에 두어 좁은 앱 화면(40rem 미만)에서 화면 전체를 덮는다
+export function AssistantWidget() {
+  const state = useContext(WidgetStateContext)
+  const { available } = useAssistantWidget()
+  if (state === null || !available) {
+    return null
+  }
+  return state.isOpen ? (
+    <AssistantPanel chat={state.chat} signedIn={state.signedIn} onClose={state.close} />
+  ) : (
+    <Launcher busy={state.chat.streaming} onClick={state.open} />
+  )
+}
+
+function Launcher({ busy, onClick }: { busy: boolean; onClick: () => void }) {
   return (
     <button
-      ref={ref}
+      data-slot="assistant-launcher"
       type="button"
       onClick={onClick}
       aria-haspopup="dialog"
