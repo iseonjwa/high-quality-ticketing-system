@@ -11,6 +11,8 @@ import {
   type ScheduleSummary,
 } from '@/api/concerts'
 import { paths, queuePath } from '@/app/paths'
+import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
+import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
 import { concertArt, WIDE_SIZE } from '@/components/ticketing/concertArt'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { Countdown } from '@/components/ticketing/Countdown'
@@ -559,19 +561,24 @@ function BookingGuide() {
             카드로 결제돼요.
           </li>
         </ul>
-        <p className="type-body-sm text-gray-700">
-          더 궁금한 점은{' '}
-          <Link
-            to={paths.help}
-            className="font-semibold text-primary underline-offset-4 hover:underline"
-          >
-            예매 문의
-          </Link>
-          에서 물어볼 수 있어요.
-        </p>
+        <AssistantHint />
       </section>
     </div>
   )
+}
+
+// 예매 문의 위젯을 여는 안내. 위젯이 없는 화면(위젯을 숨긴 경우)이면 두지 않는다
+function AssistantHint() {
+  const { available } = useAssistantWidget()
+  return available ? (
+    <p className="type-body-sm text-gray-700">
+      더 궁금한 점은{' '}
+      <AssistantOpenButton className="rounded-sm font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+        예매 문의
+      </AssistantOpenButton>
+      에서 물어볼 수 있어요.
+    </p>
+  ) : null
 }
 
 function NotFoundNotice() {
