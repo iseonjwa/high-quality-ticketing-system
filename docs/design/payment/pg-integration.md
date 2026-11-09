@@ -79,7 +79,7 @@ PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다
 
 ### Mock PG 프로토콜(어댑터가 가정하는 응답)
 
-SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를 만들 때 이 표를 따르고, 서버가 준비되면 `PgClientContractTest`를 실제 앱을 상대로 돌린다(`PgScenario`는 장애 주입 API로 구현). 지금은 `MockPgAdapterContractTest`의 가짜 서버가 같은 프로토콜을 흉내 낸다.
+SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를 만들 때 이 표를 따르고, `PgClientContractTest`는 `MockPgServerContractTest`가 상속해 실제 mock-pg 앱을 상대로 돌린다(`PgScenario`는 장애 주입 API로 구현). 가짜 서버(`FakeMockPgServer`)는 프로토콜을 흉내 내지 않고, 실제 앱이 만들 수 없는 본문 코드 없는 404만 답한다(`MockPgAdapterContractTest`).
 
 | 호출 | 성공 응답 | 어댑터 해석 |
 |---|---|---|

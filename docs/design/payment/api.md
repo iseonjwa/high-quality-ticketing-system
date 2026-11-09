@@ -16,7 +16,7 @@
 | 4 | 결제 토큰 검증(아래 항목)과 금액 대조. `exp`가 지났으면 "조회 전용"으로 표시하고 5단계로 간다(만료 뒤 24시간 넘으면 403) | 403 `PAYMENT_TOKEN_INVALID`, 400 `PAYMENT_AMOUNT_MISMATCH` | 0025, 0019 |
 | 5 | 토큰의 예매 ID로 기존 결제 조회(`UNIQUE(reservation_id)`) | 있으면 표 B. 없고 조회 전용이면 403 `PAYMENT_TOKEN_INVALID` | [0016](../../decisions/0016-payment-declined-token-reuse.md), 0019, [0026](../../decisions/0026-payment-one-per-reservation.md) |
 | 6 | `pg-approve` Bulkhead·Circuit Breaker 허가 획득(신규 승인만) | 503 `PG_UNAVAILABLE`(행·멱등 기록 없음) | [0018](../../decisions/0018-payment-pg-permit-before-tx1.md) |
-| 7 | TX1: 멱등 기록(ORIGIN)을 먼저, 결제 `REQUESTED`(`next_check_at` = 현재 + 10초)를 다음에 저장하고 커밋. `pg_order_id`는 `PgOrderIds.of(reservationId, exp)`이고 토스 모드면 `pg_tx_id`에 `clientPaymentRef`를 먼저 저장한다. 다른 결제가 쓰는 `paymentKey`(`uq_payments_pg_tx_id`)는 허가 반환 후 409 `PAYMENT_ALREADY_EXISTS`(행·멱등 기록 없음) | 유니크 위반은 정상 흐름이다. 허가를 반환하고 롤백한 뒤 3단계부터 다시 조회한다. 같은 키면 3단계, 다른 키로 같은 예매면 5단계에서 응답한다(500 아님). DB 연결 대기 1초`[가정]` 초과·DB 오류는 허가 반환 후 503 `SERVICE_UNAVAILABLE`(행 없음) | 0017, 0018, 0026 |
+| 7 | TX1: 멱등 기록(ORIGIN)을 먼저, 결제 `REQUESTED`(`next_check_at` = 현재 + 10초)를 다음에 저장하고 커밋. `pg_order_id`는 `PgOrderIds.of(reservationId, exp)`이고 토스 모드면 `pg_tx_id`에 `clientPaymentRef`를 먼저 저장한다. 다른 결제가 쓰는 `paymentKey`(`uq_payments_pg_tx_id`)는 허가 반환 후 409 `PAYMENT_ALREADY_EXISTS`(행·멱등 기록 없음) | 유니크 위반은 정상 흐름이다. 허가를 반환하고 롤백한 뒤 3단계부터 다시 조회한다. 같은 키면 3단계, 다른 키로 같은 예매면 5단계에서 응답한다(500 아님). DB 연결 대기 1초`[가정]` 초과·DB 오류는 허가 반환 후 503 `SERVICE_UNAVAILABLE`(행 없음. 단, 커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md))) | 0017, 0018, 0026, 0048 |
 | 8 | PG 호출 직전 토큰 `exp` 재검사 | 지났으면 PG를 부르지 않고 `DECLINED(TOKEN_EXPIRED)` + `PaymentDeclined`, 200. 허가는 호출 결과로 세지 않고 반환 | 0018 |
 | 9 | PG 승인 호출(트랜잭션 밖, 연결 0.5초·응답 2초), 허가 정산 | `Approved`·`Declined`·`Unknown` | 0018, [0023](../../decisions/0023-payment-pg-client-port.md) |
 | 10 | TX2: 승인 금액·통화 대조 뒤 조건부 UPDATE(`WHERE status = 'REQUESTED'`). 영향 행 1이면 이력 + Outbox(승인·거절만) + 멱등 응답(200·202) | 0행이면 표 A(현재 상태). 금액·통화 불일치면 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`, 이벤트 없음, 표 A. DB 오류면 202(`REQUESTED`)로 응답하고 재확인 스케줄러가 10초 뒤 복구 | [0022](../../decisions/0022-outbox-retry-and-retention.md), 0023 |
@@ -107,7 +107,7 @@ SA 11-3의 결제 코드에 아래를 더하거나 바꾼다(`ErrorCode`를 구�
 | `PAYMENT_ALREADY_EXISTS` | 409 | `NEEDS_MANUAL_CHECK` 결제가 있거나(`Location` 있음) 요청 정보가 기존 결제와 다름(`Location` 없음), 다른 결제가 쓰는 `paymentKey`(`Location` 없음) | 의미 좁힘 |
 | `PAYMENT_ALREADY_CLOSED` | 409 | 같은 예매에 `DECLINED`·`REFUNDED` 결제가 있음 | 신규 |
 | `PG_UNAVAILABLE` | 503 | `pg-approve` Circuit Breaker OPEN·Bulkhead 초과 | 기존 |
-| `SERVICE_UNAVAILABLE` | 503 | TX1의 DB 연결 대기 초과·DB 오류(행 없음) | 기존(`CommonErrorCode`) |
+| `SERVICE_UNAVAILABLE` | 503 | TX1의 DB 연결 대기 초과·DB 오류(행 없음. 단, 커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md))) | 기존(`CommonErrorCode`) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 같은 키에 다른 본문 | 기존(`CommonErrorCode`) |
 | `NOT_FOUND` | 404 | 결제 없음 또는 타인 결제 | 기존(`CommonErrorCode`) |
 | `BILLING_KEY_REQUIRED` | 409 | 빌링키 없음(M4) | 기존 |
