@@ -18,6 +18,7 @@ export const paths = {
   adminLotteryNew: '/admin/concerts/:concertId/schedules/:scheduleId/lottery',
   adminLottery: '/admin/lotteries/:lotteryId',
   adminPasswordReset: '/admin/users/password-reset',
+  adminDemoFaults: '/admin/demo/faults',
 } as const
 
 export function concertPath(concertId: number): string {
