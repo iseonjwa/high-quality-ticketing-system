@@ -2,18 +2,23 @@
 # 배포 서버에 시연용 공연·회차·좌석과 샘플 사용자를 넣는다(ISE-177). 첫 배포가 끝난 뒤 서버에서 한 번 돌린다.
 #   script/deploy/seed-demo.sh [기준 주소, 기본 http://127.0.0.1]
 #   script/deploy/seed-demo.sh open <OPEN_AT> [기준 주소]
+#   script/deploy/seed-demo.sh lottery <ENTRY_START_AT> <ENTRY_END_AT> <DRAW_AT> [기준 주소]
 # 관리자 API와 가입 API만 쓴다(공개 진입점 nginx 80을 거친다). 비밀번호·토큰은 출력하지 않는다.
 #
 # 기본 실행은 다시 돌려도 안전하다. 시연 공연이 있고 회차가 있으면 만들지 않고, 샘플 사용자가 있으면 가입을 건너뛴다.
 # 공연만 있고 회차가 0개면(이전 실행이 중간에 실패) 회차·좌석 만들기를 이어서 한다.
 # open 하위 명령은 시연 공연에 "오픈 시연" 회차를 하나 더 만든다. 회차를 고치는 API가 없어, 리허설·시연 직전에
 # "몇 분 뒤 오픈" 회차를 새로 만들 때 쓴다. 공연 시작은 OPEN_AT 다음 날이다.
+# lottery 하위 명령은 k6 추첨 측정(L1~L3)용 공연·회차·좌석·추첨을 새로 하나씩 만들고 SCHEDULE_ID, LOTTERY_ID를 출력한다.
+# 회차의 일반 오픈은 지금부터 1시간 뒤, 공연 시작은 DRAW_AT 다음 날이다. 서버는 응모 시작이 일반 오픈보다 앞서야 추첨을
+# 받으므로(Lottery.requireBeforeSetupDeadline) ENTRY_START_AT은 지금부터 1시간 안이어야 한다. 시각 검사는 open과 같다.
 #
 # 환경 변수:
 #   OPEN_AT      기본 실행에서 "오픈 시연" 회차의 예매 오픈 시각(ISO-8601 UTC, 예 2026-11-06T05:00:00Z). 없으면 지금부터 30분 뒤.
 #                형식과 "공연 시작(8일 뒤)보다 앞선다"를 API를 부르기 전에 검사하고, 틀리면 아무것도 만들지 않고 2로 끝난다
 #   VENUE_ID     공연장 id. 없으면 예약 DB에서 KSPO DOME의 id를 찾는다(공연장 조회 API가 없다)
 #   COMPOSE_PROJECT_NAME  예약 DB 컨테이너를 찾을 compose 프로젝트(같은 서버에 스택이 둘일 때만)
+#   LOTTERY_SEAT_COUNT(기본 3000), LOTTERY_WAITLIST_COUNT(기본 1000), LOTTERY_MAX_PER_ENTRY(기본 2)  lottery의 추첨석·예비 수·1인 매수
 # 읽는 .env 키: ADMIN_EMAIL, ADMIN_PASSWORD, SAMPLE_USER_EMAIL, SAMPLE_USER_PASSWORD, SAMPLE_USER_NICKNAME, DB_USER
 # 종료 코드: 0 성공, 1 실패(API 응답 등), 2 사용법·입력 오류
 set -euo pipefail
@@ -21,7 +26,11 @@ cd "$(dirname "$0")/../.."
 title="이선좌 시연 공연"
 iso_format='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
-usage() { echo "사용법: script/deploy/seed-demo.sh [기준 주소]  |  script/deploy/seed-demo.sh open <OPEN_AT> [기준 주소]" >&2; exit 2; }
+usage() {
+  echo "사용법: script/deploy/seed-demo.sh [기준 주소]  |  script/deploy/seed-demo.sh open <OPEN_AT> [기준 주소]" >&2
+  echo "        script/deploy/seed-demo.sh lottery <ENTRY_START_AT> <ENTRY_END_AT> <DRAW_AT> [기준 주소]" >&2
+  exit 2
+}
 bad_input() { echo "입력 오류: $*" >&2; exit 2; }
 fail() { echo "실패: $*" >&2; exit 1; }
 
@@ -39,6 +48,15 @@ if [[ "${1:-}" == "open" ]]; then
   [[ $# -ge 2 && $# -le 3 ]] || usage
   open_at_input="$2"
   base="${3:-http://127.0.0.1}"
+elif [[ "${1:-}" == "lottery" ]]; then
+  mode=lottery
+  [[ $# -ge 4 && $# -le 5 ]] || usage
+  entry_start_input="$2"
+  entry_end_input="$3"
+  draw_input="$4"
+  base="${5:-http://127.0.0.1}"
+  # 추첨 회차의 일반 오픈(지금부터 1시간 뒤). 아래 OPEN_AT 검사를 그대로 거친다.
+  open_at_input=$(iso_of $(( $(date +%s) + 3600 )))
 else
   [[ $# -le 1 ]] || usage
   open_at_input="${OPEN_AT:-}"
@@ -65,6 +83,35 @@ if [[ "$mode" == seed ]]; then
   (( open_epoch < starts_demo_epoch )) || bad_input "OPEN_AT($open_demo)은 오픈 시연 회차의 공연 시작($(iso_of "$starts_demo_epoch"), 8일 뒤)보다 앞서야 한다"
 else
   starts_demo_epoch=$(( open_epoch + day ))
+fi
+if [[ "$mode" == lottery ]]; then
+  # check_time <이름> <값> : 형식과 실제 시각인지 검사하고 epoch를 checked_epoch에 둔다.
+  check_time() {
+    [[ "$2" =~ $iso_format ]] || bad_input "$1은 ISO-8601 UTC(예 2026-11-06T05:00:00Z) 형식이어야 한다: $2"
+    checked_epoch=$(epoch_of "$2") || bad_input "$1이 올바른 시각이 아니다: $2"
+    [[ "$(iso_of "$checked_epoch")" == "$2" ]] || bad_input "$1이 올바른 시각이 아니다: $2"
+  }
+  check_time ENTRY_START_AT "$entry_start_input"; entry_start_epoch=$checked_epoch
+  check_time ENTRY_END_AT "$entry_end_input"; entry_end_epoch=$checked_epoch
+  check_time DRAW_AT "$draw_input"; draw_epoch=$checked_epoch
+  (( now < entry_start_epoch )) || bad_input "ENTRY_START_AT($entry_start_input)은 지금($(iso_of "$now"))보다 뒤여야 한다"
+  (( entry_start_epoch < entry_end_epoch )) || bad_input "ENTRY_END_AT($entry_end_input)은 ENTRY_START_AT($entry_start_input)보다 뒤여야 한다"
+  (( entry_end_epoch < draw_epoch )) || bad_input "DRAW_AT($draw_input)은 ENTRY_END_AT($entry_end_input)보다 뒤여야 한다"
+  (( entry_start_epoch < open_epoch )) || bad_input "ENTRY_START_AT($entry_start_input)은 회차 일반 오픈($open_demo, 지금부터 1시간 뒤)보다 앞서야 한다(서버 조건)"
+  # 공연 시작은 추첨 다음 날이다. 서버 조건 "추첨 + 60분 <= 공연 시작"과 "오픈 < 공연 시작"을 함께 만족한다.
+  starts_lottery_epoch=$(( draw_epoch + day ))
+
+  lottery_seat_count="${LOTTERY_SEAT_COUNT:-3000}"
+  lottery_waitlist_count="${LOTTERY_WAITLIST_COUNT:-1000}"
+  lottery_max_per_entry="${LOTTERY_MAX_PER_ENTRY:-2}"
+  [[ "$lottery_seat_count" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_SEAT_COUNT는 정수여야 한다: $lottery_seat_count"
+  [[ "$lottery_waitlist_count" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_WAITLIST_COUNT는 정수여야 한다: $lottery_waitlist_count"
+  [[ "$lottery_max_per_entry" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_MAX_PER_ENTRY는 정수여야 한다: $lottery_max_per_entry"
+  # 추첨석은 R 등급에서 바꾼다. KSPO DOME 시드(V20261030_2)의 R은 6,000석이다.
+  lottery_source_grade=R
+  lottery_source_seats=6000
+  (( lottery_seat_count >= 1 && lottery_seat_count <= lottery_source_seats ))     || bad_input "LOTTERY_SEAT_COUNT($lottery_seat_count)는 1 이상, $lottery_source_grade 등급 좌석 수($lottery_source_seats) 이하여야 한다"
+  (( lottery_max_per_entry >= 1 && lottery_max_per_entry <= 2 )) || bad_input "LOTTERY_MAX_PER_ENTRY($lottery_max_per_entry)는 1~2여야 한다(서버 조건)"
 fi
 
 # .env는 source하지 않고 키별로 꺼낸다(값에 공백이 있어도 셸이 해석하지 않는다).
@@ -162,6 +209,24 @@ token=$(jq -r '.data.accessToken // empty' <<< "$response")
 printf 'Authorization: Bearer %s\n' "$token" > "$tmp/auth"
 unset token
 echo "  관리자 로그인"
+
+if [[ "$mode" == lottery ]]; then
+  resolve_venue
+  lottery_title="k6 측정 추첨 $(iso_of "$now")"
+  call POST /api/v1/admin/concerts 201 "$(jq -n --arg t "$lottery_title" '{title: $t, description: "k6 추첨 측정(L1~L3)용 공연이다"}')"
+  concert_id=$(jq -r '.data.concertId' <<< "$response")
+  echo "  공연 만듦: $concert_id ($lottery_title)"
+  create_schedule "추첨 측정" "$open_demo" "$(iso_of "$starts_lottery_epoch")"
+  call POST "/api/v1/admin/schedules/$schedule_id/lotteries" 201     "$(jq -n --arg g "$lottery_source_grade" --argjson c "$lottery_seat_count" --argjson w "$lottery_waitlist_count"       --argjson m "$lottery_max_per_entry" --arg s "$entry_start_input" --arg e "$entry_end_input" --arg d "$draw_input"       '{sourceGrade: $g, seatCount: $c, waitlistCount: $w, maxPerEntry: $m, entryStartAt: $s, entryEndAt: $e, drawAt: $d}')"
+  lottery_id=$(jq -r '.data.lotteryId // empty' <<< "$response")
+  [[ -n "$lottery_id" ]] || fail "추첨 설정 응답에 lotteryId가 없다"
+  echo "  추첨 만듦: $lottery_id, 추첨석 $lottery_seat_count($lottery_source_grade), 예비 $lottery_waitlist_count, 1인 $lottery_max_per_entry매"
+  echo "  응모 $entry_start_input ~ $entry_end_input, 추첨 $draw_input"
+  echo "== 추첨 측정 데이터 시드 완료(k6에 넣을 값)"
+  echo "SCHEDULE_ID=$schedule_id"
+  echo "LOTTERY_ID=$lottery_id"
+  exit 0
+fi
 
 find_concert
 
