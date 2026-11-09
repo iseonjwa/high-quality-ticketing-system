@@ -16,7 +16,8 @@ describe('QueuePosition', () => {
     render(<QueuePosition position={15234} estimatedWaitSeconds={300} />)
 
     expect(liveRegion()).toHaveTextContent('내 순번 15,234번')
-    expect(screen.getByText(/예상 대기/)).toHaveTextContent('예상 대기 약 5분')
+    // 이름(예상 대기)과 값(약 5분)을 줄을 나눠 그리므로 둘을 묶은 문단으로 확인한다
+    expect(screen.getByText('예상 대기').closest('p')).toHaveTextContent('예상 대기 약 5분')
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
