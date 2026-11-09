@@ -406,3 +406,10 @@
 - 원인: 테스트 도우미 `renderRoutesReady`는 `router.state.initialized`만 기다렸다. 라우터 상태가 먼저 바뀌고 React는 화면을 transition으로 나중에 그려서, 느린 CI에서는 그 사이에 `getBy`가 실행됐다. lazy 경로로 옮긴 직후에 `getBy`로 확인하는 곳도 같은 경쟁이 있었다.
 - 해결: `renderRoutesReady`가 자리표시(`role="status"`, "화면을 불러오는 중")가 사라질 때까지 함께 기다리게 했다. lazy 경로로 옮긴 직후의 확인 네 곳은 `findBy`·`waitFor`로 바꿨다(`frontend/src/test/render.tsx`, 커밋 504a74ab, #400에 포함). 나중에 dev를 합칠 때 디자인 묶음이 더한 대기열 테스트도 같은 이유로 `renderRoutesReady`로 바꿨다.
 - 배운 점: 라우터 상태와 DOM은 같은 순간에 바뀌지 않는다. lazy 경로를 쓰는 화면 테스트는 화면에 보이는 것(자리표시가 사라짐, `findBy`)으로 기다린다.
+
+### TS-48 Windows에서 시각을 비교하는 reservation-service 테스트 4건만 실패
+- 서비스·작성: reservation / kwonwoo / 2026-11-09
+- 문제: `:reservation-service:test`에서 `LotteryPaymentMetricsTest`, `QueueApiTest`(토큰 발급), `ReservationApiTest`, `SeatHoldApiTest`의 시각 테스트 한 건씩 실패했다. 다시 돌려도 같았다. 실패 값이 몇 초씩 어긋나 있었다(`추첨 5분 뒤 반영한 시간이어야 한다: 294.1944835`, `PT10M5.3636334S`).
+- 원인: 테스트가 시작 시각은 컨테이너(PostgreSQL `now()`, Redis `TIME`)에서, 비교 기준은 호스트 JVM(`Instant.now()`, 앱 `Clock`)에서 받는다. Windows 시계가 실제보다 약 7초 늦었고(Windows 시간 서비스 `w32time` 정지), Docker Desktop VM 시계는 맞았다. 외부 시각(`www.google.com`의 `Date` 헤더)과 비교해 Windows만 틀린 것을 확인했다. 컨테이너에서 `hwclock -s`를 실행해 봤지만 차이가 그대로였다.
+- 해결: 관리자 PowerShell에서 `Start-Service w32time`, `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update`, `w32tm /resync /force`로 시계를 맞췄다. 다시 돌리니 374건 중 실패 0건이었다(건너뜀 11건).
+- 배운 점: 시간 테스트가 로컬에서만 실패하면 호스트·컨테이너·외부 시각 세 개를 먼저 비교한다. 테스트는 비교 양쪽을 같은 시계에서 얻거나 경계에 여유를 둔다. 자세히: [docs/learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md](learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md)
