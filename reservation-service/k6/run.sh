@@ -33,8 +33,10 @@ NAME="${SCRIPT%.js}${MODE_TAG}${LABEL:+-$LABEL}-${MODEL:-open}-${STAMP}"
 # VM(약 8GB)이 바닥나 서비스 컨테이너까지 함께 멈췄다(STEPS.md P4b 실측 1차). GOMEMLIMIT는 상한 근처에서 Go GC를 앞당겨 넘침을 늦추고,
 # 그래도 넘치면 컨테이너만 OOM으로 죽는다(종료 코드 137). 그 회는 서버가 아니라 부하 생성기의 한계로 기록한다.
 # P4a까지는 k6가 0.9GB 아래였으므로 이 상한은 앞 단계의 조건을 바꾸지 않는다
-K6_MEMORY="${K6_MEMORY:-2560m}"
-K6_GOMEMLIMIT="${K6_GOMEMLIMIT:-2GiB}"
+# Note: 2026-11-10에 2.5GiB(GOMEMLIMIT 2GiB)에서 6GiB로 올렸다. 새 기기(VM 16GiB)에서 2.5GiB는 K1 S 640명 이상, K1-H 400명 이상에서
+# k6를 GC로 멈추게 해 요청을 몰아 보냈고, 그것이 Gateway 차단기를 열었다(STEPS.md "Gateway 경유 재확인"). GOMEMLIMIT는 정수 단위만 받는다
+K6_MEMORY="${K6_MEMORY:-6g}"
+K6_GOMEMLIMIT="${K6_GOMEMLIMIT:-5632MiB}"
 echo "k6_memory=$K6_MEMORY k6_gomemlimit=$K6_GOMEMLIMIT"
 
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
