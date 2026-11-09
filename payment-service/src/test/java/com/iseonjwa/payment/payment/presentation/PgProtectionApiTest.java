@@ -139,7 +139,7 @@ class PgProtectionApiTest {
 
     @Test
     void 허가를_얻은_뒤_TX1이_실패하면_503이고_허가는_결과로_세지_않고_반환된다() throws Exception {
-        doThrow(new DataAccessResourceFailureException("DB 장애")).when(paymentTx).createRequested(any(), any(), any());
+        doThrow(new DataAccessResourceFailureException("DB 장애")).when(paymentTx).createRequested(any(), any(), any(), any());
 
         var response = approve(key(), newReservation());
 

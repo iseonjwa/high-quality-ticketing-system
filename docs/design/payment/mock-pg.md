@@ -182,6 +182,8 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 
 compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄워서 측정·시연 때 `/faults`가 404가 되는 것)는 이 설계가 정하지 않고 팀 확인을 기다린다(7절, S-30).
 
+배포 서버는 `compose.deploy.yml`이 Mock PG를 `loadtest`로 띄워 이 API가 열려 있다(ISE-71). 브라우저의 시연 장애 패널은 Gateway 운영자 경로(`/api/v1/admin/demo/pg/faults`·`/ledger/summary`, ADMIN만)로 설정 조회·변경과 원장 요약만 부른다(ISE-134, [demo-scenarios.md](../../guides/demo-scenarios.md)).
+
 ## 6. 응답 유실 구현 방식
 
 요구: 승인(또는 환불, 망취소)을 저장한 뒤 HTTP 응답을 한 바이트도 보내지 않고 연결을 끊어, 어댑터가 `CONNECTION_LOST`로 분류하게 한다. 지연으로 흉내 내면 `TIMEOUT`이 되어 시나리오가 달라진다.

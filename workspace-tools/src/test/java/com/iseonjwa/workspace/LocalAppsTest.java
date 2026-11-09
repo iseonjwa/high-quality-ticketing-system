@@ -71,6 +71,15 @@ class LocalAppsTest {
     }
 
     @Test
+    void Anthropic_키는_상담_서비스에만_넘긴다() {
+        var inherited = Map.of("ANTHROPIC_API_KEY", "test-only-value");
+        for (var app : LocalApps.ALL) {
+            var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), inherited);
+            assertEquals(app.name().equals("assistant-service"), environment.containsKey("ANTHROPIC_API_KEY"), app.name());
+        }
+    }
+
+    @Test
     void 필수_값이_없으면_값을_노출하지_않고_거절한다() {
         var values = values();
         values.put("DB_PASSWORD", "");
