@@ -88,6 +88,27 @@ class CommonWebTest {
     }
 
     @Test
+    void Accept가_JSON이_아니어도_오류_응답은_JSON이다() throws Exception {
+        var business = mvc.perform(get("/api/v1/test/business").accept(MediaType.TEXT_EVENT_STREAM)).andReturn();
+        assertEquals("NOT_FOUND", body(business, 404).get("code").asString());
+        assertJsonContentType(business);
+
+        var validation = mvc.perform(post("/api/v1/test/validate").accept(MediaType.TEXT_EVENT_STREAM)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}")).andReturn();
+        assertEquals("VALIDATION_FAILED", body(validation, 400).get("code").asString());
+        assertJsonContentType(validation);
+
+        var unexpected = mvc.perform(get("/api/v1/test/unexpected").accept(MediaType.TEXT_EVENT_STREAM)).andReturn();
+        assertEquals("INTERNAL_SERVER_ERROR", body(unexpected, 500).get("code").asString());
+        assertJsonContentType(unexpected);
+    }
+
+    private void assertJsonContentType(MvcResult result) {
+        assertTrue(MediaType.APPLICATION_JSON.isCompatibleWith(
+                MediaType.parseMediaType(result.getResponse().getContentType())));
+    }
+
+    @Test
     void 정상_본문은_자동으로_감싸지_않는다() throws Exception {
         var result = mvc.perform(get("/api/v1/test/raw")).andReturn();
         assertEquals(200, result.getResponse().getStatus());

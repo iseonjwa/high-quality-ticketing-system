@@ -10,6 +10,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
@@ -26,6 +27,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleBusinessException(BusinessException exception) {
         var error = exception.getErrorCode();
         return ResponseEntity.status(error.status())
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(error, null, MDC.get("traceId")));
     }
 
@@ -37,7 +39,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
                         ? fieldError.getField() : error.getObjectName(), error.getDefaultMessage()))
                 .toList();
         return new ResponseEntity<>(FailureResponse.of(CommonErrorCode.VALIDATION_FAILED,
-                errors, MDC.get("traceId")), headers, status);
+                errors, MDC.get("traceId")), jsonHeaders(headers), status);
     }
 
     // 사용자 정보가 필요한 컨트롤러에 Gateway의 사용자 헤더가 없으면 인증 실패다.
@@ -47,7 +49,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         if (exception.getClass() == ServletRequestBindingException.class) {
             return new ResponseEntity<>(FailureResponse.of(CommonErrorCode.UNAUTHORIZED, null, MDC.get("traceId")),
-                    headers, HttpStatus.UNAUTHORIZED);
+                    jsonHeaders(headers), HttpStatus.UNAUTHORIZED);
         }
         return super.handleServletRequestBindingException(exception, headers, status, request);
     }
@@ -67,7 +69,18 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
             default -> null;
         };
         var response = error != null ? FailureResponse.of(error, null, MDC.get("traceId")) : fallback(status);
-        return new ResponseEntity<>(response, headers, status);
+        return new ResponseEntity<>(response, jsonHeaders(headers), status);
+    }
+
+    // Note: Content-Type을 미리 정하면 Spring이 요청 Accept로 형식을 고르는 협상을 건너뛴다.
+    // Accept가 text/event-stream 같은 JSON 밖의 값이어도 오류 본문이 비지 않고 JSON으로 나간다.
+    private static HttpHeaders jsonHeaders(HttpHeaders headers) {
+        var copy = new HttpHeaders();
+        if (headers != null) {
+            copy.putAll(headers);
+        }
+        copy.setContentType(MediaType.APPLICATION_JSON);
+        return copy;
     }
 
     private FailureResponse fallback(HttpStatusCode status) {
@@ -81,6 +94,7 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleUnexpectedException(Exception exception) {
         log.error("처리하지 못한 요청 예외", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(CommonErrorCode.INTERNAL_SERVER_ERROR, null, MDC.get("traceId")));
     }
 }
