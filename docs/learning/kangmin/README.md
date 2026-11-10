@@ -6,6 +6,13 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | 웜업과 단계 크기는 결과를 바꾸나, auth-redis 서킷 브레이커는 어떻게 완화하고 Gateway는 어떻게 개선하나 | [qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md](qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md) |
+| 2026-11-10 | 측정 도구 변경은 언제 커밋·푸시하고, main에 넘겨야 하나 | [qna/2026-11-10-measurement-tool-branch-vs-main.md](qna/2026-11-10-measurement-tool-branch-vs-main.md) |
+| 2026-11-10 | 배포는 무엇으로 하나, 쿠버네티스가 아니라 EC2에 그냥 띄우는 것인가 | [qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md](qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md) |
+| 2026-11-10 | Jenkins 서버가 꺼질 일이 있나, 접속이 안 되면 꺼진 것인가 | [qna/2026-11-10-when-jenkins-stops.md](qna/2026-11-10-when-jenkins-stops.md) |
+| 2026-11-10 | 발표 대비 리뷰 1. 서비스 구성과 경계는 왜 이렇게 나눴나 | [qna/2026-11-10-review-01-structure-and-boundaries.md](qna/2026-11-10-review-01-structure-and-boundaries.md) |
+| 2026-11-09 | Gateway에 벌크헤드 설정이 없으면 기본값이 걸리나 | [qna/2026-11-09-gateway-default-bulkhead.md](qna/2026-11-09-gateway-default-bulkhead.md) |
+| 2026-11-09 | M4 할 일 목록의 F1은 무엇이고 왜 하나 | [qna/2026-11-09-what-is-f1-fault-injection.md](qna/2026-11-09-what-is-f1-fault-injection.md) |
 | 2026-11-09 | 측정 모드는 왜 측정이 끝나면 꺼야 하나 | [qna/2026-11-09-why-turn-off-measure-mode.md](qna/2026-11-09-why-turn-off-measure-mode.md) |
 | 2026-11-09 | 같은 셸 스크립트가 Windows Git Bash에서 왜 훨씬 느린가(프로세스 생성 비용) | [qna/2026-11-09-windows-git-bash-process-cost.md](qna/2026-11-09-windows-git-bash-process-cost.md) |
 | 2026-11-09 | 측정 모드(measure-mode.sh)는 왜 AWS 담당만 켜나 | [qna/2026-11-09-why-measure-mode-aws-owner-only.md](qna/2026-11-09-why-measure-mode-aws-owner-only.md) |
