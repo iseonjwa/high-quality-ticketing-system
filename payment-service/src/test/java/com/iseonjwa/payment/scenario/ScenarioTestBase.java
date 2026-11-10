@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.scenario;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
 import com.iseonjwa.common.messaging.outbox.OutboxRelay;
 import com.iseonjwa.common.web.GatewayIdentityFilter;
@@ -68,6 +70,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
         "spring.datasource.hikari.maximum-pool-size=5", "spring.datasource.hikari.minimum-idle=1"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 // Note: Mock PG 주소와 빈 대체가 달라 다른 테스트와 컨텍스트를 나눠 쓰지 못한다. 클래스가 끝나면 컨텍스트를 닫아 연결을 돌려준다
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 abstract class ScenarioTestBase {

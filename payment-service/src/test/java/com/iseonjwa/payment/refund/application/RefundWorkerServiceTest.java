@@ -1,5 +1,11 @@
 package com.iseonjwa.payment.refund.application;
 
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
+import com.iseonjwa.payment.support.StubPgClients;
+import com.iseonjwa.payment.payment.domain.PgProvider;
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -57,6 +63,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class RefundWorkerServiceTest {
     // 복구 그룹의 동시 호출 한도(payment.pg.protection.recovery.max-concurrent-calls 기본값)
     private static final int MAX_PERMITS = 2;
@@ -98,6 +105,53 @@ class RefundWorkerServiceTest {
         assertEquals(MAX_PERMITS, recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "복구 허가가 새고 있다");
         recoveryGate.circuitBreaker().reset();
         fixtures.cleanUp();
+    }
+
+    @Autowired
+    StubPgClients pgClients;
+
+    @AfterEach
+    void resetRoutes() {
+        pgClients.reset();
+    }
+
+    @Test
+    void MOCK_결제의_환불은_토스_클라이언트가_따로_있어도_Mock으로_간다() {
+        var tossPg = mock(PgClient.class);
+        pgClients.route(PgProvider.TOSS, tossPg);
+        var refund = fixtures.due();
+        when(pg.refund(any())).thenReturn(refunded("rf-mock", REFUND_AMOUNT));
+
+        assertTrue(worker.processNext());
+
+        assertEquals("REFUNDED", fixtures.refundRow(refund).get("status"));
+        verify(pg).refund(any());
+        verifyNoInteractions(tossPg);
+    }
+
+    @Test
+    void TOSS_결제의_환불은_토스_클라이언트로_간다() {
+        var tossPg = mock(PgClient.class);
+        pgClients.route(PgProvider.TOSS, tossPg);
+        var refund = fixtures.create(RefundWorkerFixtures.spec().pgProvider("TOSS"));
+        when(tossPg.refund(any())).thenReturn(refunded("rf-toss", REFUND_AMOUNT));
+
+        assertTrue(worker.processNext());
+
+        assertEquals("REFUNDED", fixtures.refundRow(refund).get("status"));
+        verifyNoInteractions(pg);
+    }
+
+    @Test
+    void 토스_키_없는_서버에서_TOSS_결제의_환불은_CLIENT_ERROR로_완료되지_않고_복구_허가를_실패로_세지_않는다() {
+        pgClients.missing(PgProvider.TOSS);
+        var refund = fixtures.create(RefundWorkerFixtures.spec().pgProvider("TOSS"));
+
+        assertTrue(worker.processNext());
+
+        assertFalse("REFUNDED".equals(fixtures.refundRow(refund).get("status")));
+        verifyNoInteractions(pg);
+        assertEquals(0, recoveryGate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
     }
 
     // ── 결과 반영 (6절 환불 워커 표) ──────────────────────────────────────────────

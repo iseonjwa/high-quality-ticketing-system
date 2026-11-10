@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.ops.domain;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -46,7 +48,7 @@ public interface OpsInspectionRepository {
     }
 
     record PaymentView(long id, String paymentNo, long reservationId, long userId, BigDecimal amount, String currency,
-            String method, String status, UUID pgOrderId, String pgTxId, BigDecimal pgApprovedAmount,
+            String method, String status, PgProvider pgProvider, UUID pgOrderId, String pgTxId, BigDecimal pgApprovedAmount,
             String declineCode, int unknownRetryCount, Instant nextCheckAt, Instant approvedAt, Instant refundedAt,
             Instant createdAt, Instant updatedAt) {
     }

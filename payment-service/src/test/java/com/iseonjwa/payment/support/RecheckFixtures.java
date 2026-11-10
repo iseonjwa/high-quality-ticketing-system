@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.support;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
@@ -51,10 +52,19 @@ public final class RecheckFixtures {
         return create(status, retryCount, Instant.now().minusSeconds(5));
     }
 
+    /** 재확인 차례가 지난 결제를 지정한 PG로 만든다. */
+    public Payment due(PaymentStatus status, int retryCount, PgProvider provider) {
+        return create(status, retryCount, Instant.now().minusSeconds(5), provider);
+    }
+
     public Payment create(PaymentStatus status, int retryCount, Instant nextCheckAt) {
+        return create(status, retryCount, nextCheckAt, PgProvider.MOCK);
+    }
+
+    public Payment create(PaymentStatus status, int retryCount, Instant nextCheckAt, PgProvider provider) {
         var reservationId = RESERVATION_IDS.incrementAndGet();
         var saved = payments.save(Payment.request("PAY-R" + reservationId, reservationId, 1L, AMOUNT,
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), provider, Instant.now()));
         jdbc.update("UPDATE payments SET status = ?, unknown_retry_count = ?, next_check_at = ? WHERE id = ?",
                 status.name(), retryCount, Timestamp.from(nextCheckAt), saved.getId());
         return payments.findById(saved.getId()).orElseThrow();

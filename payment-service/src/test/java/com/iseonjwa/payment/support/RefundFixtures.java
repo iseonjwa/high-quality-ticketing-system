@@ -37,9 +37,9 @@ public final class RefundFixtures {
             default -> "now() + interval '1 year'";
         };
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      created_at, updated_at, %s)
-                VALUES (?, ?, ?, %d, 'CARD', '%s', ?, now(), now(), %s)""".formatted(extra, AMOUNT, status, values),
+                VALUES (?, ?, ?, %d, 'CARD', '%s', ?, 'MOCK', now(), now(), %s)""".formatted(extra, AMOUNT, status, values),
                 "PAY-F" + reservationId, reservationId, USER_ID, UUID.randomUUID());
         var id = jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
         return new CreatedPayment(id, reservationId);

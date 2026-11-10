@@ -10,7 +10,9 @@ import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistory;
 import com.iseonjwa.payment.payment.domain.PaymentStatusHistoryRepository;
 import com.iseonjwa.payment.payment.domain.StatusActor;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgPermit;
@@ -60,7 +62,7 @@ public class RefundWorkerService {
     private final PaymentStatusHistoryRepository histories;
     private final RefundSettlementService settlement;
     private final PgRecoveryGate recoveryGate;
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final PaymentMetrics metrics;
     private final PaymentAlertLog alertLog;
     private final TransactionTemplate transactionTemplate;
@@ -68,14 +70,14 @@ public class RefundWorkerService {
 
     public RefundWorkerService(RefundRepository refunds, PaymentRepository payments,
             PaymentStatusHistoryRepository histories, RefundSettlementService settlement, PgRecoveryGate recoveryGate,
-            PgClient pg, PaymentMetrics metrics, PaymentAlertLog alertLog, TransactionTemplate transactionTemplate,
+            PgClients pgClients, PaymentMetrics metrics, PaymentAlertLog alertLog, TransactionTemplate transactionTemplate,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.refunds = refunds;
         this.payments = payments;
         this.histories = histories;
         this.settlement = settlement;
         this.recoveryGate = recoveryGate;
-        this.pg = pg;
+        this.pgClients = pgClients;
         this.metrics = metrics;
         this.alertLog = alertLog;
         this.transactionTemplate = transactionTemplate;
@@ -138,7 +140,7 @@ public class RefundWorkerService {
         var claim = new Claim(refund.getId(), refund.getPaymentId(), refund.getStatus(),
                 new PgRefundId(refund.getPgRefundId()), refund.getAmount(), refund.getReason(),
                 refund.getPgRequestedAt() == null, refund.getAttempt() + 1, new PgPaymentRef(payment.getPgTxId()),
-                payment.getCurrency(), permit.get());
+                payment.getCurrency(), payment.getPgProvider(), permit.get());
         if (!refunds.claim(refund.getId(), refund.getStatus(), now.plus(LEASE), now)) return Optional.empty();
         return Optional.of(claim);
     }
@@ -192,12 +194,13 @@ public class RefundWorkerService {
         }
     }
 
-    // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 결과를 모르는 것(Unknown)으로 다룬다
+    // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 결과를 모르는 것(Unknown)으로 다룬다.
+    // 결제의 PG를 고르는 pgClients.of도 이 try 안이다(토스 키 없이 TOSS 결제를 만나도 결과 모름 경로를 탄다)
     private PgClient.RefundResult requestRefund(Claim claim) {
         try {
             var command = new RefundCommand(claim.paymentRef(), claim.pgRefundId(), claim.amount(), claim.currency(),
                     claim.reason().name(), PgIdempotencyKey.ofRefund(claim.pgRefundId()));
-            var result = pg.refund(command);
+            var result = pgClients.of(claim.pgProvider()).refund(command);
             if (result != null) return result;
             log.error("PG 환불 결과가 null이다 refundId={}", claim.refundId());
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -209,7 +212,7 @@ public class RefundWorkerService {
 
     private PgClient.RefundLookupResult findRefund(Claim claim) {
         try {
-            var result = pg.findRefund(claim.pgRefundId(), claim.paymentRef());
+            var result = pgClients.of(claim.pgProvider()).findRefund(claim.pgRefundId(), claim.paymentRef());
             if (result != null) return result;
             log.error("PG 환불 조회 결과가 null이다 refundId={}", claim.refundId());
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -316,7 +319,7 @@ public class RefundWorkerService {
      */
     private record Claim(Long refundId, Long paymentId, RefundStatus status, PgRefundId pgRefundId, BigDecimal amount,
             RefundReason reason, boolean firstCall, int attempts, PgPaymentRef paymentRef, String currency,
-            PgPermit permit) {
+            PgProvider pgProvider, PgPermit permit) {
     }
 
     private static final class StateConflictException extends RuntimeException {

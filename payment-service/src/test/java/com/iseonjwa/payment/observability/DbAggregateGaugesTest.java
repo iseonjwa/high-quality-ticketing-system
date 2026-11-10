@@ -298,9 +298,9 @@ class DbAggregateGaugesTest {
         var sequence = SEQUENCE.incrementAndGet();
         var needsSchedule = status.equals("REQUESTED") || status.equals("UNKNOWN");
         return jdbc.queryForObject("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                     decline_code, next_check_at, created_at, updated_at)
-                VALUES (?, ?, 1, 50000, 'CARD', ?, ?, ?, ?, ?, ?) RETURNING id
+                VALUES (?, ?, 1, 50000, 'CARD', ?, ?, 'MOCK', ?, ?, ?, ?) RETURNING id
                 """, Long.class, "PAY-G" + sequence, 9_000_000L + sequence, status, UUID.randomUUID(),
                 status.equals("DECLINED") ? "OTHER" : null, needsSchedule ? Timestamp.from(NOW) : null,
                 ago(createdAgoSeconds), ago(updatedAgoSeconds));

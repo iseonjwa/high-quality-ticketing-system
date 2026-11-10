@@ -492,9 +492,9 @@ class PaymentMigrationTest {
     // Note: 상태별 필수 컬럼은 호출부가 extraColumns로 넘기고, 나머지 NOT NULL 컬럼은 여기서 채운다.
     private static String insertSql(String status, String extraColumns, String extraValues) {
         return """
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      created_at, updated_at, %s)
-                VALUES (?, ?, 1, 50000, 'CARD', '%s', ?, now(), now(), %s)""".formatted(extraColumns, status, extraValues);
+                VALUES (?, ?, 1, 50000, 'CARD', '%s', ?, 'MOCK', now(), now(), %s)""".formatted(extraColumns, status, extraValues);
     }
 
     private static Object[] args(long reservationId) {

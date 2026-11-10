@@ -1,10 +1,24 @@
 # PG 연동
 
-PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·응답·에러 코드를 보지 못한다. 결정 근거와 토스 문서 확인 내용은 [0023](../../decisions/0023-payment-pg-client-port.md), 호출 자원 분리는 [0018](../../decisions/0018-payment-pg-permit-before-tx1.md)에 있다. 지키는 조건은 INV-1·INV-2·INV-3·INV-8([invariants.md](invariants.md))이다.
+PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·응답·에러 코드를 보지 못한다. 어느 PG로 보낼지는 결제마다 정해지며 `PgClients` 포트가 고른다(1절). 결정 근거와 토스 문서 확인 내용은 [0023](../../decisions/0023-payment-pg-client-port.md), 호출 자원 분리는 [0018](../../decisions/0018-payment-pg-permit-before-tx1.md)에 있다. 지키는 조건은 INV-1·INV-2·INV-3·INV-8([invariants.md](invariants.md))이다.
 
 ## 1. 포트
 
-`application` 계층의 `PgClient`가 정의하고 `infrastructure`의 어댑터가 구현한다. 설정 `payment.pg.provider=mock|toss`로 고른다.
+`application` 계층의 `PgClient`가 정의하고 `infrastructure`의 어댑터가 구현한다.
+
+**포트를 고르는 방식(`PgClients`, ISE-231)**: 서비스는 `PgClient`를 직접 주입받지 않고 `PgClients.of(PgProvider)`로 어댑터를 얻는다. 어느 PG인지는 결제의 `payments.pg_provider`가 정하므로 승인·재확인·환불 워커·Ops 조회가 모두 `of(payment.pgProvider)`로 부른다. 설정 `payment.pg.provider=mock|toss`는 서버 기본 PG일 뿐이고, 승인 요청의 `pgProvider`가 없을 때와 checkout의 `provider`에만 쓰인다.
+
+| 호출하는 곳 | 어느 PG로 보내나 |
+|---|---|
+| 승인 API(`PaymentApprovalService`) | TX1이 결제에 기록한 `pg_provider` |
+| 재확인(`PaymentRecheckService`)의 조회·늦은 승인 방지 | claim한 결제의 `pg_provider` |
+| 환불 워커(`RefundWorkerService`)의 환불·환불 조회 | 환불 대상 결제의 `pg_provider` |
+| Ops 명령(`OpsPgLookup`, `inspect --with-pg`) | 조회하는 결제의 `pg_provider` |
+| 빌링키 발급·자동결제 승인 | 늘 Mock(`PgClients.billing()`). 빌링 결제의 `pg_provider`도 `MOCK`이라 재확인·환불도 Mock으로 간다 |
+
+- Mock 어댑터는 늘 만든다. 토스 어댑터는 토스 시크릿 키가 설정돼 있을 때 만들고, `provider=mock`이어도 키가 있으면 만든다(모드를 되돌린 뒤에도 진행 중인 토스 결제를 조회하려고).
+- 설정에 없는 PG(`TOSS` 결제인데 토스 키 없음)를 달라면 `PgClients.of`는 PG를 부르지 않고 모든 호출에 `Unknown(CLIENT_ERROR)`로 답하는 클라이언트를 돌려준다. 우리 쪽 설정 문제라 복구 허가를 반환하고 서킷 브레이커에 세지 않는다(`PG_ERROR`면 공유 CB가 열려 Mock 결제의 재확인·환불까지 멈춘다). 재확인 스케줄러는 죽지 않고 결과 모름 경로를 탄다. Mock으로 대신 보내지 않는다.
+- 승인 허가와 복구 허가(서킷 브레이커·벌크헤드)와 PG 지표 태그는 PG 구분 없이 하나를 같이 쓴다(감수 사항, ADR 0023 2026-11-10 개정).
 
 | 메서드 | 입력 | 결과(sealed) |
 |---|---|---|
@@ -122,7 +136,7 @@ SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를
 | 〃 | 400 `ALREADY_CANCELED_PAYMENT`, 403 `NOT_CANCELABLE_*` | `RefundRejected(NOT_REFUNDABLE)` |
 | 〃 | 409, 5xx, 그 밖의 4xx | `Unknown`(`PROCESSING`·`PG_ERROR`·`CLIENT_ERROR`) |
 | `findRefund`: GET `/v1/payments/{paymentKey}` | 완료된 취소 건 하나 / 없음 / 여럿 | `Refunded` / `NotFound` / `Unknown(PG_ERROR)` |
-| `issueBillingKey`·`approveBilling` | 호출하지 않는다 | `Unknown(CLIENT_ERROR)` / `Declined(NOT_SENT)`(보내지 않았으므로 확실히 승인되지 않음) |
+| `issueBillingKey`·`approveBilling` | 호출하지 않는다. 빌링은 서버 모드와 상관없이 늘 Mock으로 보낸다(2026-11-10) | 방어용으로 `Unknown(CLIENT_ERROR)` / `Declined(NOT_SENT)`(보내지 않았으므로 확실히 승인되지 않음)를 남겨 둔다 |
 
 시간 초과는 `Unknown(TIMEOUT)`, 연결 실패와 응답 없이 끊김은 `Unknown(CONNECTION_LOST)`다(Mock과 같다). 응답 시각은 `+09:00` 오프셋 ISO 8601이라 `OffsetDateTime`으로 읽는다. 시크릿 키는 헤더로만 보내고 로그·예외·`toString`에 남기지 않는다.
 

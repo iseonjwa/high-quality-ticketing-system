@@ -7,7 +7,9 @@ import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.StatusActor;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgPermit;
@@ -44,18 +46,18 @@ public class PaymentRecheckService {
     private final PaymentRepository payments;
     private final PaymentTransitionService transitions;
     private final PgRecoveryGate recoveryGate;
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final PaymentMetrics metrics;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public PaymentRecheckService(PaymentRepository payments, PaymentTransitionService transitions,
-            PgRecoveryGate recoveryGate, PgClient pg, PaymentMetrics metrics, TransactionTemplate transactionTemplate,
+            PgRecoveryGate recoveryGate, PgClients pgClients, PaymentMetrics metrics, TransactionTemplate transactionTemplate,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.payments = payments;
         this.transitions = transitions;
         this.recoveryGate = recoveryGate;
-        this.pg = pg;
+        this.pgClients = pgClients;
         this.metrics = metrics;
         this.transactionTemplate = transactionTemplate;
         this.clock = clock;
@@ -106,7 +108,8 @@ public class PaymentRecheckService {
         // 임대하면 엔티티가 영속성 컨텍스트에서 분리되므로 필요한 값을 먼저 읽는다
         var payment = candidate.get();
         var claim = new Claim(payment.getId(), payment.getStatus(), new PgOrderId(payment.getPgOrderId()),
-                payment.getAmount(), payment.getCurrency(), payment.getUnknownRetryCount() + 1, permit.get());
+                payment.getAmount(), payment.getCurrency(), payment.getPgProvider(), payment.getUnknownRetryCount() + 1,
+                permit.get());
         if (!payments.claimRecheck(payment.getId(), payment.getStatus(), now.plus(LEASE), now)) {
             return Optional.empty();
         }
@@ -134,10 +137,11 @@ public class PaymentRecheckService {
         }
     }
 
-    // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 결과를 모르는 것(Unknown)으로 다룬다
+    // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 결과를 모르는 것(Unknown)으로 다룬다.
+    // 결제의 PG를 고르는 pgClients.of도 이 try 안이다. 토스 키 없이 TOSS 결제를 만나도 스케줄러가 죽지 않고 결과 모름 경로를 탄다
     private PgClient.PaymentLookupResult findPayment(Claim claim) {
         try {
-            var result = pg.findPayment(claim.pgOrderId());
+            var result = pgClients.of(claim.pgProvider()).findPayment(claim.pgOrderId());
             if (result != null) return result;
             log.error("PG 결제 조회 결과가 null이다 paymentId={}", claim.paymentId());
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -172,7 +176,7 @@ public class PaymentRecheckService {
 
     private PgClient.LateApprovalResult preventLate(Claim claim) {
         try {
-            var result = pg.preventLateApproval(claim.pgOrderId());
+            var result = pgClients.of(claim.pgProvider()).preventLateApproval(claim.pgOrderId());
             if (result != null) return result;
             log.error("PG 늦은 승인 방지 결과가 null이다 paymentId={}", claim.paymentId());
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -231,6 +235,6 @@ public class PaymentRecheckService {
 
     /** claim한 결제의 호출에 필요한 값과 허가. {@code attempts}는 이번 claim으로 센 PG 호출 횟수다. */
     private record Claim(Long paymentId, PaymentStatus status, PgOrderId pgOrderId, BigDecimal amount, String currency,
-            int attempts, PgPermit permit) {
+            PgProvider pgProvider, int attempts, PgPermit permit) {
     }
 }
