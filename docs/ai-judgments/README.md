@@ -42,7 +42,9 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | auth-redis 재측정 값을 느린 호출 100ms·80%, 시한 200ms, 벌크헤드 50(거절은 차단기 집계에서 제외), 실패율 50%로 하자는 AI 추천을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-10-auth-redis-timeout-bulkhead-measure-values.md) |
 | 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-10-toss-mock-bypass-per-payment-pg.md) |
+| 2026-11-10 | 이슈 자동 완료를 피하려고 PR 제목·브랜치에서 이슈 번호를 뺀 AI 방식을 거부하고, 번호를 넣은 채 연결 종류로 완료를 막게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-keep-issue-number-in-pr-title.md) |
 | 2026-11-10 | 11/11 회의에서 개선안을 정하고 11/13에 재측정하자는 AI 일정을 거부하고, 개선 적용과 재측정을 최대한 앞당기기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-pull-forward-improvement-remeasure.md) |
 | 2026-11-10 | 서버 명령을 측정자가 직접 치고 에이전트는 안내만 하는 방식 대신, 11/10 측정에서는 에이전트가 배포 서버·발생기 명령을 직접 실행하게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-agent-runs-server-commands-during-measurement.md) |
 | 2026-11-10 | 추첨 배포 측정 전 점검의 추천(L1 503 메시지 태그, 응모 3만 명·시각, 반복 조건, PAY_RATE 20·30)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-10-lottery-server-measurement-conditions.md) |
