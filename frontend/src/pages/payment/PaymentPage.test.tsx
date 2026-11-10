@@ -1191,3 +1191,66 @@ describe('PaymentPage 토스 결제창', () => {
     expect(screen.queryByText(/가짜 안내/)).not.toBeInTheDocument()
   })
 })
+
+describe('PaymentPage 토스연동 건너뛰기', () => {
+  function respondToss(held: Awaited<ReturnType<typeof hold>>, mockBypass: boolean) {
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+          mockBypass,
+        }),
+      ),
+    )
+  }
+
+  it('토스 모드에서 건너뛰기를 받으면 링크를 보이고, 누르면 결제창 없이 pgProvider MOCK으로 승인한다', async () => {
+    const held = await hold()
+    respondToss(held, true)
+    const payments = recordRequests(PAYMENTS_API)
+    renderPayment({ navigation: { held } })
+
+    expect(
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+    ).toBeInTheDocument()
+    const bypass = await screen.findByRole('button', { name: '토스연동 건너뛰고 결제하기' })
+    await userEvent.click(bypass)
+
+    await waitFor(() => expect(payments).toHaveLength(1))
+    expect(await payments[0].json()).toMatchObject({ pgProvider: 'MOCK' })
+    expect(vi.mocked(openTossPaymentWindow)).not.toHaveBeenCalled()
+    // 승인 시도를 만든 뒤에는 링크를 감춘다
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('서버가 건너뛰기를 받지 않으면 링크가 없다', async () => {
+    const held = await hold()
+    respondToss(held, false)
+    renderPayment({ navigation: { held } })
+
+    expect(
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('Mock 모드는 링크가 없고 결제 수단에 시연용 문구를 보인다', async () => {
+    const held = await hold()
+    renderPayment({ navigation: { held } })
+
+    expect(await screen.findByText('시연용 결제라 카드 정보를 받지 않아요')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
+  })
+})

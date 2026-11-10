@@ -58,6 +58,8 @@ export interface RunPaymentFlowOptions {
   idempotencyKey: string
   // 토스 paymentKey. 있으면 승인 본문에 실어 재전송에도 같은 본문을 보낸다
   clientPaymentRef?: string
+  // 토스 모드의 Mock 건너뛰기. 있으면 승인 본문에 싣는다
+  pgProvider?: 'MOCK'
   signal: AbortSignal
   onState: (state: PaymentFlowState) => void
   // 테스트가 바꿔 끼운다. 기본은 setTimeout 기반이고 signal이 취소되면 바로 끝난다
@@ -116,6 +118,7 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
           amount: options.amount,
           method: 'CARD',
           clientPaymentRef: options.clientPaymentRef,
+          pgProvider: options.pgProvider,
         },
         options.idempotencyKey,
         { signal },

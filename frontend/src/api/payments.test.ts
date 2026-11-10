@@ -19,12 +19,18 @@ function respondCheckout(data: unknown) {
 
 describe('checkoutPayment', () => {
   it('MOCK 응답을 읽는다', async () => {
-    respondCheckout({ provider: 'MOCK', amount: 1000, orderName: '콘서트 예매 1' })
+    respondCheckout({
+      provider: 'MOCK',
+      amount: 1000,
+      orderName: '콘서트 예매 1',
+      mockBypass: false,
+    })
 
     await expect(checkoutPayment('token')).resolves.toEqual({
       provider: 'MOCK',
       amount: 1000,
       orderName: '콘서트 예매 1',
+      mockBypass: false,
     })
   })
 
@@ -35,10 +41,23 @@ describe('checkoutPayment', () => {
       clientKey: 'test_ck_fake',
       amount: 1000,
       orderName: '콘서트 예매 1',
+      mockBypass: true,
     }
     respondCheckout(data)
 
     await expect(checkoutPayment('token')).resolves.toEqual(data)
+  })
+
+  it('mockBypass가 없던 서버 응답은 false로 읽는다', async () => {
+    respondCheckout({
+      provider: 'TOSS',
+      orderId: 'order-1-abcdef',
+      clientKey: 'test_ck_fake',
+      amount: 1000,
+      orderName: '콘서트 예매 1',
+    })
+
+    await expect(checkoutPayment('token')).resolves.toMatchObject({ mockBypass: false })
   })
 
   it('TOSS 응답에 clientKey가 없으면 실패한다', async () => {
@@ -100,5 +119,41 @@ describe('approvePayment: clientPaymentRef', () => {
       method: 'CARD',
       clientPaymentRef: 'tgen_1',
     })
+  })
+})
+
+describe('approvePayment: pgProvider(Mock 건너뛰기)', () => {
+  const APPROVED = {
+    paymentId: 1,
+    reservationId: 1,
+    status: 'APPROVED',
+    amount: 1000,
+    approvedAt: '2026-11-10T00:00:00Z',
+  }
+
+  it('MOCK이면 본문에 넣고, 없으면 키를 넣지 않는다', async () => {
+    mockServer.use(http.post(PAYMENTS_PATH, () => ok(APPROVED)))
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    await approvePayment(
+      { paymentToken: 'token', amount: 1000, method: 'CARD', pgProvider: 'MOCK' },
+      newIdempotencyKey(),
+    )
+    await approvePayment(
+      { paymentToken: 'token', amount: 1000, method: 'CARD' },
+      newIdempotencyKey(),
+    )
+
+    expect(await requests[0].json()).toEqual({
+      paymentToken: 'token',
+      amount: 1000,
+      method: 'CARD',
+      pgProvider: 'MOCK',
+    })
+    expect(Object.keys((await requests[1].json()) as Record<string, unknown>).sort()).toEqual([
+      'amount',
+      'method',
+      'paymentToken',
+    ])
   })
 })

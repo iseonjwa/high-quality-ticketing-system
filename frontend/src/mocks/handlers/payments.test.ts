@@ -117,6 +117,7 @@ describe('결제 목: 결제 준비(checkout)', () => {
       provider: 'MOCK',
       amount: held.totalAmount,
       orderName: `콘서트 예매 ${held.reservationId}`,
+      mockBypass: false,
     })
   })
 

@@ -114,6 +114,7 @@ export const paymentHandlers = [
       provider: 'MOCK',
       amount: reservation.totalAmount,
       orderName: `콘서트 예매 ${reservation.reservationId}`,
+      mockBypass: false,
     })
   }),
 

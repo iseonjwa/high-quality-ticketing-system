@@ -420,4 +420,89 @@ describe('usePaymentFlow', () => {
       expect(readTossCheckout(held.reservationId)).toBeNull()
     })
   })
+
+  describe('토스연동 건너뛰기(submitMockBypass)와 미리 받은 checkout', () => {
+    const tossPrefetched = (held: { amount: number }) => ({
+      provider: 'TOSS' as const,
+      orderId: 'order-1-abcdef',
+      clientKey: 'test_ck_fake',
+      amount: held.amount,
+      orderName: '콘서트 예매 1',
+      mockBypass: true,
+    })
+
+    it('건너뛰기는 checkout 없이 pgProvider MOCK으로 승인을 보내고 그 표시까지 시도에 저장한다', async () => {
+      const held = await hold()
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const payments = recordRequests(PAYMENTS_PATH)
+      const { result } = renderHook(() =>
+        usePaymentFlow({ ...held, checkout: tossPrefetched(held) }),
+      )
+
+      act(() => result.current.submitMockBypass())
+
+      await waitFor(() => expect(result.current.state.step).toBe('confirmed'), { timeout: 5000 })
+      expect(checkouts).toHaveLength(0)
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(await payments[0].json()).toEqual({
+        paymentToken: held.paymentToken,
+        amount: held.amount,
+        method: 'CARD',
+        pgProvider: 'MOCK',
+      })
+    })
+
+    it('건너뛰기 시도가 결과를 모른 채 남으면 화면을 다시 열 때 같은 키·같은 표시로 이어 보낸다', async () => {
+      const held = await hold()
+      savePaymentAttempt(held.reservationId, {
+        token: held.paymentToken,
+        key: 'bypass-key',
+        pgProvider: 'MOCK',
+      })
+      const payments = recordRequests(PAYMENTS_PATH)
+      renderHook(() => usePaymentFlow(held))
+
+      await waitFor(() => expect(payments).toHaveLength(1))
+      expect(payments[0].headers.get('Idempotency-Key')).toBe('bypass-key')
+      expect(await payments[0].json()).toMatchObject({ pgProvider: 'MOCK' })
+    })
+
+    it('저장한 시도가 있으면 건너뛰기를 눌러도 새 시도를 만들지 않고 저장한 것을 다시 보낸다', async () => {
+      const held = await hold()
+      savePaymentAttempt(held.reservationId, {
+        token: held.paymentToken,
+        key: 'stored-key',
+        clientPaymentRef: 'tgen_stored',
+      })
+      mockServer.use(http.post(PAYMENTS_PATH, () => fail(503, 'PG_UNAVAILABLE', 'PG 장애')))
+      const payments = recordRequests(PAYMENTS_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+      await waitFor(() => expect(result.current.state.step).toBe('pgUnavailable'))
+
+      act(() => result.current.submitMockBypass())
+
+      await waitFor(() => expect(payments).toHaveLength(2))
+      expect(payments[1].headers.get('Idempotency-Key')).toBe('stored-key')
+      const resent = (await payments[1].json()) as Record<string, unknown>
+      expect(resent).toMatchObject({ clientPaymentRef: 'tgen_stored' })
+      expect(resent).not.toHaveProperty('pgProvider')
+    })
+
+    it('미리 받은 checkout이 TOSS면 [결제하기]가 checkout을 다시 부르지 않고 결제창을 연다', async () => {
+      const held = await hold()
+      openWindow.mockReturnValue(new Promise(() => {}))
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const { result } = renderHook(() =>
+        usePaymentFlow({ ...held, checkout: tossPrefetched(held) }),
+      )
+
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(result.current.state.step).toBe('redirecting'))
+      expect(checkouts).toHaveLength(0)
+      expect(openWindow).toHaveBeenCalledWith(
+        expect.objectContaining({ orderId: 'order-1-abcdef' }),
+      )
+    })
+  })
 })

@@ -3,6 +3,7 @@ import { CreditCard, Loader2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
+import { checkoutPayment, type CheckoutResult } from '@/api/payments'
 import { getReservation, reservationQueryKeys, type ReservationDetail } from '@/api/reservations'
 import { paths, queuePath, reservationCompletePath, reservationPath } from '@/app/paths'
 import { removeHeldSeats, type HeldSeat } from '@/auth/heldSeats'
@@ -39,6 +40,10 @@ const PAYMENT_TOKEN_MARGIN_MILLIS = 10_000
 // 결과 화면에 먼저 보이지 않게 한다
 const paymentReservationKey = (reservationId: number) =>
   ['reservations', 'payment', reservationId] as const
+
+// 결제 준비(checkout) 응답. 토큰이 열려 있는 동안 바뀌지 않아 다시 받지 않고, 떠나면 버린다
+const paymentCheckoutKey = (reservationId: number) =>
+  ['payments', 'checkout', reservationId] as const
 
 // 결제할 대상. 좌석 화면이 넘긴 값이 있으면 그것을, 없으면(새로고침이 아닌 새 탭·주소) 예매 조회로 만든다
 interface PaymentSource {
@@ -256,11 +261,29 @@ function PaymentForm({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { state, submit } = usePaymentFlow({
+  // 서버의 PG 모드를 화면을 열 때 한 번 묻는다. 결제 수단 문구와 "토스연동 건너뛰고 결제하기"를 이 값으로 정한다.
+  // 실패해도 화면은 그대로 두고, [결제하기]가 checkout을 다시 불러 오류를 보여 준다
+  const checkout = useQuery({
+    queryKey: paymentCheckoutKey(reservationId),
+    queryFn: ({ signal }) => checkoutPayment(source.paymentToken, { signal }),
+    enabled: !notPayable,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
+  const { state, submit, submitMockBypass } = usePaymentFlow({
     reservationId,
     paymentToken: source.paymentToken,
     amount: source.amount,
+    checkout: checkout.data,
   })
+  const provider = checkout.data?.provider ?? null
+  const showMockBypass =
+    checkout.data?.provider === 'TOSS' &&
+    checkout.data.mockBypass &&
+    MOCK_BYPASS_STEPS.has(state.step)
   // 서버 시각으로 결제 가능 시간이 지났다. 브라우저 시계뿐이면(좌석 화면을 거치지 않음) 막지 않고 서버 응답(403)을 따른다.
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
@@ -377,7 +400,7 @@ function PaymentForm({
                 <CreditCard aria-hidden="true" className="row-span-2 size-7 text-gray-900" />
                 <span className="type-body font-semibold text-gray-900">신용·체크카드</span>
                 <span className="type-caption text-gray-500">
-                  시연용 결제라 카드 정보를 받지 않아요
+                  {PAYMENT_METHOD_HINTS[provider ?? 'UNKNOWN']}
                 </span>
               </label>
             </fieldset>
@@ -443,6 +466,16 @@ function PaymentForm({
                 disabled={notPayable || tokenExpired}
                 onPay={submit}
               />
+              {showMockBypass && !notPayable && !tokenExpired ? (
+                // 토스 테스트 결제창도 카드사 인증은 실제 절차라, 시연에서 결제를 끝까지 보일 때 쓴다(ADR 0023 2026-11-10 개정)
+                <button
+                  type="button"
+                  onClick={submitMockBypass}
+                  className="-mt-1 justify-self-center rounded-sm type-caption font-medium text-primary-600 underline underline-offset-4 transition-colors duration-(--dur-fast) outline-none hover:text-primary-700 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-0"
+                >
+                  토스연동 건너뛰고 결제하기
+                </button>
+              ) : null}
               {showTimer && !tokenExpired ? (
                 <p className="text-center type-caption text-gray-500">
                   결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.
@@ -455,6 +488,16 @@ function PaymentForm({
     </main>
   )
 }
+
+// 결제 수단 카드의 설명. 서버의 PG 모드를 모르는 동안(checkout 대기·실패)은 어느 쪽이든 맞는 문구를 쓴다
+const PAYMENT_METHOD_HINTS: Record<CheckoutResult['provider'] | 'UNKNOWN', string> = {
+  MOCK: '시연용 결제라 카드 정보를 받지 않아요',
+  TOSS: '토스페이먼츠 테스트 결제창에서 카드를 골라요',
+  UNKNOWN: '결제하기를 누르면 카드 결제를 진행해요',
+}
+
+// "토스연동 건너뛰고 결제하기"를 보일 단계. 승인 시도를 아직 만들지 않은 단계만이다
+const MOCK_BYPASS_STEPS = new Set<PaymentFlowState['step']>(['ready', 'tossCanceled', 'tossFailed'])
 
 // 버튼이 로딩 표시인 단계와 그 문구
 const PAYING_LABELS: Partial<Record<PaymentFlowState['step'], string>> = {

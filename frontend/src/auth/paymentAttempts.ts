@@ -9,11 +9,13 @@ const KEY_PREFIX = 'iseonjwa.paymentAttempt.'
 // 토스 결제창을 연 기록. 돌아온 주소의 orderId·amount가 연 값과 같은지 대조하려고 둔다
 const TOSS_CHECKOUT_PREFIX = 'iseonjwa.tossCheckout.'
 
-// clientPaymentRef는 토스 paymentKey다. 옛 값(필드 없음)도 읽힌다
+// clientPaymentRef는 토스 paymentKey, pgProvider는 토스 모드의 Mock 건너뛰기 표시다. 둘 다 본문에 들어가므로
+// 같은 키로 다시 보낼 때 함께 지킨다. 옛 값(필드 없음)도 읽힌다
 const paymentAttemptSchema = z.object({
   token: z.string().min(1),
   key: z.string().min(1),
   clientPaymentRef: z.string().min(1).max(200).optional(),
+  pgProvider: z.literal('MOCK').optional(),
 })
 export type PaymentAttempt = z.infer<typeof paymentAttemptSchema>
 
