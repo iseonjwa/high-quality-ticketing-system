@@ -9,6 +9,9 @@
 #   T: K2 멀티 탭. 같은 사용자가 탭 4개로 2석씩 동시에 선점(매수 한도 S1). 초당 50명 120초
 #   D: K2 연타. 같은 사용자가 같은 좌석·같은 멱등키로 3번 동시에 선점(멱등키 S2). 초당 50명 120초
 #   X: K1 부하 + 만료 스케줄러 켬. 선점 유지 1분 회차에 초당 100명 300초(만료와 선점 경합 S3·S4, 동시성 테스트 C7)
+#   K: K1 부하 + 잠금 장애 주입. 부하 LOCK_AFTER초(기본 30) 뒤 별도 세션이 앞쪽 LOCK_RANGE석(기본 3,000, 인기 구역) 중
+#      선택 가능 좌석을 LOCK_SECONDS초(기본 30) 동안 FOR UPDATE로 쥔다. 잠긴 행을 노린 선점이 어디까지 번지는지 본다(S3)
+#   선택: EXTRA_OVERLAYS="a.yml b.yml"로 덮어쓰기를 더 얹고, SCALE=2로 reservation-service를 여러 대 띄운다
 #   예: bash reservation-service/k6/tools/step-run.sh base S
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
 #
@@ -50,6 +53,11 @@ done < "$K6/step-overlays.txt"
 [ "${OBSERVE_JFR:-0}" = 1 ] && FILES+=(-f "$K6/compose.jfr.yml")
 # X는 기준 환경에서 꺼 둔 만료 스케줄러를 켠다. 단계가 아니라 측정 종류의 조건이라 단계 목록과 따로 얹는다
 [ "$KIND" = X ] && FILES+=(-f "$K6/compose.expiry-on.yml")
+# 측정 조건으로 더 얹는 덮어쓰기(예: 만료 한 주기 상한). 단계가 아니므로 meta에 따로 남긴다
+for extra in ${EXTRA_OVERLAYS:-}; do FILES+=(-f "$extra"); done
+# SCALE이 2 이상이면 고정 호스트 포트를 지운다. 같은 포트를 여러 컨테이너가 쓸 수 없다
+SCALE="${SCALE:-1}"
+[ "$SCALE" -gt 1 ] && FILES+=(-f "$K6/compose.scale-ports.yml")
 
 WARMUP_SECONDS="${WARMUP_SECONDS:-60}"
 # Note: 워밍업 속도는 모든 단계에서 초당 2명이다. k6 기본값(10명)은 base의 처리 한계(좌석 조회 초당 약 4건)를 넘어,
@@ -65,8 +73,10 @@ case "$KIND" in
      LOAD_SECONDS="$DURATION_SECONDS" ;;
   X) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS=0 HOLD_MINUTES="${HOLD_MINUTES:-1}"
      LOAD_SECONDS="$DURATION_SECONDS" ;;
+  K) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS=0
+     LOAD_SECONDS="$DURATION_SECONDS" ;;
   H) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-50,100,200,400,800}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}" ;;
-  *) echo "측정 종류는 L, S, H, T, D, X 중 하나입니다" >&2; exit 1 ;;
+  *) echo "측정 종류는 L, S, H, T, D, X, K 중 하나입니다" >&2; exit 1 ;;
 esac
 if [ "$MODEL" = ramp ]; then
   STAGE_COUNT="$(echo "$STAGES" | tr ',' '\n' | grep -c .)"
@@ -87,7 +97,7 @@ IDLE_CONTAINERS="${IDLE_CONTAINERS:-grafana loki alloy zipkin kafka-ui alertmana
 for c in $IDLE_CONTAINERS; do docker stop "iseonjwa-$c-1" >/dev/null 2>&1 || true; done
 echo "[$STEP-$KIND] 측정 무관 컨테이너 멈춤: $IDLE_CONTAINERS"
 echo "[$STEP-$KIND] reservation-service 빌드 후 다시 띄움"
-docker compose --env-file "$ENV_FILE" "${FILES[@]}" up -d --build --no-deps --force-recreate --wait reservation-service >/dev/null
+docker compose --env-file "$ENV_FILE" "${FILES[@]}" up -d --build --no-deps --force-recreate --wait --scale reservation-service="$SCALE" reservation-service >/dev/null
 # Gateway가 새 인스턴스를 Eureka에서 받을 때까지 공개 API로 확인한다
 for _ in $(seq 1 60); do
   [ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/v1/concerts)" = 200 ] && break
@@ -131,6 +141,22 @@ PREFIX="$K6/results/step-$STEP-$KIND-$(date +%Y%m%d-%H%M%S)"
 STATS_PID=$!
 trap 'kill $STATS_PID 2>/dev/null || true' EXIT
 
+if [ "$KIND" = K ]; then
+  # 잠금 장애 주입. k6 setup이 남긴 load_start를 기다렸다가 LOCK_AFTER초 뒤 잠근다. 잠근 시각과 좌석 수를 lock.txt에 남긴다
+  # Note: load_start는 setup에서 워밍업 뒤의 부하 시작 시각(미래)으로 찍힌다. 줄이 보인 때가 아니라 그 시각에서 LOCK_AFTER초 뒤에 잠근다
+  ( for _ in $(seq 1 600); do grep -q "load_start epoch_ms=" "$PREFIX-k6.log" 2>/dev/null && break; sleep 1; done
+    LOCK_AT=$(( $(grep -oE 'load_start epoch_ms=[0-9]+' "$PREFIX-k6.log" | head -1 | cut -d= -f2) / 1000 + ${LOCK_AFTER:-30} ))
+    while [ "$(date +%s)" -lt "$LOCK_AT" ]; do sleep 1; done
+    echo "lock_begin $(date +%s)"
+    docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tA <<SQL
+BEGIN;
+SELECT 'locked ' || count(*) FROM (SELECT id FROM schedule_seats WHERE schedule_id = $SCHEDULE_ID AND status = 'AVAILABLE'
+  AND id < (SELECT min(id) + ${LOCK_RANGE:-3000} FROM schedule_seats WHERE schedule_id = $SCHEDULE_ID) ORDER BY id FOR UPDATE) t;
+SELECT pg_sleep(${LOCK_SECONDS:-30});
+COMMIT;
+SQL
+    echo "lock_end $(date +%s)" ) > "$PREFIX-lock.txt" 2>&1 &
+fi
 bash "$K6/run.sh" > "$PREFIX-k6.log" 2>&1 || true
 END=$(date +%s)
 kill "$STATS_PID" 2>/dev/null || true
@@ -144,6 +170,10 @@ LOAD_END=$(( START + LOAD_SECONDS ))
 grep -oE 'probe epoch_ms=[0-9]+ status=[0-9]+ [0-9]+ms' "$PREFIX-k6.log" \
   | awk -v end="$LOAD_END" '{split($2,a,"="); printf "+%ds %s %s\n", a[2]/1000-end, $3, $4}' > "$PREFIX-probe.txt" || true
 python "$K6/tools/b8_metrics.py" "$START" "$LOAD_END" "$END" "$PREFIX"
+# X·K와 여러 대: 인스턴스마다 만료 스케줄러 로그와 오류를 남긴다(Prometheus는 인스턴스 하나만 긁는다)
+for c in $(docker ps --format '{{.Names}}' | grep '^iseonjwa-reservation-service-'); do
+  { echo "## $c"; docker logs --since "$START" "$c" 2>&1 | grep -E '선점 만료|ERROR|lock timeout|deadlock' ; } >> "$PREFIX-app.log"
+done
 # Note: Git Bash는 /tmp를 Windows 경로로 바꾼다. MSYS_NO_PATHCONV로 막는다. 그러면 /e/... 같은 로컬 경로도 바뀌지 않아
 # Windows의 docker가 쓰지 못하므로, 로컬 쪽은 cygpath로 Windows 경로를 넘긴다
 LOCAL_PREFIX="$(cygpath -w "$PREFIX" 2>/dev/null || echo "$PREFIX")"
@@ -152,7 +182,7 @@ MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/gc.log "$LOCAL_
 docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -v sid="$SCHEDULE_ID" \
   < "$K6/tools/invariants.sql" > "$PREFIX-invariants.txt" 2>&1 || true
 {
-  echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none}"
+  echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none} extra_overlays=${EXTRA_OVERLAYS:-none} scale=$SCALE"
   echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
   echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,} k6_network=$K6_NETWORK base_url=$BASE_URL identity=${IDENTITY:-gateway}"

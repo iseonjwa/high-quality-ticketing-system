@@ -1,0 +1,7 @@
+# 만료 처리 속도 재측정 전용 덮어쓰기다. 만료 스케줄러 한 주기 상한을 100에서 1,000으로 올린다(주기 5초는 그대로).
+# 근거: 측정 브랜치 STEPS.md "동시성 부하 측정 실측" X. 한 주기 100건이면 초당 약 20건이 상한이라 부하 중 적체가 약 9,000건 쌓였다
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_EXPIRY_BATCHSIZE: "1000"
+      SEATHOLD_EXPIRY_BATCH_SIZE: "1000"
