@@ -193,5 +193,24 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
     }
   }, [state.step, reservationId])
 
+  // Note: 모바일 결제창은 페이지를 떠난다. 뒤로 가기로 돌아오면 브라우저가 떠나기 전 화면(bfcache)을 그대로 되살려
+  // "결제창 여는 중"에 멈춘다. 그때는 진행 중이던 호출을 버리고 다시 누를 수 있게 되돌린다
+  useEffect(() => {
+    if (state.step !== 'redirecting') {
+      return
+    }
+    function onPageShow(event: PageTransitionEvent) {
+      if (!event.persisted) {
+        return
+      }
+      controllerRef.current?.abort()
+      controllerRef.current = null
+      runningRef.current = false
+      setState({ step: 'ready' })
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [state.step])
+
   return { state, submit }
 }

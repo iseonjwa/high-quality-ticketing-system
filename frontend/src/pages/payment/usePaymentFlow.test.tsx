@@ -305,6 +305,31 @@ describe('usePaymentFlow', () => {
       expect(payments).toHaveLength(0)
     })
 
+    it('결제창으로 떠났다가 뒤로 가기로 되살아나면(bfcache) ready로 돌아와 다시 누를 수 있다', async () => {
+      const held = await hold()
+      tossCheckout(held)
+      openWindow.mockReturnValue(new Promise(() => {}))
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+      await waitFor(() => expect(result.current.state.step).toBe('redirecting'))
+
+      // 되살아난 것이 아닌 pageshow는 무시한다
+      act(() => {
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }))
+      })
+      expect(result.current.state.step).toBe('redirecting')
+
+      act(() => {
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+      })
+      expect(result.current.state).toEqual({ step: 'ready' })
+
+      act(() => result.current.submit())
+      await waitFor(() => expect(checkouts).toHaveLength(2))
+    })
+
     it('결제창이 USER_CANCEL로 거절되면 tossCanceled가 되고 결제창 기록을 지운다', async () => {
       const held = await hold()
       tossCheckout(held)
