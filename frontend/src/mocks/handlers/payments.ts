@@ -100,6 +100,23 @@ function existingPaymentOf(reservationId: number) {
 }
 
 export const paymentHandlers = [
+  // 결제 준비. 목은 늘 MOCK이다. TOSS 응답을 기본으로 두면 개발 모드가 실제 토스 SDK를 부르게 된다.
+  // 토큰 검증은 서버처럼 만료 유예가 없다(api.md 1-1절)
+  http.post('/api/v1/payments/checkout', async ({ request }) => {
+    const user = requireUser(request)
+    const body = await readBody(request)
+    settleExpiredHolds()
+    const reservation = reservationOfToken(body.paymentToken, user.userId)
+    if (Date.now() >= reservation.holdExpiresAtMillis - PAYMENT_TOKEN_MARGIN_MILLIS) {
+      return fail(403, 'PAYMENT_TOKEN_INVALID', '결제 토큰이 올바르지 않습니다')
+    }
+    return ok({
+      provider: 'MOCK',
+      amount: reservation.totalAmount,
+      orderName: `콘서트 예매 ${reservation.reservationId}`,
+    })
+  }),
+
   http.post('/api/v1/payments', async ({ request }) => {
     const user = requireUser(request)
     const key = `${user.userId}:${requireIdempotencyKey(request)}`
