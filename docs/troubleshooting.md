@@ -413,3 +413,16 @@
 - 원인: 테스트가 시작 시각은 컨테이너(PostgreSQL `now()`, Redis `TIME`)에서, 비교 기준은 호스트 JVM(`Instant.now()`, 앱 `Clock`)에서 받는다. Windows 시계가 실제보다 약 7초 늦었고(Windows 시간 서비스 `w32time` 정지), Docker Desktop VM 시계는 맞았다. 외부 시각(`www.google.com`의 `Date` 헤더)과 비교해 Windows만 틀린 것을 확인했다. 컨테이너에서 `hwclock -s`를 실행해 봤지만 차이가 그대로였다.
 - 해결: 관리자 PowerShell에서 `Start-Service w32time`, `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update`, `w32tm /resync /force`로 시계를 맞췄다. 다시 돌리니 374건 중 실패 0건이었다(건너뜀 11건).
 - 배운 점: 시간 테스트가 로컬에서만 실패하면 호스트·컨테이너·외부 시각 세 개를 먼저 비교한다. 테스트는 비교 양쪽을 같은 시계에서 얻거나 경계에 여유를 둔다. 자세히: [docs/learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md](learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md)
+
+### TS-49 로컬 스택을 켜 둔 Mac이 잠자는 동안 슬랙 성능 채널에 결제 작업 정지 알림이 반복해서 왔다
+- 서비스·작성: infra / junhyun / 2026-11-10
+- 문제: 11/10 00:38~12:43 슬랙 `#이선좌-성능-모니터링`에 `PaymentJobStalled`(reconciliation, `*-cleanup`, gauge-refresh)가 울렸다 꺼지기를 반복했다. 배포 서버에서 온 것인지 로컬에서 온 것인지 몰랐다.
+- 원인
+  - 보낸 곳은 로컬이었다. 로컬 Alertmanager의 `alertmanager_notifications_total{integration="slack"}`은 12(11/9 13:29 시작 뒤, 실패 0), 배포 서버는 0이었다. 로컬 `.env`에 `SLACK_WEBHOOK_MONITORING`이 들어 있어 로컬 알림도 같은 채널로 갔다.
+  - Mac은 07:20~13:00에 잠자기였고, Power Nap(`pmset -g`의 `powernap 1`)으로 15~17분마다 몇 초에서 1분쯤 깨어났다(`pmset -g log`의 DarkWake). 알림이 켜진 시각은 모두 DarkWake 뒤 1~2분 안이었다(01:26→01:28, 08:42→08:43, 12:40→12:43 등).
+  - 잠자는 동안 Docker VM이 멈춰 결제 배경 작업이 돌지 않는다. 깨어나면 벽시계(`time()`)만 잠잔 시간만큼 앞서 있어 `time() - payment_job_last_success_timestamp`가 기준(reconciliation 15분, 정리 작업 1시간)을 한꺼번에 넘는다. 규칙이 `for: 0s`라 첫 평가에서 바로 켜진다.
+  - 밤의 DarkWake는 약 45초로 Alertmanager `group_wait`(30초)보다 길어 실제로 보내졌다. 13:00에 완전히 깨어난 뒤에는 모든 작업의 마지막 성공이 5~85초 전이었고 알림이 켜지지 않았다.
+  - 배포 서버도 같은 기간에 `PaymentJobStalled`(gauge-refresh)·`PaymentOutboxRelayStalled`가 15~30초씩 켜졌지만 `group_wait` 안에 꺼져 보내지 않았다.
+- 해결: 로컬 `.env`의 `SLACK_WEBHOOK_MONITORING`을 비우고(원래 값은 같은 파일에 주석으로 남김) `docker compose -f compose.yml -f compose.local.yml up -d --force-recreate --no-deps alertmanager`로 다시 만들었다. 컨테이너 안 웹훅 파일이 자리표시 주소(`slack-webhook-not-set`)로 바뀌고 `/-/ready`가 200인 것을 확인했다. 규칙(`for: 0s`)은 바꾸지 않았다.
+- AI 활용: 원인 조사와 대책 세 가지(로컬 웹훅 끄기, 안 쓸 때 로컬 스택 끄기, 규칙에 `for: 1m`)는 Claude Code가 냈고, 사용자가 로컬 웹훅 끄기를 골랐다(`docs/ai-judgments/junhyun/daily/2026-11-10.md`).
+- 배운 점: 슬랙 알림의 "환경" 칸(Prometheus 외부 라벨 `env`, 로컬은 "로컬")을 먼저 본다. 벽시계와 마지막 성공 시각을 비교하는 규칙은 노트북 잠자기나 VM 정지 뒤 바로 켜진다. 로컬 `.env`에 팀 채널 웹훅을 넣어 두면 로컬 알림도 팀 채널로 간다.
