@@ -261,7 +261,7 @@
 
 ## 3. 결과
 
-시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09)와 Gateway 느린 호출 기준을 비교한 2차(2026-11-10)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
+시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09), Gateway 느린 호출 기준을 비교한 2차(2026-11-10), `auth-redis` 재측정 G1 3차(2026-11-10)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
 
 ### 배포 서버 1차: Q1·Q2·Q3 (2026-11-09 UTC (한국 시간 11/9~11/10), ISE-202·ISE-229, 측정 youngeun)
 
@@ -389,6 +389,53 @@ Redis `CLIENT LIST`에서 Gateway IP 연결만 골랐다.
 | X1 | 만료 스케줄러가 묵은 선점을 5초 주기·100건 묶음으로 처리하는 속도는 초당 약 15.6건이었다(35주기 3,500건 224초). 한 주기가 5초 간격에 처리 약 1.4초를 더해 약 6.4초다 | 계획 문서 Z10의 계산값(초당 20건)보다 낮다. X-0 기준선의 예상값을 이 값으로 둔다 |
 | Q1-d | 노트북 한 대에서 300명을 0.1초·1초 안에 진입시키자 Gateway 인증 Redis 차단기(`auth-redis`)가 열려 503이 68~93%였다(Redis 자체 지연은 평균 0.15ms). 100명·1초는 오류 0. 또 Docker Desktop에서 40초를 한 번에 자면 k6 VU가 약 100ms 늦게 깨어나 출발 대기를 나눠 다시 계산하게 고쳤다 | 로컬에서는 동작 확인만 하고 Q1-a ↔ Q1-d 비교는 배포 서버에서 한다 |
 | PAY1 | mock-pg를 다시 띄운 직후 결제 서비스의 PG 연결이 끊겨(`closed`, `UnresolvedAddressException`) 차단기가 열리고 `PG_UNAVAILABLE`이 났다. 안정된 뒤 다시 재면 초당 5~10건에서 `PG_UNAVAILABLE` 4건(발생기 멈춤 구간과 겹침) | 측정 절차: mock-pg 재기동 뒤 30초 넘게 기다린다 | 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
+
+### 배포 서버 3차: G1 `auth-redis` 재측정 1·2회 (2026-11-10 UTC (한국 시간 11/11), ISE-233·ISE-94, 측정 kangmin)
+
+1·2차에서 Redis는 정상인데 `auth-redis` 차단기가 열렸다. 차단기가 Gateway 혼잡을 Redis 장애로 오해하지 않게 바꾼 값(시한·창·벌크헤드·거절 제외)이 실제 배포 경로에서 동작하는지 본다. 뒤쪽 비용을 줄여 Gateway 인증 경로만 보려고 L1이 아니라 G1으로 쟀다. 판단 흐름은 [gateway-auth-redis-resilience.md](gateway-auth-redis-resilience.md)에 있다.
+
+| 항목 | 값 |
+|---|---|
+| 커밋 해시 | 배포 `74f91ffb`(ISE-233 시한 설정값 포함). 측정 모드 덮어쓰기 `compose.measure.yml` + `compose.gateway-bulkhead.yml`. 발생기 `4a0b6e7`(G1에 `SCHEDULE_ID` 경로를 더한 브랜치) |
+| 시나리오 | G1 `GET /api/v1/schedules/92/queue/me`, 대기자 10,000명(`USERS`), 회차 92(`seed-demo.sh open`, 관리자 계정은 발생기에 두지 않음) |
+| 공통 `auth-redis` 값 | 시간 창 10초, 최소 500건, 실패율 50%, 느린 호출 100ms·80%, 열림 5초, 반열림 20건, 필터 시한(`auth.redis-timeout`) 200ms, Lettuce 시한 300ms |
+| 1회 | 벌크헤드 100, `ignoreExceptions` 없음 |
+| 2회 | 벌크헤드 50, `ignoreExceptions: [BulkheadFullException]` |
+| 웜업 | 회마다 측정 모드 적용(Gateway 재기동) 뒤 1차 표준: 초당 100건 2분 → 1,000건 30초 → 3,000건 10초. 판정에서 뺀다. 두 회 모두 웜업 중 차단기는 닫혀 있었다 |
+| 본 측정 | 1,000·1,500·2,000·2,500·3,000/s, 단계마다 상승 5초 + 30초. 1회 16:19:41Z, 2회 16:35:05Z 시작 |
+
+**단계별 결과**(상승 5초를 뺀 30초 구간, k6 원자료로 계산. 실패는 모두 503 `SERVICE_UNAVAILABLE`)
+
+| 목표 | 1회 달성 | 1회 성공 | 1회 p95 / p99 | 2회 달성 | 2회 성공 | 2회 p95 / p99 |
+|---|---|---|---|---|---|---|
+| 1,000/s | 1,000 | 100% | 6.8ms / 16ms | 998 | 100% | 5.4ms / 11ms |
+| 1,500/s | 1,500 | 100% | 20ms / 43ms | 1,499 | 100%(503 2건) | 26ms / 57ms |
+| 2,000/s | 1,989 | 99.53% | 208ms / 291ms | 1,999 | 98.90% | 157ms / 245ms |
+| 2,500/s | 2,427 | 98.16% | 497ms / 1.15s | 2,474 | 95.58% | 428ms / 695ms |
+| 3,000/s | 2,485 | 92.67% | 1.01s / 1.35s | 2,812 | 87.96% | 806ms / 7.2s |
+
+**서버 지표**(본 측정 3분 증가량·최댓값, Prometheus와 `docker stats` 3초 표본)
+
+| 지표 | 1회 | 2회 |
+|---|---|---|
+| `gateway_auth_redis_failures_total{cause}` | `bulkhead_full` 8,027, 나머지(`lookup_timeout`, `time_limiter`, `redis_error`, `breaker_open`, `other`) 0 | `bulkhead_full` 16,024, 나머지 0 |
+| 차단기 호출(`kind`) | successful 325,970, failed 8,027, ignored 0 | successful 329,939, **failed 0, ignored 16,024** |
+| 차단기 상태 | closed 유지 | closed 유지(구간 안 open·half_open 0) |
+| 벌크헤드 최대 / 남은 자리 최소 | 100 / 0 | 50 / 0 |
+| Gateway CPU 최대 | 216% | 213% |
+| 서버 전체 CPU | 기록 실패 | 2,500/s부터 99% |
+| Redis CPU | 9~17% | 10~16% |
+| Gateway GC 멈춤 최대 | 44ms | 48ms |
+| Gateway 메모리(끝) | 698MiB / 768MiB(힙 최대 413MiB, `-Xmx512m`) | 637MiB / 768MiB. 재시작·OOM 없음 |
+
+- 두 회 모두 3,000/s까지 차단기가 열리지 않았다. 1차의 데운 Q1(운영 설정)은 2,000/s에서 열려 인증 요청 전체가 503이었다. 시나리오가 다르므로(진입 / 순번 조회) 숫자를 그대로 비교하지 않는다.
+- 503은 모두 벌크헤드 거절이고 빠르게 끝났다(실패 로그 `elapsedMs` 0~1). Redis 시한 초과·연결 오류는 0건이다.
+- 2회에서 거절이 모두 `ignored`로 세어졌다. `ignoreExceptions`가 이 경로에서 동작함을 배포 서버에서 처음 확인했다. 차단기의 실패는 이제 Redis 응답 없음·연결 오류만 뜻한다.
+- 벌크헤드 50은 거절이 늘고(8,027 → 16,024) p95가 줄었다(2,000/s 208 → 157ms, 3,000/s 1.01s → 806ms). 3,000/s의 p99 7.2s는 원인을 확인하지 못했다(벌크헤드 밖 대기 후보).
+- 성공 처리량은 두 회 모두 약 2,300~2,470/s에서 멈췄고 서버 CPU가 99%였다. 한도는 차단기가 아니라 장비 CPU다.
+- 각 1회 측정이다. 1·2회 차이에 측정 변동이 섞였을 수 있다.
+- Gateway 메모리가 상한 768MiB에 가깝다(힙 밖 사용이 크다). 11/10 03:50Z 서버 `dmesg`의 컨테이너 OOM(java, 실제 메모리 약 754MB)이 Gateway였는지는 확인 못 함이다.
+- 원자료: 발생기 `~/kangmin/iseonjwa/loadtest/k6/results/g1-gateway-auth-20261110-161934-*`(1회), `-163505-*`(2회).
 
 ## 4. 검토 요청
 
