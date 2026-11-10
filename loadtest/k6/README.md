@@ -230,7 +230,7 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | Q1 대기열 진입 | `measure-mode.sh on` | Q1용 새 회차 | `SCHEDULE_ID=<id> ... q1-queue-enter.js` |
 | Q2 순번 폴링 | `measure-mode.sh on loadtest/k6/compose.queue-hold.yml` (입장 스케줄러 끔) | Q2용 새 회차 | `SCHEDULE_ID=<id> ... q2-queue-poll.js` |
 | Q3 입장 속도 | `measure-mode.sh on` (덮어쓰기 파일 없이 다시. 스케줄러 켬) | Q3용 새 회차 | `SCHEDULE_ID=<id> ... q3-admission.js`. 입장 기록은 아래 도구 |
-| Q1 bulkhead 비교(ISE-229) | `AUTH_BULKHEAD=<값> MEASURER=<이름> measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml` (끄려면 `AUTH_BULKHEAD_ENABLED=false`). 켠 뒤 Grafana `resilience4j_bulkhead_max_allowed_concurrent_calls{name="auth-redis"}`로 적용을 먼저 확인한다 | Q1용 새 회차 | 워밍업 뒤 `SCHEDULE_ID=<id> ... q1-queue-enter.js`. 값을 바꿀 때마다 gateway가 다시 떠 식으므로 다시 워밍업한다 |
+| Q1 Gateway auth-redis 비교(ISE-229) | `AUTH_BULKHEAD=<값> MEASURER=<이름> measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml` (bulkhead 끄기 `AUTH_BULKHEAD_ENABLED=false`, 느린 호출 기준 `AUTH_SLOW_CALL=100ms`처럼 준다. 한 번에 하나만 바꾼다). bulkhead는 켠 뒤 Grafana `resilience4j_bulkhead_max_allowed_concurrent_calls{name="auth-redis"}`로 적용을 먼저 확인하고, 느린 호출 기준은 재기동 직후 50ms를 넘는 호출이 있어도 차단기가 열리지 않는지로 확인한다 | Q1용 새 회차 | 워밍업 뒤 `SCHEDULE_ID=<id> ... q1-queue-enter.js`. 값을 바꿀 때마다 gateway가 다시 떠 식으므로 다시 워밍업한다 |
 | S1 좌석 조회(현재 배포) | `measure-mode.sh on` | 15,000석 회차(`seed-demo.sh open`) | 아래 S1 명령. 초당 50·150·200·300을 차례로 |
 | S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
 | B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
