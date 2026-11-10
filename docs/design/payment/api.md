@@ -84,6 +84,8 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 | `amount` | 토큰의 금액 |
 | `orderName` | 예매 번호 기반 문구(`콘서트 예매 {reservationId}`) |
 
+프런트는 `TOSS`면 SDK 결제창(`payment().requestPayment()`)을 `successUrl`·`failUrl`과 함께 열고, 돌아오는 주소는 `/reservations/{id}/payment/toss/{success|fail}`이다. 성공 주소의 `paymentKey`를 승인 요청의 `clientPaymentRef`로 보낸다(1절).
+
 ## 2. 결제 조회 `GET /api/v1/payments/{paymentId}`
 
 인증이 필요하다. 응답 `data`: `{paymentId, reservationId, status, amount, approvedAt, refundedAt}`. `status`에 `NEEDS_MANUAL_CHECK`가 올 수 있다. 결제 토큰이 필요 없어 토큰이 만료된 뒤에도 결과를 확인할 수 있다. 예매 확정 여부는 이 응답에 없다(위 "승인은 예매 확정이 아니다").
