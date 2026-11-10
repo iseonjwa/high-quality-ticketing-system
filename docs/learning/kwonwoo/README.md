@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | 좌석 조회 P4a에서 dev 코드와 측정 브랜치 코드는 무엇이 다른가 | [qna/2026-11-10-p4a-jpql-vs-native-projection.md](qna/2026-11-10-p4a-jpql-vs-native-projection.md) |
+| 2026-11-10 | k6 스트레스 측정에서 올린 것은 동시 사용자 수인가, 도착률인가 | [qna/2026-11-10-arrival-rate-vs-concurrent-users.md](qna/2026-11-10-arrival-rate-vs-concurrent-users.md) |
 | 2026-11-09 | git bundle로 브랜치를 옮기는 방법과 push와의 차이 | [qna/2026-11-09-git-bundle-vs-push.md](qna/2026-11-09-git-bundle-vs-push.md) |
 | 2026-11-09 | 성능 측정 도중 측정 기기를 바꾸면 결과가 부정확해지는가 | [qna/2026-11-09-k6-measurement-machine-change.md](qna/2026-11-09-k6-measurement-machine-change.md) |
 | 2026-11-07 | 선점만 재는 K1-H 측정에서 Gateway 서킷 브레이커가 왜 문제가 되는가 | [qna/2026-11-07-k1h-gateway-circuit-breaker.md](qna/2026-11-07-k1h-gateway-circuit-breaker.md) |
