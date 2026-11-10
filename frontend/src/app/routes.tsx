@@ -97,6 +97,11 @@ export const routes: RouteObject[] = [
                 handle: bookingStepHandle(2),
               },
               {
+                path: paths.paymentTossReturn,
+                ...lazyPage(booking, 'TossReturnPage'),
+                handle: bookingStepHandle(2),
+              },
+              {
                 path: paths.reservationComplete,
                 lazy: async () => {
                   const { ReservationPage } = await booking()

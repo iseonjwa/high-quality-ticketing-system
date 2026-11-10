@@ -1,9 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats } from '@/api/reservations'
-import { readPaymentAttempt, savePaymentAttempt } from '@/auth/paymentAttempts'
+import { readPaymentAttempt, readTossCheckout, savePaymentAttempt } from '@/auth/paymentAttempts'
+import { ok } from '@/mocks/respond'
+import { openTossPaymentWindow } from '@/pages/payment/tossPaymentWindow'
 import { fail } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
@@ -18,8 +20,17 @@ import {
 } from '@/test/api'
 
 const PAYMENTS_PATH = '/api/v1/payments'
+const CHECKOUT_PATH = '/api/v1/payments/checkout'
+
+// 결제창만 바꿔 끼운다. 오류 코드 판별은 실제 구현을 쓴다
+vi.mock('@/pages/payment/tossPaymentWindow', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/pages/payment/tossPaymentWindow')>()),
+  openTossPaymentWindow: vi.fn(),
+}))
+const openWindow = vi.mocked(openTossPaymentWindow)
 
 beforeEach(async () => {
+  openWindow.mockReset()
   await signInAsDemo()
 })
 
@@ -108,7 +119,8 @@ describe('usePaymentFlow', () => {
     const detailRequests: string[] = []
     mockServer.events.on('request:start', ({ request }) => {
       const { pathname } = new URL(request.url)
-      if (pathname.startsWith(`${PAYMENTS_PATH}/`)) {
+      // 결제 준비(checkout)는 흐름 시작 때 한 번 나가므로 결제 조회만 센다
+      if (pathname.startsWith(`${PAYMENTS_PATH}/`) && pathname !== `${PAYMENTS_PATH}/checkout`) {
         detailRequests.push(pathname)
       }
     })
@@ -232,5 +244,155 @@ describe('usePaymentFlow', () => {
     await waitFor(() => expect(result.current.state.step).toBe('failed'))
 
     expect(readPaymentAttempt(held.reservationId)?.token).toBe(held.paymentToken)
+  })
+
+  describe('결제 준비(checkout)', () => {
+    function tossCheckout(held: { amount: number }, overrides: Record<string, unknown> = {}) {
+      mockServer.use(
+        http.post(CHECKOUT_PATH, () =>
+          ok({
+            provider: 'TOSS',
+            orderId: 'order-1-abcdef',
+            clientKey: 'test_ck_fake',
+            amount: held.amount,
+            orderName: '콘서트 예매 1',
+            ...overrides,
+          }),
+        ),
+      )
+    }
+
+    it('MOCK이면 checkout 뒤 바로 승인을 보내고 시도를 저장한다', async () => {
+      const held = await hold()
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const payments = recordRequests(PAYMENTS_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+      expect(result.current.state.step).toBe('preparing')
+
+      await waitFor(() => expect(result.current.state.step).toBe('confirmed'), { timeout: 5000 })
+      expect(checkouts).toHaveLength(1)
+      expect(await checkouts[0].json()).toEqual({ paymentToken: held.paymentToken })
+      expect(payments).toHaveLength(1)
+      expect(openWindow).not.toHaveBeenCalled()
+    })
+
+    it('TOSS면 결제창을 정확한 값으로 열고 결제창 기록만 저장하며 승인 시도는 저장하지 않는다', async () => {
+      const held = await hold()
+      tossCheckout(held)
+      openWindow.mockReturnValue(new Promise(() => {}))
+      const payments = recordRequests(PAYMENTS_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(result.current.state.step).toBe('redirecting'))
+      expect(openWindow).toHaveBeenCalledWith({
+        clientKey: 'test_ck_fake',
+        orderId: 'order-1-abcdef',
+        amount: held.amount,
+        orderName: '콘서트 예매 1',
+        successUrl: `${window.location.origin}/reservations/${held.reservationId}/payment/toss/success`,
+        failUrl: `${window.location.origin}/reservations/${held.reservationId}/payment/toss/fail`,
+      })
+      expect(readTossCheckout(held.reservationId)).toEqual({
+        token: held.paymentToken,
+        orderId: 'order-1-abcdef',
+        amount: held.amount,
+      })
+      expect(readPaymentAttempt(held.reservationId)).toBeNull()
+      expect(payments).toHaveLength(0)
+    })
+
+    it('결제창이 USER_CANCEL로 거절되면 tossCanceled가 되고 결제창 기록을 지운다', async () => {
+      const held = await hold()
+      tossCheckout(held)
+      openWindow.mockRejectedValue({ code: 'USER_CANCEL', message: '취소' })
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(result.current.state).toEqual({ step: 'tossCanceled' }))
+      expect(readTossCheckout(held.reservationId)).toBeNull()
+    })
+
+    it('결제창이 다른 코드로 거절되면 tossFailed가 되고, 다시 누르면 checkout부터 다시 한다', async () => {
+      const held = await hold()
+      tossCheckout(held)
+      openWindow.mockRejectedValue({ code: 'INVALID_CARD_COMPANY' })
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+      await waitFor(() =>
+        expect(result.current.state).toEqual({ step: 'tossFailed', code: 'INVALID_CARD_COMPANY' }),
+      )
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(checkouts).toHaveLength(2))
+      expect(readTossCheckout(held.reservationId)).toBeNull()
+    })
+
+    it('저장한 시도가 있으면 checkout 없이 그 토큰·키·paymentKey로 승인을 보낸다', async () => {
+      const held = await hold()
+      savePaymentAttempt(held.reservationId, {
+        token: held.paymentToken,
+        key: 'stored-key',
+        clientPaymentRef: 'tgen_stored',
+      })
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const payments = recordRequests(PAYMENTS_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      await waitFor(() => expect(payments).toHaveLength(1))
+
+      expect(checkouts).toHaveLength(0)
+      expect(payments[0].headers.get('Idempotency-Key')).toBe('stored-key')
+      expect(await payments[0].json()).toEqual({
+        paymentToken: held.paymentToken,
+        amount: held.amount,
+        method: 'CARD',
+        clientPaymentRef: 'tgen_stored',
+      })
+      await waitFor(() => expect(result.current.state.step).not.toBe('ready'))
+    })
+
+    it('checkout이 403 PAYMENT_TOKEN_INVALID면 tokenExpired다', async () => {
+      const held = await hold()
+      mockServer.use(
+        http.post(CHECKOUT_PATH, () => fail(403, 'PAYMENT_TOKEN_INVALID', '토큰이 올바르지 않다')),
+      )
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(result.current.state).toEqual({ step: 'tokenExpired' }))
+    })
+
+    it('checkout의 그 밖의 오류는 failed이고 다시 누르면 checkout부터 다시 한다', async () => {
+      const held = await hold()
+      mockServer.use(http.post(CHECKOUT_PATH, () => fail(500, 'INTERNAL_SERVER_ERROR', '실패')))
+      const checkouts = recordRequests(CHECKOUT_PATH)
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+      await waitFor(() => expect(result.current.state.step).toBe('failed'))
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(checkouts).toHaveLength(2))
+    })
+
+    it('응답 금액이 화면 금액과 다르면 결제창을 열지 않고 멈춘다', async () => {
+      const held = await hold()
+      tossCheckout(held, { amount: held.amount + 1 })
+      const { result } = renderHook(() => usePaymentFlow(held))
+
+      act(() => result.current.submit())
+
+      await waitFor(() => expect(result.current.state.step).toBe('failed'))
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(readTossCheckout(held.reservationId)).toBeNull()
+    })
   })
 })
