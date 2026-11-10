@@ -142,6 +142,18 @@ class RefundWorkerServiceTest {
         verifyNoInteractions(pg);
     }
 
+    @Test
+    void 토스_키_없는_서버에서_TOSS_결제의_환불은_CLIENT_ERROR로_완료되지_않고_복구_허가를_실패로_세지_않는다() {
+        pgClients.missing(PgProvider.TOSS);
+        var refund = fixtures.create(RefundWorkerFixtures.spec().pgProvider("TOSS"));
+
+        assertTrue(worker.processNext());
+
+        assertFalse("REFUNDED".equals(fixtures.refundRow(refund).get("status")));
+        verifyNoInteractions(pg);
+        assertEquals(0, recoveryGate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
+    }
+
     // ── 결과 반영 (6절 환불 워커 표) ──────────────────────────────────────────────
 
     @Test

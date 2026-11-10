@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PgConfigurationTest {
@@ -65,11 +64,13 @@ class PgConfigurationTest {
     }
 
     @Test
-    void 토스_키가_없으면_토스_어댑터를_만들지_않고_TOSS를_달라고_하면_예외다() {
+    void 토스_키가_없으면_토스_어댑터를_만들지_않고_TOSS를_달라고_하면_CLIENT_ERROR로_답한다() {
         runner.withPropertyValues("payment.pg.provider=mock", MOCK_URL)
                 .run(context -> {
                     var clients = context.getBean(PgClients.class);
-                    assertThrows(IllegalStateException.class, () -> clients.of(PgProvider.TOSS));
+                    assertEquals(new com.iseonjwa.payment.pg.application.PgClient.Unknown(
+                            com.iseonjwa.payment.pg.application.UnknownCause.CLIENT_ERROR),
+                            clients.of(PgProvider.TOSS).findPayment(new com.iseonjwa.payment.pg.application.PgOrderId(java.util.UUID.randomUUID())));
                     assertNotNull(clients.billing());
                 });
     }

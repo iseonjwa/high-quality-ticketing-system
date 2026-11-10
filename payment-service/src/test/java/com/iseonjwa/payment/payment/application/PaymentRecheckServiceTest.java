@@ -128,7 +128,7 @@ class PaymentRecheckServiceTest {
     }
 
     @Test
-    void 토스_키_없는_서버에서_TOSS_결제를_만나도_예외로_멈추지_않고_결과_모름으로_다룬다() {
+    void 토스_키_없는_서버에서_TOSS_결제를_만나면_CLIENT_ERROR로_결과_모름이고_복구_허가를_실패로_세지_않는다() {
         pgClients.missing(PgProvider.TOSS);
         var payment = fixtures.due(PaymentStatus.REQUESTED, 0, PgProvider.TOSS);
 
@@ -136,6 +136,8 @@ class PaymentRecheckServiceTest {
 
         assertEquals(PaymentStatus.UNKNOWN, fixtures.reload(payment).getStatus());
         verifyNoInteractions(pg);
+        // CLIENT_ERROR는 허가를 반환하고 세지 않는다. 세면 공유 CB가 열려 Mock 결제의 재확인까지 멈춘다
+        assertEquals(0, recoveryGate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
     }
 
     @Test

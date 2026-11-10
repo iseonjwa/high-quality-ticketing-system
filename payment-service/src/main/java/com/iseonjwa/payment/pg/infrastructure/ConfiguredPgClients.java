@@ -9,10 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 설정으로 만든 PG 어댑터를 PG 종류별로 들고 있다. 설정에 없는 PG를 달라고 하면 예외로 알린다.
+ * 설정으로 만든 PG 어댑터를 PG 종류별로 들고 있다. 설정에 없는 PG를 달라고 하면 PG를 부르지 않고
+ * {@code Unknown(CLIENT_ERROR)}로 답하는 클라이언트를 돌려준다.
  *
- * <p>Note: 이 예외를 조용히 Mock으로 바꾸지 않는다. TOSS로 기록된 결제를 Mock에 물으면 존재하지 않는 주문으로
- * 보여 거절로 오인할 수 있다. 호출한 쪽이 PG 예외와 같이 결과 모름으로 다루게 둔다.
+ * <p>Note: 조용히 Mock으로 바꾸지 않는다. TOSS로 기록된 결제를 Mock에 물으면 존재하지 않는 주문으로
+ * 보여 거절로 오인할 수 있다. 우리 쪽 설정 문제라 {@code CLIENT_ERROR}로 답해 복구 서킷 브레이커에 세지 않는다.
+ * 예외나 {@code PG_ERROR}로 답하면 토스 건 몇 개만으로 CB가 열려 Mock 결제의 재확인·환불까지 멈춘다.
  */
 public class ConfiguredPgClients implements PgClients {
     private final Map<PgProvider, PgClient> clients = new EnumMap<>(PgProvider.class);
@@ -25,9 +27,6 @@ public class ConfiguredPgClients implements PgClients {
     @Override
     public PgClient of(PgProvider provider) {
         var client = clients.get(provider);
-        if (client == null) {
-            throw new IllegalStateException(provider + " PG가 설정되어 있지 않습니다(토스 시크릿 키 없음)");
-        }
-        return client;
+        return client != null ? client : new UnconfiguredPgClient(provider);
     }
 }

@@ -3,6 +3,7 @@ package com.iseonjwa.payment.support;
 import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgClients;
+import com.iseonjwa.payment.pg.infrastructure.ConfiguredPgClients;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -26,7 +27,7 @@ public final class StubPgClients implements PgClients {
         routes.put(provider, client);
     }
 
-    /** 설정에 없는 PG처럼 이 PG를 달라고 하면 예외를 던진다(토스 키 없는 서버) */
+    /** 설정에 없는 PG처럼 이 PG를 달라고 하면 실제 {@link ConfiguredPgClients}처럼 Unknown(CLIENT_ERROR)로 답한다(토스 키 없는 서버) */
     public void missing(PgProvider provider) {
         missing.add(provider);
     }
@@ -38,7 +39,7 @@ public final class StubPgClients implements PgClients {
 
     @Override
     public PgClient of(PgProvider provider) {
-        if (missing.contains(provider)) throw new IllegalStateException(provider + " PG가 설정되어 있지 않습니다");
+        if (missing.contains(provider)) return new ConfiguredPgClients(defaultClient, null).of(provider);
         return routes.getOrDefault(provider, defaultClient);
     }
 }
