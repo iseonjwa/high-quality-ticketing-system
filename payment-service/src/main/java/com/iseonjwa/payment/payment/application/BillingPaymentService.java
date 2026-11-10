@@ -9,6 +9,7 @@ import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgUnavailableException;
@@ -35,16 +36,16 @@ public class BillingPaymentService {
     private final BillingKeyRepository billingKeys;
     private final BillingKeyEncryptor encryptor;
     private final PaymentTx tx;
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final PgApprovalGate approvalGate;
 
     public BillingPaymentService(PaymentRepository payments, BillingKeyRepository billingKeys,
-            BillingKeyEncryptor encryptor, PaymentTx tx, PgClient pg, PgApprovalGate approvalGate) {
+            BillingKeyEncryptor encryptor, PaymentTx tx, PgClients pgClients, PgApprovalGate approvalGate) {
         this.payments = payments;
         this.billingKeys = billingKeys;
         this.encryptor = encryptor;
         this.tx = tx;
-        this.pg = pg;
+        this.pgClients = pgClients;
         this.approvalGate = approvalGate;
     }
 
@@ -107,7 +108,8 @@ public class BillingPaymentService {
         var command = new ApproveCommand(orderId, payment.getAmount(), payment.getCurrency(),
                 PgIdempotencyKey.ofApproval(orderId), null);
         try {
-            return pg.approveBilling(command, plain);
+            // 빌링은 서버 PG 모드와 상관없이 늘 Mock으로 보낸다(ADR 0023 2026-11-10)
+            return pgClients.billing().approveBilling(command, plain);
         } catch (RuntimeException exception) {
             log.error("PG 자동결제 호출 중 예외 paymentId={}", payment.getId(), exception);
             return new PgClient.Unknown(UnknownCause.PG_ERROR);

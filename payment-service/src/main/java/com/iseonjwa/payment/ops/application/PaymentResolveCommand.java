@@ -82,7 +82,7 @@ public class PaymentResolveCommand implements OpsCommand {
     public OpsPlan plan(OpsArguments arguments) {
         var target = target(arguments);
         var payment = loadNeedsManualCheck(target.id());
-        var lookup = pg.findPayment(new PgOrderId(payment.pgOrderId()));
+        var lookup = pg.findPayment(payment.pgProvider(), new PgOrderId(payment.pgOrderId()));
         return planOf(target, payment, PgEvidence.of(lookup), decide(payment, lookup));
     }
 
@@ -90,7 +90,7 @@ public class PaymentResolveCommand implements OpsCommand {
     public OpsPlan apply(OpsPlan plan, OpsApplyContext context) {
         var target = plan.target();
         var payment = loadNeedsManualCheck(target.id());
-        var lookup = pg.findPayment(new PgOrderId(payment.pgOrderId()));
+        var lookup = pg.findPayment(payment.pgProvider(), new PgOrderId(payment.pgOrderId()));
         if (!PgEvidence.of(lookup).equals(plan.pgEvidence())) {
             throw new OpsRejection("PG 근거가 계획을 만든 뒤 바뀌었습니다. dry-run을 다시 실행한다");
         }
@@ -160,7 +160,7 @@ public class PaymentResolveCommand implements OpsCommand {
 
     // 늦은 승인 방지는 PG에 흔적을 남기므로 적용 때만 부른다. 결과에 따라 전이가 정해진다
     private OpsPlan preventLateApproval(OpsTarget target, PaymentView payment, OpsApplyContext context) {
-        var late = pg.preventLateApproval(new PgOrderId(payment.pgOrderId()));
+        var late = pg.preventLateApproval(payment.pgProvider(), new PgOrderId(payment.pgOrderId()));
         var decision = switch (late) {
             case PgClient.Prevented prevented -> new Decision.Decline(DeclineReason.NOT_SENT);
             case PgClient.AlreadyApproved approved -> afterApproval(payment, approved.paymentRef().value(),

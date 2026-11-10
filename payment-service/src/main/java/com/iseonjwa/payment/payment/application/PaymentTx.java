@@ -8,6 +8,7 @@ import com.iseonjwa.payment.payment.domain.IdempotencyRecord;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
 import com.iseonjwa.payment.payment.domain.StatusActor;
@@ -64,23 +65,19 @@ public class PaymentTx {
      * <p>Note: 설계 문서(api.md 7단계)는 멱등 기록을 먼저 쓰라고 하지만 {@code resource_id}가 NOT NULL이라
      * 결제 ID를 알아야 해서 결제를 먼저 쓴다. 두 쓰기는 한 트랜잭션이고, 어느 쪽 위반이든 전체가 롤백돼 결과는 같다.
      */
-    @Transactional
-    public Payment createRequested(ApprovePaymentCommand command, PaymentToken token, String requestHash) {
-        return createRequested(command, token, requestHash, null);
-    }
-
     /**
+     * @param pgProvider 이 결제를 처리할 PG. 이후 승인·재확인·환불·Ops 조회가 모두 이 값으로 PG를 고른다
      * @param pgTxId 승인 전에 구매자가 PG에서 받은 거래 식별자(토스 paymentKey). 있으면 결제에 먼저 저장해
      *         응답을 잃어도 같은 식별자로 재확인할 수 있게 한다. 다른 결제가 이미 쓰는 값이면 {@code uq_payments_pg_tx_id} 위반이다.
      */
     @Transactional
     public Payment createRequested(ApprovePaymentCommand command, PaymentToken token, String requestHash,
-            String pgTxId) {
+            PgProvider pgProvider, String pgTxId) {
         var now = clock.instant();
         // Note: 주문 식별자는 토큰에서 결정적으로 만든다. 결제창을 열기 전(checkout)에 같은 값을 알려 줘야 하기 때문이다
         var orderId = PgOrderIds.of(token.reservationId(), token.expiresAt()).value();
         var request = Payment.request(paymentNos.next(), token.reservationId(), command.userId(), token.amount(),
-                PaymentMethod.CARD, orderId, now);
+                PaymentMethod.CARD, orderId, pgProvider, now);
         var payment = payments.save(pgTxId == null ? request : request.withPgTxId(pgTxId));
         idempotency.save(IdempotencyRecord.origin(command.userId(), command.idempotencyKey(), requestHash,
                 payment.getId(), now));
@@ -119,12 +116,12 @@ public class PaymentTx {
 
     /**
      * 자동결제 TX1(추첨, ISE-96): {@code method = BILLING} 결제를 {@code REQUESTED}로 저장한다. 사용자 멱등 키가 없어 멱등 기록은
-     * 남기지 않고, 같은 예매의 중복 요청은 {@code UNIQUE(reservation_id)} 위반으로 막는다(0026). 호출한 쪽이 다시 읽는다.
+     * 남기지 않고, 빌링은 서버 PG 모드와 상관없이 늘 Mock이라 {@code PgProvider.MOCK}으로 만든다. 같은 예매의 중복 요청은 {@code UNIQUE(reservation_id)} 위반으로 막는다(0026). 호출한 쪽이 다시 읽는다.
      */
     @Transactional
     public Payment createBillingRequested(BillingPaymentCommand command) {
         return payments.save(Payment.request(paymentNos.next(), command.reservationId(), command.userId(),
-                command.amount(), PaymentMethod.BILLING, UUID.randomUUID(), clock.instant()));
+                command.amount(), PaymentMethod.BILLING, UUID.randomUUID(), PgProvider.MOCK, clock.instant()));
     }
 
     /** 자동결제 TX2. 승인 API와 같은 전이·이력·Outbox를 쓰고 멱등 응답만 저장하지 않는다. */

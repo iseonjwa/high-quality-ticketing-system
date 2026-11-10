@@ -30,6 +30,7 @@ payment DB(PostgreSQL, 포트 5435)의 테이블과 제약이다. 컬럼 규칙�
 | currency | CHAR(3) | NOT NULL, DEFAULT 'KRW', CHECK (currency = 'KRW') | **신규.** 원화만(SA 4-5). PG 결과·이벤트와 대조 |
 | method | VARCHAR(10) | NOT NULL, CHECK (CARD·BILLING) | 승인 API는 CARD만 받는다 |
 | status | VARCHAR(20) | NOT NULL, CHECK (REQUESTED·APPROVED·DECLINED·UNKNOWN·REFUNDED·NEEDS_MANUAL_CHECK) | |
+| pg_provider | VARCHAR(10) | NOT NULL, CHECK (MOCK·TOSS), 기본값 없음 | **신규(V10, ISE-231).** 이 결제를 처리한 PG. 승인·재확인·환불·Ops 조회가 모두 이 값으로 PG를 고른다. 승인 API는 `pgProvider` 요청 필드와 서버 기본 PG로 정하고, 빌링 결제는 늘 `MOCK`이다. 기존 행은 `MOCK`으로 채웠고 기본값은 곧바로 떼어 새 행이 값을 빠뜨리면 실패하게 했다([0023](../../decisions/0023-payment-pg-client-port.md) 2026-11-10 개정) |
 | pg_order_id | UUID | NOT NULL, UNIQUE | PG 주문 식별자. PG 호출 전에 저장 |
 | pg_tx_id | VARCHAR(200) | UNIQUE(NULL 허용) | PG 발급 거래 식별자(`PgPaymentRef`). 한 PG 거래가 두 결제에 연결되지 않게 한다 |
 | pg_approved_amount | NUMERIC(15,0) | | **신규.** PG가 응답한 승인 금액. 승인·금액 불일치 때 저장 |

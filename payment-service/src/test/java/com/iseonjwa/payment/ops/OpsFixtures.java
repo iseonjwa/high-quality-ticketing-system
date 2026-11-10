@@ -24,9 +24,9 @@ final class OpsFixtures {
     /** 승인된 결제(금액 50000)를 만들고 id를 돌려준다. */
     long approvedPayment(long reservationId) {
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_tx_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider, pg_tx_id,
                                      pg_approved_amount, approved_at, created_at, updated_at)
-                VALUES (?, ?, 7, 50000, 'CARD', 'APPROVED', ?, ?, 50000, now(), now(), now())
+                VALUES (?, ?, 7, 50000, 'CARD', 'APPROVED', ?, 'MOCK', ?, 50000, now(), now(), now())
                 """, "PAY-O" + reservationId, reservationId, UUID.randomUUID(), "pg-tx-" + reservationId);
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
     }
@@ -37,9 +37,9 @@ final class OpsFixtures {
      */
     long needsManualCheckPayment(long reservationId, String pgTxId, Integer pgApprovedAmount) {
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_tx_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider, pg_tx_id,
                                      pg_approved_amount, approved_at, created_at, updated_at)
-                VALUES (?, ?, 7, 50000, 'CARD', 'NEEDS_MANUAL_CHECK', ?, ?, ?, ?, now(), now())
+                VALUES (?, ?, 7, 50000, 'CARD', 'NEEDS_MANUAL_CHECK', ?, 'MOCK', ?, ?, ?, now(), now())
                 """, "PAY-O" + reservationId, reservationId, UUID.randomUUID(), pgTxId, pgApprovedAmount,
                 pgTxId == null ? null : java.sql.Timestamp.from(java.time.Instant.now()));
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
