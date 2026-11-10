@@ -6,6 +6,10 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | dev→main PR은 왜 충돌했고, 동기화 PR로 어떻게 풀었나(squash 머지와 공통 조상, main 머지로만 배포) | [qna/2026-11-10-squash-merge-dev-main-conflict.md](qna/2026-11-10-squash-merge-dev-main-conflict.md) |
+| 2026-11-10 | CPU·메모리가 빡빡한 배포 서버에서 컨테이너를 가볍게 만들어 해결할 수 있나 | [qna/2026-11-10-lighten-containers-on-shared-server.md](qna/2026-11-10-lighten-containers-on-shared-server.md) |
+| 2026-11-10 | Gateway 스레드·벌크헤드·연결 풀 수치가 4 vCPU 배포 서버 사양을 고려해 정한 값인지, CPU 100%·과수용·차단기 시간 측정 주체·시한과 벌크헤드 재측정 값까지(16개 절) | [qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md](qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md) |
+| 2026-11-10 | F1-a에서 결제 서버를 죽여도 NOT_SENT가 거의 안 생기는 이유와 테스트로 대신 보여 주는 근거 | [qna/2026-11-10-f1a-not-sent-kill-timing.md](qna/2026-11-10-f1a-not-sent-kill-timing.md) |
 | 2026-11-10 | Gateway 벌크헤드·차단기에 걸려 대기열 진입이 503이면 사용자가 다시 눌러야 하나, 자동으로 들어가나 | [qna/2026-11-10-queue-join-503-auto-retry.md](qna/2026-11-10-queue-join-503-auto-retry.md) |
 | 2026-11-10 | Resilience4j 서킷 브레이커와 벌크헤드 설정 키는 각각 무엇을 정하나 | [qna/2026-11-10-circuit-breaker-config-keys.md](qna/2026-11-10-circuit-breaker-config-keys.md) |
 | 2026-11-10 | Gateway auth-redis 차단기·벌크헤드 권장 설정은 무엇을 바꾸고, 바꾸면 어떤 문제가 생기나 | [qna/2026-11-10-auth-redis-breaker-bulkhead-tradeoffs.md](qna/2026-11-10-auth-redis-breaker-bulkhead-tradeoffs.md) |
@@ -105,3 +109,9 @@
 | 2026-10-27 | 이 프로젝트의 4계층(표현·응용·도메인·인프라)은 각각 무엇을 맡고 어떻게 의존하나 | [qna/2026-10-27-four-layer-architecture.md](qna/2026-10-27-four-layer-architecture.md) |
 | 2026-10-27 | 초기 개발 환경(M1 뼈대)은 어떻게 구성했고 각 선택의 이유는 무엇인가 | [qna/2026-10-27-initial-environment-setup.md](qna/2026-10-27-initial-environment-setup.md) |
 | 2026-10-26 | 좌석 선점 API의 v1·v2는 무엇이고, 응답을 가공 없이 바로 쓰게 하려면 어떻게 하나 | [qna/2026-10-26-seat-hold-v1-v2-response.md](qna/2026-10-26-seat-hold-v1-v2-response.md) |
+
+## 하루 정리
+
+| 날짜 | 정리 |
+|---|---|
+| 2026-11-10 | [daily/2026-11-10.md](daily/2026-11-10.md) |

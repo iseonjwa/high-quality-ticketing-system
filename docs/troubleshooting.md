@@ -448,6 +448,7 @@
   - 운영 반영: 하지 않았다. 측정 뒤 운영 설정으로 되돌렸고(04:13 측정 모드 off), `config-repo`는 바뀌지 않았다. 운영 반영은 `contract` 이슈로 올릴 예정이며 아직 등록하지 않았다.
   - 근거 수치는 [numbers-and-measurement.md](design/lottery/numbers-and-measurement.md) 3-4절 C1·C2·C3~E다.
 - 배운 점: 건수 기반 작은 창은 처리량이 높을수록 아주 짧은 시간의 지연에 반응한다. 차단기 창은 예상 처리량과 함께 정하고, 측정은 웜업 뒤 단계로 올려 콜드 시작 효과와 한계를 따로 본다. 503의 출처를 차단기 지표로 먼저 가르는 방법은 TS-42에 있다.
+- 이어진 고민: 원인 기록(#463), 이중 기록 발견, 시한·벌크헤드 재측정 값까지의 흐름은 [gateway-auth-redis-resilience.md](design/infra/gateway-auth-redis-resilience.md)에 모았다.
 
 ### TS-52 k6 setup 로그가 `results/*-stdout.txt`에 남지 않았다
 - 서비스·작성: loadtest / kangmin / 2026-11-10
