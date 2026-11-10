@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.messaging.outbox.OutboxWriter;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
@@ -55,7 +56,7 @@ class PaymentResultTransactionTest {
     @Test
     void 트랜잭션이_롤백되면_상태_변경과_Outbox_행이_함께_사라진다() {
         var payment = payments.save(Payment.request("PAY-TX-1", RESERVATION_ID, 1L, BigDecimal.valueOf(50000),
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
 
         new TransactionTemplate(transactionManager).execute(status -> {
             transitions.approve(payment.getId(), PaymentStatus.REQUESTED, "pg-tx-tx", BigDecimal.valueOf(50000),
@@ -72,7 +73,7 @@ class PaymentResultTransactionTest {
     @Test
     void 트랜잭션이_커밋되면_상태_변경과_Outbox_행이_함께_남는다() {
         var payment = payments.save(Payment.request("PAY-TX-2", RESERVATION_ID, 1L, BigDecimal.valueOf(50000),
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
 
         new TransactionTemplate(transactionManager).execute(status -> transitions.decline(payment.getId(),
                 PaymentStatus.REQUESTED, DeclineReason.OTHER, StatusActor.SYSTEM));
@@ -85,7 +86,7 @@ class PaymentResultTransactionTest {
     @Test
     void Outbox_쓰기가_실패하면_상태_전이도_롤백된다() {
         var payment = payments.save(Payment.request("PAY-TX-3", RESERVATION_ID, 1L, BigDecimal.valueOf(50000),
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
         // Outbox INSERT만 실패하도록 이 예매 키를 거부하는 제약을 임시로 건다
         jdbc.execute("ALTER TABLE outbox_events ADD CONSTRAINT chk_test_block CHECK (message_key <> '" + RESERVATION_ID + "')");
         try {

@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.refund.application;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -57,6 +59,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class RefundWorkerServiceTest {
     // 복구 그룹의 동시 호출 한도(payment.pg.protection.recovery.max-concurrent-calls 기본값)
     private static final int MAX_PERMITS = 2;

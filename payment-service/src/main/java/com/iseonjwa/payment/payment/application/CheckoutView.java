@@ -1,7 +1,7 @@
 package com.iseonjwa.payment.payment.application;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.iseonjwa.payment.pg.application.PgCheckoutProfile;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 
 import java.math.BigDecimal;
 
@@ -10,5 +10,5 @@ import java.math.BigDecimal;
  * 클라이언트 키는 결제창을 여는 공개 값이다(시크릿 키는 이 응답에 절대 들어가지 않는다).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record CheckoutView(PgCheckoutProfile.Provider provider, String orderId, String clientKey, BigDecimal amount,
+public record CheckoutView(PgProvider provider, String orderId, String clientKey, BigDecimal amount,
         String orderName) {}

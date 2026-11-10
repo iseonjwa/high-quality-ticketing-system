@@ -113,7 +113,7 @@ public class RefundRetryCommand implements OpsCommand {
     }
 
     private PgClient.RefundLookupResult lookup(Found found) {
-        return pg.findRefund(new PgRefundId(found.refund().pgRefundId()), new PgPaymentRef(found.payment().pgTxId()));
+        return pg.findRefund(found.payment().pgProvider(), new PgRefundId(found.refund().pgRefundId()), new PgPaymentRef(found.payment().pgTxId()));
     }
 
     private static void requireRetryable(PgClient.RefundLookupResult lookup) {

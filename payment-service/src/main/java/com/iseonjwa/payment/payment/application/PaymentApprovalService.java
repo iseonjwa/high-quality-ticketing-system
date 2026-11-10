@@ -11,10 +11,12 @@ import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgCheckoutProfile;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
@@ -63,7 +65,7 @@ public class PaymentApprovalService {
     private final PaymentRepository payments;
     private final IdempotencyRecordRepository idempotency;
     private final PaymentTx tx;
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final PgApprovalGate approvalGate;
     private final PgCheckoutProfile pgProfile;
     private final PaymentMetrics metrics;
@@ -71,13 +73,13 @@ public class PaymentApprovalService {
     private final Clock clock;
 
     public PaymentApprovalService(PaymentTokenVerifier tokens, PaymentRepository payments,
-            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClient pg, PgApprovalGate approvalGate,
+            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClients pgClients, PgApprovalGate approvalGate,
             PgCheckoutProfile pgProfile, PaymentMetrics metrics, ObjectMapper mapper, @Qualifier("commonAuditingClock") Clock clock) {
         this.tokens = tokens;
         this.payments = payments;
         this.idempotency = idempotency;
         this.tx = tx;
-        this.pg = pg;
+        this.pgClients = pgClients;
         this.approvalGate = approvalGate;
         this.pgProfile = pgProfile;
         this.metrics = metrics;
@@ -138,7 +140,7 @@ public class PaymentApprovalService {
             }
 
             // 토스는 결제창에서 받은 paymentKey 없이 승인할 수 없다. 허가·TX1 전에 거절해 행도 멱등 기록도 남기지 않는다
-            if (pgProfile.requiresClientPaymentRef() && command.clientPaymentRef() == null) {
+            if (pgProfile.provider() == PgProvider.TOSS && command.clientPaymentRef() == null) {
                 throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
             }
             var approved = tryNewApproval(command, token, requestHash, recording);
@@ -158,8 +160,9 @@ public class PaymentApprovalService {
             Payment payment;
             try {
                 // 토스 모드에서만 paymentKey를 pg_tx_id에 먼저 저장한다. Mock은 clientPaymentRef를 무시한다
-                var pgTxId = pgProfile.requiresClientPaymentRef() ? command.clientPaymentRef() : null;
-                payment = tx.createRequested(command, token, requestHash, pgTxId);
+                var provider = pgProfile.provider();
+                var pgTxId = provider == PgProvider.TOSS ? command.clientPaymentRef() : null;
+                payment = tx.createRequested(command, token, requestHash, provider, pgTxId);
             } catch (DataIntegrityViolationException exception) {
                 if (isConflictOn(exception, PG_TX_UNIQUE) && !isExpectedConflict(exception)) {
                     // 같은 paymentKey가 다른 결제에 이미 연결돼 있다. 일시 장애(503)가 아니라 요청 충돌이다
@@ -222,7 +225,7 @@ public class PaymentApprovalService {
         var command = new ApproveCommand(orderId, payment.getAmount(), payment.getCurrency(),
                 PgIdempotencyKey.ofApproval(orderId), clientPaymentRef);
         try {
-            return pg.approve(command);
+            return pgClients.of(payment.getPgProvider()).approve(command);
         } catch (RuntimeException exception) {
             log.error("PG 승인 호출 중 예외 paymentId={}", payment.getId(), exception);
             return new PgClient.Unknown(UnknownCause.PG_ERROR);

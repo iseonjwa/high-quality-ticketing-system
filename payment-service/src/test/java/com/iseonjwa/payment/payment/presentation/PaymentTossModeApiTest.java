@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgOrderIds;
@@ -49,6 +51,7 @@ import static org.mockito.Mockito.when;
                 "payment.pg.provider=toss", "payment.pg.toss.secret-key=test_sk_api_test_dummy",
                 "payment.pg.toss.client-key=test_ck_api_test_dummy"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class PaymentTossModeApiTest {
     private static final long USER = 61L;
     private static final long AMOUNT = 50000L;

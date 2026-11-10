@@ -15,6 +15,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -62,6 +63,11 @@ public class Payment extends BaseEntity {
     @Column(name = "pg_order_id", nullable = false, updatable = false)
     private UUID pgOrderId;
 
+    // 이 결제를 처리한 PG. 승인·재확인·환불·Ops 조회가 모두 이 값으로 PG를 고른다
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pg_provider", nullable = false, updatable = false, length = 10)
+    private PgProvider pgProvider;
+
     @Column(name = "pg_tx_id", updatable = false, length = 200)
     private String pgTxId;
 
@@ -88,7 +94,7 @@ public class Payment extends BaseEntity {
     protected Payment() {}
 
     private Payment(String paymentNo, Long reservationId, Long userId, BigDecimal amount, PaymentMethod method,
-            UUID pgOrderId, Instant now) {
+            UUID pgOrderId, PgProvider pgProvider, Instant now) {
         this.paymentNo = paymentNo;
         this.reservationId = reservationId;
         this.userId = userId;
@@ -97,16 +103,18 @@ public class Payment extends BaseEntity {
         this.method = method;
         this.status = PaymentStatus.REQUESTED;
         this.pgOrderId = pgOrderId;
+        this.pgProvider = pgProvider;
         this.nextCheckAt = now.plus(FIRST_RECHECK_DELAY);
     }
 
     // 승인 API의 TX1이 만드는 첫 상태다. 금액은 검증을 마친 토큰 금액이다.
     public static Payment request(String paymentNo, Long reservationId, Long userId, BigDecimal amount,
-            PaymentMethod method, UUID pgOrderId, Instant now) {
+            PaymentMethod method, UUID pgOrderId, PgProvider pgProvider, Instant now) {
         if (amount.signum() <= 0) {
             throw new IllegalArgumentException("결제 금액은 0보다 커야 합니다");
         }
-        return new Payment(paymentNo, reservationId, userId, amount, method, pgOrderId, now);
+        Objects.requireNonNull(pgProvider, "pgProvider");
+        return new Payment(paymentNo, reservationId, userId, amount, method, pgOrderId, pgProvider, now);
     }
 
     /**
@@ -130,6 +138,7 @@ public class Payment extends BaseEntity {
     public PaymentMethod getMethod() { return method; }
     public PaymentStatus getStatus() { return status; }
     public UUID getPgOrderId() { return pgOrderId; }
+    public PgProvider getPgProvider() { return pgProvider; }
     public String getPgTxId() { return pgTxId; }
     public BigDecimal getPgApprovedAmount() { return pgApprovedAmount; }
     public DeclineReason getDeclineCode() { return declineCode; }

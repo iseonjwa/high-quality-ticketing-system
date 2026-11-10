@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.support;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
@@ -54,7 +55,7 @@ public final class RecheckFixtures {
     public Payment create(PaymentStatus status, int retryCount, Instant nextCheckAt) {
         var reservationId = RESERVATION_IDS.incrementAndGet();
         var saved = payments.save(Payment.request("PAY-R" + reservationId, reservationId, 1L, AMOUNT,
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
         jdbc.update("UPDATE payments SET status = ?, unknown_retry_count = ?, next_check_at = ? WHERE id = ?",
                 status.name(), retryCount, Timestamp.from(nextCheckAt), saved.getId());
         return payments.findById(saved.getId()).orElseThrow();

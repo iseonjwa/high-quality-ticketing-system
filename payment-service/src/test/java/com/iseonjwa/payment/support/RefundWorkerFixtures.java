@@ -107,9 +107,9 @@ public final class RefundWorkerFixtures {
         var pgTxId = spec.pgTxId != null ? spec.pgTxId : "pg-tx-" + reservationId;
         // 금액 불일치 환불의 결제(NEEDS_MANUAL_CHECK)는 PG 승인 금액이 결제 금액과 다르다
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      pg_tx_id, pg_approved_amount, approved_at, refunded_at, created_at, updated_at)
-                VALUES (?, ?, 42, ?, 'CARD', ?, ?, ?, ?, now(), ?, now(), now())""",
+                VALUES (?, ?, 42, ?, 'CARD', ?, ?, 'MOCK', ?, ?, now(), ?, now(), now())""",
                 "PAY-W" + reservationId, reservationId, AMOUNT, spec.paymentStatus, spec.pgOrderId, pgTxId,
                 spec.pgApprovedAmount, "REFUNDED".equals(spec.paymentStatus) ? Timestamp.from(Instant.now()) : null);
         var paymentId = jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);

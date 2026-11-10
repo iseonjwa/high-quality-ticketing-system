@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.ops.infrastructure;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.ops.domain.OpsInspectionRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -32,14 +33,14 @@ public class JdbcOpsInspectionRepository implements OpsInspectionRepository {
     @Override
     public Optional<PaymentView> findPayment(long paymentId) {
         return jdbc.query("""
-                SELECT id, payment_no, reservation_id, user_id, amount, currency, method, status, pg_order_id, pg_tx_id,
+                SELECT id, payment_no, reservation_id, user_id, amount, currency, method, status, pg_provider, pg_order_id, pg_tx_id,
                        pg_approved_amount, decline_code, unknown_retry_count, next_check_at, approved_at, refunded_at,
                        created_at, updated_at
                 FROM payments WHERE id = ?
                 """, (rs, row) -> new PaymentView(rs.getLong("id"), rs.getString("payment_no"),
                 rs.getLong("reservation_id"), rs.getLong("user_id"), rs.getBigDecimal("amount"),
                 rs.getString("currency"), rs.getString("method"), rs.getString("status"),
-                rs.getObject("pg_order_id", UUID.class), rs.getString("pg_tx_id"),
+                PgProvider.valueOf(rs.getString("pg_provider")), rs.getObject("pg_order_id", UUID.class), rs.getString("pg_tx_id"),
                 rs.getBigDecimal("pg_approved_amount"), rs.getString("decline_code"),
                 rs.getInt("unknown_retry_count"), instant(rs, "next_check_at"), instant(rs, "approved_at"),
                 instant(rs, "refunded_at"), instant(rs, "created_at"), instant(rs, "updated_at")), paymentId)

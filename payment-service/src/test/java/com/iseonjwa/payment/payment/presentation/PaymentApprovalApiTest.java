@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.application.PaymentTx;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
@@ -60,6 +62,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class PaymentApprovalApiTest {
     private static final long USER = 42L;
     private static final long AMOUNT = 50000L;
@@ -385,7 +388,7 @@ class PaymentApprovalApiTest {
             var created = invocation.callRealMethod();
             Thread.sleep(3200);
             return created;
-        }).when(paymentTx).createRequested(any(), any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any(), any());
         var token = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
 
         var response = approve(USER, key(), token, AMOUNT);
@@ -406,7 +409,7 @@ class PaymentApprovalApiTest {
         var responses = concurrently(() -> approve(USER, key, token, AMOUNT), () -> approve(USER, key, token, AMOUNT));
 
         // 두 요청이 모두 TX1까지 들어온 뒤 진행해 유니크 위반 경로를 실제로 탄다
-        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         for (var response : responses) {
@@ -424,7 +427,7 @@ class PaymentApprovalApiTest {
         var keyB = key();
         var responses = concurrently(() -> approve(USER, keyA, token, AMOUNT), () -> approve(USER, keyB, token, AMOUNT));
 
-        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
@@ -460,7 +463,7 @@ class PaymentApprovalApiTest {
                 // 한 요청이 TX1에 도달하지 않는 경로(재생 등)면 기다리지 않고 진행한다
             }
             return invocation.callRealMethod();
-        }).when(paymentTx).createRequested(any(), any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any(), any());
         when(pg.approve(any())).thenAnswer(invocation -> {
             Thread.sleep(300);
             return approved(AMOUNT);

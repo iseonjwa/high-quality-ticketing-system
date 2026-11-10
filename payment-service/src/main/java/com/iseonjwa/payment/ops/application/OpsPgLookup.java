@@ -1,10 +1,12 @@
 package com.iseonjwa.payment.ops.application;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgClient.LateApprovalResult;
 import com.iseonjwa.payment.pg.application.PgClient.PaymentLookupResult;
 import com.iseonjwa.payment.pg.application.PgClient.RefundLookupResult;
 import com.iseonjwa.payment.pg.application.PgClient.Unknown;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
@@ -15,7 +17,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Ops 명령이 PG를 부르는 유일한 자리. 결과를 모르면 어떤 이유로든(null, 예외, 클라이언트 없음) {@link Unknown}으로 돌려
+ * Ops 명령이 PG를 부르는 유일한 자리. 결제의 {@code pg_provider}가 가리키는 PG로 보낸다. 결과를 모르면 어떤 이유로든(null, 예외, 클라이언트 없음, 설정에 없는 PG) {@link Unknown}으로 돌려
  * 주고, 명령은 그것을 거부로 다룬다. 환불({@code PgClient.refund})은 일부러 노출하지 않는다(ADR 0028 결정 4).
  *
  * <p>Note: 복구 허가 게이트({@code PgRecoveryGate})를 거치지 않고 {@code PgClient}를 직접 부른다. 게이트의 Bulkhead는
@@ -26,16 +28,17 @@ import org.springframework.stereotype.Component;
 public class OpsPgLookup {
     private static final Logger log = LoggerFactory.getLogger(OpsPgLookup.class);
 
-    private final ObjectProvider<PgClient> pgClient;
+    private final ObjectProvider<PgClients> pgClients;
 
-    public OpsPgLookup(ObjectProvider<PgClient> pgClient) {
-        this.pgClient = pgClient;
+    public OpsPgLookup(ObjectProvider<PgClients> pgClients) {
+        this.pgClients = pgClients;
     }
 
-    public PaymentLookupResult findPayment(PgOrderId orderId) {
-        var client = pgClient.getIfAvailable();
-        if (client == null) return new Unknown(UnknownCause.CLIENT_ERROR);
+    public PaymentLookupResult findPayment(PgProvider provider, PgOrderId orderId) {
+        var clients = pgClients.getIfAvailable();
+        if (clients == null) return new Unknown(UnknownCause.CLIENT_ERROR);
         try {
+            var client = clients.of(provider);
             var result = client.findPayment(orderId);
             return result != null ? result : new Unknown(UnknownCause.PG_ERROR);
         } catch (RuntimeException exception) {
@@ -44,10 +47,11 @@ public class OpsPgLookup {
         }
     }
 
-    public RefundLookupResult findRefund(PgRefundId refundId, PgPaymentRef paymentRef) {
-        var client = pgClient.getIfAvailable();
-        if (client == null) return new Unknown(UnknownCause.CLIENT_ERROR);
+    public RefundLookupResult findRefund(PgProvider provider, PgRefundId refundId, PgPaymentRef paymentRef) {
+        var clients = pgClients.getIfAvailable();
+        if (clients == null) return new Unknown(UnknownCause.CLIENT_ERROR);
         try {
+            var client = clients.of(provider);
             var result = client.findRefund(refundId, paymentRef);
             return result != null ? result : new Unknown(UnknownCause.PG_ERROR);
         } catch (RuntimeException exception) {
@@ -57,10 +61,11 @@ public class OpsPgLookup {
     }
 
     /** PG에 흔적을 남기는 호출이다. dry-run에서는 부르지 않고 적용 때만 부른다. */
-    public LateApprovalResult preventLateApproval(PgOrderId orderId) {
-        var client = pgClient.getIfAvailable();
-        if (client == null) return new Unknown(UnknownCause.CLIENT_ERROR);
+    public LateApprovalResult preventLateApproval(PgProvider provider, PgOrderId orderId) {
+        var clients = pgClients.getIfAvailable();
+        if (clients == null) return new Unknown(UnknownCause.CLIENT_ERROR);
         try {
+            var client = clients.of(provider);
             var result = client.preventLateApproval(orderId);
             return result != null ? result : new Unknown(UnknownCause.PG_ERROR);
         } catch (RuntimeException exception) {
