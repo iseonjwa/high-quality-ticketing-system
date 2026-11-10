@@ -13,7 +13,7 @@
 | 발표·시연용 스크린샷, 이미지, 아이콘 | [`presentation/`](presentation/README.md) | 파일 이름 `YYYY-MM-DD-<내용>`, 표에 한 줄 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
-| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/hold-expiry.md`](design/reservation/hold-expiry.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/reservation/k6-seathold-story.md`](design/reservation/k6-seathold-story.md)(좌석 선점 k6 측정 발표 준비용 정리), [`design/reservation/k6-contract-proposals.md`](design/reservation/k6-contract-proposals.md)(k6 측정 뒤 공유 설정·Gateway 의논 초안), [`design/reservation/k6-p4d-review.md`](design/reservation/k6-p4d-review.md), [`design/frontend/`](design/frontend/README.md), [`design/infra/`](design/infra/README.md)(배포·관측·부하 측정) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
+| 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/hold-expiry.md`](design/reservation/hold-expiry.md), [`design/reservation/seat-ledger-reconciliation.md`](design/reservation/seat-ledger-reconciliation.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/frontend/`](design/frontend/README.md), [`design/reservation/k6-seathold-story.md`](design/reservation/k6-seathold-story.md)(좌석 선점 k6 측정 발표 준비용 정리), [`design/reservation/k6-contract-proposals.md`](design/reservation/k6-contract-proposals.md)(k6 측정 뒤 공유 설정·Gateway 의논 초안), [`design/reservation/k6-p4d-review.md`](design/reservation/k6-p4d-review.md), [`design/infra/`](design/infra/README.md)(배포·관측·부하 측정), [`design/assistant/`](design/assistant/README.md)(내부 AI 상담) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
 | 시연 시나리오(사전 준비, 장면, DB 확인, 장애 주입) | [`design/demo/2026-11-06-mvp-scenarios.md`](design/demo/2026-11-06-mvp-scenarios.md) | 리허설 결과를 장면별로 채운다 |
 | 검증할 수 있는 시나리오 전체(영역별 표, 미구현 목록)와 회차별 실행 기록 | [`test-scenarios/`](test-scenarios/README.md) | 정의는 영역 파일에, 결과는 `runs/`에 쓴다 |
 | 에이전트용 학습 운영 규칙 | [`agents/learning-guide.md`](agents/learning-guide.md) | |
@@ -24,6 +24,8 @@
 | 공통 모듈의 사용 계약(응답·예외·사용자 컨텍스트·토큰·감사·이벤트) | [`guides/common-modules.md`](guides/common-modules.md) | 팀 합의 전 |
 | 전체 Boot 앱·Config·인프라·인증 실행과 검증 | [`guides/workspace.md`](guides/workspace.md) | 현재 개발 워크스페이스 |
 | 배포·Jenkins 서버 접속(SSH 키, 터널), 서버에서 지킬 것, 부하 측정 계획 | [`guides/deploy-server-access.md`](guides/deploy-server-access.md) | 팀원용. 서버 주소·일정이 바뀌면 고친다 |
+| 팀 공용 부하 발생기(k6 EC2) 사용 규칙, 측정 시작·끝 체크리스트와 알림 문구, 연결 확인, 막혔을 때 | [`guides/loadgen.md`](guides/loadgen.md) | 발생기 IP·상태가 바뀌면 고친다 |
+| 발표·시연에서 결제 장애 시나리오를 보여 주는 순서(시연 장애 패널) | [`guides/demo-scenarios.md`](guides/demo-scenarios.md) | ISE-134 |
 | 완료 기준, 작업 흐름, 디버깅 | [`agents/quality-gates.md`](agents/quality-gates.md) | |
 
 스킬 정본은 [`.agents/skills/`](../.agents/skills/README.md)에 있다.

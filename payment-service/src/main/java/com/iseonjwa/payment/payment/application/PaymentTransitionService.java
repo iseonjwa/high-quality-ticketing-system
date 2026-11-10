@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
@@ -18,6 +19,7 @@ import java.time.Instant;
  * 결제 상태 전이의 공통 규칙(domain-and-states.md 4절)을 한곳에서 지킨다.
  * 허용된 전이인지 확인하고, 조건부 UPDATE의 영향 행이 1일 때만 이력을 쓴다.
  * 승인·거절로 바뀐 전이는 같은 트랜잭션에서 Outbox에 결과 이벤트를 쓴다(INV-5).
+ * 운영자 확인(NEEDS_MANUAL_CHECK)으로 바뀐 전이는 커밋 뒤 건별 알림 줄을 남긴다({@link PaymentAlertLog}).
  * 반환값 false는 다른 경로가 먼저 상태를 바꿨다는 뜻이다. 호출한 쪽이 현재 상태를 다시 읽어 응답한다.
  *
  * <p>Note: 각 메서드는 호출한 유스케이스의 트랜잭션(TX1·TX2 등)에 참여한다. 이력과 상태가 한 트랜잭션에서
@@ -28,13 +30,16 @@ public class PaymentTransitionService {
     private final PaymentRepository payments;
     private final PaymentStatusHistoryRepository histories;
     private final PaymentResultPublisher resultPublisher;
+    private final PaymentAlertLog alertLog;
     private final Clock clock;
 
     public PaymentTransitionService(PaymentRepository payments, PaymentStatusHistoryRepository histories,
-            PaymentResultPublisher resultPublisher, @Qualifier("commonAuditingClock") Clock clock) {
+            PaymentResultPublisher resultPublisher, PaymentAlertLog alertLog,
+            @Qualifier("commonAuditingClock") Clock clock) {
         this.payments = payments;
         this.histories = histories;
         this.resultPublisher = resultPublisher;
+        this.alertLog = alertLog;
         this.clock = clock;
     }
 
@@ -78,8 +83,10 @@ public class PaymentTransitionService {
         from.requireTransitionTo(PaymentStatus.NEEDS_MANUAL_CHECK);
         var now = clock.instant();
         var changed = payments.markNeedsManualCheck(paymentId, from, pgTxId, pgApprovedAmount, pgApprovedAt, now);
-        return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_AMOUNT_MISMATCH", actor,
-                now);
+        if (!recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_AMOUNT_MISMATCH", actor,
+                now)) return false;
+        alertLog.paymentNeedsManualCheck(paymentId, "PG_AMOUNT_MISMATCH");
+        return true;
     }
 
     // 재조회를 소진해도 PG 결과를 알 수 없다. 승인된 적이 없으므로 PG 정보와 승인 시각을 남기지 않는다.
@@ -88,7 +95,11 @@ public class PaymentTransitionService {
         from.requireTransitionTo(PaymentStatus.NEEDS_MANUAL_CHECK);
         var now = clock.instant();
         var changed = payments.markNeedsManualCheck(paymentId, from, null, null, null, now);
-        return recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_UNRESOLVED", actor, now);
+        if (!recordIfChanged(changed, paymentId, from, PaymentStatus.NEEDS_MANUAL_CHECK, "PG_UNRESOLVED", actor, now)) {
+            return false;
+        }
+        alertLog.paymentNeedsManualCheck(paymentId, "PG_UNRESOLVED");
+        return true;
     }
 
     // 환불 워커가 환불 전이와 같은 트랜잭션에서 부른다. refundedAt은 PG가 환불한 시각이다.

@@ -6,6 +6,38 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | 웜업과 단계 크기는 결과를 바꾸나, auth-redis 서킷 브레이커는 어떻게 완화하고 Gateway는 어떻게 개선하나 | [qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md](qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md) |
+| 2026-11-10 | 측정 도구 변경은 언제 커밋·푸시하고, main에 넘겨야 하나 | [qna/2026-11-10-measurement-tool-branch-vs-main.md](qna/2026-11-10-measurement-tool-branch-vs-main.md) |
+| 2026-11-10 | 배포는 무엇으로 하나, 쿠버네티스가 아니라 EC2에 그냥 띄우는 것인가 | [qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md](qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md) |
+| 2026-11-10 | Jenkins 서버가 꺼질 일이 있나, 접속이 안 되면 꺼진 것인가 | [qna/2026-11-10-when-jenkins-stops.md](qna/2026-11-10-when-jenkins-stops.md) |
+| 2026-11-10 | 발표 대비 리뷰 1. 서비스 구성과 경계는 왜 이렇게 나눴나 | [qna/2026-11-10-review-01-structure-and-boundaries.md](qna/2026-11-10-review-01-structure-and-boundaries.md) |
+| 2026-11-09 | Gateway에 벌크헤드 설정이 없으면 기본값이 걸리나 | [qna/2026-11-09-gateway-default-bulkhead.md](qna/2026-11-09-gateway-default-bulkhead.md) |
+| 2026-11-09 | M4 할 일 목록의 F1은 무엇이고 왜 하나 | [qna/2026-11-09-what-is-f1-fault-injection.md](qna/2026-11-09-what-is-f1-fault-injection.md) |
+| 2026-11-09 | 측정 모드는 왜 측정이 끝나면 꺼야 하나 | [qna/2026-11-09-why-turn-off-measure-mode.md](qna/2026-11-09-why-turn-off-measure-mode.md) |
+| 2026-11-09 | 같은 셸 스크립트가 Windows Git Bash에서 왜 훨씬 느린가(프로세스 생성 비용) | [qna/2026-11-09-windows-git-bash-process-cost.md](qna/2026-11-09-windows-git-bash-process-cost.md) |
+| 2026-11-09 | 측정 모드(measure-mode.sh)는 왜 AWS 담당만 켜나 | [qna/2026-11-09-why-measure-mode-aws-owner-only.md](qna/2026-11-09-why-measure-mode-aws-owner-only.md) |
+| 2026-11-09 | IntelliJ가 shellcheck 설치를 물을 때 설치해도 되나 | [qna/2026-11-09-intellij-shellcheck-prompt.md](qna/2026-11-09-intellij-shellcheck-prompt.md) |
+| 2026-11-09 | "운영 관리자 비밀번호를 발생기에 두지 않는다" 규칙의 배경과, 서버 추첨 생성(1안)이 남기는 위험 | [qna/2026-11-09-loadgen-admin-password-rule-risk.md](qna/2026-11-09-loadgen-admin-password-rule-risk.md) |
+| 2026-11-09 | L1·L2 k6 스크립트의 관리자 로그인 문제를 풀 때 왜 계정 담당 동의가 필요한가 | [qna/2026-11-09-l1-l2-admin-login-consent.md](qna/2026-11-09-l1-l2-admin-login-consent.md) |
+| 2026-11-09 | herdr로 에이전트 여러 개를 한 저장소에서 동시에 굴리려면 무엇을 지켜야 하나 | [qna/2026-11-09-herdr-parallel-agents.md](qna/2026-11-09-herdr-parallel-agents.md) |
+| 2026-11-09 | timedatectl·chronyc tracking 실행은 시계를 맞춘 것인가, 상태만 본 것인가 | [qna/2026-11-09-chrony-check-vs-sync.md](qna/2026-11-09-chrony-check-vs-sync.md) |
+| 2026-11-09 | 입장 토큰을 좌석 선점 시점과 결제 완료 시점 중 언제 만료시킬까 | [qna/2026-11-09-entry-token-early-expiry.md](qna/2026-11-09-entry-token-early-expiry.md) |
+| 2026-11-09 | 튜터가 던진 세 이슈(NTP 시간 동기화, 레이트 리미터, 벌크헤드 격리)는 이 프로젝트 어디에 걸리나 | [qna/2026-11-09-tutor-issues-ntp-ratelimiter-bulkhead.md](qna/2026-11-09-tutor-issues-ntp-ratelimiter-bulkhead.md) |
+| 2026-11-09 | Bulkhead·Circuit Breaker 말고 어떤 장애 대응 장치가 있고, 이 프로젝트는 무엇을 어디에 쓰나 | [qna/2026-11-09-resilience-patterns-map.md](qna/2026-11-09-resilience-patterns-map.md) |
+| 2026-11-09 | 추첨 자동결제와 일반 결제가 겹칠 때 쓰는 장애 대응 장치와 개선 후보(레이트 리미터 도입 가능 여부 포함) | [qna/2026-11-09-billing-vs-general-payment-overlap.md](qna/2026-11-09-billing-vs-general-payment-overlap.md) |
+| 2026-11-09 | 사용자가 프론트에서 추첨 화면을 찾아 들어갈 수 없는 이유와 고칠 방법 | [qna/2026-11-09-lottery-page-no-entry-point.md](qna/2026-11-09-lottery-page-no-entry-point.md) |
+| 2026-11-09 | ADR 0047의 "RDS 분리"는 무엇이고, 왜 추첨 측정 전에 정해야 하나 | [qna/2026-11-09-rds-split-and-measurement.md](qna/2026-11-09-rds-split-and-measurement.md) |
+| 2026-11-09 | 응답 시간의 p50·p95·p99는 무슨 뜻이고, 왜 평균 대신 쓰나 | [qna/2026-11-09-percentile-p50-p95-p99.md](qna/2026-11-09-percentile-p50-p95-p99.md) |
+| 2026-11-09 | L1 응모 몰림 로컬 측정은 어떻게 돌렸고, 숫자는 무엇을 말하나 | [qna/2026-11-09-l1-local-measurement-detail.md](qna/2026-11-09-l1-local-measurement-detail.md) |
+| 2026-11-09 | M4 주간 추첨 담당 할 일은 각각 무엇이고 왜 하는가 | [qna/2026-11-09-m4-my-tasks-explained.md](qna/2026-11-09-m4-my-tasks-explained.md) |
+| 2026-11-08 | 로그인 토큰은 어디서 발급되고, 측정용으로 대량으로 받으려면 무엇을 거치나 | [qna/2026-11-08-login-token-issue-flow.md](qna/2026-11-08-login-token-issue-flow.md) |
+| 2026-11-08 | ISE-201의 "토큰 발급 도구는 ISE-25 산출물을 쓴다"는 무슨 뜻이고, 추첨 측정에는 어떤 영향이 있나 | [qna/2026-11-08-ise201-token-tool-origin.md](qna/2026-11-08-ise201-token-tool-origin.md) |
+| 2026-11-08 | AWS 배포에 나오는 용어를 하나씩 풀면 무엇이고, 이 프로젝트에서는 어디에 쓰이는가 | [qna/2026-11-08-aws-deploy-glossary.md](qna/2026-11-08-aws-deploy-glossary.md) |
+| 2026-11-08 | 이 프로젝트의 AWS 배포는 어떤 구성 요소로 되어 있고, 코드가 서버까지 어떻게 가는가 | [qna/2026-11-08-aws-deploy-structure-and-flow.md](qna/2026-11-08-aws-deploy-structure-and-flow.md) |
+| 2026-11-08 | k6는 무엇이고, 추첨 시나리오에서 어떻게 쓰는가 | [qna/2026-11-08-what-is-k6.md](qna/2026-11-08-what-is-k6.md) |
+| 2026-11-08 (11/9 갱신) | 부하 발생기 EC2는 무엇이고, 지금 떠 있는 AWS 구성에 어떻게 더해 쓰는가 | [qna/2026-11-08-load-generator-ec2-setup.md](qna/2026-11-08-load-generator-ec2-setup.md) |
+| 2026-11-06 | 떠 있는 EC2를 셸 명령으로 2시간 뒤에 자동으로 내릴 수 있는가 | [qna/2026-11-06-ec2-scheduled-shutdown.md](qna/2026-11-06-ec2-scheduled-shutdown.md) |
+| 2026-11-06 | 부하 측정에서 로컬과 배포 서버를 어떻게 나눠 쓰는가 | [qna/2026-11-06-local-vs-deploy-load-comparison.md](qna/2026-11-06-local-vs-deploy-load-comparison.md) |
 | 2026-11-05 | 이탈이나 결제 완료 뒤 줄을 다시 서게 하려면 입장 토큰을 어떻게 폐기할 수 있는가 | [qna/2026-11-05-entry-token-revocation-options.md](qna/2026-11-05-entry-token-revocation-options.md) |
 | 2026-11-05 | 추첨에서 관측하고 측정해야 할 요소는 무엇인가 | [qna/2026-11-05-lottery-observability-measurement.md](qna/2026-11-05-lottery-observability-measurement.md) |
 | 2026-11-05 | 배포 서버에 접속해 통합 테스트와 부하 측정을 어떤 순서로 진행하는가 | [qna/2026-11-05-deploy-server-test-and-load-steps.md](qna/2026-11-05-deploy-server-test-and-load-steps.md) |

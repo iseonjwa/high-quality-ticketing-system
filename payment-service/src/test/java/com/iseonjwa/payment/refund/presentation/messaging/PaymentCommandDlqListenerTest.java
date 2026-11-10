@@ -3,6 +3,11 @@ package com.iseonjwa.payment.refund.presentation.messaging;
 import com.iseonjwa.common.messaging.inbox.ProcessedEventRepository;
 import com.iseonjwa.payment.observability.PaymentMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.iseonjwa.payment.observability.PaymentAlertLog;
 import com.iseonjwa.payment.refund.application.DeadLetterService;
 import com.iseonjwa.common.messaging.consumer.ConsumerErrorHandlers;
 import com.iseonjwa.common.messaging.consumer.NonRetryableMessageException;
@@ -78,18 +83,25 @@ class PaymentCommandDlqListenerTest {
     Clock clock;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    PaymentAlertLog alertLog;
 
     private RefundFixtures fixtures;
+    private final ListAppender<ILoggingEvent> alertLogs = new ListAppender<>();
+    private final Logger alertLogger = (Logger) org.slf4j.LoggerFactory.getLogger(PaymentAlertLog.class);
     private final List<UUID> eventIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         fixtures = new RefundFixtures(jdbc);
         cleanUp();
+        alertLogs.start();
+        alertLogger.addAppender(alertLogs);
     }
 
     @AfterEach
     void tearDown() {
+        alertLogger.detachAppender(alertLogs);
         cleanUp();
     }
 
@@ -158,6 +170,10 @@ class PaymentCommandDlqListenerTest {
         assertTrue(deadLetter.reason().contains("amount"), deadLetter.reason());
         assertEquals(0, fixtures.refundCount(payment.paymentId()));
         assertEquals(1, processedInDlqGroup(eventId));
+        var line = singleAlert();
+        assertTrue(line.matches("event=DEAD_LETTER_OPEN paymentId=" + payment.paymentId() + " userId=\\d+ reservationId="
+                + payment.reservationId() + " paidAt=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+09:00 eventKey="
+                + eventId + " reason=.*amount.*"), line);
     }
 
     @Test
@@ -169,6 +185,8 @@ class PaymentCommandDlqListenerTest {
 
         var deadLetter = assertOpen(eventId.toString());
         assertTrue(deadLetter.reason().contains("결제가 없습니다"), deadLetter.reason());
+        assertTrue(singleAlert().startsWith("event=DEAD_LETTER_OPEN paymentId=- userId=- reservationId=- paidAt=- eventKey="
+                + eventId + " reason="), "결제를 읽지 못하면 결제 정보는 -다");
     }
 
     @Test
@@ -195,6 +213,15 @@ class PaymentCommandDlqListenerTest {
         assertTrue(deadLetter.reason().startsWith("역직렬화·봉투 오류"), deadLetter.reason());
         assertEquals(ORIGIN_TOPIC, deadLetter.sourceTopic());
         assertEquals(123L, deadLetter.sourceOffset());
+        assertTrue(singleAlert().startsWith("event=DEAD_LETTER_OPEN paymentId=- userId=- reservationId=- paidAt=- eventKey="
+                + ORIGIN_TOPIC + "-" + TEST_PARTITION + "-123 reason=역직렬화·봉투 오류"), "봉투를 못 읽으면 결제 정보는 -다");
+    }
+
+    // 건별 알림 줄이 정확히 한 건(ERROR)이다. 커밋된 뒤에 찍히므로 처리가 끝난 시점에 이미 있다
+    private String singleAlert() {
+        assertEquals(1, alertLogs.list.size());
+        assertEquals(Level.ERROR, alertLogs.list.get(0).getLevel());
+        return alertLogs.list.get(0).getFormattedMessage();
     }
 
     @Test
@@ -280,7 +307,7 @@ class PaymentCommandDlqListenerTest {
 
     @Test
     void 사유가_길면_500자로_자른다() {
-        var service = new DeadLetterService(deadLetters, refundRequests, processedEvents, transaction, clock);
+        var service = new DeadLetterService(deadLetters, refundRequests, processedEvents, alertLog, transaction, clock);
 
         service.handleUnparsable(new com.iseonjwa.payment.refund.application.DeadLetterInput(ORIGIN_TOPIC, TEST_PARTITION,
                 126L, null, "raw"), "x".repeat(1000));
@@ -297,7 +324,7 @@ class PaymentCommandDlqListenerTest {
         doThrow(new DataAccessResourceFailureException("DB 연결 실패")).doCallRealMethod()
                 .when(failing).create(any(), any(), any(), any(), any());
         var flaky = new PaymentCommandDlqListener(parser(), new DeadLetterService(deadLetters, failing, processedEvents,
-                transaction, clock), metrics);
+                alertLog, transaction, clock), metrics);
         var record = withOrigin(message(eventId, payment, 50000), 7, 100);
 
         var failuresBefore = handlerFailures();
@@ -323,7 +350,7 @@ class PaymentCommandDlqListenerTest {
         var eventId = newEventId();
         var failing = new ResolveFailsOnce(deadLetters);
         var flaky = new PaymentCommandDlqListener(parser(), new DeadLetterService(failing, refundRequests, processedEvents,
-                transaction, clock), metrics);
+                alertLog, transaction, clock), metrics);
         var record = withOrigin(message(eventId, payment, 50000), 7, 100);
 
         assertThrows(DataAccessResourceFailureException.class, () -> flaky.onMessage(record));

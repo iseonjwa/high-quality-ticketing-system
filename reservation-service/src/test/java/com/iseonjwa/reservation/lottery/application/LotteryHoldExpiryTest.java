@@ -137,6 +137,33 @@ class LotteryHoldExpiryTest {
         assertEquals("WON", entry(entryId).get("status"));
     }
 
+    // 완료 기준·변이 테스트: 상한에 잘린 연장은 "기한 < 생성 + 31분"이라 연장 전처럼 보이므로 상한 검사만이 재연장을 막는다
+    @Test
+    void 상한에_잘린_연장_뒤_상한이_지나면_다시_연장하지_않고_만료한다() {
+        lotteryId = insertDrawnLottery("now() - interval '59 minutes 40 seconds'");
+        Long entryId = insertWinner(8501L);
+        Long reservationId = assign(entryId);
+        jdbc.update("UPDATE reservations SET created_at = now() - interval '30 minutes',"
+                + " hold_expires_at = now() - interval '10 seconds' WHERE id = ?", reservationId);
+
+        assertFalse(expiryService.expire(reservationId));
+
+        Timestamp limit = jdbc.queryForObject("SELECT draw_at + interval '60 minute' FROM lotteries WHERE id = ?",
+                Timestamp.class, lotteryId);
+        assertEquals(limit, holdExpiresAt(reservationId));
+        assertTrue(jdbc.queryForObject("SELECT hold_expires_at < created_at + interval '31 minutes'"
+                + " FROM reservations WHERE id = ?", Boolean.class, reservationId));
+
+        moveHold(reservationId, Duration.ofMinutes(1));
+        jdbc.update("UPDATE lotteries SET draw_at = draw_at - interval '1 minute' WHERE id = ?", lotteryId);
+
+        assertTrue(expiryService.expire(reservationId));
+
+        assertEquals("EXPIRED", reservation(reservationId).get("status"));
+        assertEquals("FAILED", entry(entryId).get("status"));
+        assertEquals("HOLD_EXPIRED", entry(entryId).get("fail_reason"));
+    }
+
     private Long assign(Long entryId) {
         assertEquals(entryId, assignmentService.assignNext().orElseThrow());
         return ((Number) entry(entryId).get("reservation_id")).longValue();

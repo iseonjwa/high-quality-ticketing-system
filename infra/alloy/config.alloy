@@ -22,7 +22,7 @@ discovery.relabel "apps" {
   }
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    regex         = "config-server|eureka|gateway|user-service|reservation-service|payment-service|mock-pg"
+    regex         = "config-server|eureka|gateway|user-service|reservation-service|payment-service|mock-pg|assistant-service"
     action        = "keep"
   }
   rule {

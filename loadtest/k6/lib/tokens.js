@@ -1,5 +1,6 @@
 // 측정용 토큰 서명(TOKEN_MODE=sign). 서버의 토큰 형식(SA 7-3, docs/design/queue/contracts.md 1절)과 같은 claim을 만든다.
-// Note: 서명 키가 있어야 하므로 local 스택 전용이다. 배포 환경의 측정용 서명 방식은 아직 정하지 않았다(load-test.md 5절)
+// Note: 서명 키가 있어야 한다. 배포 환경은 측정 동안만 측정 전용 키로 바꿔 띄우고(script/loadtest/measure-mode.sh, load-test.md 5절),
+// 그 키를 발생기 .env에 두면 run.sh가 읽는다. 운영 키는 발생기에 두지 않는다(ADR 0046 변경 2026-11-08)
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
 import { TOKEN_MODE, USER_ID_BASE } from './env.js';

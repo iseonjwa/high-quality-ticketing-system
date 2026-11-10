@@ -36,6 +36,12 @@ export default defineConfig([
     files: ['src/components/ui/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
+  {
+    // Playwright 테스트는 Node에서 돈다. fixture의 `({}, use)`와 use 호출은 React 규칙·빈 구조 분해 규칙에 걸린다.
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: { globals: globals.node },
+    rules: { 'no-empty-pattern': 'off', 'react-hooks/rules-of-hooks': 'off' },
+  },
   // 포맷 규칙은 Prettier가 맡는다. 겹치는 ESLint 규칙을 끈다.
   prettier,
 ])

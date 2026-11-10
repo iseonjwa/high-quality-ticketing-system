@@ -16,6 +16,9 @@ const VUS = numberEnv('VUS', 300);
 const OPEN_IN_SECONDS = numberEnv('OPEN_IN_SECONDS', 40);
 // 첫 폴링을 진입 뒤 몇 초 안에 흩을지. 실제로는 진입이 10초에 걸쳐 오므로 10초
 const FIRST_POLL_SPREAD_SECONDS = numberEnv('FIRST_POLL_SPREAD_SECONDS', 10);
+// 기존 회차로 잴 때. 주면 관리자 로그인과 회차 만들기를 건너뛴다(배포 측정: 운영 관리자 비밀번호를 발생기에 두지 않으려는 것).
+// 회차는 열려 있어야 하고, 회차 캐시 갱신(30초)보다 일찍 만들어 둔다
+const SCHEDULE_ID = __ENV.SCHEDULE_ID;
 
 const pollDuration = new Trend('poll_duration', true);
 const pollResults = new Counter('poll_results');
@@ -46,8 +49,13 @@ export function setup() {
   if (USERS % VUS !== 0) {
     throw new Error(`USERS(${USERS})는 VUS(${VUS})로 나누어떨어져야 합니다`);
   }
-  const schedule = createSchedule(adminLogin(), { title: 'k6 Q2', openInSeconds: OPEN_IN_SECONDS });
-  waitUntil(schedule.openAt + 1000);
+  let schedule;
+  if (SCHEDULE_ID) {
+    schedule = { scheduleId: Number(SCHEDULE_ID) };
+  } else {
+    schedule = createSchedule(adminLogin(), { title: 'k6 Q2', openInSeconds: OPEN_IN_SECONDS });
+    waitUntil(schedule.openAt + 1000);
+  }
   const started = Date.now();
   enterAll(schedule.scheduleId, USERS);
   console.log(`Q2 회차 ${schedule.scheduleId}, 대기자 ${USERS}명 진입 ${Math.round((Date.now() - started) / 1000)}초, VU ${VUS}개`);

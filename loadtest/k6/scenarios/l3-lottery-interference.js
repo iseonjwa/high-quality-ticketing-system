@@ -2,7 +2,7 @@
 // 선점 지연은 추첨 전(pre)·추첨 뒤 DRAW_WINDOW_SECONDS초(during)·그 뒤(post)로 나눠 기록한다.
 // 명세: docs/design/infra/open-peak-scenarios.md L3. 실행: loadtest/k6/README.md
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check, fail, sleep } from 'k6';
 import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv } from '../lib/env.js';
@@ -10,7 +10,7 @@ import { assertSigningKeys, userIdOf } from '../lib/tokens.js';
 import { errorCodeOf } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { availableSeatIds, hold, userOf } from '../lib/booking.js';
-import { createLottery, enterAll, registerBillingKeys } from '../lib/lottery.js';
+import { createLottery, enterAll, preparedLottery, registerBillingKeys } from '../lib/lottery.js';
 
 const ENTRANTS = numberEnv('ENTRANTS', 30000);
 const RATE = numberEnv('RATE', 100);
@@ -48,22 +48,39 @@ http.setResponseCallback(http.expectedStatuses(200, 201, 409));
 
 export function setup() {
   assertSigningKeys();
-  const admin = adminLogin();
+  // LOTTERY_ID·SALE_SCHEDULE_ID(판매 중인 일반 판매 회차)를 주면 서버에서 만든 추첨과 회차를 쓴다(배포 측정).
+  // 이때 추첨 시각은 서버가 만들 때 정하므로 DRAW_AFTER_SECONDS는 쓰지 않는다
+  const prepared = preparedLottery(true);
+  const admin = prepared ? null : adminLogin();
   // 추첨 회차: 응모를 미리 넣고, 측정 시작 DRAW_AFTER_SECONDS초 뒤에 추첨한다
-  const lotterySchedule = createSchedule(admin, { title: 'k6 L3 lottery', openInSeconds: 3600 });
+  const lotterySchedule = prepared ? null : createSchedule(admin, { title: 'k6 L3 lottery', openInSeconds: 3600 });
   if (WITH_BILLING) {
     registerBillingKeys(ENTRANTS);
   }
-  const entryStartAt = Date.now() + 15000;
-  const entryEndAt = entryStartAt + Math.max(60, Math.ceil(ENTRANTS / 200)) * 1000;
-  // 응모를 넣고 측정을 시작하는 시각을 entryEndAt으로 두고, 추첨은 그 뒤 DRAW_AFTER_SECONDS초
-  const drawAt = entryEndAt + DRAW_AFTER_SECONDS * 1000;
-  const lotteryId = createLottery(admin, lotterySchedule.scheduleId, { entryStartAt, entryEndAt, drawAt });
+  let entryStartAt;
+  let entryEndAt;
+  let drawAt;
+  let lotteryId;
+  if (prepared) {
+    ({ entryStartAt, entryEndAt, drawAt, lotteryId } = prepared);
+  } else {
+    entryStartAt = Date.now() + 15000;
+    entryEndAt = entryStartAt + Math.max(60, Math.ceil(ENTRANTS / 200)) * 1000;
+    // 응모를 넣고 측정을 시작하는 시각을 entryEndAt으로 두고, 추첨은 그 뒤 DRAW_AFTER_SECONDS초
+    drawAt = entryEndAt + DRAW_AFTER_SECONDS * 1000;
+    lotteryId = createLottery(admin, lotterySchedule.scheduleId, { entryStartAt, entryEndAt, drawAt });
+  }
+  if (Date.now() > entryEndAt) {
+    fail(`추첨 ${lotteryId}의 응모가 이미 마감됐다(${new Date(entryEndAt).toISOString()})`);
+  }
   waitUntil(entryStartAt + 500);
   enterAll(lotteryId, ENTRANTS);
+  if (Date.now() > entryEndAt) {
+    console.warn('응모를 넣는 데 마감 시각보다 오래 걸렸다. 마감 뒤 응모는 거절됐을 수 있다');
+  }
 
   // 일반 판매 회차: 판매 중. 좌석은 추첨 회차와 겹치지 않는다
-  const sale = createSchedule(admin, { title: 'k6 L3 sale' });
+  const sale = prepared ? { scheduleId: prepared.saleScheduleId } : createSchedule(admin, { title: 'k6 L3 sale' });
   const seats = availableSeatIds(sale.scheduleId, userOf(userIdOf(SELLER_OFFSET) - 1, sale.scheduleId));
   console.log(`L3 판매 회차 ${sale.scheduleId}, 추첨 ${lotteryId}(응모 ${ENTRANTS}명, 추첨 ${new Date(drawAt).toISOString()}). 기록: bash loadtest/k6/tools/watch-lottery.sh ${lotteryId}`);
   waitUntil(entryEndAt);

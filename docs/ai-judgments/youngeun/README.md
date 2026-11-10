@@ -8,6 +8,9 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | bulkhead 비교 전에 워밍업 방식부터 확인(3번)하고, 덤 몰림 포함 워밍업을 표준으로 정함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-bulkhead-comparison-warmup-standard.md) |
+| 2026-11-10 | **배포 Q1 auth-redis 차단기 열림: 측정용 차단기 기준 완화(3번) 거부, 워밍업 뒤 재측정(1번) 선택** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-10-no-breaker-relax-for-measurement.md) |
+| 2026-11-09 | Q1-d 로컬 확인: 출발 대기를 다시 계산하는 방식으로 고치고, Q1 ↔ Q1-d 수치 비교는 배포 서버로 넘김 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-q1d-local-limit-and-clock-drift.md) |
 | 2026-10-29 | 입장 토큰 회차 비교: 선점 경로를 /schedules/{scheduleId}/reservations로 바꾸고 Gateway가 경로로 비교 | Claude (Cowork) | 수용 | 예 | 아님 | [기록](2026-10-29-entry-token-schedule-check-path.md) |
 | 2026-10-29 | **대기열 설계 설명 중 AI 근거 두 가지(멱등성, issued 선기록의 자동 복구)를 틀렸다고 지적** | Claude (Cowork) | **거부** | 예 | 후보 | [기록](2026-10-29-queue-ai-reasoning-corrections.md) |
 | 2026-10-29 | 대기열: 토큰 API 분리, READY 상태, 진입·순번 조회 같은 상태 응답, 순번 조회 읽기 전용, jti 계산 | Claude (Cowork) | 부분 수용 | 예 | 후보 | [기록](2026-10-29-queue-token-api-ready.md) |
@@ -15,4 +18,5 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 ## 일지
 
-없음
+- [2026-11-10](daily/2026-11-10.md)
+- [2026-11-09](daily/2026-11-09.md)

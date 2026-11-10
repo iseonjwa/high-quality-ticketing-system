@@ -1,6 +1,6 @@
-# 배포 이미지 8개(앱 7개 + 프론트 nginx)를 한 번에 빌드하는 정의다. .github/workflows/images.yml이 쓴다.
+# 배포 이미지 9개(앱 8개 + 프론트 nginx)를 한 번에 빌드하는 정의다. .github/workflows/images.yml이 쓴다.
 #
-# Note: 앱 7개는 같은 루트 Dockerfile을 쓰고 APP_MODULE 인자만 다르다. builder 단계(gradlew bootJar)는
+# Note: 앱 8개는 같은 루트 Dockerfile을 쓰고 APP_MODULE 인자만 다르다. builder 단계(gradlew bootJar)는
 # APP_MODULE과 무관해서, 한 번의 bake 실행 안에서는 BuildKit이 같은 단계로 알아보고 한 번만 돌린다.
 # 앱마다 따로 빌드(워크플로 매트릭스)하면 같은 Gradle 빌드를 7번 한다. 그래서 bake 한 번으로 묶었다.
 #
@@ -31,11 +31,11 @@ target "_common" {
   }
 }
 
-# 앱 7개. matrix가 서비스 이름마다 타깃 하나씩을 만든다(타깃 이름 = 서비스 이름).
+# 앱 8개. matrix가 서비스 이름마다 타깃 하나씩을 만든다(타깃 이름 = 서비스 이름).
 target "app" {
   name     = app
   matrix   = {
-    app = ["config-server", "eureka", "gateway", "user-service", "reservation-service", "payment-service", "mock-pg"]
+    app = ["config-server", "eureka", "gateway", "user-service", "reservation-service", "payment-service", "mock-pg", "assistant-service"]
   }
   inherits   = ["_common"]
   context    = "."
@@ -52,5 +52,5 @@ target "frontend" {
 }
 
 group "default" {
-  targets = ["config-server", "eureka", "gateway", "user-service", "reservation-service", "payment-service", "mock-pg", "frontend"]
+  targets = ["config-server", "eureka", "gateway", "user-service", "reservation-service", "payment-service", "mock-pg", "assistant-service", "frontend"]
 }

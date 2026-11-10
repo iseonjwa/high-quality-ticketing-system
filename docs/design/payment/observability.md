@@ -75,6 +75,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`task="gauge-refresh"` 1분, `task="recheck"`·`"refund-worker"` 2분, `task="reconciliation"` 15분(ISE-167), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
 | 경고 | DB 연결 대기 초과 | Hikari 연결 대기 시간 초과 증가 | 같은 문서 7절 |
 
+- **건별 알림(ISE-183)**: 위 즉시 확인 중 결제·환불 `NEEDS_MANUAL_CHECK`(금액 불일치는 사유로 합친다), 대사 불일치 OPEN, `dead_letters` OPEN은 건수 알림에 더해 건별 알림이 한 번 더 간다. 결제 서비스가 `event=… paymentId=… userId=… reservationId=… paidAt=…` 한 줄을 커밋 뒤에 ERROR로 남기고, Loki 규칙이 읽어 "N번 유저가 YYMMDD HH:MM에 결제한 건"을 담은 슬랙 메시지를 보낸다. 건수 알림은 그대로 둔다. 줄 형식·규칙·경로는 [infra/observability.md](../infra/observability.md) 3절이다.
 - 즉시 확인은 돈이 확정되지 않았거나 추적이 끊길 수 있는 상태다. 경고는 자동 복구가 아직 진행 중이지만 늦어지는 상태다.
 - `NEEDS_MANUAL_CHECK` 장기 미해결 기준(30분·24시간)은 [0020](../../decisions/0020-payment-refund-dlq-manual-check.md)의 값이고, 이전 초안의 표에서 빠져 있던 것을 넣었다.
 - `REQUESTED` 60초 기준은 TX1이 `next_check_at`을 10초 뒤로 채우고 재확인이 그 시각에 집는다는 전제다. 넘으면 스케줄러 정지나 `next_check_at` 누락을 의심한다(CHECK 제약이 누락을 막는다).
@@ -107,4 +108,5 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 ## 4. 산출물 위치
 - 대시보드: `infra/grafana/dashboards/payment.json`(uid `iseonjwa-payment`, 제목 "결제"). Grafana 프로비저닝(`infra/grafana/provisioning/dashboards/default.yml`)이 기동 때 자동으로 올린다.
 - 알림 규칙: `infra/prometheus/rules/payment-alerts.yml`, 단위 테스트 `infra/prometheus/tests/payment-alerts.test.yml`, 실행 스크립트 `script/check-prometheus-rules.sh`
+- 건별 알림: 로그 줄 `payment-service/src/main/java/com/iseonjwa/payment/observability/PaymentAlertLog.java`(형식 고정 테스트 `PaymentAlertLogTest`), Loki 규칙 `infra/loki/rules/payment-events.yml`, 검사 `script/check-loki-rules.sh`. 슬랙 경로는 Alertmanager의 `slack-monitoring-event` 수신자다.
 - 알림의 `runbook` 주석이 위 2절 표의 복구 절차 절을 가리킨다. 분산 추적 보강과 추가 대시보드는 후속 개선이다.
