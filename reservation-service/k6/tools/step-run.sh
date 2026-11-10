@@ -148,6 +148,8 @@ trap 'kill $STATS_PID 2>/dev/null || true' EXIT
 [ "$KIND" = Z ] && LOCK_SECONDS="${LOCK_SECONDS:-$(( LOAD_SECONDS + 30 ))}"
 if [ "$KIND" = K ] || [ "$KIND" = Z ]; then
   # 잠금 장애 주입. k6 setup이 남긴 load_start를 기다렸다가 LOCK_AFTER초 뒤 잠근다. 잠근 시각과 좌석 수를 lock.txt에 남긴다
+  # Note: 잠글 좌석은 좌석 조회 응답 순서(구역 → 열 → 번호)의 앞쪽이다. k6의 인기 구역이 그 순서의 앞쪽이고, 좌석 ID는 그 순서로 연속이 아니다.
+  # 처음에는 ID가 작은 순서로 잠가 k6가 노린 10석 중 1석만 잠겼다(STEPS.md 잠긴 행 집중 1차)
   # Note: load_start는 setup에서 워밍업 뒤의 부하 시작 시각(미래)으로 찍힌다. 줄이 보인 때가 아니라 그 시각에서 LOCK_AFTER초 뒤에 잠근다
   ( for _ in $(seq 1 600); do grep -q "load_start epoch_ms=" "$PREFIX-k6.log" 2>/dev/null && break; sleep 1; done
     LOCK_AT=$(( $(grep -oE 'load_start epoch_ms=[0-9]+' "$PREFIX-k6.log" | head -1 | cut -d= -f2) / 1000 + ${LOCK_AFTER:-30} ))
@@ -155,8 +157,9 @@ if [ "$KIND" = K ] || [ "$KIND" = Z ]; then
     echo "lock_begin $(date +%s)"
     docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tA <<SQL
 BEGIN;
-SELECT 'locked ' || count(*) FROM (SELECT id FROM schedule_seats WHERE schedule_id = $SCHEDULE_ID AND status = 'AVAILABLE'
-  AND id < (SELECT min(id) + ${LOCK_RANGE:-3000} FROM schedule_seats WHERE schedule_id = $SCHEDULE_ID) ORDER BY id FOR UPDATE) t;
+SELECT 'locked ' || count(*) || ' first ' || min(id) FROM (SELECT ss.id FROM schedule_seats ss JOIN venue_seats vs ON vs.id = ss.venue_seat_id
+  WHERE ss.schedule_id = $SCHEDULE_ID AND ss.status = 'AVAILABLE' AND ss.deleted_at IS NULL
+  ORDER BY ss.section, vs.row_no, vs.seat_no LIMIT ${LOCK_RANGE:-3000} FOR UPDATE OF ss) t;
 SELECT pg_sleep(${LOCK_SECONDS:-30});
 COMMIT;
 SQL
