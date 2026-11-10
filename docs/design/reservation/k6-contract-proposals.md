@@ -9,7 +9,7 @@
 | # | 제안 | 지금 값 | 제안 값 | 바뀌는 파일 | 받는 쪽 | 근거 강도 |
 |---|---|---|---|---|---|---|
 | A | Gateway 인증 차단기(`auth-redis`) 기준 | 느린 호출 50ms·비율 50%, 실패율 50%, 판단 범위 20번 | 의논 거리(2절) | `config-repo/gateway.yml` | Gateway 담당 | 관찰은 여러 회, 고칠 값은 미정 |
-| B | reservation-service GC를 G1으로 명시 | 지정 없음(1,152MB 컨테이너라 JVM이 Serial 선택) | `-XX:+UseG1GC` | `compose.deploy.yml` reservation-service `JAVA_TOOL_OPTIONS` | 인프라 담당 | 1회씩, 효과 큼 |
+| B | reservation-service GC를 G1으로 명시 | 지정 없음(1,152MB 컨테이너라 JVM이 Serial 선택) | `-XX:+UseG1GC` | `compose.deploy.yml` reservation-service `JAVA_TOOL_OPTIONS` | 인프라 담당 | 1회씩, 효과 큼. **dev에 이미 반영(ISE-193). 이슈로 올리지 않는다** |
 | C | Hikari 커넥션 대기 시한 | 30초(기본값) | 1초 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정), 이미 ISE-196 | 이전 기기 3회 + 새 기기 1회 |
 | D | reservation-service DB 커넥션 풀 | 5 | 10 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정) | 1회씩(5·10·20·40 비교) |
 
@@ -57,6 +57,8 @@ Gateway는 인증 요청마다 Redis에서 로그아웃 토큰을 확인한다. 
 ```
 
 ## 3. B. reservation-service GC를 G1으로
+
+상태: dev `compose.deploy.yml`에 이미 반영됐다(ISE-193, 앱 8개 모두 `-XX:+UseG1GC`, reservation-service `-Xms384m -Xmx768m`). 2026-11-10 dev에서 확인했다. 아래는 측정 근거로만 남긴다.
 
 - **지금:** `compose.deploy.yml`의 reservation-service는 `-Xms384m -Xmx768m`만 준다. 컨테이너 메모리가 약 1,792MB보다 작으면 JVM이 Serial GC를 자동으로 고르므로, 배포 값(1,152MB)은 Serial이다.
 - **측정:** 새 기기 base K1 L에서 GC 정지가 부하 시간의 약 75%였다. G1만 켜자 7.3%로 줄었고 S 버틴 단계가 10명 → 20명이 됐다. 이전 기기에서도 같은 방향이었다(정지 66~69% → 24.5%).
