@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-10-toss-mock-bypass-per-payment-pg.md) |
 | 2026-11-10 | 서버 명령을 측정자가 직접 치고 에이전트는 안내만 하는 방식 대신, 11/10 측정에서는 에이전트가 배포 서버·발생기 명령을 직접 실행하게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-agent-runs-server-commands-during-measurement.md) |
 | 2026-11-10 | 추첨 배포 측정 전 점검의 추천(L1 503 메시지 태그, 응모 3만 명·시각, 반복 조건, PAY_RATE 20·30)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-10-lottery-server-measurement-conditions.md) |
 | 2026-11-10 | bulkhead 비교 전에 워밍업 방식부터 확인하고 덤 몰림 포함 워밍업을 표준으로 정함. bulkhead 25·100 모두 Q1 한도 같음 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-10-bulkhead-comparison-warmup-standard.md) |

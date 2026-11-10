@@ -4,7 +4,19 @@
 
 ## 1. 결제 승인 `POST /api/v1/payments`
 
-헤더: `Idempotency-Key`(UUID, 필수). 본문: `{paymentToken, amount, method: "CARD", clientPaymentRef?}`. 인증이 필요하다. `clientPaymentRef`는 구매자가 토스 결제창에서 받은 `paymentKey`(공백 없는 1~200자)다. 토스 모드에서는 필수이고 빠지면 400 `VALIDATION_FAILED`(허가·TX1 전이라 행도 멱등 기록도 남지 않는다), Mock 모드에서는 무시한다([SA 변경 요청](sa-change-requests.md) S-14). 요청 해시에 들어가므로 같은 키에 다른 `paymentKey`를 보내면 409 `IDEMPOTENCY_KEY_REUSED`다(값이 없으면 이전 해시와 같다).
+헤더: `Idempotency-Key`(UUID, 필수). 본문: `{paymentToken, amount, method: "CARD", clientPaymentRef?, pgProvider?}`. 인증이 필요하다. `clientPaymentRef`는 구매자가 토스 결제창에서 받은 `paymentKey`(공백 없는 1~200자)다. 이 결제를 토스로 처리할 때 필수이고 빠지면 400 `VALIDATION_FAILED`(허가·TX1 전이라 행도 멱등 기록도 남지 않는다), Mock으로 처리하는 결제에서는 무시한다([SA 변경 요청](sa-change-requests.md) S-14). `pgProvider`(`MOCK`·`TOSS`, 그 밖은 400)는 이 결제를 처리할 PG를 고르는 선택 필드로, 없으면 서버 기본 PG(`payment.pg.provider`)다. 토스 모드에서 `MOCK`을 보내면 결제창 없이 Mock으로 승인한다("Mock 건너뛰기", 시연용).
+
+**PG 결정과 검사 순서**: 5단계(기존 결제·만료 확인) 뒤, 6단계 허가·7단계 TX1 전에 이 결제의 PG를 정한다. 아래 셋은 모두 400 `VALIDATION_FAILED`이고 행도 멱등 기록도 남기지 않는다.
+
+```
+effective = pgProvider ?? 서버 기본 PG
+effective = TOSS 인데 서버가 토스 모드가 아님                              → 400 (토스를 켜지 않은 서버)
+pgProvider = MOCK 을 명시했고 서버가 토스 모드이며 mock-bypass-enabled=false → 400
+effective = TOSS 인데 clientPaymentRef 없음                               → 400
+pg_tx_id에 저장할 값 = effective == TOSS ? clientPaymentRef : null   (MOCK이면 clientPaymentRef를 무시)
+```
+
+**요청 해시**: `pgProvider`가 없으면 이전 형식 그대로다(이 필드가 생기기 전에 저장된 멱등 기록과 해시가 같다). 있으면 이전 문자열 뒤에 `"\nref=" + (clientPaymentRef ?? "") + "\npg=" + pgProvider`를 붙인다. `clientPaymentRef`는 공백 없는 문자열(`\S`)이라 줄바꿈을 담을 수 없어 필드가 없는 형식과 겹치지 않는다. 그래서 같은 키에 `pgProvider` 유무나 값이나 `paymentKey`가 달라지면 409 `IDEMPOTENCY_KEY_REUSED`다.
 
 ### 처리 순서
 
@@ -16,9 +28,9 @@
 | 4 | 결제 토큰 검증(아래 항목)과 금액 대조. `exp`가 지났으면 "조회 전용"으로 표시하고 5단계로 간다(만료 뒤 24시간 넘으면 403) | 403 `PAYMENT_TOKEN_INVALID`, 400 `PAYMENT_AMOUNT_MISMATCH` | 0025, 0019 |
 | 5 | 토큰의 예매 ID로 기존 결제 조회(`UNIQUE(reservation_id)`) | 있으면 표 B. 없고 조회 전용이면 403 `PAYMENT_TOKEN_INVALID` | [0016](../../decisions/0016-payment-declined-token-reuse.md), 0019, [0026](../../decisions/0026-payment-one-per-reservation.md) |
 | 6 | `pg-approve` Bulkhead·Circuit Breaker 허가 획득(신규 승인만) | 503 `PG_UNAVAILABLE`(행·멱등 기록 없음) | [0018](../../decisions/0018-payment-pg-permit-before-tx1.md) |
-| 7 | TX1: 멱등 기록(ORIGIN)을 먼저, 결제 `REQUESTED`(`next_check_at` = 현재 + 10초)를 다음에 저장하고 커밋. `pg_order_id`는 `PgOrderIds.of(reservationId, exp)`이고 토스 모드면 `pg_tx_id`에 `clientPaymentRef`를 먼저 저장한다. 다른 결제가 쓰는 `paymentKey`(`uq_payments_pg_tx_id`)는 허가 반환 후 409 `PAYMENT_ALREADY_EXISTS`(행·멱등 기록 없음) | 유니크 위반은 정상 흐름이다. 허가를 반환하고 롤백한 뒤 3단계부터 다시 조회한다. 같은 키면 3단계, 다른 키로 같은 예매면 5단계에서 응답한다(500 아님). DB 연결 대기 1초`[가정]` 초과·DB 오류는 허가 반환 후 503 `SERVICE_UNAVAILABLE`(행 없음. 단, 커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md))) | 0017, 0018, 0026, 0048 |
+| 7 | TX1: 멱등 기록(ORIGIN)을 먼저, 결제 `REQUESTED`(`next_check_at` = 현재 + 10초)를 다음에 저장하고 커밋. `pg_order_id`는 `PgOrderIds.of(reservationId, exp)`이고 `pg_provider`에 위에서 정한 PG를 기록한다. 토스로 처리하면 `pg_tx_id`에 `clientPaymentRef`를 먼저 저장한다. 다른 결제가 쓰는 `paymentKey`(`uq_payments_pg_tx_id`)는 허가 반환 후 409 `PAYMENT_ALREADY_EXISTS`(행·멱등 기록 없음) | 유니크 위반은 정상 흐름이다. 허가를 반환하고 롤백한 뒤 3단계부터 다시 조회한다. 같은 키면 3단계, 다른 키로 같은 예매면 5단계에서 응답한다(500 아님). DB 연결 대기 1초`[가정]` 초과·DB 오류는 허가 반환 후 503 `SERVICE_UNAVAILABLE`(행 없음. 단, 커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md))) | 0017, 0018, 0026, 0048 |
 | 8 | PG 호출 직전 토큰 `exp` 재검사 | 지났으면 PG를 부르지 않고 `DECLINED(TOKEN_EXPIRED)` + `PaymentDeclined`, 200. 허가는 호출 결과로 세지 않고 반환 | 0018 |
-| 9 | PG 승인 호출(트랜잭션 밖, 연결 0.5초·응답 2초), 허가 정산 | `Approved`·`Declined`·`Unknown` | 0018, [0023](../../decisions/0023-payment-pg-client-port.md) |
+| 9 | PG 승인 호출(트랜잭션 밖, 연결 0.5초·응답 2초). 결제의 `pg_provider`가 가리키는 PG로 보낸다. 허가 정산 | `Approved`·`Declined`·`Unknown` | 0018, [0023](../../decisions/0023-payment-pg-client-port.md) |
 | 10 | TX2: 승인 금액·통화 대조 뒤 조건부 UPDATE(`WHERE status = 'REQUESTED'`). 영향 행 1이면 이력 + Outbox(승인·거절만) + 멱등 응답(200·202) | 0행이면 표 A(현재 상태). 금액·통화 불일치면 `NEEDS_MANUAL_CHECK(PG_AMOUNT_MISMATCH)`, 이벤트 없음, 표 A. DB 오류면 202(`REQUESTED`)로 응답하고 재확인 스케줄러가 10초 뒤 복구 | [0022](../../decisions/0022-outbox-retry-and-retention.md), 0023 |
 
 ### 응답
@@ -74,15 +86,18 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 
 결제창을 열기 전에 부른다. 본문 `{paymentToken}`, 인증이 필요하고 멱등키는 없다(저장하지 않는 조회성 호출). 토큰 서명·용도·대상·사용자와 만료를 검증하며 만료된 토큰은 받지 않는다(조회 전용 유예가 없다). 실패는 403 `PAYMENT_TOKEN_INVALID`다. Gateway의 `/api/v1/payments/**` 경로라 Gateway 변경이 없다.
 
-응답 `data`: `{provider: "MOCK" | "TOSS", orderId?, clientKey?, amount, orderName}`. `orderId`·`clientKey`는 `TOSS`일 때만 있다.
+응답 `data`: `{provider: "MOCK" | "TOSS", mockBypass, orderId?, clientKey?, amount, orderName}`. `orderId`·`clientKey`는 `TOSS`일 때만 있다. `mockBypass`는 항상 나가는 boolean이다.
 
 | 필드 | 값 |
 |---|---|
 | `provider` | 서버의 `payment.pg.provider`. 프런트는 이 값으로 결제창을 열지(TOSS) 바로 승인을 부를지(MOCK) 고른다 |
+| `mockBypass` | `provider`가 `TOSS`이고 `payment.pg.mock-bypass-enabled`가 켜져 있을 때만 `true`다. Mock 모드는 `false`다(결제 버튼이 이미 바로 승인한다) |
 | `orderId` | `PgOrderIds.of(reservationId, token.exp)`. TX1의 `pg_order_id`와 같다 |
 | `clientKey` | 토스 결제창이 쓰는 `test_ck_…` 클라이언트 키(공개 값). 시크릿 키는 응답에 없다 |
 | `amount` | 토큰의 금액 |
 | `orderName` | 예매 번호 기반 문구(`콘서트 예매 {reservationId}`) |
+
+**프런트가 쓰는 방식**: 토스 모드에서 `mockBypass`가 `true`면 결제 버튼 아래에 "토스연동 건너뛰고 결제하기"를 보이고, 누르면 `clientPaymentRef` 없이 `pgProvider: "MOCK"`으로 승인을 보낸다. 같은 결제는 이후에도 Mock으로 재확인·환불된다.
 
 ## 2. 결제 조회 `GET /api/v1/payments/{paymentId}`
 
