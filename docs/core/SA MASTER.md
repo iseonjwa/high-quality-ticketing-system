@@ -1336,6 +1336,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - `DROP_RESPONSE`는 승인은 저장하고 응답만 버린다. UNKNOWN → 조회로 APPROVED를 확인하는 E9를 재현한다.
 - 🆕 프로필: 응답을 만지지 않는 모드(`DELAY`, `DECLINE`, `DROP_RESPONSE`, `PROCESSING`, `SERVER_ERROR`, `REJECT`)는 `test`·`loadtest`에서, 응답을 변조하는 모드(`BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`)는 `test`에서만 허용한다. `prod`와 기본 프로필 `local`에서는 컨트롤러가 없어 404이고, `prod`와 `loadtest`를 함께 켜면 기동하지 않는다. compose가 mock-pg도 `local`로 띄워 측정·시연에서 `/faults`가 404가 되는 문제는 팀 확인을 기다린다 (S-30, 이번 반영 대상 아님).
 
+## 12. 데이터 설계
+
 ### 12-1. 공통 규칙
 
 결정 기록 #15 데이터 공통 규칙: PK IDENTITY + 고객용 번호 별도, 예매·결제는 삭제 없이 상태로, 공연은 논리 삭제, 생성·수정·삭제의 시각과 사람(Auditing), version은 운영자가 수정하는 공연·회차만, Flyway, 이벤트 ID는 UUID.

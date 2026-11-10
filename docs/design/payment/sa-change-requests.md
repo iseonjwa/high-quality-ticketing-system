@@ -27,7 +27,7 @@
 | S-21 | 9-4, 설정 | 결제 서비스 실행기 분리(Outbox 릴레이·복구·정리 작업). `config-repo/payment-service.yml`의 `maximum-pool-size: 5`를 SA 9-4의 20으로 맞추고 `connection-timeout` 1초`[가정]` 추가 **사본 확인(v3.3)**: `config-repo/payment-service.yml`은 `maximum-pool-size: 20`, `connection-timeout: 1000`으로 이미 반영됐고 SA 9-4(:807)의 20과 같다. SA에 남은 일은 실행기 분리와 `connection-timeout` 문구다. | 추가 | 0018, 0022 | 팀  | 반영(PR2) | 2 |
 | S-22 | 10-5, 12-5 | `NEEDS_MANUAL_CHECK` 처리를 "운영자가 PG 콘솔에서 확인해 수동으로 닫는다"에서 "감사되는 Ops 명령으로만 닫는다(직접 SQL 금지, PG 근거 강제, 4-eyes)"로 바꾼다. PG 콘솔 직접 환불은 예외 절차 | 변경 | 0028 | 팀  | 반영(PR3) | 3 |
 | S-23 | 3장 메시지 신뢰성, 10-5, 11-4 | 결제·예매 대사(RC-1~RC-8)와 Reservation의 읽기 전용 내부 조회 API(`/internal/reconciliation/reservations`) 추가. MVP는 기록과 알림만 **사본 확인(v3.3)**: ADR 0029 개정(2026-11-03)을 반영한다. RC-5의 예매 금액 비교와 RC-6은 `APPROVED` 결제로 한정한다(원안은 `APPROVED`·`REFUNDED`). 예매 쪽 내부 조회 API는 ISE-75로 구현됐다. | 추가 | [0029](../../decisions/0029-payment-reservation-reconciliation.md) | 반효승, 팀  | 반영(PR3) | 3 |
-| S-24 | 9-2, compose | Kafka-UI를 READONLY로 둔다(`KAFKA_CLUSTERS_0_READONLY: "true"`, 설정 이름은 `[가정]`이라 kafbat 문서와 실제 동작으로 확인). 관리 UI의 메시지 발행으로 이벤트를 위조하는 경로를 닫는다 **사본 확인(v3.3)**: SA 9-2에는 없다. 배포 compose(`compose.deploy.yml`)에는 적용됐다. | 추가 | 0020 | 팀(인프라)  | 반영(PR3) | 3 |
+| S-24 | 9-2, compose | Kafka-UI를 READONLY로 둔다(`KAFKA_CLUSTERS_0_READONLY: "true"`, 설정 이름은 `[가정]`이라 kafbat 문서와 실제 동작으로 확인). 관리 UI의 메시지 발행으로 이벤트를 위조하는 경로를 닫는다 **사본 확인(v3.3)**: SA 9-2에는 없다. 배포 compose(`compose.deploy.yml`)에는 적용됐다. **서버 확인(2026-11-10, ISE-72)**: 배포 서버 Kafka-UI의 클러스터 API(`/api/clusters`)가 `readOnly: true`를 돌려준다. 실제 발행 시도로 막히는지는 운영 서버에서 쓰기 요청을 보내지 않으려고 확인하지 않았다. 로컬 `compose.yml`에는 넣지 않는다(사용자 결정 2026-11-10). | 추가 | 0020 | 팀(인프라)  | 반영(PR3) | 3 |
 | S-25 | 12-1, 11-5 | 12-1의 "순번 PK를 밖에 노출하지 않는다"와 11-5의 `paymentId`(BIGINT) 노출이 어긋난다. 0021의 소유자 조건으로 정보 노출은 막고, 외부 식별자 분리는 후속으로 적는다 | 정정 | 0021 | 팀  | 반영(PR2) | 2 |
 | S-26 | 9-4 | Gateway 3초 안에 TX1·PG·TX2가 끝나지 않을 수 있음을 적고, 504 뒤에도 Payment 처리는 계속되며 같은 키 재시도로 결과를 받는다고 명시. Gateway에 POST 재시도 필터를 두지 않음 | 추가 | 0018, api.md | 팀  | 반영(PR2) | 2 |
 | S-27 | 11-5 결제 | `GET /payments/{id}`의 `APPROVED`는 예매 확정이 아니며 확정·티켓은 예매 조회로 확인한다고 명시 | 추가 | api.md | 팀  | 반영(PR2) | 2 |
@@ -37,6 +37,7 @@
 
 ## PR 방식
 - 순서: 저장소 사본(`docs/core/SA MASTER.md`)을 먼저 고친다. 머지 뒤 사용자가 요청하면 Notion 정본에 반영한다(AGENTS.md 대전제 4).
+- Notion 반영(2026-11-10, ISE-32): PR1~PR3(#393·#405·#406)이 사본에 바꾼 곳을 Notion SA MASTER v3.3 페이지에 같은 문장으로 옮겼다. 사본에서 #406 때 빠진 `## 12. 데이터 설계` 제목은 Notion에 그대로 두고 사본에 되살렸다. Notion 결정 기록 #58의 문장(S-16)은 아직 고치지 않았다. Notion 페이지에는 11/1 이후 다른 담당이 사본에만 바꾼 내용(예: 11/2 추첨 변경)이 아직 없다.
 - SA 변경 요청 PR은 팀 규칙·SA 변경을 별도 PR로 리뷰하는 합의(통합 회의 D9)를 따른다.
 - PR0: 이 목록의 상태 갱신. SA 사본은 고치지 않는다.
 - PR1 돈·예매 계약: S-1·S-2·S-5·S-15·S-16·S-17·S-19. 리뷰: 반효승(S-1·S-17), 이강민(S-16·U9)
