@@ -30,6 +30,11 @@ public class JpaLotteryRepository implements LotteryRepository {
     }
 
     @Override
+    public Optional<Lottery> findByScheduleId(Long scheduleId) {
+        return springDataLotteryRepository.findByScheduleIdAndDeletedAtIsNull(scheduleId);
+    }
+
+    @Override
     public Optional<Long> findScheduleIdById(Long id) {
         return springDataLotteryRepository.findScheduleIdById(id);
     }

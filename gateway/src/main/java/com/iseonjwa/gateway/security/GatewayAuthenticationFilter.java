@@ -27,18 +27,22 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String BLACKLIST_PREFIX = "auth:blacklist:";
     private static final Duration REDIS_TIMEOUT = Duration.ofMillis(100);
+    static final String AUTH_REDIS_BREAKER = "auth-redis";
 
     private final JwtDecoder decoder;
     private final ReactiveStringRedisTemplate redis;
     private final GatewayErrorWriter errors;
     private final ReactiveCircuitBreaker redisBreaker;
+    private final AuthRedisFailures redisFailures;
 
     public GatewayAuthenticationFilter(JwtDecoder decoder, ReactiveStringRedisTemplate redis,
-            GatewayErrorWriter errors, ReactiveCircuitBreakerFactory<?, ?> breakers) {
+            GatewayErrorWriter errors, ReactiveCircuitBreakerFactory<?, ?> breakers,
+            AuthRedisFailures redisFailures) {
         this.decoder = decoder;
         this.redis = redis;
         this.errors = errors;
-        this.redisBreaker = breakers.create("auth-redis");
+        this.redisBreaker = breakers.create(AUTH_REDIS_BREAKER);
+        this.redisFailures = redisFailures;
     }
 
     @Override
@@ -87,8 +91,16 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<Boolean> isRevoked(Jwt jwt) {
-        var lookup = redis.hasKey(BLACKLIST_PREFIX + jwt.getId()).timeout(REDIS_TIMEOUT);
-        return redisBreaker.run(lookup).onErrorMap(exception -> new AuthDependencyUnavailable());
+        // Note: 안쪽 시한은 전용 예외로 낸다. 그대로 TimeoutException을 내면 차단기 바깥 TimeLimiter의 시한 초과와 구별할 수 없다.
+        var lookup = redis.hasKey(BLACKLIST_PREFIX + jwt.getId())
+                .timeout(REDIS_TIMEOUT, Mono.error(AuthRedisFailures.RedisLookupTimeout::new));
+        return Mono.defer(() -> {
+            var startedAt = System.nanoTime();
+            return redisBreaker.run(lookup).onErrorMap(exception -> {
+                redisFailures.record(exception, Duration.ofNanos(System.nanoTime() - startedAt));
+                return new AuthDependencyUnavailable();
+            });
+        });
     }
 
     private String bearerToken(ServerHttpRequest request) {
