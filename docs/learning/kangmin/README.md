@@ -6,6 +6,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | Gateway 벌크헤드·차단기에 걸려 대기열 진입이 503이면 사용자가 다시 눌러야 하나, 자동으로 들어가나 | [qna/2026-11-10-queue-join-503-auto-retry.md](qna/2026-11-10-queue-join-503-auto-retry.md) |
+| 2026-11-10 | Resilience4j 서킷 브레이커와 벌크헤드 설정 키는 각각 무엇을 정하나 | [qna/2026-11-10-circuit-breaker-config-keys.md](qna/2026-11-10-circuit-breaker-config-keys.md) |
+| 2026-11-10 | Gateway auth-redis 차단기·벌크헤드 권장 설정은 무엇을 바꾸고, 바꾸면 어떤 문제가 생기나 | [qna/2026-11-10-auth-redis-breaker-bulkhead-tradeoffs.md](qna/2026-11-10-auth-redis-breaker-bulkhead-tradeoffs.md) |
 | 2026-11-10 | 웜업과 단계 크기는 결과를 바꾸나, auth-redis 서킷 브레이커는 어떻게 완화하고 Gateway는 어떻게 개선하나 | [qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md](qna/2026-11-10-circuit-breaker-warmup-and-relaxing.md) |
 | 2026-11-10 | 측정 도구 변경은 언제 커밋·푸시하고, main에 넘겨야 하나 | [qna/2026-11-10-measurement-tool-branch-vs-main.md](qna/2026-11-10-measurement-tool-branch-vs-main.md) |
 | 2026-11-10 | 배포는 무엇으로 하나, 쿠버네티스가 아니라 EC2에 그냥 띄우는 것인가 | [qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md](qna/2026-11-10-deploy-method-ec2-compose-vs-k8s.md) |

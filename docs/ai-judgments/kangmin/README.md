@@ -8,6 +8,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | 11/11 회의에서 개선안을 정하고 11/13에 재측정하자는 AI 일정을 거부하고, 개선 적용과 재측정을 최대한 앞당기기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-10-pull-forward-improvement-remeasure.md) |
 | 2026-11-10 | 응모 마감까지 setup 여유를 약 3분 두자는 AI 설정을 거부하고, setup과 추첨 사이 빈 시간을 최소로 줄이게 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-10-cut-setup-to-draw-gap.md) |
 | 2026-11-10 | 서버 명령을 측정자가 직접 치고 에이전트는 안내만 하는 방식 대신, 11/10 측정에서는 에이전트가 배포 서버·발생기 명령을 직접 실행하게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-10-agent-runs-server-commands-during-measurement.md) |
 | 2026-11-10 | 추첨 배포 측정 전 점검의 추천(L1 503 메시지 태그, 응모 3만 명·시각, 반복 조건, PAY_RATE 20·30)을 그대로 받아들임 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-10-lottery-server-measurement-conditions.md) |
