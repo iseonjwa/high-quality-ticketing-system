@@ -463,3 +463,10 @@
 - 원인: `AuthRedisFailures`에 운영용 public 생성자 `(MeterRegistry, CircuitBreakerRegistry)`와 테스트용 package-private 생성자 `(..., LongSupplier)`를 두고 `@Autowired`를 붙이지 않았다. 생성자가 하나면 스프링이 그것을 쓰지만, 여럿이고 `@Autowired`가 없으면 기본 생성자를 찾다 실패한다. 단위 테스트는 `new`로 만들었고, 컨텍스트 테스트는 이 빈을 등록하지 않았으며, Gateway에는 앱 전체를 띄우는 테스트가 없어 CI가 잡지 못했다.
 - 해결: 운영용 생성자에 `@Autowired`를 붙였다. `AuthRedisResilienceContextTest`에 `withUserConfiguration`으로 두 빈(`AuthRedisFailures`, `AuthRedisBreakerEvents`)을 등록해 만들어지는지 보는 테스트를 더했다. `@Autowired`를 빼면 이 테스트가 `No default constructor`로 실패하는 것을 확인했다(변이 테스트). Gateway 테스트 100건 통과, 로컬 Config 서버·Redis로 Gateway 기동도 확인했다.
 - 배운 점: 테스트용 생성자를 따로 두면 스프링이 어느 생성자를 쓸지 정해 줘야 한다. `ApplicationContextRunner.withBean(Class)`은 public 생성자를 바로 골라 이 오류를 숨기므로, 컴포넌트 스캔과 같은 경로를 보려면 `withUserConfiguration`을 쓴다. 되돌림 뒤에는 실패한 컨테이너 로그가 사라지니 Loki에서 찾는다.
+
+### TS-54 Zipkin 힙이 차서 unhealthy가 되자 배포의 `compose up --wait`가 매번 실패하고 되돌림까지 실패했다
+- 서비스·작성: infra / kangmin / 2026-11-11
+- 문제: 11/10 14:53Z(#471)와 15:27Z(#474) main 배포가 두 번 모두 실패해 `3b8b2bc9`로 되돌려졌다. GitHub Actions와 이미지 받기는 성공했고, 앱 컨테이너는 죽지 않았다. 두 번 모두 마지막 앱 컨테이너가 뜬 직후(14:54:09, 15:28:12) compose가 상태 확인 요청을 끊었고(dockerd "request cancelled by client"), 되돌림도 컨테이너가 뜬 1~2초 뒤 Jenkins SSH 세션이 끝났다(되돌림도 실패, `deploy.sh` 종료 코드 3으로 보임). 처음에는 Jenkins 메모리 부족을 의심했다.
+- 원인: Zipkin이 `java.lang.OutOfMemoryError: Java heap space`로 GC만 돌며(CPU 101%) 상태 확인 5초 시한을 넘겨 `unhealthy`였다(재시작 4회). `deploy.sh`의 `docker compose up --wait`는 프로젝트 안에 unhealthy 컨테이너가 하나라도 있으면 바로 실패한다. Zipkin은 설정이 바뀌지 않아 배포 때 다시 만들어지지 않으므로 고장 난 채 남아 배포와 되돌림을 모두 막았다. 힙이 찬 것은 메모리 저장 기본 한도 50만 건(`zipkin-server-shared.yml`의 `max-spans: ${MEM_MAX_SPANS:500000}`)이 힙 384m보다 크고, 평시 샘플링 1.0과 11/10 대량 측정으로 추적이 쌓였기 때문으로 보인다(건당 크기는 재지 않았다).
+- 해결: Zipkin을 재시작해(15:33Z) healthy로 되돌리고, `compose.deploy.yml` zipkin에 `MEM_MAX_SPANS: 100000`을 넣었다. 설정이 바뀌어 다음 배포에서 Zipkin이 새로 만들어진다.
+- 배운 점: `--wait` 배포는 앱이 아닌 부가 컨테이너(관측 도구)의 건강도 배포 성공 조건으로 삼는다. 되돌림이 실패하면 Jenkins 세션이 일찍 끝나 Jenkins 쪽 문제처럼 보이므로, 배포 서버에서 `docker ps`의 unhealthy와 `RestartCount`를 먼저 본다. 메모리에만 쌓는 저장소는 힙에 맞춘 건수 상한을 둔다.
