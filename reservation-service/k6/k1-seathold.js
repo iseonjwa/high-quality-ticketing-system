@@ -39,6 +39,11 @@ const BURST_TABS = Number(__ENV.BURST_TABS || 4);
 const BURST_SEATS = Number(__ENV.BURST_SEATS || 2);
 const BURST_REPEAT = Number(__ENV.BURST_REPEAT || 3);
 const MAX_PER_USER = Number(__ENV.MAX_PER_USER || 4);
+// 0보다 크면 부하와 같이 '구경꾼' 요청을 API마다 초당 BYSTANDER_RATE건 보낸다. 선점과 상관없는 API가 영향을 받는지 본다(Z, 잠금 번짐)
+//   by_concerts: 같은 reservation-service의 공연 목록, by_user: user-service 내 정보, by_payment: payment-service(local 전용 신원 확인)
+const BYSTANDER_RATE = Number(__ENV.BYSTANDER_RATE || 0);
+const BYSTANDER_TAIL_SECONDS = Number(__ENV.BYSTANDER_TAIL_SECONDS || 90);
+const BYSTANDER_USER_OFFSET = 700000;
 // 0보다 크면 부하가 끝난 뒤 이 시간 동안 10초마다 좌석 조회 한 건을 보내 회복을 본다(B8, k6-overload-recovery.md 6절)
 const RECOVERY_SECONDS = Number(__ENV.RECOVERY_SECONDS || 0);
 // 탐침 사용자는 부하 사용자와 겹치지 않게 뒤쪽 ID를 쓴다
@@ -122,6 +127,13 @@ if (WARMUP_SECONDS > 0) {
   scenarios.warmup = {
     executor: 'constant-arrival-rate', exec: 'warmup', rate: WARMUP_RATE, timeUnit: '1s',
     duration: `${WARMUP_SECONDS}s`, preAllocatedVUs: 50, maxVUs: 200,
+  };
+}
+if (BYSTANDER_RATE > 0) {
+  // 부하가 끝난 뒤에도 BYSTANDER_TAIL_SECONDS 동안 이어 보내 회복을 본다
+  scenarios.bystander = {
+    executor: 'constant-arrival-rate', exec: 'bystander', rate: BYSTANDER_RATE * 3, timeUnit: '1s',
+    startTime: `${WARMUP_SECONDS}s`, duration: `${LOAD_SECONDS + BYSTANDER_TAIL_SECONDS}s`, preAllocatedVUs: 50, maxVUs: 1000,
   };
 }
 if (RECOVERY_SECONDS > 0) {
@@ -327,6 +339,21 @@ function stageOf(elapsedMs) {
     return 'ramp';
   }
   return String(STAGES[index]);
+}
+
+// 구경꾼: 반복 번호로 세 API를 돌아가며 부른다. phase 태그는 부하 단계(ramp면 단계 값) 또는 부하 뒤 'after'다
+export function bystander() {
+  const i = exec.scenario.iterationInTest;
+  const elapsed = Date.now() - exec.scenario.startTime;
+  const phase = elapsed >= LOAD_SECONDS * 1000 ? 'after' : MODEL === 'ramp' ? stageOf(elapsed) : 'load';
+  const user = userOf(BYSTANDER_USER_OFFSET + (i % 1000));
+  const targets = [
+    ['by_concerts', `${BASE_URL}/api/v1/concerts`],
+    ['by_user', `${BASE_URL}/api/v1/users/me`],
+    ['by_payment', `${BASE_URL}/api/v1/payments/_system/identity`],
+  ];
+  const [api, url] = targets[i % targets.length];
+  http.get(url, { headers: { Authorization: `Bearer ${user.accessToken}` }, tags: { api, phase }, timeout: '10s' });
 }
 
 // 회복 탐침: 좌석 조회 한 건의 상태와 지연을, 부하가 끝난 뒤 몇 초째인지와 함께 남긴다

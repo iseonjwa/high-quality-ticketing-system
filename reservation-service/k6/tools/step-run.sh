@@ -11,6 +11,8 @@
 #   X: K1 부하 + 만료 스케줄러 켬. 선점 유지 1분 회차에 초당 100명 300초(만료와 선점 경합 S3·S4, 동시성 테스트 C7)
 #   K: K1 부하 + 잠금 장애 주입. 부하 LOCK_AFTER초(기본 30) 뒤 별도 세션이 앞쪽 LOCK_RANGE석(기본 3,000, 인기 구역) 중
 #      선택 가능 좌석을 LOCK_SECONDS초(기본 30) 동안 FOR UPDATE로 쥔다. 잠긴 행을 노린 선점이 어디까지 번지는지 본다(S3)
+#   Z: 잠긴 행 집중 스트레스. 측정 내내 앞쪽 LOCK_RANGE석(기본 10, 인기석)을 잠그고 선점을 그 좌석에만 초당 10명부터 두 배씩 보낸다.
+#      같이 구경꾼 요청(공연 목록, user-service, payment-service)을 API마다 초당 10건 보내 번짐을 본다. 잠금은 부하 끝 30초 뒤 푼다
 #   선택: EXTRA_OVERLAYS="a.yml b.yml"로 덮어쓰기를 더 얹고, SCALE=2로 reservation-service를 여러 대 띄운다
 #   예: bash reservation-service/k6/tools/step-run.sh base S
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
@@ -75,8 +77,9 @@ case "$KIND" in
      LOAD_SECONDS="$DURATION_SECONDS" ;;
   K) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS=0
      LOAD_SECONDS="$DURATION_SECONDS" ;;
+  Z) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-10,20,40,80,160,320}" RECOVERY_SECONDS=0 MAX_VUS="${MAX_VUS:-4000}" \n       HOT_RATIO=1 HOT_SHARE="${HOT_SHARE:-0.000667}" MAX_RETRY=0 THINK_MIN=0 THINK_MAX=0.2 BYSTANDER_RATE="${BYSTANDER_RATE:-10}" \n       LOCK_AFTER="${LOCK_AFTER:--10}" LOCK_RANGE="${LOCK_RANGE:-10}" ;;
   H) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-50,100,200,400,800}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}" ;;
-  *) echo "측정 종류는 L, S, H, T, D, X, K 중 하나입니다" >&2; exit 1 ;;
+  *) echo "측정 종류는 L, S, H, T, D, X, K, Z 중 하나입니다" >&2; exit 1 ;;
 esac
 if [ "$MODEL" = ramp ]; then
   STAGE_COUNT="$(echo "$STAGES" | tr ',' '\n' | grep -c .)"
@@ -141,7 +144,9 @@ PREFIX="$K6/results/step-$STEP-$KIND-$(date +%Y%m%d-%H%M%S)"
 STATS_PID=$!
 trap 'kill $STATS_PID 2>/dev/null || true' EXIT
 
-if [ "$KIND" = K ]; then
+# Z는 부하 내내 잠그고 부하가 끝난 뒤 30초 더 쥔다(구경꾼 요청으로 잠금이 풀린 뒤의 회복을 본다)
+[ "$KIND" = Z ] && LOCK_SECONDS="${LOCK_SECONDS:-$(( LOAD_SECONDS + 30 ))}"
+if [ "$KIND" = K ] || [ "$KIND" = Z ]; then
   # 잠금 장애 주입. k6 setup이 남긴 load_start를 기다렸다가 LOCK_AFTER초 뒤 잠근다. 잠근 시각과 좌석 수를 lock.txt에 남긴다
   # Note: load_start는 setup에서 워밍업 뒤의 부하 시작 시각(미래)으로 찍힌다. 줄이 보인 때가 아니라 그 시각에서 LOCK_AFTER초 뒤에 잠근다
   ( for _ in $(seq 1 600); do grep -q "load_start epoch_ms=" "$PREFIX-k6.log" 2>/dev/null && break; sleep 1; done
