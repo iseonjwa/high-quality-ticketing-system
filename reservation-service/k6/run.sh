@@ -26,6 +26,8 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 # SEAT_MAP=once(K1-H)는 파일 이름에 holdonly를 붙여 K1 결과와 섞이지 않게 한다
 MODE_TAG=""
 [ "${SEAT_MAP:-each}" = "once" ] && MODE_TAG="-holdonly"
+# BURST(K2)는 holdonly 대신 burst-<모드>를 붙인다
+[ -n "${BURST:-}" ] && MODE_TAG="-burst-$BURST"
 # LABEL(예: p4a-S)을 주면 파일 이름에 붙여 단계별 결과를 나눈다
 NAME="${SCRIPT%.js}${MODE_TAG}${LABEL:+-$LABEL}-${MODEL:-open}-${STAMP}"
 
@@ -56,7 +58,7 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e MODEL -e RATE -e DURATION_SECONDS -e CLOSED_VUS \
   -e THINK_MIN -e THINK_MAX -e MAX_RETRY -e HOT_RATIO -e HOT_SHARE \
   -e PRE_VUS -e MAX_VUS -e USERS_CSV \
-  -e SEAT_MAP -e RECOVERY_SECONDS -e STAGES -e STAGE_SECONDS -e WARMUP_SECONDS -e WARMUP_RATE -e WARMUP_SCHEDULE_ID -e TOKEN_MODE -e IDENTITY -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
+  -e SEAT_MAP -e BURST -e BURST_TABS -e BURST_SEATS -e BURST_REPEAT -e MAX_PER_USER -e RECOVERY_SECONDS -e STAGES -e STAGE_SECONDS -e WARMUP_SECONDS -e WARMUP_RATE -e WARMUP_SCHEDULE_ID -e TOKEN_MODE -e IDENTITY -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
   "$K6_IMAGE" run \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \

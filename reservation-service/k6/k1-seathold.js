@@ -31,6 +31,14 @@ const DIRECT = __ENV.IDENTITY === 'direct';
 // each: K1(시도마다 좌석 조회). once: K1-H(좌석 조회 병목을 떼고 선점 경로만 잰다)
 const SEAT_MAP = __ENV.SEAT_MAP || 'each';
 const HOLD_ONLY = SEAT_MAP === 'once';
+// K2: 같은 사용자의 동시 요청(SEAT_MAP=once 전용). 반복 하나가 사용자 한 명이고, 고민 시간 뒤 선점을 한꺼번에 보낸다.
+//   tabs: 탭 BURST_TABS개가 서로 다른 좌석 BURST_SEATS석씩, 서로 다른 멱등키로 동시에 선점한다(매수 한도 S1, 동시성 테스트 C4)
+//   double: 같은 좌석·같은 멱등키로 BURST_REPEAT번 동시에 보낸다(연타·재전송, 멱등키 S2, 동시성 테스트 C5)
+const BURST = __ENV.BURST || '';
+const BURST_TABS = Number(__ENV.BURST_TABS || 4);
+const BURST_SEATS = Number(__ENV.BURST_SEATS || 2);
+const BURST_REPEAT = Number(__ENV.BURST_REPEAT || 3);
+const MAX_PER_USER = Number(__ENV.MAX_PER_USER || 4);
 // 0보다 크면 부하가 끝난 뒤 이 시간 동안 10초마다 좌석 조회 한 건을 보내 회복을 본다(B8, k6-overload-recovery.md 6절)
 const RECOVERY_SECONDS = Number(__ENV.RECOVERY_SECONDS || 0);
 // 탐침 사용자는 부하 사용자와 겹치지 않게 뒤쪽 ID를 쓴다
@@ -48,6 +56,9 @@ const LOAD_SECONDS = MODEL === 'ramp' ? STAGES.length * STAGE_SECONDS : DURATION
 
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
+}
+if (BURST && (!HOLD_ONLY || (BURST !== 'tabs' && BURST !== 'double'))) {
+  throw new Error('BURST는 tabs 또는 double이고 SEAT_MAP=once에서만 쓴다');
 }
 if (WARMUP_SECONDS > 0 && (!WARMUP_SCHEDULE_ID || TOKEN_MODE !== 'sign')) {
   throw new Error('워밍업에는 WARMUP_SCHEDULE_ID와 TOKEN_MODE=sign이 필요합니다(입장 토큰이 회차마다 다르다)');
@@ -70,6 +81,9 @@ const holdResults = new Counter('hold_results');
 const usersFinished = new Counter('users_finished');
 const requestsPerUser = new Trend('requests_per_user');
 const probeDuration = new Trend('probe_duration', true);
+// K2 사용자 결과. tabs는 over_limit(한도 초과 보유)이, double은 self_conflict(자기 요청에 409)가 결함이다
+const burstUsers = new Counter('burst_users');
+const burstHeldSeats = new Trend('burst_held_seats');
 
 const vuPool = { preAllocatedVUs: Number(__ENV.PRE_VUS || 600), maxVUs: Number(__ENV.MAX_VUS || 2000) };
 const scenario = MODEL === 'ramp'
@@ -102,7 +116,7 @@ const scenario = MODEL === 'ramp'
 if (WARMUP_SECONDS > 0) {
   scenario.startTime = `${WARMUP_SECONDS}s`;
 }
-const scenarios = HOLD_ONLY ? { k1h: scenario } : { k1: scenario };
+const scenarios = BURST ? { k2: scenario } : HOLD_ONLY ? { k1h: scenario } : { k1: scenario };
 if (WARMUP_SECONDS > 0) {
   // 워밍업 요청은 api:warmup 태그라 api:seats·api:hold 지표와 사용자 결과에 섞이지 않는다
   scenarios.warmup = {
@@ -177,6 +191,10 @@ export default function (data) {
   // Note: 열린 모델에서는 반복 하나가 새로 입장한 사용자 한 명이다. 같은 사용자를 다시 쓰면 매수 한도(4매)와 입장 토큰 만료가 섞인다
   const user = userOf(exec.scenario.iterationInTest);
   const headers = headersOf(user);
+  if (BURST) {
+    burst(data.seats, headers);
+    return;
+  }
   let requests = 0;
   if (MODEL === 'ramp') {
     // 이 사용자가 도착한 단계로 모든 지표에 태그를 붙인다. VU는 반복을 이어 쓰므로 반복마다 다시 정한다
@@ -222,6 +240,66 @@ export default function (data) {
     }
   }
   requestsPerUser.add(requests);
+}
+
+// K2: 한 사용자의 선점 요청을 http.batch로 동시에 보내고 사용자 단위로 결과를 판정한다. 재시도는 하지 않는다
+function burst(seats, headers) {
+  sleep(between(THINK_MIN, THINK_MAX));
+  const sameKey = uuid();
+  const doubleSeats = pickFromList(seats, Math.random() < 0.5 ? 1 : 2);
+  const requests = [];
+  const used = [];
+  for (let i = 0; i < (BURST === 'tabs' ? BURST_TABS : BURST_REPEAT); i++) {
+    // tabs는 탭끼리 좌석이 겹치지 않게 고른다. 겹치면 매수 한도가 아니라 좌석 경쟁으로 409가 나 판정이 흐려진다
+    let seatIds = doubleSeats;
+    if (BURST === 'tabs') {
+      for (let tries = 0; tries < 10; tries++) {
+        seatIds = pickFromList(seats, BURST_SEATS);
+        if (seatIds.every((id) => used.indexOf(id) < 0)) {
+          break;
+        }
+      }
+      used.push(...seatIds);
+    }
+    requests.push(['POST', holdUrl(), JSON.stringify({ seatIds }), {
+      headers: Object.assign({ 'Content-Type': 'application/json', 'Idempotency-Key': BURST === 'tabs' ? uuid() : sameKey },
+        headers),
+      tags: { api: 'hold' },
+    }]);
+  }
+  const responses = http.batch(requests);
+  let held = 0;
+  const created = [];
+  const codes = [];
+  responses.forEach((res, i) => {
+    const result = res.status === 201 ? 'created' : res.status === 409 ? 'conflict' : 'error';
+    const code = result === 'conflict' ? errorCode(res.body) : String(res.status);
+    holdDuration.add(res.timings.duration, { result });
+    holdResults.add(1, { result, code });
+    codes.push(code);
+    if (result === 'created') {
+      held += JSON.parse(requests[i][2]).seatIds.length;
+      const match = /"reservationId":(\d+)/.exec(res.body || '');
+      created.push(match ? match[1] : '?');
+    }
+  });
+  let outcome;
+  if (codes.some((c) => c !== '201' && c !== 'SEAT_ALREADY_HELD' && c !== 'PURCHASE_LIMIT_EXCEEDED')) {
+    outcome = 'error';
+  } else if (BURST === 'tabs') {
+    outcome = held > MAX_PER_USER ? 'over_limit' : held > 0 ? 'within_limit' : 'none_held';
+  } else if (created.length === 0) {
+    outcome = 'taken';
+  } else if (created.length === responses.length) {
+    // 같은 키의 응답은 모두 같은 예매여야 한다. 다르면 같은 요청이 예매 두 건을 만든 것이다
+    outcome = created.every((id) => id === created[0]) ? 'same_201' : 'duplicate';
+  } else {
+    outcome = 'self_conflict';
+  }
+  burstUsers.add(1, { outcome });
+  if (BURST === 'tabs') {
+    burstHeldSeats.add(held);
+  }
 }
 
 // 워밍업: 다른 회차로 좌석 조회와 선점을 한 번씩 보내 JIT·커넥션을 데운다. 측정 회차의 좌석은 쓰지 않는다

@@ -2,6 +2,7 @@
 # 측정용 새 회차(판매 중, 시드 공연장 15,000석)를 만들고 회차 ID만 출력한다. 절차는 BookingFlowSystemTest와 같다.
 # 관리자 계정은 저장소 루트 .env의 ADMIN_EMAIL·ADMIN_PASSWORD를 읽는다. 값과 토큰은 출력하지 않는다.
 # 사용: SCHEDULE_ID=$(bash reservation-service/k6/tools/create-schedule.sh "k6 B8")
+# HOLD_MINUTES로 선점 유지 시간(분, 기본 5)을 바꾼다. 만료를 측정 안에서 일으키는 X에서 1로 쓴다
 set -euo pipefail
 
 TITLE="${1:-k6 K1}"
@@ -39,7 +40,7 @@ SCHEDULE_BODY="$(python -c "
 import json,datetime as d
 now=d.datetime.fromtimestamp($NOW,d.timezone.utc)
 iso=lambda t:t.strftime('%Y-%m-%dT%H:%M:%SZ')
-print(json.dumps({'venueId':1,'startsAt':iso(now+d.timedelta(days=7)),'openAt':iso(now-d.timedelta(seconds=60)),'maxPerUser':4,'holdMinutes':5}))")"
+print(json.dumps({'venueId':1,'startsAt':iso(now+d.timedelta(days=7)),'openAt':iso(now-d.timedelta(seconds=60)),'maxPerUser':4,'holdMinutes':${HOLD_MINUTES:-5}}))")"
 SCHEDULE="$(post "/api/v1/admin/concerts/$CONCERT/schedules" "$SCHEDULE_BODY" | field scheduleId)"
 post "/api/v1/admin/schedules/$SCHEDULE/seats" \
   '{"prices":[{"grade":"VIP","price":165000},{"grade":"R","price":143000},{"grade":"S","price":112000}]}' >/dev/null

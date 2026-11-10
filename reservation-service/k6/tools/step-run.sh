@@ -6,6 +6,9 @@
 #   L: K1 부하. 초당 100명 300초
 #   S: K1 스트레스 + 회복. 초당 5명부터 두 배씩 60초, 끝나고 120초 탐침
 #   H: K1-H(선점만) 스트레스 + 회복. 초당 50명부터 두 배씩 60초
+#   T: K2 멀티 탭. 같은 사용자가 탭 4개로 2석씩 동시에 선점(매수 한도 S1). 초당 50명 120초
+#   D: K2 연타. 같은 사용자가 같은 좌석·같은 멱등키로 3번 동시에 선점(멱등키 S2). 초당 50명 120초
+#   X: K1 부하 + 만료 스케줄러 켬. 선점 유지 1분 회차에 초당 100명 300초(만료와 선점 경합 S3·S4, 동시성 테스트 C7)
 #   예: bash reservation-service/k6/tools/step-run.sh base S
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
 #
@@ -45,6 +48,8 @@ while IFS= read -r line; do
 done < "$K6/step-overlays.txt"
 # JFR은 단계가 아니라 관찰 옵션이다. 단계 목록과 섞이지 않게 따로 얹는다
 [ "${OBSERVE_JFR:-0}" = 1 ] && FILES+=(-f "$K6/compose.jfr.yml")
+# X는 기준 환경에서 꺼 둔 만료 스케줄러를 켠다. 단계가 아니라 측정 종류의 조건이라 단계 목록과 따로 얹는다
+[ "$KIND" = X ] && FILES+=(-f "$K6/compose.expiry-on.yml")
 
 WARMUP_SECONDS="${WARMUP_SECONDS:-60}"
 # Note: 워밍업 속도는 모든 단계에서 초당 2명이다. k6 기본값(10명)은 base의 처리 한계(좌석 조회 초당 약 4건)를 넘어,
@@ -54,8 +59,14 @@ case "$KIND" in
   L) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-0}"
      LOAD_SECONDS="$DURATION_SECONDS" ;;
   S) export MODEL=ramp STAGES="${STAGES:-5,10,20,40,80,160,320}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}" ;;
+  T) export MODEL=open SEAT_MAP=once BURST=tabs RATE="${RATE:-50}" DURATION_SECONDS="${DURATION_SECONDS:-120}" RECOVERY_SECONDS=0
+     LOAD_SECONDS="$DURATION_SECONDS" ;;
+  D) export MODEL=open SEAT_MAP=once BURST=double RATE="${RATE:-50}" DURATION_SECONDS="${DURATION_SECONDS:-120}" RECOVERY_SECONDS=0
+     LOAD_SECONDS="$DURATION_SECONDS" ;;
+  X) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS=0 HOLD_MINUTES="${HOLD_MINUTES:-1}"
+     LOAD_SECONDS="$DURATION_SECONDS" ;;
   H) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-50,100,200,400,800}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}" ;;
-  *) echo "측정 종류는 L, S, H 중 하나입니다" >&2; exit 1 ;;
+  *) echo "측정 종류는 L, S, H, T, D, X 중 하나입니다" >&2; exit 1 ;;
 esac
 if [ "$MODEL" = ramp ]; then
   STAGE_COUNT="$(echo "$STAGES" | tr ',' '\n' | grep -c .)"
@@ -89,7 +100,7 @@ sleep 10
 bash "$K6/tools/create-schedule.sh" "k6 $STEP prime" >/dev/null 2>&1 || true
 # 워밍업은 측정 회차의 좌석을 쓰지 않게 다른 회차로 한다(계획 문서 1-6절)
 WARMUP_SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP warmup")"
-SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
+SCHEDULE_ID="$(HOLD_MINUTES="${HOLD_MINUTES:-5}" bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
 export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS WARMUP_RATE TOKEN_MODE=sign LABEL="$STEP-$KIND"
 # Note: k6는 compose 네트워크 안에서 Gateway를 직접 부른다. host.docker.internal로 부르면 830KB 좌석 응답이 호스트의
 # Docker 포트 전달(com.docker.backend)을 거쳐 다시 VM으로 들어오는데, P4b에서 서버가 빨라지자 이 경로가 먼저 막혔다(STEPS.md P4b 실측 4차).
@@ -98,6 +109,12 @@ export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS WARMUP_RATE TOKEN_MODE=sign
 if [ "${IDENTITY:-}" = direct ]; then DEFAULT_BASE_URL=http://reservation-service:8082; else DEFAULT_BASE_URL=http://gateway:8080; fi
 export IDENTITY K6_NETWORK="${K6_NETWORK:-iseonjwa_default}" BASE_URL="${BASE_URL:-$DEFAULT_BASE_URL}"
 echo "[$STEP-$KIND] 측정 회차 $SCHEDULE_ID, 워밍업 회차 $WARMUP_SCHEDULE_ID"
+if [ "$KIND" = X ]; then
+  # Note: 앞선 회들은 만료 스케줄러를 끈 채 쟀으므로, 기한이 지난 HELD 예매가 다른 회차에 수십만 건 남아 있다(2026-11-10 약 49만 건).
+  # 스케줄러는 기한이 이른 것부터 집으므로 그대로 켜면 측정 회차보다 그 적체를 먼저 치운다. 버리는 측정 회차의 기한을 1년 뒤로 미뤄 대상에서 뺀다
+  PUSHED="$(docker exec iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tAc     "WITH u AS (UPDATE reservations SET hold_expires_at = now() + interval '365 days' WHERE status = 'HELD' AND hold_expires_at <= now() + interval '10 minutes' AND schedule_id NOT IN ($SCHEDULE_ID, $WARMUP_SCHEDULE_ID) RETURNING 1) SELECT count(*) FROM u")"
+  echo "[$STEP-$KIND] 다른 회차의 만료 대상 $PUSHED건을 1년 뒤로 미룸"
+fi
 
 mkdir -p "$K6/results"
 PREFIX="$K6/results/step-$STEP-$KIND-$(date +%Y%m%d-%H%M%S)"
@@ -107,6 +124,8 @@ PREFIX="$K6/results/step-$STEP-$KIND-$(date +%Y%m%d-%H%M%S)"
     docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' 2>/dev/null
     # 행 잠금을 기다리는 세션 수(S3 직면 여부, 계획 문서 3-4절). 같은 좌석을 잡으려는 선점이 앞 트랜잭션의 커밋을 기다리는 수다
     echo "lock_waits $(docker exec iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tAc       "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'" 2>/dev/null)"
+    # 만료 적체(X): 기한이 지났는데 아직 HELD인 예매와 지금까지 만료된 예매 수
+    echo "expiry $(docker exec iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -tAc "SELECT count(*) FILTER (WHERE status = 'HELD' AND hold_expires_at <= now()) || ' ' || count(*) FILTER (WHERE status = 'EXPIRED') FROM reservations WHERE schedule_id = $SCHEDULE_ID" 2>/dev/null)"
     sleep 10
   done ) > "$PREFIX-stats.txt" &
 STATS_PID=$!

@@ -1,0 +1,7 @@
+# 측정 종류 X 전용 덮어쓰기다. compose.deploy-memory.yml이 끈 선점 만료 스케줄러를 다시 켠다.
+# 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1-6절(측정 종류), 측정 브랜치 STEPS.md "동시성 부하 측정"
+# 주기(5초)와 한 주기 상한(100건)은 기본값 그대로 둔다. 배포와 같은 조건에서 만료가 선점 속도를 따라가는지 본다
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_EXPIRY_ENABLED: "true"
