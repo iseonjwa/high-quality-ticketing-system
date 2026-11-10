@@ -177,3 +177,6 @@ services:
     logging: *deploy-logging
     environment:
       JAVA_OPTS: -Xmx384m
+      # Note: 메모리 저장은 기본 50만 건까지 쌓는다. 샘플링 1.0과 측정 몰림 뒤 힙(384m)이 차서 unhealthy가 되면
+      # 배포의 compose --wait가 실패해 되돌림까지 막는다(TS-54). 10만 건으로 줄여 힙 안에 머물게 한다(건당 크기는 추정).
+      MEM_MAX_SPANS: 100000
