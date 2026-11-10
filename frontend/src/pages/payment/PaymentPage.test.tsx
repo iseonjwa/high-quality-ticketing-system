@@ -1254,3 +1254,39 @@ describe('PaymentPage 토스연동 건너뛰기', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('PaymentPage 결제창을 닫은 뒤 결제 가능 시간', () => {
+  it('결제창을 닫은 뒤 서버 시계로 시간이 지나면 버튼을 막고 건너뛰기를 감춘다', async () => {
+    const held = await hold()
+    // 서버 시계 기준 2초 뒤에 결제 가능 시간이 끝난다
+    const soon = {
+      ...held,
+      hold: { ...held.hold, paymentTokenExpiresAt: toKstIso(Date.now() + 2_000) },
+    }
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+          mockBypass: true,
+        }),
+      ),
+    )
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'USER_CANCEL' })
+    renderPayment({ navigation: { held: soon, clockOffsetMillis: 0 } })
+
+    await clickPay()
+    expect(await screen.findByText('결제를 취소했어요. 다시 결제할 수 있어요.')).toBeInTheDocument()
+
+    expect(
+      await screen.findByText('결제 가능 시간이 지났어요', {}, { timeout: 4_000 }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /원 결제하기$/ })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
+  })
+})

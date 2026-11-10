@@ -5,6 +5,7 @@ import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats } from '@/api/reservations'
 import { readPaymentAttempt, readTossCheckout, savePaymentAttempt } from '@/auth/paymentAttempts'
 import { ok } from '@/mocks/respond'
+import { reloadPage } from '@/lib/reloadPage'
 import { openTossPaymentWindow } from '@/pages/payment/tossPaymentWindow'
 import { fail } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
@@ -29,8 +30,13 @@ vi.mock('@/pages/payment/tossPaymentWindow', async (importOriginal) => ({
 }))
 const openWindow = vi.mocked(openTossPaymentWindow)
 
+// 다시 불러오기는 jsdom에서 바꿔 끼울 수 없어 모듈을 대신한다
+vi.mock('@/lib/reloadPage', () => ({ reloadPage: vi.fn() }))
+const reload = vi.mocked(reloadPage)
+
 beforeEach(async () => {
   openWindow.mockReset()
+  reload.mockReset()
   await signInAsDemo()
 })
 
@@ -305,11 +311,10 @@ describe('usePaymentFlow', () => {
       expect(payments).toHaveLength(0)
     })
 
-    it('결제창으로 떠났다가 뒤로 가기로 되살아나면(bfcache) ready로 돌아와 다시 누를 수 있다', async () => {
+    it('결제창으로 떠났다가 뒤로 가기로 되살아나면(bfcache) 상태를 손으로 되돌리지 않고 다시 불러온다', async () => {
       const held = await hold()
       tossCheckout(held)
       openWindow.mockReturnValue(new Promise(() => {}))
-      const checkouts = recordRequests(CHECKOUT_PATH)
       const { result } = renderHook(() => usePaymentFlow(held))
 
       act(() => result.current.submit())
@@ -319,15 +324,25 @@ describe('usePaymentFlow', () => {
       act(() => {
         window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }))
       })
-      expect(result.current.state.step).toBe('redirecting')
+      expect(reload).not.toHaveBeenCalled()
 
       act(() => {
         window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
       })
-      expect(result.current.state).toEqual({ step: 'ready' })
+      expect(reload).toHaveBeenCalledTimes(1)
+      // ready로 되돌리면 확정된 예매에 결제 버튼이 다시 열린다. 새로 불러온 화면이 상태를 다시 정한다
+      expect(result.current.state.step).toBe('redirecting')
+    })
 
-      act(() => result.current.submit())
-      await waitFor(() => expect(checkouts).toHaveLength(2))
+    it('결제창을 열지 않은 단계의 pageshow는 다시 불러오지 않는다', async () => {
+      const held = await hold()
+      renderHook(() => usePaymentFlow(held))
+
+      act(() => {
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+      })
+
+      expect(reload).not.toHaveBeenCalled()
     })
 
     it('결제창이 USER_CANCEL로 거절되면 tossCanceled가 되고 결제창 기록을 지운다', async () => {
@@ -421,23 +436,12 @@ describe('usePaymentFlow', () => {
     })
   })
 
-  describe('토스연동 건너뛰기(submitMockBypass)와 미리 받은 checkout', () => {
-    const tossPrefetched = (held: { amount: number }) => ({
-      provider: 'TOSS' as const,
-      orderId: 'order-1-abcdef',
-      clientKey: 'test_ck_fake',
-      amount: held.amount,
-      orderName: '콘서트 예매 1',
-      mockBypass: true,
-    })
-
+  describe('토스연동 건너뛰기(submitMockBypass)', () => {
     it('건너뛰기는 checkout 없이 pgProvider MOCK으로 승인을 보내고 그 표시까지 시도에 저장한다', async () => {
       const held = await hold()
       const checkouts = recordRequests(CHECKOUT_PATH)
       const payments = recordRequests(PAYMENTS_PATH)
-      const { result } = renderHook(() =>
-        usePaymentFlow({ ...held, checkout: tossPrefetched(held) }),
-      )
+      const { result } = renderHook(() => usePaymentFlow(held))
 
       act(() => result.current.submitMockBypass())
 
@@ -486,23 +490,6 @@ describe('usePaymentFlow', () => {
       const resent = (await payments[1].json()) as Record<string, unknown>
       expect(resent).toMatchObject({ clientPaymentRef: 'tgen_stored' })
       expect(resent).not.toHaveProperty('pgProvider')
-    })
-
-    it('미리 받은 checkout이 TOSS면 [결제하기]가 checkout을 다시 부르지 않고 결제창을 연다', async () => {
-      const held = await hold()
-      openWindow.mockReturnValue(new Promise(() => {}))
-      const checkouts = recordRequests(CHECKOUT_PATH)
-      const { result } = renderHook(() =>
-        usePaymentFlow({ ...held, checkout: tossPrefetched(held) }),
-      )
-
-      act(() => result.current.submit())
-
-      await waitFor(() => expect(result.current.state.step).toBe('redirecting'))
-      expect(checkouts).toHaveLength(0)
-      expect(openWindow).toHaveBeenCalledWith(
-        expect.objectContaining({ orderId: 'order-1-abcdef' }),
-      )
     })
   })
 })

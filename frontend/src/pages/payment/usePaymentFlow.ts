@@ -11,6 +11,7 @@ import {
   saveTossCheckout,
   type PaymentAttempt,
 } from '@/auth/paymentAttempts'
+import { reloadPage } from '@/lib/reloadPage'
 import {
   runPaymentFlow,
   type PaymentFlowOutcome,
@@ -29,8 +30,6 @@ export interface UsePaymentFlowOptions {
   reservationId: number
   paymentToken: string
   amount: number
-  // 화면이 열릴 때 미리 받은 결제 준비 응답. 있으면 [결제하기]가 checkout을 다시 부르지 않는다
-  checkout?: CheckoutResult
 }
 
 // 끝난 단계. 서버가 이 선점의 결제를 마무리했거나 더 보낼 수 없어 저장한 시도를 지운다.
@@ -54,16 +53,13 @@ const SETTLED_STEPS = new Set<PaymentFlowViewState['step']>([
 // Note: 처음에는 토큰이 다르면 저장한 시도를 지웠다. 그러면 예매 상세에서 다시 열 때 새 키로 결제 버튼이 다시 보였다
 // (ISE-117 셀프 리뷰)
 // 처음 누르면 서버의 PG 모드를 묻는다(checkout). MOCK이면 바로 승인을 보내고, TOSS면 토스 결제창을 열어 이동을 기다린다.
+// Note: 화면이 열릴 때 받은 checkout(문구·건너뛰기 링크용)을 여기서 다시 쓰지 않는다. 누를 때 다시 물어야 서버가 토큰 만료를
+// 보고 403으로 막는다. 미리 받은 값으로 결제창을 열면 만료된 토큰으로 카드 인증까지 마친 뒤에야 거절된다(ISE-125 셀프 리뷰)
 // 토스에서 돌아온 결과는 TossReturnPage가 시도로 저장하고, 이 화면을 다시 열 때 저장한 시도로 이어 보낸다.
 // Note: 토스 모드에서는 결제창을 열기 전에 승인 시도(멱등키)를 저장하지 않는다. 결제창을 닫고 다시 열면
 // paymentKey가 바뀌는데 같은 멱등키를 쓰면 409 IDEMPOTENCY_KEY_REUSED가 나므로, paymentKey가 정해진 뒤에만 키를 만든다.
 // submitMockBypass는 토스 모드의 "토스연동 건너뛰고 결제하기"다. 결제창 없이 pgProvider: 'MOCK'으로 승인을 보낸다.
-export function usePaymentFlow({
-  reservationId,
-  paymentToken,
-  amount,
-  checkout: prefetchedCheckout,
-}: UsePaymentFlowOptions): {
+export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePaymentFlowOptions): {
   state: PaymentFlowViewState
   submit: () => void
   submitMockBypass: () => void
@@ -72,11 +68,6 @@ export function usePaymentFlow({
   const keyRef = useRef<PaymentAttempt | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
   const runningRef = useRef(false)
-  // submit을 다시 만들지 않으려고 ref로 둔다. 화면을 연 뒤에 도착해도 다음 누름부터 쓴다
-  const checkoutRef = useRef(prefetchedCheckout)
-  useEffect(() => {
-    checkoutRef.current = prefetchedCheckout
-  }, [prefetchedCheckout])
 
   // Note: StrictMode는 마운트 직후 정리했다가 다시 마운트한다. 정리에서 진행 중 표시도 풀어야
   // 다시 마운트한 쪽의 이어 보내기가 "진행 중"으로 무시되지 않는다
@@ -145,25 +136,23 @@ export function usePaymentFlow({
       }
 
       async function prepare() {
-        let checkout = checkoutRef.current
-        if (checkout === undefined) {
-          setState({ step: 'preparing' })
-          try {
-            checkout = await checkoutPayment(paymentToken, { signal: controller.signal })
-          } catch (error) {
-            if (controller.signal.aborted) {
-              return
-            }
-            stop(
-              isApiError(error, 'PAYMENT_TOKEN_INVALID') && error.status === 403
-                ? { step: 'tokenExpired' }
-                : { step: 'failed', error },
-            )
-            return
-          }
+        setState({ step: 'preparing' })
+        let checkout: CheckoutResult
+        try {
+          checkout = await checkoutPayment(paymentToken, { signal: controller.signal })
+        } catch (error) {
           if (controller.signal.aborted) {
             return
           }
+          stop(
+            isApiError(error, 'PAYMENT_TOKEN_INVALID') && error.status === 403
+              ? { step: 'tokenExpired' }
+              : { step: 'failed', error },
+          )
+          return
+        }
+        if (controller.signal.aborted) {
+          return
         }
         // 서버가 준 금액이 화면 금액과 다르면 결제창을 열지 않는다
         if (checkout.amount !== amount) {
@@ -229,20 +218,18 @@ export function usePaymentFlow({
     }
   }, [state.step, reservationId])
 
-  // Note: 모바일 결제창은 페이지를 떠난다. 뒤로 가기로 돌아오면 브라우저가 떠나기 전 화면(bfcache)을 그대로 되살려
-  // "결제창 여는 중"에 멈춘다. 그때는 진행 중이던 호출을 버리고 다시 누를 수 있게 되돌린다
+  // Note: 결제창으로 떠난 화면(모바일, 또는 PC에서 성공 주소로 이동)을 뒤로 가기로 돌아오면 브라우저가 떠나기 전 화면(bfcache)을
+  // 그대로 되살려 "결제창 여는 중"에 멈춘다. 그사이 다른 문서에서 승인이 진행됐거나 예매가 확정됐을 수 있으므로 상태를 손으로
+  // 되돌리지 않고 다시 불러온다. 새로 불러오면 예매 조회와 저장한 시도로 지금 상태를 다시 정한다(ISE-125 셀프 리뷰: 처음에는
+  // ready로 되돌려 확정된 예매에 결제 버튼과 건너뛰기가 다시 열렸다)
   useEffect(() => {
     if (state.step !== 'redirecting') {
       return
     }
     function onPageShow(event: PageTransitionEvent) {
-      if (!event.persisted) {
-        return
+      if (event.persisted) {
+        reloadPage()
       }
-      controllerRef.current?.abort()
-      controllerRef.current = null
-      runningRef.current = false
-      setState({ step: 'ready' })
     }
     window.addEventListener('pageshow', onPageShow)
     return () => window.removeEventListener('pageshow', onPageShow)

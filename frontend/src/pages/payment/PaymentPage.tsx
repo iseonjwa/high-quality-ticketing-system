@@ -277,27 +277,29 @@ function PaymentForm({
     reservationId,
     paymentToken: source.paymentToken,
     amount: source.amount,
-    checkout: checkout.data,
   })
   const provider = checkout.data?.provider ?? null
   const showMockBypass =
     checkout.data?.provider === 'TOSS' &&
     checkout.data.mockBypass &&
-    MOCK_BYPASS_STEPS.has(state.step)
+    BEFORE_ATTEMPT_STEPS.has(state.step)
   // 서버 시각으로 결제 가능 시간이 지났다. 브라우저 시계뿐이면(좌석 화면을 거치지 않음) 막지 않고 서버 응답(403)을 따른다.
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
   const alertRef = useRef<HTMLDivElement>(null)
   const completionStartedRef = useRef(false)
   const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
-  const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
+  // 결제창을 닫고 돌아온 단계(tossCanceled·tossFailed)도 누르기 전 단계라 시간이 지나면 막는다
+  const tokenExpired =
+    state.step === 'tokenExpired' || (expiredByClock && BEFORE_ATTEMPT_STEPS.has(state.step))
 
   // 읽고 행동해야 하는 단계가 되거나 시간이 지나 버튼이 막히면 알림으로, 버튼이 확인 중 표시로 바뀌면 요약 제목으로
   // 초점을 옮긴다. 누른 버튼이 사라지거나 막혀 초점이 body로 떨어지지 않게 한다
   useLayoutEffect(() => {
     if (
       ATTENTION_STEPS.has(state.step) ||
-      ((expiredByClock || tossNotice !== null) && state.step === 'ready')
+      (expiredByClock && BEFORE_ATTEMPT_STEPS.has(state.step)) ||
+      (tossNotice !== null && state.step === 'ready')
     ) {
       alertRef.current?.focus()
     } else if (state.step === 'checking' || state.step === 'confirming') {
@@ -496,8 +498,12 @@ const PAYMENT_METHOD_HINTS: Record<CheckoutResult['provider'] | 'UNKNOWN', strin
   UNKNOWN: '결제하기를 누르면 카드 결제를 진행해요',
 }
 
-// "토스연동 건너뛰고 결제하기"를 보일 단계. 승인 시도를 아직 만들지 않은 단계만이다
-const MOCK_BYPASS_STEPS = new Set<PaymentFlowState['step']>(['ready', 'tossCanceled', 'tossFailed'])
+// 승인 시도를 아직 만들지 않은 단계. 결제 가능 시간이 지나면 버튼을 막고, "토스연동 건너뛰고 결제하기"는 이때만 보인다
+const BEFORE_ATTEMPT_STEPS = new Set<PaymentFlowState['step']>([
+  'ready',
+  'tossCanceled',
+  'tossFailed',
+])
 
 // 버튼이 로딩 표시인 단계와 그 문구
 const PAYING_LABELS: Partial<Record<PaymentFlowState['step'], string>> = {
