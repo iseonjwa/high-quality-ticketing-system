@@ -553,6 +553,7 @@ class PaymentApprovalApiTest {
         assertEquals("MOCK", data.get("provider").asString());
         assertFalse(data.has("orderId"));
         assertFalse(data.has("clientKey"));
+        assertFalse(data.get("mockBypass").asBoolean(), "Mock 모드는 결제 버튼이 이미 바로 승인한다");
         assertEquals(AMOUNT, data.get("amount").asLong());
         assertTrue(data.get("orderName").asString().contains(Long.toString(reservation)));
         assertEquals(0, paymentCount(reservation), "checkout은 아무것도 저장하지 않는다");
@@ -587,6 +588,47 @@ class PaymentApprovalApiTest {
         var expected = PgOrderIds.of(reservation, expiresAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         assertEquals(expected.value().toString(), jdbc.queryForObject(
                 "SELECT pg_order_id::text FROM payments WHERE reservation_id = ?", String.class, reservation));
+    }
+
+    @Test
+    void Mock_모드에서_pgProvider가_TOSS면_400이고_행도_멱등_기록도_남기지_않는다() throws Exception {
+        var reservation = newReservation();
+        var key = UUID.randomUUID().toString();
+
+        var response = approveWithProvider(USER, key, token(USER, reservation, AMOUNT).build(), "TOSS");
+
+        assertEquals(400, response.status());
+        assertEquals("VALIDATION_FAILED", response.json().get("code").asString());
+        verify(pg, never()).approve(any());
+        assertEquals(0, paymentCount(reservation));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE idem_key = ?::uuid",
+                Integer.class, key));
+    }
+
+    @Test
+    void Mock_모드에서_pgProvider가_MOCK이면_평소처럼_승인하고_MOCK으로_기록한다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approveWithProvider(USER, UUID.randomUUID().toString(), token(USER, reservation, AMOUNT).build(), "MOCK");
+
+        assertEquals(200, response.status());
+        assertEquals("MOCK", jdbc.queryForObject("SELECT pg_provider FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    @Test
+    void Mock_모드의_평범한_승인은_pg_provider를_MOCK으로_기록한다() throws Exception {
+        var reservation = newReservation();
+
+        assertEquals(200, approve(USER, UUID.randomUUID().toString(), token(USER, reservation, AMOUNT).build(), AMOUNT).status());
+
+        assertEquals("MOCK", jdbc.queryForObject("SELECT pg_provider FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    private Response approveWithProvider(long userId, String key, String token, String pgProvider) throws Exception {
+        return post(userId, key, "{\"paymentToken\":\"" + token + "\",\"amount\":" + AMOUNT
+                + ",\"method\":\"CARD\",\"pgProvider\":\"" + pgProvider + "\"}", true);
     }
 
     private Response checkout(long userId, String token) throws Exception {

@@ -1,5 +1,8 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import static org.mockito.Mockito.mock;
+import com.iseonjwa.payment.support.StubPgClients;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.PgClientsTestConfig;
 import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
@@ -66,24 +69,112 @@ class PaymentTossModeApiTest {
     JdbcTemplate jdbc;
     @Autowired
     Resilience4jPgApprovalGate approvalGate;
+    @Autowired
+    StubPgClients pgClients;
+    // 토스는 pg(@MockitoBean이 기본 클라이언트를 대체), Mock은 아래 mockPg로 갈라 어느 PG로 갔는지 가린다
     @MockitoBean
     PgClient pg;
+    PgClient mockPg;
 
     @BeforeEach
     void stubPg() {
         reset(pg);
+        mockPg = mock(PgClient.class);
+        pgClients.route(PgProvider.MOCK, mockPg);
+        when(mockPg.approve(any())).thenAnswer(invocation -> new PgClient.Approved(
+                new PgPaymentRef("mock-tx-" + System.nanoTime()), BigDecimal.valueOf(AMOUNT), "KRW", Instant.now()));
         approvalGate.circuitBreaker().reset();
         when(pg.approve(any())).thenAnswer(invocation -> approved(invocation.getArgument(0)));
     }
 
     @AfterEach
     void cleanUp() {
+        pgClients.reset();
         jdbc.update("DELETE FROM idempotency_records WHERE resource_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^86[0-9]{5}$'");
         AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments WHERE reservation_id >= ?)",
                 FIRST_RESERVATION);
         jdbc.update("DELETE FROM payments WHERE reservation_id >= ?", FIRST_RESERVATION);
+    }
+
+    @Test
+    void pgProvider가_MOCK이면_clientPaymentRef_없이_Mock으로_승인하고_토스는_부르지_않는다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), null, "MOCK");
+
+        assertEquals(200, response.status());
+        assertEquals("MOCK", pgProvider(reservation));
+        assertEquals("APPROVED", jdbc.queryForObject("SELECT status FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+        verify(mockPg).approve(any());
+        verify(pg, never()).approve(any());
+    }
+
+    @Test
+    void pgProvider가_MOCK이면_함께_보낸_clientPaymentRef는_무시하고_pg_tx_id에_미리_저장하지_않는다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), "tgen_ignored", "MOCK");
+
+        assertEquals(200, response.status());
+        assertEquals("MOCK", pgProvider(reservation));
+        assertTrue(jdbc.queryForObject("SELECT pg_tx_id FROM payments WHERE reservation_id = ?", String.class,
+                reservation).startsWith("mock-tx-"));
+        verify(pg, never()).approve(any());
+    }
+
+    @Test
+    void pgProvider_없이_clientPaymentRef를_보내면_지금처럼_토스로_가고_TOSS로_기록한다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), "tgen_default", null);
+
+        assertEquals(200, response.status());
+        assertEquals("TOSS", pgProvider(reservation));
+        verify(pg).approve(any());
+        verify(mockPg, never()).approve(any());
+    }
+
+    @Test
+    void pgProvider가_TOSS인데_clientPaymentRef가_없으면_400이고_행을_남기지_않는다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approve(USER, key(), token(USER, reservation, AMOUNT).build(), null, "TOSS");
+
+        assertEquals(400, response.status());
+        assertEquals(0, paymentCount(reservation));
+    }
+
+    @Test
+    void pgProvider가_MOCK이나_TOSS가_아니면_400이다() throws Exception {
+        var response = approve(USER, key(), token(USER, newReservation(), AMOUNT).build(), null, "PAYPAL");
+
+        assertEquals(400, response.status());
+        assertEquals("VALIDATION_FAILED", response.json().get("code").asString());
+    }
+
+    @Test
+    void 같은_멱등키에_pgProvider_유무만_달라도_409_IDEMPOTENCY_KEY_REUSED다() throws Exception {
+        var reservation = newReservation();
+        var token = token(USER, reservation, AMOUNT).build();
+        var key = key();
+        assertEquals(200, approve(USER, key, token, null, "MOCK").status());
+
+        var response = approve(USER, key, token, null, null);
+
+        assertEquals(409, response.status());
+        assertEquals("IDEMPOTENCY_KEY_REUSED", response.json().get("code").asString());
+        assertEquals(1, paymentCount(reservation));
+    }
+
+    @Test
+    void 토스_모드의_checkout은_건너뛰기를_허용하면_mockBypass가_true다() throws Exception {
+        var response = checkout(USER, token(USER, newReservation(), AMOUNT).build());
+
+        assertEquals(200, response.status());
+        assertTrue(response.json().get("data").get("mockBypass").asBoolean());
     }
 
     @Test
@@ -260,10 +351,20 @@ class PaymentTossModeApiTest {
         return new PgClient.Approved(command.clientPaymentRef(), BigDecimal.valueOf(AMOUNT), "KRW", Instant.now());
     }
 
+    private String pgProvider(long reservationId) {
+        return jdbc.queryForObject("SELECT pg_provider FROM payments WHERE reservation_id = ?", String.class, reservationId);
+    }
+
     private Response approve(long userId, String key, String token, String clientPaymentRef) throws Exception {
+        return approve(userId, key, token, clientPaymentRef, null);
+    }
+
+    private Response approve(long userId, String key, String token, String clientPaymentRef, String pgProvider)
+            throws Exception {
         var ref = clientPaymentRef == null ? "" : ",\"clientPaymentRef\":\"" + clientPaymentRef + "\"";
+        var provider = pgProvider == null ? "" : ",\"pgProvider\":\"" + pgProvider + "\"";
         return post("/api/v1/payments", userId, key,
-                "{\"paymentToken\":\"" + token + "\",\"amount\":" + AMOUNT + ",\"method\":\"CARD\"" + ref + "}", true);
+                "{\"paymentToken\":\"" + token + "\",\"amount\":" + AMOUNT + ",\"method\":\"CARD\"" + ref + provider + "}", true);
     }
 
     private Response checkout(long userId, String token) throws Exception {

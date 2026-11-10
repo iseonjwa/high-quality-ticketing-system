@@ -5,7 +5,9 @@ import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgClients;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 테스트용 {@link PgClients}. 기본은 모든 PG를 한 클라이언트로 보내고, 테스트가 {@link #route}로 PG마다 다른 클라이언트를
@@ -14,6 +16,7 @@ import java.util.Map;
 public final class StubPgClients implements PgClients {
     private final PgClient defaultClient;
     private final Map<PgProvider, PgClient> routes = new EnumMap<>(PgProvider.class);
+    private final Set<PgProvider> missing = EnumSet.noneOf(PgProvider.class);
 
     public StubPgClients(PgClient defaultClient) {
         this.defaultClient = defaultClient;
@@ -23,12 +26,19 @@ public final class StubPgClients implements PgClients {
         routes.put(provider, client);
     }
 
+    /** 설정에 없는 PG처럼 이 PG를 달라고 하면 예외를 던진다(토스 키 없는 서버) */
+    public void missing(PgProvider provider) {
+        missing.add(provider);
+    }
+
     public void reset() {
         routes.clear();
+        missing.clear();
     }
 
     @Override
     public PgClient of(PgProvider provider) {
+        if (missing.contains(provider)) throw new IllegalStateException(provider + " PG가 설정되어 있지 않습니다");
         return routes.getOrDefault(provider, defaultClient);
     }
 }
