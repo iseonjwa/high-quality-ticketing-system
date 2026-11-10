@@ -97,7 +97,7 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 | `amount` | 토큰의 금액 |
 | `orderName` | 예매 번호 기반 문구(`콘서트 예매 {reservationId}`) |
 
-**프런트가 쓰는 방식**: 토스 모드에서 `mockBypass`가 `true`면 결제 버튼 아래에 "토스연동 건너뛰고 결제하기"를 보이고, 누르면 `clientPaymentRef` 없이 `pgProvider: "MOCK"`으로 승인을 보낸다. 같은 결제는 이후에도 Mock으로 재확인·환불된다.
+**프런트가 쓰는 방식**(ISE-125): 결제 화면을 열 때 이 API를 한 번 부른다. `TOSS`면 SDK 결제창(`payment().requestPayment()`)을 `successUrl`·`failUrl`과 함께 열고, 돌아오는 주소는 `/reservations/{id}/payment/toss/{success|fail}`이다. 성공 주소의 `paymentKey`를 승인 요청의 `clientPaymentRef`로 보낸다(1절). 토스 모드에서 `mockBypass`가 `true`면 결제 버튼 아래에 "토스연동 건너뛰고 결제하기"를 보이고, 누르면 `clientPaymentRef` 없이 `pgProvider: "MOCK"`으로 승인을 보낸다. 같은 결제는 이후에도 Mock으로 재확인·환불된다.
 
 ## 2. 결제 조회 `GET /api/v1/payments/{paymentId}`
 
