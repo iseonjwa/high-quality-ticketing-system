@@ -31,6 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -260,6 +261,6 @@ class GatewayAuthenticationFilterTest {
 
         var writer = new GatewayErrorWriter(JsonMapper.builder().build(), mock(Tracer.class));
         var failures = new AuthRedisFailures(meters, CircuitBreakerRegistry.ofDefaults());
-        return new GatewayAuthenticationFilter(decoder, redis, writer, factory, failures);
+        return new GatewayAuthenticationFilter(decoder, redis, writer, factory, failures, Duration.ofMillis(100));
     }
 }

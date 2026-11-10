@@ -6,6 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.iseonjwa.gateway.security.AuthRedisFailures.Cause;
 import com.iseonjwa.gateway.security.AuthRedisFailures.RedisLookupTimeout;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
 import io.github.resilience4j.springboot3.bulkhead.autoconfigure.BulkheadAutoConfiguration;
 import io.github.resilience4j.springboot3.circuitbreaker.autoconfigure.CircuitBreakerAutoConfiguration;
 import io.github.resilience4j.springboot3.timelimiter.autoconfigure.TimeLimiterAutoConfiguration;
@@ -13,17 +14,21 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.support.SpringApplicationJsonEnvironmentPostProcessor;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cloud.circuitbreaker.resilience4j.ReactiveResilience4JAutoConfiguration;
 import org.springframework.cloud.circuitbreaker.resilience4j.ReactiveResilience4jBulkheadProvider;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory;
+import org.springframework.core.env.MapPropertySource;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -68,6 +73,28 @@ class AuthRedisResilienceContextTest {
                 holding.tryEmitValue(true);
             }
         });
+    }
+
+    @Test
+    void 무시_예외가_비어_있으면_bulkhead_거절은_차단기_실패로_세어진다() {
+        // 측정 덮어쓰기(compose.gateway-bulkhead.yml)가 AUTH_IGNORE_EXCEPTIONS를 안 줄 때 넣는 값이다.
+        withApplicationJson(ignoreExceptionsJson("[]")).run(context -> {
+            var calls = rejectOneByBulkhead(context);
+
+            assertThat(calls.failed()).isEqualTo(1);
+            assertThat(calls.ignored()).isZero();
+        });
+    }
+
+    @Test
+    void BulkheadFullException을_무시하면_bulkhead_거절은_실패가_아니라_ignored로_세어진다() {
+        withApplicationJson(ignoreExceptionsJson("[\"io.github.resilience4j.bulkhead.BulkheadFullException\"]"))
+                .run(context -> {
+                    var calls = rejectOneByBulkhead(context);
+
+                    assertThat(calls.failed()).isZero();
+                    assertThat(calls.ignored()).isEqualTo(1);
+                });
     }
 
     @Test
@@ -119,6 +146,39 @@ class AuthRedisResilienceContextTest {
                     assertThat(context).hasSingleBean(AuthRedisBreakerEvents.class);
                 });
     }
+
+    // Note: SPRING_APPLICATION_JSON은 기동 단계의 후처리기가 속성으로 펼친다. 같은 후처리기를 거쳐 빈 배열 같은 JSON 모양을 그대로 확인한다.
+    private ApplicationContextRunner withApplicationJson(String json) {
+        return runner.withInitializer(context -> {
+            var environment = context.getEnvironment();
+            environment.getPropertySources().addFirst(new MapPropertySource("test-json", Map.of("spring.application.json", json)));
+            new SpringApplicationJsonEnvironmentPostProcessor().postProcessEnvironment(environment, new SpringApplication());
+        });
+    }
+
+    private static String ignoreExceptionsJson(String exceptions) {
+        return "{\"resilience4j\":{\"circuitbreaker\":{\"instances\":{\"auth-redis\":{\"ignoreExceptions\":"
+                + exceptions + "}}}}}";
+    }
+
+    // Note: Grafana의 resilience4j_circuitbreaker_calls_seconds_count{kind=...}와 같은 지표를 자동 설정과 같은 방식으로 붙여 센다.
+    private BreakerCalls rejectOneByBulkhead(AssertableApplicationContext context) {
+        var meters = new SimpleMeterRegistry();
+        TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(context.getBean(CircuitBreakerRegistry.class)).bindTo(meters);
+        var holding = holdOneCall(context);
+        try {
+            breaker(context).run(Mono.just(true)).onErrorResume(e -> Mono.empty()).block();
+        } finally {
+            holding.tryEmitValue(true);
+        }
+        return new BreakerCalls(callCount(meters, "failed"), callCount(meters, "ignored"));
+    }
+
+    private static long callCount(MeterRegistry meters, String kind) {
+        return meters.get("resilience4j.circuitbreaker.calls").tag("name", BREAKER).tag("kind", kind).timer().count();
+    }
+
+    private record BreakerCalls(long failed, long ignored) {}
 
     private Sinks.One<Boolean> holdOneCall(AssertableApplicationContext context) {
         var holding = Sinks.<Boolean>one();
