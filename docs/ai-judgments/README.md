@@ -42,6 +42,12 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-10-toss-mock-bypass-per-payment-pg.md) |
+| 2026-11-10 | 서버 명령을 측정자가 직접 치고 에이전트는 안내만 하는 방식 대신, 11/10 측정에서는 에이전트가 배포 서버·발생기 명령을 직접 실행하게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-agent-runs-server-commands-during-measurement.md) |
+| 2026-11-10 | 추첨 배포 측정 전 점검의 추천(L1 503 메시지 태그, 응모 3만 명·시각, 반복 조건, PAY_RATE 20·30)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-10-lottery-server-measurement-conditions.md) |
+| 2026-11-10 | bulkhead 비교 전에 워밍업 방식부터 확인하고 덤 몰림 포함 워밍업을 표준으로 정함. bulkhead 25·100 모두 Q1 한도 같음 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-10-bulkhead-comparison-warmup-standard.md) |
+| 2026-11-10 | **배포 Q1 auth-redis 차단기 열림에 측정용 차단기 기준 완화를 거부하고 워밍업 뒤 재측정을 고름** | youngeun | Claude Code | **거부** | 후보 | [기록](youngeun/2026-11-10-no-breaker-relax-for-measurement.md) |
+| 2026-11-09 | "Gateway에는 벌크헤드가 없다"는 AI 조사 결과를 팀원 지적으로 다시 확인해 틀렸다고 판단함(기본 벌크헤드 동시 25) | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-09-gateway-has-default-bulkhead.md) |
 | 2026-11-09 | 측정 전 main 반영에 팀원 PR을 넣을지 묻자는 제안을 두고, 팀원 PR은 측정하지 않을 때 상황을 봐서 넘기기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-team-prs-not-in-freeze-merge.md) |
 | 2026-11-09 | 측정 모드 알림을 성능-모니터링 채널에 두지 않고 별도 채널로 옮기고, 배포 알림처럼 꾸미기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-measure-mode-alert-own-channel.md) |
 | 2026-11-09 | dev→main을 측정 전 한 번에 넘기는 대신, 시험용으로 먼저 넘기고 이후에 다시 넘기기로 함 | kangmin | Claude Code | 부분 수용 | 아님 | [기록](kangmin/2026-11-09-main-merge-test-first.md) |

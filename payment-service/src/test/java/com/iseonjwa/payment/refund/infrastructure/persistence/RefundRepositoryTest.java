@@ -105,9 +105,9 @@ class RefundRepositoryTest {
             default -> "now() + interval '10 seconds'";
         };
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      created_at, updated_at, %s)
-                VALUES (?, ?, 1, 50000, 'CARD', '%s', ?, now(), now(), %s)""".formatted(extra, status, values),
+                VALUES (?, ?, 1, 50000, 'CARD', '%s', ?, 'MOCK', now(), now(), %s)""".formatted(extra, status, values),
                 "PAY-" + reservationId, reservationId, UUID.randomUUID());
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
     }

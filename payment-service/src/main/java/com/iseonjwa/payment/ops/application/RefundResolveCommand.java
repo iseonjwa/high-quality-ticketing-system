@@ -79,7 +79,7 @@ public class RefundResolveCommand implements OpsCommand {
         var externalRef = externalRef(arguments);
         var closeFailed = arguments.flag("close-failed");
         var found = load(target.id());
-        var lookup = pg.findRefund(new PgRefundId(found.refund().pgRefundId()), paymentRef(found.payment()));
+        var lookup = pg.findRefund(found.payment().pgProvider(), new PgRefundId(found.refund().pgRefundId()), paymentRef(found.payment()));
         return planOf(target, found, closeFailed, externalRef, PgEvidence.of(lookup),
                 decide(found, lookup, closeFailed, externalRef));
     }
@@ -87,7 +87,7 @@ public class RefundResolveCommand implements OpsCommand {
     @Override
     public OpsPlan apply(OpsPlan plan, OpsApplyContext context) {
         var found = load(plan.target().id());
-        var lookup = pg.findRefund(new PgRefundId(found.refund().pgRefundId()), paymentRef(found.payment()));
+        var lookup = pg.findRefund(found.payment().pgProvider(), new PgRefundId(found.refund().pgRefundId()), paymentRef(found.payment()));
         if (!PgEvidence.of(lookup).equals(plan.pgEvidence())) {
             throw new OpsRejection("PG 근거가 계획을 만든 뒤 바뀌었습니다. dry-run을 다시 실행한다");
         }

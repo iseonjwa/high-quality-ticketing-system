@@ -31,6 +31,8 @@ export default defineConfig({
               test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/,
               priority: 2,
             },
+            // 토스 SDK 로더는 토스 모드에서 결제창을 열 때만 동적 import한다. vendor에 섞이면 Mock 모드에서도 처음부터 받는다
+            { name: 'tosspayments', test: /node_modules[\\/]@tosspayments[\\/]/, priority: 3 },
             { name: 'vendor', test: /node_modules[\\/]/, priority: 1 },
           ],
         },

@@ -36,7 +36,17 @@ export type PaymentFlowState =
   | { step: 'failed'; error: unknown }
 
 // 화면이 쓰는 상태. 아직 누르기 전이면 ready다
-export type PaymentFlowViewState = PaymentFlowState | { step: 'ready' }
+export type PaymentFlowViewState =
+  | PaymentFlowState
+  | { step: 'ready' }
+  // 결제 준비(checkout) 응답을 기다리는 중
+  | { step: 'preparing' }
+  // 토스 결제창을 열었고 이동을 기다리는 중
+  | { step: 'redirecting' }
+  // 구매자가 토스 결제창을 닫았다. 다시 누를 수 있다
+  | { step: 'tossCanceled' }
+  // 토스 결제창이 오류로 끝났다. 다시 누를 수 있다
+  | { step: 'tossFailed'; code: string | null }
 
 // 실행기가 돌려주는 값. 마지막 단계이거나, signal이 취소돼 멈춘 aborted다
 export type PaymentFlowOutcome = PaymentFlowState | { step: 'aborted' }
@@ -46,6 +56,10 @@ export interface RunPaymentFlowOptions {
   paymentToken: string
   amount: number
   idempotencyKey: string
+  // 토스 paymentKey. 있으면 승인 본문에 실어 재전송에도 같은 본문을 보낸다
+  clientPaymentRef?: string
+  // 토스 모드의 Mock 건너뛰기. 있으면 승인 본문에 싣는다
+  pgProvider?: 'MOCK'
   signal: AbortSignal
   onState: (state: PaymentFlowState) => void
   // 테스트가 바꿔 끼운다. 기본은 setTimeout 기반이고 signal이 취소되면 바로 끝난다
@@ -99,7 +113,13 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
     }
     try {
       const result = await approvePayment(
-        { paymentToken: options.paymentToken, amount: options.amount, method: 'CARD' },
+        {
+          paymentToken: options.paymentToken,
+          amount: options.amount,
+          method: 'CARD',
+          clientPaymentRef: options.clientPaymentRef,
+          pgProvider: options.pgProvider,
+        },
         options.idempotencyKey,
         { signal },
       )

@@ -70,13 +70,15 @@ payment:
         failure-rate-threshold: 50
         open-duration: 10s
         half-open-permitted-calls: 3
-    # 기본은 mock이다. toss는 시연 때만 켠다(진행 중인 결제가 없을 때만 바꾸고, 부하 측정은 늘 mock). 절차는 deployment.md에 있다
+    # 기본은 mock이다. toss는 시연 때만 켠다(토스 결제가 진행 중이면 토스 키를 지우지 않는다. 부하 측정은 늘 mock). 절차는 deployment.md에 있다
     provider: ${PAYMENT_PG_PROVIDER:mock}
+    # 시연용. 토스 모드에서도 결제창 없이 Mock으로 승인한다. 실제 서비스라면 끈다
+    mock-bypass-enabled: ${PAYMENT_PG_MOCK_BYPASS:true}
     mock:
       base-url: ${MOCK_PG_URL:http://localhost:8090}
     toss:
       base-url: https://api.tosspayments.com
-      # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다. toss일 때 test_sk_, test_ck_로 시작하는 테스트 키만 받는다
+      # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다. 키가 있으면 test_sk_, test_ck_로 시작하는 테스트 키만 받는다(toss 모드는 필수, mock 모드는 진행 중인 토스 결제를 조회하려고 있으면 어댑터를 만든다)
       secret-key: ${TOSS_SECRET_KEY:}
       client-key: ${TOSS_CLIENT_KEY:}
   reconciliation:

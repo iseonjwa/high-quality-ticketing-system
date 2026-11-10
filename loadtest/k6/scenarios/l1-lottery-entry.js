@@ -6,7 +6,7 @@ import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv } from '../lib/env.js';
 import { assertSigningKeys, userIdOf, uuid } from '../lib/tokens.js';
-import { errorCodeOf, outcomeOf } from '../lib/http.js';
+import { MESSAGE_TAG_VALUES, errorCodeOf, messageTagOf, outcomeOf } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { createLottery, entryRequest, preparedLottery } from '../lib/lottery.js';
 
@@ -39,6 +39,8 @@ export const options = {
     'entry_duration': ['p(95)<300'],
     'entry_results{result:error}': ['count<1'],
     'dropped_iterations': ['count<1'],
+    // 항상 통과하는 집계용 기준. summary는 기준이 걸린 하위 지표만 따로 세므로, 실패를 message 출처별(예: 인증 벌크헤드 503)로 남기려고 둔다
+    ...Object.fromEntries(MESSAGE_TAG_VALUES.map((tag) => [`entry_results{msg:${tag}}`, ['count>=0']])),
   },
 };
 
@@ -81,7 +83,11 @@ export default function (data) {
     const res = http.post(target, body, params);
     const result = res.status === 201 ? 'entered' : outcomeOf(res);
     entryDuration.add(res.timings.duration, { result });
-    entryResults.add(1, { result, attempt: i === 0 ? 'first' : 'repeat', code: result === 'entered' ? '201' : errorCodeOf(res) });
+    const tags = { result, attempt: i === 0 ? 'first' : 'repeat', code: result === 'entered' ? '201' : errorCodeOf(res) };
+    if (result !== 'entered') {
+      tags.msg = messageTagOf(res);
+    }
+    entryResults.add(1, tags);
     check(res, { '응모 201': (r) => r.status === 201 });
   }
 }

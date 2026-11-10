@@ -413,3 +413,45 @@
 - 원인: 테스트가 시작 시각은 컨테이너(PostgreSQL `now()`, Redis `TIME`)에서, 비교 기준은 호스트 JVM(`Instant.now()`, 앱 `Clock`)에서 받는다. Windows 시계가 실제보다 약 7초 늦었고(Windows 시간 서비스 `w32time` 정지), Docker Desktop VM 시계는 맞았다. 외부 시각(`www.google.com`의 `Date` 헤더)과 비교해 Windows만 틀린 것을 확인했다. 컨테이너에서 `hwclock -s`를 실행해 봤지만 차이가 그대로였다.
 - 해결: 관리자 PowerShell에서 `Start-Service w32time`, `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update`, `w32tm /resync /force`로 시계를 맞췄다. 다시 돌리니 374건 중 실패 0건이었다(건너뜀 11건).
 - 배운 점: 시간 테스트가 로컬에서만 실패하면 호스트·컨테이너·외부 시각 세 개를 먼저 비교한다. 테스트는 비교 양쪽을 같은 시계에서 얻거나 경계에 여유를 둔다. 자세히: [docs/learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md](learning/kwonwoo/qna/2026-11-09-host-clock-drift-test-failures.md)
+
+### TS-49 로컬 스택을 켜 둔 Mac이 잠자는 동안 슬랙 성능 채널에 결제 작업 정지 알림이 반복해서 왔다
+- 서비스·작성: infra / junhyun / 2026-11-10
+- 문제: 11/10 00:38~12:43 슬랙 `#이선좌-성능-모니터링`에 `PaymentJobStalled`(reconciliation, `*-cleanup`, gauge-refresh)가 울렸다 꺼지기를 반복했다. 배포 서버에서 온 것인지 로컬에서 온 것인지 몰랐다.
+- 원인
+  - 보낸 곳은 로컬이었다. 로컬 Alertmanager의 `alertmanager_notifications_total{integration="slack"}`은 12(11/9 13:29 시작 뒤, 실패 0), 배포 서버는 0이었다. 로컬 `.env`에 `SLACK_WEBHOOK_MONITORING`이 들어 있어 로컬 알림도 같은 채널로 갔다.
+  - Mac은 07:20~13:00에 잠자기였고, Power Nap(`pmset -g`의 `powernap 1`)으로 15~17분마다 몇 초에서 1분쯤 깨어났다(`pmset -g log`의 DarkWake). 알림이 켜진 시각은 모두 DarkWake 뒤 1~2분 안이었다(01:26→01:28, 08:42→08:43, 12:40→12:43 등).
+  - 잠자는 동안 Docker VM이 멈춰 결제 배경 작업이 돌지 않는다. 깨어나면 벽시계(`time()`)만 잠잔 시간만큼 앞서 있어 `time() - payment_job_last_success_timestamp`가 기준(reconciliation 15분, 정리 작업 1시간)을 한꺼번에 넘는다. 규칙이 `for: 0s`라 첫 평가에서 바로 켜진다.
+  - 밤의 DarkWake는 약 45초로 Alertmanager `group_wait`(30초)보다 길어 실제로 보내졌다. 13:00에 완전히 깨어난 뒤에는 모든 작업의 마지막 성공이 5~85초 전이었고 알림이 켜지지 않았다.
+  - 배포 서버도 같은 기간에 `PaymentJobStalled`(gauge-refresh)·`PaymentOutboxRelayStalled`가 15~30초씩 켜졌지만 `group_wait` 안에 꺼져 보내지 않았다.
+- 해결: 로컬 `.env`의 `SLACK_WEBHOOK_MONITORING`을 비우고(원래 값은 같은 파일에 주석으로 남김) `docker compose -f compose.yml -f compose.local.yml up -d --force-recreate --no-deps alertmanager`로 다시 만들었다. 컨테이너 안 웹훅 파일이 자리표시 주소(`slack-webhook-not-set`)로 바뀌고 `/-/ready`가 200인 것을 확인했다. 규칙(`for: 0s`)은 바꾸지 않았다.
+- AI 활용: 원인 조사와 대책 세 가지(로컬 웹훅 끄기, 안 쓸 때 로컬 스택 끄기, 규칙에 `for: 1m`)는 Claude Code가 냈고, 사용자가 로컬 웹훅 끄기를 골랐다(`docs/ai-judgments/junhyun/daily/2026-11-10.md`).
+- 배운 점: 슬랙 알림의 "환경" 칸(Prometheus 외부 라벨 `env`, 로컬은 "로컬")을 먼저 본다. 벽시계와 마지막 성공 시각을 비교하는 규칙은 노트북 잠자기나 VM 정지 뒤 바로 켜진다. 로컬 `.env`에 팀 채널 웹훅을 넣어 두면 로컬 알림도 팀 채널로 간다.
+
+### TS-50 측정 모드를 켠 직후 첫 관리자 로그인이 503 `SERVICE_UNAVAILABLE`이었다
+- 서비스·작성: user-service / kangmin / 2026-11-10
+- 문제: 배포 서버에서 측정 모드를 켠 직후 `script/deploy/seed-demo.sh`의 첫 관리자 로그인(`POST /api/v1/auth/login`, 206행)이 503 `SERVICE_UNAVAILABLE` "일시적으로 서비스를 사용할 수 없습니다"로 실패했다. gateway 로그상 이 요청은 1,164ms 걸렸다. Redis는 메모리 약 25MB, AOF 정상, OOM 아님으로 확인했다.
+- 원인: 미확인. 다음은 코드로 확인한 사실이다.
+  - 로그인은 `AuthService.login`에서 Refresh를 `sessions.save`로 Redis에 저장한다(`user-service/src/main/java/com/iseonjwa/user/application/AuthService.java:76`).
+  - `RedisSessionStore.save`는 `DataAccessException`을 `CommonErrorCode.SERVICE_UNAVAILABLE`(503)로 바꾼다(`user-service/src/main/java/com/iseonjwa/user/infrastructure/security/RedisSessionStore.java:44-49`, 99-101행).
+  - Redis 명령 시한은 `timeout: 100ms`다(`config-repo/application.yml:51`).
+  - 재기동 직후 첫 요청에서 Redis 명령이 100ms를 넘겼다는 것은 추정이다. 503이 실제로 이 `save`에서 났는지, 1,164ms 중 어느 부분이 Redis 대기인지는 확인 못 함이다.
+- 해결: 우회. 같은 로그인을 다시 실행해 성공했고, 이후 같은 측정 세션에서 같은 현상은 다시 나지 않았다. 코드와 설정은 바꾸지 않았다. 측정 기록은 [numbers-and-measurement.md](design/lottery/numbers-and-measurement.md) 3-3절 "운영 메모"에 있다.
+- 배운 점: Gateway 쪽 같은 증상은 TS-17에서 기동 시 PING으로 예열해 막았지만, user-service의 Redis 연결은 그 예열 대상이 아니다. 측정 모드처럼 서비스를 한꺼번에 다시 띄운 직후의 첫 요청 실패는 한 번 재시도하고, 재시도 성공을 기록에 남긴다. `seed-demo.sh`에 로그인 재시도를 두는 것은 제안이며 아직 반영하지 않았다.
+
+### TS-51 L1을 웜업 없이 초당 800건으로 시작하자 Gateway `auth-redis` 차단기가 15초 만에 열렸다
+- 서비스·작성: gateway / kangmin / 2026-11-10
+- 문제: 배포 서버 병목 탐색 C1(L1 응모 몰림, 웜업 없이 초당 800 → 1600 → 2400 → 3200, 단계마다 65초)에서 응답 대부분이 `auth_unavailable` 503이었다. 단계별 비율은 55% · 97% · 99% · 99%다. 차단기는 시작 15초 뒤(03:24:00쯤) 느린 호출 100%로 열렸고 이후 열림을 반복했다. 그동안 reservation-service CPU 2%, Postgres 0.3%로, 요청은 서비스에 닿기 전 Gateway에서 거절됐다.
+- 원인(추정): `auth-redis` 차단기 설정(`config-repo/gateway.yml:58-65`)은 건수 기반 창 20, 최소 호출 20, 느린 호출 50ms·50%, 열림 10초, 반열림 5건이다. 20건은 초당 1,000건에서 0.02초 분량이라(계산값) 순간 지연 몇 번으로 창의 절반이 느린 호출이 되고, 10초 동안 인증 요청 전체를 거절한다. 다시 닫히면 몰린 요청으로 곧 다시 열린다. 웜업 뒤 단계 측정(C2)에서는 초당 800까지 거절 0%, 1000에서 19%였고 첫 열림은 1000 단계 끝이었다. 느린 호출이 Redis 자체 지연인지 Gateway 쪽 대기(CPU 포화 등)인지는 확인 못 함이다.
+- 해결:
+  - 측정 방법: 웜업(100·200·400) 뒤 단계를 재도록 바꿨다.
+  - 설정 시험: 측정 모드 안의 임시 덮어쓰기로 측정 기반 차단기(시간 창 10초, 최소 500건, 느린 호출 100ms·80%, 열림 5초, 반열림 20건)에 인증 벌크헤드 100, reservation Hikari 20을 함께 적용했다(E). 초당 1,400까지 차단기가 열리지 않았다. 다만 1200 이상에서는 벌크헤드가 넘친 요청을 거절했고(1400에서 1.9%), p95 300ms 기준 한도는 약 초당 1,000이다(1200에서 339ms).
+  - 운영 반영: 하지 않았다. 측정 뒤 운영 설정으로 되돌렸고(04:13 측정 모드 off), `config-repo`는 바뀌지 않았다. 운영 반영은 `contract` 이슈로 올릴 예정이며 아직 등록하지 않았다.
+  - 근거 수치는 [numbers-and-measurement.md](design/lottery/numbers-and-measurement.md) 3-4절 C1·C2·C3~E다.
+- 배운 점: 건수 기반 작은 창은 처리량이 높을수록 아주 짧은 시간의 지연에 반응한다. 차단기 창은 예상 처리량과 함께 정하고, 측정은 웜업 뒤 단계로 올려 콜드 시작 효과와 한계를 따로 본다. 503의 출처를 차단기 지표로 먼저 가르는 방법은 TS-42에 있다.
+
+### TS-52 k6 setup 로그가 `results/*-stdout.txt`에 남지 않았다
+- 서비스·작성: loadtest / kangmin / 2026-11-10
+- 문제: 배포 서버 측정(L2-a 1회)에서 k6 setup의 `console.log`(빌링키 발급·응모 진행)를 결과 파일에서 찾을 수 없었다.
+- 원인: `loadtest/k6/run.sh:75`는 `"/scripts/${SCRIPT}" | tee "$K6_DIR/results/${NAME}-stdout.txt"`로 stdout만 `tee`에 넘긴다. k6 콘솔 로그는 stderr로 나가므로 파일에 남지 않는다.
+- 해결: 우회. 2회부터는 tmux 화면(`tmux capture-pane`)으로 setup 로그를 확인했다. `run.sh`는 고치지 않았다.
+- 배운 점: 콘솔 로그까지 파일에 남기려면 `2>&1 | tee ...`처럼 stderr도 합쳐야 한다. `run.sh` 수정은 제안이며, 기본 `--quiet`(51행)라 진행 표시줄은 꺼져 있지만, `K6_PROGRESS=1`로 켜면 진행 표시줄도 파일에 섞이는지(49행 Note, ISE-219) 함께 확인해야 한다.

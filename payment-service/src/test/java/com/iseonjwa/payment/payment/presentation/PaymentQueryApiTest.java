@@ -175,9 +175,9 @@ class PaymentQueryApiTest {
         var columns = extraColumns.isEmpty() ? "" : ", " + extraColumns;
         var values = extraValues == null ? "" : ", " + extraValues;
         return jdbc.queryForObject("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      created_at, updated_at%s)
-                VALUES (?, ?, ?, 50000, 'CARD', '%s', ?, now(), now()%s) RETURNING id""".formatted(columns, status, values),
+                VALUES (?, ?, ?, 50000, 'CARD', '%s', ?, 'MOCK', now(), now()%s) RETURNING id""".formatted(columns, status, values),
                 Long.class, "PAY-" + reservationId + "-" + UUID.randomUUID().toString().substring(0, 8), reservationId, userId,
                 UUID.randomUUID());
     }

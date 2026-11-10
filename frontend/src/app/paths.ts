@@ -8,6 +8,7 @@ export const paths = {
   queue: '/schedules/:scheduleId/queue',
   seats: '/schedules/:scheduleId/seats',
   payment: '/reservations/:reservationId/payment',
+  paymentTossReturn: '/reservations/:reservationId/payment/toss/:result',
   reservation: '/reservations/:reservationId',
   reservationComplete: '/reservations/:reservationId/complete',
   myReservations: '/me/reservations',
@@ -48,6 +49,16 @@ export function seatsPath(scheduleId: number): string {
 
 export function paymentPath(reservationId: number): string {
   return `/reservations/${reservationId}/payment`
+}
+
+// 토스 결제창이 결제 뒤 돌려보내는 주소
+export function tossReturnPath(reservationId: number, result: 'success' | 'fail'): string {
+  return `/reservations/${reservationId}/payment/toss/${result}`
+}
+
+// 토스는 오리진을 포함한 절대 주소만 받는다
+export function tossReturnUrl(reservationId: number, result: 'success' | 'fail'): string {
+  return window.location.origin + tossReturnPath(reservationId, result)
 }
 
 export function reservationPath(reservationId: number): string {

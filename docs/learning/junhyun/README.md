@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-09 | 배포 서버에 부하 측정을 하면 AWS 요금이 더 나오나 | [qna/2026-11-09-load-test-aws-cost.md](qna/2026-11-09-load-test-aws-cost.md) |
+| 2026-11-09 | 부하 발생기 EC2는 얼마나 커야 하나 (c6i.large와 c6i.xlarge) | [qna/2026-11-09-loadgen-instance-size.md](qna/2026-11-09-loadgen-instance-size.md) |
 | 2026-11-09 | Anthropic API 키는 어디에 넣고, 배포 때도 따라가나 | [qna/2026-11-09-anthropic-key-local-and-deploy.md](qna/2026-11-09-anthropic-key-local-and-deploy.md) |
 | 2026-11-09 | Spring AI는 어떤 프레임워크이고, 쓰면 무엇이 좋은가 (우리 챗봇과 비교) | [qna/2026-11-09-spring-ai-what-and-why.md](qna/2026-11-09-spring-ai-what-and-why.md) |
 | 2026-11-09 | 예매 문의 챗봇(ISE-126)은 어떻게 구현돼 있나, 왜 별도 모듈인가 | [qna/2026-11-09-assistant-chatbot-structure.md](qna/2026-11-09-assistant-chatbot-structure.md) |

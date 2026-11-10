@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.ops;
 
+import com.iseonjwa.payment.pg.application.PgClients;
+import com.iseonjwa.payment.support.StubPgClients;
 import com.iseonjwa.payment.ops.application.InspectQuery;
 import com.iseonjwa.payment.ops.application.OpsArguments;
 import com.iseonjwa.payment.ops.application.OpsRejection;
@@ -241,19 +243,20 @@ class InspectQueryTest {
         assertTrue(output.contains("PG 클라이언트가 설정되어 있지 않아 조회하지 못했다"), output);
     }
 
-    private static ObjectProvider<PgClient> provider(PgClient client) {
+    private static ObjectProvider<PgClients> provider(PgClient client) {
+        var clients = client == null ? null : new StubPgClients(client);
         return new ObjectProvider<>() {
             @Override
-            public PgClient getObject() { return client; }
+            public PgClients getObject() { return clients; }
 
             @Override
-            public PgClient getObject(Object... args) { return client; }
+            public PgClients getObject(Object... args) { return clients; }
 
             @Override
-            public PgClient getIfAvailable() { return client; }
+            public PgClients getIfAvailable() { return clients; }
 
             @Override
-            public PgClient getIfUnique() { return client; }
+            public PgClients getIfUnique() { return clients; }
         };
     }
 

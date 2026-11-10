@@ -10,7 +10,7 @@ import com.iseonjwa.payment.ops.application.RefundRetryCommand;
 import com.iseonjwa.payment.ops.domain.ManualActionLogRepository;
 import com.iseonjwa.payment.ops.domain.OpsInspectionRepository;
 import com.iseonjwa.payment.payment.application.PaymentTransitionService;
-import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.refund.application.RefundRequestService;
 import com.iseonjwa.payment.refund.application.RefundRetryService;
 import com.iseonjwa.payment.refund.application.RefundSettlementService;
@@ -41,7 +41,7 @@ final class ScenarioOps {
 
     ScenarioOps(ApplicationContext context) {
         var inspection = context.getBean(OpsInspectionRepository.class);
-        var lookup = new OpsPgLookup(context.getBeanProvider(PgClient.class));
+        var lookup = new OpsPgLookup(context.getBeanProvider(PgClients.class));
         var commands = List.of(
                 new RefundRetryCommand(inspection, lookup, context.getBean(RefundRetryService.class)),
                 new RefundResolveCommand(inspection, lookup, context.getBean(RefundSettlementService.class)),

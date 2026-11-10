@@ -83,7 +83,8 @@ public class TossPgAdapter implements PgClient {
                 }, Unknown::new);
     }
 
-    // 토스는 빌링(자동결제)을 이번 범위에서 지원하지 않는다. 보내지 않았으므로 확실히 승인되지 않았다
+    // 토스는 빌링(자동결제)을 지원하지 않는다. 보내지 않았으므로 확실히 승인되지 않았다.
+    // 빌링은 늘 Mock으로 보내 이 메서드는 쓰지 않는다(ADR 0023 2026-11-10)
     @Override
     public ApproveResult approveBilling(ApproveCommand command, String billingKey) {
         log.warn("토스 모드는 빌링 승인을 지원하지 않는다");

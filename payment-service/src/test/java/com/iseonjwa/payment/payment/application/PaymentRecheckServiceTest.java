@@ -1,5 +1,11 @@
 package com.iseonjwa.payment.payment.application;
 
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
+import com.iseonjwa.payment.support.StubPgClients;
+import com.iseonjwa.payment.payment.domain.PgProvider;
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
@@ -50,6 +56,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class PaymentRecheckServiceTest {
     // 복구 그룹의 동시 호출 한도(payment.pg.protection.recovery.max-concurrent-calls 기본값)
     private static final int MAX_PERMITS = 2;
@@ -84,6 +91,53 @@ class PaymentRecheckServiceTest {
         assertEquals(MAX_PERMITS, recoveryGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "복구 허가가 새고 있다");
         recoveryGate.circuitBreaker().reset();
         fixtures.cleanUp();
+    }
+
+    @Autowired
+    StubPgClients pgClients;
+
+    @AfterEach
+    void resetRoutes() {
+        pgClients.reset();
+    }
+
+    @Test
+    void MOCK_결제는_토스_클라이언트가_따로_있어도_Mock으로_조회해_확정한다() {
+        var tossPg = mock(PgClient.class);
+        pgClients.route(PgProvider.TOSS, tossPg);
+        var payment = fixtures.due(PaymentStatus.UNKNOWN, 1, PgProvider.MOCK);
+        when(pg.findPayment(orderOf(payment))).thenReturn(approved(AMOUNT));
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.APPROVED, fixtures.reload(payment).getStatus());
+        verifyNoInteractions(tossPg);
+    }
+
+    @Test
+    void TOSS_결제는_토스_클라이언트로_조회한다() {
+        var tossPg = mock(PgClient.class);
+        pgClients.route(PgProvider.TOSS, tossPg);
+        var payment = fixtures.due(PaymentStatus.UNKNOWN, 1, PgProvider.TOSS);
+        when(tossPg.findPayment(orderOf(payment))).thenReturn(approved(AMOUNT));
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.APPROVED, fixtures.reload(payment).getStatus());
+        verifyNoInteractions(pg);
+    }
+
+    @Test
+    void 토스_키_없는_서버에서_TOSS_결제를_만나면_CLIENT_ERROR로_결과_모름이고_복구_허가를_실패로_세지_않는다() {
+        pgClients.missing(PgProvider.TOSS);
+        var payment = fixtures.due(PaymentStatus.REQUESTED, 0, PgProvider.TOSS);
+
+        assertTrue(recheck.recheckNext());
+
+        assertEquals(PaymentStatus.UNKNOWN, fixtures.reload(payment).getStatus());
+        verifyNoInteractions(pg);
+        // CLIENT_ERROR는 허가를 반환하고 세지 않는다. 세면 공유 CB가 열려 Mock 결제의 재확인까지 멈춘다
+        assertEquals(0, recoveryGate.circuitBreaker().getMetrics().getNumberOfFailedCalls());
     }
 
     @Test

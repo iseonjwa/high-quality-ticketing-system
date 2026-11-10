@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.messaging;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.messaging.outbox.OutboxEventSender;
 import com.iseonjwa.payment.pg.application.PgClient;
@@ -41,6 +43,7 @@ import static org.mockito.Mockito.when;
         "spring.cloud.config.enabled=false", "eureka.client.enabled=false", "messaging.outbox.relay-enabled=true",
         "messaging.outbox.interval=100ms"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class OutboxBrokerOutageApiTest {
     private static final long USER = 42L;
     private static final long AMOUNT = 50000L;

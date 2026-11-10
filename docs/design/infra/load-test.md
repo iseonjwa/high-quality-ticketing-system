@@ -4,9 +4,10 @@
 
 ## 1. 도구와 결과 보관
 
-- 도구: k6. 스크립트는 저장소에 둔다. 위치는 구현 이슈에서 정한다.
+- 도구: k6. 스크립트는 루트 `loadtest/k6/`에 둔다(9절).
 - 결과: k6가 Prometheus remote write로 보낸다. 서버 지표(CPU, 메모리, 결제 지표 등)와 같은 Grafana에서 겹쳐 본다.
-- 필요한 설정: Prometheus에 remote write 수신을 켠다. 지금 `infra/prometheus.yml`에는 켜는 설정이 없다(구현 이슈). 수신 포트는 보안그룹과 compose 노출 규칙을 따른다: 발생기에서 Prometheus로 쓰는 경로를 열어야 하는데 SA 9-2는 9090을 열지 않는다. 열지, 아니면 SSH 터널이나 발생기 쪽 에이전트로 보낼지는 미정이다.
+- 설정(정함 2026-11-08, ISE-191): 평소 배포 Prometheus는 remote write 수신을 켜지 않고 9090도 열지 않는다(SA 9-2). 측정 모드 덮어쓰기(`loadtest/deploy/compose.measure.yml`)만 `--web.enable-remote-write-receiver`와 9090을 열고, 배포 서버 보안 그룹은 발생기 보안 그룹에서 오는 9090만 허용한다(5절 "결과 전송").
+- 확인(2026-11-10): 11/9 Q1~Q3 측정 뒤 배포 Prometheus에 `k6_*` 지표 78개가 들어와 있고, Grafana의 Prometheus 데이터 소스로도 `testid`별로 조회된다. k6 전용 대시보드는 없어 Explore에서 본다.
 
 ## 2. 발생기
 
@@ -91,6 +92,7 @@ ISE-25 쪽 일정과 이슈 경계는 권영은 담당과 정한다. 기준선�
 | 추적 샘플링 | 정함(2026-11-08): 측정 모드 덮어쓰기(`loadtest/deploy/compose.measure.yml`)가 `TRACING_SAMPLE_RATE`를 0.01로 둔다 | `compose.deploy.yml`은 시연용으로 1.0이다. 측정 모드가 꺼지면 1.0으로 돌아온다. SA가 말하는 "요청 제한 완화"는 `config-repo/application-loadtest.yml`에 없다. 요청 제한 설정이 어디에 있는지는 미확인 |
 | 결과 전송 | 정함(2026-11-08): Prometheus remote write. 측정 모드가 `--web.enable-remote-write-receiver`와 9090을 열고, 보안 그룹은 발생기 보안 그룹에서 오는 9090만 허용한다. `run.sh`는 `PROM_RW_URL`이 있으면 `--out experimental-prometheus-rw`로 보낸다 | 지표 이름은 `k6_*`, 시나리오 구분은 `testid` 태그 |
 | Mock PG | 정함(2026-11-08): 기준 지연 300ms. 배포 mock-pg는 이미 `loadtest` 프로필이라 장애 API가 열려 있고 포트는 밖에 열지 않는다. 서버 안에서 일회용 curl 컨테이너로 건다 | 명령: [`loadtest/k6/README.md`](../../../loadtest/k6/README.md) "배포 서버 측정" |
+| 기록 도구(`loadtest/k6/tools/`) | 정함(2026-11-08): 세 스크립트는 컨테이너 이름이 배포 서버와 같아 고치지 않고 서버에서 돈다. 측정과 같은 시간에 서버 SSH 창에서 실행하고 결과 CSV를 내려받는다 | 명령: [`loadtest/k6/README.md`](../../../loadtest/k6/README.md) "배포 서버 측정"의 "기록 도구" |
 | 측정 환경 기록표 | 7절 양식 | SA 3-1 항목 그대로 |
 
 **측정용 토큰 키**(정함 2026-11-08, ADR 0046 "변경"): 발급 API를 기다리지 않고, 측정 동안만 측정 전용 키로 바꿔 띄운다. 운영 키는 발생기에 두지 않는다.
@@ -140,7 +142,7 @@ ISE-25 쪽 일정과 이슈 경계는 권영은 담당과 정한다. 기준선�
 | 스크립트 위치 | 루트 `loadtest/k6/`로 정함(2026-11-05, 최권우). 좌석 선점 K1·K1-H는 `reservation-service/k6/`에 둔다 |
 | 요청 제한 완화 설정 위치 | 미확인 |
 | 서비스별 자원 지표 도구(`docker stats` / cAdvisor) | 미정 |
-| 발생기 인스턴스 타입 | c6i.large급 `[가정]`. 응답이 큰 K1은 네트워크 대역폭 때문에 `c6i.xlarge` 추천(2-1절, 2026-11-05). 측정 일정을 정할 때 고른다 |
+| 발생기 인스턴스 타입 | 정함(2026-11-09): 팀 공용 발생기 `iseonjwa-loadgen`을 `c6i.xlarge`로 만들었다(2절). 응답이 작은 시나리오만 잴 때는 중지 → 유형 변경으로 `c6i.large`로 내릴 수 있다 |
 | 시나리오별 가상 사용자 수·좌석 수 | `[가정]`, 기준선 측정 뒤 갱신 |
 | ISE-25와의 이슈 경계 | 권영은 담당과 정함 |
 

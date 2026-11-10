@@ -195,9 +195,9 @@ class ScenarioInvariantsTest extends ScenarioTestBase {
     private long insertPayment(long reservation, String status, UUID orderId, String pgTxId) {
         var approved = status.equals("APPROVED");
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_tx_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider, pg_tx_id,
                                      pg_approved_amount, decline_code, next_check_at, approved_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'CARD', ?, ?, ?, ?, ?, ?, ?, now(), now())""",
+                VALUES (?, ?, ?, ?, 'CARD', ?, ?, 'MOCK', ?, ?, ?, ?, ?, now(), now())""",
                 "PAY-S" + reservation, reservation, USER, AMOUNT, status, orderId, pgTxId,
                 approved ? AMOUNT : null, status.equals("DECLINED") ? "NOT_SENT" : null,
                 // 재확인이 집지 못하게 먼 미래로 둔다. 이 검증기 테스트는 서비스를 돌리지 않는다
