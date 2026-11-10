@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
@@ -60,6 +61,8 @@ public class AuthRedisFailures {
     private final Map<Cause, AtomicLong> nextLogAt = new EnumMap<>(Cause.class);
     private final Map<Cause, AtomicLong> suppressed = new EnumMap<>(Cause.class);
 
+    // Note: 생성자가 둘이면 스프링은 @Autowired가 붙은 쪽을 쓴다. 빼면 기본 생성자를 찾다 기동에 실패한다(TS-53).
+    @Autowired
     public AuthRedisFailures(MeterRegistry meters, CircuitBreakerRegistry breakers) {
         this(meters, breakers, System::nanoTime);
     }
