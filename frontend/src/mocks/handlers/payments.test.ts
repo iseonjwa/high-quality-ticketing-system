@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
-import { approvePayment, getPayment } from '@/api/payments'
+import { approvePayment, checkoutPayment, getPayment } from '@/api/payments'
 import { getReservation, holdSeats } from '@/api/reservations'
 import { mockDb } from '@/mocks/db'
 import { setMockScenario } from '@/mocks/scenario'
@@ -104,5 +104,37 @@ describe('예매 조회 목', () => {
     }
     mockDb.reservations.get(held.reservationId)!.holdExpiresAtMillis = Date.now() - 1000
     expect((await getReservation(held.reservationId)).status).toBe('HELD')
+  })
+})
+
+describe('결제 목: 결제 준비(checkout)', () => {
+  it('MOCK 모드로 예매의 금액과 주문명을 준다', async () => {
+    const held = await hold()
+
+    const result = await checkoutPayment(held.paymentToken)
+
+    expect(result).toEqual({
+      provider: 'MOCK',
+      amount: held.totalAmount,
+      orderName: `콘서트 예매 ${held.reservationId}`,
+      mockBypass: false,
+    })
+  })
+
+  it('올바르지 않은 토큰은 403 PAYMENT_TOKEN_INVALID다', async () => {
+    const error = await rejectionOf(checkoutPayment('garbage'))
+
+    expect(error.status).toBe(403)
+    expect(error.code).toBe('PAYMENT_TOKEN_INVALID')
+  })
+
+  it('결제 가능 시간이 지난 토큰은 조회 전용 유예 없이 403이다', async () => {
+    const held = await hold()
+    mockDb.reservations.get(held.reservationId)!.holdExpiresAtMillis = Date.now() + 5000
+
+    const error = await rejectionOf(checkoutPayment(held.paymentToken))
+
+    expect(error.status).toBe(403)
+    expect(error.code).toBe('PAYMENT_TOKEN_INVALID')
   })
 })
