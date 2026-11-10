@@ -9,6 +9,8 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.springboot3.bulkhead.autoconfigure.BulkheadAutoConfiguration;
 import io.github.resilience4j.springboot3.circuitbreaker.autoconfigure.CircuitBreakerAutoConfiguration;
 import io.github.resilience4j.springboot3.timelimiter.autoconfigure.TimeLimiterAutoConfiguration;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -103,6 +105,19 @@ class AuthRedisResilienceContextTest {
         } finally {
             logger.detachAppender(logs);
         }
+    }
+
+    @Test
+    void 컴포넌트_스캔과_같은_방식으로_등록하면_auth_redis_기록_빈이_만들어진다() {
+        // Note: withBean(Class)은 public 생성자를 바로 골라 생성자 선택 오류를 숨긴다.
+        // 컴포넌트 스캔과 같은 경로(@Autowired 생성자 탐색)를 타도록 withUserConfiguration으로 등록한다.
+        runner.withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .withUserConfiguration(AuthRedisFailures.class, AuthRedisBreakerEvents.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(AuthRedisFailures.class);
+                    assertThat(context).hasSingleBean(AuthRedisBreakerEvents.class);
+                });
     }
 
     private Sinks.One<Boolean> holdOneCall(AssertableApplicationContext context) {
