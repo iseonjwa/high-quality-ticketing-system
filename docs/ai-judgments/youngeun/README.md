@@ -8,6 +8,7 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-10 | 식은 Gateway 측정 결과 문서: "제한시간 1s 실패" 대신 "100ms 시한 초과가 1.0s로 기록됐을 가능성"으로 고쳐 쓰자는 정정 수용 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-slow-call-threshold-cold-gateway.md) |
 | 2026-11-10 | bulkhead 비교 전에 워밍업 방식부터 확인(3번)하고, 덤 몰림 포함 워밍업을 표준으로 정함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-bulkhead-comparison-warmup-standard.md) |
 | 2026-11-10 | **배포 Q1 auth-redis 차단기 열림: 측정용 차단기 기준 완화(3번) 거부, 워밍업 뒤 재측정(1번) 선택** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-10-no-breaker-relax-for-measurement.md) |
 | 2026-11-09 | Q1-d 로컬 확인: 출발 대기를 다시 계산하는 방식으로 고치고, Q1 ↔ Q1-d 수치 비교는 배포 서버로 넘김 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-q1d-local-limit-and-clock-drift.md) |

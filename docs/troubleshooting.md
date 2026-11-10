@@ -455,3 +455,10 @@
 - 원인: `loadtest/k6/run.sh:75`는 `"/scripts/${SCRIPT}" | tee "$K6_DIR/results/${NAME}-stdout.txt"`로 stdout만 `tee`에 넘긴다. k6 콘솔 로그는 stderr로 나가므로 파일에 남지 않는다.
 - 해결: 우회. 2회부터는 tmux 화면(`tmux capture-pane`)으로 setup 로그를 확인했다. `run.sh`는 고치지 않았다.
 - 배운 점: 콘솔 로그까지 파일에 남기려면 `2>&1 | tee ...`처럼 stderr도 합쳐야 한다. `run.sh` 수정은 제안이며, 기본 `--quiet`(51행)라 진행 표시줄은 꺼져 있지만, `K6_PROGRESS=1`로 켜면 진행 표시줄도 파일에 섞이는지(49행 Note, ISE-219) 함께 확인해야 한다.
+
+### TS-53 생성자가 두 개인 `@Component`가 배포 서버에서 `No default constructor found`로 Gateway 기동을 막았다
+- 서비스·작성: gateway / kangmin / 2026-11-10
+- 문제: main 머지(`0e6d3581`, ISE-230 포함) 뒤 Jenkins 배포가 실패하고 `deploy.sh`가 직전 커밋 `f06c7d08`로 되돌렸다. GitHub Actions의 빌드·테스트·이미지는 모두 통과했다. 되돌릴 때 컨테이너를 새로 만들어 `docker logs`에는 실패 로그가 없었고, Loki에서 `Error creating bean with name 'authRedisFailures' ... Failed to instantiate ...: No default constructor found`(09:48:45 UTC)를 찾았다.
+- 원인: `AuthRedisFailures`에 운영용 public 생성자 `(MeterRegistry, CircuitBreakerRegistry)`와 테스트용 package-private 생성자 `(..., LongSupplier)`를 두고 `@Autowired`를 붙이지 않았다. 생성자가 하나면 스프링이 그것을 쓰지만, 여럿이고 `@Autowired`가 없으면 기본 생성자를 찾다 실패한다. 단위 테스트는 `new`로 만들었고, 컨텍스트 테스트는 이 빈을 등록하지 않았으며, Gateway에는 앱 전체를 띄우는 테스트가 없어 CI가 잡지 못했다.
+- 해결: 운영용 생성자에 `@Autowired`를 붙였다. `AuthRedisResilienceContextTest`에 `withUserConfiguration`으로 두 빈(`AuthRedisFailures`, `AuthRedisBreakerEvents`)을 등록해 만들어지는지 보는 테스트를 더했다. `@Autowired`를 빼면 이 테스트가 `No default constructor`로 실패하는 것을 확인했다(변이 테스트). Gateway 테스트 100건 통과, 로컬 Config 서버·Redis로 Gateway 기동도 확인했다.
+- 배운 점: 테스트용 생성자를 따로 두면 스프링이 어느 생성자를 쓸지 정해 줘야 한다. `ApplicationContextRunner.withBean(Class)`은 public 생성자를 바로 골라 이 오류를 숨기므로, 컴포넌트 스캔과 같은 경로를 보려면 `withUserConfiguration`을 쓴다. 되돌림 뒤에는 실패한 컨테이너 로그가 사라지니 Loki에서 찾는다.
