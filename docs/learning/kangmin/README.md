@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | H1의 "관측 비용 가설"은 무엇이고 HttpHandler 데코레이터는 왜 "부담"이라고 했나(요청이 지나는 층 순서, Boot 4 서버 관측 위치, WebFilter안과 데코레이터안 비교, 거절된 요청만 잃는 것) | [qna/2026-11-11-observation-cost-hypothesis-and-handler-decorator.md](qna/2026-11-11-observation-cost-hypothesis-and-handler-decorator.md) |
 | 2026-11-11 | bulkhead 거절 경보의 "1%·5분"은 무슨 뜻이고 슬랙 메시지는 언제 몇 번 가나(`rate`·`for`, `group_wait`·`repeat_interval`, 피크 규칙) | [qna/2026-11-11-bulkhead-rejecting-alert-timing.md](qna/2026-11-11-bulkhead-rejecting-alert-timing.md) |
 | 2026-11-10 | dev→main PR은 왜 충돌했고, 동기화 PR로 어떻게 풀었나(squash 머지와 공통 조상, main 머지로만 배포) | [qna/2026-11-10-squash-merge-dev-main-conflict.md](qna/2026-11-10-squash-merge-dev-main-conflict.md) |
 | 2026-11-10 | CPU·메모리가 빡빡한 배포 서버에서 컨테이너를 가볍게 만들어 해결할 수 있나 | [qna/2026-11-10-lighten-containers-on-shared-server.md](qna/2026-11-10-lighten-containers-on-shared-server.md) |
