@@ -209,8 +209,12 @@ done
 LOCAL_PREFIX="$(cygpath -w "$PREFIX" 2>/dev/null || echo "$PREFIX")"
 MSYS_NO_PATHCONV=1 docker cp iseonjwa-reservation-service-1:/tmp/gc.log "$LOCAL_PREFIX-gc.log" >/dev/null 2>&1 || true
 # 정합성(대사). 0이 아니면 그 회의 처리량은 쓰지 않는다(계획 문서 1-4절)
-docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -v sid="$SCHEDULE_ID" \
-  < "$K6/tools/invariants.sql" > "$PREFIX-invariants.txt" 2>&1 || true
+# M은 단계 회차마다 검사한다. 첫 회차(측정 회차)는 머리줄 없이 남겨 기존 집계가 그대로 읽게 한다
+for sid in ${ALL_SCHEDULES//,/ }; do
+  [ "$sid" = "$SCHEDULE_ID" ] || echo "## schedule $sid"
+  docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d reservation -v sid="$sid" \
+    < "$K6/tools/invariants.sql" 2>&1 || true
+done > "$PREFIX-invariants.txt"
 {
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none} extra_overlays=${EXTRA_OVERLAYS:-none} scale=$SCALE"
   echo "schedule=$SCHEDULE_ID stage_schedules=${STAGE_SCHEDULES:-none} per_schedule_rate=${PER_SCHEDULE_RATE:-none} k6_cpuset=${K6_CPUSET:-none}"
