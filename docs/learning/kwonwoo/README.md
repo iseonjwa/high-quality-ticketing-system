@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 좌석 선점 k6 부하 측정을 돌아보면 불필요한 단계와 빠진 개선은 무엇이었나 | [qna/2026-11-11-k6-seathold-scenario-retrospective.md](qna/2026-11-11-k6-seathold-scenario-retrospective.md) |
 | 2026-11-10 | 잠금이 걸린 데이터에 트래픽을 몰아 보내는 부하 테스트로 무엇을 얻을 수 있나 | [qna/2026-11-10-hot-lock-load-test.md](qna/2026-11-10-hot-lock-load-test.md) |
 | 2026-11-10 | K1 단계 측정(F)까지 끝낸 뒤 성능을 더 끌어올릴 방법은 무엇인가 | [qna/2026-11-10-performance-beyond-k1-results.md](qna/2026-11-10-performance-beyond-k1-results.md) |
 | 2026-11-10 | 좌석 조회 P4a에서 dev 코드와 측정 브랜치 코드는 무엇이 다른가 | [qna/2026-11-10-p4a-jpql-vs-native-projection.md](qna/2026-11-10-p4a-jpql-vs-native-projection.md) |
