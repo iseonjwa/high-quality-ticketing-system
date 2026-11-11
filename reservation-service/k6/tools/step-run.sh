@@ -202,7 +202,7 @@ grep -oE 'probe epoch_ms=[0-9]+ status=[0-9]+ [0-9]+ms' "$PREFIX-k6.log" \
 python "$K6/tools/b8_metrics.py" "$START" "$LOAD_END" "$END" "$PREFIX"
 # X·K와 여러 대: 인스턴스마다 만료 스케줄러 로그와 오류를 남긴다(Prometheus는 인스턴스 하나만 긁는다)
 for c in $(docker ps --format '{{.Names}}' | grep '^iseonjwa-reservation-service-'); do
-  { echo "## $c"; docker logs --since "$START" "$c" 2>&1 | grep -E '선점 만료|ERROR|lock timeout|deadlock|^[a-zA-Z.]+(Exception|Error)(: |$)' ; } >> "$PREFIX-app.log"
+  { echo "## $c"; docker logs --since "$START" "$c" 2>&1 | grep -E '선점 만료|ERROR|lock timeout|deadlock|^[a-zA-Z.]+(Exception|Error)(: |$)' || true; } >> "$PREFIX-app.log"
 done
 # Note: Git Bash는 /tmp를 Windows 경로로 바꾼다. MSYS_NO_PATHCONV로 막는다. 그러면 /e/... 같은 로컬 경로도 바뀌지 않아
 # Windows의 docker가 쓰지 못하므로, 로컬 쪽은 cygpath로 Windows 경로를 넘긴다
