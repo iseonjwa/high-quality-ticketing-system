@@ -401,6 +401,11 @@ function serveScheduleLotteries(byScheduleId: Record<number, unknown>) {
 }
 
 describe('ConcertDetailPage 추첨 안내', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
   it('응모 중인 추첨이 있는 회차는 예매 패널에서 추첨 화면으로 이어진다', async () => {
     const serverNow = Date.now()
     serveDetail(detail(serverNow, [{}]))
@@ -468,6 +473,25 @@ describe('ConcertDetailPage 추첨 안내', () => {
     )
   })
 
+  it('승계까지 끝난 회차(DONE)는 추첨 화면 배지와 같은 "추첨 종료"로 보인다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        status: 'DONE',
+        entryStartAt: iso(serverNow - 3 * DAY),
+        entryEndAt: iso(serverNow - 2 * DAY),
+        drawAt: iso(serverNow - DAY),
+      }),
+    })
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    expect(await panel.findByRole('link', { name: '결과 보기' })).toHaveAccessibleDescription(
+      '추첨 종료 당첨 결과는 추첨 화면에서 봐요',
+    )
+  })
+
   it('응모 단계는 브라우저 시계가 아니라 공연 응답의 서버 시각으로 나눈다', async () => {
     // 브라우저가 서버보다 1시간 늦다. 서버 기준 1분 전에 응모가 시작됐으니 응모 중이어야 한다
     const serverNow = Date.now() + HOUR
@@ -485,7 +509,10 @@ describe('ConcertDetailPage 추첨 안내', () => {
     expect(await panel.findByRole('link', { name: '추첨 응모' })).toBeInTheDocument()
   })
 
-  it('추첨 조회가 503이어도 다시 시도하지 않고, 예매 패널은 그대로이며 오류를 보이지 않는다', async () => {
+  it('추첨 조회가 503이면 3초 뒤 한 번만 다시 받고, 또 실패하면 예매 패널은 그대로이며 오류를 보이지 않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // 재시도 간격의 흔들림(0~+20%)을 0으로 둬 3초에 맞춘다
+    vi.spyOn(Math, 'random').mockReturnValue(0)
     const serverNow = Date.now()
     serveDetail(detail(serverNow, [{}]))
     const answered = mockedResponses('/api/v1/schedules/32/lottery')
@@ -496,16 +523,50 @@ describe('ConcertDetailPage 추첨 안내', () => {
     )
     const { queryClient } = renderRoutes(routes, '/concerts/7')
     const panel = within(await bookingPanel())
+    await vi.waitFor(() => expect(answered).toEqual([503]))
+
+    // 3초가 되기 전에는 다시 받지 않는다
+    await tick(2000)
+    expect(answered).toEqual([503])
+    await tick(1500)
+    await vi.waitFor(() => expect(answered).toEqual([503, 503]))
 
     // 응답이 화면 상태에 닿을 때까지(조회가 error가 될 때까지) 기다린 뒤 "없음"을 본다
     await vi.waitFor(() =>
       expect(queryClient.getQueryState(lotteryQueryKeys.ofSchedule(32))?.status).toBe('error'),
     )
-    await act(async () => {})
-    expect(answered).toEqual([503])
+    await tick(10_000)
+    expect(answered).toEqual([503, 503])
     expect(panel.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
     expect(panel.queryByRole('link', { name: /응모|추첨|결과/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('첫 추첨 조회가 503이어도 다시 받은 응답으로 안내를 보인다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    const lottery = lotteryOf(32, {
+      entryStartAt: iso(serverNow - HOUR),
+      entryEndAt: iso(serverNow + DAY),
+      drawAt: iso(serverNow + DAY + HOUR),
+    })
+    const answered = mockedResponses('/api/v1/schedules/32/lottery')
+    mockServer.use(
+      http.get('/api/v1/schedules/:scheduleId/lottery', () =>
+        answered.length === 0
+          ? fail(503, 'SERVICE_UNAVAILABLE', '잠시 후 다시 시도해 주세요')
+          : ok(lottery),
+      ),
+    )
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+    await vi.waitFor(() => expect(answered).toEqual([503]))
+
+    // 재시도 간격은 흔들림을 더해 최대 3.6초다
+    await tick(4000)
+    expect(await panel.findByRole('link', { name: '추첨 응모' })).toBeInTheDocument()
+    expect(answered).toEqual([503, 200])
   })
 
   it('보는 중에 응모 시작 시각을 지나면 새로고침 없이 응모 예정에서 응모 중으로 바뀐다', async () => {

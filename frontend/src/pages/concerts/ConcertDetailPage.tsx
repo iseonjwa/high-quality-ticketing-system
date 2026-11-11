@@ -11,6 +11,7 @@ import {
   type ScheduleSummary,
 } from '@/api/concerts'
 import { getScheduleLottery, lotteryQueryKeys, type Lottery } from '@/api/lotteries'
+import { queryRetryDelay, shouldRetryQuery } from '@/api/queryClient'
 import { lotteryPath, paths, queuePath } from '@/app/paths'
 import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
 import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
@@ -441,11 +442,16 @@ function ChosenSchedule({
   )
 }
 
+const LOTTERY_NOTICE_RETRIES = 1
+// 서버가 Retry-After를 주면 그 값을 따른다(queryRetryDelay)
+const LOTTERY_NOTICE_RETRY_MIN_MILLIS = 3000
+
 // 고른 회차의 추첨 안내(ISE-227). 회차에 추첨이 있으면 단계에 맞는 문구와 추첨 화면으로 가는 링크를 보인다.
 // 추첨이 없거나(404) 아직 받는 중이거나 받지 못했으면 아무것도 그리지 않는다. 추첨은 예매 패널의 보조 안내라 실패를 알리지 않는다.
 // Note: 오픈 순간에는 상세 화면이 몰리고 API 앞에 캐시가 없다. 고른 회차 하나만 받고, 추첨 설정은 자주 바뀌지 않아
-// 5분 동안 다시 받지 않으며, 실패해도 다시 시도하지 않는다(보조 안내라 실패를 알리지 않는다). 운영자 설정·추첨 화면이
-// 같은 회차 키를 갱신한다(AdminLotteryNewPage·AdminLotteryPage·LotteryPage).
+// 5분 동안 다시 받지 않는다. 운영자 설정·추첨 화면이 같은 회차 키를 갱신한다(AdminLotteryNewPage·AdminLotteryPage·LotteryPage).
+// Note: 실패(5xx·연결 끊김)하면 최소 3초 뒤 한 번만 다시 받는다. 관리자가 공유하는 주소를 빼면 사용자가 추첨 화면으로 가는 길이
+// 이 안내뿐이라, 한 번의 실패로 그 회차의 길이 사라지지 않게 하려는 것이다. 늘어나는 요청은 실패한 사람 수만큼이다.
 // 단계는 공연 응답의 서버 시계로 나눠 [예매하기] 카운트다운과 같은 시각을 쓰고, 부모와 상관없이 1초마다 다시 정한다
 function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; clock: ServerClock }) {
   const titleId = useId()
@@ -456,7 +462,10 @@ function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; cloc
     queryFn: () => getScheduleLottery(scheduleId),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    retry: false,
+    retry: (failureCount, error) =>
+      failureCount < LOTTERY_NOTICE_RETRIES && shouldRetryQuery(failureCount, error),
+    retryDelay: (attemptIndex, error) =>
+      queryRetryDelay(attemptIndex, error, Math.random, LOTTERY_NOTICE_RETRY_MIN_MILLIS),
   })
   if (!lottery.data) {
     return null
@@ -520,8 +529,10 @@ function lotteryNoticeCopy(
         action: '추첨 보기',
       }
     case 'drawn':
-    case 'done':
       return { title: '추첨 완료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+    // 승계까지 끝나 남은 추첨석을 일반 판매로 돌린 상태다. 추첨 화면 배지("종료")와 이름을 맞춘다
+    case 'done':
+      return { title: '추첨 종료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
   }
 }
 
