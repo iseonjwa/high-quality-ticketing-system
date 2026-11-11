@@ -1,0 +1,6 @@
+# 사전 거절에 걸린 요청의 멱등키 확인을 트랜잭션 없이 한 문장으로 한다(후보 2). compose.precheck.yml과 함께 얹는다.
+# 측정 브랜치 전용이다(STEPS.md "선점 사전 거절 후속 비교")
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_PRECHECK_LIGHT_KEY_LOOKUP: "true"

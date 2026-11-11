@@ -1,0 +1,6 @@
+# 사전 거절한 요청의 1%를 골라 그 순간 DB 상태로 다시 확인한다(후보 1, 잘못된 409 표본 검증). compose.precheck.yml과 함께 얹는다.
+# 측정 브랜치 전용이다. 거른 요청 1%에 DB 조회가 하나 더 붙으므로 처리량 비교 회에는 얹지 않는다
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_PRECHECK_VERIFY_RATE: "0.01"

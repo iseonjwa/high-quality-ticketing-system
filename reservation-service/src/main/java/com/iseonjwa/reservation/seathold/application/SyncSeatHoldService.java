@@ -91,7 +91,11 @@ public class SyncSeatHoldService {
     public SeatHoldResult hold(HoldSeatsCommand command) {
         var seatIds = sortedDistinctSeatIds(command.seatIds());
         if (preCheck.surelyHeld(command.scheduleId(), seatIds)) {
-            // Note: 같은 멱등키의 재요청이면 자기 좌석이 잡혀 보인다. 멱등키만 PK로 한 번 보고, 있으면 지금처럼 재응답한다
+            // Note: 같은 멱등키의 재요청이면 자기 좌석이 잡혀 보인다. 멱등키만 PK로 한 번 보고, 있으면 지금처럼 재응답한다.
+            // 가벼운 조회(측정 후보 2)는 트랜잭션 없이 있는지만 보고, 있을 때만 재응답 경로(읽기 트랜잭션)로 간다
+            if (preCheck.lightKeyLookup() && !seatHoldRequests.existsById(command.requestId())) {
+                throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
+            }
             return readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
                     .map(previous -> replay(previous, command, seatIds))
                     .orElseThrow(() -> new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD)));
