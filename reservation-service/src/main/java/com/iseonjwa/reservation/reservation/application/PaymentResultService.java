@@ -241,6 +241,7 @@ public class PaymentResultService {
                 REFUND_EVENT_VERSION, RefundRequestedPayload.of(approved, reason));
     }
 
+    // Note: Loki 건별 알림 규칙(PaymentResultAnomalyEvent)이 이 줄 형식을 읽는다. 바꾸면 규칙과 script/check-loki-rules.sh를 함께 바꾼다.
     private static void anomaly(PaymentResult result, String reason) {
         log.error("event=PAYMENT_RESULT_ANOMALY type={} eventId={} reservationId={} paymentId={} reason={}",
                 result.getType(), result.getEventId(), result.getReservationId(), result.getPaymentId(), reason);
