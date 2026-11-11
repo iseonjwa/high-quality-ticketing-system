@@ -36,6 +36,9 @@ public class ReservationDetailResponse {
 
     private List<TicketResponse> tickets;
 
+    // 확정 전에는 null이다. 환불 상태는 이 ID로 결제 조회 API를 불러 본다
+    private Long paymentId;
+
     public static ReservationDetailResponse from(ReservationDetailResult result) {
         Reservation reservation = result.getReservation();
         List<ReservationSeatResponse> seats = result.getSeats().stream()
@@ -47,7 +50,8 @@ public class ReservationDetailResponse {
                 : List.of();
         return new ReservationDetailResponse(reservation.getId(), reservation.getReservationNo(),
                 reservation.getScheduleId(), reservation.getStatus().name(), kst(reservation.getHoldExpiresAt()),
-                reservation.getTotalAmount().toBigDecimal().longValueExact(), seats, result.getPaymentToken(), tickets);
+                reservation.getTotalAmount().toBigDecimal().longValueExact(), seats, result.getPaymentToken(), tickets,
+                reservation.getPaymentId());
     }
 
     private static OffsetDateTime kst(Instant instant) {
