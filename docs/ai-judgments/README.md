@@ -31,7 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 48건, 일지 5일 |
+| [junhyun](junhyun/README.md) | 개별 기록 49건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 13건, 일지 4일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | 결제 쪽 취소 환불을 위해 기다리던 예매 취소 API(ISE-206)를 직접 만들기로 하고, 취소 정책(공연 시작 전까지·추첨 예매 제외·결제 조회로 환불 상태 표시·담당 변경)은 AI 추천안을 받아들임 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-11-reservation-cancel-takeover-policy.md) |
 | 2026-11-10 | auth-redis 재측정 값을 느린 호출 100ms·80%, 시한 200ms, 벌크헤드 50(거절은 차단기 집계에서 제외), 실패율 50%로 하자는 AI 추천을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-10-auth-redis-timeout-bulkhead-measure-values.md) |
 | 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-10-toss-mock-bypass-per-payment-pg.md) |
 | 2026-11-10 | 이슈 자동 완료를 피하려고 PR 제목·브랜치에서 이슈 번호를 뺀 AI 방식을 거부하고, 번호를 넣은 채 연결 종류로 완료를 막게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-keep-issue-number-in-pr-title.md) |
