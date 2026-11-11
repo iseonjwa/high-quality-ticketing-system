@@ -13,6 +13,8 @@
 #      선택 가능 좌석을 LOCK_SECONDS초(기본 30) 동안 FOR UPDATE로 쥔다. 잠긴 행을 노린 선점이 어디까지 번지는지 본다(S3)
 #   Z: 잠긴 행 집중 스트레스. 측정 내내 앞쪽 LOCK_RANGE석(기본 10, 인기석)을 잠그고 선점을 그 좌석에만 초당 10명부터 두 배씩 보낸다.
 #      같이 구경꾼 요청(공연 목록, user-service, payment-service)을 API마다 초당 10건 보내 번짐을 본다. 잠금은 부하 끝 30초 뒤 푼다
+#   M: 매진을 피한 K1 스트레스. S와 같은 흐름이지만 단계마다 새 회차를 쓰고, 회차 하나에는 초당 PER_SCHEDULE_RATE명(기본 100)까지만 보낸다.
+#      S는 160~320명 단계에서 매진되어 그 위 단계가 좌석 조회만 받았다. M은 모든 단계에서 조회와 선점이 섞인다
 #   선택: EXTRA_OVERLAYS="a.yml b.yml"로 덮어쓰기를 더 얹고, SCALE=2로 reservation-service를 여러 대 띄운다
 #   예: bash reservation-service/k6/tools/step-run.sh base S
 #   OBSERVE_JFR=1이면 JFR 녹화를 켜고 측정 뒤 results/에 꺼낸다(조건부 단계 판단 회에만. 계획 문서 3-4절)
@@ -78,8 +80,9 @@ case "$KIND" in
   K) export MODEL=open RATE="${RATE:-100}" DURATION_SECONDS="${DURATION_SECONDS:-300}" RECOVERY_SECONDS=0
      LOAD_SECONDS="$DURATION_SECONDS" ;;
   Z) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-10,20,40,80,160,320}" RECOVERY_SECONDS=0 MAX_VUS="${MAX_VUS:-4000}" \n       HOT_RATIO=1 HOT_SHARE="${HOT_SHARE:-0.000667}" MAX_RETRY=0 THINK_MIN=0 THINK_MAX=0.2 BYSTANDER_RATE="${BYSTANDER_RATE:-10}" \n       LOCK_AFTER="${LOCK_AFTER:--10}" LOCK_RANGE="${LOCK_RANGE:-10}" ;;
+  M) export MODEL=ramp STAGES="${STAGES:-5,10,20,40,80,160,320,640,1280}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}"        PER_SCHEDULE_RATE="${PER_SCHEDULE_RATE:-100}" ;;
   H) export MODEL=ramp SEAT_MAP=once STAGES="${STAGES:-50,100,200,400,800}" RECOVERY_SECONDS="${RECOVERY_SECONDS:-120}" MAX_VUS="${MAX_VUS:-4000}" ;;
-  *) echo "측정 종류는 L, S, H, T, D, X, K, Z 중 하나입니다" >&2; exit 1 ;;
+  *) echo "측정 종류는 L, S, H, M, T, D, X, K, Z 중 하나입니다" >&2; exit 1 ;;
 esac
 if [ "$MODEL" = ramp ]; then
   STAGE_COUNT="$(echo "$STAGES" | tr ',' '\n' | grep -c .)"
@@ -96,6 +99,11 @@ fi
 # Note: 측정 경로에 없는 컨테이너는 측정 중에 멈춘다. P4b부터 k6가 GB 단위 메모리를 쓰면서 서비스 전체(약 4.5GiB)와 합쳐
 # Docker VM(약 7.6GiB)이 스왑으로 넘어가 모든 컨테이너가 함께 멈췄다(STEPS.md P4b 실측 2차). 이 컨테이너들은 앞 단계에서도 거의 놀았다.
 # Prometheus는 지표 수집에 쓰므로 남긴다. 다시 켜려면 STEPS.md 실행 절의 전체 스택 명령을 다시 실행한다
+# CPU 상한 측정은 reservation-service만이 아니라 전체 스택이 같은 코어에 묶여 있어야 한다. Gateway로 확인하고 다르면 멈춘다
+if [[ " ${EXTRA_OVERLAYS:-} " == *compose.cpuset-4.yml* ]] && [ "$(docker inspect -f '{{.HostConfig.CpusetCpus}}' iseonjwa-gateway-1)" != 0-3 ]; then
+  echo "CPU 상한 측정인데 Gateway가 0-3 코어에 묶여 있지 않습니다. compose.cpuset-4.yml을 얹어 전체 스택을 다시 띄웁니다" >&2
+  exit 1
+fi
 IDLE_CONTAINERS="${IDLE_CONTAINERS:-grafana loki alloy zipkin kafka-ui alertmanager frontend}"
 for c in $IDLE_CONTAINERS; do docker stop "iseonjwa-$c-1" >/dev/null 2>&1 || true; done
 echo "[$STEP-$KIND] 측정 무관 컨테이너 멈춤: $IDLE_CONTAINERS"
@@ -114,6 +122,20 @@ bash "$K6/tools/create-schedule.sh" "k6 $STEP prime" >/dev/null 2>&1 || true
 # 워밍업은 측정 회차의 좌석을 쓰지 않게 다른 회차로 한다(계획 문서 1-6절)
 WARMUP_SCHEDULE_ID="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP warmup")"
 SCHEDULE_ID="$(HOLD_MINUTES="${HOLD_MINUTES:-5}" bash "$K6/tools/create-schedule.sh" "k6 $STEP $KIND")"
+ALL_SCHEDULES="$SCHEDULE_ID"
+if [ "$KIND" = M ]; then
+  # 단계마다 ceil(도착률 / PER_SCHEDULE_RATE)개의 새 회차를 만든다. 첫 단계의 첫 회차는 위에서 만든 측정 회차다
+  STAGE_SCHEDULES=""
+  for rate in ${STAGES//,/ }; do
+    for _ in $(seq 1 $(( (rate + PER_SCHEDULE_RATE - 1) / PER_SCHEDULE_RATE ))); do
+      if [ -z "$STAGE_SCHEDULES" ]; then id="$SCHEDULE_ID"; else id="$(bash "$K6/tools/create-schedule.sh" "k6 $STEP M $rate")"; fi
+      STAGE_SCHEDULES="${STAGE_SCHEDULES:+$STAGE_SCHEDULES,}$id"
+    done
+  done
+  ALL_SCHEDULES="$STAGE_SCHEDULES"
+  export STAGE_SCHEDULES
+  echo "[$STEP-$KIND] 단계 회차: $STAGE_SCHEDULES"
+fi
 export SCHEDULE_ID WARMUP_SCHEDULE_ID WARMUP_SECONDS WARMUP_RATE TOKEN_MODE=sign LABEL="$STEP-$KIND"
 # Note: k6는 compose 네트워크 안에서 Gateway를 직접 부른다. host.docker.internal로 부르면 830KB 좌석 응답이 호스트의
 # Docker 포트 전달(com.docker.backend)을 거쳐 다시 VM으로 들어오는데, P4b에서 서버가 빨라지자 이 경로가 먼저 막혔다(STEPS.md P4b 실측 4차).
@@ -191,7 +213,8 @@ docker exec -i iseonjwa-postgres-reservation-1 psql -U "${DB_USER:-iseonjwa}" -d
   < "$K6/tools/invariants.sql" > "$PREFIX-invariants.txt" 2>&1 || true
 {
   echo "step=$STEP kind=$KIND commit=$COMMIT overlays=${OVERLAYS[*]:-none} extra_overlays=${EXTRA_OVERLAYS:-none} scale=$SCALE"
-  echo "schedule=$SCHEDULE_ID warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
+  echo "schedule=$SCHEDULE_ID stage_schedules=${STAGE_SCHEDULES:-none} per_schedule_rate=${PER_SCHEDULE_RATE:-none} k6_cpuset=${K6_CPUSET:-none}"
+  echo "warmup_schedule=$WARMUP_SCHEDULE_ID warmup_seconds=$WARMUP_SECONDS warmup_rate=$WARMUP_RATE"
   echo "start=$START load_end=$LOAD_END end=$END restarts=$(docker inspect -f '{{.RestartCount}}' iseonjwa-reservation-service-1)"
   echo "jfr=${OBSERVE_JFR:-0} stopped=${IDLE_CONTAINERS// /,} k6_network=$K6_NETWORK base_url=$BASE_URL identity=${IDENTITY:-gateway}"
   # k6 메모리 상한과 종료 코드. k6_exit=137이면 k6가 상한에 닿아 죽은 회라 처리량을 쓰지 않는다

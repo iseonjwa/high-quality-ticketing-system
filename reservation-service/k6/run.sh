@@ -45,12 +45,16 @@ echo "k6_memory=$K6_MEMORY k6_gomemlimit=$K6_GOMEMLIMIT"
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
 # Note: --memory-swap을 --memory와 같게 둬야 스왑으로 넘치지 않고 상한에서 멈춘다
 # K6_NETWORK를 주면 k6를 그 Docker 네트워크에 붙인다. 이때 BASE_URL은 http://gateway:8080처럼 서비스 이름으로 준다
-NETWORK_ARGS=()
-[ -n "${K6_NETWORK:-}" ] && NETWORK_ARGS=(--network "$K6_NETWORK")
+RUN_ARGS=()
+[ -n "${K6_NETWORK:-}" ] && RUN_ARGS=(--network "$K6_NETWORK")
+# K6_CPUSET을 주면 k6를 그 코어에만 둔다. 서버 컨테이너를 다른 코어에 묶는 CPU 상한 측정(compose.cpuset-4.yml)에서
+# k6가 서버 몫의 CPU를 빼앗지 않게 한다. 배포 측정에서는 k6가 다른 EC2에서 돈다
+[ -n "${K6_CPUSET:-}" ] && RUN_ARGS+=(--cpuset-cpus "$K6_CPUSET")
+echo "k6_cpuset=${K6_CPUSET:-none}"
 echo "k6_network=${K6_NETWORK:-host} base_url=${BASE_URL:-http://host.docker.internal:8080}"
 set +e
 MSYS_NO_PATHCONV=1 docker run --rm \
-  --name "k6-${LABEL:-run}-${STAMP}" "${NETWORK_ARGS[@]}" \
+  --name "k6-${LABEL:-run}-${STAMP}" "${RUN_ARGS[@]}" \
   --memory "$K6_MEMORY" --memory-swap "$K6_MEMORY" -e GOMEMLIMIT="$K6_GOMEMLIMIT" \
   -v "$K6_DIR:/scripts" \
   -e BASE_URL="${BASE_URL:-http://host.docker.internal:8080}" \
@@ -58,7 +62,7 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   -e MODEL -e RATE -e DURATION_SECONDS -e CLOSED_VUS \
   -e THINK_MIN -e THINK_MAX -e MAX_RETRY -e HOT_RATIO -e HOT_SHARE \
   -e PRE_VUS -e MAX_VUS -e USERS_CSV \
-  -e SEAT_MAP -e BURST -e BURST_TABS -e BURST_SEATS -e BURST_REPEAT -e MAX_PER_USER -e BYSTANDER_RATE -e BYSTANDER_TAIL_SECONDS -e RECOVERY_SECONDS -e STAGES -e STAGE_SECONDS -e WARMUP_SECONDS -e WARMUP_RATE -e WARMUP_SCHEDULE_ID -e TOKEN_MODE -e IDENTITY -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
+  -e SEAT_MAP -e BURST -e BURST_TABS -e BURST_SEATS -e BURST_REPEAT -e MAX_PER_USER -e BYSTANDER_RATE -e BYSTANDER_TAIL_SECONDS -e RECOVERY_SECONDS -e STAGES -e STAGE_SECONDS -e STAGE_SCHEDULES -e PER_SCHEDULE_RATE -e WARMUP_SECONDS -e WARMUP_RATE -e WARMUP_SCHEDULE_ID -e TOKEN_MODE -e IDENTITY -e USER_ID_BASE -e JWT_ACCESS_SECRET -e ENTRY_TOKEN_SECRET \
   "$K6_IMAGE" run \
   --summary-export "/scripts/results/${NAME}-summary.json" \
   --out "csv=/scripts/results/${NAME}-raw.csv.gz" \

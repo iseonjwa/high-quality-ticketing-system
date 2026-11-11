@@ -58,7 +58,22 @@ const WARMUP_RATE = Number(__ENV.WARMUP_RATE || 10);
 const WARMUP_SCHEDULE_ID = __ENV.WARMUP_SCHEDULE_ID;
 const WARMUP_USER_OFFSET = 800000;
 const LOAD_SECONDS = MODEL === 'ramp' ? STAGES.length * STAGE_SECONDS : DURATION_SECONDS;
+// 매진을 피한 스트레스(M): 단계마다 회차를 새로 쓰고, 회차 하나에는 초당 PER_SCHEDULE_RATE명까지만 보낸다.
+// STAGE_SCHEDULES는 모든 단계의 회차 ID를 단계 순서로 이은 목록이다. 단계 i는 ceil(STAGES[i] / PER_SCHEDULE_RATE)개를 쓴다.
+// Note: 회차 하나(15,000석)는 초당 100명이면 약 190초에 매진된다(F L). 60초 단계에 100명 이하로 나누면 단계 끝까지 조회와 선점이 섞인다
+const PER_SCHEDULE_RATE = Number(__ENV.PER_SCHEDULE_RATE || 0);
+const STAGE_SCHEDULES = (__ENV.STAGE_SCHEDULES || '').split(',').filter((id) => id !== '');
+const STAGE_SCHEDULE_OFFSETS = STAGES.reduce((offsets, rate, i) => {
+  offsets.push(i === 0 ? 0 : offsets[i - 1] + Math.ceil(STAGES[i - 1] / PER_SCHEDULE_RATE));
+  return offsets;
+}, []);
 
+if (PER_SCHEDULE_RATE > 0) {
+  const needed = STAGES.reduce((sum, rate) => sum + Math.ceil(rate / PER_SCHEDULE_RATE), 0);
+  if (MODEL !== 'ramp' || STAGE_SCHEDULES.length !== needed) {
+    throw new Error(`PER_SCHEDULE_RATE는 MODEL=ramp에서 쓰고 STAGE_SCHEDULES에 회차 ${needed}개가 필요하다(지금 ${STAGE_SCHEDULES.length}개)`);
+  }
+}
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
 }
@@ -201,7 +216,8 @@ export function setup() {
 
 export default function (data) {
   // Note: 열린 모델에서는 반복 하나가 새로 입장한 사용자 한 명이다. 같은 사용자를 다시 쓰면 매수 한도(4매)와 입장 토큰 만료가 섞인다
-  const user = userOf(exec.scenario.iterationInTest);
+  const scheduleId = scheduleOf(Date.now() - exec.scenario.startTime, exec.scenario.iterationInTest);
+  const user = userOf(exec.scenario.iterationInTest, scheduleId);
   const headers = headersOf(user);
   if (BURST) {
     burst(data.seats, headers);
@@ -220,7 +236,7 @@ export default function (data) {
       sleep(attempt === 0 ? between(THINK_MIN, THINK_MAX) : between(0.5, 1));
       seatIds = pickFromList(data.seats, count);
     } else {
-      seatIds = seatsFromSeatMap(attempt, headers, count);
+      seatIds = seatsFromSeatMap(attempt, headers, count, scheduleId);
       requests++;
       if (seatIds === null) {
         break;
@@ -231,7 +247,7 @@ export default function (data) {
       usersFinished.add(1, { outcome: 'error' });
       break;
     }
-    const hold = http.post(holdUrl(), JSON.stringify({ seatIds }), {
+    const hold = http.post(holdUrl(scheduleId), JSON.stringify({ seatIds }), {
       headers: Object.assign({ 'Content-Type': 'application/json', 'Idempotency-Key': uuid() }, headers),
       tags: { api: 'hold' },
     });
@@ -332,6 +348,16 @@ export function warmup() {
 }
 
 // 단계 사이에 올리는 RAMP_UP_SECONDS는 'ramp'로 따로 둔다. 도착률이 단계 값보다 낮아 그 단계의 수치에 섞지 않는다
+// M이 아니면 측정 회차 하나다. M이면 사용자가 도착한 단계의 회차들에 돌아가며 나눈다
+function scheduleOf(elapsedMs, iteration) {
+  if (PER_SCHEDULE_RATE <= 0) {
+    return SCHEDULE_ID;
+  }
+  const index = Math.min(Math.floor(elapsedMs / 1000 / STAGE_SECONDS), STAGES.length - 1);
+  const count = Math.ceil(STAGES[index] / PER_SCHEDULE_RATE);
+  return STAGE_SCHEDULES[STAGE_SCHEDULE_OFFSETS[index] + (iteration % count)];
+}
+
 function stageOf(elapsedMs) {
   const elapsed = elapsedMs / 1000;
   const index = Math.min(Math.floor(elapsed / STAGE_SECONDS), STAGES.length - 1);
@@ -368,8 +394,8 @@ export function probe() {
 // K1: 좌석을 조회하고 고민한 뒤 고른다. 조회 실패나 매진이면 사용자 결과를 남기고 null을 돌려준다
 // Note: 좌석은 고민(sleep) 전에 고른다. 고르는 기준은 이미 받은 본문이라 sleep 뒤에 골라도 결과 분포는 같다.
 // 본문(830KB)을 쥔 채 1~3초 sleep하면 동시에 살아 있는 본문이 수백 개로 늘어 k6 메모리가 GB 단위로 커졌다(STEPS.md P4b 실측 3차)
-function seatsFromSeatMap(attempt, headers, count) {
-  const seatIds = readSeatMap(headers, count);
+function seatsFromSeatMap(attempt, headers, count, scheduleId) {
+  const seatIds = readSeatMap(headers, count, scheduleId);
   if (seatIds === null) {
     return null;
   }
@@ -378,8 +404,8 @@ function seatsFromSeatMap(attempt, headers, count) {
 }
 
 // 응답 본문은 이 함수 안에서만 쓰고 고른 좌석 ID만 돌려준다
-function readSeatMap(headers, count) {
-  const seatMap = http.get(seatsUrl(), { headers, tags: { api: 'seats' } });
+function readSeatMap(headers, count, scheduleId) {
+  const seatMap = http.get(seatsUrl(scheduleId), { headers, tags: { api: 'seats' } });
   if (seatMap.status !== 200) {
     holdResults.add(1, { result: 'error' });
     return null;

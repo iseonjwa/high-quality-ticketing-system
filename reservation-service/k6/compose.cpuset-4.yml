@@ -1,0 +1,50 @@
+# CPU 상한 측정: 서버 컨테이너 전체를 같은 4코어(Docker VM의 0~3번)에 묶는다.
+# 배포 서버(m7i.xlarge, 4 vCPU)는 한 대에서 전체 스택이 4코어를 함께 나눠 쓴다. 컨테이너마다 할당량(cpus)을 따로 주면
+# 배포에 없는 스로틀링 지연이 생기고 나눌 비율도 임의라, 같은 코어를 함께 쓰게 하는 cpuset으로 흉내 낸다.
+# k6는 run.sh의 K6_CPUSET으로 다른 코어에 둔다(배포 측정에서는 다른 EC2다).
+# Note: Docker VM의 vCPU를 호스트의 어느 코어(성능·효율)에서 돌릴지는 Windows가 정한다. 코어 하나의 속도는 배포와 다르므로
+# 이 측정은 병목 순서와 상대 비교에 쓰고 절대 수치는 배포에서 잰다(학습 노트 2026-11-11-why-cpu-limit-in-load-test.md)
+# 전체 스택을 이 파일과 함께 띄우고, step-run.sh에는 EXTRA_OVERLAYS로 같은 파일을 넘긴다
+services:
+  config-server:
+    cpuset: "0-3"
+  eureka:
+    cpuset: "0-3"
+  kafka-init:
+    cpuset: "0-3"
+  kafka:
+    cpuset: "0-3"
+  postgres-payment:
+    cpuset: "0-3"
+  payment-service:
+    cpuset: "0-3"
+  loki:
+    cpuset: "0-3"
+  alloy:
+    cpuset: "0-3"
+  frontend:
+    cpuset: "0-3"
+  redis:
+    cpuset: "0-3"
+  gateway:
+    cpuset: "0-3"
+  mock-pg:
+    cpuset: "0-3"
+  prometheus:
+    cpuset: "0-3"
+  postgres-reservation:
+    cpuset: "0-3"
+  alertmanager:
+    cpuset: "0-3"
+  grafana:
+    cpuset: "0-3"
+  kafka-ui:
+    cpuset: "0-3"
+  postgres-user:
+    cpuset: "0-3"
+  zipkin:
+    cpuset: "0-3"
+  reservation-service:
+    cpuset: "0-3"
+  user-service:
+    cpuset: "0-3"
