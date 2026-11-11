@@ -1,6 +1,6 @@
 # Gateway `auth-redis` 레질리언스 설정을 정하기까지 (2026-11-09~10)
 
-상태: 기록. 운영 설정(`config-repo/gateway.yml`)은 아직 그대로이고, 측정용 덮어쓰기와 관측 코드만 들어갔다. 재측정 1·2회는 2026-11-10 UTC에 G1으로 쟀다(5-1절, 정본 [open-peak-scenarios.md](open-peak-scenarios.md) 3절 "배포 서버 3차"). 운영 반영 여부는 결정 기록으로 남긴다.
+상태: 기록. 재측정 1·2회는 2026-11-10 UTC에 G1으로 쟀다(5-1절, 정본 [open-peak-scenarios.md](open-peak-scenarios.md) 3절 "배포 서버 4차"). 2회 값을 운영 기본값으로 옮기는 결정은 [ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)(제안, 2026-11-11)이다. 배포 뒤 운영값으로 다시 재는 것은 아직이다.
 
 이틀 동안 부하 측정에서 Gateway 인증 차단기가 먼저 열렸다. 이 문서는 그 원인을 찾으며 "무엇을 생각했고, 무엇이 틀렸고, 무엇으로 바꿨는지"를 시간 순서로 모은다. 트러블슈팅 정리와 발표의 원천이다. 숫자는 모두 아래 원천 문서에서 옮겼고, 원천에서 확인하지 못한 것은 "확인 못 함"으로 적었다.
 
@@ -58,7 +58,7 @@ Redis는 멀쩡한데(Redis 컨테이너 CPU 8%, 조회 0.3~1.9ms) 차단기가 
 | 비교 실험은 출발 상태부터 맞춘다 | 값을 바꿀 때마다 Gateway가 다시 뜨면 "식은 정도"가 두 번째 변수가 된다 | 2, 3 |
 
 ## 5. 지금 정한 값과 대가
-운영 값은 그대로다. 아래는 재측정용 값이다(`loadtest/deploy/compose.gateway-bulkhead.yml`, #470, main 반영 #471).
+아래 "운영" 칸은 ADR 0050 이전 값이다. 재측정 2회 값이 새 운영 기본값이 됐다([ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)). 재측정은 덮어쓰기(`loadtest/deploy/compose.gateway-bulkhead.yml`, #470, main 반영 #471)로 했다.
 
 | 값 | 운영 | 재측정 1회 | 재측정 2회 | 감수할 점 |
 |---|---|---|---|---|

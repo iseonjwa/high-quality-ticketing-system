@@ -1,0 +1,65 @@
+# Gateway 알림 규칙 단위 테스트. 실행: script/check-prometheus-rules.sh(CI: prometheus-rules 워크플로)
+# 분모(auth-redis 호출)는 실제처럼 성공·실패·무시(ignored)를 모두 넣는다. bulkhead 거절은 차단기에 ignored로 들어오므로
+# ignored 증가량은 bulkhead_full 증가량과 같게 둔다. 실패(failed)는 lookup_timeout과 같게 둔다.
+rule_files:
+  - ../rules/gateway-alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  # 지속 과부하: 호출이 분당 약 6,000건일 때 거절이 분당 120건(약 2%)으로 이어지면 5분 지속 뒤 울리고, 분당 30건(약 0.5%)이면 울리지 않는다
+  - interval: 1m
+    input_series:
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="successful"}'
+        values: '0+5400x15'
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="failed"}'
+        values: '0+600x15'
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="ignored"}'
+        values: '0+30x4 150+120x10'
+      - series: 'gateway_auth_redis_failures_total{application="gateway",cause="bulkhead_full"}'
+        values: '0+30x4 150+120x10'
+      - series: 'gateway_auth_redis_failures_total{application="gateway",cause="lookup_timeout"}'
+        values: '0+600x15'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts: []
+      # 8분에는 5분 평균이 이미 1%를 넘었지만(약 1.6%) 5분 지속(for)을 채우지 못해 울리지 않는다
+      - eval_time: 8m
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts:
+          - exp_labels: {service: gateway, urgency: threshold, severity: warning, application: gateway}
+            exp_annotations:
+              summary: "Gateway가 인증 요청의 1% 넘게 bulkhead로 5분 넘게 거절하고 있습니다(5분 평균). Gateway 과부하이거나 Redis 응답 지연입니다."
+              runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결정 2. gateway_auth_redis_failures_total의 lookup_timeout·redis_error가 함께 늘었으면 Redis 지연, 아니면 Gateway 과부하"
+
+  # 오픈 피크: 호출이 분당 6,000건일 때 5분부터 1분 동안만 거절이 분당 120건(약 2%)이면 피크 규칙은 바로 울리고,
+  # 지속 규칙은 5분 평균에 묻혀 울리지 않는다. 몰림이 끝나면 피크 규칙도 풀린다.
+  - interval: 15s
+    input_series:
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="successful"}'
+        values: '0+1500x39'
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="ignored"}'
+        values: '0x19 30+30x3 120x15'
+      - series: 'gateway_auth_redis_failures_total{application="gateway",cause="bulkhead_full"}'
+        values: '0x19 30+30x3 120x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GatewayAuthRedisBulkheadRejectingPeak
+        exp_alerts: []
+      - eval_time: 5m45s
+        alertname: GatewayAuthRedisBulkheadRejectingPeak
+        exp_alerts:
+          - exp_labels: {service: gateway, urgency: threshold, severity: warning, application: gateway}
+            exp_annotations:
+              summary: "Gateway가 최근 1분 인증 요청의 1% 넘게 bulkhead로 거절했습니다(오픈 피크). Gateway 과부하이거나 Redis 응답 지연입니다."
+              runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결정 2·바꿀 조건. gateway_auth_redis_failures_total의 lookup_timeout·redis_error가 함께 늘었으면 Redis 지연, 아니면 Gateway 과부하"
+      - eval_time: 5m45s
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GatewayAuthRedisBulkheadRejectingPeak
+        exp_alerts: []

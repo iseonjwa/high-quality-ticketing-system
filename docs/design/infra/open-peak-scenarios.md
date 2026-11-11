@@ -261,7 +261,7 @@
 
 ## 3. 결과
 
-시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09), Gateway 느린 호출 기준을 비교한 2차(2026-11-10), Gateway `auth-redis` 차단기 설정 다섯 가지를 비교한 3차(2026-11-10 저녁), 좌석 조회 S1·공연 상세 B1-d(2026-11-11)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
+시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09), Gateway 느린 호출 기준을 비교한 2차(2026-11-10), Gateway `auth-redis` 차단기 설정 다섯 가지를 비교한 3차(2026-11-10 저녁), `auth-redis` 재측정 G1 4차(2026-11-10 UTC, 한국 시간 11/11), 좌석 조회 S1·공연 상세 B1-d(2026-11-11)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
 
 ### 배포 서버 1차: Q1·Q2·Q3 (2026-11-09 UTC (한국 시간 11/9~11/10), ISE-202·ISE-229, 측정 youngeun)
 
@@ -525,7 +525,7 @@ Redis `CLIENT LIST`에서 Gateway IP 연결만 골랐다.
 | Q1-d | 노트북 한 대에서 300명을 0.1초·1초 안에 진입시키자 Gateway 인증 Redis 차단기(`auth-redis`)가 열려 503이 68~93%였다(Redis 자체 지연은 평균 0.15ms). 100명·1초는 오류 0. 또 Docker Desktop에서 40초를 한 번에 자면 k6 VU가 약 100ms 늦게 깨어나 출발 대기를 나눠 다시 계산하게 고쳤다 | 로컬에서는 동작 확인만 하고 Q1-a ↔ Q1-d 비교는 배포 서버에서 한다 |
 | PAY1 | mock-pg를 다시 띄운 직후 결제 서비스의 PG 연결이 끊겨(`closed`, `UnresolvedAddressException`) 차단기가 열리고 `PG_UNAVAILABLE`이 났다. 안정된 뒤 다시 재면 초당 5~10건에서 `PG_UNAVAILABLE` 4건(발생기 멈춤 구간과 겹침) | 측정 절차: mock-pg 재기동 뒤 30초 넘게 기다린다 | 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
 
-### 배포 서버 3차: G1 `auth-redis` 재측정 1·2회 (2026-11-10 UTC (한국 시간 11/11), ISE-233·ISE-94, 측정 kangmin)
+### 배포 서버 4차: G1 `auth-redis` 재측정 1·2회 (2026-11-10 UTC (한국 시간 11/11), ISE-233·ISE-94, 측정 kangmin)
 
 1·2차에서 Redis는 정상인데 `auth-redis` 차단기가 열렸다. 차단기가 Gateway 혼잡을 Redis 장애로 오해하지 않게 바꾼 값(시한·창·벌크헤드·거절 제외)이 실제 배포 경로에서 동작하는지 본다. 뒤쪽 비용을 줄여 Gateway 인증 경로만 보려고 L1이 아니라 G1으로 쟀다. 판단 흐름은 [gateway-auth-redis-resilience.md](gateway-auth-redis-resilience.md)에 있다.
 

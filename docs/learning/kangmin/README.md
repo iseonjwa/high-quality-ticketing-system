@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | bulkhead 거절 경보의 "1%·5분"은 무슨 뜻이고 슬랙 메시지는 언제 몇 번 가나(`rate`·`for`, `group_wait`·`repeat_interval`, 피크 규칙) | [qna/2026-11-11-bulkhead-rejecting-alert-timing.md](qna/2026-11-11-bulkhead-rejecting-alert-timing.md) |
 | 2026-11-10 | dev→main PR은 왜 충돌했고, 동기화 PR로 어떻게 풀었나(squash 머지와 공통 조상, main 머지로만 배포) | [qna/2026-11-10-squash-merge-dev-main-conflict.md](qna/2026-11-10-squash-merge-dev-main-conflict.md) |
 | 2026-11-10 | CPU·메모리가 빡빡한 배포 서버에서 컨테이너를 가볍게 만들어 해결할 수 있나 | [qna/2026-11-10-lighten-containers-on-shared-server.md](qna/2026-11-10-lighten-containers-on-shared-server.md) |
 | 2026-11-10 | Gateway 스레드·벌크헤드·연결 풀 수치가 4 vCPU 배포 서버 사양을 고려해 정한 값인지, CPU 100%·과수용·차단기 시간 측정 주체·시한과 벌크헤드 재측정 값까지(16개 절) | [qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md](qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md) |

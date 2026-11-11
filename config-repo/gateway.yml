@@ -46,20 +46,40 @@ spring:
             enabled: true
           metrics:
             enabled: true
+  # Gateway의 Lettuce 명령 시한. 공통 application.yml의 100ms를 Gateway만 늘린다. 인증 필터 시한(auth.redis-timeout)보다 커야
+  # 필터 시한이 먼저 걸려 원인이 lookup_timeout으로 남는다(ADR 0050)
+  data:
+    redis:
+      timeout: 300ms
 auth:
   access-secret: ${JWT_ACCESS_SECRET}
   issuer: iseonjwa-auth
+  # 블랙리스트 조회를 기다리는 시한. 느린 호출 기준(100ms)보다 커야 "느리지만 응답함"과 "응답 없음"이 나뉜다(ADR 0050)
+  redis-timeout: 200ms
 entry-token:
   # 입장 토큰 검증 키. 발급하는 reservation-service와 같은 키다. 환경변수로만 주입한다(docs/design/queue/contracts.md 1절)
   secret: ${ENTRY_TOKEN_SECRET}
+# auth-redis 값은 2026-11-10 배포 측정(Q1 G 설정, G1 재측정 2회)으로 정했다(ADR 0050). 차단기는 Redis 장애(시한 초과·연결 오류)만 세고,
+# 자기 과부하는 bulkhead가 거절한다. 거절 비율은 차단기 대신 경보(GatewayAuthRedisBulkheadRejecting)로 본다.
 resilience4j:
   circuitbreaker:
     instances:
       auth-redis:
-        sliding-window-size: 20
-        minimum-number-of-calls: 20
+        sliding-window-type: TIME_BASED
+        # 시간 창이라 단위는 초다. 건수 창 20은 초당 1,000건에서 0.02초라 순간 지연에 흔들렸다
+        sliding-window-size: 10
+        minimum-number-of-calls: 500
         failure-rate-threshold: 50
-        slow-call-duration-threshold: 50ms
-        slow-call-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 5
+        slow-call-duration-threshold: 100ms
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 20
+        # bulkhead 거절을 실패로 세면 과부하가 곧 "Redis 장애"가 되어 인증 전체가 열림 시간 동안 503이 된다
+        ignore-exceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+  bulkhead:
+    instances:
+      auth-redis:
+        # 초당 1,000건 × 정상으로 볼 한 건 50ms(리틀의 법칙, 계산값). 넘친 호출은 기다리지 않고 바로 503이다
+        max-concurrent-calls: 50
+        max-wait-duration: 0
