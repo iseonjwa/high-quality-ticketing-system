@@ -1137,12 +1137,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `NOT_FOUND` | 404 | 대상 없음. 🆕 결제 조회는 타인의 결제도 같은 응답이다(존재 여부를 숨김, 11-4, S-9, ADR 0021) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 같은 멱등키에 다른 본문 |
 | `RATE_LIMITED` | 429 | 사용자 단위 요청 제한 |
-| `SERVICE_UNAVAILABLE` | 503 | 의존 장애 (Kafka 발행 실패, Redis 서킷 OPEN으로 입장 중단) |
+| `SERVICE_UNAVAILABLE` | 503 | 의존 장애 (Kafka 발행 실패, Redis 서킷 OPEN으로 입장 중단). 🆕 대기열 Redis 장애는 `QUEUE_TEMPORARILY_UNAVAILABLE`로 따로 낸다 (ISE-59) |
 | `EMAIL_DUPLICATED` | 409 | 가입 이메일 중복 |
 | `INVALID_CREDENTIALS` | 401 | 로그인 실패 |
 | `SALE_NOT_OPEN` | 409 | 오픈 전 진입·선점 (E4) |
 | `QUEUE_NOT_JOINED` | 404 | 대기열에 없는 사용자의 순번 조회. 🆕 입장 토큰 요청, 입장 토큰 만료 뒤 조회 포함 (제안, ADR 0031) |
 | 🆕 `QUEUE_NOT_READY` | 409 | 아직 입장 차례가 아닌 사용자의 입장 토큰 요청 (제안, ADR 0031) |
+| 🆕 `QUEUE_TEMPORARILY_UNAVAILABLE` | 503 | 대기열 Redis 시한 초과·연결 실패로 진입·순번 조회·토큰 요청을 처리하지 못함. `Retry-After`(최소 조회 간격, 초)를 준다. Gateway 인증 확인 실패의 503과 오류 코드로 구분한다 (ISE-59) |
 | `SEAT_COUNT_MISMATCH` | 400 | 좌석 수가 1–4매 범위 밖이거나 중복 |
 | `SEAT_ALREADY_HELD` | 409 | 요청 좌석 중 하나라도 이미 선택됨, 잠금 대기 초과 포함 (E1) |
 | `PURCHASE_LIMIT_EXCEEDED` | 409 | 회차당 매수 초과 (E3, D1) |
