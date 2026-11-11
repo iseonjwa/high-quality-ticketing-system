@@ -778,6 +778,19 @@ A는 S1~S4 전(src = `d3820f5`), B는 F다. 덮어쓰기는 둘 다 G1·R1·P1�
 - **P4d 판단에 주는 것:** 4코어에서는 160~320명에서 CPU가 거의 찼고, reservation-service가 그중 1.5~2.1코어를 썼다. 직렬화가 그 CPU의 약 32%라면 0.5~0.7코어를 덜어 준다. 다만 같은 구간에서 Gateway(1.3~1.7코어)와 Gateway 인증 차단기가 함께 한계에 닿았다. P4d만으로 한계 단계가 바뀔지는 이 1회로 말하기 어렵다. 배포 측정에서 다시 본다는 기존 결론(2안)을 유지하되, "local에서는 효과가 보이지 않는다"는 근거는 "CPU 상한에서는 CPU가 한계에 닿는다"로 바꾼다.
 - 상한 없는 F와 비교한 결론: local 32코어에서 본 "1,280명까지 서버 병목 없음"은 CPU가 남아서 나온 결과다. 배포와 같은 4코어에서는 매진 전 오픈 부하가 160명에서 느려지고 320명에서 실패하기 시작한다. 배포 측정의 기대치는 이 값 근처로 잡는다(코어 하나의 속도가 달라 절대값은 다를 수 있다).
 
+### Gateway OOMKilled 재현과 원인 확인 예상 (2026-11-11, 측정 전)
+
+CPU 상한 S(`step-f-cpu4-S-20261111-133015`)의 1,280명 단계 끝에서 Gateway가 `OOMKilled`로 죽었다. 반복되는지와 무엇이 메모리를 채웠는지 확인한다.
+
+- **조건:** CPU 상한 S와 같다(서버 0~3번 코어, k6 4~15번, 5~1,280명, Gateway `-Xms256m -Xmx512m`·Serial GC·768MiB). 관찰만 더한다(`compose.gateway-observe.yml`: GC 로그, NMT 요약, Netty 기동 로그). 매 회 Gateway를 새로 띄운다. 2회 잰다.
+- **기록:** `tools/gateway_mem_sampler.py`가 1초마다 cgroup 메모리(anon·file·sock·kernel), java RSS·스레드, TCP 소켓 수와 보내기·받기 대기열 합을 남긴다. 5초마다 별도 JDK 컨테이너(`jcmd`, 코어 16번 이후)로 NMT 요약을 남긴다.
+- **측정 전에 확인한 것(앞 분석 정정):** Netty 기동 로그가 `direct buffer constructor: unavailable`이다. 그래서 Netty는 JDK 직접 버퍼를 쓰고, 그 양은 `jvm_buffer_memory_used_bytes{id="direct"}`에 잡힌다. 앞 회 Prometheus(5초 간격)에서 직접 버퍼는 3~19MB였고, 커밋 힙은 죽기 2초 전까지 248MB로 그대로였다. 앞 분석의 "JVM 지표에 안 보이는 Netty 직접 메모리" 가설은 약해졌다. 마지막 수집에서 컨테이너는 770.9MiB, JVM이 보고한 커밋은 412MB라 약 360MB가 JVM 밖에 있다. Gateway의 GC는 Serial이었다(측정 덮어쓰기에 `-XX:+UseG1GC`가 없음. 배포는 G1).
+- **가설과 가르는 값:**
+  - A 힙 확장: GC 로그의 힙 용량이 커진다. NMT의 Java Heap committed가 커진다.
+  - B 네이티브(JVM 안): NMT의 다른 영역(Other, Internal, Thread 등)이 커진다.
+  - C 커널 소켓 버퍼: cgroup `sock`이 커지고 TCP 보내기 대기열 합이 커진다. NMT 합계는 그대로다.
+- **예상:** 반복된다(2회 중 1회 이상). 원인은 C로 본다. 1,280명 단계에서 CPU가 모자라 응답 830KB를 클라이언트에 늦게 내보내는 동안, 보내지 못한 바이트가 커널 소켓 버퍼에 쌓여 Gateway cgroup에 잡힐 것이다.
+
 ### P4b 실측 S (`e60ac1f`, 내부망 직결)
 
 | 회 | 실측 | 대조 (P4a 재측정 S) |

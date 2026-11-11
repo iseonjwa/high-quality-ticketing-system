@@ -1,0 +1,16 @@
+# Gateway 메모리 관찰 덮어쓰기다. 측정 브랜치 전용이다(STEPS.md "Gateway OOMKilled 재현").
+# CPU 상한 스트레스에서 Gateway가 OOMKilled로 죽은 원인을 가르려고 관찰만 더한다. 메모리 상한·힙 크기·GC 종류는 그대로 둔다.
+# - GC 로그(힙 용량 변화): 힙이 512MB 쪽으로 커지며 상한을 넘었는지 본다
+# - NMT(네이티브 메모리 추적, 요약): JVM이 쓰는 네이티브 메모리를 영역별로 본다. 이미지에 jcmd가 없어 별도 JDK 컨테이너로 읽는다
+# - Netty 플랫폼 로그(DEBUG): Netty가 직접 메모리를 JDK 버퍼(지표에 보임)로 쓰는지, 자체 할당(지표에 안 보임)으로 쓰는지 기동 로그로 본다
+# Note: NMT 요약은 메모리를 조금(수 MB) 더 쓴다. 상한에 닿는 시점이 아주 조금 당겨질 수 있다
+# Note: JAVA_TOOL_OPTIONS는 compose.deploy-memory.yml의 값(-Xms256m -Xmx512m)을 그대로 이어 쓴다. 측정 기준 환경의 GC는 Serial이다
+#   (배포 compose.deploy.yml은 -XX:+UseG1GC를 명시한다. ISE-193). G1로 재는 회는 GATEWAY_GC로 바꾼다
+services:
+  gateway:
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Xms256m -Xmx512m ${GATEWAY_GC:-}
+        -XX:NativeMemoryTracking=summary
+        -Xlog:gc*,gc+heap=debug:file=/tmp/gc.log:time,uptime:filecount=2,filesize=50m
+      LOGGING_LEVEL_IO_NETTY_UTIL_INTERNAL: DEBUG
