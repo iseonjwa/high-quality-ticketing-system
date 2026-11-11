@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | **긴 측정 뒤 배포 실패를 막으려고 Zipkin 힙을 늘리자는 AI 추천을 거부하고, 메모리 설정은 두고 스케줄러 Redis 스팬을 근원에서 줄이며 이미지 받기 재시도를 더함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-reduce-scheduler-redis-spans-keep-zipkin-memory.md) |
 | 2026-11-11 | Gateway CPU 포화와 OOM을 막는 첫 장치로 맨 앞 동시 처리 수 상한을 고르고, 설계안·프런트 표시·첫 상한 64를 AI 추천대로 정함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-gateway-in-flight-limit-first.md) |
 | 2026-11-11 | Gateway CPU의 약 24%를 쓰는 관측(추적·지표·로그 문맥) 축소를 위험하다고 보고 보류함 | kangmin | Claude Code | 보류 | 아님 | [기록](kangmin/2026-11-11-defer-gateway-observability-reduction.md) |
 | 2026-11-11 | 결제 쪽 취소 환불을 위해 기다리던 예매 취소 API(ISE-206)를 직접 만들기로 하고, 취소 정책(공연 시작 전까지·추첨 예매 제외·결제 조회로 환불 상태 표시·담당 변경)은 AI 추천안을 받아들임 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-11-reservation-cancel-takeover-policy.md) |

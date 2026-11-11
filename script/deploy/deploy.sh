@@ -52,11 +52,33 @@ deploy_once() {
   git fetch --quiet origin || return 1
   git checkout --quiet --detach "$sha" || return 1
   export IMAGE_TAG="$sha"
-  "${compose[@]}" pull --quiet || return 1
+  pull_with_retry "${compose[@]}" || return 1
   # --wait: healthcheck가 있는 컨테이너가 healthy가 될 때까지 기다린다. 앱 기동(마이그레이션 포함)을 넉넉히 본다.
   "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 420 || return 1
   script/deploy/smoke.sh || return 1
 }
 
+# Note: 11/11 배포에서 pull이 38초 만에 `context canceled`로 끝났고, containerd가 공유 레이어를
+# "locked: unavailable"로 거절했다(TS-55). 이미지는 GHCR에 있었고 Jenkins 재실행으로 받혔으므로
+# 일시적 실패로 보고 몇 번 다시 받는다. 마지막까지 실패하면 지금처럼 배포 실패 → 되돌림으로 간다.
+PULL_ATTEMPTS="${PULL_ATTEMPTS:-3}"
+PULL_RETRY_DELAY="${PULL_RETRY_DELAY:-10}"
+
+# 인자는 compose 명령 앞부분이다(예: docker compose -f compose.yml -f compose.deploy.yml).
+pull_with_retry() {
+  local attempt
+  for (( attempt = 1; attempt <= PULL_ATTEMPTS; attempt++ )); do
+    "$@" pull --quiet && return 0
+    if (( attempt < PULL_ATTEMPTS )); then
+      echo "== 이미지 받기 실패($attempt/$PULL_ATTEMPTS). ${PULL_RETRY_DELAY}초 뒤 다시 받는다" >&2
+      sleep "$PULL_RETRY_DELAY"
+    fi
+  done
+  echo "== 이미지 받기가 $PULL_ATTEMPTS번 모두 실패했다" >&2
+  return 1
+}
+
+# 시험이 함수만 불러 쓸 수 있게, source로 읽으면 배포를 시작하지 않는다.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 main "$@"
 exit $?
