@@ -1,11 +1,14 @@
 # Gateway 알림 규칙(ADR 0050). 기준값은 [가정]이며 부하 측정에 맞춰 조정한다.
-# - urgency=threshold: 서비스는 돌지만 자기 과부하로 일부 요청을 거절하는 상태
+# - urgency=threshold: 서비스는 돌지만 일부 인증 요청을 bulkhead로 거절하는 상태
 #
 # Note: auth-redis 차단기는 bulkhead 거절을 실패로 세지 않는다(ignoreExceptions). 그래서 Gateway가 넘친 인증 요청을 503으로 거절해도
 # 차단기 상태로는 보이지 않는다. 거절은 이 규칙이 따로 본다. 분모는 차단기를 지난 auth-redis 호출 전체(성공·실패·무시)다.
+# Note: bulkhead가 차는 원인은 둘이다. Gateway 자기 과부하이거나, Redis가 느려 한 호출이 자리를 필터 시한(200ms)까지 붙잡는 경우다
+# (50 ÷ 0.2초 = 초당 250건). 그래서 문구는 원인을 단정하지 않고, 실패 원인(lookup_timeout·redis_error)을 함께 보라고 안내한다.
 groups:
   - name: gateway-threshold
     rules:
+      # 지속 과부하: 5분 평균 1% 초과가 5분 이어질 때. 오픈 피크(수십 초~1분)는 평균에 묻혀 잡지 못한다.
       - alert: GatewayAuthRedisBulkheadRejecting
         expr: >-
           sum by (application) (rate(gateway_auth_redis_failures_total{application="gateway",cause="bulkhead_full"}[5m]))
@@ -14,5 +17,16 @@ groups:
         for: 5m
         labels: {service: gateway, urgency: threshold, severity: warning}
         annotations:
-          summary: "Gateway가 인증 요청의 1% 넘게 bulkhead로 거절하고 있습니다(5분 평균). Redis 장애가 아니라 Gateway 과부하입니다."
-          runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결과"
+          summary: "Gateway가 인증 요청의 1% 넘게 bulkhead로 5분 넘게 거절하고 있습니다(5분 평균). Gateway 과부하이거나 Redis 응답 지연입니다."
+          runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결정 2. gateway_auth_redis_failures_total의 lookup_timeout·redis_error가 함께 늘었으면 Redis 지연, 아니면 Gateway 과부하"
+      # 오픈 피크: 1분 평균 1% 초과면 바로 울린다. ADR 0050 "바꿀 조건"(오픈마다 울리면 입구 요청률 제한)의 신호다.
+      # 1분 평균이라 20초 안팎보다 짧은 몰림은 여전히 잡지 못한다(3차 G의 10초·3%는 약 0.5%, 계산값).
+      - alert: GatewayAuthRedisBulkheadRejectingPeak
+        expr: >-
+          sum by (application) (rate(gateway_auth_redis_failures_total{application="gateway",cause="bulkhead_full"}[1m]))
+          / sum by (application) (rate(resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis"}[1m]))
+          > 0.01
+        labels: {service: gateway, urgency: threshold, severity: warning}
+        annotations:
+          summary: "Gateway가 최근 1분 인증 요청의 1% 넘게 bulkhead로 거절했습니다(오픈 피크). Gateway 과부하이거나 Redis 응답 지연입니다."
+          runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결정 2·바꿀 조건. gateway_auth_redis_failures_total의 lookup_timeout·redis_error가 함께 늘었으면 Redis 지연, 아니면 Gateway 과부하"
