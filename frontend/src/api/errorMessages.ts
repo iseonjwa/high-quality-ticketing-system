@@ -65,6 +65,8 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
   IDEMPOTENCY_KEY_REUSED: UNEXPECTED,
   RATE_LIMITED: { tone: 'warning', message: '요청이 많아요. 잠시 뒤 다시 시도해 주세요' },
   SERVICE_UNAVAILABLE: { tone: 'warning', message: '연결이 잠시 불안정해요. 곧 다시 시도할게요' },
+  // Gateway 동시 처리 수 상한 거절(503). 원인은 지표로 나누고 사용자에게는 일시 불안정과 같게 보인다
+  GATEWAY_OVERLOADED: { tone: 'warning', message: '연결이 잠시 불안정해요. 곧 다시 시도할게요' },
 
   // 회원
   EMAIL_DUPLICATED: { tone: 'field', message: '이미 가입한 이메일이에요. 로그인해 주세요' },

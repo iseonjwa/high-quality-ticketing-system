@@ -47,12 +47,15 @@ services:
   gateway:
     image: ghcr.io/iseonjwa/gateway:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
-    mem_limit: 768m
+    # 힙 512MB + 비힙 약 158MB + JVM 지표 밖 약 130MB ≈ 800MB(계산값)라 768MiB에서 OOM이 세 번 났다(배포 서버 5차).
+    # 1,024MiB와 직접 메모리 상한 128MB로 같은 조건(활성 VU 5,849)을 다시 돌려 OOM 0, 메모리 최대 785MiB였다(M1).
+    # 컨테이너 상한 합은 12,672 → 12,928MiB로 장비(약 15.7GiB) 안이다. 직접 메모리 상한은 넘칠 때 컨테이너 강제 종료 대신 요청 단위 오류가 나게 한다
+    mem_limit: 1024m
     restart: unless-stopped
     logging: *deploy-logging
     environment:
       <<: *deploy-app-env
-      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:+UseG1GC
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:MaxDirectMemorySize=128m -XX:+UseG1GC
     ports: !override ["8080:8080"]
   frontend:
     image: ghcr.io/iseonjwa/frontend:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}

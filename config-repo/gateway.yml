@@ -56,6 +56,15 @@ auth:
   issuer: iseonjwa-auth
   # 블랙리스트 조회를 기다리는 시한. 느린 호출 기준(100ms)보다 커야 "느리지만 응답함"과 "응답 없음"이 나뉜다(ADR 0050)
   redis-timeout: 200ms
+iseonjwa:
+  gateway:
+    in-flight:
+      # Gateway 맨 앞 동시 처리 수 상한(설계 메모 A1). 굿풋이 멈춘 1,480/s에서 p95 200ms에 맞는 평균 40~45ms를 곱한
+      # 60~67(리틀의 법칙, 계산값)에서 골랐다. 처리 중 수가 260을 넘은 단계는 p95가 이미 435ms 이상이었다(배포 서버 5차).
+      # 32·64·128·500을 측정 모드에서 비교해 확정한다
+      max-requests: 64
+      # 거절된 사용자가 1초 뒤 다시 와서 다음 몫을 또 다투지 않게 bulkhead 거절(1초)보다 길게 둔다
+      retry-after: 2s
 entry-token:
   # 입장 토큰 검증 키. 발급하는 reservation-service와 같은 키다. 환경변수로만 주입한다(docs/design/queue/contracts.md 1절)
   secret: ${ENTRY_TOKEN_SECRET}

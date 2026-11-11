@@ -43,6 +43,12 @@ describe('describeError', () => {
     expect(saCodes.filter((code) => !(code in ERROR_NOTICES))).toEqual([])
   })
 
+  it('Gateway 과부하 거절은 일시 불안정과 같은 안내로 보인다', () => {
+    expect(describeError(apiError('GATEWAY_OVERLOADED', 503))).toEqual(
+      describeError(apiError('SERVICE_UNAVAILABLE', 503)),
+    )
+  })
+
   it('정해진 안내가 있는 코드는 문의 번호를 보이지 않는다', () => {
     expect(describeError(apiError('SEAT_ALREADY_HELD'))).toEqual({
       tone: 'warning',
