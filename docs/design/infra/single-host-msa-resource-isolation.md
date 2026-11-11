@@ -7,7 +7,7 @@
 | 방법 | 상태 | 내용 |
 |---|---|---|
 | M1 Gateway 메모리 예산 | **dev 반영(A안), 배포 전** | `compose.deploy.yml` gateway `mem_limit` 768m → 1024m, `-XX:MaxDirectMemorySize=128m`, `-Xmx512m` 유지. 측정 덮어쓰기로 5차 실패 조건(활성 VU 5,849)을 다시 돌려 OOM 0, 메모리 최대 785MiB였다([open-peak-scenarios.md](open-peak-scenarios.md) "배포 서버 5차" M1) |
-| A1 Gateway 맨 앞 동시 처리 수 상한 | **dev 반영, 배포 전·측정 전** | `InFlightLimitFilter`(`GlobalFilter` -200). 상한 `iseonjwa.gateway.in-flight.max-requests` 기본 **64**, 거절은 503 + `Retry-After: 2` + `GATEWAY_OVERLOADED`, 운영자 경로(`/api/v1/admin/**`) 제외. 지표 `gateway_in_flight_requests`·`gateway_in_flight_limit`·`gateway_in_flight_rejected_total`. 첫 값은 2-2절의 500이 아니라 5차 "A1 첫 상한값 근거"의 64다(아래 2-2절 주석) |
+| A1 Gateway 맨 앞 동시 처리 수 상한 | **배포·6차 측정 완료(기본 64 유지), H1 거절 앞당기기 구현(PR 리뷰 전)·7차 측정 전** | `InFlightLimitHandlerDecorator`(HttpHandler 데코레이터, `WebHttpHandlerBuilderCustomizer`). 6차까지는 `InFlightLimitFilter`(`GlobalFilter` -200)였다. 6차에서 거절도 한 건당 Gateway CPU 0.66\~0.71ms를 써서, 거절을 서버 관측(Boot 4는 `HttpWebHandlerAdapter`가 WebFilter 체인 전체를 감싸 연다)·요청 로그·라우트 매칭보다 앞으로 옮겼다(H1). 거절된 요청은 추적 스팬·traceId·요청 로그·`http_server_requests` 집계가 없고 거절 카운터만 남는다. 받은 요청의 관측은 그대로다. 상한 `iseonjwa.gateway.in-flight.max-requests` 기본 **64**, 거절은 503 + `Retry-After: 2` + `GATEWAY_OVERLOADED`, 운영자 경로(`/api/v1/admin/**`) 제외. 지표 `gateway_in_flight_requests`·`gateway_in_flight_limit`·`gateway_in_flight_rejected_total`. 첫 값은 2-2절의 500이 아니라 5차 "A1 첫 상한값 근거"의 64다(아래 2-2절 주석) |
 | C1·C2 관측 축소 | **보류**(kangmin 판단: 위험) | 0b JFR에서 관측 묶음이 Gateway CPU의 약 24%였지만, 장애 분석·시연 추적이 약해질 위험이 커 손대지 않는다. 동시 수 상한을 넣고도 거절 비용 때문에 CPU가 내려오지 않으면 다시 본다 |
 
 ## 0. 문제와 전제
