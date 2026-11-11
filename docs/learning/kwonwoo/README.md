@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | CPU 상한을 건 스트레스에서 Gateway가 OOMKilled로 죽은 원인은 무엇인가 | [qna/2026-11-11-gateway-oomkilled-under-cpu-limit.md](qna/2026-11-11-gateway-oomkilled-under-cpu-limit.md) |
 | 2026-11-11 | local 부하 측정에서 CPU 상한을 걸어야 하는 이유는 무엇인가 | [qna/2026-11-11-why-cpu-limit-in-load-test.md](qna/2026-11-11-why-cpu-limit-in-load-test.md) |
 | 2026-11-11 | 좌석 선점 k6 부하 측정을 돌아보면 불필요한 단계와 빠진 개선은 무엇이었나 | [qna/2026-11-11-k6-seathold-scenario-retrospective.md](qna/2026-11-11-k6-seathold-scenario-retrospective.md) |
 | 2026-11-10 | 잠금이 걸린 데이터에 트래픽을 몰아 보내는 부하 테스트로 무엇을 얻을 수 있나 | [qna/2026-11-10-hot-lock-load-test.md](qna/2026-11-10-hot-lock-load-test.md) |
