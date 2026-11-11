@@ -470,3 +470,11 @@
 - 원인: Zipkin이 `java.lang.OutOfMemoryError: Java heap space`로 GC만 돌며(CPU 101%) 상태 확인 5초 시한을 넘겨 `unhealthy`였다(재시작 4회). `deploy.sh`의 `docker compose up --wait`는 프로젝트 안에 unhealthy 컨테이너가 하나라도 있으면 바로 실패한다. Zipkin은 설정이 바뀌지 않아 배포 때 다시 만들어지지 않으므로 고장 난 채 남아 배포와 되돌림을 모두 막았다. 힙이 찬 것은 메모리 저장 기본 한도 50만 건(`zipkin-server-shared.yml`의 `max-spans: ${MEM_MAX_SPANS:500000}`)이 힙 384m보다 크고, 평시 샘플링 1.0과 11/10 대량 측정으로 추적이 쌓였기 때문으로 보인다(건당 크기는 재지 않았다).
 - 해결: Zipkin을 재시작해(15:33Z) healthy로 되돌리고, `compose.deploy.yml` zipkin에 `MEM_MAX_SPANS: 100000`을 넣었다. 설정이 바뀌어 다음 배포에서 Zipkin이 새로 만들어진다.
 - 배운 점: `--wait` 배포는 앱이 아닌 부가 컨테이너(관측 도구)의 건강도 배포 성공 조건으로 삼는다. 되돌림이 실패하면 Jenkins 세션이 일찍 끝나 Jenkins 쪽 문제처럼 보이므로, 배포 서버에서 `docker ps`의 unhealthy와 `RestartCount`를 먼저 본다. 메모리에만 쌓는 저장소는 힙에 맞춘 건수 상한을 둔다.
+- 후속(11/11): 10만 건도 힙 오래 묵은 영역의 90%(242/268MB)까지 찼다. Zipkin 10분치(스팬 25,887건)를 세 보니 대기열 입장 스케줄러가 0.5초마다 부르는 `evalsha`가 87%였다. 메모리 설정은 그대로 두고, reservation-service가 예약 작업 바로 아래 Redis 명령 스팬을 Zipkin으로 보내지 않게 했다(`SchedulerRedisSpanConfiguration`, 설정 `observability.scheduler-redis-spans.export`). 10만 건이 차는 시간은 평시 약 40분에서 약 5시간으로 늘어난다(계산값). 메모리 저장은 시간 만료가 없어 결국 10만 건까지 차므로, 꽉 찬 뒤의 힙은 배포 뒤 다시 확인한다. 감수하는 것은 스케줄러 실행 한 번 안의 Redis 호출별 시간이다. 실행 스팬과 `lettuce_*` 지표는 남는다([학습 노트](learning/kangmin/qna/2026-11-11-scheduler-span-off-what-we-lose.md)).
+
+### TS-55 배포의 `docker compose pull`이 38초 만에 `context canceled`로 끝나 직전 커밋으로 되돌려졌다
+- 서비스·작성: infra / kangmin / 2026-11-11
+- 문제: 11/11 main 배포에서 `deploy.sh`의 이미지 받기 단계가 38초 만에 `context canceled`로 끝났다. config-server·eureka·payment·mock-pg·frontend 이미지를 받지 못했고, `deploy.sh`가 직전 성공 커밋으로 되돌렸다. GitHub Actions의 이미지 빌드는 성공했고, Jenkins를 다시 돌리자 배포가 성공했다.
+- 원인: containerd 로그에 공유 레이어의 "locked: unavailable" 오류가 있었다. 여러 이미지가 같은 레이어를 동시에 받으려다 다툰 것으로 추정한다(재현하지 못했다). 이미지 자체나 GHCR 인증 문제는 아니었다.
+- 해결: `deploy.sh`의 이미지 받기를 `pull_with_retry`로 감싸 실패하면 10초 뒤 다시 받게 했다(최대 3회). 3회 모두 실패하면 지금처럼 배포 실패 → 되돌림이다. pull을 가짜 명령으로 바꾼 시험으로 1회 성공·2회 실패 뒤 성공·3회 실패를 확인했고, 재시도를 뺀 변형은 시험이 실패했다.
+- 배운 점: 배포 실패가 이미지 받기 단계에서 났고 재실행으로 풀리면 일시적 실패다. 되돌림만 하면 사람이 다시 돌려야 하므로, 일시적 실패가 잦은 단계는 짧은 재시도를 둔다.
