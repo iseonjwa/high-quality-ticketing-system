@@ -812,6 +812,21 @@ CPU 상한 S(`step-f-cpu4-S-20261111-133015`)의 1,280명 단계 끝에서 Gatew
 - **기각한 가설:** 힙 확장은 기각한다. 힙 용량이 GC 로그에서 247~252MB로 그대로였다. "JVM 지표에 안 보이는 Netty 직접 메모리"도 기각한다. Netty가 JDK 직접 버퍼를 쓰므로(`direct buffer constructor: unavailable`) NMT `Other`와 JDK 지표에 잡힌다. 앞 회 Prometheus(5초)가 3~19MB만 본 것은 몇 초짜리 급등을 놓쳤기 때문이다.
 - **배포와 다른 점(미확인):** 배포 서버에 스왑이 있는지는 문서에 없어 확인하지 못했다. 스왑이 없으면 같은 상황에서 느려지는 대신 바로 강제 종료될 것으로 본다. 배포 Gateway는 G1(측정은 Serial)이라 JVM 평시 크기가 다를 수 있다.
 
+### Gateway 차단기 시험 값 비교 예상 (2026-11-11, 측정 전)
+
+강민·영은이 배포 서버에서 시험 중인 `auth-redis` 값(재측정 2회 값, `docs/design/infra/gateway-auth-redis-resilience.md` 5절)을 local에 넣고 운영 값과 비교한다. Gateway 메모리 문제를 강민에게 넘길 때 근거로 쓴다.
+
+- **코드:** 측정 브랜치의 Gateway 코드는 ISE-230/233 이전이다. 필터 시한을 설정값으로 바꾸려면 ISE-233 코드가 필요해서 dev의 `gateway/src/main`, `config-repo/gateway.yml`, `loadtest/deploy/compose.gateway-bulkhead.yml`을 가져왔다(`common`은 reservation-service에도 영향을 주므로 가져오지 않았다). reservation-service 코드(F)는 그대로다.
+- **비교:** 두 묶음 모두 `compose.gateway-bulkhead.yml`이 차단기 키 전부를 `SPRING_APPLICATION_JSON`으로 준다. 그래서 이 측정 브랜치의 k6measure 완화(느린 호출 100ms, 실패율 100%)는 덮인다(강민 확인: `SPRING_APPLICATION_JSON`이 config 서버 값보다 우선). 운영 묶음의 벌크헤드가 25로, 시험 묶음이 50으로 보이는지 지표로 확인한 뒤 판정한다.
+  - **운영 값(P):** 환경변수 없음. 창 20건, 느린 호출 50ms·50%, 실패율 50%, 열림 10초, 필터 시한 100ms, Lettuce 100ms, 벌크헤드 25
+  - **시험 값(T):** 시간 창 10초·최소 500건, 느린 호출 100ms·80%, 실패율 50%, 열림 5초·반열림 20, 필터 시한 200ms, Lettuce 300ms, 벌크헤드 50 + `BulkheadFullException` 무시
+- **측정:** CPU 상한 S(4코어, 5~1,280명)와 매진을 피한 스트레스 M(상한 없음) 두 시나리오를 P·T로 1회씩, 모두 4회다. Gateway 메모리 관찰(`compose.gateway-observe.yml`, 1초 샘플러, NMT)을 함께 켠다. 회마다 Gateway를 새로 띄운다.
+- **예상:**
+  - P는 지금까지의 측정(k6measure 완화)보다 일찍 무너진다. CPU 상한 S 160명 단계에서 p95가 약 140ms였으므로, Redis 확인도 50ms를 자주 넘어 느린 호출로 차단기가 열릴 것이다. M은 320명 이하에서 열릴 수 있다.
+  - T는 P보다 버틴다. 다만 503의 원인이 차단기 열림에서 벌크헤드 거절(`bulkhead_full`)로 바뀐다. CPU가 모자라 Redis 확인이 길어지면 동시 확인이 50을 넘기 때문이다.
+  - **메모리:** T에서 인증을 통과하는 요청이 늘면 830KB 응답이 더 많이 동시에 지나간다. 그래서 CPU 상한 S의 Gateway 메모리 상한 도달(소켓 받기 버퍼 급등)이 P보다 잦거나 커질 수 있다. 차단기를 덜 민감하게 하면 메모리 위험이 커질 수 있다는 것이 이번 측정으로 확인할 핵심이다.
+- **판정에 쓸 값:** 단계별 좌석 조회·선점 성공률과 p95, 503 원인별 수(`gateway_auth_redis_failures_total{cause}`, 차단기 상태 전환 로그), Gateway 메모리 최대·상한 도달 횟수(`memory.events max`)·스왑 아웃·`sock` 최대, Gateway CPU.
+
 ### P4b 실측 S (`e60ac1f`, 내부망 직결)
 
 | 회 | 실측 | 대조 (P4a 재측정 S) |
