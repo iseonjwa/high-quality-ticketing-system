@@ -133,6 +133,11 @@ export function checkoutPayment(paymentToken: string, options: { signal?: AbortS
   })
 }
 
+// 결제 조회 캐시 키. 사용자별 조회라 로그아웃 때 지운다(resetUserQueries)
+export const paymentQueryKeys = {
+  detail: (paymentId: number) => ['payments', 'detail', paymentId] as const,
+}
+
 export function getPayment(paymentId: number, options: { signal?: AbortSignal } = {}) {
   return apiRequest({
     method: 'GET',

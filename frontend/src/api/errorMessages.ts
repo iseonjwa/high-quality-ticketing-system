@@ -103,6 +103,11 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
   },
   RESERVATION_NOT_PAYABLE: PAYMENT_TIME_OVER,
   RESERVATION_NOT_CANCELABLE: { tone: 'warning', message: '지금은 취소할 수 없는 예매예요' },
+  LOTTERY_RESERVATION_NOT_CANCELABLE: {
+    tone: 'warning',
+    message: '추첨으로 배정된 예매는 취소할 수 없어요',
+  },
+  CANCEL_PERIOD_ENDED: { tone: 'warning', message: '공연이 시작돼 취소할 수 없어요' },
 
   // 결제
   PAYMENT_TOKEN_INVALID: PAYMENT_TIME_OVER,

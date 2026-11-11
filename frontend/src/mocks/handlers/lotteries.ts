@@ -175,6 +175,7 @@ function holdSeatsForWinner(entry: MockLotteryEntry): MockReservation {
     scheduleId: lottery.scheduleId,
     seatIds: seats.map((seat) => seat.seatId),
     status: 'HELD',
+    source: 'LOTTERY',
     holdExpiresAtMillis: Date.now() + LOTTERY_HOLD_MILLIS,
     totalAmount: seats.reduce((sum, seat) => sum + seat.price, 0),
     confirmAfterChecks: null,
