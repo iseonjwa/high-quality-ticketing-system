@@ -102,15 +102,17 @@ class ReservationCancelApiTest {
         assertEquals(List.of("RELEASED", "RELEASED"), reservationSeatStatuses(reservationId));
         assertEquals(List.of("AVAILABLE", "AVAILABLE"), scheduleSeatStatuses());
         assertEquals(List.of("VOID", "VOID"), ticketStatuses(reservationId));
-        assertEquals(0, heldCount());
+        assertEquals(2, heldCount());
         assertEquals(1, historyCount(reservationId));
         assertEquals(1, refundCount(reservationId));
         var payload = jdbc.queryForMap("SELECT payload->'payload'->>'reason' AS reason,"
+                + " payload->'payload'->>'reservationId' AS reservation_id,"
                 + " payload->'payload'->>'paymentId' AS payment_id, payload->'payload'->>'userId' AS user_id,"
                 + " payload->'payload'->>'amount' AS amount, payload->'payload'->>'currency' AS currency"
                 + " FROM outbox_events WHERE topic = 'payment.command' AND event_type = 'RefundRequested'"
                 + " AND message_key = ?", String.valueOf(reservationId));
         assertEquals("CANCELED", payload.get("reason"));
+        assertEquals(String.valueOf(reservationId), payload.get("reservation_id"));
         assertEquals(String.valueOf(PAYMENT_ID), payload.get("payment_id"));
         assertEquals(String.valueOf(userId), payload.get("user_id"));
         assertEquals("330000", payload.get("amount"));
@@ -131,7 +133,7 @@ class ReservationCancelApiTest {
         assertEquals(202, otherKey.status());
         assertEquals(1, refundCount(reservationId));
         assertEquals(1, historyCount(reservationId));
-        assertEquals(0, heldCount());
+        assertEquals(2, heldCount());
     }
 
     @Test
@@ -163,7 +165,7 @@ class ReservationCancelApiTest {
         assertEquals("CANCELED", reservationStatus(reservationId));
         assertEquals(1, refundCount(reservationId));
         assertEquals(1, historyCount(reservationId));
-        assertEquals(0, heldCount());
+        assertEquals(2, heldCount());
         assertEquals(List.of("AVAILABLE", "AVAILABLE"), scheduleSeatStatuses());
     }
 
@@ -178,7 +180,7 @@ class ReservationCancelApiTest {
         assertEquals("CONFIRMED", reservationStatus(reservationId));
         assertEquals(List.of("SOLD", "SOLD"), scheduleSeatStatuses());
         assertEquals(List.of("ISSUED", "ISSUED"), ticketStatuses(reservationId));
-        assertEquals(2, heldCount());
+        assertEquals(4, heldCount());
         assertEquals(0, refundCount(reservationId));
         assertEquals(404, cancel(999_999_999L, userId, UUID.randomUUID().toString()).status());
     }
@@ -212,6 +214,23 @@ class ReservationCancelApiTest {
     }
 
     @Test
+    void 이미_취소한_예매는_공연이_시작한_뒤에_다시_보내도_202이고_아무것도_쓰지_않는다() throws Exception {
+        var pastScheduleId = schedule(PAST_STARTS_AT);
+        var pastSeat = scheduleSeat(pastScheduleId, 9, "AVAILABLE");
+        var reservationId = reservation(userId, "CANCELED", "GENERAL", pastScheduleId);
+        reservationSeat(reservationId, pastSeat, "RELEASED");
+        var before = updatedAt(reservationId);
+
+        var response = cancel(reservationId, userId, UUID.randomUUID().toString());
+
+        assertEquals(202, response.status());
+        assertEquals("CANCELED", response.json().get("data").get("status").asString());
+        assertEquals(before, updatedAt(reservationId));
+        assertEquals(0, historyCount(reservationId));
+        assertEquals(0, refundCount(reservationId));
+    }
+
+    @Test
     void 추첨_예매는_409다() throws Exception {
         var reservationId = confirmedReservation(userId, "LOTTERY");
 
@@ -227,9 +246,11 @@ class ReservationCancelApiTest {
     void 멱등키가_없거나_UUID가_아니면_400이다() throws Exception {
         var reservationId = confirmedReservation(userId, "GENERAL");
 
-        assertEquals(400, cancel(reservationId, userId, null).status());
-        assertEquals(400, cancel(reservationId, userId, "not-a-uuid").status());
-        assertEquals(400, cancel(reservationId, userId, "1-1-1-1-1").status());
+        for (var key : new String[] {null, "not-a-uuid", "1-1-1-1-1"}) {
+            var response = cancel(reservationId, userId, key);
+            assertEquals(400, response.status());
+            assertEquals("VALIDATION_FAILED", response.json().get("code").asString());
+        }
         assertEquals("CONFIRMED", reservationStatus(reservationId));
     }
 
@@ -272,8 +293,9 @@ class ReservationCancelApiTest {
         var reservationId = reservation(ownerId, "CONFIRMED", source, scheduleId);
         ticket(reservationSeat(reservationId, seatA, "CONFIRMED"), "T-ISE206-A-" + reservationId);
         ticket(reservationSeat(reservationId, seatB, "CONFIRMED"), "T-ISE206-B-" + reservationId);
+        // 같은 회차에 다른 예매로 2매를 더 가진 것으로 둔다. 0으로 끝나면 두 번 빼도(차감 조건이 막아) 0이라 구별되지 않는다
         jdbc.update("INSERT INTO user_schedule_quotas (user_id, schedule_id, held_count, created_at, updated_at)"
-                + " VALUES (?, ?, 2, now(), now()) ON CONFLICT (user_id, schedule_id) DO NOTHING", ownerId, scheduleId);
+                + " VALUES (?, ?, 4, now(), now()) ON CONFLICT (user_id, schedule_id) DO NOTHING", ownerId, scheduleId);
         return reservationId;
     }
 
