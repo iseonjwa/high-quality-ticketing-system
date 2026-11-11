@@ -444,19 +444,24 @@ function ChosenSchedule({
 // 고른 회차의 추첨 안내(ISE-227). 회차에 추첨이 있으면 단계에 맞는 문구와 추첨 화면으로 가는 링크를 보인다.
 // 추첨이 없거나(404) 아직 받는 중이거나 받지 못했으면 아무것도 그리지 않는다. 추첨은 예매 패널의 보조 안내라 실패를 알리지 않는다.
 // Note: 오픈 순간에는 상세 화면이 몰리고 API 앞에 캐시가 없다. 고른 회차 하나만 받고, 추첨 설정은 자주 바뀌지 않아
-// 5분 동안 다시 받지 않는다. 단계는 공연 응답의 서버 시계로 나눠 [예매하기] 카운트다운과 같은 시각을 쓴다
+// 5분 동안 다시 받지 않으며, 실패해도 다시 시도하지 않는다(보조 안내라 실패를 알리지 않는다). 운영자 설정·추첨 화면이
+// 같은 회차 키를 갱신한다(AdminLotteryNewPage·AdminLotteryPage·LotteryPage).
+// 단계는 공연 응답의 서버 시계로 나눠 [예매하기] 카운트다운과 같은 시각을 쓰고, 부모와 상관없이 1초마다 다시 정한다
 function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; clock: ServerClock }) {
   const titleId = useId()
+  const detailId = useId()
+  const now = useNow(1000, clock)
   const lottery = useQuery({
     queryKey: lotteryQueryKeys.ofSchedule(scheduleId),
     queryFn: () => getScheduleLottery(scheduleId),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    retry: false,
   })
   if (!lottery.data) {
     return null
   }
-  const copy = lotteryNoticeCopy(lottery.data, lotteryPhaseOf(lottery.data, clock.now()))
+  const copy = lotteryNoticeCopy(lottery.data, lotteryPhaseOf(lottery.data, now))
   return (
     <div className="flex items-center gap-3 rounded-[14px] bg-primary-50 p-3.5">
       {/* 좁은 화면(앱 화면 28rem 미만)에서는 아이콘을 숨긴다. 두면 390px에서 마감 시각 줄의 "마감"만 다음 줄로 떨어졌다 */}
@@ -470,10 +475,12 @@ function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; cloc
         <p id={titleId} className="type-body-sm font-semibold text-gray-900">
           {copy.title}
         </p>
-        <p className="type-caption text-gray-600 tabular-nums">{copy.detail}</p>
+        <p id={detailId} className="type-caption text-gray-600 tabular-nums">
+          {copy.detail}
+        </p>
       </div>
       <Button asChild variant="outline" size="sm" className="shrink-0 rounded-full">
-        <Link to={lotteryPath(lottery.data.lotteryId)} aria-describedby={titleId}>
+        <Link to={lotteryPath(lottery.data.lotteryId)} aria-describedby={`${titleId} ${detailId}`}>
           {copy.action}
         </Link>
       </Button>
@@ -505,8 +512,13 @@ function lotteryNoticeCopy(
         detail: `${formatDateTime(lottery.drawAt)} 추첨`,
         action: '추첨 보기',
       }
+    // 이 안내는 추첨 결과를 다시 받지 않으므로 "곧 정해요"처럼 바뀔 것을 약속하지 않는다
     case 'drawing':
-      return { title: '추첨 중', detail: '곧 당첨자를 정해요', action: '추첨 보기' }
+      return {
+        title: '추첨 시각이 지났어요',
+        detail: '결과는 추첨 화면에서 봐요',
+        action: '추첨 보기',
+      }
     case 'drawn':
     case 'done':
       return { title: '추첨 완료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }

@@ -96,6 +96,14 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
         : false
     },
   })
+  // 공연 상세의 추첨 안내가 같은 추첨을 회차 키로 들고 있다(ISE-227). 새로 받은 값으로 맞춰 두면 공연 상세로 돌아갔을 때
+  // 옛 단계(추첨 시각이 지났어요 등)가 남지 않는다
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (lottery.data) {
+      queryClient.setQueryData(lotteryQueryKeys.ofSchedule(lottery.data.scheduleId), lottery.data)
+    }
+  }, [queryClient, lottery.data])
 
   if (lottery.isPending) {
     return <LotterySkeleton />

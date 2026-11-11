@@ -206,6 +206,10 @@ function LotteryEditForm({ lottery }: { lottery: Lottery }) {
       // 저장한 값이 새 기준이다. 바꾼 칸 표시를 지우고 응답 값으로 채운다
       form.reset(valuesOf(lottery, result))
       void queryClient.invalidateQueries({ queryKey: lotteryQueryKeys.info(lottery.lotteryId) })
+      // 공연 상세의 추첨 안내(회차 키)도 새 기간으로 다시 받게 한다
+      void queryClient.invalidateQueries({
+        queryKey: lotteryQueryKeys.ofSchedule(lottery.scheduleId),
+      })
       toast('추첨 설정을 고쳤어요')
     } catch (error) {
       if (isOutcomeUnknown(error)) {
