@@ -195,6 +195,20 @@ export const lotteryHandlers = [
     return ok(lotteryInfo(lottery), { message: '추첨 정보입니다' })
   }),
 
+  // ScheduleLotteryController(ISE-227). 회차에 추첨이 없으면 404다
+  http.get('/api/v1/schedules/:scheduleId/lottery', ({ params }) => {
+    const scheduleId = Number(params.scheduleId)
+    if (!Number.isInteger(scheduleId)) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
+    settleLotteryStates()
+    const lottery = mockDb.lotteries.find((candidate) => candidate.scheduleId === scheduleId)
+    if (lottery === undefined) {
+      return fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')
+    }
+    return ok(lotteryInfo(lottery), { message: '추첨 정보입니다' })
+  }),
+
   // LotteryController:40-48, LotteryEntryService:33-44·79-89
   http.post('/api/v1/lotteries/:lotteryId/entries', async ({ request, params }) => {
     const user = requireUser(request)
