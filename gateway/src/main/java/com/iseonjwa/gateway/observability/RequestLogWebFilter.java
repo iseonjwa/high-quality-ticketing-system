@@ -20,8 +20,9 @@ import java.util.concurrent.TimeUnit;
 @Component
 @ConditionalOnProperty(name = "iseonjwa.request-log.enabled", havingValue = "true", matchIfMissing = true)
 public class RequestLogWebFilter implements WebFilter, Ordered {
-    // Note: WebFlux의 트레이싱 관측 필터는 @Order(0)이다. 그 안쪽(1)에서 돌아야 traceId가 있고,
-    // 요청을 거절하는 Gateway 필터(GlobalFilter)는 이 뒤에서 돌므로 401·403도 한 줄이 남는다.
+    // Note: Spring Boot 4(spring-web 7)는 서버 관측을 필터가 아니라 HttpWebHandlerAdapter가 WebFilter 체인 전체를 감싸 연다.
+    // 그래서 이 필터가 돌 때는 traceId가 이미 있다. 인증 필터(GlobalFilter)는 이 뒤에서 돌므로 401·403도 한 줄이 남는다.
+    // 동시 처리 수 상한 거절(InFlightLimitHandlerDecorator)은 관측보다 앞이라 이 필터까지 오지 않아 한 줄이 남지 않는다.
     static final int ORDER = 1;
     private static final Logger log = LoggerFactory.getLogger(RequestLogWebFilter.class);
     private static final String ACTUATOR_PREFIX = "/actuator";
