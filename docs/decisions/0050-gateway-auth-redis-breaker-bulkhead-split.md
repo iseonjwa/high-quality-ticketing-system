@@ -18,7 +18,11 @@
 
 ## 결정
 1. **역할을 나눈다.** 차단기는 Redis 장애(시한 초과 `lookup_timeout`, 연결 오류 `redis_error`, 바깥 `time_limiter`)만 센다. Gateway 자기 과부하는 bulkhead가 넘친 만큼만 바로 거절한다(503). bulkhead 거절(`BulkheadFullException`)은 차단기 실패에서 뺀다(`ignore-exceptions`).
-2. **거절 비율은 경보로 따로 본다.** 거절을 빼면 과부하가 차단기 상태로 보이지 않는다. 그래서 5분 동안 auth-redis 호출 중 bulkhead 거절이 1%를 넘으면 warning을 보낸다(`GatewayAuthRedisBulkheadRejecting`, `infra/prometheus/rules/gateway-alerts.yml`). 1%는 `[가정]`이다. G1 재측정 2회에서 초당 2,000건의 거절이 1.1%였다.
+2. **거절 비율은 경보로 따로 본다.** 거절을 빼면 과부하가 차단기 상태로 보이지 않는다. 그래서 auth-redis 호출 중 bulkhead 거절 비율을 두 규칙으로 본다(`infra/prometheus/rules/gateway-alerts.yml`, 둘 다 warning).
+   - 지속 과부하 `GatewayAuthRedisBulkheadRejecting`: 5분 평균 1% 초과가 5분 이어지면 울린다. 오픈 피크(수십 초~1분)는 평균에 묻혀 잡지 못한다.
+   - 오픈 피크 `GatewayAuthRedisBulkheadRejectingPeak`: 1분 평균 1%를 넘으면 바로 울린다. 20초 안팎보다 짧은 몰림은 여전히 못 잡는다(3차 G의 10초·3%는 1분 평균 약 0.5%, 계산값). 대기열 담당 리뷰(PR `#487`)로 더했다.
+   - 1%는 `[가정]`이다. G1 재측정 2회에서 초당 2,000건의 거절이 1.1%였다.
+   - bulkhead가 차는 원인은 Gateway 과부하만이 아니다. Redis가 느려지면 한 호출이 자리를 필터 시한(200ms)까지 붙잡아 초당 50 ÷ 0.2 = 250건만 지나간다(계산값). 그래서 경보 문구는 원인을 단정하지 않고, `lookup_timeout`·`redis_error`가 함께 늘었으면 Redis 지연으로 보라고 안내한다.
 3. **운영값**(`config-repo/gateway.yml`)
 
 | 값 | 이전(SA 9-4) | 새 값 | 근거 측정 |
@@ -49,13 +53,13 @@
   - 반열림 20건이라 진짜 장애 때 시험 호출이 더 나간다.
   - 서버 CPU 한도(4 vCPU 한 대에서 Q1 초당 약 2,000~2,300건)는 그대로다. 그 이상에서는 거절은 빠르지만 받은 요청도 느리다(G1 2회 2,500/s p95 428ms, 3,000/s p99 7.2s).
   - 모든 근거가 각 1회 측정이다(3차 G 데운 2,000/s만 4회). bulkhead 50은 계산값(초당 1,000건 × 50ms)으로 시작했다.
-  - Lettuce 300ms가 반응형 호출에 실제로 걸리는지는 확인하지 못했다.
+  - Lettuce 300ms가 반응형 호출에 걸리는지는 간접 근거만 있다. 3차 R3(필터 시한·Lettuce 모두 100ms)에서 Gateway `redis_error`가 났고(식은 1,000명 131건), 대기열 담당이 로그에서 `QueryTimeoutException` 106~145ms를 봤다(PR `#487` 리뷰, 저장소 기록에는 예외 종류·시간이 없다). 300ms로 바꾼 뒤 직접 확인은 아직이다.
 - 바꿀 조건
-  - 거절 경보가 오픈 피크마다 울리면 입구 요청률 제한(인스턴스 로컬)을 넣는다. 기준은 혼합 부하(진입 + 폴링) 측정의 통과선이다.
+  - 피크 경보(`GatewayAuthRedisBulkheadRejectingPeak`)가 오픈마다 울리면 입구 요청률 제한(인스턴스 로컬)을 넣는다. 기준은 혼합 부하(진입 + 폴링) 측정의 통과선이다.
   - 장비나 Gateway 인스턴스 수가 바뀌면 bulkhead를 리틀의 법칙(목표 처리량 × 정상 한 건 시간)으로 다시 낸다.
   - `ignore-exceptions`로 부족한 경우(예: 거절 외 Gateway 혼잡이 시한 초과로 세어져 열림)가 측정되면 bulkhead를 차단기 바깥으로 옮긴다.
   - Redis 장애 감지가 늦어 문제가 되면 느린 호출 비율·최소 건수를 낮춘다. 장애 주입(Redis 지연)으로 감지 시간을 먼저 잰다.
 - 후속
-  - 배포 뒤 측정 모드 없이 G1 또는 Q1로 한 번 재서 운영값이 덮어쓰기 측정과 같은지 확인한다.
+  - 배포 뒤 측정 모드 없이 G1 또는 Q1로 한 번 재서 운영값이 덮어쓰기 측정과 같은지 확인한다. 대기열 담당이 2026-11-15에 Q1·Q2-10k·Q1-d로 Gateway 덮어쓰기 없이 잰다(PR `#487` 리뷰). 이때 피크 경보가 울리는지도 본다.
   - Retry-After 분리(ISE-230 3번)는 따로 한다.
   - 차단기 열림 경보(Redis 장애)는 이번에 넣지 않았다.
