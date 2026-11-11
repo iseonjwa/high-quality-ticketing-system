@@ -8,6 +8,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | **긴 측정 뒤 배포 실패를 막으려고 Zipkin 힙을 늘리자는 AI 추천을 거부하고, 메모리 설정은 두고 스케줄러 Redis 스팬을 근원에서 줄이며 이미지 받기 재시도를 더함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-11-reduce-scheduler-redis-spans-keep-zipkin-memory.md) |
 | 2026-11-11 | Gateway CPU 포화와 OOM을 막는 첫 장치로 맨 앞 동시 처리 수 상한을 고르고, 설계안·프런트 표시·첫 상한 64를 AI 추천대로 정함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-11-gateway-in-flight-limit-first.md) |
 | 2026-11-11 | Gateway CPU의 약 24%를 쓰는 관측(추적·지표·로그 문맥) 축소를 위험하다고 보고 보류함 | Claude Code | 보류 | 예 | 아님 | [기록](2026-11-11-defer-gateway-observability-reduction.md) |
 | 2026-11-11 | PR 487 대기열 담당 리뷰 반영에서 오픈 피크용 거절 경보를 따로 두자는 AI 추천(A안)을 받아들임 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-11-pr487-review-peak-alert.md) |
