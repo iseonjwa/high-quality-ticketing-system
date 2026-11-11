@@ -8,6 +8,10 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | Gateway CPU 포화와 OOM을 막는 첫 장치로 맨 앞 동시 처리 수 상한을 고르고, 설계안·프런트 표시·첫 상한 64를 AI 추천대로 정함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-11-gateway-in-flight-limit-first.md) |
+| 2026-11-11 | Gateway CPU의 약 24%를 쓰는 관측(추적·지표·로그 문맥) 축소를 위험하다고 보고 보류함 | Claude Code | 보류 | 예 | 아님 | [기록](2026-11-11-defer-gateway-observability-reduction.md) |
+| 2026-11-11 | PR 487 대기열 담당 리뷰 반영에서 오픈 피크용 거절 경보를 따로 두자는 AI 추천(A안)을 받아들임 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-11-pr487-review-peak-alert.md) |
+| 2026-11-11 | Gateway auth-redis 운영값을 G1 2회 값(필터 시한 200ms·Lettuce 300ms)으로 정하고 bulkhead 거절 비율 경보를 같이 넣자는 AI 추천을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-11-gateway-auth-redis-operating-values.md) |
 | 2026-11-10 | auth-redis 재측정 값을 느린 호출 100ms·80%, 시한 200ms, 벌크헤드 50(거절은 차단기 집계에서 제외), 실패율 50%로 하자는 AI 추천을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-auth-redis-timeout-bulkhead-measure-values.md) |
 | 2026-11-10 | 이슈 자동 완료를 피하려고 PR 제목·브랜치에서 이슈 번호를 뺀 AI 방식을 거부하고, 번호를 넣은 채 연결 종류로 완료를 막게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-10-keep-issue-number-in-pr-title.md) |
 | 2026-11-10 | 11/11 회의에서 개선안을 정하고 11/13에 재측정하자는 AI 일정을 거부하고, 개선 적용과 재측정을 최대한 앞당기기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-10-pull-forward-improvement-remeasure.md) |

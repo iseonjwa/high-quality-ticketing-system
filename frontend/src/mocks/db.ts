@@ -71,8 +71,10 @@ export interface MockReservation {
   userId: number
   scheduleId: number
   seatIds: number[]
-  // 서버 enum에는 CANCELED도 있으나 만드는 API가 아직 없다(테스트가 직접 넣어 화면을 확인한다)
+  // CANCELED는 예매 취소(POST /reservations/{id}/cancel)가 만든다
   status: 'HELD' | 'CONFIRMED' | 'EXPIRED' | 'RELEASED' | 'CANCELED'
+  // 추첨 당첨 예매는 취소할 수 없다(LOTTERY_RESERVATION_NOT_CANCELABLE). 값이 없으면 일반 예매다
+  source?: 'GENERAL' | 'LOTTERY'
   holdExpiresAtMillis: number
   totalAmount: number
   // 결제 승인 뒤 확정 반영을 기다리는 동안만 값이 있다. 예매 조회 몇 번 뒤 CONFIRMED가 되는지
@@ -83,9 +85,12 @@ export interface MockPayment {
   paymentId: number
   reservationId: number
   userId: number
-  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED' | 'NEEDS_MANUAL_CHECK'
+  status: 'UNKNOWN' | 'APPROVED' | 'DECLINED' | 'NEEDS_MANUAL_CHECK' | 'REFUNDED'
   amount: number
   approvedAtMillis: number | null
+  // 예매 취소로 환불을 시작했을 때만 값이 있다. 결제 조회 몇 번 뒤 REFUNDED가 되는지(무한이면 끝나지 않는다)
+  refundAfterChecks?: number | null
+  refundedAtMillis?: number | null
   reasonCode: string | null
   // UNKNOWN이 결제 조회 몇 번 뒤 APPROVED가 되는지
   checksUntilResolved: number

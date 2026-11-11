@@ -53,3 +53,4 @@
 | 0047 | [배포는 EC2 한 대에 DB·캐시·브로커까지 띄워 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토한다](0047-single-ec2-first-managed-split-review.md) | 채택 (분리는 11/7~11/12 검토) | 2026-11-04 |
 | 0048 | [TX1 커밋 응답 유실로 남은 REQUESTED는 재시도가 이어받지 않고, 재확인의 DECLINED(NOT_SENT) 종결을 한계로 둔다](0048-payment-tx1-commit-response-loss.md) | 채택 (ISE-169, 재시도 이어받기 안은 거부) | 2026-11-09 |
 | 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
+| 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 제안 (ISE-230 contract, 대기열 담당 확인 뒤 채택. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |

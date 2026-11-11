@@ -44,6 +44,16 @@ function currentResult(payment: MockPayment): StoredPaymentResponse {
       }
     case 'DECLINED':
       return { status: 200, data: { ...base, reasonCode: payment.reasonCode } }
+    // 환불된 결제에 같은 키로 다시 보내면 지금 상태(REFUNDED)를 준다(표 A)
+    case 'REFUNDED':
+      return {
+        status: 200,
+        data: {
+          ...base,
+          amount: payment.amount,
+          refundedAt: new Date(payment.refundedAtMillis ?? Date.now()).toISOString(),
+        },
+      }
     case 'NEEDS_MANUAL_CHECK':
       throw new Error('NEEDS_MANUAL_CHECK는 응답 본문이 없다. respondCurrent를 쓴다')
   }
@@ -231,6 +241,15 @@ export const paymentHandlers = [
         approve(payment, mockDb.reservations.get(payment.reservationId)!)
       }
     }
+    // 예매 취소로 시작한 환불. 환불 워커가 PG 환불을 끝내면 REFUNDED가 된다(실제로는 몇 초)
+    if (payment.status === 'APPROVED' && payment.refundAfterChecks != null) {
+      payment.refundAfterChecks -= 1
+      if (payment.refundAfterChecks <= 0) {
+        payment.status = 'REFUNDED'
+        payment.refundAfterChecks = null
+        payment.refundedAtMillis = Date.now()
+      }
+    }
     // 여섯 필드를 항상 내보낸다(PaymentDetail)
     return ok(
       {
@@ -242,7 +261,10 @@ export const paymentHandlers = [
           payment.approvedAtMillis === null
             ? null
             : new Date(payment.approvedAtMillis).toISOString(),
-        refundedAt: null,
+        refundedAt:
+          payment.status === 'REFUNDED' && payment.refundedAtMillis != null
+            ? new Date(payment.refundedAtMillis).toISOString()
+            : null,
       },
       { message: '결제를 조회했습니다' },
     )

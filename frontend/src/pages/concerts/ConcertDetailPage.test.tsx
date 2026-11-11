@@ -2,6 +2,7 @@ import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { lotteryQueryKeys } from '@/api/lotteries'
 import { routes } from '@/app/routes'
 import { fail, ok } from '@/mocks/respond'
 import { mockServer } from '@/mocks/server'
@@ -359,4 +360,176 @@ describe('ConcertDetailPage', () => {
       expect(requests).toHaveLength(0)
     },
   )
+})
+
+// 회차의 추첨(ISE-227, GET /schedules/{id}/lottery). 실제 응답과 같은 모양이다
+function lotteryOf(scheduleId: number, overrides: Record<string, unknown>) {
+  return {
+    lotteryId: 90,
+    scheduleId,
+    status: 'OPEN',
+    seatCount: 10,
+    rules: {
+      minPerEntry: 1,
+      maxPerEntry: 2,
+      adjacentSeatsGuaranteed: false,
+      reentryAllowed: false,
+      billingKeyRequired: true,
+    },
+    ...overrides,
+  }
+}
+
+// 목 서버가 이 경로에 낸 응답 상태를 모은다. 응답이 화면에 닿은 뒤에 "없음"을 확인하려고 쓴다
+function mockedResponses(pathname: string): number[] {
+  const statuses: number[] = []
+  mockServer.events.on('response:mocked', ({ request, response }) => {
+    if (new URL(request.url).pathname === pathname) {
+      statuses.push(response.status)
+    }
+  })
+  return statuses
+}
+
+function serveScheduleLotteries(byScheduleId: Record<number, unknown>) {
+  mockServer.use(
+    http.get('/api/v1/schedules/:scheduleId/lottery', ({ params }) => {
+      const lottery = byScheduleId[Number(params.scheduleId)]
+      return lottery ? ok(lottery) : fail(404, 'NOT_FOUND', '대상을 찾을 수 없습니다')
+    }),
+  )
+}
+
+describe('ConcertDetailPage 추첨 안내', () => {
+  it('응모 중인 추첨이 있는 회차는 예매 패널에서 추첨 화면으로 이어진다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        lotteryId: 5,
+        entryStartAt: iso(serverNow - HOUR),
+        entryEndAt: iso(serverNow + DAY),
+        drawAt: iso(serverNow + DAY + HOUR),
+      }),
+    })
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    const link = await panel.findByRole('link', { name: '추첨 응모' })
+    expect(link).toHaveAttribute('href', '/lotteries/5')
+    // 설명은 제목과 마감 시각을 함께 읽는다
+    expect(link).toHaveAccessibleDescription(/^추첨석 10석 · 응모 중 .+ 마감$/)
+    // 추첨은 보조 안내다. [예매하기]는 그대로 있다
+    expect(panel.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
+  })
+
+  it('회차를 바꾸면 그 회차의 추첨 단계로 바뀌고, 추첨이 없는 회차에는 안내가 없다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}, {}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        entryStartAt: iso(serverNow + HOUR),
+        entryEndAt: iso(serverNow + DAY),
+        drawAt: iso(serverNow + DAY + HOUR),
+      }),
+    })
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    expect(await panel.findByRole('link', { name: '응모 안내' })).toHaveAccessibleDescription(
+      /^추첨석 10석 · 응모 예정 .+ 응모 시작$/,
+    )
+
+    const answered = mockedResponses('/api/v1/schedules/33/lottery')
+    await userEvent.click(panel.getAllByRole('radio')[1])
+    // 두 번째 회차(33)의 404를 받은 뒤에도 안내가 생기지 않는다
+    await vi.waitFor(() => expect(answered).toEqual([404]))
+    await act(async () => {})
+    expect(panel.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
+    expect(panel.queryByRole('link', { name: /응모|추첨|결과/ })).not.toBeInTheDocument()
+  })
+
+  it('추첨이 끝난 회차는 결과 보기로 이어진다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        status: 'DRAWN',
+        entryStartAt: iso(serverNow - 2 * DAY),
+        entryEndAt: iso(serverNow - DAY),
+        drawAt: iso(serverNow - HOUR),
+      }),
+    })
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    expect(await panel.findByRole('link', { name: '결과 보기' })).toHaveAccessibleDescription(
+      '추첨 완료 당첨 결과는 추첨 화면에서 봐요',
+    )
+  })
+
+  it('응모 단계는 브라우저 시계가 아니라 공연 응답의 서버 시각으로 나눈다', async () => {
+    // 브라우저가 서버보다 1시간 늦다. 서버 기준 1분 전에 응모가 시작됐으니 응모 중이어야 한다
+    const serverNow = Date.now() + HOUR
+    serveDetail(detail(serverNow, [{}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        entryStartAt: iso(serverNow - 60 * SECOND),
+        entryEndAt: iso(serverNow + DAY),
+        drawAt: iso(serverNow + DAY + HOUR),
+      }),
+    })
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    expect(await panel.findByRole('link', { name: '추첨 응모' })).toBeInTheDocument()
+  })
+
+  it('추첨 조회가 503이어도 다시 시도하지 않고, 예매 패널은 그대로이며 오류를 보이지 않는다', async () => {
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    const answered = mockedResponses('/api/v1/schedules/32/lottery')
+    mockServer.use(
+      http.get('/api/v1/schedules/:scheduleId/lottery', () =>
+        fail(503, 'SERVICE_UNAVAILABLE', '잠시 후 다시 시도해 주세요'),
+      ),
+    )
+    const { queryClient } = renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+
+    // 응답이 화면 상태에 닿을 때까지(조회가 error가 될 때까지) 기다린 뒤 "없음"을 본다
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryState(lotteryQueryKeys.ofSchedule(32))?.status).toBe('error'),
+    )
+    await act(async () => {})
+    expect(answered).toEqual([503])
+    expect(panel.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
+    expect(panel.queryByRole('link', { name: /응모|추첨|결과/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('보는 중에 응모 시작 시각을 지나면 새로고침 없이 응모 예정에서 응모 중으로 바뀐다', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    const serverNow = Date.now()
+    serveDetail(detail(serverNow, [{}]))
+    serveScheduleLotteries({
+      32: lotteryOf(32, {
+        entryStartAt: iso(serverNow + 1500),
+        entryEndAt: iso(serverNow + DAY),
+        drawAt: iso(serverNow + DAY + HOUR),
+      }),
+    })
+    const lotteryRequests = recordRequests('/api/v1/schedules/32/lottery')
+    renderRoutes(routes, '/concerts/7')
+    const panel = within(await bookingPanel())
+    expect(await panel.findByRole('link', { name: '응모 안내' })).toBeInTheDocument()
+
+    await tick(2000)
+
+    expect(panel.getByRole('link', { name: '추첨 응모' })).toHaveAccessibleDescription(
+      expect.stringContaining('추첨석 10석 · 응모 중'),
+    )
+    // 다시 받지 않고 시계만으로 바뀌었다
+    expect(lotteryRequests).toHaveLength(1)
+  })
 })

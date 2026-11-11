@@ -10,8 +10,11 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
+
 @Component
 public class GatewayErrorWriter {
+    private static final Duration DEFAULT_RETRY_AFTER = Duration.ofSeconds(1);
     private final ObjectMapper mapper;
     private final Tracer tracer;
 
@@ -21,11 +24,16 @@ public class GatewayErrorWriter {
     }
 
     public Mono<Void> write(ServerWebExchange exchange, int status, String code, String message) {
+        return write(exchange, status, code, message, status == 503 ? DEFAULT_RETRY_AFTER : null);
+    }
+
+    /** 원인마다 다시 시도할 간격이 다를 때 쓴다. {@code retryAfter}가 null이면 Retry-After를 넣지 않는다. */
+    public Mono<Void> write(ServerWebExchange exchange, int status, String code, String message, Duration retryAfter) {
         var response = exchange.getResponse();
         response.setStatusCode(HttpStatusCode.valueOf(status));
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        if (status == 503) {
-            response.getHeaders().set(HttpHeaders.RETRY_AFTER, "1");
+        if (retryAfter != null) {
+            response.getHeaders().set(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfter.toSeconds()));
         }
 
         var span = tracer.currentSpan();

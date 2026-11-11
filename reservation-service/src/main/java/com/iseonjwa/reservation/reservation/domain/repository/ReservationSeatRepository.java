@@ -20,6 +20,9 @@ public interface ReservationSeatRepository {
     // 예매에 묶인 HELD 좌석을 CONFIRMED로 바꾸고 바꾼 행 수를 돌려준다(결제 승인)
     int confirmHeld(Long reservationId, Instant now);
 
+    // 예매에 묶인 CONFIRMED 좌석을 RELEASED로 바꾸고 바꾼 행 수를 돌려준다(예매 취소). 부분 유니크 인덱스에서 빠져 다시 선점할 수 있다
+    int releaseConfirmed(Long reservationId, Instant now, Long actorId);
+
     // 예매 상세(SA 11-5). 예매 좌석에 회차·공연장 좌석의 표시 정보와 발급된 티켓 번호를 붙여 좌석 ID 순으로 돌려준다
     List<SeatDetailRow> findSeatDetails(Long reservationId);
 

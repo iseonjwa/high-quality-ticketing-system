@@ -1,6 +1,6 @@
 # Gateway `auth-redis` 레질리언스 설정을 정하기까지 (2026-11-09~10)
 
-상태: 기록. 운영 설정(`config-repo/gateway.yml`)은 아직 그대로이고, 측정용 덮어쓰기와 관측 코드만 들어갔다. 재측정(1회·2회) 결과가 나오면 6절을 채우고 운영 반영 여부를 결정 기록으로 남긴다.
+상태: 기록. 재측정 1·2회는 2026-11-10 UTC에 G1으로 쟀다(5-1절, 정본 [open-peak-scenarios.md](open-peak-scenarios.md) 3절 "배포 서버 4차"). 2회 값을 운영 기본값으로 옮기는 결정은 [ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)(제안, 2026-11-11)이다. 배포 뒤 운영값으로 다시 재는 것은 아직이다.
 
 이틀 동안 부하 측정에서 Gateway 인증 차단기가 먼저 열렸다. 이 문서는 그 원인을 찾으며 "무엇을 생각했고, 무엇이 틀렸고, 무엇으로 바꿨는지"를 시간 순서로 모은다. 트러블슈팅 정리와 발표의 원천이다. 숫자는 모두 아래 원천 문서에서 옮겼고, 원천에서 확인하지 못한 것은 "확인 못 함"으로 적었다.
 
@@ -58,7 +58,7 @@ Redis는 멀쩡한데(Redis 컨테이너 CPU 8%, 조회 0.3~1.9ms) 차단기가 
 | 비교 실험은 출발 상태부터 맞춘다 | 값을 바꿀 때마다 Gateway가 다시 뜨면 "식은 정도"가 두 번째 변수가 된다 | 2, 3 |
 
 ## 5. 지금 정한 값과 대가
-운영 값은 그대로다. 아래는 재측정용 값이다(`loadtest/deploy/compose.gateway-bulkhead.yml`, #470, main 반영 #471).
+아래 "운영" 칸은 ADR 0050 이전 값이다. 재측정 2회 값이 새 운영 기본값이 됐다([ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)). 재측정은 덮어쓰기(`loadtest/deploy/compose.gateway-bulkhead.yml`, #470, main 반영 #471)로 했다.
 
 | 값 | 운영 | 재측정 1회 | 재측정 2회 | 감수할 점 |
 |---|---|---|---|---|
@@ -72,11 +72,25 @@ Redis는 멀쩡한데(Redis 컨테이너 CPU 8%, 조회 0.3~1.9ms) 차단기가 
 
 회를 나눈 이유는 한 번에 하나만 바꾸기 위해서다. 1회는 시한을 띄운 효과, 2회는 벌크헤드를 낮추고 차단기와 떼어 낸 효과를 본다.
 
+### 5-1. 재측정 결과(G1, 2026-11-10 UTC)
+L1은 요청마다 reservation·Postgres까지 가서 뒤쪽 비용이 Gateway 숫자를 흔든다. 그래서 인증 경로만 부르는 G1(`GET /schedules/{id}/queue/me`)으로 쟀다. 웜업은 1차 표준(100/s 2분 → 1,000 30초 → 3,000 10초)을 회마다 넣었다.
+
+| 목표 | 1회 성공 / p95 | 2회 성공 / p95 |
+|---|---|---|
+| 2,000/s | 99.53% / 208ms | 98.90% / 157ms |
+| 2,500/s | 98.16% / 497ms | 95.58% / 428ms |
+| 3,000/s | 92.67% / 1.01s | 87.96% / 806ms |
+
+- 두 회 모두 3,000/s까지 차단기가 열리지 않았다. 503은 모두 벌크헤드 거절(`bulkhead_full`)이고 Redis 시한 초과·연결 오류는 0건이다. 3절 장면 2·3의 "Redis는 멀쩡한데 인증 전체가 막힘"은 이 설정에서 재현되지 않았다.
+- 2회에서 거절이 차단기 집계에서 모두 빠졌다(`failed` 0, `ignored` 16,024). 4절의 "집계를 나눈다" 원칙이 배포 경로에서 동작한다.
+- 벌크헤드 50은 거절을 늘리고 p95를 줄였다. 성공 처리량은 두 회 모두 약 2,300~2,470/s에서 멈췄고 서버 CPU가 99%였다. 7절의 "장비 CPU가 한도"와 맞는다.
+- 각 1회 측정이다. 운영 반영(벌크헤드 50 + 거절 제외 + 시한 200ms 등)은 SA 9-4의 100ms `[가정]`을 바꾸는 결정 기록과 함께 정한다.
+
 ## 6. 아직 확인 못 한 것과 다음 측정에서 볼 것
 | 질문 | 확인 방법 | 상태 |
 |---|---|---|
-| 측정에서 본 "실패 1.0s"가 안쪽 시한 초과의 이중 기록이었나 | #463 배포 뒤 `gateway_auth_redis_failures_total{cause}`에서 `lookup_timeout`과 `time_limiter`를 비교 | 확인 못 함 |
-| `ignoreExceptions`가 이 경로에서 실제로 적용되나 | 2회에서 `resilience4j_circuitbreaker_calls_seconds_count{name="auth-redis",kind="ignored"}`가 몰림 구간에 늘어나는지 | 컨텍스트 테스트로만 확인(#470) |
+| 측정에서 본 "실패 1.0s"가 안쪽 시한 초과의 이중 기록이었나 | #463 배포 뒤 `gateway_auth_redis_failures_total{cause}`에서 `lookup_timeout`과 `time_limiter`를 비교 | 확인 못 함. 재측정 1·2회에는 시한 초과가 0건이라 비교할 표본이 없었다 |
+| `ignoreExceptions`가 이 경로에서 실제로 적용되나 | 2회에서 `resilience4j_circuitbreaker_calls_seconds_count{name="auth-redis",kind="ignored"}`가 몰림 구간에 늘어나는지 | **확인함.** 2회에서 거절 16,024건이 모두 `ignored`, `failed` 0 |
 | 벌크헤드를 껐을 때 정말 꺼지나 | 컨텍스트 테스트로 `enabled=false`면 벌크헤드 빈이 없음을 확인(#463). 배포 지표가 25로 남는 이유는 미확인 | 일부 확인 |
 | 느린 호출이 Lettuce I/O 스레드 하나에 몰려서인가, GC·CPU 대기인가 | 몰림 중 `docker top`으로 스레드별 CPU, `jvm_gc_pause_seconds_max{application="gateway"}`, `vmstat 1`의 `r` 열 | 확인 못 함 |
 | D와 E의 p95 차이(1,200/s에서 238ms 대 339ms) | 같은 조건으로 다시 재기 | 확인 못 함. 각 1회 측정이고 E는 앞 추첨 DB 처리와 겹쳤다 |

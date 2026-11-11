@@ -55,6 +55,11 @@ public class JpaReservationSeatRepository implements ReservationSeatRepository {
     }
 
     @Override
+    public int releaseConfirmed(Long reservationId, Instant now, Long actorId) {
+        return repository.releaseConfirmed(reservationId, now, actorId);
+    }
+
+    @Override
     public List<SeatDetailRow> findSeatDetails(Long reservationId) {
         return repository.findSeatDetailRows(reservationId).stream()
                 .map(row -> new SeatDetailRow(((Number) row[0]).longValue(), (String) row[1],

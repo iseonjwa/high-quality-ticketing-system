@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 팀 공용 부하 발생기로 배포 서버를 재는 순서 (한 단계씩) | [qna/2026-11-11-loadgen-step-by-step.md](qna/2026-11-11-loadgen-step-by-step.md) |
+| 2026-11-10 | 오픈 피크 부하 시나리오 PAY1·R1·L2는 각각 무엇을 재는가 | [qna/2026-11-10-open-peak-payment-scenarios.md](qna/2026-11-10-open-peak-payment-scenarios.md) |
 | 2026-11-09 | 배포 서버에 부하 측정을 하면 AWS 요금이 더 나오나 | [qna/2026-11-09-load-test-aws-cost.md](qna/2026-11-09-load-test-aws-cost.md) |
 | 2026-11-09 | 부하 발생기 EC2는 얼마나 커야 하나 (c6i.large와 c6i.xlarge) | [qna/2026-11-09-loadgen-instance-size.md](qna/2026-11-09-loadgen-instance-size.md) |
 | 2026-11-09 | Anthropic API 키는 어디에 넣고, 배포 때도 따라가나 | [qna/2026-11-09-anthropic-key-local-and-deploy.md](qna/2026-11-09-anthropic-key-local-and-deploy.md) |
