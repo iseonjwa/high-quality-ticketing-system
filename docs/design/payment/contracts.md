@@ -102,7 +102,7 @@ Payment 쪽 고칠 곳: claim 이름은 `payment-service`의 `PaymentTokenClaims
 - 같은 예매에 결제 행은 하나다([0026](../../decisions/0026-payment-one-per-reservation.md)). 거절·환불된 예매는 새로 선점해야 다시 결제할 수 있고, 같은 `reservationId`로 새 결제를 시도하면 409 `PAYMENT_ALREADY_CLOSED`다.
 - 승인 API의 200 `APPROVED`는 예매 확정이 아니다. 확정은 Reservation이 `PaymentApproved`를 소비한 뒤에 일어난다. 클라이언트는 예매 조회로 확정을 확인한다.
 - 소비 실패가 3회 재시도 뒤 DLQ로 가면 Reservation의 `payment.result` DLQ 처리기가 이어받는다. 못 처리한 건은 Payment 대사(RC-2)가 찾는다([0029](../../decisions/0029-payment-reservation-reconciliation.md)).
-- 구현(2026-11-03): 소비자는 ISE-73, DLQ 처리기는 ISE-74다. 이상 기록과 알림은 지표 없이 오류 로그(`event=PAYMENT_RESULT_ANOMALY`, `event=DEAD_LETTER_OPEN`)로 남긴다. 세부는 [0027](../../decisions/0027-reservation-payment-event-contract.md) 결과 절에 있다.
+- 구현(2026-11-03): 소비자는 ISE-73, DLQ 처리기는 ISE-74다. 이상 기록과 알림은 지표 없이 오류 로그(`event=PAYMENT_RESULT_ANOMALY`, `event=DEAD_LETTER_OPEN`)로 남긴다. 결제 결과 격리 줄은 Loki 건별 규칙 `PaymentResultAnomalyEvent`가 슬랙으로 알린다(ISE-46). 세부는 [0027](../../decisions/0027-reservation-payment-event-contract.md) 결과 절에 있다.
 
 Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`, 발행은 `PaymentResultPublisher`다.
 
