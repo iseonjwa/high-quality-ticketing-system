@@ -1,0 +1,27 @@
+# Gateway 알림 규칙 단위 테스트. 실행: script/check-prometheus-rules.sh(CI: prometheus-rules 워크플로)
+rule_files:
+  - ../rules/gateway-alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  # 호출이 분당 6,000건 늘 때 거절이 분당 120건(2%)이면 5분 지속 뒤 울리고, 분당 30건(0.5%)이면 울리지 않는다
+  - interval: 1m
+    input_series:
+      - series: 'resilience4j_circuitbreaker_calls_seconds_count{application="gateway",name="auth-redis",kind="successful"}'
+        values: '0+6000x15'
+      - series: 'gateway_auth_redis_failures_total{application="gateway",cause="bulkhead_full"}'
+        values: '0+30x4 150+120x10'
+      - series: 'gateway_auth_redis_failures_total{application="gateway",cause="lookup_timeout"}'
+        values: '0+600x15'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: GatewayAuthRedisBulkheadRejecting
+        exp_alerts:
+          - exp_labels: {service: gateway, urgency: threshold, severity: warning, application: gateway}
+            exp_annotations:
+              summary: "Gateway가 인증 요청의 1% 넘게 bulkhead로 거절하고 있습니다(5분 평균). Redis 장애가 아니라 Gateway 과부하입니다."
+              runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결과"
