@@ -2,6 +2,8 @@ package com.iseonjwa.payment.ops;
 
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
+import com.iseonjwa.payment.support.StubPgClients;
 import com.iseonjwa.payment.pg.application.PgOrderId;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgRefundId;
@@ -22,20 +24,20 @@ final class ScriptedPgClient implements PgClient {
     int preventLateCalls;
     int refundCalls;
 
-    ObjectProvider<PgClient> asProvider() {
-        var client = this;
+    ObjectProvider<PgClients> asProvider() {
+        var client = new StubPgClients(this);
         return new ObjectProvider<>() {
             @Override
-            public PgClient getObject() { return client; }
+            public PgClients getObject() { return client; }
 
             @Override
-            public PgClient getObject(Object... args) { return client; }
+            public PgClients getObject(Object... args) { return client; }
 
             @Override
-            public PgClient getIfAvailable() { return client; }
+            public PgClients getIfAvailable() { return client; }
 
             @Override
-            public PgClient getIfUnique() { return client; }
+            public PgClients getIfUnique() { return client; }
         };
     }
 

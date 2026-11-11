@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.billing;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.billing.application.BillingKeyEncryptor;
 import com.iseonjwa.payment.payment.application.BillingPaymentCommand;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class BillingKeyAndPaymentTest {
     private static final long FIRST_USER = 9_100_000;
     private static final long LAST_USER = 9_199_999;

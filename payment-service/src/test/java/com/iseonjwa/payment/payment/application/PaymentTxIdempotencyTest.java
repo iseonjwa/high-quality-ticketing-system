@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,11 +41,11 @@ class PaymentTxIdempotencyTest {
         var key = UUID.randomUUID();
         var expiresAt = Instant.now().plusSeconds(290);
         tx.createRequested(new ApprovePaymentCommand(USER, key, "token-a", 50000),
-                new PaymentToken(USER, RESERVATION_A, BigDecimal.valueOf(50000), expiresAt), "a".repeat(64));
+                new PaymentToken(USER, RESERVATION_A, BigDecimal.valueOf(50000), expiresAt), "a".repeat(64), PgProvider.MOCK, null);
 
         assertThrows(DataIntegrityViolationException.class, () -> tx.createRequested(
                 new ApprovePaymentCommand(USER, key, "token-b", 50000),
-                new PaymentToken(USER, RESERVATION_B, BigDecimal.valueOf(50000), expiresAt), "b".repeat(64)));
+                new PaymentToken(USER, RESERVATION_B, BigDecimal.valueOf(50000), expiresAt), "b".repeat(64), PgProvider.MOCK, null));
 
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM payments WHERE reservation_id = ?", Integer.class,
                 RESERVATION_B), "두 번째 결제는 롤백된다");

@@ -15,7 +15,7 @@ class PaymentTest {
     @Test
     void 새_결제는_REQUESTED이고_10초_뒤에_재확인한다() {
         var payment = Payment.request("PAY-1", 10L, 1L, BigDecimal.valueOf(50000), PaymentMethod.CARD,
-                UUID.randomUUID(), NOW);
+                UUID.randomUUID(), PgProvider.MOCK, NOW);
 
         assertEquals(PaymentStatus.REQUESTED, payment.getStatus());
         assertEquals("KRW", payment.getCurrency());
@@ -25,6 +25,6 @@ class PaymentTest {
     @Test
     void 금액이_0_이하이면_만들지_못한다() {
         assertThrows(IllegalArgumentException.class, () -> Payment.request("PAY-1", 10L, 1L, BigDecimal.ZERO,
-                PaymentMethod.CARD, UUID.randomUUID(), NOW));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, NOW));
     }
 }

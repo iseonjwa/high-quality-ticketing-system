@@ -3,6 +3,7 @@ import { CreditCard, Loader2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
+import { checkoutPayment, type CheckoutResult } from '@/api/payments'
 import { getReservation, reservationQueryKeys, type ReservationDetail } from '@/api/reservations'
 import { paths, queuePath, reservationCompletePath, reservationPath } from '@/app/paths'
 import { removeHeldSeats, type HeldSeat } from '@/auth/heldSeats'
@@ -14,12 +15,13 @@ import { TimeChip } from '@/components/ticketing/TimeChip'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { formatWon } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
 import { readRouteId } from '@/lib/routeId'
 import type { ServerClock } from '@/lib/serverClock'
+import { PaymentSkeleton } from '@/pages/payment/PaymentSkeleton'
 import { readPaymentNavigation } from '@/pages/payment/paymentNavigation'
+import { readTossReturnNotice, type TossReturnNotice } from '@/pages/payment/tossReturn'
 import { usePaymentFlow, type PaymentFlowState } from '@/pages/payment/usePaymentFlow'
 import type { QueueConcert } from '@/pages/queue/queueNavigation'
 import {
@@ -38,6 +40,10 @@ const PAYMENT_TOKEN_MARGIN_MILLIS = 10_000
 // 결과 화면에 먼저 보이지 않게 한다
 const paymentReservationKey = (reservationId: number) =>
   ['reservations', 'payment', reservationId] as const
+
+// 결제 준비(checkout) 응답. 토큰이 열려 있는 동안 바뀌지 않아 다시 받지 않고, 떠나면 버린다
+const paymentCheckoutKey = (reservationId: number) =>
+  ['payments', 'checkout', reservationId] as const
 
 // 결제할 대상. 좌석 화면이 넘긴 값이 있으면 그것을, 없으면(새로고침이 아닌 새 탭·주소) 예매 조회로 만든다
 interface PaymentSource {
@@ -66,6 +72,8 @@ function PaymentScreen({ reservationId }: { reservationId: number }) {
   const navigation = readPaymentNavigation(locationState)
   // 예매 상세의 [결제하기]로 오면 공연 요약 대신 공연 제목 줄만 있다. 결과 화면에 그대로 넘긴다
   const passedHeading = readReservationHeading(locationState)
+  // 토스 결제창에서 돌아와 결제하지 않은 경우의 안내(TossReturnPage가 넘긴다)
+  const tossNotice = readTossReturnNotice(locationState)
   // 예매 상태를 화면을 열 때마다 한 번 본다. 이미 확정이면 상세로, 결제할 수 없으면 안내한다.
   // Note: 예매 상세는 조회마다 결제 토큰을 새로 서명한다. 토큰 문자열이 멱등 본문에 들어가므로 열려 있는 동안
   // 다시 받지 않는다(staleTime). 떠나면 버린다(gcTime 0). 남겨 두면 결제를 끝낸 뒤 다시 열 때 옛 HELD로 결제 폼을 그렸다
@@ -127,6 +135,7 @@ function PaymentScreen({ reservationId }: { reservationId: number }) {
       reservationId={reservationId}
       source={source}
       passedHeading={passedHeading}
+      tossNotice={tossNotice}
       // 좌석 화면 값으로 그렸어도 예매가 이미 끝났으면(만료·해제) 결제를 막는다
       notPayable={blocked !== null}
     />
@@ -171,6 +180,8 @@ function blockedReason(reservation: ReservationDetail): 'confirmed' | 'ended' | 
 
 // 흐름 단계 중 사용자가 읽고 행동해야 하는 것. 이 단계가 되면 초점을 알림으로 옮긴다
 const ATTENTION_STEPS = new Set<PaymentFlowState['step']>([
+  'tossCanceled',
+  'tossFailed',
   'declined',
   'refunded',
   'manualCheck',
@@ -187,6 +198,10 @@ const ATTENTION_STEPS = new Set<PaymentFlowState['step']>([
 function showsTimer(state: PaymentFlowState): boolean {
   switch (state.step) {
     case 'ready':
+    case 'preparing':
+    case 'redirecting':
+    case 'tossCanceled':
+    case 'tossFailed':
     case 'paying':
     case 'pgUnavailable':
     case 'failed':
@@ -235,37 +250,62 @@ function PaymentForm({
   reservationId,
   source,
   passedHeading,
+  tossNotice,
   notPayable,
 }: {
   reservationId: number
   source: PaymentSource
   passedHeading: ReservationHeading | null
+  tossNotice: TossReturnNotice | null
   notPayable: boolean
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { state, submit } = usePaymentFlow({
+  // 서버의 PG 모드를 화면을 열 때 한 번 묻는다. 결제 수단 문구와 "토스연동 건너뛰고 결제하기"를 이 값으로 정한다.
+  // 실패해도 화면은 그대로 두고, [결제하기]가 checkout을 다시 불러 오류를 보여 준다
+  const checkout = useQuery({
+    queryKey: paymentCheckoutKey(reservationId),
+    queryFn: ({ signal }) => checkoutPayment(source.paymentToken, { signal }),
+    enabled: !notPayable,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
+  const { state, submit, submitMockBypass } = usePaymentFlow({
     reservationId,
     paymentToken: source.paymentToken,
     amount: source.amount,
   })
+  const provider = checkout.data?.provider ?? null
+  const showMockBypass =
+    checkout.data?.provider === 'TOSS' &&
+    checkout.data.mockBypass &&
+    BEFORE_ATTEMPT_STEPS.has(state.step)
   // 서버 시각으로 결제 가능 시간이 지났다. 브라우저 시계뿐이면(좌석 화면을 거치지 않음) 막지 않고 서버 응답(403)을 따른다.
   // 시계가 빠른 사용자가 시간이 남았는데 결제하지 못하는 일을 막기 위해서다(ISE-115 셀프 리뷰와 같은 문제)
   const [expiredByClock, setExpiredByClock] = useState(false)
   const alertRef = useRef<HTMLDivElement>(null)
   const completionStartedRef = useRef(false)
   const summaryHeadingRef = useRef<HTMLHeadingElement>(null)
-  const tokenExpired = state.step === 'tokenExpired' || (expiredByClock && state.step === 'ready')
+  // 결제창을 닫고 돌아온 단계(tossCanceled·tossFailed)도 누르기 전 단계라 시간이 지나면 막는다
+  const tokenExpired =
+    state.step === 'tokenExpired' || (expiredByClock && BEFORE_ATTEMPT_STEPS.has(state.step))
 
   // 읽고 행동해야 하는 단계가 되거나 시간이 지나 버튼이 막히면 알림으로, 버튼이 확인 중 표시로 바뀌면 요약 제목으로
   // 초점을 옮긴다. 누른 버튼이 사라지거나 막혀 초점이 body로 떨어지지 않게 한다
   useLayoutEffect(() => {
-    if (ATTENTION_STEPS.has(state.step) || (expiredByClock && state.step === 'ready')) {
+    if (
+      ATTENTION_STEPS.has(state.step) ||
+      (expiredByClock && BEFORE_ATTEMPT_STEPS.has(state.step)) ||
+      (tossNotice !== null && state.step === 'ready')
+    ) {
       alertRef.current?.focus()
     } else if (state.step === 'checking' || state.step === 'confirming') {
       summaryHeadingRef.current?.focus()
     }
-  }, [state.step, expiredByClock])
+  }, [state.step, expiredByClock, tossNotice])
 
   useEffect(() => {
     if (endsHold(state)) {
@@ -341,7 +381,12 @@ function PaymentForm({
                   action={<ActionButton onClick={reselect}>좌석 다시 고르기</ActionButton>}
                 />
               ) : (
-                <FlowAlert state={state} tokenExpired={tokenExpired} onReselect={reselect} />
+                <FlowAlert
+                  state={state}
+                  tokenExpired={tokenExpired}
+                  tossNotice={tossNotice}
+                  onReselect={reselect}
+                />
               )}
             </div>
             <fieldset className="grid gap-2">
@@ -357,7 +402,7 @@ function PaymentForm({
                 <CreditCard aria-hidden="true" className="row-span-2 size-7 text-gray-900" />
                 <span className="type-body font-semibold text-gray-900">신용·체크카드</span>
                 <span className="type-caption text-gray-500">
-                  시연용 결제라 카드 정보를 받지 않아요
+                  {PAYMENT_METHOD_HINTS[provider ?? 'UNKNOWN']}
                 </span>
               </label>
             </fieldset>
@@ -423,6 +468,16 @@ function PaymentForm({
                 disabled={notPayable || tokenExpired}
                 onPay={submit}
               />
+              {showMockBypass && !notPayable && !tokenExpired ? (
+                // 토스 테스트 결제창도 카드사 인증은 실제 절차라, 시연에서 결제를 끝까지 보일 때 쓴다(ADR 0023 2026-11-10 개정)
+                <button
+                  type="button"
+                  onClick={submitMockBypass}
+                  className="-mt-1 justify-self-center rounded-sm type-caption font-medium text-primary-600 underline underline-offset-4 transition-colors duration-(--dur-fast) outline-none hover:text-primary-700 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-gray-0"
+                >
+                  토스연동 건너뛰고 결제하기
+                </button>
+              ) : null}
               {showTimer && !tokenExpired ? (
                 <p className="text-center type-caption text-gray-500">
                   결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.
@@ -434,6 +489,27 @@ function PaymentForm({
       </div>
     </main>
   )
+}
+
+// 결제 수단 카드의 설명. 서버의 PG 모드를 모르는 동안(checkout 대기·실패)은 어느 쪽이든 맞는 문구를 쓴다
+const PAYMENT_METHOD_HINTS: Record<CheckoutResult['provider'] | 'UNKNOWN', string> = {
+  MOCK: '시연용 결제라 카드 정보를 받지 않아요',
+  TOSS: '토스페이먼츠 테스트 결제창에서 카드를 골라요',
+  UNKNOWN: '결제하기를 누르면 카드 결제를 진행해요',
+}
+
+// 승인 시도를 아직 만들지 않은 단계. 결제 가능 시간이 지나면 버튼을 막고, "토스연동 건너뛰고 결제하기"는 이때만 보인다
+const BEFORE_ATTEMPT_STEPS = new Set<PaymentFlowState['step']>([
+  'ready',
+  'tossCanceled',
+  'tossFailed',
+])
+
+// 버튼이 로딩 표시인 단계와 그 문구
+const PAYING_LABELS: Partial<Record<PaymentFlowState['step'], string>> = {
+  preparing: '결제 준비 중',
+  redirecting: '결제창 여는 중',
+  paying: '결제하는 중',
 }
 
 // 요약 카드 아래의 결제 버튼 자리. 결과를 기다리는 동안에는 버튼 대신 확인 중 표시를 둔다
@@ -450,19 +526,25 @@ function PayAction({
 }) {
   switch (state.step) {
     case 'ready':
+    case 'preparing':
+    case 'redirecting':
+    case 'tossCanceled':
+    case 'tossFailed':
     case 'paying':
-    case 'tokenExpired':
+    case 'tokenExpired': {
+      const loadingLabel = PAYING_LABELS[state.step]
       return (
         <Button
           size="lg"
           className="w-full rounded-full"
           disabled={disabled || state.step === 'tokenExpired'}
-          loading={state.step === 'paying'}
+          loading={loadingLabel !== undefined}
           onClick={onPay}
         >
-          {state.step === 'paying' ? '결제하는 중' : `${formatWon(amount)} 결제하기`}
+          {loadingLabel ?? `${formatWon(amount)} 결제하기`}
         </Button>
       )
+    }
     case 'pgUnavailable':
     case 'failed':
       return (
@@ -509,6 +591,10 @@ function PayAction({
 // 늘 있는 알림 영역(sr-only)에 넣을 글자. 바뀔 때마다 화면 낭독기가 읽는다
 function statusText(state: PaymentFlowState): string {
   switch (state.step) {
+    case 'preparing':
+      return '결제를 준비하고 있어요'
+    case 'redirecting':
+      return '결제창을 열고 있어요'
     case 'paying':
       return '결제를 요청하고 있어요'
     case 'checking':
@@ -553,13 +639,36 @@ const DECLINE_REASONS: Record<string, string> = {
   TOKEN_EXPIRED: '결제 가능 시간이 지나 결제하지 못했어요.',
 }
 
+// 토스 결제창에서 결제하지 않고 돌아온 안내. 토스가 준 message는 주소로 아무 문구나 넣을 수 있어 보이지 않는다
+function TossNoticeAlert({ kind, code }: { kind: TossReturnNotice['kind']; code: string | null }) {
+  switch (kind) {
+    case 'canceled':
+      return <Alert variant="info">결제를 취소했어요. 다시 결제할 수 있어요.</Alert>
+    case 'failed':
+      return (
+        <Alert variant="warning">
+          결제창에서 결제를 마치지 못했어요. 다시 시도해 주세요.
+          {code === null ? null : <span className="type-caption"> ({code})</span>}
+        </Alert>
+      )
+    case 'mismatch':
+      return (
+        <Alert variant="warning">
+          결제 정보가 맞지 않아 결제를 진행하지 않았어요. 다시 결제해 주세요.
+        </Alert>
+      )
+  }
+}
+
 function FlowAlert({
   state,
   tokenExpired,
+  tossNotice,
   onReselect,
 }: {
   state: PaymentFlowState
   tokenExpired: boolean
+  tossNotice: TossReturnNotice | null
   onReselect: () => void
 }) {
   const reselect = <ActionButton onClick={onReselect}>좌석 다시 고르기</ActionButton>
@@ -579,6 +688,14 @@ function FlowAlert({
     )
   }
   switch (state.step) {
+    case 'ready':
+      return tossNotice === null ? null : (
+        <TossNoticeAlert kind={tossNotice.kind} code={tossNotice.code} />
+      )
+    case 'tossCanceled':
+      return <TossNoticeAlert kind="canceled" code={null} />
+    case 'tossFailed':
+      return <TossNoticeAlert kind="failed" code={state.code} />
     case 'declined':
       return (
         <StepAlert
@@ -732,29 +849,6 @@ function MissingReservation() {
       >
         찾는 예매가 없어요. 내 예매에서 다시 골라 주세요
       </Alert>
-    </main>
-  )
-}
-
-function PaymentSkeleton() {
-  return (
-    <main>
-      <div
-        role="status"
-        className="grid items-start gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_340px]"
-      >
-        <span className="sr-only">결제 정보를 불러오고 있어요</span>
-        <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-          <Skeleton className="h-7 w-24" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-12 w-2/3" />
-        </Card>
-        <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
-          <Skeleton className="h-7 w-28" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-[52px] w-full" />
-        </Card>
-      </div>
     </main>
   )
 }

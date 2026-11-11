@@ -6,6 +6,7 @@ import com.iseonjwa.common.response.FailureResponse;
 import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.payment.payment.application.ApprovePaymentCommand;
 import com.iseonjwa.payment.payment.application.CheckoutView;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.payment.application.PaymentApprovalService;
 import com.iseonjwa.payment.payment.application.PaymentCheckoutService;
 import com.iseonjwa.payment.payment.application.PaymentDetail;
@@ -48,7 +49,8 @@ public class PaymentController {
     public ResponseEntity<?> approve(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @Valid @RequestBody ApproveRequest request) {
         var outcome = approval.approve(new ApprovePaymentCommand(currentUserId, parseKey(idempotencyKey),
-                request.paymentToken(), request.amount().longValueExact(), request.clientPaymentRef()));
+                request.paymentToken(), request.amount().longValueExact(), request.clientPaymentRef(),
+                request.pgProvider() == null ? null : PgProvider.valueOf(request.pgProvider())));
         return toResponse(outcome);
     }
 

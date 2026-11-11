@@ -24,11 +24,12 @@ final class AccessPolicy {
             "/api/v1/auth/refresh",
             "/api/v1/auth/password-change");
 
-    // 추첨은 공개 규칙 조회 한 단계만 연다. 본인 결과(/entries/me)·응모·취소는 로그인이 필요하다
+    // 추첨은 공개 규칙 조회와 공연 상세가 쓰는 회차별 추첨 조회만 연다. 본인 결과(/entries/me)·응모·취소는 로그인이 필요하다
     private static final PathPattern[] PUBLIC_GET = patterns(
             "/api/v1/concerts",
             "/api/v1/concerts/*",
-            "/api/v1/lotteries/*");
+            "/api/v1/lotteries/*",
+            "/api/v1/schedules/*/lottery");
 
     private AccessPolicy() {}
 

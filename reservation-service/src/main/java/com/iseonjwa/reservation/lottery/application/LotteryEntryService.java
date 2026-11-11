@@ -71,6 +71,12 @@ public class LotteryEntryService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 
+    // 공연 상세가 회차마다 부르는 조회라 추첨이 없는 회차는 404로 알려 응모 버튼을 감추게 한다
+    public Lottery findLotteryOfSchedule(Long scheduleId) {
+        return lotteryRepository.findByScheduleId(scheduleId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+    }
+
     private LotteryEntry findEntry(Long lotteryId, Long userId) {
         return lotteryEntryRepository.findByLotteryIdAndUserId(lotteryId, userId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

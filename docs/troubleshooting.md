@@ -448,6 +448,7 @@
   - 운영 반영: 하지 않았다. 측정 뒤 운영 설정으로 되돌렸고(04:13 측정 모드 off), `config-repo`는 바뀌지 않았다. 운영 반영은 `contract` 이슈로 올릴 예정이며 아직 등록하지 않았다.
   - 근거 수치는 [numbers-and-measurement.md](design/lottery/numbers-and-measurement.md) 3-4절 C1·C2·C3~E다.
 - 배운 점: 건수 기반 작은 창은 처리량이 높을수록 아주 짧은 시간의 지연에 반응한다. 차단기 창은 예상 처리량과 함께 정하고, 측정은 웜업 뒤 단계로 올려 콜드 시작 효과와 한계를 따로 본다. 503의 출처를 차단기 지표로 먼저 가르는 방법은 TS-42에 있다.
+- 이어진 고민: 원인 기록(#463), 이중 기록 발견, 시한·벌크헤드 재측정 값까지의 흐름은 [gateway-auth-redis-resilience.md](design/infra/gateway-auth-redis-resilience.md)에 모았다.
 
 ### TS-52 k6 setup 로그가 `results/*-stdout.txt`에 남지 않았다
 - 서비스·작성: loadtest / kangmin / 2026-11-10
@@ -456,35 +457,49 @@
 - 해결: 우회. 2회부터는 tmux 화면(`tmux capture-pane`)으로 setup 로그를 확인했다. `run.sh`는 고치지 않았다.
 - 배운 점: 콘솔 로그까지 파일에 남기려면 `2>&1 | tee ...`처럼 stderr도 합쳐야 한다. `run.sh` 수정은 제안이며, 기본 `--quiet`(51행)라 진행 표시줄은 꺼져 있지만, `K6_PROGRESS=1`로 켜면 진행 표시줄도 파일에 섞이는지(49행 Note, ISE-219) 함께 확인해야 한다.
 
-### TS-53 같은 사용자가 탭 여러 개로 동시에 선점하면 매수 한도 4매를 넘어 8매까지 잡힌다
+### TS-53 생성자가 두 개인 `@Component`가 배포 서버에서 `No default constructor found`로 Gateway 기동을 막았다
+- 서비스·작성: gateway / kangmin / 2026-11-10
+- 문제: main 머지(`0e6d3581`, ISE-230 포함) 뒤 Jenkins 배포가 실패하고 `deploy.sh`가 직전 커밋 `f06c7d08`로 되돌렸다. GitHub Actions의 빌드·테스트·이미지는 모두 통과했다. 되돌릴 때 컨테이너를 새로 만들어 `docker logs`에는 실패 로그가 없었고, Loki에서 `Error creating bean with name 'authRedisFailures' ... Failed to instantiate ...: No default constructor found`(09:48:45 UTC)를 찾았다.
+- 원인: `AuthRedisFailures`에 운영용 public 생성자 `(MeterRegistry, CircuitBreakerRegistry)`와 테스트용 package-private 생성자 `(..., LongSupplier)`를 두고 `@Autowired`를 붙이지 않았다. 생성자가 하나면 스프링이 그것을 쓰지만, 여럿이고 `@Autowired`가 없으면 기본 생성자를 찾다 실패한다. 단위 테스트는 `new`로 만들었고, 컨텍스트 테스트는 이 빈을 등록하지 않았으며, Gateway에는 앱 전체를 띄우는 테스트가 없어 CI가 잡지 못했다.
+- 해결: 운영용 생성자에 `@Autowired`를 붙였다. `AuthRedisResilienceContextTest`에 `withUserConfiguration`으로 두 빈(`AuthRedisFailures`, `AuthRedisBreakerEvents`)을 등록해 만들어지는지 보는 테스트를 더했다. `@Autowired`를 빼면 이 테스트가 `No default constructor`로 실패하는 것을 확인했다(변이 테스트). Gateway 테스트 100건 통과, 로컬 Config 서버·Redis로 Gateway 기동도 확인했다.
+- 배운 점: 테스트용 생성자를 따로 두면 스프링이 어느 생성자를 쓸지 정해 줘야 한다. `ApplicationContextRunner.withBean(Class)`은 public 생성자를 바로 골라 이 오류를 숨기므로, 컴포넌트 스캔과 같은 경로를 보려면 `withUserConfiguration`을 쓴다. 되돌림 뒤에는 실패한 컨테이너 로그가 사라지니 Loki에서 찾는다.
+
+### TS-54 Zipkin 힙이 차서 unhealthy가 되자 배포의 `compose up --wait`가 매번 실패하고 되돌림까지 실패했다
+- 서비스·작성: infra / kangmin / 2026-11-11
+- 문제: 11/10 14:53Z(#471)와 15:27Z(#474) main 배포가 두 번 모두 실패해 `3b8b2bc9`로 되돌려졌다. GitHub Actions와 이미지 받기는 성공했고, 앱 컨테이너는 죽지 않았다. 두 번 모두 마지막 앱 컨테이너가 뜬 직후(14:54:09, 15:28:12) compose가 상태 확인 요청을 끊었고(dockerd "request cancelled by client"), 되돌림도 컨테이너가 뜬 1~2초 뒤 Jenkins SSH 세션이 끝났다(되돌림도 실패, `deploy.sh` 종료 코드 3으로 보임). 처음에는 Jenkins 메모리 부족을 의심했다.
+- 원인: Zipkin이 `java.lang.OutOfMemoryError: Java heap space`로 GC만 돌며(CPU 101%) 상태 확인 5초 시한을 넘겨 `unhealthy`였다(재시작 4회). `deploy.sh`의 `docker compose up --wait`는 프로젝트 안에 unhealthy 컨테이너가 하나라도 있으면 바로 실패한다. Zipkin은 설정이 바뀌지 않아 배포 때 다시 만들어지지 않으므로 고장 난 채 남아 배포와 되돌림을 모두 막았다. 힙이 찬 것은 메모리 저장 기본 한도 50만 건(`zipkin-server-shared.yml`의 `max-spans: ${MEM_MAX_SPANS:500000}`)이 힙 384m보다 크고, 평시 샘플링 1.0과 11/10 대량 측정으로 추적이 쌓였기 때문으로 보인다(건당 크기는 재지 않았다).
+- 해결: Zipkin을 재시작해(15:33Z) healthy로 되돌리고, `compose.deploy.yml` zipkin에 `MEM_MAX_SPANS: 100000`을 넣었다. 설정이 바뀌어 다음 배포에서 Zipkin이 새로 만들어진다.
+- 배운 점: `--wait` 배포는 앱이 아닌 부가 컨테이너(관측 도구)의 건강도 배포 성공 조건으로 삼는다. 되돌림이 실패하면 Jenkins 세션이 일찍 끝나 Jenkins 쪽 문제처럼 보이므로, 배포 서버에서 `docker ps`의 unhealthy와 `RestartCount`를 먼저 본다. 메모리에만 쌓는 저장소는 힙에 맞춘 건수 상한을 둔다.
+
+### TS-55 같은 사용자가 탭 여러 개로 동시에 선점하면 매수 한도 4매를 넘어 8매까지 잡힌다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: 동시성 테스트 C4(같은 사용자, 탭 4개 동시 선점, 30라운드)에서 30라운드 모두 한도(4매)를 넘었고 최대 8매를 보유했다. k6 부하 측정에서는 사용자가 요청을 하나씩만 보내 드러나지 않는다.
 - 원인: 선점이 사용자별 매수를 읽고 한도를 검사한 뒤 더했다. 읽기와 더하기 사이에 같은 사용자의 다른 요청이 끼어들어 둘 다 검사를 통과했다.
 - 해결: S1. `INSERT ... ON CONFLICT DO NOTHING`으로 매수 행을 만든 뒤 `held_count + n <= max` 조건부 UPDATE로 검사와 반영을 한 문장에 묶고, 0행이면 `PURCHASE_LIMIT_EXCEEDED`로 끝낸다(SA 12-7 ①). 커밋 `5b2a9b4`. C4 30라운드 모두 4매 이하. 근거는 [concurrency-results.md](design/reservation/concurrency-results.md) 2·3절이다.
 - 배운 점: "읽고 검사하고 쓴다"는 동시 요청 앞에서 깨진다. 검사 조건을 쓰는 문장의 WHERE에 넣으면 DB가 행 잠금으로 순서를 정한다.
 
-### TS-54 같은 멱등키로 연타하면 자기 요청끼리 부딪혀 409를 받는다
+### TS-56 같은 멱등키로 연타하면 자기 요청끼리 부딪혀 409를 받는다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C5(같은 멱등키 3연타, 30라운드)에서 201이 30건, 자기 요청이 받은 409가 60건이었다. 더블 클릭이나 네트워크 재전송이면 사용자는 자기 좌석을 "이미 선점됨"으로 본다.
 - 원인: 멱등키 기록을 선점 처리 끝에 남겼다. 같은 키의 두 요청이 모두 "처음 온 요청"으로 들어가 같은 좌석을 잡으려 했고, 뒤 요청이 좌석 경쟁에서 졌다.
 - 해결: S2. 멱등키를 매수·좌석보다 먼저 `seat_hold_requests`(REQUESTED)로 INSERT하고 끝에 HELD로 바꾼다. PK 위반이면 트랜잭션 밖에서 새 읽기 트랜잭션으로 앞 요청 결과를 읽어 같은 응답을 준다. 커밋 `4eaa6d3`. C5 201 90건, 자기 요청 409 0건.
 - 배운 점: 멱등 처리는 "같은 요청인지"를 가장 먼저 정해야 한다. 키 기록이 늦으면 같은 요청끼리 자원 경쟁을 한다.
 
-### TS-55 잠긴 좌석을 노린 선점이 앞 트랜잭션이 끝날 때까지 끝없이 기다린다
+### TS-57 잠긴 좌석을 노린 선점이 앞 트랜잭션이 끝날 때까지 끝없이 기다린다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C3(좌석 잠금을 2초 쥔 트랜잭션 + 같은 좌석을 노린 5명, 3라운드)에서 p50 약 2,000ms, 최대 2,215ms를 기다렸다. 기다리는 동안 커넥션을 쥐어 다른 선점도 막는다.
 - 원인: 좌석 UPDATE에 잠금 대기 상한이 없었다. 여러 좌석을 잠그는 순서도 요청마다 달랐다.
 - 해결: S3. 멱등키 선점 뒤 `set_config('lock_timeout', '500ms', true)`를 걸고, 좌석 UPDATE를 `ORDER BY id FOR UPDATE` 하위 쿼리로 바꿨다. 잠금 실패는 409 `SEAT_ALREADY_HELD`다. 커밋 `3b9b0bf`. C3 p50 약 560ms, 모두 409. 다만 최대가 1,060~1,305ms로 목표 1,000ms를 넘었다. `lock_timeout`은 잠금 시도마다 따로 걸려(PostgreSQL 문서) 같은 행을 여럿이 기다리면 약 2배까지 기다릴 수 있다. 코드가 아니라 목표가 동작과 맞지 않아 목표를 1,500ms로 고쳤다(`971eec2`, concurrency-results.md 4-3절).
 - 배운 점: `lock_timeout`은 문장 상한이 아니라 잠금 시도당 상한이다. 테스트 목표는 설정값이 아니라 그 동작에서 끌어낸다.
 
-### TS-56 만료 스케줄러 두 개가 같은 만료 건을 서로 집어 헛수고한다
+### TS-58 만료 스케줄러 두 개가 같은 만료 건을 서로 집어 헛수고한다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C6(만료 100건, 인스턴스 2개)에서 집었지만 만료하지 못한 시도(헛수고)가 100건, 소요 1,191ms였다.
 - 원인: 두 인스턴스가 같은 조회로 같은 만료 대상을 묶음으로 읽고, 한쪽이 처리하는 동안 다른 쪽은 잠금을 기다리다 이미 처리된 건을 다시 봤다.
 - 해결: S4. 건별 트랜잭션 안에서 `FOR UPDATE SKIP LOCKED LIMIT 1`로 한 건씩 집는다. 잠긴 건은 건너뛰어 다른 인스턴스와 겹치지 않는다. 실패한 예매는 그 주기에서 뺀다. 잠금 순서(예매 → 좌석 → 매수)는 그대로다. 커밋 `c307621`. C6 헛수고 0, 733ms.
 - 배운 점: 여러 작업자가 같은 큐 테이블을 나눠 처리할 때는 `SKIP LOCKED`로 집는다. k6 측정은 만료 스케줄러를 끄고 인스턴스 하나로 재므로 이 결함을 보지 못한다.
 
-### TS-57 k6 메모리 상한 때문에 Gateway 인증 차단기 열림을 서버 밖 한계로 잘못 읽었다
+### TS-59 k6 메모리 상한 때문에 Gateway 인증 차단기 열림을 서버 밖 한계로 잘못 읽었다
 - 서비스·작성: loadtest·gateway / kwonwoo / 2026-11-10
 - 문제: 새 측정 기기(i9-14900HX, Docker VM 32코어·16GiB)에서 K1 S 1,280명 단계의 좌석 조회 성공이 3회에 81.1%·15.5%·44.1%로 흔들렸고, 실패는 모두 Gateway 인증 차단기(`auth-redis`)의 즉시 503이었다. K1-H 800명도 19~23%였다. 그래서 "남은 한계는 부하 생성기와 Gateway"로 판단하고 K1 개선을 P4c에서 멈췄다. Gateway를 우회한 K1-H 탐색 회는 k6가 `k6_exit` 137로 죽었다.
 - 원인: 이전 기기(VM 7.6GiB)를 지키려 둔 k6 상한(`K6_MEMORY` 2.5GiB, `GOMEMLIMIT` 2GiB)이 새 기기에서 큰 단계(K1 S 640명 이상, K1-H 400명 이상)의 k6 메모리(약 1.9~2GiB)에 닿았다. k6가 GC로 멈췄다 요청을 몰아 보내 CPU를 16~24코어까지 썼다. 그 몰림이 Gateway의 Redis 확인을 순간적으로 몰아 차단기를 더 자주 연 것으로 본다(Gateway 내부는 확인하지 않음).

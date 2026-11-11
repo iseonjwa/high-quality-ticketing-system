@@ -1,5 +1,8 @@
 package com.iseonjwa.payment.ops;
 
+import com.iseonjwa.payment.pg.application.PgClients;
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.ops.application.OpsArguments;
 import com.iseonjwa.payment.ops.application.OpsPgLookup;
 import com.iseonjwa.payment.ops.application.OpsPlanHash;
@@ -65,6 +68,7 @@ import static org.mockito.Mockito.when;
 // Note: 이 설정의 컨텍스트는 다른 테스트가 재사용하지 못한다. 캐시에 남으면 커넥션 풀이 테스트 DB의 max_connections(100)를 채운다
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 @DirtiesContext
 class RefundRetryTest {
     private static final Instant PG_REFUNDED_AT = Instant.parse("2026-11-03T02:00:00Z");
@@ -77,7 +81,7 @@ class RefundRetryTest {
     @Autowired RefundRetryService retryService;
     @Autowired RefundWorkerService worker;
     @Autowired OpsProperties properties;
-    @Autowired ObjectProvider<PgClient> pgProvider;
+    @Autowired ObjectProvider<PgClients> pgProvider;
     @Autowired @Qualifier("commonAuditingClock") Clock clock;
     @MockitoBean PgClient pg;
 

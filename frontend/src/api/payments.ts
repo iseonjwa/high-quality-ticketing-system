@@ -71,17 +71,64 @@ export type PaymentDetail = z.infer<typeof paymentDetailSchema>
 // 예매 조회로 토큰을 다시 받았다면 옛 키로 보내면 409 IDEMPOTENCY_KEY_REUSED다. 그때는 새 키로 보낸다
 // (같은 예매의 기존 결제에 연결돼 PG를 다시 부르지 않는다, api.md 표 B).
 // APPROVED는 돈이 승인됐다는 뜻이고 예매 확정은 getReservation이 CONFIRMED가 될 때까지 다시 조회해 확인한다.
+// clientPaymentRef는 토스 결제창이 준 paymentKey다. MOCK 모드에는 없다.
+// pgProvider: 'MOCK'은 토스 모드에서 결제창 없이 Mock PG로 승인하는 시연용 건너뛰기다(checkout의 mockBypass가 true일 때).
+// Note: 값이 없는 필드는 본문에 키를 넣지 않는다. 서버의 요청 해시가 "값 없음"과 같아야 같은 요청으로 본다.
 export function approvePayment(
-  body: { paymentToken: string; amount: number; method: 'CARD' },
+  body: {
+    paymentToken: string
+    amount: number
+    method: 'CARD'
+    clientPaymentRef?: string
+    pgProvider?: 'MOCK'
+  },
   idempotencyKey: string,
   options: { signal?: AbortSignal } = {},
 ) {
+  const { clientPaymentRef, pgProvider, ...rest } = body
   return apiRequest({
     method: 'POST',
     path: '/payments',
-    body,
+    body: {
+      ...rest,
+      ...(clientPaymentRef === undefined ? {} : { clientPaymentRef }),
+      ...(pgProvider === undefined ? {} : { pgProvider }),
+    },
     schema: paymentResultSchema,
     idempotencyKey,
+    signal: options.signal,
+  })
+}
+
+// 결제 준비 응답. 서버의 PG 모드(provider)로 나뉜다. TOSS일 때만 orderId·clientKey가 온다(api.md 1-1절).
+// MOCK이면 바로 승인을 부르고, TOSS면 clientKey로 결제창을 연다. 클라이언트 키는 이 응답으로만 받는다.
+// mockBypass는 토스 모드에서 "토스연동 건너뛰고 결제하기"를 보일지다. 이 필드가 없던 서버는 false로 읽는다
+export const checkoutSchema = z.discriminatedUnion('provider', [
+  z.object({
+    provider: z.literal('MOCK'),
+    amount: won,
+    orderName: z.string(),
+    mockBypass: z.boolean().default(false),
+  }),
+  z.object({
+    provider: z.literal('TOSS'),
+    // 토스가 받는 orderId는 6~64자다
+    orderId: z.string().min(6).max(64),
+    clientKey: z.string().min(1),
+    amount: won,
+    orderName: z.string(),
+    mockBypass: z.boolean().default(false),
+  }),
+])
+export type CheckoutResult = z.infer<typeof checkoutSchema>
+
+// 결제창을 열기 전에 부른다. 멱등키가 없는 조회성 호출이라 다시 불러도 된다. 토큰이 못 쓰게 됐으면 403 PAYMENT_TOKEN_INVALID
+export function checkoutPayment(paymentToken: string, options: { signal?: AbortSignal } = {}) {
+  return apiRequest({
+    method: 'POST',
+    path: '/payments/checkout',
+    body: { paymentToken },
+    schema: checkoutSchema,
     signal: options.signal,
   })
 }

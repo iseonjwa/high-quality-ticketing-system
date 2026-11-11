@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
@@ -279,6 +280,6 @@ class PaymentTransitionServiceTest {
     private Payment requested() {
         var reservationId = RESERVATION_IDS.incrementAndGet();
         return payments.save(Payment.request("PAY-" + reservationId, reservationId, 1L, AMOUNT, PaymentMethod.CARD,
-                UUID.randomUUID(), Instant.now()));
+                UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
     }
 }
