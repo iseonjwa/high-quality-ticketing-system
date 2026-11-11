@@ -26,6 +26,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 부하를 늘려 가며 결제 단계별 시간과 임계치를 재는 법 | [qna/2026-11-11-payment-stage-latency-under-ramp.md](qna/2026-11-11-payment-stage-latency-under-ramp.md) |
+| 2026-11-11 | 스프링 안에서 new Thread(Runnable)로 스레드를 직접 만들어도 되나, 스레드란 무엇인가 | [qna/2026-11-11-new-thread-in-spring-and-thread-basics.md](qna/2026-11-11-new-thread-in-spring-and-thread-basics.md) |
+| 2026-11-11 | 스레드 풀 크기는 CPU 바운드와 I/O 바운드에서 어떻게 다르게 잡나 | [qna/2026-11-11-thread-pool-size-cpu-vs-io-bound.md](qna/2026-11-11-thread-pool-size-cpu-vs-io-bound.md) |
 | 2026-11-11 | 팀 공용 부하 발생기로 배포 서버를 재는 순서 (한 단계씩) | [qna/2026-11-11-loadgen-step-by-step.md](qna/2026-11-11-loadgen-step-by-step.md) |
 | 2026-11-10 | 오픈 피크 부하 시나리오 PAY1·R1·L2는 각각 무엇을 재는가 | [qna/2026-11-10-open-peak-payment-scenarios.md](qna/2026-11-10-open-peak-payment-scenarios.md) |
 | 2026-11-09 | 배포 서버에 부하 측정을 하면 AWS 요금이 더 나오나 | [qna/2026-11-09-load-test-aws-cost.md](qna/2026-11-09-load-test-aws-cost.md) |
