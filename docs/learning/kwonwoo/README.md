@@ -2,10 +2,17 @@
 
 질문 노트는 `qna/YYYY-MM-DD-<slug>.md`, 하루 정리는 `daily/YYYY-MM-DD.md`에 쓴다. 최신이 위로 온다.
 
+## 종합 학습자료
+
+| 날짜 | 내용 | 문서 |
+|---|---|---|
+| 2026-11-11 | 프로젝트 전체 흐름, API, 장애 대응, 부하 테스트 진행 현황(비유 포함) | [guide/README.md](guide/README.md) |
+
 ## 질문 노트
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 좌석 선점에 Kafka 접수형을 도입하면 어떻게 동작하고 무엇이 좋아지나 | [qna/2026-11-11-seathold-kafka-async-effects.md](qna/2026-11-11-seathold-kafka-async-effects.md) |
 | 2026-11-09 | Windows 시계를 맞추자 통과한 테스트 4건은 왜 실패했나 | [qna/2026-11-09-host-clock-drift-test-failures.md](qna/2026-11-09-host-clock-drift-test-failures.md) |
 | 2026-11-05 | 기존 K1 부하 테스트는 어떻게 진행됐고, 선점만 떼어 재는 방식(K1-H)은 무엇이 다른가 | [qna/2026-11-05-k1-vs-hold-only-scenario.md](qna/2026-11-05-k1-vs-hold-only-scenario.md) |
 | 2026-11-05 | 좌석 선점 부하 테스트에서 타임아웃이 나는 원인과 캐시 도입 지점 | [qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md](qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md) |

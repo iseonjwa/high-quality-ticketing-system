@@ -1,7 +1,7 @@
 ---
 title: 접수형 선점에 Kafka를 도입할 때 코드를 infrastructure에 넣으면 되는가
 date: 2026-11-03
-updated: 2026-11-03
+updated: 2026-11-11
 asker: kwonwoo
 level: 중급
 tags: [kafka, outbox, layered-architecture, seathold, msa]
@@ -13,6 +13,8 @@ tags: [kafka, outbox, layered-architecture, seathold, msa]
 카프카 도입 시점(M4 접수형 선점, `ISE-15`~`ISE-18`)이 다가오는데 infrastructure에 넣으면 되는가. 문서와 함께 검토해 달라.
 
 ## 짧은 답
+> 정정(2026-11-11): 같은 날 팀 회의에서 채택한 [ADR 0043](../../../decisions/0043-inbound-adapters-in-presentation.md)으로 Kafka 소비자·스케줄러는 `presentation/messaging`·`presentation/scheduling`에 둔다. 아래의 "소비자는 infrastructure" 부분은 이 ADR로 대체됐다. 생산자와 Outbox 릴레이는 그대로 infrastructure다.
+
 - Kafka 소비자·발행 코드는 `seathold/infrastructure/messaging/`에 둔다. 팀이 확정한 4계층 규칙(결정 기록 #22, SA 13장)이 "Kafka 발행·구독은 인프라 계층, application·domain에는 Kafka 코드를 두지 않는다"이고, `seathold/infrastructure/package-info.java`도 접수형 소비자를 이 계층에 둔다고 적어 두었다.
 - 다만 infrastructure에 넣는 것만으로 끝나지 않는다. 유스케이스(접수 저장, 소비 시 선점)는 application에, 접수 요청 상태 전이는 domain에 둔다.
 - Kafka 브로커(docker-compose)와 `spring-boot-starter-kafka` 의존은 이미 있다. reservation-service에 아직 없는 것은 Outbox 설정 import, `outbox_events`·`processed_events` 테이블, `seat-hold.request` 토픽과 DLQ 설정이다.
