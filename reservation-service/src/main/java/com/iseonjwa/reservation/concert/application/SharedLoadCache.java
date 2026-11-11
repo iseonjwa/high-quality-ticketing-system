@@ -42,6 +42,16 @@ final class SharedLoadCache<K, V> {
         }
     }
 
+    // 읽기를 일으키지 않고, TTL 안에 정상으로 읽힌 값만 돌려준다. 없거나 읽는 중이거나 낡았으면 null이다
+    V peekFresh(K key) {
+        Entry<V> current = entries.get(key);
+        if (current == null || !current.value().isDone() || current.value().isCompletedExceptionally()
+                || current.expired(System.nanoTime(), ttlNanos)) {
+            return null;
+        }
+        return current.value().getNow(null);
+    }
+
     private V load(K key, Entry<V> mine, Supplier<V> loader) {
         try {
             V value = loader.get();

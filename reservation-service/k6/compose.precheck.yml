@@ -1,0 +1,7 @@
+# 선점 사전 거절을 켠다. 측정 브랜치 전용이다(STEPS.md "선점 사전 거절 비교").
+# 좌석 조회의 1초 상태 캐시(P4c)에 잡힌 좌석이 섞인 선점은 트랜잭션을 열지 않고 409로 돌려보낸다(HeldSeatPreCheck).
+# 단계 목록(step-overlays.txt)에 넣지 않고 EXTRA_OVERLAYS로 얹어, 같은 커밋에서 켠 회와 끈 회를 비교한다
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_PRECHECK_ENABLED: "true"

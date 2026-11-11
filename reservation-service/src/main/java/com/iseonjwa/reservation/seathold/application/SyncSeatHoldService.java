@@ -59,6 +59,7 @@ public class SyncSeatHoldService {
     private final ReservationStatusHistoryRepository histories;
     private final SeatHoldRequestRepository seatHoldRequests;
     private final PaymentTokenIssuer paymentTokenIssuer;
+    private final HeldSeatPreCheck preCheck;
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
@@ -67,7 +68,7 @@ public class SyncSeatHoldService {
     public SyncSeatHoldService(SeatHoldInventoryRepository inventory, UserScheduleQuotaRepository quotas,
             ReservationRepository reservations, ReservationSeatRepository reservationSeats,
             ReservationStatusHistoryRepository histories,
-            SeatHoldRequestRepository seatHoldRequests, PaymentTokenIssuer paymentTokenIssuer,
+            SeatHoldRequestRepository seatHoldRequests, PaymentTokenIssuer paymentTokenIssuer, HeldSeatPreCheck preCheck,
             @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager) {
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -79,6 +80,7 @@ public class SyncSeatHoldService {
         this.histories = histories;
         this.seatHoldRequests = seatHoldRequests;
         this.paymentTokenIssuer = paymentTokenIssuer;
+        this.preCheck = preCheck;
         this.clock = clock;
     }
 
@@ -88,6 +90,12 @@ public class SyncSeatHoldService {
      */
     public SeatHoldResult hold(HoldSeatsCommand command) {
         var seatIds = sortedDistinctSeatIds(command.seatIds());
+        if (preCheck.surelyHeld(command.scheduleId(), seatIds)) {
+            // Note: 같은 멱등키의 재요청이면 자기 좌석이 잡혀 보인다. 멱등키만 PK로 한 번 보고, 있으면 지금처럼 재응답한다
+            return readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                    .map(previous -> replay(previous, command, seatIds))
+                    .orElseThrow(() -> new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD)));
+        }
         try {
             return writeTransaction.execute(status -> holdInTransaction(command, seatIds));
         } catch (ConcurrentSameKeyException lost) {

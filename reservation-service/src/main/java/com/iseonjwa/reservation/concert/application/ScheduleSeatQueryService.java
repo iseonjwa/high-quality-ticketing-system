@@ -52,6 +52,21 @@ public class ScheduleSeatQueryService {
         return merge(layout, holdableSeatIds);
     }
 
+    // 선점 사전 거절(측정 브랜치 전용). 1초 상태 캐시가 TTL 안에 있고, 요청 좌석 중 하나라도 선점 가능 목록에 없으면 true다.
+    // 캐시가 없거나 낡았으면 false라 DB가 판정한다. 캐시를 새로 읽지 않으므로 선점 경로에 DB 조회를 더하지 않는다
+    public boolean anyNotHoldableInFreshState(Long scheduleId, List<Long> seatIds) {
+        long[] holdableSeatIds = stateCache.peekFresh(scheduleId);
+        if (holdableSeatIds == null) {
+            return false;
+        }
+        for (Long seatId : seatIds) {
+            if (Arrays.binarySearch(holdableSeatIds, seatId) < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Note: 배치를 읽은 뒤 생긴 좌석은 응답에 나오지 않는다. 측정은 좌석을 만든 회차만 부르므로 문제 되지 않는다.
     // 본 구현(ISE-189)에서는 좌석 생성·삭제 때 배치 캐시를 비우는 경로가 필요하다
     private static List<SeatMapRow> merge(List<SeatLayoutRow> layout, long[] holdableSeatIds) {
