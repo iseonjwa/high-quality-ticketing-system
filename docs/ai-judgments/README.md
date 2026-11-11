@@ -48,6 +48,7 @@
 | 2026-11-10 | 11/11 회의에서 개선안을 정하고 11/13에 재측정하자는 AI 일정을 거부하고, 개선 적용과 재측정을 최대한 앞당기기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-pull-forward-improvement-remeasure.md) |
 | 2026-11-10 | 서버 명령을 측정자가 직접 치고 에이전트는 안내만 하는 방식 대신, 11/10 측정에서는 에이전트가 배포 서버·발생기 명령을 직접 실행하게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-10-agent-runs-server-commands-during-measurement.md) |
 | 2026-11-10 | 추첨 배포 측정 전 점검의 추천(L1 503 메시지 태그, 응모 3만 명·시각, 반복 조건, PAY_RATE 20·30)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-10-lottery-server-measurement-conditions.md) |
+| 2026-11-10 | E 값 Q1 재측정에서 차단기가 열리지 않아 데운 단계 멈춤 기준을 오류율 10%·p95 1초로 바꾸고 워밍업의 초당 3,000명 구간을 뺌 | youngeun | Claude Code | 부분 수용 | 후보 | [기록](youngeun/2026-11-10-e-values-warm-stop-rule.md) |
 | 2026-11-10 | 식은 Gateway Q1 결과 문서에서 실패 1.0s를 "제한시간 1s 실패"가 아니라 "100ms 시한 초과의 기록값일 가능성"(dev #463 근거)으로 쓰기로 함 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-10-slow-call-threshold-cold-gateway.md) |
 | 2026-11-10 | bulkhead 비교 전에 워밍업 방식부터 확인하고 덤 몰림 포함 워밍업을 표준으로 정함. bulkhead 25·100 모두 Q1 한도 같음 | youngeun | Claude Code | 수용 | 후보 | [기록](youngeun/2026-11-10-bulkhead-comparison-warmup-standard.md) |
 | 2026-11-10 | **배포 Q1 auth-redis 차단기 열림에 측정용 차단기 기준 완화를 거부하고 워밍업 뒤 재측정을 고름** | youngeun | Claude Code | **거부** | 후보 | [기록](youngeun/2026-11-10-no-breaker-relax-for-measurement.md) |
