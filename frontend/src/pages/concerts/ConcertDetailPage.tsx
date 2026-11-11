@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Armchair, ChevronLeft, CreditCard, PartyPopper, Users } from 'lucide-react'
+import { Armchair, ChevronLeft, CreditCard, PartyPopper, Ticket, Users } from 'lucide-react'
 import { useId, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
@@ -10,7 +10,8 @@ import {
   type SaleStatus,
   type ScheduleSummary,
 } from '@/api/concerts'
-import { paths, queuePath } from '@/app/paths'
+import { getScheduleLottery, lotteryQueryKeys, type Lottery } from '@/api/lotteries'
+import { lotteryPath, paths, queuePath } from '@/app/paths'
 import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
 import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
 import { concertArt, WIDE_SIZE } from '@/components/ticketing/concertArt'
@@ -26,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
+import { lotteryPhaseOf, type LotteryPhase } from '@/lib/lotteryPhase'
 import { saleStatusAt } from '@/lib/saleStatus'
 import { readRouteId } from '@/lib/routeId'
 import { createServerClock, useNow, type ServerClock } from '@/lib/serverClock'
@@ -430,12 +432,97 @@ function ChosenSchedule({
             ? `1인 최대 ${schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 골라요`
             : `1인 최대 ${schedule.maxPerUser}매 · 대기열을 거쳐 좌석을 골라요`}
       </p>
+      <ScheduleLotteryNotice scheduleId={schedule.scheduleId} clock={clock} />
       {/* 카운트다운은 매초 읽지 않으므로(timer) 열린 순간만 알린다. 알림 영역은 처음부터 있어야 읽힌다 */}
       <p aria-live="polite" className="sr-only">
         {openedLater && status === 'ON_SALE' ? '예매가 열렸어요' : ''}
       </p>
     </div>
   )
+}
+
+// 고른 회차의 추첨 안내(ISE-227). 회차에 추첨이 있으면 단계에 맞는 문구와 추첨 화면으로 가는 링크를 보인다.
+// 추첨이 없거나(404) 아직 받는 중이거나 받지 못했으면 아무것도 그리지 않는다. 추첨은 예매 패널의 보조 안내라 실패를 알리지 않는다.
+// Note: 오픈 순간에는 상세 화면이 몰리고 API 앞에 캐시가 없다. 고른 회차 하나만 받고, 추첨 설정은 자주 바뀌지 않아
+// 5분 동안 다시 받지 않으며, 실패해도 다시 시도하지 않는다(보조 안내라 실패를 알리지 않는다). 운영자 설정·추첨 화면이
+// 같은 회차 키를 갱신한다(AdminLotteryNewPage·AdminLotteryPage·LotteryPage).
+// 단계는 공연 응답의 서버 시계로 나눠 [예매하기] 카운트다운과 같은 시각을 쓰고, 부모와 상관없이 1초마다 다시 정한다
+function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; clock: ServerClock }) {
+  const titleId = useId()
+  const detailId = useId()
+  const now = useNow(1000, clock)
+  const lottery = useQuery({
+    queryKey: lotteryQueryKeys.ofSchedule(scheduleId),
+    queryFn: () => getScheduleLottery(scheduleId),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+  if (!lottery.data) {
+    return null
+  }
+  const copy = lotteryNoticeCopy(lottery.data, lotteryPhaseOf(lottery.data, now))
+  return (
+    <div className="flex items-center gap-3 rounded-[14px] bg-primary-50 p-3.5">
+      {/* 좁은 화면(앱 화면 28rem 미만)에서는 아이콘을 숨긴다. 두면 390px에서 마감 시각 줄의 "마감"만 다음 줄로 떨어졌다 */}
+      <span
+        aria-hidden="true"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-0 text-primary-600 @max-[28rem]:hidden"
+      >
+        <Ticket className="size-[18px]" />
+      </span>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <p id={titleId} className="type-body-sm font-semibold text-gray-900">
+          {copy.title}
+        </p>
+        <p id={detailId} className="type-caption text-gray-600 tabular-nums">
+          {copy.detail}
+        </p>
+      </div>
+      <Button asChild variant="outline" size="sm" className="shrink-0 rounded-full">
+        <Link to={lotteryPath(lottery.data.lotteryId)} aria-describedby={`${titleId} ${detailId}`}>
+          {copy.action}
+        </Link>
+      </Button>
+    </div>
+  )
+}
+
+// 응모 기간 전·중·후로 문구를 바꾼다. 추첨 화면의 단계(LotteryPage)와 같은 기준이다
+function lotteryNoticeCopy(
+  lottery: Lottery,
+  phase: LotteryPhase,
+): { title: string; detail: string; action: string } {
+  switch (phase) {
+    case 'beforeEntry':
+      return {
+        title: `추첨석 ${lottery.seatCount}석 · 응모 예정`,
+        detail: `${formatDateTime(lottery.entryStartAt)} 응모 시작`,
+        action: '응모 안내',
+      }
+    case 'entry':
+      return {
+        title: `추첨석 ${lottery.seatCount}석 · 응모 중`,
+        detail: `${formatDateTime(lottery.entryEndAt)} 마감`,
+        action: '추첨 응모',
+      }
+    case 'afterEntry':
+      return {
+        title: '추첨 응모 마감',
+        detail: `${formatDateTime(lottery.drawAt)} 추첨`,
+        action: '추첨 보기',
+      }
+    // 이 안내는 추첨 결과를 다시 받지 않으므로 "곧 정해요"처럼 바뀔 것을 약속하지 않는다
+    case 'drawing':
+      return {
+        title: '추첨 시각이 지났어요',
+        detail: '결과는 추첨 화면에서 봐요',
+        action: '추첨 보기',
+      }
+    case 'drawn':
+    case 'done':
+      return { title: '추첨 완료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+  }
 }
 
 function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
@@ -576,8 +663,8 @@ function BookingGuide() {
             결제 결과를 바로 알 수 없으면 "확인 중"으로 보이고, 결과가 나오면 화면이 바뀌어요.
           </li>
           <li>
-            일부 좌석은 추첨으로 팔아요. 운영자가 안내한 응모 화면에서 응모하고, 당첨되면 자동결제
-            카드로 결제돼요.
+            추첨이 있는 회차는 일부 좌석을 추첨으로 팔아요. 회차를 고르면 보이는 [추첨 응모]에서
+            응모하고, 당첨되면 자동결제 카드로 결제돼요.
           </li>
         </ul>
         <AssistantHint />

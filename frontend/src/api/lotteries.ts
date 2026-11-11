@@ -55,6 +55,7 @@ export type LotteryEntry = z.infer<typeof entrySchema>
 
 export const lotteryQueryKeys = {
   info: (lotteryId: number) => ['lotteries', 'info', lotteryId] as const,
+  ofSchedule: (scheduleId: number) => ['lotteries', 'ofSchedule', scheduleId] as const,
   myEntry: (lotteryId: number) => ['lotteries', 'myEntry', lotteryId] as const,
 }
 
@@ -65,6 +66,24 @@ export function getLottery(lotteryId: number) {
     schema: lotterySchema,
     auth: false,
   })
+}
+
+// 회차의 추첨(ISE-227, ScheduleLotteryController). 공개 조회이고 응답은 getLottery와 같다.
+// 추첨이 없는 회차(지운 추첨 포함)는 404라 화면이 다루기 쉽게 null로 돌려준다
+export async function getScheduleLottery(scheduleId: number): Promise<Lottery | null> {
+  try {
+    return await apiRequest({
+      method: 'GET',
+      path: `/schedules/${scheduleId}/lottery`,
+      schema: lotterySchema,
+      auth: false,
+    })
+  } catch (error) {
+    if (isApiError(error, 'NOT_FOUND')) {
+      return null
+    }
+    throw error
+  }
 }
 
 // 응모하지 않았으면 404다. 화면이 다루기 쉽게 null로 돌려준다
