@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
 | 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
 | 2026-11-11 | 부하를 늘려 가며 결제 단계별 시간과 임계치를 재는 법 | [qna/2026-11-11-payment-stage-latency-under-ramp.md](qna/2026-11-11-payment-stage-latency-under-ramp.md) |
 | 2026-11-11 | 스프링 안에서 new Thread(Runnable)로 스레드를 직접 만들어도 되나, 스레드란 무엇인가 | [qna/2026-11-11-new-thread-in-spring-and-thread-basics.md](qna/2026-11-11-new-thread-in-spring-and-thread-basics.md) |
