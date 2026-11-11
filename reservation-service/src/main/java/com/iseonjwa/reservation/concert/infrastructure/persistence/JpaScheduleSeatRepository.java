@@ -77,11 +77,11 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     }
 
     @Override
-    public int releaseSoldSeats(Long scheduleId, List<Long> seatIds, Instant now) {
+    public int releaseSoldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {
         if (seatIds.isEmpty()) {
             return 0;
         }
-        return springDataScheduleSeatRepository.updateSoldToAvailable(scheduleId, seatIds, now);
+        return springDataScheduleSeatRepository.updateSoldToAvailable(scheduleId, seatIds, now, actorId);
     }
 
     // 빈 목록을 IN ()에 넘기면 SQL 문법 오류라 바꿀 좌석이 없으면 부르지 않는다

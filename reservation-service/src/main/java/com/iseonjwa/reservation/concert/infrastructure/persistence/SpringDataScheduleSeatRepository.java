@@ -101,11 +101,11 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
     @Modifying(flushAutomatically = true)
     @Query(nativeQuery = true, value = """
             UPDATE schedule_seats
-            SET status = 'AVAILABLE', updated_at = :now, updated_by = NULL
+            SET status = 'AVAILABLE', updated_at = :now, updated_by = :actorId
             WHERE schedule_id = :scheduleId AND id IN (:seatIds) AND status = 'SOLD'
             """)
     int updateSoldToAvailable(@Param("scheduleId") Long scheduleId, @Param("seatIds") List<Long> seatIds,
-                              @Param("now") Instant now);
+                              @Param("now") Instant now, @Param("actorId") Long actorId);
 
     @Query(nativeQuery = true, value = "SELECT count(*) FROM schedule_seats WHERE grade = 'LOTTERY' AND deleted_at IS NULL")
     long countAllLotterySeats();

@@ -71,7 +71,7 @@ public class ReservationCancelService {
         subtractQuota(reservation, now, userId);
         var confirmedSeats = confirmedSeats(reservationId);
         reservationSeats.releaseConfirmed(reservationId, now, userId);
-        releaseScheduleSeats(reservation, confirmedSeats, now);
+        releaseScheduleSeats(reservation, confirmedSeats, now, userId);
         tickets.voidIssuedByReservation(reservationId, now, userId);
         histories.save(ReservationStatusHistory.of(reservationId, ReservationStatus.CONFIRMED,
                 ReservationStatus.CANCELED, CANCEL_REASON, now));
@@ -114,8 +114,10 @@ public class ReservationCancelService {
         }
     }
 
-    private void releaseScheduleSeats(Reservation reservation, List<ReservationSeat> confirmedSeats, Instant now) {
-        var released = scheduleSeats.releaseSoldSeats(reservation.getScheduleId(), scheduleSeatIds(confirmedSeats), now);
+    private void releaseScheduleSeats(Reservation reservation, List<ReservationSeat> confirmedSeats, Instant now,
+            Long userId) {
+        var released = scheduleSeats.releaseSoldSeats(reservation.getScheduleId(), scheduleSeatIds(confirmedSeats), now,
+                userId);
         if (released != confirmedSeats.size()) {
             log.warn("취소한 예매의 회차 좌석 일부가 SOLD가 아니었습니다. reservationId={}, seats={}, released={}",
                     reservation.getId(), confirmedSeats.size(), released);
@@ -128,13 +130,13 @@ public class ReservationCancelService {
                 .toList();
     }
 
-    // 좌석 ID 오름차순으로 넘긴다(SA 8-4 잠금 순서)
+    // Note: IN 목록의 순서는 UPDATE가 행을 잠그는 순서를 정하지 않는다. 그래도 여기서는 순서가 엇갈릴 상대가 없다.
+    // 같은 예매의 취소끼리는 앞의 예매 행 잠금에서 줄을 서고, 선점은 AVAILABLE 좌석만 잠가 SOLD 좌석을 건드리지 않는다
     private static List<Long> scheduleSeatIds(List<ReservationSeat> seats) {
         var ids = new ArrayList<Long>();
         for (var seat : seats) {
             ids.add(seat.getScheduleSeatId());
         }
-        ids.sort(null);
         return ids;
     }
 

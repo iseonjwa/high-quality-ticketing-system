@@ -247,7 +247,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 1. 예매 `CONFIRMED → CANCELED`. `updated_at`을 갱신한다. 결제 서비스 대사(ADR 0029)가 `updated_at`으로 취소를 찾는다.
 2. 사용자·회차별 보유 매수(`user_schedule_quotas.held_count`)를 예매 수량만큼 뺀다.
 3. 예매 좌석 `CONFIRMED → RELEASED`. 부분 유니크 인덱스에서 빠져 같은 좌석을 다시 선점할 수 있다.
-4. 회차 좌석 `SOLD → AVAILABLE`. 좌석 ID 오름차순으로 바꾼다(SA 8-4).
+4. 회차 좌석 `SOLD → AVAILABLE`. 같은 예매의 취소끼리는 1번의 예매 행 잠금에서 줄을 서고, 좌석 선점은 `AVAILABLE` 좌석만 잠가 `SOLD` 좌석과 잠금 순서가 엇갈리지 않는다.
 5. 티켓 `ISSUED → VOID`.
 6. 상태 이력 `CONFIRMED → CANCELED`(사유 `USER_CANCELED`).
 7. outbox에 `RefundRequested` 한 건을 쓴다.
