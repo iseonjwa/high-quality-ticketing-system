@@ -47,13 +47,14 @@ public class PaymentResultService {
     public static final String CONSUMER_GROUP = "reservation.payment-result";
     static final String REFUND_TOPIC = "payment.command";
     static final String REFUND_EVENT_TYPE = "RefundRequested";
-    private static final int REFUND_EVENT_VERSION = 1;
-    private static final String CURRENCY = "KRW";
+    static final int REFUND_EVENT_VERSION = 1;
+    static final String CURRENCY = "KRW";
 
     // RefundRequested.reason (SA 10-3)
     static final String EXPIRED_AFTER_APPROVAL = "EXPIRED_AFTER_APPROVAL";
     static final String DUPLICATE_APPROVAL = "DUPLICATE_APPROVAL";
     static final String NOT_CONFIRMABLE = "NOT_CONFIRMABLE";
+    static final String CANCELED = "CANCELED";
 
     private static final Logger log = LoggerFactory.getLogger(PaymentResultService.class);
 
@@ -240,6 +241,7 @@ public class PaymentResultService {
                 REFUND_EVENT_VERSION, RefundRequestedPayload.of(approved, reason));
     }
 
+    // Note: Loki 건별 알림 규칙(PaymentResultAnomalyEvent)이 이 줄 형식을 읽는다. 바꾸면 규칙과 script/check-loki-rules.sh를 함께 바꾼다.
     private static void anomaly(PaymentResult result, String reason) {
         log.error("event=PAYMENT_RESULT_ANOMALY type={} eventId={} reservationId={} paymentId={} reason={}",
                 result.getType(), result.getEventId(), result.getReservationId(), result.getPaymentId(), reason);

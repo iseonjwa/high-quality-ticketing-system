@@ -39,6 +39,9 @@ public interface ReservationRepository {
     // HELD인 예매만 RELEASED로 바꾼다(결제 거절). 0이면 다른 쪽이 먼저 상태를 바꾼 것이다
     int releaseHeld(Long reservationId, Instant now);
 
+    // CONFIRMED인 예매만 CANCELED로 바꾼다(예매 취소). 0이면 그사이 다른 요청이 상태를 바꾼 것이다
+    int cancelConfirmed(Long reservationId, Instant now, Long actorId);
+
     /**
      * 기한이 지난 추첨 예매의 선점을 한 번만 30분 연장한다(D12, 결제 결과를 받지 못한 만료). 상한을 넘기지 않는다.
      *

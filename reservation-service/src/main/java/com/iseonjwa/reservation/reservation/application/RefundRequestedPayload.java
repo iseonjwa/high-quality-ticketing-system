@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.reservation.application;
 
+import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -23,5 +24,12 @@ public class RefundRequestedPayload {
     public static RefundRequestedPayload of(PaymentResult approved, String reason) {
         return new RefundRequestedPayload(approved.getReservationId(), approved.getPaymentId(), approved.getUserId(),
                 approved.getAmount(), approved.getCurrency(), reason);
+    }
+
+    // 사용자가 확정 예매를 취소했다. 환불할 결제는 예매에 남은 결제 ID이고 금액은 예매 총액이다
+    public static RefundRequestedPayload canceled(Reservation reservation) {
+        return new RefundRequestedPayload(reservation.getId(), reservation.getPaymentId(), reservation.getUserId(),
+                reservation.getTotalAmount().toBigDecimal(), PaymentResultService.CURRENCY,
+                PaymentResultService.CANCELED);
     }
 }
