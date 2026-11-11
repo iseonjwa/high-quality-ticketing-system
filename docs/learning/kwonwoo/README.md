@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-10 | 잠금이 걸린 데이터에 트래픽을 몰아 보내는 부하 테스트로 무엇을 얻을 수 있나 | [qna/2026-11-10-hot-lock-load-test.md](qna/2026-11-10-hot-lock-load-test.md) |
+| 2026-11-10 | K1 단계 측정(F)까지 끝낸 뒤 성능을 더 끌어올릴 방법은 무엇인가 | [qna/2026-11-10-performance-beyond-k1-results.md](qna/2026-11-10-performance-beyond-k1-results.md) |
 | 2026-11-10 | 좌석 조회 P4a에서 dev 코드와 측정 브랜치 코드는 무엇이 다른가 | [qna/2026-11-10-p4a-jpql-vs-native-projection.md](qna/2026-11-10-p4a-jpql-vs-native-projection.md) |
 | 2026-11-10 | k6 스트레스 측정에서 올린 것은 동시 사용자 수인가, 도착률인가 | [qna/2026-11-10-arrival-rate-vs-concurrent-users.md](qna/2026-11-10-arrival-rate-vs-concurrent-users.md) |
 | 2026-11-09 | git bundle로 브랜치를 옮기는 방법과 push와의 차이 | [qna/2026-11-09-git-bundle-vs-push.md](qna/2026-11-09-git-bundle-vs-push.md) |
