@@ -18,9 +18,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -127,6 +132,39 @@ class ReservationCancelApiTest {
         assertEquals(1, refundCount(reservationId));
         assertEquals(1, historyCount(reservationId));
         assertEquals(0, heldCount());
+    }
+
+    @Test
+    void 동시에_여러_번_취소해도_모두_202이고_환불_요청은_한_건이다() throws Exception {
+        var reservationId = confirmedReservation(userId, "GENERAL");
+        var threads = 8;
+        var ready = new CountDownLatch(threads);
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(threads);
+        try {
+            var futures = new ArrayList<Future<Response>>();
+            for (int i = 0; i < threads; i++) {
+                futures.add(pool.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return cancel(reservationId, userId, UUID.randomUUID().toString());
+                }));
+            }
+            ready.await();
+            start.countDown();
+            for (var future : futures) {
+                var response = future.get(30, TimeUnit.SECONDS);
+                assertEquals(202, response.status(), response.body());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals("CANCELED", reservationStatus(reservationId));
+        assertEquals(1, refundCount(reservationId));
+        assertEquals(1, historyCount(reservationId));
+        assertEquals(0, heldCount());
+        assertEquals(List.of("AVAILABLE", "AVAILABLE"), scheduleSeatStatuses());
     }
 
     @Test
