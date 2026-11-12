@@ -552,7 +552,9 @@
   - 감수: 거절된 요청은 traceId(응답 본문 `traceId` null), 요청 로그, `http_server_requests` 503 집계에서 빠진다. 거절 수는 `gateway_in_flight_rejected_total`로 센다. 경보 규칙은 `http_server_requests`를 쓰지 않는다(확인).
   - 판정 기준(측정 전에 정함): 7차에서 L64 2,500/s 한 건당 Gateway CPU가 6차 0.71ms와 차이가 없으면 관측 비용 가설은 틀린 것이다.
   - 7차 결과: 한 건당 0.71 → 0.72ms, 서버 CPU ±1%p로 기준대로면 실패다. 굿풋은 2,500/s 1,608 → 1,814, p95는 104 → 78ms로 나아졌다. 포화 단계의 한 건당 값은 Gateway가 받은 CPU 몫 ÷ 처리량이라 이 기준이 가설을 가리지 못했고, 성공 한 건당으로는 1.10 → 0.99ms(계산값)다. 동시 수 상한은 남은 CPU를 받은 요청이 다시 쓰는 작업 보존형이라 과부하의 서버 CPU는 내려가지 않는다([학습 노트](learning/kangmin/qna/2026-11-11-h1-reinterpret-netty-cost.md)).
-  - 같은 날 H2(요청 로그 끔, 측정 덮어쓰기)에서 1,500/s 서버 CPU가 93 → 85%로 처음 90% 아래가 됐다. Gateway CPU는 같고 Alloy·호스트 쪽이 줄었다. 운영은 실패·느린 요청만 남기는 쪽(B)으로 정했고 구현 전이다. 흐름은 [gateway-overload-troubleshooting-story.md](design/infra/gateway-overload-troubleshooting-story.md) 단계 7·8.
+  - 같은 날 H2(요청 로그 끔, 측정 덮어쓰기)에서 1,500/s 서버 CPU가 93 → 85%로 처음 90% 아래가 됐다. Gateway CPU는 같고 Alloy·호스트 쪽이 줄었다. 운영은 실패·느린 요청만 남기는 쪽(B)으로 정했다. 흐름은 [gateway-overload-troubleshooting-story.md](design/infra/gateway-overload-troubleshooting-story.md) 단계 7·8.
+  - 8차(2026-11-12) R0: 포화 전 부하에서 상한 1과 1,000을 비교해 거절 한 건을 직접 쟀다. 받은 요청 한 건 1.06ms, 거절 한 건 0.02~0.08ms(r/a 0.020~0.075)로, H1 뒤 거절은 거의 공짜다. 7차에서 못 가린 관측 비용 가설이 이것으로 뒷받침됐다.
+  - 8차 요청 로그: B안을 운영 기본 `problems`(5xx·끊긴 요청·200ms 이상만 남김, [ADR 0052](decisions/0052-request-log-problems-only-in-operation.md))로 배포하고 같은 날 끔과 두 번씩 번갈아 쟀다. 1,500/s 서버 CPU 78.5 대 79.1%로 같고, 1,000/s는 +2.9%p로 판정 보류 칸이지만 바꿀 조건(4%p)에는 닿지 않는다. 숫자 출처: [open-peak-scenarios.md](design/infra/open-peak-scenarios.md) "배포 서버 8차", 흐름은 단계 9.
 - AI 활용:
   - 6차 세션의 "상한 64 → 128" 제안을 거부하고 64를 유지했다. 2,000/s 굿풋 차이 25건(1.5%)이 같은 128을 두 번 잰 차이(5%)보다 작았고, p95는 64가 약 절반(87 대 162ms)이었다. [판단 기록(거부)](ai-judgments/kangmin/2026-11-11-keep-in-flight-limit-64.md)
   - 관측 자체를 줄이자는 안(C1·C2)은 장애 분석을 약하게 한다고 보고 보류했다. 거절된 요청의 관측만 건너뛰는 H1을 먼저 한다. [판단 기록(보류)](ai-judgments/kangmin/2026-11-11-defer-gateway-observability-reduction.md)
