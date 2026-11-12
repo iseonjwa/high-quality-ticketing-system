@@ -57,6 +57,13 @@ auth:
   # 블랙리스트 조회를 기다리는 시한. 느린 호출 기준(100ms)보다 커야 "느리지만 응답함"과 "응답 없음"이 나뉜다(ADR 0050)
   redis-timeout: 200ms
 iseonjwa:
+  # 요청 로그는 굿풋에서 빠진 요청(5xx, 클라이언트가 끊은 요청, 200ms 이상)만 남긴다. 배포 서버 7차 H2에서 요청 로그를 끄자
+  # 서버 CPU가 1,500/s 93% → 85%로 내려갔다. 정상 요청은 Zipkin 트레이스와 http_server_requests 지표로 본다.
+  # 로컬은 application-local.yml이 all로 되돌린다. 서블릿 서비스는 아직 이 값을 읽지 않는다(2단계, contract 이슈 뒤)
+  request-log:
+    mode: problems
+    min-status: 500
+    slow-threshold: 200ms
   gateway:
     in-flight:
       # Gateway 맨 앞 동시 처리 수 상한(설계 메모 A1). 굿풋이 멈춘 1,480/s에서 p95 200ms에 맞는 평균 40~45ms를 곱한
