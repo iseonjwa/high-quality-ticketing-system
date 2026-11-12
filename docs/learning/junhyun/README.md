@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 매번 전체를 다시 읽지 않고 바뀐 것만 따라 읽으려면 무엇을 기억해야 하는가 | [qna/2026-11-12-incremental-read-watermark.md](qna/2026-11-12-incremental-read-watermark.md) |
 | 2026-11-12 | 대기 없는 동시 수 제한의 크기를 어떻게 정하는가 | [qna/2026-11-12-erlang-b-bulkhead-sizing.md](qna/2026-11-12-erlang-b-bulkhead-sizing.md) |
 | 2026-11-12 | Kafka 소비자를 늘리면 순서는 어떻게 지켜지는가 | [qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md](qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md) |
 | 2026-11-12 | 서명을 확인만 하는 쪽이 서명도 할 수 있으면 왜 문제이고, 어떻게 나누는가 | [qna/2026-11-12-symmetric-vs-asymmetric-signature.md](qna/2026-11-12-symmetric-vs-asymmetric-signature.md) |
