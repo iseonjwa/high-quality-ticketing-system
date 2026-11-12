@@ -1,11 +1,14 @@
 package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.reservation.queue.domain.QueueStorageUnavailableException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -18,7 +21,9 @@ import static org.mockito.Mockito.when;
 class RedisQueueRepositoryFailureTest {
 
     final StringRedisTemplate template = mock(StringRedisTemplate.class);
-    final RedisQueueRepository repository = new RedisQueueRepository(template);
+    // 예외 변환만 본다. 기본 차단기는 최소 호출 수가 100이라 이 테스트에서는 열리지 않는다
+    final RedisQueueRepository repository = new RedisQueueRepository(template, CircuitBreaker.ofDefaults("test"),
+            new QueueRedisCircuitBreakerProperties(10, 2, 50, Duration.ofMillis(50), 80, Duration.ofSeconds(5), 2));
 
     @Test
     void 시한_초과는_대기열_저장소_예외로_바뀌고_원인이_남는다() {

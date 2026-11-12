@@ -24,8 +24,12 @@ public class QueueExceptionHandler {
 
     @ExceptionHandler(QueueStorageUnavailableException.class)
     public ResponseEntity<FailureResponse> handleQueueStorageUnavailableException(QueueStorageUnavailableException e){
+        Long retryAfterSeconds = e.retryAfter()
+                .map(retryAfter -> retryAfter.toSeconds())
+                .orElse(queueProperties.pollMin().toSeconds());
+
         return ResponseEntity.status(QueueErrorCode.QUEUE_TEMPORARILY_UNAVAILABLE.status())
-                .header(HttpHeaders.RETRY_AFTER, String.valueOf(queueProperties.pollMin().toSeconds()))
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(QueueErrorCode.QUEUE_TEMPORARILY_UNAVAILABLE, null, MDC.get("traceId")));
     }

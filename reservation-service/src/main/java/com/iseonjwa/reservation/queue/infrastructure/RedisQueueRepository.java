@@ -1,7 +1,8 @@
 package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.reservation.queue.domain.*;
-import lombok.RequiredArgsConstructor;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -9,11 +10,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
 @Repository
-@RequiredArgsConstructor
 public class RedisQueueRepository implements QueueRepository {
 
     private final RedisScript<List> ENTER =
@@ -26,6 +27,14 @@ public class RedisQueueRepository implements QueueRepository {
             RedisScript.of(new ClassPathResource("/redis/queue/issue-token.lua"), List.class);
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final CircuitBreaker circuitBreaker;
+    private final Duration waitDurationInOpenState;
+
+    public RedisQueueRepository(StringRedisTemplate stringRedisTemplate, CircuitBreaker circuitBreaker, QueueRedisCircuitBreakerProperties queueRedisCircuitBreakerProperties) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.circuitBreaker = circuitBreaker;
+        this.waitDurationInOpenState = queueRedisCircuitBreakerProperties.waitDurationInOpenState();
+    }
 
 
     @Override
@@ -73,7 +82,9 @@ public class RedisQueueRepository implements QueueRepository {
 
     private <T> T call(Supplier<T> supplier) {
         try {
-            return supplier.get();
+            return circuitBreaker.executeSupplier(supplier); // 호출 시간과 성공·실패를 차단기에 기록하고, 원래 예외를 그대로 다시 던짐
+        } catch (CallNotPermittedException e) { // 차단기가 호출을 허락하지 않을 때(=열려있을 때) 터지는 예외
+            throw new QueueStorageUnavailableException(waitDurationInOpenState, e);
         } catch (QueryTimeoutException | RedisConnectionFailureException e) {
             throw new QueueStorageUnavailableException(e);
         }

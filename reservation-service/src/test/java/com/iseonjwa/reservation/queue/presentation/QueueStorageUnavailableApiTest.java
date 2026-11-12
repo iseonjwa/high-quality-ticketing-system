@@ -93,6 +93,19 @@ class QueueStorageUnavailableApiTest {
     }
 
 
+    @Test
+    void 차단기가_열려_있으면_Retry_After는_열림_시간이다() throws Exception {
+        when(queueRepository.position(anyLong(), anyLong(), anyLong())).thenThrow(
+                new QueueStorageUnavailableException(Duration.ofSeconds(5), new RuntimeException("circuit open")));
+
+        var response = send("GET", queuePath() + "/me");
+
+        assertEquals(503, response.statusCode(), response.body());
+        assertEquals("5", response.headers().firstValue("Retry-After").orElse(null));
+        assertEquals("QUEUE_TEMPORARILY_UNAVAILABLE", mapper.readTree(response.body()).get("code").asString());
+    }
+
+
     private void assertUnavailable(HttpResponse<String> response) {
         assertEquals(503, response.statusCode(), response.body());
         assertEquals(String.valueOf(queueProperties.pollMin().toSeconds()),
