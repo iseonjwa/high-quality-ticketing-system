@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
+| 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
 | 2026-11-11 | 배포가 실패하면 팀원은 Jenkins에 어떻게 들어가서 다시 배포하나 | [qna/2026-11-11-jenkins-redeploy-after-failure.md](qna/2026-11-11-jenkins-redeploy-after-failure.md) |
 | 2026-11-11 | EC2를 껐다 켜면 무엇이 바뀌고, 보안 그룹을 고쳐야 하나 | [qna/2026-11-11-ec2-stop-start-what-changes-security-group.md](qna/2026-11-11-ec2-stop-start-what-changes-security-group.md) |
 | 2026-11-11 | 부하를 늘려 가며 결제 단계별 시간과 임계치를 재는 법 | [qna/2026-11-11-payment-stage-latency-under-ramp.md](qna/2026-11-11-payment-stage-latency-under-ramp.md) |

@@ -31,7 +31,7 @@
 | 폴더 | 내용 |
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 2건, 일지 1일 |
-| [junhyun](junhyun/README.md) | 개별 기록 50건, 일지 5일 |
+| [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 40건, 일지 8일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 13건, 일지 4일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
