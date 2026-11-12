@@ -72,8 +72,8 @@ payment:
         half-open-permitted-calls: 3
     # 기본은 mock이다. toss는 시연 때만 켠다(토스 결제가 진행 중이면 토스 키를 지우지 않는다. 부하 측정은 늘 mock). 절차는 deployment.md에 있다
     provider: ${PAYMENT_PG_PROVIDER:mock}
-    # 시연용. 토스 모드에서도 결제창 없이 Mock으로 승인한다. 실제 서비스라면 끈다
-    mock-bypass-enabled: ${PAYMENT_PG_MOCK_BYPASS:true}
+    # 시연용. 토스 모드에서도 결제창 없이 Mock으로 승인한다. 기본은 꺼짐이고 시연 서버에서만 환경변수로 켠다
+    mock-bypass-enabled: ${PAYMENT_PG_MOCK_BYPASS:false}
     mock:
       base-url: ${MOCK_PG_URL:http://localhost:8090}
     toss:
