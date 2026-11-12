@@ -268,7 +268,7 @@ class PaymentApprovalApiTest {
     @Test
     void 위조되거나_다른_사용자의_토큰은_403이다() throws Exception {
         var reservation = newReservation();
-        var forged = token(USER, reservation, AMOUNT).secret("ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100").build();
+        var forged = token(USER, reservation, AMOUNT).privateKey(com.iseonjwa.payment.support.PaymentTokenFixtures.OTHER_PRIVATE_KEY).build();
 
         assertEquals(403, approve(USER, key(), forged, AMOUNT).status());
         assertEquals(403, approve(USER, key(), token(USER + 1, reservation, AMOUNT).build(), AMOUNT).status(),

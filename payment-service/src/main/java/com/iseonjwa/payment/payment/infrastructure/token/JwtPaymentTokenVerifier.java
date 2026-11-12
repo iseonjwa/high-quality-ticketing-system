@@ -1,6 +1,10 @@
 package com.iseonjwa.payment.payment.infrastructure.token;
 
 import com.iseonjwa.common.response.BusinessException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.proc.SingleKeyJWSKeySelector;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import com.iseonjwa.payment.global.PaymentTokenKey;
 import com.iseonjwa.payment.payment.application.PaymentErrorCode;
 import com.iseonjwa.payment.payment.application.PaymentToken;
@@ -11,18 +15,17 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 
 /**
- * HS256 결제 토큰 검증(0025). 알고리즘을 HS256으로 고정해 헤더의 {@code alg}를 믿지 않고, 서명·용도·대상·필수 claim을
- * 확인한다. 만료 검사는 일부러 빼서(타임스탬프 검증기를 쓰지 않는다) 호출한 쪽이 조회 전용 여부를 판단하게 한다.
+ * ES256 결제 토큰 검증(ADR 0054). 공개키로 ES256만 받는다. 키 선택기가 헤더의 {@code alg}가 ES256일 때만 키를 돌려주므로
+ * HS256·{@code none}·다른 알고리즘은 서명 검증 전에 거절된다. 서명·용도·대상·필수 claim을 확인한다. 만료 검사는 일부러
+ * 빼서(타임스탬프 검증기를 쓰지 않는다) 호출한 쪽이 조회 전용 여부를 판단하게 한다.
  */
 @Component
 class JwtPaymentTokenVerifier implements PaymentTokenVerifier {
@@ -30,9 +33,11 @@ class JwtPaymentTokenVerifier implements PaymentTokenVerifier {
     private final JwtDecoder decoder;
 
     JwtPaymentTokenVerifier(PaymentTokenKey key) {
-        var nimbus = NimbusJwtDecoder.withSecretKey(new SecretKeySpec(key.bytes(), "HmacSHA256"))
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
+        var processor = new DefaultJWTProcessor<SecurityContext>();
+        processor.setJWSKeySelector(new SingleKeyJWSKeySelector<>(JWSAlgorithm.ES256, key.publicKey()));
+        // 기본 처리기는 exp를 직접 검사한다. 만료 판단은 호출한 쪽이 하므로 빼고 아래 검증기에서 exp 존재만 본다
+        processor.setJWTClaimsSetVerifier((claims, context) -> { });
+        var nimbus = new NimbusJwtDecoder(processor);
         nimbus.setJwtValidator(new DelegatingOAuth2TokenValidator<>(claims()));
         this.decoder = nimbus;
     }
