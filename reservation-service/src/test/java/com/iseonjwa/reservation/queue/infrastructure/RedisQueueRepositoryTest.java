@@ -27,7 +27,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataRedisTest
 @ActiveProfiles("test")
-@Import(RedisQueueRepository.class) // 슬라이스 테스트는 @Repository를 자동으로 안 띄워서 직접 넣어야 함
+// 슬라이스 테스트는 @Repository와 차단기 설정을 자동으로 안 띄워서 직접 넣어야 함
+@Import({RedisQueueRepository.class, QueueRedisCircuitBreakerConfiguration.class})
 class RedisQueueRepositoryTest {
 
     static final long SCHEDULE_ID = 31L;

@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 대기열 Redis 차단기 값을 Gateway auth-redis와 같게 두되, 느린 호출 기준을 AI 제안 50ms 대신 100ms로 올리고 공통 Redis 시한을 200ms로 늘림 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-12-queue-redis-circuit-breaker-values.md) |
 | 2026-11-12 | **걸릴 일이 없는 Gateway Lettuce 시한 300ms를 "마지막 안전망"으로 유지하자는 AI 결론을 거부함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-reject-keep-dead-lettuce-timeout.md) |
 | 2026-11-12 | 모드 전환 뒤 같은 키 재요청 500 빈틈을, 접수형으로 시작한 요청은 202로 답하는 C안으로 막음(ADR 0058) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-12-sync-replay-of-async-requests.md) |
 | 2026-11-12 | 접수형 선점(ISE-16)의 남은 결정 다섯 가지를 추천안대로 정함. 접수에서 이미 잡힌 좌석은 즉시 409(측정 87% 근거, ADR 0057) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-12-async-seat-hold-intake-decisions.md) |
@@ -53,6 +54,7 @@
 | 2026-11-12 | **Gateway CPU를 줄이려 대기열 폴링 상한(poll-max)을 10초에서 30초로 늘리자는 AI 제안을 거부함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-reject-poll-max-30s.md) |
 | 2026-11-12 | **요청 로그 PR은 리뷰 뒤 머지하고 재측정은 11/13에 하자는 AI 계획을 거부하고, 리뷰 전에 main까지 반영해 바로 배포 측정함(선조치 후보고)** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-merge-and-deploy-before-review.md) |
 | 2026-11-12 | 측정표 답글·결제와 예매 DB 풀 contract·요청 로그 B안 설계·R0 준비에 대한 AI 추천 9건(D1~D9)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-12-accept-d1-d9-posting-and-h2-plan.md) |
+| 2026-11-11 | 대기열 Redis 시한 초과를 503으로 바꾸는 위치로, 컨트롤러 처리기 대신 저장소에서 대기열 예외로 바꾸는 안(A)을 고름 | youngeun | Claude | 수용 | 후보 | [기록](youngeun/2026-11-11-queue-redis-timeout-503-layer.md) |
 | 2026-11-11 | 배포 서버 7차에서 요청 로그 비용이 확인되자, 운영 요청 로그를 실패·느린 요청만 남기는 안(B)을 고름 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-request-log-failures-and-slow-only.md) |
 | 2026-11-11 | **H1 배포와 7차 측정을 내일 아침에 하자는 AI 추천을 거부하고, H1 PR이 dev에 머지되면 오늘 이어서 배포·측정함** | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-11-run-7th-measurement-today.md) |
 | 2026-11-11 | **Gateway 동시 처리 수 상한 기본값을 128로 올리자는 6차 세션 제안을 거부하고, p95 여유를 이유로 64 유지를 추천한 메인 세션 안을 받아들임** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-keep-in-flight-limit-64.md) |

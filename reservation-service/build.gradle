@@ -14,6 +14,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+    implementation 'io.github.resilience4j:resilience4j-micrometer'
     // 스케줄러 Redis 스팬 제외를 실제 Brave 추적 처리기로 시험한다. 운영에서는 starter-zipkin이 실행 시점에만 넣는다
     testImplementation 'io.micrometer:micrometer-tracing-bridge-brave'
 }

@@ -48,7 +48,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      timeout: 100ms
+      timeout: 200ms
       connect-timeout: 1s
   reactor:
     context-propagation: auto
