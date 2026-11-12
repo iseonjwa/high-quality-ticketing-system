@@ -6,6 +6,10 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 벌크헤드(Bulkhead)와 동시 처리수 상한(Concurrency Limit)의 차이 | [qna/2026-11-12-bulkhead-vs-concurrency-limit.md](qna/2026-11-12-bulkhead-vs-concurrency-limit.md) |
+| 2026-11-12 | 접수형으로 받은 요청을 동기형 서버가 같은 키로 다시 받으면 왜 500이 나고, 어떻게 막을 것인가 | [qna/2026-11-12-mode-switch-replay-gap.md](qna/2026-11-12-mode-switch-replay-gap.md) |
+| 2026-11-12 | 접수형 선점(ISE-16)에서 남은 다섯 가지 결정의 트레이드오프와 추천안 | [qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md](qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md) |
+| 2026-11-12 | 접수형 선점에서 여러 구역 좌석 요청의 메시지 키를 어떻게 정할 것인가 | [qna/2026-11-12-async-seat-hold-message-key-options.md](qna/2026-11-12-async-seat-hold-message-key-options.md) |
 | 2026-11-09 | Windows 시계를 맞추자 통과한 테스트 4건은 왜 실패했나 | [qna/2026-11-09-host-clock-drift-test-failures.md](qna/2026-11-09-host-clock-drift-test-failures.md) |
 | 2026-11-05 | 기존 K1 부하 테스트는 어떻게 진행됐고, 선점만 떼어 재는 방식(K1-H)은 무엇이 다른가 | [qna/2026-11-05-k1-vs-hold-only-scenario.md](qna/2026-11-05-k1-vs-hold-only-scenario.md) |
 | 2026-11-05 | 좌석 선점 부하 테스트에서 타임아웃이 나는 원인과 캐시 도입 지점 | [qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md](qna/2026-11-05-seathold-loadtest-timeout-and-cache-points.md) |
