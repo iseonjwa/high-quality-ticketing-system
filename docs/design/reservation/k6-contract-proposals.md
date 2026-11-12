@@ -1,6 +1,6 @@
 # k6 측정에서 나온 공유 설정·Gateway 제안 (ISE-79, 의논 초안)
 
-상태: **의논 전 초안. Linear 이슈는 아직 올리지 않았다.** 팀과 의논한 뒤 이슈로 올린다. 작성: 좌석 선점 담당 최권우 요청으로 Claude Code.
+상태(2026-11-12): A는 Gateway 담당의 [ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)(제안, ISE-230)이 다루고 팀 회의에서 확정한다. B는 dev에 반영됐다(ISE-193). C는 설정 PR #529(ISE-196)를 올렸다. D는 ISE-237(풀 크기를 측정으로 정하기, 예매 담당)로 합쳐졌다. 작성: 좌석 선점 담당 최권우 요청으로 Claude Code.
 
 좌석 선점 k6 단계 측정([k6-seathold-bottleneck-plan.md](k6-seathold-bottleneck-plan.md) 5-5절)에서 효과를 확인한 설정 중 다른 서비스나 공유 파일에 걸린 것을 모았다. 측정 브랜치에서는 덮어쓰기 파일로만 켰고, 공유 설정(`config-repo/`, `compose.deploy.yml`)은 고치지 않았다. 절차는 [contract-issues.md](../../guides/contract-issues.md)를 따른다.
 
@@ -10,12 +10,14 @@
 |---|---|---|---|---|---|---|
 | A | Gateway 인증 차단기(`auth-redis`) 기준 | 느린 호출 50ms·비율 50%, 실패율 50%, 판단 범위 20번 | 의논 거리(2절) | `config-repo/gateway.yml` | Gateway 담당 | 관찰은 여러 회, 고칠 값은 미정 |
 | B | reservation-service GC를 G1으로 명시 | 지정 없음(1,152MB 컨테이너라 JVM이 Serial 선택) | `-XX:+UseG1GC` | `compose.deploy.yml` reservation-service `JAVA_TOOL_OPTIONS` | 인프라 담당 | 1회씩, 효과 큼. **dev에 이미 반영(ISE-193). 이슈로 올리지 않는다** |
-| C | Hikari 커넥션 대기 시한 | 30초(기본값) | 1초 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정), 이미 ISE-196 | 이전 기기 3회 + 새 기기 1회 |
-| D | reservation-service DB 커넥션 풀 | 5 | 10 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정) | 1회씩(5·10·20·40 비교) |
+| C | Hikari 커넥션 대기 시한 | 30초(기본값) | 1초 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정), 이미 ISE-196 | 이전 기기 3회 + 새 기기 1회. **PR #529로 반영 중** |
+| D | reservation-service DB 커넥션 풀 | 5 | 10 | `config-repo/reservation-service.yml` | 인프라 담당(공유 설정) | 1회씩(5·10·20·40 비교). **ISE-237로 합쳐짐** |
 
 B·C·D는 reservation-service 자체 설정이지만 공유 파일에 있어 contract 이슈로 알린다. A는 Gateway 담당 영역이라 관찰만 넘기고 값은 그쪽이 정한다.
 
 ## 2. A. Gateway 인증 차단기
+
+상태(2026-11-12): Gateway 담당이 [ADR 0050](../../decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)(차단기는 Redis 장애만 세고 과부하는 bulkhead가 거절)으로 정리했고, 팀 회의에서 확정한다. 아래 이슈 초안은 올리지 않는다.
 
 ### 무엇을 봤나
 Gateway는 인증 요청마다 Redis에서 로그아웃 토큰을 확인한다. 이 호출이 느리거나 실패하면 `auth-redis` 차단기가 10초 열리고, 그동안 인증 요청은 모두 즉시 503이다(fail closed, ADR 0005).
@@ -68,11 +70,13 @@ Gateway는 인증 요청마다 Redis에서 로그아웃 토큰을 확인한다. 
 
 ## 4. C. 커넥션 대기 시한 30초 → 1초 (R1)
 
-- 이미 ISE-196으로 제안했다. 의논 전에 이슈 상태를 확인하고, 아직 열려 있으면 새 기기 결과를 댓글로 보탠다.
+- 이미 ISE-196으로 제안했다. 확인 마감(11/10)까지 이견이 없어 2026-11-12 설정 PR #529(`connection-timeout: 1000`)를 올렸다.
 - **새 기기 결과:** G1만 켠 S에서 커넥션 대기 197건이 부하 뒤에도 남아 회복 탐침이 모두 504였다. R1을 켜자 부하 뒤 40초에 회복했고, L의 서버 좌석 조회 처리량이 초당 13.5 → 41.0건으로 늘었다(이전 기기에서는 처리량이 줄었다. 새 기기는 코어가 남아 커넥션 회전이 빨라진 것으로 보며 확정하지 않았다).
 - **대가:** 몰릴 때 500이 빨리 나온다. Gateway 응답 시한(3초)보다 서버가 먼저 포기해야 쌓인 일이 남지 않는다.
 
 ## 5. D. 커넥션 풀 5 → 10 (P1)
+
+상태(2026-11-12): 예매 담당 배정 contract ISE-237(풀 5·10·20을 응모 L1·좌석 조회 S1과 같은 조건에서 재고 정하기)로 합쳐졌다. 아래 선점 측정은 그 이슈의 근거로 보탠다.
 
 - **측정:** Gateway를 우회한 K1-H 800명(서버 선점 초당 약 2,200건, k6 6GiB)에서 풀 5는 커넥션 대기 최대 40건, p99 33ms였다. 풀 10은 대기 0, p99 6ms, 서버 선점 평균 3.7 → 2.0ms. 풀 20·40은 10과 같았다(동시에 쓰는 커넥션 최대 5~8개).
 - **왜 10에서 멈추나:** 더 키워도 이득이 없고, 인스턴스 수 × 풀이 PostgreSQL `max_connections`(지정 없음, 기본 100)를 넘으면 안 된다. 풀이 크면 DB의 문맥 전환과 잠금 경합도 는다.
