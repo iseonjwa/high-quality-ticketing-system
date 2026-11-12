@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
 | 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
 | 2026-11-12 | 기능 플래그의 기본값은 왜 꺼짐이어야 하나(안전한 기본값, fail-safe defaults) | [qna/2026-11-12-fail-safe-defaults.md](qna/2026-11-12-fail-safe-defaults.md) |
 | 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
