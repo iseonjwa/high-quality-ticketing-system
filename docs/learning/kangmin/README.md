@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 예전에는 거절 한 건도 받은 요청만큼 비쌌고 H1로 싸게 만든 것이 맞나(H1 전 약 1/5 추정, H1 뒤 2~8% 측정, 포화 구간 지표 한계, 이력서에 쓸 수 있는 말과 없는 말) | [qna/2026-11-12-rejection-cost-before-after.md](qna/2026-11-12-rejection-cost-before-after.md) |
 | 2026-11-12 | 동시 수 상한으로도 CPU 포화가 안 풀리면 어떻게 하나, 로드밸런서가 필요한가(작업 보존형, 효율·수요·용량 세 방향, 폴링 간격 계산, 한 대 안 로드밸런서가 소용없는 이유, 남은 트러블슈팅) | [qna/2026-11-12-gateway-cpu-saturation-next-steps.md](qna/2026-11-12-gateway-cpu-saturation-next-steps.md) |
 | 2026-11-11 | 7차 H1 재해석: 굿풋 +12.8%인데 한 건당 CPU가 그대로인 이유(포화 구간 지표 한계, 성공 한 건당 CPU, 받은·거절 한 건 비용 연립 계산, 동시 수 상한은 작업 보존형), 다른 AI 분석 판정(Netty 파싱 뒤 실행, 카운터·503 쓰기 비용, 이벤트 루프 자료 수집 오류), 다음 가설 | [qna/2026-11-11-h1-reinterpret-netty-cost.md](qna/2026-11-11-h1-reinterpret-netty-cost.md) |
 | 2026-11-11 | HttpHandler 데코레이터로 동시 처리 수 상한을 관측보다 앞에서 거절하는 원리(Netty부터 GlobalFilter까지 층별 소스 위치, 데코레이터 패턴과 `defer`·`doFinally` 반납, WebFilter·ObservationPredicate·Netty 단계와 비교, 거절에서 사라지는 기록, 관리 포트 무영향, 7차 확인 지표) | [qna/2026-11-11-gateway-httphandler-decorator-early-reject.md](qna/2026-11-11-gateway-httphandler-decorator-early-reject.md) |

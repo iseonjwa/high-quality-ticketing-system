@@ -162,9 +162,9 @@ gc_pause	sum(rate(jvm_gc_pause_seconds_sum{$g}$w))
 http_server_count	sum by (status) (increase(http_server_requests_seconds_count{$g}$w))
 http_server_avg	sum by (status) (rate(http_server_requests_seconds_sum{$g}$w)) / sum by (status) (rate(http_server_requests_seconds_count{$g}$w))
 gw_route_avg	sum by (routeId) (rate(spring_cloud_gateway_requests_seconds_sum{$g}$w)) / sum by (routeId) (rate(spring_cloud_gateway_requests_seconds_count{$g}$w))
-lettuce_count	sum(rate(lettuce_command_completion_seconds_count{$g}$w))
-lettuce_avg	sum(rate(lettuce_command_completion_seconds_sum{$g}$w)) / sum(rate(lettuce_command_completion_seconds_count{$g}$w))
-lettuce_max	max(lettuce_command_completion_seconds_max{$g})
+lettuce_count	sum(rate(lettuce_seconds_count{$g}$w))
+lettuce_avg	sum(rate(lettuce_seconds_sum{$g}$w)) / sum(rate(lettuce_seconds_count{$g}$w))
+lettuce_max	max(lettuce_seconds_max{$g})
 breaker_state	resilience4j_circuitbreaker_state{$g,name="auth-redis"}
 bulkhead_available	resilience4j_bulkhead_available_concurrent_calls{$g,name="auth-redis"}
 inflight	gateway_in_flight_requests{$g}

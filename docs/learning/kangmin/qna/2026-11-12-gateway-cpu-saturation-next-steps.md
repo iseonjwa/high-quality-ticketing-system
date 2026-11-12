@@ -16,7 +16,7 @@ tags: [gateway, cpu, load-shedding, work-conserving, polling, scale-out, load-ba
 - **트러블슈팅은 아직 끝나지 않았다.** 원인과 방향은 찾았고, 남은 것은 운영 반영과 확인 측정이다(1절).
 - **과부하에서 CPU 99%는 그 자체로 실패가 아니다.** 들어오는 양이 장비 처리량보다 많으면 어떤 장치를 써도 CPU는 꽉 찬다. 막아야 하는 것은 "CPU 99%"가 아니라 그때 받은 요청이 느려지거나(p95) 죽는 것(OOM)이다. 동시 수 상한은 이 둘을 이미 막았다(6·7차).
 - CPU 숫자 자체를 내리는 방법은 세 가지뿐이다. **요청 한 건을 싸게**(공급 쪽 효율), **요청 수를 줄이기**(수요 쪽), **장비를 늘리기**(용량)다.
-- 이 프로젝트에서 효과가 가장 클 것은 **수요 쪽**이다. G1 부하의 실체는 대기열 폴링이고, 폴링 수는 서버가 정하는 간격(`poll-max` 10초)으로 결정된다. `poll-max`를 30초로 올리면 대기자 30,000명 기준 폴링이 약 2,780 → 1,000/s로 준다(계산값, 3-2절).
+- (강민 거부, 3-2절 끝) 계산상 효과가 가장 큰 것은 **수요 쪽**이다. G1 부하의 실체는 대기열 폴링이고, 폴링 수는 서버가 정하는 간격(`poll-max` 10초)으로 결정된다. `poll-max`를 30초로 올리면 대기자 30,000명 기준 폴링이 약 2,780 → 1,000/s로 준다(계산값, 3-2절).
 - **로드밸런서는 장비가 여러 대일 때만 의미가 있다.** 4 vCPU 한 대 안에서 Gateway를 여러 개 띄우고 앞에 로드밸런서를 두면 CPU를 나눠 쓸 뿐이고, 로드밸런서 자신도 CPU를 쓴다. 장비를 늘리는 것(scale-out)은 정답이지만 이 프로젝트는 한 대가 전제라(ADR 0047) 발표에서 "확장 방향"으로 숫자와 함께 말하는 것이 맞다.
 
 ## 1. 트러블슈팅에서 남은 것
@@ -56,7 +56,7 @@ tags: [gateway, cpu, load-shedding, work-conserving, polling, scale-out, load-ba
 
 한계: 효율 개선은 처리량 상한을 몇십 % 올릴 뿐, 들어오는 양이 그보다 크면 다시 99%가 된다.
 
-### 3-2. 요청 수를 줄이기 (수요 쪽) — 가장 큰 수단
+### 3-2. 요청 수를 줄이기 (수요 쪽) — 계산상 가장 크지만 강민이 거부함
 - G1은 `GET /api/v1/schedules/{id}/queue/me`, 즉 대기자가 순번을 묻는 폴링이다. 실제 오픈에서 Gateway 요청의 대부분이 이것이다(Q2 "요청 수 1위 구간").
 - 다음 폴링 간격은 서버가 정한다. `PollPolicy.nextPollAfterMillis`(`reservation-service/.../queue/application/PollPolicy.java:17`)가 예상 대기 시간을 3초~10초(`config-repo/reservation-service.yml` `poll-min`·`poll-max`)로 자르고 지터 0~20%를 더한다.
 - 그래서 폴링 수 ≈ 대기자 수 ÷ 평균 간격이다. 맨 뒤 대기자도 예상 대기가 10분이든 1시간이든 10초마다 묻는다. 대기자 30,000명이면 약 2,700/s다(Q2 계산값). 이것이 G1 부하의 원천이다.
@@ -90,7 +90,7 @@ tags: [gateway, cpu, load-shedding, work-conserving, polling, scale-out, load-ba
 
 ## 4. 추천 순서
 1. **요청 로그 B안 운영 반영**(진행 중, D7). 근거가 이미 측정으로 있다.
-2. **폴링 간격 정책을 대기열 담당과 논의**. `poll-max` 올리기 또는 예상 대기에 비례한 간격. 공유 설정이라 contract 이슈로 제안하고 Q2-2로 잰다. 효과가 가장 크다(계산값).
+2. ~~폴링 간격 정책을 대기열 담당과 논의~~ 강민 거부(3-2절 끝). 간격은 두고 폴링 한 건을 싸게 하는 쪽만 본다.
 3. **CPU 목표를 평상·과부하로 나눠 확정**(2절 표). 발표에서 "CPU 99%를 왜 못 막았나"에 대한 답이 된다.
 4. **장비 분리·로드밸런서는 발표의 확장 방향**으로 숫자와 함께 말한다(3-3절 규모 감각).
 
@@ -104,3 +104,10 @@ tags: [gateway, cpu, load-shedding, work-conserving, polling, scale-out, load-ba
 - 코드: `reservation-service/src/main/java/com/iseonjwa/reservation/queue/application/PollPolicy.java`, `config-repo/reservation-service.yml`(`poll-min` 3s, `poll-max` 10s, `poll-jitter-ratio` 0.2)
 - 앞선 노트: [CPU 포화 개선](2026-11-11-gateway-cpu-saturation-improvements.md), [H1 재해석](2026-11-11-h1-reinterpret-netty-cost.md), [차단기 vs CPU 포화](2026-11-11-breaker-vs-cpu-saturation.md)
 - 결정: ADR 0047(한 대 운영과 장비 분리), ADR 0050
+
+## 판단: 폴링 간격 늘리기는 거부 (2026-11-12)
+- 강민 판단: "대기열 폴링 지금 10초도 느린데, 이걸 30초로 늘리는것은 말이 안된다". 순번 갱신 간격은 사용자 경험의 핵심이라, 서버 부하를 줄이려고 늘리면 문제를 사용자에게 넘기게 된다. [판단 기록](../../../ai-judgments/kangmin/2026-11-12-reject-poll-max-30s.md)
+- 그래서 3-2절의 표는 "얼마나 줄일 수 있나"의 계산으로만 남긴다. 수요 쪽에서 간격을 건드리지 않는 방향은 다음이다(모두 검토 전).
+  - 폴링 한 건을 싸게: 순번 조회 경로의 요청 로그·관측 비용 줄이기(요청 로그 B안이 이미 이쪽), 순번 응답을 짧게 캐시해 Redis 조회 줄이기.
+  - 변할 때만 알리기(SSE·WebSocket 밀어주기): 폴링 수는 사라지지만 연결 수만큼 메모리가 들고 Gateway 구조가 바뀐다. Q2-4가 "비교 기록만"으로 둔 방향이라 이번 범위 밖이다.
+- 남는 현실적인 길은 효율(3-1)과 장비 분리(3-3)다.
