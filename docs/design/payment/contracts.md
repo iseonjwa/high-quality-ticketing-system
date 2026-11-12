@@ -88,6 +88,7 @@ Payment 쪽 고칠 곳: claim 이름은 `payment-service`의 `PaymentTokenClaims
 - `PaymentRefunded`의 `amount`는 환불 금액이고 결제의 PG 승인 금액과 같다(전액 환불). `refundedAt`은 Payment가 전이한 시각이 아니라 PG가 환불한 시각이고 `approvedAt`처럼 밀리초 정밀도다. 환불 워커가 환불 확정과 같은 트랜잭션에서 Outbox에 쓰며, 환불이 `NEEDS_MANUAL_CHECK`로 끝난 경우에는 발행하지 않는다.
 - `reasonCode`는 Payment가 정한 값이다: `CARD_DECLINED`, `INSUFFICIENT_LIMIT`, `TOKEN_EXPIRED`(PG 호출 전 토큰 만료), `NOT_SENT`(PG에 보내지 않았음이 확인됨), `OTHER`. PG 원본 코드는 내보내지 않는다. Reservation은 사유별로 분기하지 않고 거절 자체로 처리해도 된다.
 - 예외: 추첨 예매(`reservations.source = 'LOTTERY'`)는 `reasonCode`로 분기한다. `NOT_SENT`면 같은 당첨자에게 새 예매로 1회 재시도하고, 나머지 사유는 예비자 승계로 보낸다([0038](../../decisions/0038-lottery-payment-failure-by-reason.md)). 재시도가 안전한 근거는 `NOT_SENT`의 보장이다. Payment는 PG 조회가 `NOT_FOUND`이고 같은 주문번호 망취소가 `Prevented`일 때만 `NOT_SENT`로 닫으므로, 그 `reservationId`로는 이후 승인이 나지 않는다(SA 10-5, `invariants.md` INV-8). 10/31 추첨 담당 선반영, 결제 담당 확인 대기(ISE-89).
+- 토픽 선언(2026-11-12, ISE-236): `payment.command`는 결제 서비스가 파티션 3·복제 1로 선언한다(`PaymentCommandKafkaConfiguration`, `KafkaAdmin`이 시작할 때 만들거나 늘림). 메시지 키는 예매 ID라 발행 쪽은 파티션을 직접 지정하지 않고 키로만 보낸다. 같은 예매의 명령은 같은 파티션이라 순서가 지켜진다.
 - 11/2 추가(ISE-96·89): `payment.command`의 `BillingPaymentRequested`(`reservationId`, `userId`, `amount`, `currency`, `lotteryEntryId`)는 빌링키 자동결제로 처리한다. 같은 예매로 다시 와도 결제는 한 건이다. 활성 빌링키가 없거나 PG가 빌링키를 거절하면 `PaymentDeclined.reasonCode = BILLING_KEY_MISSING`(추첨은 당첨자 책임으로 보고 승계). `pg-approve` 허가를 못 얻으면 DLQ로 보내지 않고 같은 메시지를 다시 읽는다. 그동안 같은 파티션의 뒤 메시지(환불 포함)도 기다린다(D6 기준선의 감수 사항, 측정 시나리오 2에서 확인).
 - 예시(`PaymentApproved` payload):
 
