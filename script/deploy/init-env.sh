@@ -29,13 +29,42 @@ if (( has_private != has_public )); then
   echo "${missing}가 .env에 없다. 결제 토큰 키는 한 쌍이라 하나만 있으면 새로 만들지 않는다. 두 줄을 모두 지우고 다시 실행하거나 짝이 되는 키를 직접 넣는다" >&2
   exit 1
 fi
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Note: `openssl genpkey -outform DER`가 내는 EC 개인키 형식은 OpenSSL 버전마다 다르다. 3.0은 SEC1(전통 형식, 121바이트),
+# 4.0은 PKCS#8(138바이트)이다. 예매 서비스(Java의 PKCS8EncodedKeySpec)는 PKCS#8만 읽는다. 11/12 배포 서버(OpenSSL 3.0.13)에서
+# SEC1 키가 만들어져 예매 서비스가 뜨지 못했다(TS-61). 그래서 버전과 무관하게 `pkcs8 -topk8`으로 PKCS#8을 만든다.
+to_pkcs8() { openssl pkcs8 -topk8 -nocrypt -inform "$1" -in "$2" -outform DER -out "$3" 2> /dev/null; }
+# PKCS#8(PrivateKeyInfo)은 첫 필드가 version 0이고, SEC1(ECPrivateKey)은 version 1이다
+is_pkcs8() { openssl asn1parse -inform DER -in "$1" 2> /dev/null | awk 'NR == 2 && /INTEGER/ && /:00$/ { ok = 1 } END { exit !ok }'; }
+stored() { grep -m1 "^$1=" "$file" | cut -d= -f2- | tr -d '\r\n'; }
+replace_line() {
+  awk -v key="$1" -v value="$2" 'index($0, key "=") == 1 { print key "=" value; next } { print }' "$file" > "$tmp/env.new"
+  cat "$tmp/env.new" > "$file"
+}
+
 if (( ! has_private )); then
-  tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
-  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -outform DER -out "$tmp/private.der" 2>/dev/null
-  openssl pkey -inform DER -in "$tmp/private.der" -pubout -outform DER -out "$tmp/public.der" 2>/dev/null
+  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$tmp/private.pem" 2> /dev/null
+  to_pkcs8 PEM "$tmp/private.pem" "$tmp/private.der"
+  openssl pkey -inform DER -in "$tmp/private.der" -pubout -outform DER -out "$tmp/public.der" 2> /dev/null
   token_private=$(base64 < "$tmp/private.der" | tr -d '\n')
   token_public=$(base64 < "$tmp/public.der" | tr -d '\n')
+elif [[ -n "$(stored PAYMENT_TOKEN_PRIVATE_KEY)" ]]; then
+  # 이미 있는 개인키가 PKCS#8이 아니면 같은 키를 PKCS#8로 바꿔 적는다. 공개키는 그대로다
+  if ! stored PAYMENT_TOKEN_PRIVATE_KEY | openssl base64 -d -A > "$tmp/private.der" 2> /dev/null; then
+    echo "PAYMENT_TOKEN_PRIVATE_KEY가 Base64가 아니다. 두 키 줄을 모두 지우고 다시 실행한다" >&2
+    exit 1
+  fi
+  if ! is_pkcs8 "$tmp/private.der"; then
+    if ! to_pkcs8 DER "$tmp/private.der" "$tmp/converted.der"; then
+      echo "PAYMENT_TOKEN_PRIVATE_KEY를 읽을 수 없다. 두 키 줄을 모두 지우고 다시 실행한다" >&2
+      exit 1
+    fi
+    mv "$tmp/converted.der" "$tmp/private.der"
+    replace_line PAYMENT_TOKEN_PRIVATE_KEY "$(base64 < "$tmp/private.der" | tr -d '\n')"
+    echo "PAYMENT_TOKEN_PRIVATE_KEY를 PKCS#8 형식으로 바꿔 적었다(같은 키, 공개키는 그대로)"
+  fi
 fi
 value_for() {
   case "$1" in
@@ -68,6 +97,21 @@ for key in "${keys[@]}"; do
     added+=("$key")
   fi
 done
+
+# 결제 토큰 키가 서비스가 읽는 형식이고 서로 짝인지 확인한다. 값은 출력하지 않는다
+if [[ -n "$(stored PAYMENT_TOKEN_PRIVATE_KEY)" ]]; then
+  stored PAYMENT_TOKEN_PRIVATE_KEY | openssl base64 -d -A > "$tmp/check.der" 2> /dev/null || true
+  if ! is_pkcs8 "$tmp/check.der"; then
+    echo "PAYMENT_TOKEN_PRIVATE_KEY가 PKCS#8 DER 형식이 아니다. 예매 서비스가 뜨지 못한다" >&2
+    exit 1
+  fi
+  derived=$(openssl pkey -inform DER -in "$tmp/check.der" -pubout -outform DER 2> /dev/null | base64 | tr -d '\n')
+  if [[ "$derived" != "$(stored PAYMENT_TOKEN_PUBLIC_KEY)" ]]; then
+    echo "PAYMENT_TOKEN_PUBLIC_KEY가 개인키의 짝이 아니다. 모든 결제가 403이 된다. 두 키 줄을 모두 지우고 다시 실행한다" >&2
+    exit 1
+  fi
+  echo "결제 토큰 키 확인: 개인키 PKCS#8, 공개키와 짝이 맞음"
+fi
 
 if (( ${#added[@]} )); then
   echo ".env에 더한 키: ${added[*]}"
