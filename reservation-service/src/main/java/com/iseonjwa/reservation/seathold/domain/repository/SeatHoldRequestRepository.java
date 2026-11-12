@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.seathold.domain.repository;
 
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,4 +11,7 @@ public interface SeatHoldRequestRepository {
     SeatHoldRequest save(SeatHoldRequest request);
 
     Optional<SeatHoldRequest> findById(UUID requestId);
+
+    // REQUESTED 요청을 HELD로 바꾸고 예매를 연결한다. 바꾼 행 수를 돌려준다
+    int markHeld(UUID requestId, Long reservationId, Instant now, Long actorId);
 }

@@ -10,7 +10,6 @@ import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatusHistory;
-import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuota;
 import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuotaId;
 import com.iseonjwa.reservation.reservation.domain.repository.ActiveSeatConflictException;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
@@ -21,8 +20,11 @@ import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -46,6 +48,8 @@ import java.util.List;
 @Service
 public class SyncSeatHoldService {
     private static final String HELD_REASON = "SEAT_HELD";
+    // SA 9-4. 핫 좌석에서 잠금을 오래 기다리며 커넥션을 쥐지 않게 한다
+    static final Duration LOCK_TIMEOUT = Duration.ofMillis(500);
 
     private final SeatHoldInventoryRepository inventory;
     private final UserScheduleQuotaRepository quotas;
@@ -55,13 +59,18 @@ public class SyncSeatHoldService {
     private final SeatHoldRequestRepository seatHoldRequests;
     private final HeldReservationResults results;
     private final Clock clock;
+    private final TransactionTemplate writeTransaction;
+    private final TransactionTemplate readTransaction;
     private final SecureRandom random = new SecureRandom();
 
     public SyncSeatHoldService(SeatHoldInventoryRepository inventory, UserScheduleQuotaRepository quotas,
             ReservationRepository reservations, ReservationSeatRepository reservationSeats,
             ReservationStatusHistoryRepository histories,
             SeatHoldRequestRepository seatHoldRequests, HeldReservationResults results,
-            @Qualifier("commonAuditingClock") Clock clock) {
+            @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager) {
+        this.writeTransaction = new TransactionTemplate(transactionManager);
+        this.readTransaction = new TransactionTemplate(transactionManager);
+        this.readTransaction.setReadOnly(true);
         this.inventory = inventory;
         this.quotas = quotas;
         this.reservations = reservations;
@@ -72,9 +81,23 @@ public class SyncSeatHoldService {
         this.clock = clock;
     }
 
-    @Transactional
+    /**
+     * Note: 트랜잭션을 이 메서드 안에서 연다. 같은 멱등키의 다른 요청에 진 트랜잭션은 rollback-only가 되므로,
+     * 먼저 커밋된 결과를 다시 읽는 일은 그 트랜잭션이 끝난 뒤 새 읽기 트랜잭션에서 해야 한다(ADR 0032, TS-3).
+     */
     public SyncHoldOutcome hold(HoldSeatsCommand command) {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
+        try {
+            return writeTransaction.execute(status -> holdInTransaction(command, seatIds));
+        } catch (ConcurrentSameKeyException lost) {
+            return readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                    .map(previous -> replay(previous, command, seatIds))
+                    .orElseThrow(() -> new IllegalStateException("먼저 커밋된 선점 요청이 없습니다: " + command.requestId(),
+                            lost)));
+        }
+    }
+
+    private SyncHoldOutcome holdInTransaction(HoldSeatsCommand command, List<Long> seatIds) {
         var previous = seatHoldRequests.findById(command.requestId());
         if (previous.isPresent()) {
             return replay(previous.get(), command, seatIds);
@@ -86,13 +109,39 @@ public class SyncSeatHoldService {
         SeatHoldRules.requireOnSale(schedule, now);
         var seats = findSeatsOfSchedule(schedule.getId(), seatIds);
 
-        addHeldCount(command.userId(), schedule, seatIds.size(), now);
-        holdSeats(schedule.getId(), seatIds, command.userId(), now);
-        var reservation = saveReservation(command, schedule, seats, now);
-        seatHoldRequests.save(SeatHoldRequest.held(command.requestId(), command.userId(), schedule.getId(), seatIds,
-                reservation.getId()));
+        claimRequest(command, schedule.getId(), seatIds);
+        // Note: 멱등키 선점 뒤에 건다. 같은 키의 연타는 첫 요청이 끝날 때까지 기다려야 재조회로 같은 결과를 줄 수 있다
+        inventory.applyLockTimeout(LOCK_TIMEOUT);
+        Reservation reservation;
+        try {
+            addHeldCount(command.userId(), schedule, seatIds.size(), now);
+            holdSeats(schedule.getId(), seatIds, command.userId(), now);
+            reservation = saveReservation(command, schedule, seats, now);
+        } catch (PessimisticLockingFailureException timeout) {
+            // 다른 트랜잭션이 좌석이나 매수 행을 오래 쥐고 있다. 기다리는 대신 "이미 선택된 좌석"으로 바로 돌려보낸다(SA 12-7)
+            throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
+        }
+        if (seatHoldRequests.markHeld(command.requestId(), reservation.getId(), now, command.userId()) != 1) {
+            throw new IllegalStateException("선점 요청을 HELD로 바꾸지 못했습니다: " + command.requestId());
+        }
 
         return new SyncHoldOutcome.Held(results.withToken(reservation, seatIds));
+    }
+
+    // Note: 멱등키를 매수·좌석보다 먼저 쓴다. 같은 키의 두 번째 요청은 PK에서 첫 요청의 커밋을 기다린 뒤 유니크 위반을 받고,
+    // 좌석 경로로 들어가 자기 좌석에 409를 받는 일이 없어진다. 첫 요청이 실패해 롤백되면 두 번째 요청이 이어서 선점한다
+    private void claimRequest(HoldSeatsCommand command, Long scheduleId, List<Long> seatIds) {
+        try {
+            seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), scheduleId, seatIds));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConcurrentSameKeyException(exception);
+        }
+    }
+
+    private static final class ConcurrentSameKeyException extends RuntimeException {
+        ConcurrentSameKeyException(Throwable cause) {
+            super(cause);
+        }
     }
 
     // 같은 멱등키 재요청(contracts.md 3절). 좌석·매수를 다시 건드리지 않고 첫 요청이 만든 예매로 응답한다.
@@ -127,14 +176,12 @@ public class SyncSeatHoldService {
         return seats;
     }
 
-    // Note: 보유 매수를 읽은 뒤 따로 더하므로, 같은 사용자의 요청이 동시에 오면 둘 다 검사를 통과할 수 있다(TS-2 재현 대상)
+    // 검사와 증가를 조건부 UPDATE 한 문장으로 한다(TS-2). 읽고 검사한 뒤 더하면 같은 사용자의 탭들이 같은 값을 읽고 모두 통과했다
     private void addHeldCount(Long userId, Schedule schedule, int quantity, Instant now) {
         var quotaId = new UserScheduleQuotaId(userId, schedule.getId());
-        var heldCount = quotas.findById(quotaId).map(UserScheduleQuota::getHeldCount).orElse(0);
-        if (heldCount + quantity > schedule.getMaxPerUser()) {
+        if (quotas.addHeldCountWithinLimit(quotaId, quantity, schedule.getMaxPerUser(), now, userId) == 0) {
             throw new BusinessException(SeatHoldErrorCode.PURCHASE_LIMIT_EXCEEDED);
         }
-        quotas.addHeldCount(quotaId, quantity, now, userId);
     }
 
     // 하나라도 AVAILABLE이 아니면 갱신 행 수가 모자란다. 예외로 트랜잭션이 롤백돼 먼저 바뀐 좌석과 매수도 되돌아간다

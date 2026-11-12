@@ -56,6 +56,20 @@ interface SpringDataReservationRepository extends JpaRepository<Reservation, Lon
             """)
     List<Long> findExpiredHeldIds(@Param("now") Instant now, @Param("limit") int limit);
 
+    // Note: 이 트랜잭션이 끝날 때까지 행을 잠그고, 다른 인스턴스가 잠근 행은 기다리지 않고 건너뛴다.
+    // 이 주기에서 실패한 예매(excludedIds)는 다시 집지 않는다. 비면 안 되므로 호출 쪽이 없는 ID(0)를 하나 넣는다
+    @Query(nativeQuery = true, value = """
+            SELECT id
+              FROM reservations
+             WHERE status = 'HELD'
+               AND hold_expires_at <= :now
+               AND id NOT IN (:excludedIds)
+             ORDER BY hold_expires_at, id
+             LIMIT 1
+               FOR UPDATE SKIP LOCKED
+            """)
+    Optional<Long> lockNextExpiredHeldId(@Param("now") Instant now, @Param("excludedIds") List<Long> excludedIds);
+
     // status는 엔티티에서 updatable = false라 변경 감지가 아닌 SQL로 바꾼다
     @Modifying(flushAutomatically = true)
     @Query(nativeQuery = true, value = """
