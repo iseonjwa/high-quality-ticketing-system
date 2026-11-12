@@ -17,10 +17,10 @@ class BillingKeyController {
     static final String REJECT_PREFIX = "REJECT";
     private static final String CARD_LAST4 = "4242";
 
-    private final BillingKeyStore store;
+    private final BillingKeySigner signer;
 
-    BillingKeyController(BillingKeyStore store) {
-        this.store = store;
+    BillingKeyController(BillingKeySigner signer) {
+        this.signer = signer;
     }
 
     @PostMapping
@@ -28,7 +28,7 @@ class BillingKeyController {
         if (request.authKey().startsWith(REJECT_PREFIX)) {
             return ResponseEntity.unprocessableContent().body(new ErrorResponse("INVALID_AUTH_KEY"));
         }
-        return ResponseEntity.ok(new Issued(store.issue(), CARD_LAST4));
+        return ResponseEntity.ok(new Issued(signer.issue(), CARD_LAST4));
     }
 
     record Issued(String billingKey, String cardLast4) {}
