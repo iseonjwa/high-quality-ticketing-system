@@ -12,3 +12,7 @@ services:
   gateway:
     environment:
       SPRING_PROFILES_ACTIVE: local,k6measure
+  # 측정 당시 스택에 없던 서비스다(dev ISE-126에서 생김). 측정 기준 환경에서는 띄우지 않아 CPU·메모리를 측정 때와 같게 둔다.
+  # 프로필을 붙이면 up이 이 서비스를 건너뛴다. 띄우려면 --profile k6-off를 준다
+  assistant-service:
+    profiles: ["k6-off"]
