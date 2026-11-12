@@ -43,14 +43,22 @@
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-11-12 | 좌석 배치는 로컬 캐시가 Redis보다 낫다는 AI 설명을 그대로 받지 않고, Redis로도 구현해 측정으로 비교하게 함 | kwonwoo | Claude Code | 보류 | 후보 | [기록](kwonwoo/2026-11-12-verify-local-vs-redis-layout-cache-by-measurement.md) |
+| 2026-11-12 | 측정표 답글·결제와 예매 DB 풀 contract·요청 로그 B안 설계·R0 준비에 대한 AI 추천 9건(D1~D9)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-12-accept-d1-d9-posting-and-h2-plan.md) |
+| 2026-11-11 | 배포 서버 7차에서 요청 로그 비용이 확인되자, 운영 요청 로그를 실패·느린 요청만 남기는 안(B)을 고름 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-request-log-failures-and-slow-only.md) |
 | 2026-11-11 | **H1 배포와 7차 측정을 내일 아침에 하자는 AI 추천을 거부하고, H1 PR이 dev에 머지되면 오늘 이어서 배포·측정함** | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-11-run-7th-measurement-today.md) |
 | 2026-11-11 | **Gateway 동시 처리 수 상한 기본값을 128로 올리자는 6차 세션 제안을 거부하고, p95 여유를 이유로 64 유지를 추천한 메인 세션 안을 받아들임** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-keep-in-flight-limit-64.md) |
-| 2026-11-11 | **긴 측정 뒤 배포 실패를 막으려고 Zipkin 힙을 늘리자는 AI 추천을 거부하고, 메모리 설정은 두고 스케줄러 Redis 스팬을 근원에서 줄이며 이미지 받기 재시도를 더함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-reduce-scheduler-redis-spans-keep-zipkin-memory.md) |
 | 2026-11-11 | Gateway CPU 포화와 OOM을 막는 첫 장치로 맨 앞 동시 처리 수 상한을 고르고, 설계안·프런트 표시·첫 상한 64를 AI 추천대로 정함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-gateway-in-flight-limit-first.md) |
 | 2026-11-11 | Gateway CPU의 약 24%를 쓰는 관측(추적·지표·로그 문맥) 축소를 위험하다고 보고 보류함 | kangmin | Claude Code | 보류 | 아님 | [기록](kangmin/2026-11-11-defer-gateway-observability-reduction.md) |
+| 2026-11-11 | **긴 측정 뒤 배포 실패를 막으려고 Zipkin 힙을 늘리자는 AI 추천을 거부하고, 메모리 설정은 두고 스케줄러 Redis 스팬을 근원에서 줄이며 이미지 받기 재시도를 더함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-reduce-scheduler-redis-spans-keep-zipkin-memory.md) |
+| 2026-11-11 | **한 서버 자원 격리 개선(M1 메모리 예산 등)을 contract 이슈로 인프라 담당과 먼저 합의하자는 AI 추천을 거부하고, 측정과 함께 순서대로 바로 진행함** | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-11-resource-isolation-without-infra-agreement.md) |
+| 2026-11-11 | **Gateway CPU 포화를 맨 앞 유입 제한으로 막자는 AI 추천을 거부하고, auth-redis 차단기를 단계적으로 예민하게 바꿔 포화 전에 열리는지 먼저 실험함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-breaker-first-for-gateway-cpu-saturation.md) |
 | 2026-11-11 | 결제 쪽 취소 환불을 위해 기다리던 예매 취소 API(ISE-206)를 직접 만들기로 하고, 취소 정책(공연 시작 전까지·추첨 예매 제외·결제 조회로 환불 상태 표시·담당 변경)은 AI 추천안을 받아들임 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-11-reservation-cancel-takeover-policy.md) |
 | 2026-11-11 | PR 487 대기열 담당 리뷰 반영에서 오픈 피크용 거절 경보를 따로 두자는 AI 추천(A안)을 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-11-pr487-review-peak-alert.md) |
 | 2026-11-11 | Gateway auth-redis 운영값을 G1 2회 값(필터 시한 200ms·Lettuce 300ms)으로 정하고 bulkhead 거절 비율 경보를 같이 넣자는 AI 추천을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-gateway-auth-redis-operating-values.md) |
+| 2026-11-11 | F1 장애 주입의 실행 주체(이번만 에이전트 SSH 실행 예외)·Kafka 정지·NOT_SENT 테스트 대체·경보 범위·선점 만료 앞당기기를 AI 추천안대로 정함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-f1-execution-decisions.md) |
+| 2026-11-11 | F1-a 결제 서버 강제 종료를 첫 결제 행 감지 시 자동 kill로 바꾸고 추첨석은 절차서대로 20석 유지 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-11-f1a-auto-kill-trigger.md) |
+| 2026-11-11 | F1을 측정 모드 없이 하자는 AI 추천을 거부하고, 배포 서버 테스트는 측정 모드 on과 팀 알림을 필수로 함 | kangmin | Claude Code | 거부 | 후보 | [기록](kangmin/2026-11-11-f1-measure-mode-required.md) |
+| 2026-11-11 | 자동결제·일반 결제 한도 개선에서 전용 허가 d1과 Erlang B 산정은 AI 추천을 받아들이고, 일반 결제 목표는 추천 없이 초당 30으로 정함 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-11-lottery-billing-isolation-and-approve-size.md) |
 | 2026-11-10 | 좌석 조회 경량화는 담당자(반효승)가 dev에 넣은 P4a를 살려 진행하고, 측정 브랜치 코드는 참고로만 둠 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-10-adopt-owner-p4a-keep-measurement-code-as-reference.md) |
 | 2026-11-10 | auth-redis 재측정 값을 느린 호출 100ms·80%, 시한 200ms, 벌크헤드 50(거절은 차단기 집계에서 제외), 실패율 50%로 하자는 AI 추천을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-10-auth-redis-timeout-bulkhead-measure-values.md) |
 | 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-10-toss-mock-bypass-per-payment-pg.md) |

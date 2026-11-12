@@ -449,6 +449,7 @@
   - 근거 수치는 [numbers-and-measurement.md](design/lottery/numbers-and-measurement.md) 3-4절 C1·C2·C3~E다.
 - 배운 점: 건수 기반 작은 창은 처리량이 높을수록 아주 짧은 시간의 지연에 반응한다. 차단기 창은 예상 처리량과 함께 정하고, 측정은 웜업 뒤 단계로 올려 콜드 시작 효과와 한계를 따로 본다. 503의 출처를 차단기 지표로 먼저 가르는 방법은 TS-42에 있다.
 - 이어진 고민: 원인 기록(#463), 이중 기록 발견, 시한·벌크헤드 재측정 값까지의 흐름은 [gateway-auth-redis-resilience.md](design/infra/gateway-auth-redis-resilience.md)에 모았다.
+- 후속(11/11): 운영 반영은 [ADR 0050](decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md)(#487)으로 했다(TS-56). 그 뒤 CPU 포화·OOM·거절 비용까지 이어진 흐름은 TS-57~59와 [gateway-overload-troubleshooting-story.md](design/infra/gateway-overload-troubleshooting-story.md)에 있다.
 
 ### TS-52 k6 setup 로그가 `results/*-stdout.txt`에 남지 않았다
 - 서비스·작성: loadtest / kangmin / 2026-11-10
@@ -472,42 +473,121 @@
 - 배운 점: `--wait` 배포는 앱이 아닌 부가 컨테이너(관측 도구)의 건강도 배포 성공 조건으로 삼는다. 되돌림이 실패하면 Jenkins 세션이 일찍 끝나 Jenkins 쪽 문제처럼 보이므로, 배포 서버에서 `docker ps`의 unhealthy와 `RestartCount`를 먼저 본다. 메모리에만 쌓는 저장소는 힙에 맞춘 건수 상한을 둔다.
 - 후속(11/11): 10만 건도 힙 오래 묵은 영역의 90%(242/268MB)까지 찼다. Zipkin 10분치(스팬 25,887건)를 세 보니 대기열 입장 스케줄러가 0.5초마다 부르는 `evalsha`가 87%였다. 메모리 설정은 그대로 두고, reservation-service가 예약 작업 바로 아래 Redis 명령 스팬을 Zipkin으로 보내지 않게 했다(`SchedulerRedisSpanConfiguration`, 설정 `observability.scheduler-redis-spans.export`). 10만 건이 차는 시간은 평시 약 40분에서 약 5시간으로 늘어난다(계산값). 메모리 저장은 시간 만료가 없어 결국 10만 건까지 차므로, 꽉 찬 뒤의 힙은 배포 뒤 다시 확인한다. 감수하는 것은 스케줄러 실행 한 번 안의 Redis 호출별 시간이다. 실행 스팬과 `lettuce_*` 지표는 남는다([학습 노트](learning/kangmin/qna/2026-11-11-scheduler-span-off-what-we-lose.md)).
 
-### TS-55 배포의 `docker compose pull`이 38초 만에 `context canceled`로 끝나 직전 커밋으로 되돌려졌다
+### TS-55 배포의 `docker compose pull`이 GHCR 응답 시간 초과로 실패해 직전 커밋으로 되돌려졌다
 - 서비스·작성: infra / kangmin / 2026-11-11
-- 문제: 11/11 main 배포에서 `deploy.sh`의 이미지 받기 단계가 38초 만에 `context canceled`로 끝났다. config-server·eureka·payment·mock-pg·frontend 이미지를 받지 못했고, `deploy.sh`가 직전 성공 커밋으로 되돌렸다. GitHub Actions의 이미지 빌드는 성공했고, Jenkins를 다시 돌리자 배포가 성공했다.
-- 원인: containerd 로그에 공유 레이어의 "locked: unavailable" 오류가 있었다. 여러 이미지가 같은 레이어를 동시에 받으려다 다툰 것으로 추정한다(재현하지 못했다). 이미지 자체나 GHCR 인증 문제는 아니었다.
+- 문제: 11/11 main 배포(Jenkins `deploy-main` #17, `9d577ea`)에서 09:59:59Z에 이미지 19개를 동시에 받기 시작했고, 37초 뒤(10:00:36Z) 이미지 받기 단계가 실패했다. `deploy.sh`가 직전 성공 커밋 `74f91ffb`로 되돌렸고, 그 이미지는 서버에 이미 있어 1~17초 만에 받혀 10:00:56Z에 스모크 4개를 통과했다(되돌림 성공). GitHub Actions의 이미지 빌드는 성공했고, 다음 배포 #18(`8b95fe6`)은 성공했다.
+- 원인: 콘솔 로그에 `failed to copy: httpReadSeeker: failed open: failed to do request: Get "https://ghcr.io/v2/iseonjwa/payment-service/blobs/sha256:7784b13a…": net/http: timeout awaiting response headers`가 6번 찍혔다. GHCR이 payment-service 이미지의 레이어(blob) 하나에 응답 헤더를 제때 주지 않아 시간 초과가 났다(레지스트리 쪽 일시 지연). 같은 배포에서 다른 이미지는 받혔다. 서버 containerd의 공유 레이어 "locked: unavailable" 오류는 처음에 동시 받기 다툼으로 추정했으나, 이 실패에 딸린 증상으로 보이며 원인이 아닐 가능성이 크다. 근거는 Jenkins `deploy-main` #17 Console Output이다.
 - 해결: `deploy.sh`의 이미지 받기를 `pull_with_retry`로 감싸 실패하면 10초 뒤 다시 받게 했다(최대 3회). 3회 모두 실패하면 지금처럼 배포 실패 → 되돌림이다. pull을 가짜 명령으로 바꾼 시험으로 1회 성공·2회 실패 뒤 성공·3회 실패를 확인했고, 재시도를 뺀 변형은 시험이 실패했다.
-- 배운 점: 배포 실패가 이미지 받기 단계에서 났고 재실행으로 풀리면 일시적 실패다. 되돌림만 하면 사람이 다시 돌려야 하므로, 일시적 실패가 잦은 단계는 짧은 재시도를 둔다.
+- 배운 점: 배포 실패가 이미지 받기 단계에서 나면 서버 쪽 로그보다 Jenkins 콘솔의 pull 오류 문구를 먼저 본다. 레지스트리 응답 시간 초과는 일시적이라 다시 받으면 대개 된다. 되돌림만 하면 사람이 다시 돌려야 하므로, 일시적 실패가 잦은 단계는 짧은 재시도를 둔다.
 
-### TS-56 같은 사용자가 탭 여러 개로 동시에 선점하면 매수 한도 4매를 넘어 8매까지 잡힌다
+### TS-56 Redis는 정상인데 Gateway `auth-redis` 차단기가 열려 인증 요청 전체가 503이 됐다
+- 서비스·작성: gateway / kangmin / 2026-11-11
+- 문제: 11/9~10 배포 서버 측정에서 Redis는 멀쩡했다(Redis 서버 지연 0.1~0.8ms, Redis 컨테이너 CPU 8~17%). 그런데 Gateway의 로그아웃 토큰 확인을 감싼 차단기(서킷 브레이커, 실패·느린 호출 비율이 기준을 넘으면 일정 시간 호출을 막는 장치)가 먼저 열렸다. 열리면 열림 시간 동안 인증이 필요한 요청 전부가 503이다.
+  - 1차 데운 Q1(대기열 진입) 2,000/s: 201 428건, 503 19,573건. 2ms 안의 빠른 실패로 열렸다.
+  - 1차 Q2(순번 폴링) 대기자 10,000명: 시작 3초 뒤 열려 600초 동안 회복하지 못했다(폴링 503 1,910,147건). 503을 받은 클라이언트가 3초 뒤 다시 불러 요청이 초당 2,300~3,800건으로 불었다.
+  - 2차: 느린 호출 기준을 50 → 100ms로 올리자 이번에는 "실패"로 열렸고, 실패 호출 최대 시간이 1.0s였다.
+  - 숫자 출처: [open-peak-scenarios.md](design/infra/open-peak-scenarios.md) "배포 서버 1차·2차·3차", L1 응모 쪽 같은 증상은 TS-51.
+- 원인: 세 가지가 겹쳤다. 3차에서 실패 원인별 지표(`gateway_auth_redis_failures_total{cause}`, #463)를 넣은 뒤 확인했다.
+  - 벌크헤드(bulkhead, 동시 실행 수 상한) 거절이 차단기 실패로 세어졌다. 감싸는 순서가 바깥부터 시간 제한 → 차단기 → 벌크헤드 → Redis 조회라, 벌크헤드가 차서 거절하면 차단기는 그것을 실패로 본다. 3차에서 열린 경우 대부분이 `bulkhead_full` 10~17건이었다. 벌크헤드 25는 저장소 설정에 없던 라이브러리 기본값이다.
+  - 건수 창 20은 1,000/s에서 0.02초 분량이다(계산값). 순간 거절 10건이면 10초 전체 거절로 커졌다.
+  - 차단기가 재는 시간은 Redis가 일한 시간이 아니라 Gateway가 구독한 순간부터 응답 신호가 돌아온 순간까지다. 그 사이 Gateway의 CPU 차례 대기, GC 멈춤, Lettuce(Redis 클라이언트) I/O 스레드 대기가 섞인다. 식은 Gateway에서 50ms 기준 느린 호출로 열린 것(1차 B0m·3차 R1)이 이 모양이다.
+  - 2차의 1.0s는 실제 시간이 아니었다. 안쪽 100ms 시한 초과가 차단기에 한 번 더 1,000ms 실패로 기록되던 중복 기록이었다(#463에서 고침). 고친 뒤 R1의 실패 호출 실제 시간은 110~115ms였다.
+- 해결:
+  - 원인 기록: 실패 원인 6가지 지표와 차단기 상태 전환 로그(#463). 이 빈의 생성자 문제로 배포가 한 번 실패했다(TS-53, #467).
+  - 시한 설정값화와 측정 덮어쓰기(#470, ISE-233).
+  - 운영값([ADR 0050](decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md), #487): 시간 창 10초·최소 500건, 느린 호출 100ms·80%, 열림 5초·반열림 20건, 벌크헤드 50, `BulkheadFullException`은 차단기 집계에서 뺌(`ignore-exceptions`), 필터 시한 200ms, Lettuce 시한 300ms. 시한 순서(Lettuce 300 > 필터 200 > 느린 호출 100 > 정상 응답)는 테스트로 묶었다. 거절을 빼면 과부하가 차단기에 안 보이므로 거절 비율 경보 2개를 더했다.
+  - 검증: 4차 G1 2회(같은 값, 덮어쓰기)에서 3,000/s까지 차단기가 닫혀 있었다. 거절 16,024건이 모두 `ignored`, `failed` 0이었다.
+- AI 활용:
+  - "Gateway에는 벌크헤드가 없다"는 AI 조사를 대기열 담당 질문으로 거부했다(설정에 없음 ≠ 기능 없음). [판단 기록](ai-judgments/kangmin/2026-11-09-gateway-has-default-bulkhead.md)
+  - 강민이 먼저 낸 "시한은 더 빡빡하게, 느린 호출은 더 넓게"는, 두 값이 같은 구간을 재서 시한을 낮추면 Gateway 혼잡이 곧 실패가 된다는 답을 듣고 거뒀다. 추천 값을 받아들였다. [판단 기록](ai-judgments/kangmin/2026-11-10-auth-redis-timeout-bulkhead-measure-values.md), [운영값 판단](ai-judgments/kangmin/2026-11-11-gateway-auth-redis-operating-values.md)
+- 배운 점: 클라이언트 쪽 타이머는 클라이언트 자신의 혼잡도 잰다. 의존성 장애 감지(차단기)와 자기 과부하 차단(벌크헤드)은 집계를 나눈다. 기준값을 풀기 전에 "무엇을 실패로 세는가"를 먼저 본다. 측정 도구가 보여 주는 숫자(1.0s)도 기록 방식부터 의심한다. 전체 흐름은 [gateway-auth-redis-resilience.md](design/infra/gateway-auth-redis-resilience.md)와 [서사 문서](design/infra/gateway-overload-troubleshooting-story.md) 3절 1·2단계에 있다.
+
+### TS-57 차단기 느린 호출 기준을 20ms까지 낮춰도 서버 CPU 99%에서 차단기가 열리지 않았다(가설 실패)
+- 서비스·작성: gateway / kangmin / 2026-11-11
+- 문제: TS-56 뒤 차단기는 열리지 않았지만 서버 CPU가 한도였다(4차 G1 2,500/s부터 99%, 성공 약 2,300~2,470/s 정체). "차단기 시간에 Gateway 대기가 섞인다면, 느린 호출 기준을 낮추면 CPU 포화 직전에 차단기가 열려 CPU를 지킬 것"이라는 가설로 5차를 쟀다. 목표는 서버 CPU 90% 미만(`[가정]`, 강민).
+  - 0a(기준 100ms)·0b(같은 값 + JFR)·B20(기준 20ms) 세 회차 모두 2,500/s까지 차단기가 한 번도 열리지 않았다(웜업 포함).
+  - B20의 20ms 기준 느린 호출 비율은 최대 24%였다(2,500/s). 열림 기준 80%에 못 미쳤다. CPU 90%를 넘는 구간(1,000/s 74~75% → 1,500/s 92~93%)의 비율은 10% 안팎이었다.
+  - 숫자 출처: [open-peak-scenarios.md](design/infra/open-peak-scenarios.md) "배포 서버 5차" 차단기·B20·차단기 가설 정리.
+- 원인: 사용자가 기다린 시간 대부분이 차단기가 재는 구간 밖에 있었다.
+  - 0a 2,500/s: 사용자 p95 878ms, Gateway 경로 시간 평균 200~240ms, 차단기가 잰 시간 평균 10.7~16.5ms.
+  - 요청은 인증 필터가 차단기를 구독하기 전에 Netty 이벤트 루프(요청 I/O를 적은 수의 스레드가 번갈아 처리하는 구조)와 CPU 차례에서 기다린다(추정). 이 대기는 차단기 시간에 들어가지 않는다.
+  - Redis 조회와 차단기·벌크헤드 코드가 Gateway Java CPU에서 차지하는 몫도 2.5%뿐이다(0b JFR).
+  - 차단기가 CPU 90% 전에 열리려면 기준이 정상 호출 시간(1,000/s 평균 1~5ms)까지 내려가야 한다(추정). 그러면 평소에도 열려 넘친 만큼이 아니라 인증 전부를 막는다.
+- 해결: 가설을 닫았다. 차단기는 Redis 장애 전용으로 두고(ADR 0050 그대로), Gateway 과부하는 맨 앞 동시 처리 수 상한으로 막는 쪽으로 옮겼다(TS-59). 코드·운영 설정은 바꾸지 않았다(덮어쓰기 환경 변수로만 시험).
+- AI 활용: AI는 처음부터 "차단기는 의존성 장애용, 과부하는 유입 제한용"을 추천했다. 강민은 이를 거부하고 차단기를 먼저 실험했다. 50·30ms 단계를 건너뛰고 측정 평균 근처인 20ms로 한 번에 낮춰 닫았다(강민 B 선택). 측정 결과는 AI 추천과 같은 결론이었다. [판단 기록(거부)](ai-judgments/kangmin/2026-11-11-breaker-first-for-gateway-cpu-saturation.md), [학습 노트](learning/kangmin/qna/2026-11-11-breaker-vs-cpu-saturation.md)
+- 배운 점: 장치를 조이기 전에 그 장치가 재는 구간이 문제 구간을 포함하는지 본다. 실패한 실험도 다음 가설의 근거가 된다. 이번에는 "기다림이 어디에 있는가"(구독 전)가 다음 장치의 위치(맨 앞)를 정했다.
+
+### TS-58 Gateway가 몰림 중 컨테이너 메모리 한도(768MiB)로 세 번 강제 종료됐고, 메모리만 늘리자 죽는 대신 느려졌다
+- 서비스·작성: gateway / kangmin / 2026-11-11
+- 문제: 5차 G1에서 Gateway가 세 번 OOM(메모리 부족)으로 죽었다. 서버 `dmesg`에 `Memory cgroup out of memory: Killed process (java)`가 08:18:53, 08:25:46, 08:35:11 UTC에 찍혔고 anon-rss는 757~758MB였다.
+  - 앞의 두 번은 웜업 3(3,000/s 10초)에서 활성 VU 5,938·5,309일 때, 세 번째는 본 측정 3,000/s(VU 3,000)였다.
+  - 4차 끝 Gateway 메모리도 698MiB / 768MiB였고, 11/10 03:50Z에 같은 모양의 OOM(java 약 754MB)이 있었다(같은 원인일 가능성이 높다, 추정).
+- 원인: 동시에 처리 중인 요청 수에 상한이 없었다.
+  - 힙 최대 512MB + 비힙 약 158MB + JVM 지표에 안 잡히는 메모리 약 130MB ≈ 800MB로 상한 768MiB를 넘는다(계산값). 힙이 최대 쪽으로 커지는 순간 한도에 걸린다.
+  - 힙을 키운 것은 처리 중 요청 수다. 처리 중 요청 하나에 약 47KiB(거친 계산값)로 보면 (768 − 500) ÷ 0.047 ≈ 5,700개에서 죽는다. 실제 OOM 때 VU 5,309~5,938과 맞는다.
+  - 벌크헤드 50은 Redis 조회만 감싸고, 차단기가 열려도 연결은 받는다. 그래서 둘 다 OOM을 막지 못한다(추정).
+- 해결:
+  - M1(덮어쓰기): `mem_limit` 768m → 1,024m, `-XX:MaxDirectMemorySize=128m`. OOM 조건(`PRE_VUS` 3,000·`MAX_VUS` 6,000)에서 OOM 0건, 메모리 최대 849MiB였다.
+  - 하지만 죽지 않는 대신 줄이 길어졌다. 2,000/s 굿풋(200ms 안에 끝난 성공 요청 수/초) 1,469 → 1,315, p95 435 → 752ms, 2,500/s p95 2.46s, 3,000/s에서는 504(Gateway 응답 시한 3초 초과)가 나왔다. 처리량은 늘지 않았다.
+  - 그래서 M1은 동시 수 상한(A1)과 한 PR로 운영에 넣었다(#488). 6차에서 Gateway 메모리는 모든 회차에서 511~540MiB로 평탄했고 OOM은 0건이었다.
+- AI 활용: 자원 격리 개선을 contract 이슈로 인프라 담당과 먼저 합의하자는 추천을 거부하고, 측정 덮어쓰기로 먼저 잰 뒤 운영 반영 PR 때 알리기로 했다. [판단 기록(거부)](ai-judgments/kangmin/2026-11-11-resource-isolation-without-infra-agreement.md)
+- 배운 점: 컨테이너 메모리 예산은 "바탕 + 동시 처리 수 × 건당 메모리"로 낸다. 자원 상한만 키우고 유입을 묶지 않으면 "죽는 실패"가 "느려지는 실패"로 바뀔 뿐이다. 측정 중 컨테이너가 다시 뜨면 `docker inspect`의 `RestartCount`와 `dmesg`를 먼저 본다.
+
+### TS-59 동시 처리 수 상한으로 지연은 묶였지만, 거절에도 비용이 들어 서버 CPU가 내려가지 않았다(관측이 필터보다 앞에서 시작)
+- 서비스·작성: gateway / kangmin / 2026-11-11
+- 문제: 6차에서 Gateway 맨 앞 동시 처리 수 상한(A1, `GlobalFilter` -200, 넘치면 503 `GATEWAY_OVERLOADED` + `Retry-After: 2`)을 32·64·128·500으로 쟀다.
+  - 지연은 묶였다. 2,000/s 굿풋 / p95가 0a 1,469 / 435ms에서 L64 1,696 / 87ms가 됐다. 대조군 L500은 1,304 / 571ms로 상한 없음과 같았다.
+  - CPU는 그대로였다. 어느 상한에서도 1,500/s 서버 CPU가 91~93%, 2,500/s가 99%였다.
+  - 2,500/s에서 거절 비율이 25%(L500)~40%(L32)로 달라도 한 건당 Gateway CPU는 0.66~0.71ms로 거의 같았다(계산값).
+  - 숫자 출처: [open-peak-scenarios.md](design/infra/open-peak-scenarios.md) "배포 서버 6차".
+- 원인(위치는 소스로 확인, 비용 몫은 추정): 거절 지점까지 이미 많은 일을 했다. Spring Boot 4.1.2·spring-web 7.0.10 소스로 본 요청 순서는 다음과 같다.
+  1. `HttpWebHandlerAdapter`가 요청 객체(exchange)를 만들고 서버 관측(Observation, 요청 하나를 시작·끝으로 감싸 추적 스팬과 `http_server_requests` 지표를 함께 만드는 장치)을 시작한다.
+  2. WebFilter `RequestLogWebFilter`가 요청 로그를 남긴다.
+  3. 라우트 매칭을 한다.
+  4. GlobalFilter -200 상한(6차 거절 위치).
+  5. GlobalFilter -100 인증.
+  - Boot 4에는 `ServerHttpObservationFilter`가 없고, 어댑터가 WebFilter 체인 전체를 관측으로 감싼다. 그래서 상한을 "맨 앞 WebFilter"로 옮겨도 관측은 남는다. 코드 주석의 "트레이싱 관측 필터는 `@Order(0)`"은 Boot 4 기준으로 틀렸다(5a75435c에서 고침).
+  - 5차 0b JFR에서 관측 묶음은 Gateway Java CPU의 약 24%, HTTP I/O 17.6%, 로그 5.2%였다. 받은 요청과 거절된 요청을 합친 몫이라 거절만의 몫은 확인 못 함이다.
+- 해결: H1. 상한을 `HttpHandler` 데코레이터(Spring Boot 공식 연결점 `WebHttpHandlerBuilderCustomizer`)로 옮겨 1번보다 앞에서 거절한다. 상한 64, 속성·지표 이름·응답·운영자 경로 예외·반납 방식은 그대로다. #497로 dev, #498로 배포했다.
+  - 감수: 거절된 요청은 traceId(응답 본문 `traceId` null), 요청 로그, `http_server_requests` 503 집계에서 빠진다. 거절 수는 `gateway_in_flight_rejected_total`로 센다. 경보 규칙은 `http_server_requests`를 쓰지 않는다(확인).
+  - 판정 기준(측정 전에 정함): 7차에서 L64 2,500/s 한 건당 Gateway CPU가 6차 0.71ms와 차이가 없으면 관측 비용 가설은 틀린 것이다.
+  - 7차 결과: 한 건당 0.71 → 0.72ms, 서버 CPU ±1%p로 기준대로면 실패다. 굿풋은 2,500/s 1,608 → 1,814, p95는 104 → 78ms로 나아졌다. 포화 단계의 한 건당 값은 Gateway가 받은 CPU 몫 ÷ 처리량이라 이 기준이 가설을 가리지 못했고, 성공 한 건당으로는 1.10 → 0.99ms(계산값)다. 동시 수 상한은 남은 CPU를 받은 요청이 다시 쓰는 작업 보존형이라 과부하의 서버 CPU는 내려가지 않는다([학습 노트](learning/kangmin/qna/2026-11-11-h1-reinterpret-netty-cost.md)).
+  - 같은 날 H2(요청 로그 끔, 측정 덮어쓰기)에서 1,500/s 서버 CPU가 93 → 85%로 처음 90% 아래가 됐다. Gateway CPU는 같고 Alloy·호스트 쪽이 줄었다. 운영은 실패·느린 요청만 남기는 쪽(B)으로 정했고 구현 전이다. 흐름은 [gateway-overload-troubleshooting-story.md](design/infra/gateway-overload-troubleshooting-story.md) 단계 7·8.
+- AI 활용:
+  - 6차 세션의 "상한 64 → 128" 제안을 거부하고 64를 유지했다. 2,000/s 굿풋 차이 25건(1.5%)이 같은 128을 두 번 잰 차이(5%)보다 작았고, p95는 64가 약 절반(87 대 162ms)이었다. [판단 기록(거부)](ai-judgments/kangmin/2026-11-11-keep-in-flight-limit-64.md)
+  - 관측 자체를 줄이자는 안(C1·C2)은 장애 분석을 약하게 한다고 보고 보류했다. 거절된 요청의 관측만 건너뛰는 H1을 먼저 한다. [판단 기록(보류)](ai-judgments/kangmin/2026-11-11-defer-gateway-observability-reduction.md)
+  - 처음 설계는 "관측 필터보다 앞의 WebFilter"였다. 소스를 확인해 그 필터가 Boot 4에 없음을 알고 위치를 바꿨다. [학습 노트](learning/kangmin/qna/2026-11-11-observation-cost-hypothesis-and-handler-decorator.md)
+- 배운 점: "맨 앞에서 거절"은 필터 순서 숫자가 아니라 프레임워크의 층으로 정해야 한다. 거절 한 건의 비용은 거절 지점까지 지난 모든 층의 합이다. 동시 수 상한은 지연과 메모리를 묶지만 CPU를 만들어 내지는 않는다. CPU는 한 건당 비용을 줄여야 내려간다. 프레임워크 구조를 전제로 한 주석도 버전이 바뀌면 틀릴 수 있어 소스로 다시 본다.
+
+### TS-60 같은 사용자가 탭 여러 개로 동시에 선점하면 매수 한도 4매를 넘어 8매까지 잡힌다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: 동시성 테스트 C4(같은 사용자, 탭 4개 동시 선점, 30라운드)에서 30라운드 모두 한도(4매)를 넘었고 최대 8매를 보유했다. k6 부하 측정에서는 사용자가 요청을 하나씩만 보내 드러나지 않는다.
 - 원인: 선점이 사용자별 매수를 읽고 한도를 검사한 뒤 더했다. 읽기와 더하기 사이에 같은 사용자의 다른 요청이 끼어들어 둘 다 검사를 통과했다.
 - 해결: S1. `INSERT ... ON CONFLICT DO NOTHING`으로 매수 행을 만든 뒤 `held_count + n <= max` 조건부 UPDATE로 검사와 반영을 한 문장에 묶고, 0행이면 `PURCHASE_LIMIT_EXCEEDED`로 끝낸다(SA 12-7 ①). 커밋 `5b2a9b4`. C4 30라운드 모두 4매 이하. 근거는 [concurrency-results.md](design/reservation/concurrency-results.md) 2·3절이다.
 - 배운 점: "읽고 검사하고 쓴다"는 동시 요청 앞에서 깨진다. 검사 조건을 쓰는 문장의 WHERE에 넣으면 DB가 행 잠금으로 순서를 정한다.
 
-### TS-57 같은 멱등키로 연타하면 자기 요청끼리 부딪혀 409를 받는다
+### TS-61 같은 멱등키로 연타하면 자기 요청끼리 부딪혀 409를 받는다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C5(같은 멱등키 3연타, 30라운드)에서 201이 30건, 자기 요청이 받은 409가 60건이었다. 더블 클릭이나 네트워크 재전송이면 사용자는 자기 좌석을 "이미 선점됨"으로 본다.
 - 원인: 멱등키 기록을 선점 처리 끝에 남겼다. 같은 키의 두 요청이 모두 "처음 온 요청"으로 들어가 같은 좌석을 잡으려 했고, 뒤 요청이 좌석 경쟁에서 졌다.
 - 해결: S2. 멱등키를 매수·좌석보다 먼저 `seat_hold_requests`(REQUESTED)로 INSERT하고 끝에 HELD로 바꾼다. PK 위반이면 트랜잭션 밖에서 새 읽기 트랜잭션으로 앞 요청 결과를 읽어 같은 응답을 준다. 커밋 `4eaa6d3`. C5 201 90건, 자기 요청 409 0건.
 - 배운 점: 멱등 처리는 "같은 요청인지"를 가장 먼저 정해야 한다. 키 기록이 늦으면 같은 요청끼리 자원 경쟁을 한다.
 
-### TS-58 잠긴 좌석을 노린 선점이 앞 트랜잭션이 끝날 때까지 끝없이 기다린다
+### TS-62 잠긴 좌석을 노린 선점이 앞 트랜잭션이 끝날 때까지 끝없이 기다린다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C3(좌석 잠금을 2초 쥔 트랜잭션 + 같은 좌석을 노린 5명, 3라운드)에서 p50 약 2,000ms, 최대 2,215ms를 기다렸다. 기다리는 동안 커넥션을 쥐어 다른 선점도 막는다.
 - 원인: 좌석 UPDATE에 잠금 대기 상한이 없었다. 여러 좌석을 잠그는 순서도 요청마다 달랐다.
 - 해결: S3. 멱등키 선점 뒤 `set_config('lock_timeout', '500ms', true)`를 걸고, 좌석 UPDATE를 `ORDER BY id FOR UPDATE` 하위 쿼리로 바꿨다. 잠금 실패는 409 `SEAT_ALREADY_HELD`다. 커밋 `3b9b0bf`. C3 p50 약 560ms, 모두 409. 다만 최대가 1,060~1,305ms로 목표 1,000ms를 넘었다. `lock_timeout`은 잠금 시도마다 따로 걸려(PostgreSQL 문서) 같은 행을 여럿이 기다리면 약 2배까지 기다릴 수 있다. 코드가 아니라 목표가 동작과 맞지 않아 목표를 1,500ms로 고쳤다(`971eec2`, concurrency-results.md 4-3절).
 - 배운 점: `lock_timeout`은 문장 상한이 아니라 잠금 시도당 상한이다. 테스트 목표는 설정값이 아니라 그 동작에서 끌어낸다.
 
-### TS-59 만료 스케줄러 두 개가 같은 만료 건을 서로 집어 헛수고한다
+### TS-63 만료 스케줄러 두 개가 같은 만료 건을 서로 집어 헛수고한다
 - 서비스·작성: reservation / kwonwoo / 2026-11-10
 - 문제: C6(만료 100건, 인스턴스 2개)에서 집었지만 만료하지 못한 시도(헛수고)가 100건, 소요 1,191ms였다.
 - 원인: 두 인스턴스가 같은 조회로 같은 만료 대상을 묶음으로 읽고, 한쪽이 처리하는 동안 다른 쪽은 잠금을 기다리다 이미 처리된 건을 다시 봤다.
 - 해결: S4. 건별 트랜잭션 안에서 `FOR UPDATE SKIP LOCKED LIMIT 1`로 한 건씩 집는다. 잠긴 건은 건너뛰어 다른 인스턴스와 겹치지 않는다. 실패한 예매는 그 주기에서 뺀다. 잠금 순서(예매 → 좌석 → 매수)는 그대로다. 커밋 `c307621`. C6 헛수고 0, 733ms.
 - 배운 점: 여러 작업자가 같은 큐 테이블을 나눠 처리할 때는 `SKIP LOCKED`로 집는다. k6 측정은 만료 스케줄러를 끄고 인스턴스 하나로 재므로 이 결함을 보지 못한다.
 
-### TS-60 k6 메모리 상한 때문에 Gateway 인증 차단기 열림을 서버 밖 한계로 잘못 읽었다
+### TS-64 k6 메모리 상한 때문에 Gateway 인증 차단기 열림을 서버 밖 한계로 잘못 읽었다
 - 서비스·작성: loadtest·gateway / kwonwoo / 2026-11-10
 - 문제: 새 측정 기기(i9-14900HX, Docker VM 32코어·16GiB)에서 K1 S 1,280명 단계의 좌석 조회 성공이 3회에 81.1%·15.5%·44.1%로 흔들렸고, 실패는 모두 Gateway 인증 차단기(`auth-redis`)의 즉시 503이었다. K1-H 800명도 19~23%였다. 그래서 "남은 한계는 부하 생성기와 Gateway"로 판단하고 K1 개선을 P4c에서 멈췄다. Gateway를 우회한 K1-H 탐색 회는 k6가 `k6_exit` 137로 죽었다.
 - 원인: 이전 기기(VM 7.6GiB)를 지키려 둔 k6 상한(`K6_MEMORY` 2.5GiB, `GOMEMLIMIT` 2GiB)이 새 기기에서 큰 단계(K1 S 640명 이상, K1-H 400명 이상)의 k6 메모리(약 1.9~2GiB)에 닿았다. k6가 GC로 멈췄다 요청을 몰아 보내 CPU를 16~24코어까지 썼다. 그 몰림이 Gateway의 Redis 확인을 순간적으로 몰아 차단기를 더 자주 연 것으로 본다(Gateway 내부는 확인하지 않음).

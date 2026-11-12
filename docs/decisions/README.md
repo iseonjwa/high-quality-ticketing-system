@@ -54,3 +54,5 @@
 | 0048 | [TX1 커밋 응답 유실로 남은 REQUESTED는 재시도가 이어받지 않고, 재확인의 DECLINED(NOT_SENT) 종결을 한계로 둔다](0048-payment-tx1-commit-response-loss.md) | 채택 (ISE-169, 재시도 이어받기 안은 거부) | 2026-11-09 |
 | 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
 | 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 제안 (ISE-230 contract, 대기열 담당 확인 뒤 채택. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
+| 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 제안 (결제 담당 합의 뒤 채택, 0039 대체 예정. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
+| 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 제안 (결제 담당 확인 뒤 채택. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
