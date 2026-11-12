@@ -26,7 +26,7 @@ import java.util.Date;
 import java.util.UUID;
 
 /**
- * ES256 결제 토큰 발급(ADR 0054). 개인키는 이 서비스만 갖고 결제 서비스는 공개키로 검증한다. claim 이름과 값은 Payment의
+ * ES256 결제 토큰 발급(ADR 0055). 개인키는 이 서비스만 갖고 결제 서비스는 공개키로 검증한다. claim 이름과 값은 Payment의
  * {@code PaymentTokenClaims}·{@code JwtPaymentTokenVerifier}와 맞춘다. 한쪽을 바꾸면 결제 승인이 모두 403
  * {@code PAYMENT_TOKEN_INVALID}가 된다.
  */

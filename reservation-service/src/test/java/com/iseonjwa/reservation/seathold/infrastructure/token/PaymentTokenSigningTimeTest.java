@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-// 결제 토큰 서명 한 번의 시간(ES256 대 예전 HS256)을 재서 출력한다(ISE-245, ADR 0054 "측정"). 값으로 실패시키지 않는다.
+// 결제 토큰 서명 한 번의 시간(ES256 대 예전 HS256)을 재서 출력한다(ISE-245, ADR 0055 "측정"). 값으로 실패시키지 않는다.
 // 같은 JVM에서 예열 2,000회 뒤 5,000회를 잰다. 로컬 개발 장비의 값이라 배포 서버와 다르다
 class PaymentTokenSigningTimeTest {
     private static final int WARMUP = 2_000;

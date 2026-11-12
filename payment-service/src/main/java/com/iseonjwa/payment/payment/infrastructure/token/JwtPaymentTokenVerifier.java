@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 
 /**
- * ES256 결제 토큰 검증(ADR 0054). 공개키로 ES256만 받는다. 키 선택기가 헤더의 {@code alg}가 ES256일 때만 키를 돌려주므로
+ * ES256 결제 토큰 검증(ADR 0055). 공개키로 ES256만 받는다. 키 선택기가 헤더의 {@code alg}가 ES256일 때만 키를 돌려주므로
  * HS256·{@code none}·다른 알고리즘은 서명 검증 전에 거절된다. 서명·용도·대상·필수 claim을 확인한다. 만료 검사는 일부러
  * 빼서(타임스탬프 검증기를 쓰지 않는다) 호출한 쪽이 조회 전용 여부를 판단하게 한다.
  */

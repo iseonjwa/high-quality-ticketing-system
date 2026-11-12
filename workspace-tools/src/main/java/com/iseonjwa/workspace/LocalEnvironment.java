@@ -30,7 +30,7 @@ public final class LocalEnvironment {
     public static final List<String> KEYS = List.of("DB_USER", "DB_PASSWORD", "JWT_ACCESS_SECRET",
             "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_PRIVATE_KEY", "PAYMENT_TOKEN_PUBLIC_KEY", "ENTRY_TOKEN_SECRET", "BILLING_KEY_SECRET", "ADMIN_EMAIL",
             "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
-    // 결제 토큰 키 쌍(ES256, ADR 0054). 예매 서비스가 개인키로 서명하고 결제 서비스가 공개키로 검증한다. 한 쌍이라 따로 만들지 않는다
+    // 결제 토큰 키 쌍(ES256, ADR 0055). 예매 서비스가 개인키로 서명하고 결제 서비스가 공개키로 검증한다. 한 쌍이라 따로 만들지 않는다
     private static final String PAYMENT_TOKEN_PRIVATE_KEY = "PAYMENT_TOKEN_PRIVATE_KEY";
     private static final String PAYMENT_TOKEN_PUBLIC_KEY = "PAYMENT_TOKEN_PUBLIC_KEY";
     private static final JsonMapper JSON = JsonMapper.builder().build();

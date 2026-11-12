@@ -12,7 +12,7 @@ Reservation이 선점 응답에 담아 내려 주고, 사용자가 `POST /api/v1
 
 | 항목 | 값 |
 |---|---|
-| 형식 | JWS compact(JWT), 서명 알고리즘 ES256(ECDSA P-256, SHA-256) 고정. 헤더는 `alg=ES256`, `typ=JWT`. 검증기는 헤더의 `alg`를 믿지 않고 ES256만 받는다([0054](../../decisions/0054-payment-token-asymmetric-signature.md)) |
+| 형식 | JWS compact(JWT), 서명 알고리즘 ES256(ECDSA P-256, SHA-256) 고정. 헤더는 `alg=ES256`, `typ=JWT`. 검증기는 헤더의 `alg`를 믿지 않고 ES256만 받는다([0055](../../decisions/0055-payment-token-asymmetric-signature.md)) |
 | 서명 키 | 개인키 `PAYMENT_TOKEN_PRIVATE_KEY`는 Reservation만, 공개키 `PAYMENT_TOKEN_PUBLIC_KEY`는 Payment만 가진다. 입장 토큰 키와 무관하다 |
 | 키 형식 | 개인키는 PKCS#8 DER, 공개키는 X.509 SubjectPublicKeyInfo DER를 줄바꿈 없는 Base64 한 줄로 둔다. 두 서비스는 시작할 때 값 존재·Base64·키 형식·P-256 곡선을 검사하고 어긋나면 기동하지 않는다 |
 | 길이 상한 | 4,096자. 넘으면 검증 전에 거절한다 |
@@ -124,19 +124,19 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 | # | 항목 | 기본 가정 |
 |---|---|---|
 | 1 | claim 이름·타입: `sub`, `reservationId`, `amount`, `typ`, `aud`, `exp`, `jti` | 1절 표 그대로(`reservationId`·`amount`는 JSON 정수) |
-| 2 | 서명 방식과 키: ES256, 개인키는 Reservation·공개키는 Payment(ISE-245, 0054가 HS256·`PAYMENT_TOKEN_SECRET`을 대체) | 0054 |
+| 2 | 서명 방식과 키: ES256, 개인키는 Reservation·공개키는 Payment(ISE-245, 0055가 HS256·`PAYMENT_TOKEN_SECRET`을 대체) | 0055 |
 | 3 | 토큰 `exp` = `hold_expires_at - 10초`를 발급기가 맞춘다 | 그대로 |
 | 4 | `reservation.payment_id`를 확정 때 반드시 기록하고 이벤트의 `paymentId`와 대조한다 | 그대로(0027) |
 | 5 | `payment.result` 소비자가 `PaymentApproved`의 `currency`·`approvedAt`을 쓴다 | 그대로 |
 | 6 | 만료 뒤·확정 불가 승인에 `RefundRequested`를 `payment.command`로 발행한다(필드: `reservationId`, `paymentId`, `userId`, `amount`, `currency`, `reason`) | 그대로(M3에서 Payment가 소비) |
 | 7 | 소비 실패 DLQ 처리와 이상 격리 위치는 Reservation이 정한다 | 그대로 |
-| 8 | 대사용 읽기 전용 내부 조회 API 두 개(5절). 응답 형태(공통 응답으로 감쌈), 200이 아닌 응답은 모두 조회 실패, 없는 ID는 `data` 배열에서 빠짐 | 5절 그대로(#283 기준, 머지 전) |
+| 8 | 대사용 읽기 전용 내부 조회 API 두 개(5절). 응답 형태(공통 응답으로 감쌈), 200이 아닌 응답은 모두 조회 실패, 없는 ID는 `data` 배열에서 빠짐 | 5절 그대로(#283 기준, 2026-11-12 실제 예매 서비스와 확인) |
 
 확정되면 이 문서의 상태를 "확정"으로 바꾸고 SA의 7-3과 10-3에 claim 이름(S-15)과 `currency`(S-18)를 반영한다. 변경 요청 목록은 [sa-change-requests.md](sa-change-requests.md)에 있다.
 
-## 5. 계약 ⑤ 대사용 예매 조회 (Payment → Reservation, #283(ISE-75) 기준, 머지 전)
+## 5. 계약 ⑤ 대사용 예매 조회 (Payment → Reservation, #283(ISE-75))
 
-[0029](../../decisions/0029-payment-reservation-reconciliation.md)의 대사가 부르는 Reservation의 읽기 전용 내부 API다. **아래 형태는 반효승의 PR #283(ISE-75) 기준이고 아직 머지 전이다.** 예매 쪽은 팀 공통 응답 형식을 그대로 두고 결제 쪽 어댑터(`ReservationLookupHttpClient`)와 가짜 서버를 이 모양에 맞췄다(2026-11-03 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md)). #283이 바뀌면 다시 맞춘다. 머지 뒤 compose에서 확인하기 전에는 `payment.reconciliation.reservation.enabled`가 `false`라 호출하지 않는다.
+[0029](../../decisions/0029-payment-reservation-reconciliation.md)의 대사가 부르는 Reservation의 읽기 전용 내부 API다. **아래 형태는 반효승의 PR #283(ISE-75)이고 머지됐다.** 예매 쪽은 팀 공통 응답 형식을 그대로 두고 결제 쪽 어댑터(`ReservationLookupHttpClient`)와 가짜 서버를 이 모양에 맞췄다(2026-11-03 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md)). 예매 쪽 응답이 바뀌면 다시 맞춘다. 2026-11-12에 로컬 전체 스택(compose)에서 실제 예매 서비스와 붙여 확인했고(ISE-239, [events-and-reliability.md](events-and-reliability.md) 10절 "켜기") `payment.reconciliation.reservation.enabled`를 `true`로 켰다.
 
 | API | 응답 |
 |---|---|

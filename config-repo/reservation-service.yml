@@ -41,7 +41,7 @@ entry-token:
   secret: ${ENTRY_TOKEN_SECRET:}
 payment:
   token:
-    # 결제 토큰 서명 개인키(ES256, PKCS#8 DER의 Base64 한 줄). 환경변수로만 주입하고 저장소에는 이름만 둔다(ADR 0054)
+    # 결제 토큰 서명 개인키(ES256, PKCS#8 DER의 Base64 한 줄). 환경변수로만 주입하고 저장소에는 이름만 둔다(ADR 0055)
     private-key: ${PAYMENT_TOKEN_PRIVATE_KEY:}
 observability:
   scheduler-redis-spans:

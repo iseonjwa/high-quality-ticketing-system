@@ -60,7 +60,7 @@ public final class LocalApps {
             supply(result, values, "DB_USER", "DB_PASSWORD");
         }
         if (Set.of("gateway", "user-service").contains(app.name())) supply(result, values, "JWT_ACCESS_SECRET");
-        // 결제 토큰은 Reservation이 개인키로 서명하고 Payment가 공개키로 검증한다. 각자 필요한 키 하나만 준다(ADR 0054)
+        // 결제 토큰은 Reservation이 개인키로 서명하고 Payment가 공개키로 검증한다. 각자 필요한 키 하나만 준다(ADR 0055)
         if (app.name().equals("reservation-service")) supply(result, values, "PAYMENT_TOKEN_PRIVATE_KEY");
         if (app.name().equals("payment-service")) supply(result, values, "PAYMENT_TOKEN_PUBLIC_KEY");
         // 입장 토큰은 Reservation이 발급하고 Gateway가 검증한다. 두 앱에만 키를 준다(docs/design/queue/contracts.md 1절)

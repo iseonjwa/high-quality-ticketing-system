@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 import static com.iseonjwa.payment.support.PaymentTokenFixtures.TEST_PUBLIC_KEY;
 import static com.iseonjwa.payment.support.PaymentTokenFixtures.token;
 
-// 결제 토큰 검증 한 번의 시간(ES256 대 예전 HS256)을 재서 출력한다(ISE-245, ADR 0054 "측정"). 값으로 실패시키지 않는다.
+// 결제 토큰 검증 한 번의 시간(ES256 대 예전 HS256)을 재서 출력한다(ISE-245, ADR 0055 "측정"). 값으로 실패시키지 않는다.
 // 같은 JVM에서 예열 2,000회 뒤 5,000회를 잰다. ES256은 검증기 전체 경로(서명·claim 확인 포함), HS256은 예전 디코더의 서명 검증이다.
 // 로컬 개발 장비의 값이라 배포 서버와 다르다
 class PaymentTokenVerifyTimeTest {

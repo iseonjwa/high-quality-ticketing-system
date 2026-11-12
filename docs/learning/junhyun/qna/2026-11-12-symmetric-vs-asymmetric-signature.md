@@ -33,7 +33,7 @@ tags: [jwt, hmac, es256, asymmetric, signature, key-management, payment]
 | ES256 | ECDSA P-256 SHA-256 | 개인키·공개키(256비트급) | 64바이트 | 서명은 RSA보다 빠르고 검증은 RSA보다 느림 | JDK와 Nimbus만으로 됨 |
 | EdDSA | Ed25519 | 개인키·공개키(256비트급) | 64바이트 | 빠름 | 일부 라이브러리는 추가 의존성이 필요 |
 
-같은 보안 수준에서 RSA는 키와 서명이 커서 토큰이 길어진다. ES256은 작고 JDK만으로 된다. 이 프로젝트는 ES256을 골랐다(ADR 0054).
+같은 보안 수준에서 RSA는 키와 서명이 커서 토큰이 길어진다. ES256은 작고 JDK만으로 된다. 이 프로젝트는 ES256을 골랐다(ADR 0055).
 
 ### 언제 대칭으로 충분한가
 발급자와 검증자가 **같은 서비스(같은 키 보관자)**이면 대칭으로 충분하다. 코드로 확인한 이 프로젝트의 토큰은 이렇다.
@@ -70,7 +70,7 @@ JWT 헤더에는 `alg`가 적혀 있고, 이 값은 **토큰을 보낸 쪽이 �
 HS256보다 느리지만 선점·승인 한 번에 0.1~0.3ms가 더해지는 수준이다(승인 p99 약 0.33초 대비 0.1% 안팎).
 
 ## 이 프로젝트에서는
-- 결제 토큰은 예매 서비스가 개인키로 서명하고 결제 서비스가 공개키로 검증한다(ES256, ADR 0054). 결제 서비스가 뚫려도 토큰을 만들 수 없다. `PAYMENT_TOKEN_PRIVATE_KEY`는 예매 서비스에만, `PAYMENT_TOKEN_PUBLIC_KEY`는 결제 서비스에만 넘긴다.
+- 결제 토큰은 예매 서비스가 개인키로 서명하고 결제 서비스가 공개키로 검증한다(ES256, ADR 0055). 결제 서비스가 뚫려도 토큰을 만들 수 없다. `PAYMENT_TOKEN_PRIVATE_KEY`는 예매 서비스에만, `PAYMENT_TOKEN_PUBLIC_KEY`는 결제 서비스에만 넘긴다.
 - 키는 한 쌍이라 `initLocalEnv`와 `init-env.sh`가 둘 다 없을 때만 만들고, 하나만 있으면 새로 만들지 않고 멈춘다(하나만 새로 만들면 짝이 어긋나 모든 결제가 403).
 - 이 결정이 막지 않는 것: 예매 서비스 자체가 뚫리면 정당한 발급자가 토큰을 만든다. 결제 서비스는 여전히 Gateway가 넣은 사용자 헤더를 믿는다(ADR 0008). 그래서 금액·사용자 불일치를 사후에 찾는 대사 RC-5·RC-6은 계속 필요하다.
 
@@ -81,5 +81,5 @@ HS256보다 느리지만 선점·승인 한 번에 0.1~0.3ms가 더해지는 수
 - 비용을 숫자로 말한다(서명 약 0.09ms, 검증 약 0.28ms). 키가 둘이라 생기는 운영 부담(짝 관리, 교체 절차)도 함께 말한다.
 
 ## 참고
-- `docs/decisions/0054-payment-token-asymmetric-signature.md`, `docs/decisions/0025-payment-token-secret-injection.md`, `docs/decisions/0008-internal-trust-and-auth-design.md`, Linear ISE-245
+- `docs/decisions/0055-payment-token-asymmetric-signature.md`, `docs/decisions/0025-payment-token-secret-injection.md`, `docs/decisions/0008-internal-trust-and-auth-design.md`, Linear ISE-245
 - RFC 7515(JWS), RFC 7518(JWA, ES256), RFC 8725(JWT 모범 사례: 알고리즘 검증)

@@ -10,7 +10,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 /**
- * 결제 토큰 검증 공개키(ADR 0054). 키 문자열은 X.509 SubjectPublicKeyInfo DER의 Base64 한 줄이고 P-256 곡선이어야 한다.
+ * 결제 토큰 검증 공개키(ADR 0055). 키 문자열은 X.509 SubjectPublicKeyInfo DER의 Base64 한 줄이고 P-256 곡선이어야 한다.
  * 서명은 예매 서비스만 개인키로 하고 이 서비스는 검증만 한다.
  *
  * <p>Note: 오류 메시지에는 어느 조건이 틀렸는지만 쓰고 키 값은 넣지 않는다. 공개키는 비밀이 아니지만 시작 로그와 예외에
