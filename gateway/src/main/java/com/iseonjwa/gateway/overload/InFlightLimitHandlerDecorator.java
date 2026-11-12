@@ -47,7 +47,7 @@ public class InFlightLimitHandlerDecorator implements WebHttpHandlerBuilderCusto
 
     public InFlightLimitHandlerDecorator(GatewayErrorWriter errors, MeterRegistry meters,
             @Value("${iseonjwa.gateway.in-flight.max-requests:64}") int maxRequests,
-            @Value("${iseonjwa.gateway.in-flight.retry-after:2s}") Duration retryAfter) {
+            @Value("${iseonjwa.gateway.in-flight.retry-after:3s}") Duration retryAfter) {
         if (maxRequests < 1) {
             throw new IllegalArgumentException("iseonjwa.gateway.in-flight.max-requests는 1 이상이어야 한다: " + maxRequests);
         }

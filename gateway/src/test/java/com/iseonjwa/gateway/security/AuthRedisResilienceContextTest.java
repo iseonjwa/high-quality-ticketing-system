@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.support.SpringApplicationJsonEnvironmentPostProcessor;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -119,6 +120,21 @@ class AuthRedisResilienceContextTest {
 
             assertThat(calls.failed()).isZero();
             assertThat(calls.ignored()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    void 운영_설정_그대로면_차단기_열림_거절의_Retry_After는_열림_시간_5초다() {
+        // 자동 설정이 만든 등록소의 auth-redis 설정에서 읽는지 본다. 열림 시간을 바꾸면 Retry-After도 따라온다.
+        // Note: 실제 기동처럼 "3s" 기본값을 Duration으로 바꾸려면 ApplicationConversionService가 필요하다(GatewayAuthenticationFilterTimeoutTest 참고).
+        withConfigRepo().withInitializer(context -> context.getBeanFactory()
+                        .setConversionService(ApplicationConversionService.getSharedInstance()))
+                .withUserConfiguration(AuthRedisRetryAfter.class).run(context -> {
+            breaker(context);
+            var retryAfter = context.getBean(AuthRedisRetryAfter.class);
+
+            assertThat(retryAfter.of(Cause.BREAKER_OPEN)).isEqualTo(Duration.ofSeconds(5));
+            assertThat(retryAfter.of(Cause.LOOKUP_TIMEOUT)).isEqualTo(Duration.ofSeconds(3));
         });
     }
 

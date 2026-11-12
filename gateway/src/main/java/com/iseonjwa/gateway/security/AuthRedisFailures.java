@@ -21,7 +21,7 @@ import java.util.function.LongSupplier;
 
 /**
  * 로그아웃 확인(auth-redis) 실패를 원인별로 세고, 원인마다 초당 한 건까지만 WARN으로 남긴다.
- * 응답은 바꾸지 않는다. 호출하는 쪽이 503을 그대로 쓴다.
+ * 응답은 쓰지 않는다. 호출하는 쪽이 돌려받은 원인으로 503의 Retry-After를 고른다({@link AuthRedisRetryAfter}).
  */
 @Component
 public class AuthRedisFailures {
@@ -81,20 +81,21 @@ public class AuthRedisFailures {
         }
     }
 
-    /** 실패를 받은 스레드에서 부른다. 스레드 이름이 로그에 들어간다. */
-    void record(Throwable failure, Duration elapsed) {
+    /** 실패를 받은 스레드에서 부른다. 스레드 이름이 로그에 들어간다. 분류한 원인을 돌려줘 응답의 Retry-After를 고르게 한다. */
+    Cause record(Throwable failure, Duration elapsed) {
         var decisive = decisiveFailure(failure);
         var cause = classifyOne(decisive);
         counters.get(cause).increment();
         if (!tryAcquireLogSlot(cause)) {
             suppressed.get(cause).incrementAndGet();
-            return;
+            return cause;
         }
         // Note: 요청마다 로그를 쓰면 병목인 Gateway CPU를 더 쓴다. 원인마다 초당 한 건만 쓰고 그 사이 건수는 suppressed로 합친다.
         // 토큰·jti 같은 식별자는 넣지 않는다.
         log.warn("auth-redis 실패 cause={} elapsedMs={} thread={} breakerState={} exception={} suppressed={}",
                 cause.tag, elapsed.toMillis(), Thread.currentThread().getName(), breakerState(),
                 decisive.getClass().getName(), suppressed.get(cause).getAndSet(0));
+        return cause;
     }
 
     static Cause classify(Throwable failure) {
