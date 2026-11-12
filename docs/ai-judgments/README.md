@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | **걸릴 일이 없는 Gateway Lettuce 시한 300ms를 "마지막 안전망"으로 유지하자는 AI 결론을 거부함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-reject-keep-dead-lettuce-timeout.md) |
 | 2026-11-12 | 모드 전환 뒤 같은 키 재요청 500 빈틈을, 접수형으로 시작한 요청은 202로 답하는 C안으로 막음(ADR 0058) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-12-sync-replay-of-async-requests.md) |
 | 2026-11-12 | 접수형 선점(ISE-16)의 남은 결정 다섯 가지를 추천안대로 정함. 접수에서 이미 잡힌 좌석은 즉시 409(측정 87% 근거, ADR 0057) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-12-async-seat-hold-intake-decisions.md) |
 | 2026-11-12 | 접수형 선점에서 구역이 섞인 요청을 거부하자는 첫 추천 대신, 가장 작은 구역을 메시지 키로 쓰는 2안을 고름(ADR 0056) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-12-async-seat-hold-mixed-section-key.md) |
