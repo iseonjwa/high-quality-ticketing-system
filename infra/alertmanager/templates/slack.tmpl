@@ -48,6 +48,19 @@
 {{ end -}}
 {{- end }}
 
+{{/*
+  바로 가기 링크. 인자는 env 라벨이다. 배포 서버의 Grafana는 탄력적 IP의 3000번으로 바로 열린다(등록된 IP만, 로그인 없이 보기).
+  Prometheus·Alertmanager는 서버 밖에 열지 않아 SSH 터널을 켰을 때만 localhost로 열린다(docs/guides/deploy-server-access.md).
+  로컬과 미리보기는 compose가 localhost에 연다.
+*/}}
+{{ define "iseonjwa.links" -}}
+{{ if eq . "deploy" -}}
+<http://52.63.10.174:3000/d/iseonjwa-payment|결제 대시보드> · SSH 터널을 켜면 <http://localhost:9090/alerts|Prometheus 알림> · <http://localhost:9093|Alertmanager>
+{{- else -}}
+<http://localhost:3000/d/iseonjwa-payment|결제 대시보드> · <http://localhost:9090/alerts|Prometheus 알림> · <http://localhost:9093|Alertmanager>
+{{- end }}
+{{- end }}
+
 {{ define "iseonjwa.slack.footer" -}}
 이선좌 Alertmanager · {{ if .CommonLabels.event }}건별 알림 · 같은 사건은 한 번만 보냅니다{{ else if eq .Status "firing" }}풀릴 때까지 {{ if eq .CommonLabels.urgency "immediate" }}1시간{{ else }}4시간{{ end }}마다 다시 알림{{ else }}해결 알림{{ end }}
 {{- end }}
