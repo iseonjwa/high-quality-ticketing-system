@@ -8,16 +8,18 @@ import java.time.Duration;
  * PG 호출 보호 설정(pg-integration.md 5절). 값은 모두 {@code [가정]}이며 부하 측정 뒤 조정한다.
  */
 @ConfigurationProperties(prefix = "payment.pg.protection")
-public record PgProtectionProperties(Group approve, Group recovery) {
-    // 승인: 동시 10, 복구: 복구 실행기 스레드 수와 같은 2(0018)
+public record PgProtectionProperties(Group approve, Group recovery, Group billing) {
+    // 승인: 동시 10, 복구: 복구 실행기 스레드 수와 같은 2(0018), 자동결제: 소비자 동시성과 같은 3(ADR 0051)
     private static final int APPROVE_MAX_CONCURRENT_CALLS = 10;
     private static final int RECOVERY_MAX_CONCURRENT_CALLS = 2;
+    private static final int BILLING_MAX_CONCURRENT_CALLS = 3;
     private static final Duration MAX_WAIT_LIMIT = Duration.ofSeconds(1);
 
     public PgProtectionProperties {
         // 그룹의 일부 값만 설정해도(환경변수 덮어쓰기 등) 동시 호출 수 기본값이 그룹별로 적용된다
         approve = (approve != null ? approve : Group.unset()).withMaxConcurrentCalls(APPROVE_MAX_CONCURRENT_CALLS);
         recovery = (recovery != null ? recovery : Group.unset()).withMaxConcurrentCalls(RECOVERY_MAX_CONCURRENT_CALLS);
+        billing = (billing != null ? billing : Group.unset()).withMaxConcurrentCalls(BILLING_MAX_CONCURRENT_CALLS);
     }
 
     /**

@@ -278,19 +278,21 @@ class Resilience4jPgGroupTest {
     void 그룹의_일부만_설정해도_동시_호출_수_기본값은_그룹별로_적용된다() {
         var partial = new PgProtectionProperties.Group(null, null, null, null, Duration.ofSeconds(5), null, null);
 
-        var properties = new PgProtectionProperties(partial, partial);
+        var properties = new PgProtectionProperties(partial, partial, partial);
 
         assertEquals(10, properties.approve().maxConcurrentCalls());
         assertEquals(2, properties.recovery().maxConcurrentCalls(), "복구 그룹의 동시 수가 10으로 새지 않는다");
+        assertEquals(3, properties.billing().maxConcurrentCalls(), "자동결제 그룹의 동시 수가 10으로 새지 않는다");
         assertEquals(Duration.ofSeconds(5), properties.recovery().openDuration());
     }
 
     @Test
     void 기본값은_설계의_값이다() {
-        var defaults = new PgProtectionProperties(null, null);
+        var defaults = new PgProtectionProperties(null, null, null);
 
         assertEquals(10, defaults.approve().maxConcurrentCalls());
         assertEquals(2, defaults.recovery().maxConcurrentCalls());
+        assertEquals(3, defaults.billing().maxConcurrentCalls());
         assertEquals(Duration.ZERO, defaults.approve().maxWaitDuration(), "기본은 기다리지 않는다");
         assertEquals(20, defaults.approve().slidingWindowSize());
         assertEquals(50f, defaults.approve().failureRateThreshold());

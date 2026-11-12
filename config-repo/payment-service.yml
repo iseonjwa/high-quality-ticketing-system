@@ -69,6 +69,15 @@ payment:
         failure-rate-threshold: 50
         open-duration: 10s
         half-open-permitted-calls: 3
+      # 자동결제(추첨 당첨 결제): payment.command 소비자가 부른다. 소비자 동시성(payment.messaging.command.concurrency)과 같게 둔다(ADR 0051).
+      # 못 얻으면 503 대신 같은 레코드를 다시 읽는다. 일반 결제와 자리를 나눠 서로 빼앗지 않는다
+      billing:
+        max-concurrent-calls: 3
+        sliding-window-size: 20
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        open-duration: 10s
+        half-open-permitted-calls: 3
       recovery:
         max-concurrent-calls: 2
         sliding-window-size: 20
