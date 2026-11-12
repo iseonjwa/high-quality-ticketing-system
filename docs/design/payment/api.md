@@ -1,6 +1,6 @@
 # 결제 API
 
-승인, 결제 준비(checkout), 조회 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`, 본문 `authKey`, 201, 응답은 `billingKeyId`·`cardLast4`·`status`)과 해지(`DELETE /api/v1/payments/billing-keys/me`, 200)는 11/2 ISE-96에서 추가했다. PG 인증 거절은 400 `BILLING_KEY_REJECTED`, PG 결과를 모르면 503 `PG_UNAVAILABLE`이다. 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
+승인, 결제 준비(checkout), 조회 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`, 본문 `authKey`, 201, 응답은 `billingKeyId`·`cardLast4`·`status`)과 해지(`DELETE /api/v1/payments/billing-keys/me`, 200)는 11/2 ISE-96에서 추가했다. PG 인증 거절은 400 `BILLING_KEY_REJECTED`, PG 결과를 모르면 503 `PG_UNAVAILABLE`이다. 사용자당 등록 횟수 상한(분 3회·하루 10회)을 넘으면 PG를 부르지 않고 429 `BILLING_KEY_RATE_LIMITED`와 `Retry-After`(초)를 준다(해지에는 제한이 없다, [data-model.md](data-model.md) 11절). 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
 
 ## 1. 결제 승인 `POST /api/v1/payments`
 
