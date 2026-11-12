@@ -65,12 +65,23 @@ public class ReconciliationService {
                 failures.add(exception);
             }
         }
+        commitProgress(round, results, failures);
         if (!failures.isEmpty()) {
             var failure = new ReconciliationFailedException(failures.size() + "개 규칙이 실패했다", failures.get(0));
             failures.stream().skip(1).forEach(failure::addSuppressed);
             throw failure;
         }
         return results;
+    }
+
+    /** 규칙이 모두 판단을 마쳤을 때만 변경 목록 진행을 옮긴다. 실패나 건너뜀이 있으면 다음 회차가 같은 구간을 다시 읽는다. */
+    private void commitProgress(ReconciliationRound round, List<ReconciliationRecorder.RuleResult> results,
+            List<RuntimeException> failures) {
+        var view = round.loadedReservations();
+        if (view == null || view.next() == null || !failures.isEmpty()) return;
+        if (results.stream().anyMatch(ReconciliationRecorder.RuleResult::skipped)) return;
+        var loader = reservationLoader.getIfAvailable();
+        if (loader != null) loader.commit(view.next());
     }
 
     private Supplier<ReservationView> reservationSnapshots(Instant now, ReconciliationPolicy policy) {
