@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
                 "payment.pg.provider=toss", "payment.pg.toss.secret-key=test_sk_api_test_dummy",
-                "payment.pg.toss.client-key=test_ck_api_test_dummy"})
+                "payment.pg.toss.client-key=test_ck_api_test_dummy", "payment.pg.mock-bypass-enabled=true"})
 @ActiveProfiles("test")
 @Import(PgClientsTestConfig.class)
 class PaymentTossModeApiTest {

@@ -6,6 +6,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 선점 성공 시 입장 토큰을 무효화하려면 어떻게 처리해야 하나(JWT는 만료시킬 수 없다, 비교 위치 G·S·Q, 선점 API DB 부분 고유 인덱스 + issued ZREM, 담당별 할 일, 거절 코드, 테스트) | [qna/2026-11-12-entry-token-consume-on-hold-implementation.md](qna/2026-11-12-entry-token-consume-on-hold-implementation.md) |
+| 2026-11-12 | 입장 토큰은 언제 소모해야 하나, 결제 토큰이 먼저 만료되면 어떻게 동작하나(세 가지 TTL, 403 PAYMENT_TOKEN_INVALID 뒤 좌석·화면, 자기 선점에 막히는 빈틈, 소모 시점 A·A′·B·C 비교와 정할 것) | [qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md](qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md) |
+| 2026-11-12 | 벌크헤드와 동시 처리 수 상한은 무엇이 다른가(감싸는 범위·위치·지키는 것, 건물 정문과 엘리베이터 비유, 요청이 지나는 순서, 둘 다 필요한 이유, 차단기와 구분, 값 정하기) | [qna/2026-11-12-bulkhead-vs-in-flight-limit.md](qna/2026-11-12-bulkhead-vs-in-flight-limit.md) |
 | 2026-11-12 | 예전에는 거절 한 건도 받은 요청만큼 비쌌고 H1로 싸게 만든 것이 맞나(H1 전 약 1/5 추정, H1 뒤 2~8% 측정, 포화 구간 지표 한계, 이력서에 쓸 수 있는 말과 없는 말) | [qna/2026-11-12-rejection-cost-before-after.md](qna/2026-11-12-rejection-cost-before-after.md) |
 | 2026-11-12 | 동시 수 상한으로도 CPU 포화가 안 풀리면 어떻게 하나, 로드밸런서가 필요한가(작업 보존형, 효율·수요·용량 세 방향, 폴링 간격 계산, 한 대 안 로드밸런서가 소용없는 이유, 남은 트러블슈팅) | [qna/2026-11-12-gateway-cpu-saturation-next-steps.md](qna/2026-11-12-gateway-cpu-saturation-next-steps.md) |
 | 2026-11-11 | 7차 H1 재해석: 굿풋 +12.8%인데 한 건당 CPU가 그대로인 이유(포화 구간 지표 한계, 성공 한 건당 CPU, 받은·거절 한 건 비용 연립 계산, 동시 수 상한은 작업 보존형), 다른 AI 분석 판정(Netty 파싱 뒤 실행, 카운터·503 쓰기 비용, 이벤트 루프 자료 수집 오류), 다음 가설 | [qna/2026-11-11-h1-reinterpret-netty-cost.md](qna/2026-11-11-h1-reinterpret-netty-cost.md) |

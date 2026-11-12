@@ -7,3 +7,7 @@ spring:
       data-source-properties:
         socketTimeout: 30
         options: "-c statement_timeout=15000"
+# 사람이 한 번 실행하는 명령이라 기동 웜업(ISE-243)이 필요 없다
+payment:
+  warmup:
+    enabled: false

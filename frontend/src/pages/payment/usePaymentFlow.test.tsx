@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { http } from 'msw'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats } from '@/api/reservations'
 import { readPaymentAttempt, readTossCheckout, savePaymentAttempt } from '@/auth/paymentAttempts'
@@ -34,6 +34,10 @@ const openWindow = vi.mocked(openTossPaymentWindow)
 vi.mock('@/lib/reloadPage', () => ({ reloadPage: vi.fn() }))
 const reload = vi.mocked(reloadPage)
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(async () => {
   openWindow.mockReset()
   reload.mockReset()
@@ -65,19 +69,22 @@ describe('usePaymentFlow', () => {
   })
 
   it('같은 토큰으로 실패 뒤 다시 누르면 같은 멱등키를 쓴다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     const requests = recordRequests(PAYMENTS_PATH)
     const { result } = renderHook(() => usePaymentFlow(held))
 
+    // 누름 한 번에 503 자동 재시도가 한 번 있어 요청이 둘이다(ISE-242)
     act(() => result.current.submit())
+    await act(() => vi.advanceTimersByTimeAsync(2000))
     await waitFor(() => expect(result.current.state.step).toBe('pgUnavailable'))
+    expect(requests).toHaveLength(2)
     act(() => result.current.submit())
-    await waitFor(() => expect(requests).toHaveLength(2))
+    await act(() => vi.advanceTimersByTimeAsync(2000))
+    await waitFor(() => expect(requests).toHaveLength(4))
 
-    expect(requests[1].headers.get('Idempotency-Key')).toBe(
-      requests[0].headers.get('Idempotency-Key'),
-    )
+    expect(new Set(requests.map((request) => request.headers.get('Idempotency-Key'))).size).toBe(1)
   })
 
   it('결제를 시작한 뒤 화면이 받은 토큰이 바뀌어도 처음 토큰·키로 보낸다', async () => {
@@ -143,12 +150,14 @@ describe('usePaymentFlow', () => {
   })
 
   it('결제를 시작하면 토큰과 멱등키를 저장한다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     const requests = recordRequests(PAYMENTS_PATH)
     const { result } = renderHook(() => usePaymentFlow(held))
 
     act(() => result.current.submit())
+    await act(() => vi.advanceTimersByTimeAsync(2000))
     await waitFor(() => expect(result.current.state.step).toBe('pgUnavailable'))
 
     expect(readPaymentAttempt(held.reservationId)).toEqual({
@@ -478,16 +487,21 @@ describe('usePaymentFlow', () => {
         key: 'stored-key',
         clientPaymentRef: 'tgen_stored',
       })
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       mockServer.use(http.post(PAYMENTS_PATH, () => fail(503, 'PG_UNAVAILABLE', 'PG 장애')))
       const payments = recordRequests(PAYMENTS_PATH)
       const { result } = renderHook(() => usePaymentFlow(held))
+      // 화면을 열 때 이어 보낸 실행은 503 자동 재시도 한 번까지 요청이 둘이다(ISE-242)
+      await act(() => vi.advanceTimersByTimeAsync(2000))
       await waitFor(() => expect(result.current.state.step).toBe('pgUnavailable'))
+      expect(payments).toHaveLength(2)
 
       act(() => result.current.submitMockBypass())
+      await act(() => vi.advanceTimersByTimeAsync(2000))
 
-      await waitFor(() => expect(payments).toHaveLength(2))
-      expect(payments[1].headers.get('Idempotency-Key')).toBe('stored-key')
-      const resent = (await payments[1].json()) as Record<string, unknown>
+      await waitFor(() => expect(payments).toHaveLength(4))
+      expect(payments[2].headers.get('Idempotency-Key')).toBe('stored-key')
+      const resent = (await payments[2].json()) as Record<string, unknown>
       expect(resent).toMatchObject({ clientPaymentRef: 'tgen_stored' })
       expect(resent).not.toHaveProperty('pgProvider')
     })
