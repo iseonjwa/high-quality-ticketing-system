@@ -31,7 +31,7 @@ public record ReservationLookupProperties(
         @DefaultValue("2") int missingBatchMinSize,
         @DefaultValue("5") int missingMinCount,
         @DefaultValue("0.1") double missingMaxRatio,
-        @DefaultValue("200") int changePageBudget) {
+        @DefaultValue("2000") int changePageBudget) {
     public static final int MAX_SIZE = 100;
 
     public ReservationLookupProperties {
