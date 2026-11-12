@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.seathold.concurrency;
 
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;
+import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.concurrency.ConcurrentRunner.Outcome;
 import org.junit.jupiter.api.AfterEach;
@@ -132,13 +133,14 @@ class SeatHoldConcurrencyTest {
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
     }
 
-    // C3(TS-1): 다른 트랜잭션이 좌석 행 잠금을 2초 쥐고 있으면, 선점 요청은 잠금을 오래 기다리지 않고
-    // lock_timeout(500ms) 안팎에서 409 SEAT_ALREADY_HELD로 빨리 실패해야 한다(SA 9-4)
+    // C3(TS-1): 다른 트랜잭션이 좌석 행 잠금을 2초 쥐고 있으면, 선점 요청은 잠금을 끝까지 기다리지 않고
+    // 409 SEAT_ALREADY_HELD로 빨리 실패해야 한다(SA 9-4 lock_timeout 500ms)
     @Test
     void C3_좌석_잠금_대기_빠른_실패() throws Exception {
         var rounds = 3;
         var holdLockMillis = 2_000L;
         var all = new ArrayList<Outcome>();
+        var roundMaxMillis = new ArrayList<Long>();
         for (var round = 0; round < rounds; round++) {
             var scheduleId = fixture.createOnSaleSchedule();
             var seat = fixture.createSeats(scheduleId, 1);
@@ -152,17 +154,24 @@ class SeatHoldConcurrencyTest {
             locker.start();
             assertTrue(locked.await(5, TimeUnit.SECONDS));
 
+            // Note: 요청 수를 테스트 커넥션 풀(10)보다 충분히 작게 둔다. 잠금을 쥔 스레드도 커넥션 하나를 쓰므로 10개를 보내면
+            // 일부가 커넥션을 기다려 잠금 대기와 커넥션 대기가 섞인다(2026-11-03 S3 첫 측정: max 1,792ms). 커넥션 대기는 부하 시나리오에서 본다
             var tasks = new ArrayList<Callable<String>>();
-            for (var i = 0; i < 10; i++) {
+            for (var i = 0; i < 5; i++) {
                 tasks.add(holdTask(BASE_USER + i, UUID.randomUUID(), scheduleId, seat));
             }
-            all.addAll(runTogether(tasks));
+            var outcomes = runTogether(tasks);
+            roundMaxMillis.add(ConcurrentRunner.percentileMillis(outcomes, 100));
+            all.addAll(outcomes);
             locker.join();
         }
-        report("C3", rounds, all, Map.of("holdLockMillis", holdLockMillis));
+        report("C3", rounds, all, Map.of("holdLockMillis", holdLockMillis, "roundMaxMillis", roundMaxMillis));
 
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
-        assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 1_000, "잠금을 1초 넘게 기다렸다");
+        // Note: 목표는 lock_timeout의 3배인 1,500ms다. lock_timeout은 문장이 아니라 잠금 시도마다 걸린다. 같은 행을 여럿이 기다리면
+        // 뒤 요청은 튜플 잠금과 행을 쥔 트랜잭션을 차례로 기다려 약 2배(1초)까지 걸린다(실측 최대 1,060~1,305ms).
+        // 1,500ms는 그 상한에 여유를 더한 값이고, 잠금을 끝까지 기다린 기준선(2초 이상)과는 갈린다(concurrency-results.md 4-3절)
+        assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 1_500, "잠금을 1.5초 넘게 기다렸다");
         assertEquals((long) all.size(), countByResult(all).getOrDefault("SEAT_ALREADY_HELD", 0L));
     }
 
@@ -241,22 +250,22 @@ class SeatHoldConcurrencyTest {
         var wasted = new AtomicInteger();
         var errors = new AtomicInteger();
 
+        // S4부터 만료 처리 API가 건별 집기(expireNext)로 바뀌어 구동부를 바꿨다. 헛수고의 정의(집었지만 만료하지 않은 시도)는 같다
         Callable<String> instance = () -> {
             while (true) {
-                var ids = expiry.findExpiredReservationIds(20);
-                if (ids.isEmpty()) {
-                    return OK;
-                }
-                for (var id : ids) {
-                    try {
-                        if (expiry.expire(id)) {
-                            expired.incrementAndGet();
-                        } else {
-                            wasted.incrementAndGet();
-                        }
-                    } catch (RuntimeException exception) {
-                        errors.incrementAndGet();
+                try {
+                    var attempt = expiry.expireNext(java.util.Set.of());
+                    if (attempt.isEmpty()) {
+                        return OK;
                     }
+                    if (attempt.get().expired()) {
+                        expired.incrementAndGet();
+                    } else {
+                        wasted.incrementAndGet();
+                    }
+                } catch (RuntimeException exception) {
+                    errors.incrementAndGet();
+                    return "ERROR:" + exception.getClass().getSimpleName();
                 }
             }
         };
@@ -286,8 +295,8 @@ class SeatHoldConcurrencyTest {
         for (var round = 0; round < rounds; round++) {
             var scheduleId = fixture.createOnSaleSchedule();
             var seats = fixture.createSeats(scheduleId, 2);
-            var expiring = seatHold.hold(new HoldSeatsCommand(userA, UUID.randomUUID(), scheduleId,
-                    List.of(seats.get(0)))).reservationId();
+            var expiring = ((SyncHoldOutcome.Held) seatHold.hold(new HoldSeatsCommand(userA, UUID.randomUUID(), scheduleId,
+                    List.of(seats.get(0))))).result().reservationId();
             fixture.passHoldExpiry(scheduleId);
 
             all.addAll(runTogether(List.of(

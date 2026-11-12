@@ -42,10 +42,10 @@ final class ReconciliationFixtures {
         var sequence = SEQUENCE.incrementAndGet();
         var at = Timestamp.from(updatedAt);
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_tx_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider, pg_tx_id,
                                       approved_at, pg_approved_amount, refunded_at, decline_code, next_check_at,
                                       created_at, updated_at)
-                VALUES (?, ?, 1, 50000, 'CARD', ?, ?, ?, ?, 50000, ?, 'OTHER', ?, ?, ?)""",
+                VALUES (?, ?, 1, 50000, 'CARD', ?, ?, 'MOCK', ?, ?, 50000, ?, 'OTHER', ?, ?, ?)""",
                 "PAY-" + sequence, reservationId, status, UUID.randomUUID(), "pg-tx-" + sequence, at, at, at, at, at);
         return jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
     }

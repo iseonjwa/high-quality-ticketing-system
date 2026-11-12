@@ -44,6 +44,16 @@ function currentResult(payment: MockPayment): StoredPaymentResponse {
       }
     case 'DECLINED':
       return { status: 200, data: { ...base, reasonCode: payment.reasonCode } }
+    // 환불된 결제에 같은 키로 다시 보내면 지금 상태(REFUNDED)를 준다(표 A)
+    case 'REFUNDED':
+      return {
+        status: 200,
+        data: {
+          ...base,
+          amount: payment.amount,
+          refundedAt: new Date(payment.refundedAtMillis ?? Date.now()).toISOString(),
+        },
+      }
     case 'NEEDS_MANUAL_CHECK':
       throw new Error('NEEDS_MANUAL_CHECK는 응답 본문이 없다. respondCurrent를 쓴다')
   }
@@ -100,6 +110,24 @@ function existingPaymentOf(reservationId: number) {
 }
 
 export const paymentHandlers = [
+  // 결제 준비. 목은 늘 MOCK이다. TOSS 응답을 기본으로 두면 개발 모드가 실제 토스 SDK를 부르게 된다.
+  // 토큰 검증은 서버처럼 만료 유예가 없다(api.md 1-1절)
+  http.post('/api/v1/payments/checkout', async ({ request }) => {
+    const user = requireUser(request)
+    const body = await readBody(request)
+    settleExpiredHolds()
+    const reservation = reservationOfToken(body.paymentToken, user.userId)
+    if (Date.now() >= reservation.holdExpiresAtMillis - PAYMENT_TOKEN_MARGIN_MILLIS) {
+      return fail(403, 'PAYMENT_TOKEN_INVALID', '결제 토큰이 올바르지 않습니다')
+    }
+    return ok({
+      provider: 'MOCK',
+      amount: reservation.totalAmount,
+      orderName: `콘서트 예매 ${reservation.reservationId}`,
+      mockBypass: false,
+    })
+  }),
+
   http.post('/api/v1/payments', async ({ request }) => {
     const user = requireUser(request)
     const key = `${user.userId}:${requireIdempotencyKey(request)}`
@@ -213,6 +241,15 @@ export const paymentHandlers = [
         approve(payment, mockDb.reservations.get(payment.reservationId)!)
       }
     }
+    // 예매 취소로 시작한 환불. 환불 워커가 PG 환불을 끝내면 REFUNDED가 된다(실제로는 몇 초)
+    if (payment.status === 'APPROVED' && payment.refundAfterChecks != null) {
+      payment.refundAfterChecks -= 1
+      if (payment.refundAfterChecks <= 0) {
+        payment.status = 'REFUNDED'
+        payment.refundAfterChecks = null
+        payment.refundedAtMillis = Date.now()
+      }
+    }
     // 여섯 필드를 항상 내보낸다(PaymentDetail)
     return ok(
       {
@@ -224,7 +261,10 @@ export const paymentHandlers = [
           payment.approvedAtMillis === null
             ? null
             : new Date(payment.approvedAtMillis).toISOString(),
-        refundedAt: null,
+        refundedAt:
+          payment.status === 'REFUNDED' && payment.refundedAtMillis != null
+            ? new Date(payment.refundedAtMillis).toISOString()
+            : null,
       },
       { message: '결제를 조회했습니다' },
     )

@@ -1336,6 +1336,8 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 - `DROP_RESPONSE`는 승인은 저장하고 응답만 버린다. UNKNOWN → 조회로 APPROVED를 확인하는 E9를 재현한다.
 - 🆕 프로필: 응답을 만지지 않는 모드(`DELAY`, `DECLINE`, `DROP_RESPONSE`, `PROCESSING`, `SERVER_ERROR`, `REJECT`)는 `test`·`loadtest`에서, 응답을 변조하는 모드(`BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`)는 `test`에서만 허용한다. `prod`와 기본 프로필 `local`에서는 컨트롤러가 없어 404이고, `prod`와 `loadtest`를 함께 켜면 기동하지 않는다. compose가 mock-pg도 `local`로 띄워 측정·시연에서 `/faults`가 404가 되는 문제는 팀 확인을 기다린다 (S-30, 이번 반영 대상 아님).
 
+## 12. 데이터 설계
+
 ### 12-1. 공통 규칙
 
 결정 기록 #15 데이터 공통 규칙: PK IDENTITY + 고객용 번호 별도, 예매·결제는 삭제 없이 상태로, 공연은 논리 삭제, 생성·수정·삭제의 시각과 사람(Auditing), version은 운영자가 수정하는 공연·회차만, Flyway, 이벤트 ID는 UUID.
@@ -2208,7 +2210,7 @@ high-quality-ticketing-system/
 | Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
 
 **부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)에 건다. RELEASED는 제외해야 좌석 재선택이 가능하다. `payments`(D3)는 부분 유니크가 아니라 `UNIQUE(reservation_id)` 전체로 건다(12-4, ADR 0026). 거절 뒤 좌석 재선택은 새 예매라 영향이 없고, 같은 예매의 재결제는 8-3에 따라 없다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
-- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 11/9에 이 문단의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 위처럼 정정했다(S-16). Notion 결정 기록 #58의 같은 문장은 사용자가 요청할 때 따로 고친다. U9(추첨 결제 실패 재시도)가 같은 예매의 재결제를 요구하면 ADR 0026을 다시 연다.
+- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 11/9에 이 문단의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 위처럼 정정했다(S-16). Notion 결정 기록 #58의 같은 문장은 2026-11-12에 고쳤다. U9(추첨 결제 실패 재시도)가 같은 예매의 재결제를 요구하면 ADR 0026을 다시 연다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 

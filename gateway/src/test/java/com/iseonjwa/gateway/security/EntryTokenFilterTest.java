@@ -37,6 +37,7 @@ class EntryTokenFilterTest {
     private static final String SECRET = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     private static final String USER_ID = "42";
     private static final long SCHEDULE_ID = 31;
+    private static final String JTI = "entry-jti";
 
     private final AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
     private final GatewayFilterChain chain = exchange -> {
@@ -54,6 +55,50 @@ class EntryTokenFilterTest {
         assertNotNull(forwarded.getAndSet(null));
         filter.filter(exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations", token, USER_ID), chain).block();
         assertNotNull(forwarded.get());
+    }
+
+    // ISE-207: 선점 API가 소모 여부를 jti로 확인하도록 검증한 토큰의 jti를 넘긴다(ADR 0053)
+    @Test
+    void 검증을_통과하면_토큰의_jti를_X_Entry_Token_Id로_넘긴다() {
+        var token = entryToken(SECRET, USER_ID, SCHEDULE_ID, 300, "entry", "gateway");
+
+        filter.filter(exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations", token, USER_ID), chain).block();
+
+        assertEquals(List.of(JTI), forwardedHeader(EntryTokenFilter.ENTRY_TOKEN_ID_HEADER));
+    }
+
+    // 클라이언트가 다른 토큰의 jti를 미리 넣어도 검증한 토큰의 jti 하나만 남는다
+    @Test
+    void 입장_토큰_경로에서_클라이언트가_보낸_X_Entry_Token_Id는_검증한_jti로_바뀐다() {
+        var token = entryToken(SECRET, USER_ID, SCHEDULE_ID, 300, "entry", "gateway");
+        var request = exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations", token, USER_ID,
+                "x-entry-token-id", "someone-elses-jti");
+
+        filter.filter(request, chain).block();
+
+        assertEquals(List.of(JTI), forwardedHeader(EntryTokenFilter.ENTRY_TOKEN_ID_HEADER));
+    }
+
+    // 입장 토큰이 필요 없는 경로에서도 지운다. 대소문자만 바꾼 이름도 같은 헤더다
+    @ParameterizedTest
+    @ValueSource(strings = {"POST /api/v1/schedules/31/queue/token", "POST /api/v1/lotteries/5/entries",
+            "GET /api/v1/concerts/1"})
+    void 대상이_아닌_경로에서도_클라이언트가_보낸_X_Entry_Token_Id를_지운다(String request) {
+        var parts = request.split(" ");
+
+        filter.filter(exchange(HttpMethod.valueOf(parts[0]), parts[1], null, USER_ID,
+                "X-ENTRY-TOKEN-ID", "forged-jti"), chain).block();
+
+        assertNull(forwardedHeader(EntryTokenFilter.ENTRY_TOKEN_ID_HEADER));
+    }
+
+    // 검증에 실패하면 클라이언트가 jti 헤더를 보냈어도 서비스로 보내지 않는다
+    @Test
+    void 검증에_실패하면_jti_헤더를_보냈어도_서비스로_전달하지_않는다() {
+        var expired = entryToken(SECRET, USER_ID, SCHEDULE_ID, -1, "entry", "gateway");
+
+        assertRejected(exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations", expired, USER_ID,
+                EntryTokenFilter.ENTRY_TOKEN_ID_HEADER, JTI));
     }
 
     @Test
@@ -134,10 +179,18 @@ class EntryTokenFilterTest {
         assertNull(forwarded.get());
     }
 
-    // 인증 필터가 검증 뒤 넣는 X-User-Id를 흉내 낸다
-    private MockServerWebExchange exchange(HttpMethod method, String path, String entryToken, String userId) {
+    private List<String> forwardedHeader(String name) {
+        return forwarded.get().getRequest().getHeaders().get(name);
+    }
+
+    // 인증 필터가 검증 뒤 넣는 X-User-Id를 흉내 낸다. extraHeader는 이름·값 쌍으로 클라이언트가 보낸 헤더를 더한다
+    private MockServerWebExchange exchange(HttpMethod method, String path, String entryToken, String userId,
+                                           String... extraHeader) {
         var request = MockServerHttpRequest.method(method, URI.create("http://localhost" + path))
                 .header("X-User-Id", userId);
+        for (int i = 0; i < extraHeader.length; i += 2) {
+            request.header(extraHeader[i], extraHeader[i + 1]);
+        }
         if (entryToken != null) {
             request.header(EntryTokenFilter.ENTRY_TOKEN_HEADER, entryToken);
         }
@@ -154,7 +207,7 @@ class EntryTokenFilterTest {
                 .audience(List.of(audience))
                 .issuedAt(now.minusSeconds(60))
                 .expiresAt(now.plusSeconds(lifetimeSeconds))
-                .id("entry-jti")
+                .id(JTI)
                 .claim(EntryTokenClaims.TYPE, type)
                 .claim(EntryTokenClaims.SCHEDULE_ID, scheduleId)
                 .build();

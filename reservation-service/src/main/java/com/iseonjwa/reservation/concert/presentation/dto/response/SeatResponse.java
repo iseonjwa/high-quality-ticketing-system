@@ -1,6 +1,6 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
-import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
+import com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -18,7 +18,7 @@ public class SeatResponse {
     // 일반 선점이 잡을 수 있으면 true. 추첨석(LOTTERY)과 이미 잡힌 좌석은 false다
     private boolean available;
 
-    public static SeatResponse from(ScheduleSeatRow seat) {
-        return new SeatResponse(seat.seatId(), seat.rowNo(), seat.seatNo(), seat.isHoldable());
+    public static SeatResponse of(SeatLayoutRow seat, boolean available) {
+        return new SeatResponse(seat.seatId(), seat.rowNo(), seat.seatNo(), available);
     }
 }

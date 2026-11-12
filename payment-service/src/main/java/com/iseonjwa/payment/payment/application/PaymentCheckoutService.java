@@ -38,9 +38,10 @@ public class PaymentCheckoutService {
             throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
         }
         var orderName = "콘서트 예매 " + token.reservationId();
+        // 건너뛰기는 토스 모드에서만 의미가 있다. Mock 모드는 결제 버튼이 이미 바로 승인한다
         return switch (profile.provider()) {
-            case MOCK -> new CheckoutView(profile.provider(), null, null, token.amount(), orderName);
-            case TOSS -> new CheckoutView(profile.provider(),
+            case MOCK -> new CheckoutView(profile.provider(), false, null, null, token.amount(), orderName);
+            case TOSS -> new CheckoutView(profile.provider(), profile.mockBypassEnabled(),
                     PgOrderIds.of(token.reservationId(), token.expiresAt()).value().toString(), profile.clientKey(),
                     token.amount(), orderName);
         };

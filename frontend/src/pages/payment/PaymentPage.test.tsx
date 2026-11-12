@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { openTossPaymentWindow } from '@/pages/payment/tossPaymentWindow'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { holdSeats, reservationQueryKeys, type HeldSeatHold } from '@/api/reservations'
 import { paymentPath, reservationPath } from '@/app/paths'
@@ -38,6 +39,13 @@ const CONCERT = {
   venueName: '한강 아트홀',
 }
 const PAYMENTS_API = '/api/v1/payments'
+const CHECKOUT_API = '/api/v1/payments/checkout'
+
+// 결제창만 바꿔 끼운다. 오류 코드 판별은 실제 구현을 쓴다
+vi.mock('@/pages/payment/tossPaymentWindow', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/pages/payment/tossPaymentWindow')>()),
+  openTossPaymentWindow: vi.fn(),
+}))
 const TIMER_TEXT = /결제 가능\s*0[45]:\d\d/
 
 beforeEach(async () => {
@@ -106,21 +114,25 @@ interface RenderOptions {
   reservationId?: number | string
   // 예매 상세의 [결제하기]가 넘기는 공연 제목 줄만 있는 이동 값(navigation이 없을 때)
   heading?: typeof HEADING
+  // 이동 값을 그대로 지정한다(토스에서 돌아온 안내 등)
+  rawState?: unknown
 }
 
 // 조회 재시도를 끈 클라이언트로 그려 실패 화면을 바로 본다
-function renderPayment({ navigation, reservationId, heading }: RenderOptions) {
+function renderPayment({ navigation, reservationId, heading, rawState }: RenderOptions) {
   const id = reservationId ?? navigation?.held.hold.reservationId
-  const state = navigation
-    ? paymentNavigationState({
-        hold: navigation.held.hold,
-        seats: navigation.held.seats,
-        concert: navigation.concert === undefined ? CONCERT : navigation.concert,
-        clockOffsetMillis: navigation.clockOffsetMillis ?? null,
-      })
-    : heading
-      ? reservationNavigationState(heading)
-      : null
+  const state = rawState
+    ? rawState
+    : navigation
+      ? paymentNavigationState({
+          hold: navigation.held.hold,
+          seats: navigation.held.seats,
+          concert: navigation.concert === undefined ? CONCERT : navigation.concert,
+          clockOffsetMillis: navigation.clockOffsetMillis ?? null,
+        })
+      : heading
+        ? reservationNavigationState(heading)
+        : null
   const router = createMemoryRouter(routes, {
     initialEntries: [
       {
@@ -636,12 +648,15 @@ describe('PaymentPage 결제하기', () => {
   })
 
   it('결제사 장애에서는 저장한 선점을 남긴다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
     renderPayment({ navigation: { held } })
 
     await clickPay()
+    // 503은 한 번 자동으로 다시 보낸 뒤에 안내한다(ISE-242)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
 
     expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
@@ -784,23 +799,27 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
   })
 
   it('결제사 장애면 안내하고 다시 결제하기는 같은 멱등키로 보내며, 결제 가능 시간은 계속 보인다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     const payments = recordRequests(PAYMENTS_API)
     renderPayment({ navigation: { held } })
 
     await clickPay()
+    // 누름 한 번에 자동 재시도가 한 번 있어 요청은 둘이고, 그 뒤에 안내한다(ISE-242)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
+    expect(payments).toHaveLength(2)
 
     expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
     expect(alertSlotOf('결제사 연결이 원활하지 않아요')).toHaveFocus()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     await userEvent.click(screen.getByRole('button', { name: '다시 결제하기' }))
-    await waitFor(() => expect(payments).toHaveLength(2))
+    await advanceUntil(() => payments.length >= 4)
 
     const keys = payments.map((request) => request.headers.get('Idempotency-Key'))
     expect(keys[0]).toBeTruthy()
-    expect(keys[1]).toBe(keys[0])
-    expect(await screen.findByRole('button', { name: '다시 결제하기' })).toBeInTheDocument()
+    expect(new Set(keys).size).toBe(1)
+    await advanceUntil(() => screen.queryByRole('button', { name: '다시 결제하기' }) !== null)
   })
 
   it('그 밖의 오류면 오류 안내와 다시 결제하기를 보이고 같은 멱등키로 다시 보낸다', async () => {
@@ -1038,5 +1057,243 @@ describe('PaymentPage 좌석 화면 값', () => {
 
     expect(await payButton()).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: '결제' })).toBeInTheDocument()
+  })
+})
+
+describe('PaymentPage 토스 결제창', () => {
+  it('결제 준비 응답을 기다리는 동안 결제 준비 중으로 바뀐다', async () => {
+    const held = await hold()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    mockServer.use(
+      http.post(CHECKOUT_API, async () => {
+        await gate
+        return undefined
+      }),
+    )
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    const busy = await screen.findByRole('button', { name: '결제 준비 중' })
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    release()
+  })
+
+  it('결제창을 열고 이동을 기다리는 동안 결제창 여는 중으로 바뀌고 승인은 보내지 않는다', async () => {
+    const held = await hold()
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+        }),
+      ),
+    )
+    vi.mocked(openTossPaymentWindow).mockReturnValue(new Promise(() => {}))
+    const payments = recordRequests(PAYMENTS_API)
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByRole('button', { name: '결제창 여는 중' })).toBeInTheDocument()
+    expect(payments).toHaveLength(0)
+  })
+
+  it('결제창을 닫으면 취소 안내를 보이고 다시 누를 수 있다', async () => {
+    const held = await hold()
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+        }),
+      ),
+    )
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'USER_CANCEL' })
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText('결제를 취소했어요. 다시 결제할 수 있어요.')).toBeInTheDocument()
+    expect(await payButton()).toBeEnabled()
+  })
+
+  it('결제창이 오류로 끝나면 안내와 코드를 보이고 다시 누를 수 있다', async () => {
+    const held = await hold()
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+        }),
+      ),
+    )
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'INVALID_CARD_COMPANY' })
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    const alert = await screen.findByText(/결제창에서 결제를 마치지 못했어요/)
+    expect(alert).toHaveTextContent('다시 시도해 주세요. (INVALID_CARD_COMPANY)')
+    expect(await payButton()).toBeEnabled()
+  })
+
+  it.each([
+    ['canceled', undefined, '결제를 취소했어요. 다시 결제할 수 있어요.'],
+    [
+      'failed',
+      'REJECT_CARD_COMPANY',
+      '결제창에서 결제를 마치지 못했어요. 다시 시도해 주세요. (REJECT_CARD_COMPANY)',
+    ],
+    ['mismatch', undefined, '결제 정보가 맞지 않아 결제를 진행하지 않았어요. 다시 결제해 주세요.'],
+  ])('돌아온 뒤 %s 안내를 결제 버튼 위에 보인다', async (kind, tossCode, text) => {
+    const held = await hold()
+    renderPayment({
+      navigation: { held },
+      rawState: {
+        ...paymentNavigationState({
+          hold: held.hold,
+          seats: held.seats,
+          concert: CONCERT,
+          clockOffsetMillis: null,
+        }),
+        tossReturn: kind,
+        tossCode,
+      },
+    })
+
+    const notice = await screen.findByText(text.split(' (')[0])
+    expect(notice).toHaveTextContent(text)
+    expect(await payButton()).toBeEnabled()
+  })
+
+  it('돌아온 안내에 토스 message 같은 임의의 글자는 보이지 않는다', async () => {
+    const held = await hold()
+    renderPayment({
+      navigation: { held },
+      rawState: {
+        ...paymentNavigationState({
+          hold: held.hold,
+          seats: held.seats,
+          concert: CONCERT,
+          clockOffsetMillis: null,
+        }),
+        tossReturn: 'failed',
+        tossCode: '<b>가짜 안내</b>',
+        message: '가짜 안내',
+      },
+    })
+
+    await payButton()
+    expect(screen.queryByText(/가짜 안내/)).not.toBeInTheDocument()
+  })
+})
+
+describe('PaymentPage 토스연동 건너뛰기', () => {
+  function respondToss(held: Awaited<ReturnType<typeof hold>>, mockBypass: boolean) {
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+          mockBypass,
+        }),
+      ),
+    )
+  }
+
+  it('토스 모드에서 건너뛰기를 받으면 링크를 보이고, 누르면 결제창 없이 pgProvider MOCK으로 승인한다', async () => {
+    const held = await hold()
+    respondToss(held, true)
+    const payments = recordRequests(PAYMENTS_API)
+    renderPayment({ navigation: { held } })
+
+    expect(
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+    ).toBeInTheDocument()
+    const bypass = await screen.findByRole('button', { name: '토스연동 건너뛰고 결제하기' })
+    await userEvent.click(bypass)
+
+    await waitFor(() => expect(payments).toHaveLength(1))
+    expect(await payments[0].json()).toMatchObject({ pgProvider: 'MOCK' })
+    expect(vi.mocked(openTossPaymentWindow)).not.toHaveBeenCalled()
+    // 승인 시도를 만든 뒤에는 링크를 감춘다
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('서버가 건너뛰기를 받지 않으면 링크가 없다', async () => {
+    const held = await hold()
+    respondToss(held, false)
+    renderPayment({ navigation: { held } })
+
+    expect(
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('Mock 모드는 링크가 없고 결제 수단에 시연용 문구를 보인다', async () => {
+    const held = await hold()
+    renderPayment({ navigation: { held } })
+
+    expect(await screen.findByText('시연용 결제라 카드 정보를 받지 않아요')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('PaymentPage 결제창을 닫은 뒤 결제 가능 시간', () => {
+  it('결제창을 닫은 뒤 서버 시계로 시간이 지나면 버튼을 막고 건너뛰기를 감춘다', async () => {
+    const held = await hold()
+    // 서버 시계 기준 2초 뒤에 결제 가능 시간이 끝난다
+    const soon = {
+      ...held,
+      hold: { ...held.hold, paymentTokenExpiresAt: toKstIso(Date.now() + 2_000) },
+    }
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+          mockBypass: true,
+        }),
+      ),
+    )
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'USER_CANCEL' })
+    renderPayment({ navigation: { held: soon, clockOffsetMillis: 0 } })
+
+    await clickPay()
+    expect(await screen.findByText('결제를 취소했어요. 다시 결제할 수 있어요.')).toBeInTheDocument()
+
+    expect(
+      await screen.findByText('결제 가능 시간이 지났어요', {}, { timeout: 4_000 }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /원 결제하기$/ })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
+    ).not.toBeInTheDocument()
   })
 })

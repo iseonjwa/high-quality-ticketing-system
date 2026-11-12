@@ -71,6 +71,7 @@ public final class RefundWorkerFixtures {
         Instant pgRequestedAt = null;
         String pgTxId = null;
         UUID pgOrderId = UUID.randomUUID();
+        String pgProvider = "MOCK";
 
         public Spec paymentStatus(String value) { this.paymentStatus = value; return this; }
         public Spec pgApprovedAmount(long value) { this.pgApprovedAmount = value; return this; }
@@ -83,6 +84,8 @@ public final class RefundWorkerFixtures {
         public Spec pgTxId(String value) { this.pgTxId = value; return this; }
         /** 실제 Mock PG에 승인을 요청할 때 쓴 주문 ID. 결제의 pg_order_id가 된다. */
         public Spec pgOrderId(UUID value) { this.pgOrderId = value; return this; }
+        /** 결제를 처리한 PG(MOCK·TOSS). 기본은 MOCK이다. */
+        public Spec pgProvider(String value) { this.pgProvider = value; return this; }
     }
 
     public record Created(long paymentId, long reservationId, long refundId, UUID pgRefundId, String pgTxId) {}
@@ -107,10 +110,10 @@ public final class RefundWorkerFixtures {
         var pgTxId = spec.pgTxId != null ? spec.pgTxId : "pg-tx-" + reservationId;
         // 금액 불일치 환불의 결제(NEEDS_MANUAL_CHECK)는 PG 승인 금액이 결제 금액과 다르다
         jdbc.update("""
-                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id,
+                INSERT INTO payments (payment_no, reservation_id, user_id, amount, method, status, pg_order_id, pg_provider,
                                      pg_tx_id, pg_approved_amount, approved_at, refunded_at, created_at, updated_at)
-                VALUES (?, ?, 42, ?, 'CARD', ?, ?, ?, ?, now(), ?, now(), now())""",
-                "PAY-W" + reservationId, reservationId, AMOUNT, spec.paymentStatus, spec.pgOrderId, pgTxId,
+                VALUES (?, ?, 42, ?, 'CARD', ?, ?, ?, ?, ?, now(), ?, now(), now())""",
+                "PAY-W" + reservationId, reservationId, AMOUNT, spec.paymentStatus, spec.pgOrderId, spec.pgProvider, pgTxId,
                 spec.pgApprovedAmount, "REFUNDED".equals(spec.paymentStatus) ? Timestamp.from(Instant.now()) : null);
         var paymentId = jdbc.queryForObject("SELECT id FROM payments WHERE reservation_id = ?", Long.class, reservationId);
         return new Created(paymentId, reservationId, 0, null, pgTxId);

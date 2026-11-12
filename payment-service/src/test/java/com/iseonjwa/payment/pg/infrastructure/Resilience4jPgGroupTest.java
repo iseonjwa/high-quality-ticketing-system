@@ -19,7 +19,7 @@ class Resilience4jPgGroupTest {
 
     // 동시 2, 최근 4회 중 50% 이상 실패하면 OPEN, HALF_OPEN 시험 3회
     private static PgProtectionProperties.Group settings(int maxConcurrent, int halfOpenCalls) {
-        return new PgProtectionProperties.Group(maxConcurrent, 4, 4, 50f, OPEN_DURATION, halfOpenCalls);
+        return new PgProtectionProperties.Group(maxConcurrent, 4, 4, 50f, OPEN_DURATION, halfOpenCalls, null);
     }
 
     private static Resilience4jPgGroup group(int maxConcurrent) {
@@ -224,7 +224,7 @@ class Resilience4jPgGroupTest {
     @Test
     void 정산_분류는_응답은_성공_결과를_모르면_실패_요청_오류는_세지_않는다() {
         // 실패가 쌓여도 CB가 열려 허가를 막지 않도록 창을 넉넉히 둔다
-        var group = new Resilience4jPgGroup("test", new PgProtectionProperties.Group(10, 20, 20, 50f, OPEN_DURATION, 3));
+        var group = new Resilience4jPgGroup("test", new PgProtectionProperties.Group(10, 20, 20, 50f, OPEN_DURATION, 3, null));
 
         group.tryAcquire().orElseThrow().settle(new PgClient.Declined(com.iseonjwa.payment.payment.domain.DeclineReason.OTHER));
         group.tryAcquire().orElseThrow().settle(new PgClient.NotFound());
@@ -262,33 +262,65 @@ class Resilience4jPgGroupTest {
 
     @Test
     void 설정_값이_잘못되면_기동을_막는다() {
-        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(0, null, null, null, null, null));
-        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 0, null, null, null, null));
-        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 4, 101f, null, null));
-        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 10, null, null, null),
+        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(0, null, null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 0, null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 4, 101f, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new PgProtectionProperties.Group(5, 4, 10, null, null, null, null),
                 "최소 호출 수는 창 크기를 넘을 수 없다");
+        assertThrows(IllegalArgumentException.class,
+                () -> new PgProtectionProperties.Group(5, null, null, null, null, null, Duration.ofMillis(-1)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PgProtectionProperties.Group(5, null, null, null, null, null, Duration.ofMillis(1001)),
+                "대기는 1초를 넘을 수 없다");
     }
 
     @Test
     void 그룹의_일부만_설정해도_동시_호출_수_기본값은_그룹별로_적용된다() {
-        var partial = new PgProtectionProperties.Group(null, null, null, null, Duration.ofSeconds(5), null);
+        var partial = new PgProtectionProperties.Group(null, null, null, null, Duration.ofSeconds(5), null, null);
 
-        var properties = new PgProtectionProperties(partial, partial);
+        var properties = new PgProtectionProperties(partial, partial, partial);
 
         assertEquals(10, properties.approve().maxConcurrentCalls());
         assertEquals(2, properties.recovery().maxConcurrentCalls(), "복구 그룹의 동시 수가 10으로 새지 않는다");
+        assertEquals(3, properties.billing().maxConcurrentCalls(), "자동결제 그룹의 동시 수가 10으로 새지 않는다");
         assertEquals(Duration.ofSeconds(5), properties.recovery().openDuration());
     }
 
     @Test
     void 기본값은_설계의_값이다() {
-        var defaults = new PgProtectionProperties(null, null);
+        var defaults = new PgProtectionProperties(null, null, null);
 
         assertEquals(10, defaults.approve().maxConcurrentCalls());
         assertEquals(2, defaults.recovery().maxConcurrentCalls());
+        assertEquals(3, defaults.billing().maxConcurrentCalls());
+        assertEquals(Duration.ZERO, defaults.approve().maxWaitDuration(), "기본은 기다리지 않는다");
         assertEquals(20, defaults.approve().slidingWindowSize());
         assertEquals(50f, defaults.approve().failureRateThreshold());
         assertEquals(Duration.ofSeconds(10), defaults.approve().openDuration());
         assertEquals(3, defaults.approve().halfOpenPermittedCalls());
+    }
+
+    @Test
+    void 대기를_주면_그_시간_안에_자리가_나면_허가하고_아니면_거절한다() throws Exception {
+        var waiting = new Resilience4jPgGroup("wait",
+                new PgProtectionProperties.Group(1, 4, 4, 50f, OPEN_DURATION, 3, Duration.ofMillis(1000)));
+        var held = waiting.tryAcquire().orElseThrow();
+        var releaser = new Thread(() -> {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            held.success();
+        });
+        releaser.start();
+
+        assertTrue(waiting.tryAcquire().isPresent(), "1초 안에 자리가 나면 기다렸다가 허가한다");
+        releaser.join();
+
+        var shortWait = new Resilience4jPgGroup("short",
+                new PgProtectionProperties.Group(1, 4, 4, 50f, OPEN_DURATION, 3, Duration.ofMillis(20)));
+        shortWait.tryAcquire().orElseThrow();
+        assertTrue(shortWait.tryAcquire().isEmpty(), "대기 시간 안에 자리가 나지 않으면 거절한다");
     }
 }

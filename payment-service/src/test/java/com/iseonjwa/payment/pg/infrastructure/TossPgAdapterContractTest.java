@@ -39,8 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TossPgAdapterContractTest extends PgClientContractTest {
     // 가짜 서버와 어댑터가 주고받는 시험용 값이다. 실제 키가 아니다
     private static final String SECRET_KEY = "test_sk_unit_test_dummy_0123456789";
-    private static final Duration READ_TIMEOUT = Duration.ofMillis(300);
-    private static final Duration SLOW_DELAY = Duration.ofMillis(900);
+    // Note: 읽기 시한 300ms에서는 CI 러너가 잠깐 느려지면 정상 승인도 TIMEOUT이 됐다(ISE-142). 실제 mock-pg 계약
+    // (MockPgServerContractTest)과 같은 1초·2.5초로 둔다. 느린 응답은 시한보다 충분히 길어야 한다
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration SLOW_DELAY = Duration.ofMillis(2_500);
 
     private static FakeTossServer server;
     private static PgClient client;

@@ -10,8 +10,11 @@ import java.util.Map;
 public interface ScheduleSeatRepository {
     boolean existsByScheduleId(Long scheduleId);
 
-    // 회차 좌석 배치 조회. 공연장 좌석(열·번호·원래 등급)을 같이 읽고, 구역 → 열 → 번호 순이다
-    List<ScheduleSeatRow> findSeatRows(Long scheduleId);
+    // 회차 좌석 배치(바뀌지 않는 값). 공연장 좌석(열·번호·원래 등급)을 같이 읽고, 구역 → 열 → 번호 순이다
+    List<SeatLayoutRow> findSeatLayouts(Long scheduleId);
+
+    // 회차 좌석의 등급과 상태(바뀌는 값). 순서는 보장하지 않는다
+    List<SeatStateRow> findSeatStates(Long scheduleId);
 
     // 공연장 좌석 배치를 회차 좌석으로 한 번에 복사하고, 만든 좌석 수를 돌려준다.
     // 가격은 좌석 등급으로 고르고 상태는 AVAILABLE이다.
@@ -40,6 +43,9 @@ public interface ScheduleSeatRepository {
 
     // 결제 거절·승인 뒤 만료(SA 8-3). HELD인 좌석만 AVAILABLE로 되돌리고 되돌린 수를 돌려준다
     int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now);
+
+    // 예매 취소. SOLD인 좌석만 AVAILABLE로 되돌리고 되돌린 수를 돌려준다. actorId는 취소한 사용자다
+    int releaseSoldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
 
     record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
 }

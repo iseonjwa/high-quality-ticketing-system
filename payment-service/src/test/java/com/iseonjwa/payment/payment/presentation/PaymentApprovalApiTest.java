@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.payment.presentation;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.application.PaymentTx;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
@@ -60,6 +62,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class PaymentApprovalApiTest {
     private static final long USER = 42L;
     private static final long AMOUNT = 50000L;
@@ -265,7 +268,7 @@ class PaymentApprovalApiTest {
     @Test
     void 위조되거나_다른_사용자의_토큰은_403이다() throws Exception {
         var reservation = newReservation();
-        var forged = token(USER, reservation, AMOUNT).secret("ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100").build();
+        var forged = token(USER, reservation, AMOUNT).privateKey(com.iseonjwa.payment.support.PaymentTokenFixtures.OTHER_PRIVATE_KEY).build();
 
         assertEquals(403, approve(USER, key(), forged, AMOUNT).status());
         assertEquals(403, approve(USER, key(), token(USER + 1, reservation, AMOUNT).build(), AMOUNT).status(),
@@ -385,7 +388,7 @@ class PaymentApprovalApiTest {
             var created = invocation.callRealMethod();
             Thread.sleep(3200);
             return created;
-        }).when(paymentTx).createRequested(any(), any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any(), any());
         var token = token(USER, reservation, AMOUNT).expiresAt(Instant.now().plusSeconds(3)).build();
 
         var response = approve(USER, key(), token, AMOUNT);
@@ -406,7 +409,7 @@ class PaymentApprovalApiTest {
         var responses = concurrently(() -> approve(USER, key, token, AMOUNT), () -> approve(USER, key, token, AMOUNT));
 
         // 두 요청이 모두 TX1까지 들어온 뒤 진행해 유니크 위반 경로를 실제로 탄다
-        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         for (var response : responses) {
@@ -424,7 +427,7 @@ class PaymentApprovalApiTest {
         var keyB = key();
         var responses = concurrently(() -> approve(USER, keyA, token, AMOUNT), () -> approve(USER, keyB, token, AMOUNT));
 
-        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any());
+        verify(paymentTx, times(2)).createRequested(any(), any(), any(), any(), any());
         assertEquals(1, paymentCount(reservation));
         verify(pg, times(1)).approve(any());
         assertEquals(responses.get(0).json().get("data").get("paymentId").asLong(),
@@ -460,7 +463,7 @@ class PaymentApprovalApiTest {
                 // 한 요청이 TX1에 도달하지 않는 경로(재생 등)면 기다리지 않고 진행한다
             }
             return invocation.callRealMethod();
-        }).when(paymentTx).createRequested(any(), any(), any(), any());
+        }).when(paymentTx).createRequested(any(), any(), any(), any(), any());
         when(pg.approve(any())).thenAnswer(invocation -> {
             Thread.sleep(300);
             return approved(AMOUNT);
@@ -550,6 +553,7 @@ class PaymentApprovalApiTest {
         assertEquals("MOCK", data.get("provider").asString());
         assertFalse(data.has("orderId"));
         assertFalse(data.has("clientKey"));
+        assertFalse(data.get("mockBypass").asBoolean(), "Mock 모드는 결제 버튼이 이미 바로 승인한다");
         assertEquals(AMOUNT, data.get("amount").asLong());
         assertTrue(data.get("orderName").asString().contains(Long.toString(reservation)));
         assertEquals(0, paymentCount(reservation), "checkout은 아무것도 저장하지 않는다");
@@ -584,6 +588,47 @@ class PaymentApprovalApiTest {
         var expected = PgOrderIds.of(reservation, expiresAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         assertEquals(expected.value().toString(), jdbc.queryForObject(
                 "SELECT pg_order_id::text FROM payments WHERE reservation_id = ?", String.class, reservation));
+    }
+
+    @Test
+    void Mock_모드에서_pgProvider가_TOSS면_400이고_행도_멱등_기록도_남기지_않는다() throws Exception {
+        var reservation = newReservation();
+        var key = UUID.randomUUID().toString();
+
+        var response = approveWithProvider(USER, key, token(USER, reservation, AMOUNT).build(), "TOSS");
+
+        assertEquals(400, response.status());
+        assertEquals("VALIDATION_FAILED", response.json().get("code").asString());
+        verify(pg, never()).approve(any());
+        assertEquals(0, paymentCount(reservation));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM idempotency_records WHERE idem_key = ?::uuid",
+                Integer.class, key));
+    }
+
+    @Test
+    void Mock_모드에서_pgProvider가_MOCK이면_평소처럼_승인하고_MOCK으로_기록한다() throws Exception {
+        var reservation = newReservation();
+
+        var response = approveWithProvider(USER, UUID.randomUUID().toString(), token(USER, reservation, AMOUNT).build(), "MOCK");
+
+        assertEquals(200, response.status());
+        assertEquals("MOCK", jdbc.queryForObject("SELECT pg_provider FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    @Test
+    void Mock_모드의_평범한_승인은_pg_provider를_MOCK으로_기록한다() throws Exception {
+        var reservation = newReservation();
+
+        assertEquals(200, approve(USER, UUID.randomUUID().toString(), token(USER, reservation, AMOUNT).build(), AMOUNT).status());
+
+        assertEquals("MOCK", jdbc.queryForObject("SELECT pg_provider FROM payments WHERE reservation_id = ?",
+                String.class, reservation));
+    }
+
+    private Response approveWithProvider(long userId, String key, String token, String pgProvider) throws Exception {
+        return post(userId, key, "{\"paymentToken\":\"" + token + "\",\"amount\":" + AMOUNT
+                + ",\"method\":\"CARD\",\"pgProvider\":\"" + pgProvider + "\"}", true);
     }
 
     private Response checkout(long userId, String token) throws Exception {

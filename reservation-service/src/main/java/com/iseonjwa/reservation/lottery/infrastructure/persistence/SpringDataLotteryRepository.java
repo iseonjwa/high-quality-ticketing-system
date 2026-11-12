@@ -13,6 +13,8 @@ interface SpringDataLotteryRepository extends JpaRepository<Lottery, Long> {
 
     boolean existsByScheduleId(Long scheduleId);
 
+    Optional<Lottery> findByScheduleIdAndDeletedAtIsNull(Long scheduleId);
+
     // 회차 잠금 뒤 findById가 다른 수정이 커밋한 최신 행을 읽도록 엔티티 대신 값만 읽어 영속성 컨텍스트에 올리지 않는다
     @Query("select l.scheduleId from Lottery l where l.id = :id")
     Optional<Long> findScheduleIdById(@Param("id") Long id);

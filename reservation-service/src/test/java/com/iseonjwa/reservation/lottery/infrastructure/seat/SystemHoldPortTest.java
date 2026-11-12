@@ -3,6 +3,8 @@ package com.iseonjwa.reservation.lottery.infrastructure.seat;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.reservation.lottery.application.SystemHoldPort;
 import com.iseonjwa.reservation.lottery.application.SystemHoldPort.LotteryHold;
+import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuotaId;
+import com.iseonjwa.reservation.reservation.domain.repository.UserScheduleQuotaRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,8 +18,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,9 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SystemHoldPortTest {
     private static final String MARK = "시스템 선점 테스트";
     private static final long USER_ID = 6001L;
+    // schedules.max_per_user 기본값
+    private static final int MAX_PER_USER = 4;
 
     @Autowired
     SystemHoldPort systemHoldPort;
+    @Autowired
+    UserScheduleQuotaRepository quotas;
     @Autowired
     TransactionTemplate tx;
     @Autowired
@@ -134,11 +146,92 @@ class SystemHoldPortTest {
         assertNothingHeld();
     }
 
+    // 한도와 같아지는 데까지는 받는다(held_count + 매수 <= 한도)
+    @Test
+    void 기존_매수에_더해_한도와_같아지면_선점한다() {
+        insertQuota(2);
+
+        tx.execute(status ->
+                systemHoldPort.hold(USER_ID, scheduleId, List.of(lotterySeatIds.get(0), lotterySeatIds.get(1))));
+
+        assertEquals(MAX_PER_USER, heldCount());
+    }
+
+    // ISE-251: 같은 사용자의 다른 선점이 매수 행을 먼저 갱신하고 아직 커밋하지 않았을 때 추첨 배정이 들어온다.
+    // 예전처럼 커밋 전 값(2)을 읽어 검사하면 둘 다 통과해 6매가 됐다. 지금은 행 잠금을 기다린 뒤 커밋된 4로 다시 판정해 거절한다
+    @Test
+    void 같은_사용자의_다른_선점과_겹쳐도_회차_매수_한도를_넘지_않는다() throws Exception {
+        insertQuota(2);
+        var quotaId = new UserScheduleQuotaId(USER_ID, scheduleId);
+        var otherLocked = new CountDownLatch(1);
+        var releaseOther = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> other = executor.submit(() -> tx.execute(status -> {
+                int updated = quotas.addHeldCountWithinLimit(quotaId, 2, MAX_PER_USER, Instant.now(), USER_ID);
+                otherLocked.countDown();
+                await(releaseOther);
+                return updated;
+            }));
+            assertTrue(otherLocked.await(5, TimeUnit.SECONDS));
+
+            Future<LotteryHold> lottery = executor.submit(() -> tx.execute(status ->
+                    systemHoldPort.hold(USER_ID, scheduleId, List.of(lotterySeatIds.get(0), lotterySeatIds.get(1)))));
+            awaitQuotaRowLockWait();
+            releaseOther.countDown();
+
+            assertEquals(1, other.get(5, TimeUnit.SECONDS));
+            var failure = assertThrows(ExecutionException.class, () -> lottery.get(5, TimeUnit.SECONDS));
+            var exception = assertInstanceOf(BusinessException.class, failure.getCause());
+            assertEquals("PURCHASE_LIMIT_EXCEEDED", exception.getErrorCode().code());
+        } finally {
+            releaseOther.countDown();
+            executor.shutdownNow();
+        }
+        assertEquals(MAX_PER_USER, heldCount());
+        assertNothingHeld();
+    }
+
     // 예매만 커밋되고 응모 연결이 빠지는 일을 막으려고 배정 워커의 트랜잭션 밖에서는 부를 수 없게 한다
     @Test
     void 트랜잭션_밖에서_부르면_거절한다() {
         assertThrows(IllegalTransactionStateException.class,
                 () -> systemHoldPort.hold(USER_ID, scheduleId, List.of(lotterySeatIds.get(0))));
+    }
+
+    private void insertQuota(int heldCount) {
+        jdbc.update("INSERT INTO user_schedule_quotas (user_id, schedule_id, held_count, created_at, updated_at)"
+                + " VALUES (?, ?, ?, now(), now())", USER_ID, scheduleId, heldCount);
+    }
+
+    private int heldCount() {
+        return jdbc.queryForObject("SELECT held_count FROM user_schedule_quotas WHERE user_id = ? AND schedule_id = ?",
+                Integer.class, USER_ID, scheduleId);
+    }
+
+    // 추첨 배정이 매수 행 잠금을 기다리기 시작한 뒤에 상대를 커밋해야 "커밋 전 값을 읽고 통과"하는 경쟁이 재현된다
+    private void awaitQuotaRowLockWait() throws InterruptedException {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            Integer waiting = jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity"
+                    + " WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%user_schedule_quotas%'", Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("추첨 배정이 매수 행 잠금을 기다리지 않았다");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("상대 트랜잭션을 풀어 주지 않았다");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private void assertNothingHeld() {

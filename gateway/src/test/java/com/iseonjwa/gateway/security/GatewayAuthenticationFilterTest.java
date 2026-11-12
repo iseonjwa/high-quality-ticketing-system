@@ -3,6 +3,8 @@ package com.iseonjwa.gateway.security;
 import com.iseonjwa.common.auth.TokenDecoders;
 import com.iseonjwa.common.auth.TokenType;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,6 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +49,7 @@ class GatewayAuthenticationFilterTest {
     private static final String ISSUER = "iseonjwa-auth";
 
     private final AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final GatewayFilterChain chain = exchange -> {
         forwarded.set(exchange);
         return Mono.empty();
@@ -139,6 +144,42 @@ class GatewayAuthenticationFilterTest {
         assertEquals("UNAUTHORIZED", responseCode(exchange));
     }
 
+    @Test
+    void Redis_오류는_응답을_바꾸지_않고_503과_Retry_After_1을_주며_원인을_센다() {
+        var exchange = exchange(HttpMethod.GET, "/api/v1/users/me", true);
+
+        filterWith(mockDecoder("USER"), Mono.error(new RedisConnectionFailureException("연결 끊김")))
+                .filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
+        assertEquals("1", exchange.getResponse().getHeaders().getFirst("Retry-After"));
+        assertEquals("SERVICE_UNAVAILABLE", responseCode(exchange));
+        assertEquals("일시적으로 인증을 확인할 수 없습니다", responseMessage(exchange));
+        assertNull(forwarded.get());
+        assertEquals(1.0, failureCount("redis_error"));
+    }
+
+    @Test
+    void 안쪽_Redis_조회_시한_초과는_lookup_timeout으로_세고_503이다() {
+        var exchange = exchange(HttpMethod.GET, "/api/v1/users/me", true);
+
+        filterWith(mockDecoder("USER"), Mono.never()).filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
+        assertEquals("1", exchange.getResponse().getHeaders().getFirst("Retry-After"));
+        assertEquals(1.0, failureCount("lookup_timeout"));
+        assertEquals(0.0, failureCount("time_limiter"));
+    }
+
+    private double failureCount(String cause) {
+        return meters.get(AuthRedisFailures.METER_NAME).tag("cause", cause).counter().count();
+    }
+
+    private String responseMessage(MockServerWebExchange exchange) {
+        var body = exchange.getResponse().getBodyAsString().block();
+        return JsonMapper.builder().build().readTree(body).get("message").asString();
+    }
+
     private String forwardedHeader(String name) {
         return forwarded.get().getRequest().getHeaders().getFirst(name);
     }
@@ -187,6 +228,10 @@ class GatewayAuthenticationFilterTest {
     }
 
     private GatewayAuthenticationFilter filter(String role) {
+        return filterWith(mockDecoder(role));
+    }
+
+    private JwtDecoder mockDecoder(String role) {
         var decoder = mock(JwtDecoder.class);
         var jwt = Jwt.withTokenValue("access")
                 .header("alg", "HS256")
@@ -197,13 +242,17 @@ class GatewayAuthenticationFilterTest {
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build();
         when(decoder.decode("access")).thenReturn(jwt);
-        return filterWith(decoder);
+        return decoder;
+    }
+
+    private GatewayAuthenticationFilter filterWith(JwtDecoder decoder) {
+        return filterWith(decoder, Mono.just(false));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private GatewayAuthenticationFilter filterWith(JwtDecoder decoder) {
+    private GatewayAuthenticationFilter filterWith(JwtDecoder decoder, Mono<Boolean> revokedLookup) {
         var redis = mock(ReactiveStringRedisTemplate.class);
-        when(redis.hasKey(anyString())).thenReturn(Mono.just(false));
+        when(redis.hasKey(anyString())).thenReturn(revokedLookup);
 
         ReactiveCircuitBreakerFactory factory = mock(ReactiveCircuitBreakerFactory.class);
         var breaker = mock(ReactiveCircuitBreaker.class);
@@ -211,6 +260,7 @@ class GatewayAuthenticationFilterTest {
         when(breaker.run(any(Mono.class))).thenAnswer(call -> call.getArgument(0));
 
         var writer = new GatewayErrorWriter(JsonMapper.builder().build(), mock(Tracer.class));
-        return new GatewayAuthenticationFilter(decoder, redis, writer, factory);
+        var failures = new AuthRedisFailures(meters, CircuitBreakerRegistry.ofDefaults());
+        return new GatewayAuthenticationFilter(decoder, redis, writer, factory, failures, Duration.ofMillis(100));
     }
 }

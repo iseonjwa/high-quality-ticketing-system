@@ -1,8 +1,10 @@
 package com.iseonjwa.mockpg.refund;
 
+import com.iseonjwa.mockpg.ledger.LedgerHolder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,6 +38,9 @@ class RefundApiTest {
 
     @LocalServerPort
     int port;
+
+    @Autowired
+    LedgerHolder ledgers;
 
     private final HttpClient http = HttpClient.newHttpClient();
     private final JsonMapper mapper = JsonMapper.builder().build();
@@ -161,6 +166,43 @@ class RefundApiTest {
 
         assertEquals(200, refund(pgTxId, newRefundId(), 30_000).statusCode());
         assertResponse(422, NOT_REFUNDABLE, refund(pgTxId, newRefundId(), 1));
+    }
+
+    @Test
+    void 원장이_바뀐_뒤에도_승인한_거래는_환불되고_누계를_이어_센다() throws Exception {
+        var pgTxId = approvedPayment();
+        ledgers.reset(); // 재시작 흉내: 원장의 승인 기록이 사라진다
+
+        assertEquals(200, refund(pgTxId, newRefundId(), 20_000).statusCode());
+        assertEquals(200, refund(pgTxId, newRefundId(), 30_000).statusCode());
+        assertResponse(422, NOT_REFUNDABLE, refund(pgTxId, newRefundId(), 1));
+    }
+
+    @Test
+    void 원장이_바뀐_뒤에도_통화가_다르면_NOT_REFUNDABLE이다() throws Exception {
+        var pgTxId = approvedPayment();
+        ledgers.reset();
+
+        assertResponse(422, NOT_REFUNDABLE, post("/mock-pg/refunds", refundBody(pgTxId, newRefundId(), 10_000, "USD")));
+    }
+
+    @Test
+    void 장애로_금액이_바뀐_승인은_실제_승인_금액이_환불_한도다() throws Exception {
+        assertEquals(200, post("/mock-pg/faults", "{\"target\":\"APPROVE\",\"mode\":\"WRONG_AMOUNT\",\"count\":1}").statusCode());
+        var pgTxId = approvedPayment(); // 요청 50,000원, 실제 승인 49,000원
+        ledgers.reset();
+
+        assertResponse(422, NOT_REFUNDABLE, refund(pgTxId, newRefundId(), 49_001));
+        assertEquals(200, refund(pgTxId, newRefundId(), 49_000).statusCode());
+    }
+
+    @Test
+    void 서명을_바꾼_거래_ID는_원장이_바뀐_뒤_환불되지_않는다() throws Exception {
+        var pgTxId = approvedPayment();
+        ledgers.reset();
+        var tampered = pgTxId.replace(".50000.", ".90000.");
+
+        assertResponse(422, NOT_REFUNDABLE, refund(tampered, newRefundId(), 10_000));
     }
 
     // 승인해서 PG 거래 식별자를 얻는다

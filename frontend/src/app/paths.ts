@@ -8,6 +8,7 @@ export const paths = {
   queue: '/schedules/:scheduleId/queue',
   seats: '/schedules/:scheduleId/seats',
   payment: '/reservations/:reservationId/payment',
+  paymentTossReturn: '/reservations/:reservationId/payment/toss/:result',
   reservation: '/reservations/:reservationId',
   reservationComplete: '/reservations/:reservationId/complete',
   myReservations: '/me/reservations',
@@ -50,6 +51,16 @@ export function paymentPath(reservationId: number): string {
   return `/reservations/${reservationId}/payment`
 }
 
+// 토스 결제창이 결제 뒤 돌려보내는 주소
+export function tossReturnPath(reservationId: number, result: 'success' | 'fail'): string {
+  return `/reservations/${reservationId}/payment/toss/${result}`
+}
+
+// 토스는 오리진을 포함한 절대 주소만 받는다
+export function tossReturnUrl(reservationId: number, result: 'success' | 'fail'): string {
+  return window.location.origin + tossReturnPath(reservationId, result)
+}
+
 export function reservationPath(reservationId: number): string {
   return `/reservations/${reservationId}`
 }
@@ -59,7 +70,7 @@ export function reservationCompletePath(reservationId: number): string {
   return `/reservations/${reservationId}/complete`
 }
 
-// 추첨 응모 화면. 공연·회차에서 추첨을 찾는 API가 없어 운영자가 추첨을 설정하며 받은 이 주소로만 들어온다
+// 추첨 응모 화면. 공연 상세에서 회차를 고르면 그 회차의 추첨(GET /schedules/{id}/lottery)으로 찾아 들어온다(ISE-227)
 export function lotteryPath(lotteryId: number): string {
   return `/lotteries/${lotteryId}`
 }

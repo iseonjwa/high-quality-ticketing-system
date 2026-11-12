@@ -45,6 +45,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCountdown, formatDateTime } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
+import { lotteryPhaseOf, type LotteryPhase } from '@/lib/lotteryPhase'
 import { readRouteId } from '@/lib/routeId'
 import { useNow } from '@/lib/serverClock'
 import { cn } from '@/lib/utils'
@@ -77,6 +78,7 @@ export function LotteryPage() {
 function LotteryScreen({ lotteryId }: { lotteryId: number }) {
   const signedIn = useIsSignedIn()
   // 응모 시작·마감·추첨 시각을 넘는 순간 단계와 다시 받기 여부를 다시 정한다
+  // Note: 추첨 정보 응답에 서버 시각이 없어 기간은 브라우저 시계로 나눈다(공연 상세는 공연 응답의 서버 시각을 쓴다)
   const now = useNow(1000)
   // Note: 화면을 열 때 한 번 정한다. refetchInterval에서 매번 무작위로 정하면 1초마다 다시 그릴 때 타이머가 새로 시작돼
   // 영영 다시 받지 않는다
@@ -87,11 +89,21 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
     // 추첨 시각이 지났는데 아직 추첨 전 상태면 추첨 완료로 바뀔 때까지 다시 받는다
     refetchInterval: (query) => {
       const data = query.state.data
-      return data && phaseOf(data, Date.now()) === 'drawing' && !pollExpired(data, Date.now())
+      return data &&
+        lotteryPhaseOf(data, Date.now()) === 'drawing' &&
+        !pollExpired(data, Date.now())
         ? pollMillis
         : false
     },
   })
+  // 공연 상세의 추첨 안내가 같은 추첨을 회차 키로 들고 있다(ISE-227). 새로 받은 값으로 맞춰 두면 공연 상세로 돌아갔을 때
+  // 옛 단계(추첨 시각이 지났어요 등)가 남지 않는다
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (lottery.data) {
+      queryClient.setQueryData(lotteryQueryKeys.ofSchedule(lottery.data.scheduleId), lottery.data)
+    }
+  }, [queryClient, lottery.data])
 
   if (lottery.isPending) {
     return <LotterySkeleton />
@@ -106,7 +118,7 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
       </main>
     )
   }
-  const phase = phaseOf(lottery.data, now)
+  const phase = lotteryPhaseOf(lottery.data, now)
   // 넓은 화면(60rem 이상)은 왼쪽에 머리와 추첨 안내, 오른쪽에 응모 티켓과 자동결제 카드를 둔다(시안). 오른쪽은 두 줄에
   // 걸치고 스크롤하면 위에 붙는다. 좁은 화면은 머리 → 응모 → 추첨 안내 순이다
   // Note: 좁은 화면에서 추첨 안내를 먼저 두면 응모 카드가 390px에서 959px 아래로 밀렸다(셀프 리뷰)
@@ -125,45 +137,33 @@ function LotteryScreen({ lotteryId }: { lotteryId: number }) {
   )
 }
 
-// beforeEntry 응모 시작 전, entry 응모 중, afterEntry 마감 뒤 추첨 전, drawing 추첨 시각이 지났지만 아직 추첨 전 상태,
-// drawn 추첨 완료(배정·승계 중), done 종료
-type Phase = 'beforeEntry' | 'entry' | 'afterEntry' | 'drawing' | 'drawn' | 'done'
-
-// Note: 추첨 정보 응답에 서버 시각이 없어 기간은 브라우저 시계로 나눈다. 응모·취소 가능 여부는 서버가 정한다
-// (LOTTERY_NOT_OPEN). 응모 시작 전에도 상태는 OPEN이다.
-function phaseOf(lottery: Lottery, now: number): Phase {
-  if (lottery.status === 'DONE') {
-    return 'done'
-  }
-  if (lottery.status === 'DRAWN') {
-    return 'drawn'
-  }
-  if (lottery.status === 'OPEN' && now < instantMillis(lottery.entryStartAt)) {
-    return 'beforeEntry'
-  }
-  if (lottery.status === 'OPEN' && now < instantMillis(lottery.entryEndAt)) {
-    return 'entry'
-  }
-  return now < instantMillis(lottery.drawAt) ? 'afterEntry' : 'drawing'
-}
-
 function pollExpired(lottery: Lottery, now: number): boolean {
   return now >= instantMillis(lottery.drawAt) + RESULT_POLL_LIMIT_MILLIS
 }
 
-const PHASE_BADGES: Record<Phase, { variant: 'lottery' | 'upcoming' | 'soldOut'; label: string }> =
-  {
-    beforeEntry: { variant: 'upcoming', label: '응모 시작 전' },
-    entry: { variant: 'lottery', label: '응모 중' },
-    afterEntry: { variant: 'soldOut', label: '응모 마감' },
-    drawing: { variant: 'soldOut', label: '추첨 중' },
-    drawn: { variant: 'soldOut', label: '추첨 완료' },
-    done: { variant: 'soldOut', label: '종료' },
-  }
+const PHASE_BADGES: Record<
+  LotteryPhase,
+  { variant: 'lottery' | 'upcoming' | 'soldOut'; label: string }
+> = {
+  beforeEntry: { variant: 'upcoming', label: '응모 시작 전' },
+  entry: { variant: 'lottery', label: '응모 중' },
+  afterEntry: { variant: 'soldOut', label: '응모 마감' },
+  drawing: { variant: 'soldOut', label: '추첨 중' },
+  drawn: { variant: 'soldOut', label: '추첨 완료' },
+  done: { variant: 'soldOut', label: '종료' },
+}
 
 // 추첨 머리(시안): 상태 배지, 응모 시작·마감까지 남은 시간, 제목, 추첨 번호·회차.
 // Note: 시안의 공연 그림 배너는 두지 않는다. 추첨 응답에 공연 번호·제목이 없다(회차 번호만 있다)
-function LotteryHead({ lottery, phase, now }: { lottery: Lottery; phase: Phase; now: number }) {
+function LotteryHead({
+  lottery,
+  phase,
+  now,
+}: {
+  lottery: Lottery
+  phase: LotteryPhase
+  now: number
+}) {
   const badge = PHASE_BADGES[phase]
   // 남은 시간은 브라우저 시계로 센다(phaseOf와 같은 시계). 1초마다 바뀌지만 알림 영역 밖이라 낭독기가 매초 읽지 않는다
   const until =
@@ -196,7 +196,7 @@ function LotteryHead({ lottery, phase, now }: { lottery: Lottery; phase: Phase; 
 }
 
 // 추첨 안내(시안): 추첨 순서 4단계, 추첨 정보, 알아 두세요
-function LotteryDetails({ lottery, phase }: { lottery: Lottery; phase: Phase }) {
+function LotteryDetails({ lottery, phase }: { lottery: Lottery; phase: LotteryPhase }) {
   const { rules } = lottery
   return (
     <div className="grid min-w-0 content-start gap-5 @min-[60rem]:col-start-1">
@@ -239,7 +239,13 @@ function LotteryDetails({ lottery, phase }: { lottery: Lottery; phase: Phase }) 
 }
 
 // 추첨 순서 4단계. 지금 단계를 aria-current로 표시한다(추첨 완료 뒤 배정·자동결제 중이면 3, 종료면 4)
-function LotteryFlow({ phase, billingKeyRequired }: { phase: Phase; billingKeyRequired: boolean }) {
+function LotteryFlow({
+  phase,
+  billingKeyRequired,
+}: {
+  phase: LotteryPhase
+  billingKeyRequired: boolean
+}) {
   const current =
     phase === 'beforeEntry' || phase === 'entry'
       ? 0
@@ -334,7 +340,7 @@ function MyEntrySection({
     refetchInterval: (query) =>
       shouldPollResult(lottery, query.state.data ?? null, Date.now()) ? pollMillis : false,
   })
-  const phase = phaseOf(lottery, now)
+  const phase = lotteryPhaseOf(lottery, now)
   const actedAtRef = useRef<number | null>(null)
   const actionFocus = useMemo<ActionFocus>(
     () => ({
@@ -402,7 +408,7 @@ function EntryForm({
   userId,
 }: {
   lottery: Lottery
-  phase: Phase
+  phase: LotteryPhase
   userId: number | undefined
 }) {
   const queryClient = useQueryClient()
@@ -582,7 +588,7 @@ function EntryResult({
 }: {
   lottery: Lottery
   entry: LotteryEntry
-  phase: Phase
+  phase: LotteryPhase
 }) {
   switch (entry.status) {
     case 'ENTERED':
@@ -655,7 +661,7 @@ function EnteredCard({
 }: {
   lottery: Lottery
   entry: LotteryEntry
-  phase: Phase
+  phase: LotteryPhase
 }) {
   const queryClient = useQueryClient()
   const { markActed } = useContext(ActionFocusContext)
@@ -873,7 +879,7 @@ function ResultCard({
   )
 }
 
-function SignInPrompt({ phase }: { phase: Phase }) {
+function SignInPrompt({ phase }: { phase: LotteryPhase }) {
   const location = useLocation()
   const state: AuthNavigationState = { from: toReturnPath(location) }
   const canEnter = phase === 'beforeEntry' || phase === 'entry'

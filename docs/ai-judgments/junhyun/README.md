@@ -8,6 +8,11 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 추첨 쪽이 요청한 PG 허가 조정(ISE-236)에 일반 결제 허가는 17보다 큰 24~30(PAY1-b 측정 뒤 확정), 자동결제는 전용 그룹 `pg-billing` 3으로 답하기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-pg-permits-approve-and-billing-group.md) |
+| 2026-11-11 | AI 브리핑이 멘션 알림만 보고 이미 끝난 ISE-224 웹훅 일(서버 `.env`에 이미 있음, 이슈 Done)을 남은 일로 넣었다고 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-11-briefing-listed-finished-webhook.md) |
+| 2026-11-11 | 결제 쪽 취소 환불을 위해 기다리던 예매 취소 API(ISE-206)를 직접 만들기로 하고, 취소 정책(공연 시작 전까지·추첨 예매 제외·결제 조회로 환불 상태 표시·담당 변경)은 AI 추천안을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-11-reservation-cancel-takeover-policy.md) |
+| 2026-11-10 | AI의 "남은 마감 작업" 정리가 내게 배정된 이슈만 훑어 멘션으로 받은 일(ISE-227·ISE-192)을 빠뜨렸다고 지적함 | Claude Code | **거부** | 아니오 | 후보 | [기록](2026-11-10-remaining-work-missed-mentions.md) |
+| 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-toss-mock-bypass-per-payment-pg.md) |
 | 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-error-response-json-in-common.md) |
 | 2026-11-09 | 상담 스트림에 error 이벤트를 두지 않고, 사용자가 멈춘 요청도 요청 제한과 일일 예산에 넣기로 함 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-09-assistant-stream-error-and-cancel-counting.md) |
 | 2026-11-09 | 예매 문의 챗봇을 /help 페이지로 두자는 추천 대신 모든 화면에서 여는 떠 있는 위젯으로 바꾸기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-09-assistant-floating-widget.md) |
@@ -69,6 +74,9 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-12 | [daily/2026-11-12.md](daily/2026-11-12.md) |
+| 2026-11-11 | [daily/2026-11-11.md](daily/2026-11-11.md) |
+| 2026-11-10 | [daily/2026-11-10.md](daily/2026-11-10.md) |
 | 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) |
 | 2026-11-05 | [daily/2026-11-05.md](daily/2026-11-05.md) |
 | 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |

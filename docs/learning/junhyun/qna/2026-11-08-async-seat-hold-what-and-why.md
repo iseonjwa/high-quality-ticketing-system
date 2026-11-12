@@ -1,7 +1,7 @@
 ---
 title: 접수형(async) 좌석 선점은 무엇이고, 왜 하며, 지금 어디까지 왔나
 date: 2026-11-08
-updated: 2026-11-08
+updated: 2026-11-11
 asker: Junhyun An
 level: 중급
 tags: [reservation, seathold, kafka, outbox, async, load-test]
@@ -24,6 +24,8 @@ tags: [reservation, seathold, kafka, outbox, async, load-test]
   - 네 이슈(ISE-15 상위, 16 접수·조회 API, 17 소비자·실패 처리, 18 재측정)가 모두 손대지 않은 상태다. 담당은 최권우다.
   - 토대 일부는 있다. `seat_hold_requests` 테이블은 동기형도 쓰고 있고, outbox도 공통 모듈에 있다.
   - 현재 main 코드에는 "API → Kafka → 바로 응답"을 하는 API가 없다. 202를 돌려주는 곳은 mock-pg의 장애 응답뿐이다.
+
+- **11/11 다시 확인**: ISE-15~18은 그대로 Backlog(최권우)이고, 원격 브랜치 어디에도 접수 API(`/reservations/requests/{requestId}`)나 소비자(`SeatHoldConsumer`) 코드가 없다. 프론트 ISE-120(안준현, 마감 11/13)은 ISE-16에 막혀 있다. 프론트는 백엔드 구현을 보고 맞추므로 먼저 만들 수 없다. 사용자가 "접수형 선점 화면은 뭐야?"라고 다시 물어 이 줄을 더했다.
 
 ## 자세히
 

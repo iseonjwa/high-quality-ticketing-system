@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.billing;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.billing.application.BillingKeyEncryptor;
 import com.iseonjwa.payment.payment.application.BillingPaymentCommand;
@@ -8,7 +10,10 @@ import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.UnknownCause;
+import com.iseonjwa.payment.pg.application.PgPermit;
+import com.iseonjwa.payment.pg.application.PgUnavailableException;
 import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgApprovalGate;
+import com.iseonjwa.payment.pg.infrastructure.Resilience4jPgBillingGate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,6 +50,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class BillingKeyAndPaymentTest {
     private static final long FIRST_USER = 9_100_000;
     private static final long LAST_USER = 9_199_999;
@@ -65,6 +72,8 @@ class BillingKeyAndPaymentTest {
     BillingKeyEncryptor encryptor;
     @Autowired
     Resilience4jPgApprovalGate approvalGate;
+    @Autowired
+    Resilience4jPgBillingGate billingGate;
     @MockitoBean
     PgClient pg;
 
@@ -72,6 +81,7 @@ class BillingKeyAndPaymentTest {
     void stubPg() {
         reset(pg);
         approvalGate.circuitBreaker().reset();
+        billingGate.circuitBreaker().reset();
         when(pg.issueBillingKey(anyString(), anyString()))
                 .thenAnswer(invocation -> new PgClient.BillingKeyIssued("bk-plain-" + USERS.get(), "4242"));
         when(pg.approveBilling(any(), anyString())).thenAnswer(invocation -> new PgClient.Approved(
@@ -81,6 +91,7 @@ class BillingKeyAndPaymentTest {
     @AfterEach
     void cleanUp() {
         assertEquals(10, approvalGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "Bulkhead 허가가 새고 있다");
+        assertEquals(3, billingGate.bulkhead().getMetrics().getAvailableConcurrentCalls(), "pg-billing 허가가 새고 있다");
         jdbc.update("DELETE FROM billing_keys WHERE user_id BETWEEN ? AND ?", FIRST_USER, LAST_USER);
         jdbc.update("DELETE FROM outbox_events WHERE message_key ~ '^83[0-9]{5}$'");
         AppendOnlyCleanup.deleteHistories(jdbc, "payment_id IN (SELECT id FROM payments"
@@ -205,6 +216,48 @@ class BillingKeyAndPaymentTest {
         assertEquals("DECLINED", declined.getStatus().name());
         assertEquals(DeclineReason.CARD_DECLINED, declined.getDeclineCode());
         assertEquals("UNKNOWN", unknown.getStatus().name());
+    }
+
+    // ADR 0051: 자동결제는 전용 그룹 pg-billing을 쓴다. 일반 결제 그룹이 가득 차 있어도 자동결제는 승인된다
+    @Test
+    void 일반_결제_허가_그룹이_가득_차_있어도_자동결제는_승인된다() throws Exception {
+        long user = USERS.incrementAndGet();
+        register(user, "auth-1");
+        long reservation = RESERVATIONS.incrementAndGet();
+        var held = new java.util.ArrayList<PgPermit>();
+        try {
+            for (var i = 0; i < 10; i++) held.add(approvalGate.acquire());
+            assertThrows(PgUnavailableException.class, approvalGate::acquire);
+
+            var payment = billingPayments.approve(new BillingPaymentCommand(reservation, user, AMOUNT, "KRW"));
+
+            assertEquals("APPROVED", payment.getStatus().name());
+        } finally {
+            held.forEach(PgPermit::release);
+        }
+    }
+
+    // 허가를 못 얻으면 결제 행을 만들지 않고 PG도 부르지 않는다. 소비자가 같은 레코드를 다시 읽는다
+    @Test
+    void 자동결제_허가_그룹이_가득_차면_PgUnavailableException이고_결제_행이_없다() throws Exception {
+        long user = USERS.incrementAndGet();
+        register(user, "auth-1");
+        long reservation = RESERVATIONS.incrementAndGet();
+        var held = new java.util.ArrayList<PgPermit>();
+        try {
+            for (var i = 0; i < 3; i++) held.add(billingGate.acquire());
+
+            assertThrows(PgUnavailableException.class,
+                    () -> billingPayments.approve(new BillingPaymentCommand(reservation, user, AMOUNT, "KRW")));
+
+            assertEquals(0, count("SELECT count(*) FROM payments WHERE reservation_id = ?", reservation));
+            verify(pg, never()).approveBilling(any(), anyString());
+        } finally {
+            held.forEach(PgPermit::release);
+        }
+        // 자리가 나면 같은 명령이 처리된다
+        assertEquals("APPROVED",
+                billingPayments.approve(new BillingPaymentCommand(reservation, user, AMOUNT, "KRW")).getStatus().name());
     }
 
     private int count(String sql, Object arg) {

@@ -18,7 +18,7 @@ import java.time.Duration;
  * @param missingBatchMinSize 묶음 하나에서 이 수 이상 물었는데 하나도 오지 않으면 조회 실패로 본다
  * @param missingMinCount     회차 전체에서 빠진 예매가 이 수 이상이고 {@code missingMaxRatio}를 넘으면 조회 실패로 본다
  * @param missingMaxRatio     물은 예매 대비 빠진 예매 비율의 상한. 결제는 예매가 발급한 토큰으로만 생겨 정상이면 예매 없음이 거의 없다
- * @param maxChangePages      변경 목록을 읽는 최대 쪽 수. 넘으면 조회 실패로 본다
+ * @param changePageBudget    한 회차가 읽는 변경 목록의 최대 쪽 수. 다 쓰면 실패로 보지 않고 읽은 항목으로 판단하며, 남은 구간은 다음 회차에 이어 읽는다
  */
 @ConfigurationProperties(prefix = "payment.reconciliation.reservation")
 public record ReservationLookupProperties(
@@ -31,16 +31,16 @@ public record ReservationLookupProperties(
         @DefaultValue("2") int missingBatchMinSize,
         @DefaultValue("5") int missingMinCount,
         @DefaultValue("0.1") double missingMaxRatio,
-        @DefaultValue("1000") int maxChangePages) {
+        @DefaultValue("2000") int changePageBudget) {
     public static final int MAX_SIZE = 100;
 
     public ReservationLookupProperties {
         requirePositive(connectTimeout, "connect-timeout");
         requirePositive(readTimeout, "read-timeout");
         requireSize(batchSize, "batch-size");
-        if (missingBatchMinSize < 1 || missingMinCount < 1 || maxChangePages < 1) {
+        if (missingBatchMinSize < 1 || missingMinCount < 1 || changePageBudget < 1) {
             throw new IllegalArgumentException(
-                    "payment.reconciliation.reservation.missing-batch-min-size, missing-min-count, max-change-pages는 1 이상이어야 합니다");
+                    "payment.reconciliation.reservation.missing-batch-min-size, missing-min-count, change-page-budget은 1 이상이어야 합니다");
         }
         if (missingMaxRatio < 0 || missingMaxRatio > 1) {
             throw new IllegalArgumentException("payment.reconciliation.reservation.missing-max-ratio는 0~1이어야 합니다");
@@ -52,7 +52,7 @@ public record ReservationLookupProperties(
 
     public ReservationViewLoader.Limits limits() {
         return new ReservationViewLoader.Limits(batchSize, missingBatchMinSize, missingMinCount, missingMaxRatio,
-                maxChangePages);
+                changePageBudget);
     }
 
     private static void requirePositive(Duration value, String name) {

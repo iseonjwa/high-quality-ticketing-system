@@ -1,6 +1,8 @@
 # 0039. 추첨 자동결제는 처음에 일반 결제 PG 그룹(pg-approve)을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다
 
-- 상태: 제안 (추첨 담당 결정, 결제 담당 확인 대기, ISE-89)
+> 이 기준선은 11/10 측정(시나리오 2) 결과로 [0051](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md)이 대체했다(소비자 3, 자동결제 전용 그룹 `pg-billing` 3, 일반 결제 `pg-approve` 24–30). 지금 구성은 0051을 본다.
+
+- 상태: 대체됨 (0051)
 - 날짜: 2026-10-31
 - 결정자: 이강민 (추첨 담당)
 - 관련 AI 판단: [공유 그룹 기준선](../ai-judgments/kangmin/2026-10-31-lottery-billing-share-approve-group.md)(10/30 전용 그룹안 거부), [10/30 전용 그룹 제안](../ai-judgments/kangmin/2026-10-30-lottery-billing-bulkhead-proposal.md), [추첨 시간대 정책](../ai-judgments/kangmin/2026-10-30-lottery-draw-time-window-policy.md)

@@ -8,7 +8,16 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 모드 전환 뒤 같은 키 재요청 500 빈틈을, 접수형으로 시작한 요청은 202로 답하는 C안으로 막음(다섯 번의 반문으로 대안 검증) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-sync-replay-of-async-requests.md) |
+| 2026-11-12 | 접수형 선점(ISE-16)의 남은 결정 다섯 가지를 추천안대로 정함(접수 단계 409 즉시 거절, 기동 시 모드, 조회 API 상시 개방, 릴레이 제약·직접 발행은 ISE-17·18로) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-async-seat-hold-intake-decisions.md) |
+| 2026-11-12 | 접수형 선점에서 구역이 섞인 요청을 거부하자는 첫 추천 대신, 가장 작은 구역을 키로 쓰는 2안을 고름(일행 예매 원자성 근거 보강) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-async-seat-hold-mixed-section-key.md) |
+| 2026-11-12 | 좌석 배치는 로컬 캐시가 Redis보다 낫다는 AI 설명을 그대로 받지 않고, Redis로도 구현해 측정으로 비교하게 함 | Claude Code | 보류 | 예 | 후보 | [기록](2026-11-12-verify-local-vs-redis-layout-cache-by-measurement.md) |
+| 2026-11-10 | 좌석 조회 경량화는 담당자(반효승)가 dev에 넣은 P4a를 살려 진행하고, 측정 브랜치 코드는 참고로만 둠 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-adopt-owner-p4a-keep-measurement-code-as-reference.md) |
+| 2026-11-09 | P4d 조건이 맞았지만 K1 좌석 조회 개선을 P4c에서 마치고 K1-H로 넘어감 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-k1-stop-at-p4c-skip-p4d.md) |
+| 2026-11-09 | **측정 기기를 옮길 때 번들 대신 브랜치를 푸시하고, 세션 핸드오프 메모는 푸시하지 않고 직접 옮김** | Claude Code | 거부 | 예 | 아님 | [기록](2026-11-09-push-measurement-branches-keep-handoff-local.md) |
 | 2026-11-09 | k6 측정을 다른 기기로 옮긴 뒤, 이 기기에서는 AI가 추천한 정합성 대사(ISE-14)를 먼저 구현 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-09-ise14-reconciliation-while-measuring-elsewhere.md) |
+| 2026-11-07 | K1-H를 막은 Gateway 인증 차단기를 측정 환경에서만 완화(느린 호출 판정 끔)하고, Gateway 담당과의 조율은 측정이 끝난 뒤로 보류 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-07-k1h-relax-gateway-breaker-in-measurement.md) |
+| 2026-11-06 | k6 단계별 개선을 수정 없는 기본 코드에서 시작해 병목을 직면하는 순서로 다시 설계(G1·R1·S4도 단계로, 워밍업 1분, 최종도 local) | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-06-k6-steps-from-unmodified-base.md) |
 | 2026-11-06 | 좌석 조회 경량화(P4) 측정을 반효승 담당에서 일부 가져와 좌석 선점과 같은 환경(측정 브랜치)에서 재고, 본 구현은 ISE-189에 둠 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-06-measure-p4-seat-map-in-own-environment.md) |
 | 2026-11-05 | P4를 바로 시작하자는 제안 대신 G1 GC로 먼저 재 보고, 정상 결과가 나오면 기존 순서를, 안 나오면 P4를 먼저 하기로 함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-05-g1-first-then-decide-p4-order.md) |
 | 2026-11-04 | **JUnit 부하 근사(`SeatHoldLoadTest`) 대신 k6로 부하 테스트를 다시 하기로 하고, 대기열 초당 100명 입장 기준 병목·단계별 개선 계획 작성** | Claude Code | 거부 | 예 | 후보 | [기록](2026-11-04-k6-over-junit-load-approximation.md) |
@@ -28,7 +37,12 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-12 | [일지](daily/2026-11-12.md) |
+| 2026-11-11 | [일지](daily/2026-11-11.md) |
+| 2026-11-10 | [일지](daily/2026-11-10.md) |
 | 2026-11-09 | [일지](daily/2026-11-09.md) |
+| 2026-11-07 | [일지](daily/2026-11-07.md) |
+| 2026-11-06 | [일지](daily/2026-11-06.md) |
 | 2026-11-05 | [일지](daily/2026-11-05.md) |
 | 2026-11-04 | [일지](daily/2026-11-04.md) |
 | 2026-11-02 | [일지](daily/2026-11-02.md) |

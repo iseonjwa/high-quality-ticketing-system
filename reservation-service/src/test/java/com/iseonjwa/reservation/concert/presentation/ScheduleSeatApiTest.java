@@ -54,6 +54,10 @@ class ScheduleSeatApiTest {
         scheduleId = jdbc.queryForObject("INSERT INTO schedules (concert_id, venue_id, starts_at, open_at, version,"
                 + " created_at, updated_at) VALUES (?, ?, now() + interval '30 day', now() - interval '1 day', 0,"
                 + " now(), now()) RETURNING id", Long.class, concertId, venueId);
+        createScheduleSeats();
+    }
+
+    private void createScheduleSeats() {
         jdbc.update("INSERT INTO schedule_seats (schedule_id, venue_seat_id, section, grade, price, status,"
                 + " created_at, updated_at) SELECT ?, vs.id, vs.section, vs.grade,"
                 + " CASE vs.grade WHEN 'VIP' THEN 165000 ELSE 121000 END, 'AVAILABLE', now(), now()"
@@ -116,6 +120,32 @@ class ScheduleSeatApiTest {
 
         assertEquals(200, response.status());
         assertEquals(0, response.json().get("data").get("sections").size());
+    }
+
+    // 배치는 첫 조회 때 캐시된다(ISE-204). 그 뒤 바뀐 상태와 추첨 등급은 다음 조회에 바로 보여야 한다
+    @Test
+    void 배치를_캐시한_뒤에도_선점과_추첨석_변경이_바로_보인다() throws Exception {
+        get("/api/v1/schedules/" + scheduleId + "/seats");
+
+        jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
+        jdbc.update("UPDATE schedule_seats SET grade = 'LOTTERY' WHERE id = ?", seatIdOf("B", 1, 2));
+        var b = get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections").get(1);
+
+        assertEquals("S", b.get("grade").asString());
+        var seats = b.get("seats");
+        assertFalse(seats.get(0).get("available").asBoolean());
+        assertFalse(seats.get(1).get("available").asBoolean());
+        assertTrue(seats.get(2).get("available").asBoolean());
+    }
+
+    @Test
+    void 좌석을_만들기_전에_조회해도_만든_뒤에는_배치가_보인다() throws Exception {
+        jdbc.update("DELETE FROM schedule_seats WHERE schedule_id = ?", scheduleId);
+        assertEquals(0, get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections").size());
+
+        createScheduleSeats();
+
+        assertEquals(2, get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections").size());
     }
 
     @Test
