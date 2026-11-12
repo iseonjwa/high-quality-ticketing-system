@@ -1049,7 +1049,7 @@
     {
       "id": 25,
       "type": "timeseries",
-      "title": "PG 승인 호출 시간(자동결제·일반 결제 공유)",
+      "title": "PG 승인 호출 시간(자동결제·일반 결제 비교)",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -1095,8 +1095,8 @@
     {
       "id": 26,
       "type": "timeseries",
-      "title": "PG 승인 동시 처리 자리(pg-approve)",
-      "description": "0이 이어지면 일반 결제가 503을 받을 수 있다",
+      "title": "PG 승인 동시 처리 자리(자동결제 pg-billing, 일반 결제 pg-approve)",
+      "description": "자동결제는 전용 그룹 pg-billing을 쓴다(ADR 0051). pg-billing 남은 자리가 0으로 이어지면 자동결제 소비자가 허가를 기다리며 같은 레코드를 다시 읽는다(503 아님). pg-approve 남은 자리가 0으로 이어지면 일반 결제가 503을 받을 수 있다",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1113,8 +1113,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "resilience4j_bulkhead_available_concurrent_calls{application=\"payment-service\",name=\"pg-approve\"}",
-          "legendFormat": "남은 자리",
+          "expr": "resilience4j_bulkhead_available_concurrent_calls{application=\"payment-service\",name=\"pg-billing\"}",
+          "legendFormat": "자동결제(pg-billing) 남은 자리",
           "refId": "A"
         },
         {
@@ -1122,9 +1122,27 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "resilience4j_bulkhead_max_allowed_concurrent_calls{application=\"payment-service\",name=\"pg-approve\"}",
-          "legendFormat": "최대",
+          "expr": "resilience4j_bulkhead_max_allowed_concurrent_calls{application=\"payment-service\",name=\"pg-billing\"}",
+          "legendFormat": "자동결제(pg-billing) 최대",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "resilience4j_bulkhead_available_concurrent_calls{application=\"payment-service\",name=\"pg-approve\"}",
+          "legendFormat": "일반 결제(pg-approve) 남은 자리",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "resilience4j_bulkhead_max_allowed_concurrent_calls{application=\"payment-service\",name=\"pg-approve\"}",
+          "legendFormat": "일반 결제(pg-approve) 최대",
+          "refId": "D"
         }
       ],
       "fieldConfig": {
