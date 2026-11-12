@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 대기열 Redis 차단기 값을 Gateway auth-redis와 같게 두되, 느린 호출 기준을 AI 제안 50ms 대신 100ms로 올리고 공통 Redis 시한을 200ms로 늘림 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-12-queue-redis-circuit-breaker-values.md) |
 | 2026-11-11 | 대기열 Redis 시한 초과를 503으로 바꾸는 위치로, 컨트롤러 처리기 대신 저장소에서 대기열 예외로 바꾸는 안(A)을 고름 | youngeun | Claude | 수용 | 후보 | [기록](youngeun/2026-11-11-queue-redis-timeout-503-layer.md) |
 | 2026-11-11 | Gateway CPU 포화와 OOM을 막는 첫 장치로 맨 앞 동시 처리 수 상한을 고르고, 설계안·프런트 표시·첫 상한 64를 AI 추천대로 정함 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-11-gateway-in-flight-limit-first.md) |
 | 2026-11-11 | Gateway CPU의 약 24%를 쓰는 관측(추적·지표·로그 문맥) 축소를 위험하다고 보고 보류함 | kangmin | Claude Code | 보류 | 아님 | [기록](kangmin/2026-11-11-defer-gateway-observability-reduction.md) |
