@@ -56,7 +56,7 @@
 | G1 | `scenarios/g1-gateway-auth.js` | 있음. 2026-11-05 local에서 초당 50 → 100건·각 10초로 동작 확인(오류 0, p95 11ms) |
 | Q3 | `scenarios/q3-admission.js` | 있음. 2026-11-05 local 대기자 1,000명·60초: 1,000명 모두 토큰 발급, 오류 0, 토큰 발급 p95 15ms. 입장 수는 초당 50씩 늘었다 |
 | B1 | `scenarios/b1-browse.js` | 있음. 2026-11-05 local 초당 20 → 40건·각 10초, 진입 초당 10건 동시: 오류 0, 조회 p95 24ms |
-| PAY1 | `scenarios/pay1-payment.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초, PG 300ms: 승인 208, `PG_UNAVAILABLE` 4, 결제 p95 560ms |
+| PAY1 | `scenarios/pay1-payment.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초, PG 300ms: 승인 208, `PG_UNAVAILABLE` 4, 결제 p95 560ms. 2026-11-12 배포 서버: PG 300ms에서 승인 초당 약 31건에서 멈춤(계산값 33), PG 지연 없이 초당 약 190건([open-peak-scenarios.md](../../docs/design/infra/open-peak-scenarios.md) 3절) |
 | R1 | `scenarios/r1-confirm.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초: 212건 모두 확정, 승인 → 확정 p95 624ms(0.5초 간격 조회) |
 | X1 | `scenarios/x1-expiry.js` | 있음. 2026-11-05 local 만료 대상 500건 + 선점 초당 10명·60초: 500건이 만료 시각부터 약 33초 안에 모두 EXPIRED, 그동안 선점 p95 34ms, 오류 0. 묵은 선점이 남아 있으면 결과가 틀어진다(4절 "만료 대기 건") |
 | L1 | `scenarios/l1-lottery-entry.js` | 있음. 2026-11-05 local 초당 10 → 20건·각 10초: 요청 449건(연타 포함) 오류 0, 응모 행 424 = 고유 사용자 424, p95 19ms |
