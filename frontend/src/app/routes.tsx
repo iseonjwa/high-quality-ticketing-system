@@ -43,6 +43,7 @@ const booking = () => import('@/app/routeChunks/booking')
 const my = () => import('@/app/routeChunks/my')
 const admin = () => import('@/app/routeChunks/admin')
 const lottery = () => import('@/pages/lotteries/LotteryPage')
+const charm = () => import('@/pages/charm/CharmPage')
 
 // Note: 홈(ConcertListPage)과 공연 상세(ConcertDetailPage)는 첫 방문자가 가장 먼저 여는 화면이라
 // 첫 덩어리에 남긴다. 나머지 화면은 경로에 들어갈 때 받는다. 진입점(index)은 이 두 화면과 공용 코드만 담는다.
@@ -135,5 +136,12 @@ export const routes: RouteObject[] = [
         ],
       },
     ],
+  },
+  {
+    // 발권 이벤트 부적(ISE-257). 폰이 QR로 여는 화면이라 앱 머리·예매 문의 위젯 없이 부적 한 장만 보인다. 로그인하지 않아도 열린다
+    path: paths.charm,
+    ...lazyPage(charm, 'CharmPage'),
+    errorElement: <RouteErrorPage />,
+    hydrateFallbackElement: <RouteLoading />,
   },
 ]

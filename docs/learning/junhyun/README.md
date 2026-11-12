@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 이미지 생성 API 없이 서버가 LLM(Claude API)으로 그림(SVG)을 만들 수 있나 | [qna/2026-11-12-server-side-svg-generation-with-llm.md](qna/2026-11-12-server-side-svg-generation-with-llm.md) |
 | 2026-11-12 | 저장하지 않고도 내가 발급한 값인지, 그 안의 값이 바뀌지 않았는지 어떻게 아는가 | [qna/2026-11-12-signed-identifiers-stateless-verification.md](qna/2026-11-12-signed-identifiers-stateless-verification.md) |
 | 2026-11-12 | 매번 전체를 다시 읽지 않고 바뀐 것만 따라 읽으려면 무엇을 기억해야 하는가 | [qna/2026-11-12-incremental-read-watermark.md](qna/2026-11-12-incremental-read-watermark.md) |
 | 2026-11-12 | 대기 없는 동시 수 제한의 크기를 어떻게 정하는가 | [qna/2026-11-12-erlang-b-bulkhead-sizing.md](qna/2026-11-12-erlang-b-bulkhead-sizing.md) |
