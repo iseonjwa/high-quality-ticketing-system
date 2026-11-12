@@ -24,6 +24,10 @@ main() {
   [[ -f "$state/current" ]] && previous="$(cat "$state/current")"
 
   echo "== 배포 시작: $sha (직전 성공: ${previous:-없음})"
+  # 새 이미지를 받기 전에 옛 버전 이미지를 지운다. 이번 커밋, 직전 성공 커밋, 그 앞의 성공 커밋은 남긴다
+  local older=""
+  [[ -f "$state/previous" ]] && older="$(cat "$state/previous")"
+  prune_old_images "$sha" "$previous" "$older"
   if deploy_once "$sha"; then
     [[ -n "$previous" && "$previous" != "$sha" ]] && echo "$previous" > "$state/previous"
     echo "$sha" > "$state/current"
@@ -74,8 +78,42 @@ pull_with_retry() {
       sleep "$PULL_RETRY_DELAY"
     fi
   done
-  echo "== 이미지 받기가 $PULL_ATTEMPTS번 모두 실패했다" >&2
+  echo "== 이미지 받기가 ${PULL_ATTEMPTS}번 모두 실패했다. 디스크 여유: $(disk_free)" >&2
   return 1
+}
+
+# Note: 배포마다 서비스 9개의 이미지가 커밋 SHA 태그로 쌓인다. 지우지 않으면 디스크가 차서 새 이미지를 받지 못한다.
+# 11/12 배포가 그렇게 실패했다(TS-60: 이미지 197개 32.7GB, 디스크 100%, `no space left on device`).
+# 가장 최근에 만들어진 KEEP_IMAGE_VERSIONS개 버전과 인자로 받은 커밋의 이미지만 남긴다.
+# 지운 버전으로 되돌려야 하면(Jenkins의 TAG) GHCR에서 다시 받는다.
+KEEP_IMAGE_VERSIONS="${KEEP_IMAGE_VERSIONS:-3}"
+IMAGE_REPO_PREFIX="${IMAGE_REPO_PREFIX:-ghcr.io/iseonjwa/}"
+
+disk_free() {
+  df -h / 2> /dev/null | awk 'NR==2 {print $4 " 남음(" $5 " 사용)"}'
+}
+
+# 인자: 꼭 남길 커밋 SHA들(빈 값은 무시한다). 정리가 실패해도 배포를 막지 않는다.
+# 실행 중인 컨테이너가 쓰는 이미지는 docker가 지우기를 거절하므로 남는다.
+prune_old_images() {
+  local keep=" $* " tags tag image rank=0 removed=0
+  # 우리 이미지 중 태그가 40자 SHA인 것의 태그를, 이미지가 만들어진 시각 최신순으로 중복 없이 모은다
+  tags="$(docker images --format '{{.CreatedAt}}|{{.Repository}}|{{.Tag}}' 2> /dev/null \
+    | awk -F'|' -v prefix="$IMAGE_REPO_PREFIX" 'index($2, prefix) == 1 && $3 ~ /^[0-9a-f]{40}$/ {print $1 "|" $3}' \
+    | sort -r | cut -d'|' -f2 | awk '!seen[$0]++')" || true
+  for tag in $tags; do
+    rank=$(( rank + 1 ))
+    if (( rank <= KEEP_IMAGE_VERSIONS )) || [[ "$keep" == *" $tag "* ]]; then
+      continue
+    fi
+    while IFS= read -r image; do
+      [[ -n "$image" ]] && docker rmi "$image" > /dev/null 2>&1 || true
+    done < <(docker images --format '{{.Repository}}:{{.Tag}}' 2> /dev/null | grep -F ":$tag" | grep -F "$IMAGE_REPO_PREFIX" || true)
+    removed=$(( removed + 1 ))
+  done
+  # 태그가 없는 이미지(받다가 실패한 조각 등)도 지운다. 태그가 있는 이미지는 건드리지 않는다
+  docker image prune -f > /dev/null 2>&1 || true
+  echo "== 옛 이미지 정리: 버전 ${removed}개를 지웠다. 디스크 여유: $(disk_free)"
 }
 
 # 시험이 함수만 불러 쓸 수 있게, source로 읽으면 배포를 시작하지 않는다.
