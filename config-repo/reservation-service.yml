@@ -24,6 +24,9 @@ messaging:
     batch-size: 20
     lease: 30s
     send-timeout: 12s
+seat-hold:
+  # sync(동기형 선점 201, 기본) 또는 async(접수형 202). 기동할 때 한 번 읽으므로 바꾸려면 재시작한다(ADR 0057)
+  mode: sync
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m

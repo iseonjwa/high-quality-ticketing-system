@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.seathold.concurrency;
 
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;
+import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.concurrency.ConcurrentRunner.Outcome;
 import org.junit.jupiter.api.AfterEach;
@@ -286,8 +287,8 @@ class SeatHoldConcurrencyTest {
         for (var round = 0; round < rounds; round++) {
             var scheduleId = fixture.createOnSaleSchedule();
             var seats = fixture.createSeats(scheduleId, 2);
-            var expiring = seatHold.hold(new HoldSeatsCommand(userA, UUID.randomUUID(), scheduleId,
-                    List.of(seats.get(0)))).reservationId();
+            var expiring = ((SyncHoldOutcome.Held) seatHold.hold(new HoldSeatsCommand(userA, UUID.randomUUID(), scheduleId,
+                    List.of(seats.get(0))))).result().reservationId();
             fixture.passHoldExpiry(scheduleId);
 
             all.addAll(runTogether(List.of(
