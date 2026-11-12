@@ -518,8 +518,10 @@ RC-8은 누락된 이벤트를 보충해 Outbox 행(같은 `event_type`·`messag
 
 **현재 한계(ISE-159).** 콘솔 직접 환불은 우리 `pg_refund_id` 없이 일어난다. 지금 PG 포트의 `findRefund(pg_refund_id, paymentRef)`는 우리 환불 ID로만 조회하므로 콘솔 환불을 확인하지 못한다. 그래서 콘솔 환불 뒤에 3단계를 실행하면 `NotFound`로 거부되고 환불은 `NEEDS_MANUAL_CHECK`로 남는다(위 4단계, 0028 결정 11의 "PG API로 확인할 수 없으면 거부"와 같다). 이 절차는 PG가 `pg_refund_id`로 조회되는 환불(Mock PG, 또는 API로 시작했으나 응답이 유실된 환불)에서는 끝까지 동작하지만, 진짜 콘솔 환불은 아직 반영할 수 없다. 콘솔 환불을 확인하는 PG 조회는 토스 어댑터를 만드는 M4 때 다시 본다.
 
-## 9. 결제 토큰 키 유출
-1. 새 `PAYMENT_TOKEN_SECRET`(32바이트 난수의 16진수 64자)을 만들어 Reservation과 Payment에만 주입한다([0025](../../decisions/0025-payment-token-secret-injection.md)).
-2. 두 서비스를 함께 재배포하면 이전 키로 서명한 토큰은 검증에 실패한다(결제 토큰 수명은 최대 4분 50초). 진행 중인 사용자는 새 토큰을 받아 다시 결제한다.
+## 9. 결제 토큰 키 유출과 교체
+결제 토큰은 예매 서비스의 개인키(`PAYMENT_TOKEN_PRIVATE_KEY`)로 서명하고 결제 서비스의 공개키(`PAYMENT_TOKEN_PUBLIC_KEY`)로 검증한다([0055](../../decisions/0055-payment-token-asymmetric-signature.md)). 공개키는 비밀이 아니라 유출 대상은 개인키다. 개인키가 유출됐거나 정기 교체가 필요할 때 같은 절차를 쓴다.
+1. 새 키 쌍을 만든다. 서버 `.env`에서 두 줄(`PAYMENT_TOKEN_PRIVATE_KEY`, `PAYMENT_TOKEN_PUBLIC_KEY`)을 모두 지우고 `script/deploy/init-env.sh`를 돌린다(P-256 키 쌍을 `openssl`로 만든다). 하나만 지우면 스크립트가 멈추고 없는 키를 알린다. 키 값은 출력하지 않는다.
+2. 두 서비스를 함께 다시 띄운다(`docker compose up -d --force-recreate reservation-service payment-service`). 환경변수는 재생성해야 반영된다. 이전 키로 서명한 토큰은 새 공개키로 검증에 실패한다(결제 토큰 수명은 최대 4분 50초). 진행 중인 사용자는 선점 응답에서 새 토큰을 받아 다시 결제한다. 한 서비스만 다시 띄우면 짝이 어긋나 모든 결제가 403 `PAYMENT_TOKEN_INVALID`가 된다.
 3. 유출 시점 이후의 승인 요청과 비정상 결제를 조회해 확인하고, 환불이 필요하면 2절 절차를 따른다.
-4. 키는 로그·저장소에 남기지 않고, 회전 사실과 처리자는 `manual_action_logs`가 아닌 운영 기록에 남긴다.
+4. 키는 로그·저장소에 남기지 않고, 교체 사실과 처리자는 `manual_action_logs`가 아닌 운영 기록에 남긴다.
+5. 검증기가 공개키 두 개를 함께 받는 무중단 교체는 지원하지 않는다(후속). 지금은 위처럼 진행 중 토큰이 무효가 되는 것을 감수한다.

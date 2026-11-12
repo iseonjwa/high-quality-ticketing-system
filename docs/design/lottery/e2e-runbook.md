@@ -52,7 +52,7 @@ SELECT status, event_type, message_key FROM outbox_events WHERE event_type IN ('
 
 ## 5. 실패 경로 확인(선택)
 - 결제 거절: Mock PG 장애 주입(`POST /mock-pg/faults`, 측정·테스트 프로필)으로 다음 승인을 `DECLINE`로 둔다. payment DB의 `DECLINED` 뒤의 응모 전이는 6절에서 확인한다.
-- 허가 대기(백프레셔): Mock PG에 지연을 넣어 `pg-approve` 동시 10을 채우면 자동결제 메시지가 DLQ로 가지 않고 다시 읽힌다. 로그 `PG 승인 허가 거절` 빈도와 `payment.command.dlq`가 비어 있는지 본다.
+- 허가 대기(백프레셔): 자동결제는 전용 그룹 `pg-billing`(동시 3)을 쓴다(ADR 0051). Mock PG에 지연을 넣어 `pg-billing` 3자리를 채우면 자동결제 메시지가 DLQ로 가지 않고 다시 읽힌다. 추첨 대시보드 "PG 승인 동시 처리 자리" 패널의 `pg-billing` 남은 자리가 0인지, `payment.command` 소비자 랙이 쌓였다가 줄어드는지, `payment.command.dlq`가 비어 있는지 본다. 로그 `PG 승인 허가 거절`은 일반 결제 승인 경로(`PaymentApprovalService`, debug)의 것이라 자동결제 허가 대기를 보여 주지 않는다.
 
 ## 6. 결제 결과 반영 확인(ISE-150 연결, 2026-11-05 로컬 compose에서 확인. 7절 참고)
 - 응모 `PAID`, 예매 `CONFIRMED`·티켓 발권.

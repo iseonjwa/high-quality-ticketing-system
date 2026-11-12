@@ -8,6 +8,9 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 모드 전환 뒤 같은 키 재요청 500 빈틈을, 접수형으로 시작한 요청은 202로 답하는 C안으로 막음(다섯 번의 반문으로 대안 검증) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-sync-replay-of-async-requests.md) |
+| 2026-11-12 | 접수형 선점(ISE-16)의 남은 결정 다섯 가지를 추천안대로 정함(접수 단계 409 즉시 거절, 기동 시 모드, 조회 API 상시 개방, 릴레이 제약·직접 발행은 ISE-17·18로) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-async-seat-hold-intake-decisions.md) |
+| 2026-11-12 | 접수형 선점에서 구역이 섞인 요청을 거부하자는 첫 추천 대신, 가장 작은 구역을 키로 쓰는 2안을 고름(일행 예매 원자성 근거 보강) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-async-seat-hold-mixed-section-key.md) |
 | 2026-11-12 | 좌석 배치는 로컬 캐시가 Redis보다 낫다는 AI 설명을 그대로 받지 않고, Redis로도 구현해 측정으로 비교하게 함 | Claude Code | 보류 | 예 | 후보 | [기록](2026-11-12-verify-local-vs-redis-layout-cache-by-measurement.md) |
 | 2026-11-10 | 좌석 조회 경량화는 담당자(반효승)가 dev에 넣은 P4a를 살려 진행하고, 측정 브랜치 코드는 참고로만 둠 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-adopt-owner-p4a-keep-measurement-code-as-reference.md) |
 | 2026-11-09 | P4d 조건이 맞았지만 K1 좌석 조회 개선을 P4c에서 마치고 K1-H로 넘어감 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-k1-stop-at-p4c-skip-p4d.md) |

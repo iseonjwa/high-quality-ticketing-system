@@ -45,11 +45,12 @@ class LocalAppsTest {
     }
 
     @Test
-    void 결제_토큰_키는_발급하는_예매_서비스와_검증하는_결제_서비스에만_전달한다() {
+    void 결제_토큰_개인키는_예매_서비스에만_공개키는_결제_서비스에만_전달한다() {
         for (var app : LocalApps.ALL) {
             var environment = LocalApps.environment(WorkspacePaths.root(), app, values(), Map.of());
-            var needsKey = Set.of("reservation-service", "payment-service").contains(app.name());
-            assertEquals(needsKey, environment.containsKey("PAYMENT_TOKEN_SECRET"), app.name());
+            assertEquals(app.name().equals("reservation-service"), environment.containsKey("PAYMENT_TOKEN_PRIVATE_KEY"), app.name());
+            assertEquals(app.name().equals("payment-service"), environment.containsKey("PAYMENT_TOKEN_PUBLIC_KEY"), app.name());
+            assertFalse(environment.containsKey("PAYMENT_TOKEN_SECRET"), app.name());
         }
     }
 

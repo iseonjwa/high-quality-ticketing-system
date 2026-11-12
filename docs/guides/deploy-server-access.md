@@ -99,6 +99,8 @@ ssh -i ~/.ssh/id_ed25519 -N -L 8081:127.0.0.1:8080 ubuntu@3.106.245.40
    - 40자 커밋 SHA를 넣으면 그 커밋으로 배포한다(되돌리기).
 4. **Build**를 누르고 빌드의 **Console Output**과 슬랙 알림으로 결과를 본다. 수동 실행은 알림의 계기에 `수동 재배포(TAG)`나 `수동 실행(main 최신)`으로 찍힌다.
 
+배포가 이미지 받기에서 실패했으면 다시 돌리기 전에 서버 디스크를 본다(`df -h /`, `docker system df`). 2026-11-12에는 옛 이미지가 쌓여 디스크가 100%였고 다시 돌려도 같은 자리에서 실패할 상태였다([troubleshooting.md](../troubleshooting.md) TS-60). 지금은 `deploy.sh`가 받기 전에 옛 이미지를 정리한다.
+
 `TAG`에 넣을 SHA는 40자 전체여야 한다. 7자 짧은 SHA는 `TAG는 40자 16진 커밋 SHA여야 합니다`로 거부된다.
 - 짧은 SHA를 40자로 바꾸기: `git rev-parse abc1234`
 - 최근 main 커밋 보기: `git fetch origin && git log origin/main --format='%H %s' -5`

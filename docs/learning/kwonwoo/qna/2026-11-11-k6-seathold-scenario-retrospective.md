@@ -45,7 +45,7 @@ tags: [load-test, k6, retrospective, seathold, measurement-design]
 
 | 점검 | 막았을 일 | 방법 |
 |---|---|---|
-| 부하 생성기 보정 | TS-64(k6 메모리 상한을 Gateway 한계로 잘못 읽음), P4b 1·2차 무효 | 측정 대상 없이 k6만 가벼운 엔드포인트에 최고 단계 도착률로 돌려 CPU·메모리 여유를 본다. 기기를 바꿀 때마다 다시 한다 |
+| 부하 생성기 보정 | TS-69(k6 메모리 상한을 Gateway 한계로 잘못 읽음), P4b 1·2차 무효 | 측정 대상 없이 k6만 가벼운 엔드포인트에 최고 단계 도착률로 돌려 CPU·메모리 여유를 본다. 기기를 바꿀 때마다 다시 한다 |
 | 장애 주입 대상 확인 | Z 1차 무효, K 해석 제한 | 잠금 세션이 잠근 좌석 ID와 k6 목표 좌석 ID의 겹침 수를 측정 시작 전에 출력하고, 기대와 다르면 멈춘다(Z 2차의 `locked 10`을 미리 확인하는 셈) |
 | CPU 상한 | 기기 이동 재측정, P4d 판단 보류 | 서버 컨테이너 전체를 같은 4코어에 묶는다(`cpuset`). 배포처럼 4 vCPU를 함께 나눠 쓰게 하는 것이다. 컨테이너마다 `cpus`를 따로 주는 방식은 배포와 덜 닮았다([CPU 상한 노트](2026-11-11-why-cpu-limit-in-load-test.md)). local 32코어에서는 직렬화 비용(JFR 약 32%)이 병목이 되지 않아 P4d 효과가 보이지 않았다. 상한이 있으면 local에서 판단할 수 있었다 |
 
@@ -78,7 +78,7 @@ tags: [load-test, k6, retrospective, seathold, measurement-design]
 - 입장 주기: `reservation-service/src/main/java/com/iseonjwa/reservation/queue/presentation/scheduling/QueueAdmissionScheduler.java`(`queue.admission-interval:500ms`).
 
 ## 면접 포인트
-- "부하 테스트를 설계할 때 무엇을 먼저 확인하나?" → 부하 생성기의 여유를 먼저 확인한다. 생성기가 한계에 붙으면 요청 모양이 바뀌어 서버 한계처럼 보인다. 실제로 k6 메모리 상한 때문에 Gateway 한계로 잘못 읽은 적이 있다(TS-64).
+- "부하 테스트를 설계할 때 무엇을 먼저 확인하나?" → 부하 생성기의 여유를 먼저 확인한다. 생성기가 한계에 붙으면 요청 모양이 바뀌어 서버 한계처럼 보인다. 실제로 k6 메모리 상한 때문에 Gateway 한계로 잘못 읽은 적이 있다(TS-69).
 - "A·B 비교를 언제 생략하나?" → 고친 결함이 생길 수 없는 조건이면 비교해도 차이가 없다. 예를 들어 다중 인스턴스 경합 수정은 1대에서 재지 않는다. 측정 전에 예상을 적어 두면 이런 회를 미리 거를 수 있다.
 - "스트레스 테스트 결과를 읽을 때 주의할 점은?" → 단계가 오르는 동안 시스템 상태가 바뀌는지 본다. 매진처럼 상태가 바뀌면 상위 단계는 다른 부하를 잰 것이다.
 
@@ -86,4 +86,4 @@ tags: [load-test, k6, retrospective, seathold, measurement-design]
 - 측정 브랜치 `experiment/ISE-79-k6-steps`의 `reservation-service/k6/STEPS.md` "동시성 부하 측정", "동시성 부하 2차 실측", "잠긴 행 집중 1차·2차 실측", "측정 기기 이동"
 - [k6-seathold-story.md](../../../design/reservation/k6-seathold-story.md) 5·6·7·11절
 - [잠긴 행 집중 학습 노트](2026-11-10-hot-lock-load-test.md), [K1 이후 성능 개선 학습 노트](2026-11-10-performance-beyond-k1-results.md)
-- [트러블슈팅](../../../troubleshooting.md) TS-64
+- [트러블슈팅](../../../troubleshooting.md) TS-69

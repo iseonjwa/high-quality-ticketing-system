@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.reservation.application;
 
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
 import com.iseonjwa.reservation.seathold.application.SeatHoldExpiryService;
+import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,8 +75,8 @@ class PaymentResultLotteryTest {
                     + " price, status, created_at, updated_at) VALUES (?, ?, 'A', 'VIP', ?, 'AVAILABLE', now(), now())"
                     + " RETURNING id", Long.class, scheduleId, venueSeatId, SEAT_PRICE));
         }
-        reservationId = seatHold.hold(new HoldSeatsCommand(USER, UUID.randomUUID(), scheduleId, seatIds))
-                .reservationId();
+        reservationId = ((SyncHoldOutcome.Held) seatHold.hold(
+                new HoldSeatsCommand(USER, UUID.randomUUID(), scheduleId, seatIds))).result().reservationId();
         jdbc.update("UPDATE reservations SET source = 'LOTTERY' WHERE id = ?", reservationId);
         var lotteryId = jdbc.queryForObject("INSERT INTO lotteries (schedule_id, source_grade, seat_count,"
                 + " waitlist_count, max_per_entry, entry_start_at, entry_end_at, draw_at, seed, status, created_at,"

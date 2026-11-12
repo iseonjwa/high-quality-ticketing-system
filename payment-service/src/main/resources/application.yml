@@ -22,6 +22,9 @@ spring:
     web-application-type: none
     banner-mode: "off"
   kafka:
+    admin:
+      # Ops JVM은 Kafka에 연결하지 않는다. 토픽 선언을 하려고 브로커를 기다리지 않는다
+      auto-create: false
     listener:
       auto-startup: false
 eureka:

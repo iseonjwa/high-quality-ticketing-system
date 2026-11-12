@@ -32,6 +32,11 @@ public final class ReconciliationRound {
         return policy;
     }
 
+    /** 이번 회차에 예매 스냅숏을 실제로 가져왔으면 그것을, 아니면(요구하지 않았거나 실패) null을 돌려준다. 가져오지는 않는다. */
+    public synchronized ReservationView loadedReservations() {
+        return reservations;
+    }
+
     /** 이 회차의 예매 스냅숏. 처음 부르면 가져오고, 이미 실패했으면 다시 부르지 않고 실패를 돌려준다. */
     public synchronized ReservationView reservations() {
         if (reservations != null) return reservations;

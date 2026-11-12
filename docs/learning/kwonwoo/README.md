@@ -6,6 +6,10 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 벌크헤드(Bulkhead)와 동시 처리수 상한(Concurrency Limit)의 차이 | [qna/2026-11-12-bulkhead-vs-concurrency-limit.md](qna/2026-11-12-bulkhead-vs-concurrency-limit.md) |
+| 2026-11-12 | 접수형으로 받은 요청을 동기형 서버가 같은 키로 다시 받으면 왜 500이 나고, 어떻게 막을 것인가 | [qna/2026-11-12-mode-switch-replay-gap.md](qna/2026-11-12-mode-switch-replay-gap.md) |
+| 2026-11-12 | 접수형 선점(ISE-16)에서 남은 다섯 가지 결정의 트레이드오프와 추천안 | [qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md](qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md) |
+| 2026-11-12 | 접수형 선점에서 여러 구역 좌석 요청의 메시지 키를 어떻게 정할 것인가 | [qna/2026-11-12-async-seat-hold-message-key-options.md](qna/2026-11-12-async-seat-hold-message-key-options.md) |
 | 2026-11-12 | 좌석 배치 캐시를 로컬 메모리에 둘까 Redis에 둘까 (개념부터 측정·원인까지) | [qna/2026-11-12-p4b-p4c-local-cache-not-redis.md](qna/2026-11-12-p4b-p4c-local-cache-not-redis.md) |
 | 2026-11-11 | 좌석 선점과 부하 경로에서 로컬 캐시·Redis 캐시로 더 개선할 부분은 무엇인가 | [qna/2026-11-11-seathold-cache-improvements.md](qna/2026-11-11-seathold-cache-improvements.md) |
 | 2026-11-11 | CPU를 늘리지 않고 Gateway가 부하를 감당하게 하는 기술은 무엇인가 | [qna/2026-11-11-gateway-load-techniques-beyond-cpu.md](qna/2026-11-11-gateway-load-techniques-beyond-cpu.md) |

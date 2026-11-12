@@ -134,6 +134,7 @@ public final class Ledger {
         return entry == null ? Optional.empty() : Optional.ofNullable(entry.state());
     }
 
+    /** 이 원장이 승인한 결제. 서명으로 되살린 결제는 주문을 모르므로 담지 않는다. */
     public Optional<Approved> findApproved(String pgTxId) {
         return Optional.ofNullable(paymentsByTx.get(pgTxId)).map(PaymentEntry::approved);
     }
@@ -144,6 +145,8 @@ public final class Ledger {
      *
      * <p>판정 순서: 같은 {@code refundId}의 저장된 결과가 있으면 그 결과(결제가 다르면 {@code OTHER}), 승인된 결제가 없으면
      * {@code NOT_REFUNDABLE}, 통화가 다르거나 환불 합계가 승인 금액을 넘으면 {@code NOT_REFUNDABLE}, 그 밖에는 저장한다.
+     * 승인된 결제가 원장에 없어도 {@code restored}(거래 ID 서명으로 확인한 승인 금액·통화)가 있으면 그 결제를 되살려
+     * 같은 판정을 한다. 되살린 결제는 거절되면 남기지 않고, 환불에 성공하면 환불 누계와 함께 남는다.
      *
      * <p>Note: 같은 {@code pgTxId}의 요청은 같은 키의 {@code compute}로 줄 세워지므로, 저장된 환불을 확인한 뒤 저장하기 전에
      * 같은 결제의 다른 요청이 끼어들 수 없다. 같은 {@code refundId}가 다른 {@code pgTxId}로 동시에 오면 서로 다른 키라
@@ -151,6 +154,13 @@ public final class Ledger {
      * 잠금 순서는 승인이 orders→paymentsByTx, 환불이 paymentsByTx→refunds라 거꾸로 잡는 경로가 없다.
      */
     public RefundOutcome refund(Refunded candidate) {
+        return refund(candidate, Optional.empty());
+    }
+
+    /**
+     * @param restored 원장에 없는 결제의 거래 ID 서명을 확인한 결과. 서명 확인은 순수 계산이라 호출한 쪽이 잠금 밖에서 한다
+     */
+    public RefundOutcome refund(Refunded candidate, Optional<TxIdSigner.Verified> restored) {
         var outcome = new AtomicReference<RefundOutcome>();
         paymentsByTx.compute(candidate.pgTxId(), (pgTxId, entry) -> {
             var stored = refunds.get(candidate.refundId());
@@ -159,11 +169,12 @@ public final class Ledger {
                 return entry;
             }
             // 항목이 없을 때 null을 돌려주면 맵에 아무것도 생기지 않는다
-            if (entry == null) {
+            if (entry == null && restored.isEmpty()) {
                 outcome.set(new Rejected(RejectCode.NOT_REFUNDABLE));
                 return null;
             }
-            if (!entry.canRefund(candidate)) {
+            var payment = entry != null ? entry : PaymentEntry.restoredFrom(restored.get());
+            if (!payment.canRefund(candidate)) {
                 outcome.set(new Rejected(RejectCode.NOT_REFUNDABLE));
                 return entry;
             }
@@ -173,7 +184,7 @@ public final class Ledger {
                 return entry;
             }
             outcome.set(candidate);
-            return entry.withRefunded(candidate.amount());
+            return payment.withRefunded(candidate.amount());
         });
         return outcome.get();
     }
@@ -311,7 +322,7 @@ public final class Ledger {
                 throw new IllegalStateException("현재 값이 이 승인 시도가 아니다 orderId=" + id);
             }
             if (result instanceof Approved approved) {
-                paymentsByTx.put(approved.pgTxId(), new PaymentEntry(approved, BigDecimal.ZERO));
+                paymentsByTx.put(approved.pgTxId(), PaymentEntry.of(approved));
             }
             return current.withState(result);
         });
@@ -380,15 +391,25 @@ public final class Ledger {
         }
     }
 
-    /** 승인 결제와 지금까지 환불한 금액의 합. 불변이고 환불마다 새 객체로 바꾼다. */
-    private record PaymentEntry(Approved approved, BigDecimal refundedTotal) {
-        boolean canRefund(Refunded request) {
-            return approved.currency().equals(request.currency())
-                    && refundedTotal.add(request.amount()).compareTo(approved.amount()) <= 0;
+    /**
+     * 승인 결제와 지금까지 환불한 금액의 합. 불변이고 환불마다 새 객체로 바꾼다. {@code approved}는 이 원장이 승인했을 때만 있고,
+     * 거래 ID 서명으로 되살린 항목은 null이다(승인 금액·통화만 안다).
+     */
+    private record PaymentEntry(Approved approved, BigDecimal amount, String currency, BigDecimal refundedTotal) {
+        static PaymentEntry of(Approved approved) {
+            return new PaymentEntry(approved, approved.amount(), approved.currency(), BigDecimal.ZERO);
         }
 
-        PaymentEntry withRefunded(BigDecimal amount) {
-            return new PaymentEntry(approved, refundedTotal.add(amount));
+        static PaymentEntry restoredFrom(TxIdSigner.Verified verified) {
+            return new PaymentEntry(null, verified.amount(), verified.currency(), BigDecimal.ZERO);
+        }
+
+        boolean canRefund(Refunded request) {
+            return currency.equals(request.currency()) && refundedTotal.add(request.amount()).compareTo(amount) <= 0;
+        }
+
+        PaymentEntry withRefunded(BigDecimal refunded) {
+            return new PaymentEntry(approved, amount, currency, refundedTotal.add(refunded));
         }
     }
 }

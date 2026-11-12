@@ -12,9 +12,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.GeneralSecurityException;
+import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
+import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,8 +28,11 @@ import java.util.stream.Collectors;
 
 public final class LocalEnvironment {
     public static final List<String> KEYS = List.of("DB_USER", "DB_PASSWORD", "JWT_ACCESS_SECRET",
-            "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET", "ENTRY_TOKEN_SECRET", "BILLING_KEY_SECRET", "ADMIN_EMAIL",
+            "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_PRIVATE_KEY", "PAYMENT_TOKEN_PUBLIC_KEY", "ENTRY_TOKEN_SECRET", "BILLING_KEY_SECRET", "ADMIN_EMAIL",
             "ADMIN_PASSWORD", "GRAFANA_ADMIN_PASSWORD");
+    // 결제 토큰 키 쌍(ES256, ADR 0055). 예매 서비스가 개인키로 서명하고 결제 서비스가 공개키로 검증한다. 한 쌍이라 따로 만들지 않는다
+    private static final String PAYMENT_TOKEN_PRIVATE_KEY = "PAYMENT_TOKEN_PRIVATE_KEY";
+    private static final String PAYMENT_TOKEN_PUBLIC_KEY = "PAYMENT_TOKEN_PUBLIC_KEY";
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private LocalEnvironment() {}
@@ -69,8 +76,9 @@ public final class LocalEnvironment {
         if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return false;
         var values = new LinkedHashMap<String, String>();
         var random = new SecureRandom();
+        var tokenKeys = generatePaymentTokenKeyPair();
         for (var key : KEYS) {
-            values.put(key, generate(key, random));
+            values.put(key, generate(key, random, tokenKeys));
         }
         var content = new StringBuilder();
         values.forEach((key, value) -> content.append(key).append('=').append(value).append('\n'));
@@ -94,12 +102,21 @@ public final class LocalEnvironment {
                 .map(line -> line.substring(0, line.indexOf('=')).strip())
                 .collect(Collectors.toSet());
 
+        // 키 쌍은 둘 다 없을 때만 만든다. 하나만 있으면 새로 만들지 않는다(짝이 맞지 않으면 모든 결제가 403이 된다)
+        var hasPrivate = present.contains(PAYMENT_TOKEN_PRIVATE_KEY);
+        var hasPublic = present.contains(PAYMENT_TOKEN_PUBLIC_KEY);
+        if (hasPrivate != hasPublic) {
+            throw new IllegalStateException((hasPrivate ? PAYMENT_TOKEN_PUBLIC_KEY : PAYMENT_TOKEN_PRIVATE_KEY)
+                    + "가 .env에 없습니다. 결제 토큰 키는 한 쌍이라 하나만 있으면 새로 만들지 않습니다. "
+                    + "두 줄을 모두 지우고 다시 실행하거나, 짝이 되는 키를 직접 넣으세요");
+        }
         var random = new SecureRandom();
+        var tokenKeys = hasPrivate ? null : generatePaymentTokenKeyPair();
         var added = new ArrayList<String>();
         var addition = new StringBuilder();
         for (var key : KEYS) {
             if (present.contains(key)) continue;
-            addition.append(key).append('=').append(generate(key, random)).append('\n');
+            addition.append(key).append('=').append(generate(key, random, tokenKeys)).append('\n');
             added.add(key);
         }
         if (added.isEmpty()) return List.of();
@@ -110,15 +127,30 @@ public final class LocalEnvironment {
         return List.copyOf(added);
     }
 
-    private static String generate(String key, SecureRandom random) {
+    private static String generate(String key, SecureRandom random, Map<String, String> tokenKeys) {
         return switch (key) {
             case "DB_USER" -> "iseonjwa";
             case "ADMIN_EMAIL" -> "admin@iseonjwa.local";
-            case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "PAYMENT_TOKEN_SECRET", "ENTRY_TOKEN_SECRET",
+            case PAYMENT_TOKEN_PRIVATE_KEY, PAYMENT_TOKEN_PUBLIC_KEY -> tokenKeys.get(key);
+            case "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "ENTRY_TOKEN_SECRET",
                  "BILLING_KEY_SECRET" -> randomHex(random, 32);
             case "DB_PASSWORD" -> randomHex(random, 24);
             default -> randomHex(random, 16);
         };
+    }
+
+    // P-256 키 쌍을 만든다. 개인키는 PKCS#8 DER, 공개키는 X.509 SubjectPublicKeyInfo DER이고 줄바꿈 없는 Base64 한 줄이다
+    static Map<String, String> generatePaymentTokenKeyPair() {
+        try {
+            var generator = KeyPairGenerator.getInstance("EC");
+            generator.initialize(new ECGenParameterSpec("secp256r1"));
+            var pair = generator.generateKeyPair();
+            var encoder = Base64.getEncoder();
+            return Map.of(PAYMENT_TOKEN_PRIVATE_KEY, encoder.encodeToString(pair.getPrivate().getEncoded()),
+                    PAYMENT_TOKEN_PUBLIC_KEY, encoder.encodeToString(pair.getPublic().getEncoded()));
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("결제 토큰 키 쌍을 만들지 못했습니다", exception);
+        }
     }
 
     // Note: Windows(NTFS)는 POSIX 권한을 지원하지 않아 지정하면 예외가 난다. 이때는 상위 폴더의 접근 권한을 그대로 따른다
