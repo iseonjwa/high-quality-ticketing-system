@@ -27,6 +27,13 @@ public class JpaUserScheduleQuotaRepository implements UserScheduleQuotaReposito
     }
 
     @Override
+    public int addHeldCountWithinLimit(UserScheduleQuotaId id, int quantity, int maxPerUser, Instant now,
+            Long actorId) {
+        repository.insertEmptyIfAbsent(id.userId(), id.scheduleId(), now, actorId);
+        return repository.addHeldCountWithinLimit(id.userId(), id.scheduleId(), quantity, maxPerUser, now, actorId);
+    }
+
+    @Override
     public int subtractHeldCount(UserScheduleQuotaId id, int quantity, Instant now, Long actorId) {
         return repository.subtractHeldCount(id.userId(), id.scheduleId(), quantity, now, actorId);
     }

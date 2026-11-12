@@ -12,9 +12,9 @@ Reservation이 선점 응답에 담아 내려 주고, 사용자가 `POST /api/v1
 
 | 항목 | 값 |
 |---|---|
-| 형식 | JWS compact(JWT), 서명 알고리즘 HS256 고정. 헤더의 `alg`를 믿지 않는다 |
-| 서명 키 | `PAYMENT_TOKEN_SECRET`. 입장 토큰 키와 분리하며 Reservation·Payment만 가진다 |
-| 키 바이트 | 문자열의 UTF-8 바이트를 그대로 쓴다(16진수 디코딩 금지). 발급기도 `TokenDecoders.signingKey(secret)`를 쓴다([0025](../../decisions/0025-payment-token-secret-injection.md)) |
+| 형식 | JWS compact(JWT), 서명 알고리즘 ES256(ECDSA P-256, SHA-256) 고정. 헤더는 `alg=ES256`, `typ=JWT`. 검증기는 헤더의 `alg`를 믿지 않고 ES256만 받는다([0055](../../decisions/0055-payment-token-asymmetric-signature.md)) |
+| 서명 키 | 개인키 `PAYMENT_TOKEN_PRIVATE_KEY`는 Reservation만, 공개키 `PAYMENT_TOKEN_PUBLIC_KEY`는 Payment만 가진다. 입장 토큰 키와 무관하다 |
+| 키 형식 | 개인키는 PKCS#8 DER, 공개키는 X.509 SubjectPublicKeyInfo DER를 줄바꿈 없는 Base64 한 줄로 둔다. 두 서비스는 시작할 때 값 존재·Base64·키 형식·P-256 곡선을 검사하고 어긋나면 기동하지 않는다 |
 | 길이 상한 | 4,096자. 넘으면 검증 전에 거절한다 |
 
 ### claim
@@ -88,6 +88,7 @@ Payment 쪽 고칠 곳: claim 이름은 `payment-service`의 `PaymentTokenClaims
 - `PaymentRefunded`의 `amount`는 환불 금액이고 결제의 PG 승인 금액과 같다(전액 환불). `refundedAt`은 Payment가 전이한 시각이 아니라 PG가 환불한 시각이고 `approvedAt`처럼 밀리초 정밀도다. 환불 워커가 환불 확정과 같은 트랜잭션에서 Outbox에 쓰며, 환불이 `NEEDS_MANUAL_CHECK`로 끝난 경우에는 발행하지 않는다.
 - `reasonCode`는 Payment가 정한 값이다: `CARD_DECLINED`, `INSUFFICIENT_LIMIT`, `TOKEN_EXPIRED`(PG 호출 전 토큰 만료), `NOT_SENT`(PG에 보내지 않았음이 확인됨), `OTHER`. PG 원본 코드는 내보내지 않는다. Reservation은 사유별로 분기하지 않고 거절 자체로 처리해도 된다.
 - 예외: 추첨 예매(`reservations.source = 'LOTTERY'`)는 `reasonCode`로 분기한다. `NOT_SENT`면 같은 당첨자에게 새 예매로 1회 재시도하고, 나머지 사유는 예비자 승계로 보낸다([0038](../../decisions/0038-lottery-payment-failure-by-reason.md)). 재시도가 안전한 근거는 `NOT_SENT`의 보장이다. Payment는 PG 조회가 `NOT_FOUND`이고 같은 주문번호 망취소가 `Prevented`일 때만 `NOT_SENT`로 닫으므로, 그 `reservationId`로는 이후 승인이 나지 않는다(SA 10-5, `invariants.md` INV-8). 10/31 추첨 담당 선반영, 결제 담당 확인 대기(ISE-89).
+- 토픽 선언(2026-11-12, ISE-236): `payment.command`는 결제 서비스가 파티션 3·복제 1로 선언한다(`PaymentCommandKafkaConfiguration`, `KafkaAdmin`이 시작할 때 만들거나 늘림). 메시지 키는 예매 ID라 발행 쪽은 파티션을 직접 지정하지 않고 키로만 보낸다. 같은 예매의 명령은 같은 파티션이라 순서가 지켜진다.
 - 11/2 추가(ISE-96·89): `payment.command`의 `BillingPaymentRequested`(`reservationId`, `userId`, `amount`, `currency`, `lotteryEntryId`)는 빌링키 자동결제로 처리한다. 같은 예매로 다시 와도 결제는 한 건이다. 활성 빌링키가 없거나 PG가 빌링키를 거절하면 `PaymentDeclined.reasonCode = BILLING_KEY_MISSING`(추첨은 당첨자 책임으로 보고 승계). `pg-approve` 허가를 못 얻으면 DLQ로 보내지 않고 같은 메시지를 다시 읽는다. 그동안 같은 파티션의 뒤 메시지(환불 포함)도 기다린다(D6 기준선의 감수 사항, 측정 시나리오 2에서 확인).
 - 예시(`PaymentApproved` payload):
 
@@ -124,7 +125,7 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 | # | 항목 | 기본 가정 |
 |---|---|---|
 | 1 | claim 이름·타입: `sub`, `reservationId`, `amount`, `typ`, `aud`, `exp`, `jti` | 1절 표 그대로(`reservationId`·`amount`는 JSON 정수) |
-| 2 | 서명 방식과 키: HS256, `PAYMENT_TOKEN_SECRET`, `TokenDecoders.signingKey` | 그대로 |
+| 2 | 서명 방식과 키: ES256, 개인키는 Reservation·공개키는 Payment(ISE-245, 0055가 HS256·`PAYMENT_TOKEN_SECRET`을 대체) | 0055 |
 | 3 | 토큰 `exp` = `hold_expires_at - 10초`를 발급기가 맞춘다 | 그대로 |
 | 4 | `reservation.payment_id`를 확정 때 반드시 기록하고 이벤트의 `paymentId`와 대조한다 | 그대로(0027) |
 | 5 | `payment.result` 소비자가 `PaymentApproved`의 `currency`·`approvedAt`을 쓴다 | 그대로 |
@@ -147,4 +148,4 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 - `ids`가 비었거나 상한(100건)을 넘으면 400으로 답하고 잘라서 응답하지 않는다. 잘린 응답은 결제 쪽에서 "예매 없음"으로 보이기 때문이다.
 - 인증 헤더는 없다. 내부망 신뢰이고 Gateway가 `/internal/**`를 외부에서 막는다([0008](../../decisions/0008-internal-trust-and-auth-design.md)). Eureka 서비스 ID는 `reservation-service`이고 결제 쪽은 연결 1초·읽기 2초`[가정]`로 부른다.
 - **실패 해석**: 200이 아닌 응답은 404를 포함해 모두 "조회 실패"다. 시한 초과, 연결 실패, 알 수 없는 `status`, 소수부가 0이 아닌 금액, 감싼 응답에 `data`가 없는 경우도 실패다. 404를 "예매 없음"으로 읽지 않는다. 경로가 틀리거나 API가 아직 없을 때 모든 승인 결제가 RC-2(환불 의무 미등록)로 기록되기 때문이다. "예매 없음"은 200 응답의 `items`에서 빠진 ID만 뜻한다. 조회가 실패한 회차에는 RC-1~RC-6이 기록도 닫기도 하지 않고 실패하고 다음 회차에 다시 한다.
-- **대량 누락**: 결제는 예매가 발급한 토큰으로만 생기므로 정상이면 "예매 없음"은 거의 없다. 200 응답이라도 한 묶음에서 2건 이상 물었는데 하나도 오지 않았거나, 회차 전체에서 빠진 예매가 5건 이상이고 물은 수의 10%를 넘으면 결제 쪽이 조회 실패로 본다(설정 `payment.reconciliation.reservation.missing-batch-min-size`·`missing-min-count`·`missing-max-ratio`, `[가정]`). 변경 목록은 빈 쪽이면 끝내고 최대 쪽 수(`max-change-pages`, 1,000`[가정]`)를 넘으면 실패로 본다.
+- **대량 누락**: 결제는 예매가 발급한 토큰으로만 생기므로 정상이면 "예매 없음"은 거의 없다. 200 응답이라도 한 묶음에서 2건 이상 물었는데 하나도 오지 않았거나, 회차 전체에서 빠진 예매가 5건 이상이고 물은 수의 10%를 넘으면 결제 쪽이 조회 실패로 본다(설정 `payment.reconciliation.reservation.missing-batch-min-size`·`missing-min-count`·`missing-max-ratio`, `[가정]`). 변경 목록은 빈 쪽이면 끝내고 회차당 쪽 수 예산(`change-page-budget`, 200`[가정]`)까지만 읽고, 예산을 다 쓰면 실패가 아니라 남은 구간을 다음 회차에 이어 읽는다(ISE-254). 지난 회차 이후분만 읽는다.

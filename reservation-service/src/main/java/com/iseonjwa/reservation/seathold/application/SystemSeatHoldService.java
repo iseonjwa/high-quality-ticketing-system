@@ -8,7 +8,6 @@ import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatusHistory;
-import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuota;
 import com.iseonjwa.reservation.reservation.domain.entity.UserScheduleQuotaId;
 import com.iseonjwa.reservation.reservation.domain.repository.ActiveSeatConflictException;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
@@ -83,13 +82,13 @@ public class SystemSeatHoldService {
         }
         var now = clock.instant();
 
-        // 일반 선점과 같은 순서(매수 → 좌석 → 예매)로 잠근다. 순서가 다르면 서로 기다리다 교착이 날 수 있다
+        // Note: 한도 검사와 증가를 조건부 UPDATE 한 문장으로 한다(ISE-251). 따로 읽고 더하면 같은 사용자의 일반 선점이
+        // 그 사이에 커밋해 한도를 넘었다. 매수 행 잠금은 이 UPDATE에서 생겨 커밋까지 유지되므로, 일반 선점과 같은 순서
+        // (매수 행 → 좌석 → 예매)로 잠근다. 순서가 다르면 서로 기다리다 교착이 날 수 있다
         var quotaId = new UserScheduleQuotaId(userId, scheduleId);
-        var heldCount = quotas.findById(quotaId).map(UserScheduleQuota::getHeldCount).orElse(0);
-        if (heldCount + sortedSeatIds.size() > schedule.getMaxPerUser()) {
+        if (quotas.addHeldCountWithinLimit(quotaId, sortedSeatIds.size(), schedule.getMaxPerUser(), now, userId) == 0) {
             throw new BusinessException(SeatHoldErrorCode.PURCHASE_LIMIT_EXCEEDED);
         }
-        quotas.addHeldCount(quotaId, sortedSeatIds.size(), now, userId);
         if (inventory.holdAvailableLotterySeats(scheduleId, sortedSeatIds, now, userId) != sortedSeatIds.size()) {
             throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
         }

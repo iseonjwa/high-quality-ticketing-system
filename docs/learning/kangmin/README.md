@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 겹겹이 걸린 시한은 각각 어디서부터 재고 어떤 순서로 터져야 원인을 알 수 있나(Gateway 인증 계단 100·200·300·1000ms, 시계 시작점, 안 걸리는 시한의 뜻, `SLOW_ERROR` 이중 집계, Gateway 응답 시한 범위, config-repo 시한 지도, 흐름별 시한 예산) | [qna/2026-11-12-timeout-layers-and-config-repo-map.md](qna/2026-11-12-timeout-layers-and-config-repo-map.md) |
 | 2026-11-12 | 선점 성공 시 입장 토큰을 무효화하려면 어떻게 처리해야 하나(JWT는 만료시킬 수 없다, 비교 위치 G·S·Q, 선점 API DB 부분 고유 인덱스 + issued ZREM, 담당별 할 일, 거절 코드, 테스트) | [qna/2026-11-12-entry-token-consume-on-hold-implementation.md](qna/2026-11-12-entry-token-consume-on-hold-implementation.md) |
 | 2026-11-12 | 입장 토큰은 언제 소모해야 하나, 결제 토큰이 먼저 만료되면 어떻게 동작하나(세 가지 TTL, 403 PAYMENT_TOKEN_INVALID 뒤 좌석·화면, 자기 선점에 막히는 빈틈, 소모 시점 A·A′·B·C 비교와 정할 것) | [qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md](qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md) |
 | 2026-11-12 | 벌크헤드와 동시 처리 수 상한은 무엇이 다른가(감싸는 범위·위치·지키는 것, 건물 정문과 엘리베이터 비유, 요청이 지나는 순서, 둘 다 필요한 이유, 차단기와 구분, 값 정하기) | [qna/2026-11-12-bulkhead-vs-in-flight-limit.md](qna/2026-11-12-bulkhead-vs-in-flight-limit.md) |

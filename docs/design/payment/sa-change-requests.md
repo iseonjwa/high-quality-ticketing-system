@@ -34,6 +34,7 @@
 | S-28 | 11-5 Mock PG | Mock PG 승인·조회·환불 응답에 `amount`·`currency` 추가, `test`·`loadtest` 프로필 전용 원장 조회(주문별 승인 호출 수, 결제별 환불 수·금액) | 추가 | 0023, [failure-scenarios.md](failure-scenarios.md) | 안준현 (10/28 역할 변경)  | 반영(PR3) | 3 |
 | S-29 | 6-6, 11-4, 11-5 Mock PG | 장애 주입을 호출 단위(`target`: 승인·조회·망취소·환불·환불 조회)로 확장하고 `count`·`orderId`/`refundId` 매칭을 더함. 모드 추가(`PROCESSING`, `SERVER_ERROR`, `BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`, `REJECT`). 응답을 만지지 않는 모드는 `test`·`loadtest`, 변조 모드는 `test`만 허용. 처리 중 승인 재요청은 409 `REQUEST_IN_PROGRESS` | 추가(개정) | 0023, [mock-pg.md](mock-pg.md) | 안준현 (10/28 역할 변경)  | 반영(PR3) | 3 |
 | S-30 | 9-1, compose | `compose.yml`의 공통 `SPRING_PROFILES_ACTIVE: local`이 mock-pg에도 적용되어 부하 측정·11/6 시연에서 `/faults`가 404가 된다. mock-pg만 `local,loadtest`로 띄우는 override 파일을 두는 안을 팀과 정한다 **사본 확인(v3.3)**: 배포는 `compose.deploy.yml`에서 mock-pg를 `loadtest`로 띄워 해결했다. 로컬 `compose.yml`은 `local` 그대로 두므로 SA를 고치지 않는다. | 확인 | [mock-pg.md](mock-pg.md) 5·7절 | 팀  | SA 수정 대상 아님 | 0 |
+| S-31 | 7-3 결제 토큰 | 결제 토큰 서명을 HMAC-SHA256(HS256, 공유 키 `PAYMENT_TOKEN_SECRET`)에서 ES256으로 바꾸고, 키를 발급 쪽 개인키(Reservation만)와 검증 쪽 공개키(Payment만)로 분리한다. 검증만 하는 결제 서비스가 서명도 할 수 있는 키를 갖던 구조를 없앤다. claim·만료 규칙은 그대로다 | 변경(개정) | [0055](../../decisions/0055-payment-token-asymmetric-signature.md) | 반효승(발급기) | 제안 | 0 |
 
 ## PR 방식
 - 순서: 저장소 사본(`docs/core/SA MASTER.md`)을 먼저 고친다. 머지 뒤 사용자가 요청하면 Notion 정본에 반영한다(AGENTS.md 대전제 4).

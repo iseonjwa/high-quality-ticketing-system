@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Clock;
+
 /**
  * 공연 상세가 회차만 알고 추첨 화면으로 이동할 수 있게 회차로 추첨을 찾는다(ISE-227).
  */
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ScheduleLotteryController {
 
     private final LotteryEntryService lotteryEntryService;
+    private final Clock clock;
 
     // 추첨 단건 조회와 같은 공개 정보를 돌려줘 화면이 같은 타입을 쓴다
     @GetMapping("/api/v1/schedules/{scheduleId}/lottery")
@@ -28,7 +31,7 @@ public class ScheduleLotteryController {
         return ResponseEntity.ok(SuccessResponse.of(
                 200,
                 "추첨 정보입니다",
-                LotteryInfoResponse.from(lottery),
+                LotteryInfoResponse.from(lottery, clock.instant()),
                 MDC.get("traceId")));
     }
 }

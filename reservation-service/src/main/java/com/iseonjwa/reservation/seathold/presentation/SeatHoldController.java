@@ -3,12 +3,16 @@ package com.iseonjwa.reservation.seathold.presentation;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.common.response.SuccessResponse;
+import com.iseonjwa.reservation.seathold.application.AsyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
+import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
+import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.AcceptedResponse;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldRequest;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldResponse;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,42 +21,51 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
- * 좌석 선점 API(contracts.md 1절). 입장 토큰({@code X-Entry-Token})의 서명·만료·사용자·회차는 Gateway가 검증하므로
+ * 좌석 선점 API(contracts.md 1·2절). 입장 토큰({@code X-Entry-Token})의 서명·만료·사용자·회차는 Gateway가 검증하므로
  * 여기서 다시 보지 않는다(ISE-20). 사용자 ID는 Gateway가 검증해 전달한 값만 쓴다.
+ * 동기형(201)과 접수형(202)은 설정 {@code seat-hold.mode}로 고르고, 분기는 이 API 하나에만 둔다(ADR 0057).
  */
 @RestController
 public class SeatHoldController {
-    // UUID.fromString은 "1-1-1-1-1"처럼 자리수가 모자란 값도 받아들여서 표준 형식(8-4-4-4-12)을 먼저 확인한다
-    private static final Pattern UUID_FORMAT = Pattern.compile(
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+    private final SyncSeatHoldService syncService;
+    private final AsyncSeatHoldService asyncService;
+    private final SeatHoldMode mode;
 
-    private final SyncSeatHoldService seatHoldService;
-
-    public SeatHoldController(SyncSeatHoldService seatHoldService) {
-        this.seatHoldService = seatHoldService;
+    public SeatHoldController(SyncSeatHoldService syncService, AsyncSeatHoldService asyncService,
+            @Value("${seat-hold.mode:sync}") String mode) {
+        this.syncService = syncService;
+        this.asyncService = asyncService;
+        this.mode = SeatHoldMode.from(mode);
     }
 
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations")
-    public ResponseEntity<SuccessResponse<HoldResponse>> hold(@RequestAttribute Long currentUserId,
+    public ResponseEntity<SuccessResponse<?>> hold(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey, @PathVariable Long scheduleId,
             @Valid @RequestBody HoldRequest request) {
         if (scheduleId <= 0) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
-        var result = seatHoldService.hold(
-                new HoldSeatsCommand(currentUserId, parseKey(idempotencyKey), scheduleId, request.seatIds()));
-        return ResponseEntity.status(201)
-                .body(SuccessResponse.of(201, "선점되었습니다", HoldResponse.from(result), MDC.get("traceId")));
+        var command = new HoldSeatsCommand(currentUserId, RequestIds.parse(idempotencyKey), scheduleId,
+                request.seatIds());
+        if (mode == SeatHoldMode.ASYNC) {
+            return accepted(asyncService.accept(command));
+        }
+        return switch (syncService.hold(command)) {
+            case SyncHoldOutcome.Held held -> ResponseEntity.status(201).body(
+                    SuccessResponse.of(201, "선점되었습니다", HoldResponse.from(held.result()), MDC.get("traceId")));
+            // 접수형으로 시작한 요청은 동기형 서버에서도 202로 답한다(ADR 0058)
+            case SyncHoldOutcome.Accepted accepted -> accepted(accepted.requestId());
+        };
     }
 
-    private static UUID parseKey(String value) {
-        if (!UUID_FORMAT.matcher(value).matches()) {
-            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
-        }
-        return UUID.fromString(value);
+    // 같은 키 재요청도 같은 202와 본문을 준다. 결과(HELD·REJECTED)는 Location의 조회 API로만 알린다(contracts.md 2-2)
+    private static ResponseEntity<SuccessResponse<?>> accepted(UUID requestId) {
+        return ResponseEntity.status(202)
+                .location(URI.create(SeatHoldRequestController.PATH_PREFIX + requestId))
+                .body(SuccessResponse.of(202, "접수되었습니다", AcceptedResponse.of(requestId), MDC.get("traceId")));
     }
 }
