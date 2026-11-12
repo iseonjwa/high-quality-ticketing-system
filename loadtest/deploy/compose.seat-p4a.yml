@@ -1,0 +1,13 @@
+# 좌석 조회 1차(ISE-189 P4a, DTO 직접 조회)를 배포 서버에서 잴 때만 쓰는 덮어쓰기다. reservation-service 이미지만
+# P4b(ISE-204, 배치 캐시)가 main에 들어가기 직전 릴리스(11/12, 08b08e6)로 바꾸고, 나머지 서비스·설정은 지금 배포 그대로 둔다.
+#   script/loadtest/measure-mode.sh on loadtest/deploy/compose.seat-p4a.yml
+# 개선 전은 compose.seat-before.yml, 2차(P4b)는 덮어쓰기 없이 지금 배포 이미지로 잰다. 세 단계를 같은 날 같은 설정에서 비교하려는 것이다.
+#
+# Note: 08b08e6은 결제 토큰 ES256 전환(#533, ADR 0055) 전 이미지라 서명 키를 payment.token.secret(PAYMENT_TOKEN_SECRET)에서 읽고,
+# 비어 있으면 기동하지 않는다. 지금 config-repo에는 이 속성이 없어 환경변수로 직접 넘긴다(완화 바인딩). 좌석 조회는 결제 토큰을 쓰지 않는다.
+# 08b08e6과 지금 main 사이 예약 설정 차이는 이 키뿐이고 예약 DB 마이그레이션 차이는 없다(2026-11-12 확인).
+services:
+  reservation-service:
+    image: ghcr.io/iseonjwa/reservation-service:08b08e6447036e11d61b1a57335b804eafdac5b4
+    environment:
+      PAYMENT_TOKEN_SECRET: ${PAYMENT_TOKEN_SECRET:?옛 결제 토큰 키가 .env에 없다. 측정 모드를 켜기 전에 확인한다}

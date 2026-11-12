@@ -6,6 +6,11 @@
 # Note: 4544d1a와 P4a 릴리스(2f607d1) 사이 서비스 코드 차이는 P4a(좌석 조회 DTO 조회)뿐이고, 예약 DB 마이그레이션과
 # config-repo 예약 설정은 2026-11-09 dev까지 바뀌지 않았다. 이후 예약 DB 마이그레이션이나 설정이 바뀌면 옛 이미지가
 # 그대로 뜨는지 측정 전에 다시 확인한다.
+# 2026-11-12 확인: 이후 바뀐 예약 설정은 결제 토큰 ES256 전환(#533)과 스케줄러 Redis 스팬 설정이고 마이그레이션 차이는 없다.
+# 4544d1a는 서명 키를 payment.token.secret(PAYMENT_TOKEN_SECRET)에서 읽고 비어 있으면 기동하지 않아 환경변수로 직접 넘긴다
+# (compose.seat-p4a.yml과 같다).
 services:
   reservation-service:
     image: ghcr.io/iseonjwa/reservation-service:4544d1a74df9963a206d1f549314be7cff97f0be
+    environment:
+      PAYMENT_TOKEN_SECRET: ${PAYMENT_TOKEN_SECRET:?옛 결제 토큰 키가 .env에 없다. 측정 모드를 켜기 전에 확인한다}
