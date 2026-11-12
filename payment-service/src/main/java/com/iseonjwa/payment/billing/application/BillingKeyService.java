@@ -26,16 +26,22 @@ public class BillingKeyService {
     private final BillingKeyRepository billingKeys;
     private final BillingKeyEncryptor encryptor;
     private final TransactionTemplate tx;
+    private final BillingKeyRegistrationLimiter limiter;
 
     public BillingKeyService(PgClients pgClients, BillingKeyRepository billingKeys, BillingKeyEncryptor encryptor,
-            TransactionTemplate tx) {
+            TransactionTemplate tx, BillingKeyRegistrationLimiter limiter) {
         this.pgClients = pgClients;
         this.billingKeys = billingKeys;
         this.encryptor = encryptor;
         this.tx = tx;
+        this.limiter = limiter;
     }
 
     public BillingKeyView register(Long userId, String authKey) {
+        // PG 호출 전에 사용자별 상한을 본다. 넘으면 PG를 부르지 않는다
+        limiter.tryAcquire(userId).ifPresent(retryAfter -> {
+            throw new BillingKeyRateLimitedException(retryAfter);
+        });
         var issued = switch (pgClients.billing().issueBillingKey(authKey, customerKey(userId))) {
             case PgClient.BillingKeyIssued value -> value;
             case PgClient.BillingKeyRejected rejected -> throw new BusinessException(BillingErrorCode.BILLING_KEY_REJECTED);

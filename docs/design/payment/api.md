@@ -1,10 +1,10 @@
 # 결제 API
 
-승인, 결제 준비(checkout), 조회 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`, 본문 `authKey`, 201, 응답은 `billingKeyId`·`cardLast4`·`status`)과 해지(`DELETE /api/v1/payments/billing-keys/me`, 200)는 11/2 ISE-96에서 추가했다. PG 인증 거절은 400 `BILLING_KEY_REJECTED`, PG 결과를 모르면 503 `PG_UNAVAILABLE`이다. 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
+승인, 결제 준비(checkout), 조회 API를 둔다. 운영자 복구는 HTTP API가 아니라 Ops 명령이다([0028](../../decisions/0028-payment-ops-commands.md)). 빌링키 등록(`POST /api/v1/payments/billing-keys`, 본문 `authKey`, 201, 응답은 `billingKeyId`·`cardLast4`·`status`)과 해지(`DELETE /api/v1/payments/billing-keys/me`, 200)는 11/2 ISE-96에서 추가했다. PG 인증 거절은 400 `BILLING_KEY_REJECTED`, PG 결과를 모르면 503 `PG_UNAVAILABLE`이다. 사용자당 등록 횟수 상한(분 3회·하루 10회)을 넘으면 PG를 부르지 않고 429 `BILLING_KEY_RATE_LIMITED`와 `Retry-After`(초)를 준다(해지에는 제한이 없다, [data-model.md](data-model.md) 11절). 응답은 `SuccessResponse`·`FailureResponse` 공통 형식을 따르고(SA 11-2), 아래 `data`는 그 안의 내용이다.
 
 ## 1. 결제 승인 `POST /api/v1/payments`
 
-헤더: `Idempotency-Key`(UUID, 필수). 본문: `{paymentToken, amount, method: "CARD", clientPaymentRef?, pgProvider?}`. 인증이 필요하다. `clientPaymentRef`는 구매자가 토스 결제창에서 받은 `paymentKey`(공백 없는 1~200자)다. 이 결제를 토스로 처리할 때 필수이고 빠지면 400 `VALIDATION_FAILED`(허가·TX1 전이라 행도 멱등 기록도 남지 않는다), Mock으로 처리하는 결제에서는 무시한다([SA 변경 요청](sa-change-requests.md) S-14). `pgProvider`(`MOCK`·`TOSS`, 그 밖은 400)는 이 결제를 처리할 PG를 고르는 선택 필드로, 없으면 서버 기본 PG(`payment.pg.provider`)다. 토스 모드에서 `MOCK`을 보내면 결제창 없이 Mock으로 승인한다("Mock 건너뛰기", 시연용).
+헤더: `Idempotency-Key`(UUID, 필수). 본문: `{paymentToken, amount, method: "CARD", clientPaymentRef?, pgProvider?}`. 인증이 필요하다. `clientPaymentRef`는 구매자가 토스 결제창에서 받은 `paymentKey`(공백 없는 1~200자)다. 이 결제를 토스로 처리할 때 필수이고 빠지면 400 `VALIDATION_FAILED`(허가·TX1 전이라 행도 멱등 기록도 남지 않는다), Mock으로 처리하는 결제에서는 무시한다([SA 변경 요청](sa-change-requests.md) S-14). `pgProvider`(`MOCK`·`TOSS`, 그 밖은 400)는 이 결제를 처리할 PG를 고르는 선택 필드로, 없으면 서버 기본 PG(`payment.pg.provider`)다. 토스 모드에서 `MOCK`을 보내면 결제창 없이 Mock으로 승인한다("Mock 건너뛰기", 시연용). 이 건너뛰기는 `payment.pg.mock-bypass-enabled`가 켜져 있을 때만 받고(기본 꺼짐), 꺼져 있으면 400이다.
 
 **PG 결정과 검사 순서**: 5단계(기존 결제·만료 확인) 뒤, 6단계 허가·7단계 TX1 전에 이 결제의 PG를 정한다. 아래 셋은 모두 400 `VALIDATION_FAILED`이고 행도 멱등 기록도 남기지 않는다.
 
@@ -91,7 +91,7 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 | 필드 | 값 |
 |---|---|
 | `provider` | 서버의 `payment.pg.provider`. 프런트는 이 값으로 결제창을 열지(TOSS) 바로 승인을 부를지(MOCK) 고른다 |
-| `mockBypass` | `provider`가 `TOSS`이고 `payment.pg.mock-bypass-enabled`가 켜져 있을 때만 `true`다. Mock 모드는 `false`다(결제 버튼이 이미 바로 승인한다) |
+| `mockBypass` | `provider`가 `TOSS`이고 `payment.pg.mock-bypass-enabled`가 켜져 있을 때만 `true`다(기본값은 꺼짐이라 설정이 없으면 `false`). Mock 모드는 `false`다(결제 버튼이 이미 바로 승인한다) |
 | `orderId` | `PgOrderIds.of(reservationId, token.exp)`. TX1의 `pg_order_id`와 같다 |
 | `clientKey` | 토스 결제창이 쓰는 `test_ck_…` 클라이언트 키(공개 값). 시크릿 키는 응답에 없다 |
 | `amount` | 토큰의 금액 |

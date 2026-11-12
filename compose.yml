@@ -139,6 +139,8 @@ services:
       MOCK_PG_URL: http://mock-pg:8090
       # 기본은 mock이다. toss는 시연 때만 켜고 테스트 키(test_sk_, test_ck_)를 .env에 넣는다. 비워 두면 mock이다
       PAYMENT_PG_PROVIDER: ${PAYMENT_PG_PROVIDER:-mock}
+      # 토스 모드의 Mock 건너뛰기(시연용). 기본은 꺼짐이다
+      PAYMENT_PG_MOCK_BYPASS: ${PAYMENT_PG_MOCK_BYPASS:-false}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
     depends_on:
