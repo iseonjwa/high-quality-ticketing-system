@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
-import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
+import com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -24,12 +24,12 @@ public class SeatSectionResponse {
     private List<SeatResponse> seats;
 
     // 구역의 첫 좌석으로 구역 정보를 만든다. 추첨석도 원래 등급 가격을 그대로 갖는다
-    public static SeatSectionResponse from(ScheduleSeatRow seat) {
+    public static SeatSectionResponse from(SeatLayoutRow seat) {
         return new SeatSectionResponse(seat.section(), seat.sectionGrade(), seat.price().toBigDecimal(),
                 new ArrayList<>());
     }
 
-    public void add(ScheduleSeatRow seat) {
-        seats.add(SeatResponse.from(seat));
+    public void add(SeatLayoutRow seat, boolean available) {
+        seats.add(SeatResponse.of(seat, available));
     }
 }

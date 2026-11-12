@@ -1,7 +1,8 @@
 package com.iseonjwa.reservation.concert.infrastructure.persistence;
 
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
-import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow;
+import com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow;
+import com.iseonjwa.reservation.concert.domain.repository.SeatStateRow;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,13 +16,18 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
 
     boolean existsByScheduleId(Long scheduleId);
 
-    // 공연장 좌석과 조인해 응답에 필요한 열만 ScheduleSeatRow로 바로 읽는다. 엔티티를 만들지 않는다(ISE-189).
+    // 공연장 좌석과 조인해 바뀌지 않는 배치 열만 SeatLayoutRow로 바로 읽는다. 엔티티를 만들지 않는다(ISE-189).
     // ScheduleSeat에는 @SQLRestriction이 없어서 지운 좌석은 조건으로 거른다
-    @Query("select new com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRow("
-            + "ss.id, ss.section, vs.grade, ss.price, vs.rowNo, vs.seatNo, ss.grade, ss.status)"
+    @Query("select new com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow("
+            + "ss.id, ss.section, vs.grade, ss.price, vs.rowNo, vs.seatNo)"
             + " from ScheduleSeat ss join ss.venueSeat vs where ss.schedule.id = :scheduleId"
             + " and ss.deletedAt is null order by ss.section asc, vs.rowNo asc, vs.seatNo asc")
-    List<ScheduleSeatRow> findSeatRows(@Param("scheduleId") Long scheduleId);
+    List<SeatLayoutRow> findSeatLayouts(@Param("scheduleId") Long scheduleId);
+
+    // 배치는 캐시에서 쓰므로 바뀌는 열만 읽는다. 조인·정렬이 없다(ISE-204)
+    @Query("select new com.iseonjwa.reservation.concert.domain.repository.SeatStateRow(ss.id, ss.grade, ss.status)"
+            + " from ScheduleSeat ss where ss.schedule.id = :scheduleId and ss.deletedAt is null")
+    List<SeatStateRow> findSeatStates(@Param("scheduleId") Long scheduleId);
 
     // Note: 15,000석을 엔티티로 하나씩 save하면 INSERT가 15,000번 나간다.
     // DB 안에서 venue_seats를 읽어 바로 넣는 INSERT ... SELECT 한 문장으로 만든다.

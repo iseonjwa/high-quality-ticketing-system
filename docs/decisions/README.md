@@ -56,3 +56,5 @@
 | 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 제안 (ISE-230 contract, 대기열 담당 확인 뒤 채택. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
 | 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 제안 (결제 담당 합의 뒤 채택, 0039 대체 예정. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
 | 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 제안 (결제 담당 확인 뒤 채택. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
+| 0053 | [입장 토큰은 좌석 선점이 성공한 순간 소모하고, 소모 여부는 선점 트랜잭션의 DB 고유 제약으로 확인한다](0053-entry-token-consume-on-hold.md) | 제안 (ISE-207 contract. 소모 시점은 11/12 팀 회의 확정, 처리 방식은 담당 확인 뒤 채택. SA 7-3 "1회용이 될 수 없다" 중 선점 API 부분 대체) | 2026-11-12 |
+| 0054 | [회차 좌석 배치 캐시(P4b)는 Redis가 아니라 reservation-service 메모리에 둔다](0054-seat-layout-local-cache.md) | 제안 (최권우 측정 코드와 비교 측정 뒤 결정) | 2026-11-08 |
