@@ -2210,7 +2210,7 @@ high-quality-ticketing-system/
 | Redis Lua 선점 | 한 번의 왕복으로 원자적 | Redis가 기준이 되면 유실 시 판정이 틀림. DB 2차 방어 필수 (혼합형, v3 후보) |
 
 **부분 유니크 인덱스 (#58)**: `reservation_seats`(D2: HELD·CONFIRMED)에 건다. RELEASED는 제외해야 좌석 재선택이 가능하다. `payments`(D3)는 부분 유니크가 아니라 `UNIQUE(reservation_id)` 전체로 건다(12-4, ADR 0026). 거절 뒤 좌석 재선택은 새 예매라 영향이 없고, 같은 예매의 재결제는 8-3에 따라 없다. 위반은 409(`SEAT_ALREADY_HELD`, `PAYMENT_ALREADY_EXISTS`)로 바꿔 응답한다.
-- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 11/9에 이 문단의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 위처럼 정정했다(S-16). Notion 결정 기록 #58의 같은 문장은 사용자가 요청할 때 따로 고친다. U9(추첨 결제 실패 재시도)가 같은 예매의 재결제를 요구하면 ADR 0026을 다시 연다.
+- 🆕 v3.3: `payments`는 구현에서 `UNIQUE(reservation_id)` 전체로 바뀌었다(12-4, ADR 0026). 11/9에 이 문단의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 위처럼 정정했다(S-16). Notion 결정 기록 #58의 같은 문장은 2026-11-12에 고쳤다. U9(추첨 결제 실패 재시도)가 같은 예매의 재결제를 요구하면 ADR 0026을 다시 연다.
 
 ## 16. 팀이 근거를 설명할 수 있어야 하는 점
 

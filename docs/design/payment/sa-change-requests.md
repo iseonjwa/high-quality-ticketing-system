@@ -19,7 +19,7 @@
 | S-13 | 7-3 | 결제 토큰 키: 64자 소문자 16진수 문자열이고 HMAC 키 바이트는 문자열의 UTF-8 바이트(기존 `TokenDecoders`와 같은 해석, 16진수 디코딩 안 함). 시작 시 형식 검증, 두 서비스에만 주입, `exp` 허용 오차 0초, 토큰 길이 상한, 키 유출 절차 **사본 확인(v3.3)**: 사본에는 claim 이름만 반영됐다(:568, :577). 키 형식·주입·검증 규칙은 미반영. | 추가(개정) | [0025](../../decisions/0025-payment-token-secret-injection.md) | 반효승, 팀  | 반영(PR3) | 3 |
 | S-14 | 11-5 결제 예시 | (M4) 구매자가 PG 결제창에서 받은 식별자(`clientPaymentRef`)를 승인 요청이 받고, 토스 `orderId`를 결제창 전에 정함. 2026-11-09 구현(ISE-45): 승인 본문에 `clientPaymentRef`(토스에서 필수)를 더하고 `POST /api/v1/payments/checkout`이 `orderId`·클라이언트 키·금액을 돌려준다. `orderId`는 `PgOrderIds.of(reservationId, token.exp)`로 만든다. 프런트는 결제창(ISE-125)에서 이 API를 쓴다 | 추가(구현됨) | 0023, [api.md](api.md) | 팀  | 보류 | - |
 | S-15 | 6-9, 17-1, 17-2 | 토큰 claim 이름 통보(U1), U22(환불 이력 위치)의 담당·시점 확인. U9(추첨 결제 실패 유형별 재시도)가 같은 예매 재결제를 요구하면 S-16을 다시 연다 **사본 확인(v3.3)**: U1(claim 이름)은 사본에 반영됐다(:577). U9(:2006)는 열려 있고 결제 담당 확인 대기다. U22(:2014)는 구현이 `payment_status_histories`에 `target_type = REFUND`로 쓰도록 답했다(`V3__refunds.sql`). | 확인(개정) | api.md, data-model.md, 0026 | 반효승, 이강민, 안준현  | 반영(PR1) | 1 |
-| S-16 | 12-4, 15장 #58, 부록 A M6 | 결제 행을 예매당 하나인 논리적 결제로 정의하고 `UNIQUE(reservation_id)` 전체로 강제. #58의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 "재선택은 새 예매라 영향이 없고, 같은 예매의 재결제는 8-3에 따라 없다"로 정정(Notion 결정 기록 #58 포함) **사본 확인(v3.3)**: 12-4·D3는 반영됐다(:514, :1362). #58(:1967-1968)과 부록 A M6(:2068)은 정정 대기다. | 변경 | 0026 | 팀, 이강민(U9)  | 반영(PR1) | 1 |
+| S-16 | 12-4, 15장 #58, 부록 A M6 | 결제 행을 예매당 하나인 논리적 결제로 정의하고 `UNIQUE(reservation_id)` 전체로 강제. #58의 "RELEASED·DECLINED는 제외해야 좌석 재선택·재결제가 가능하다"를 "재선택은 새 예매라 영향이 없고, 같은 예매의 재결제는 8-3에 따라 없다"로 정정(Notion 결정 기록 #58 포함) **사본 확인(v3.3)**: 12-4·D3는 반영됐다(:514, :1362). #58과 부록 A M6은 11/9에 사본에서 정정했고, Notion 결정 기록 #58은 2026-11-12에 같은 내용으로 정정했다. | 변경 | 0026 | 팀, 이강민(U9)  | 반영(PR1) | 1 |
 | S-17 | 8-3, 10-4 | Reservation의 `PaymentApproved`·`PaymentDeclined`·`PaymentRefunded` 처리 계약: 예매 원장과 reservationId·paymentId·userId·amount·currency 대조, 상태별 규칙, `CONFIRMED` + `PaymentRefunded`는 자동 좌석 해제 금지와 이상 격리·알림, 상태 변경과 Outbox는 한 트랜잭션이고 영향 행 1일 때만 | 추가 | 0027 | 반효승  | 반영(PR1) | 1 |
 | S-18 | 10-3 페이로드 | `PaymentApproved`·`PaymentRefunded`에 `currency`. `RefundRequested`에 `userId`·`amount`·`currency`, `reason`에 `DUPLICATE_APPROVAL`·`NOT_CONFIRMABLE` 추가. 필드 추가라 `version` 유지 | 추가 | 0027 | 반효승  | 반영됨 | 0 |
 | S-19 | 6-6, 10-5, 12-4 | `RefundRequested` 소비자는 환불 행만 영속화하고 PG를 부르지 않는다. 교차 검증 실패는 재시도 없이 DLQ. PG 환불은 환불 워커만 부르고, 재호출 전에 환불 조회를 한다 | 추가 | 0020, 0023 | 팀  | 반영(PR1) | 1 |
@@ -37,7 +37,7 @@
 
 ## PR 방식
 - 순서: 저장소 사본(`docs/core/SA MASTER.md`)을 먼저 고친다. 머지 뒤 사용자가 요청하면 Notion 정본에 반영한다(AGENTS.md 대전제 4).
-- Notion 반영(2026-11-10, ISE-32): PR1~PR3(#393·#405·#406)이 사본에 바꾼 곳을 Notion SA MASTER v3.3 페이지에 같은 문장으로 옮겼다. 사본에서 #406 때 빠진 `## 12. 데이터 설계` 제목은 Notion에 그대로 두고 사본에 되살렸다. Notion 결정 기록 #58의 문장(S-16)은 아직 고치지 않았다. Notion 페이지에는 11/1 이후 다른 담당이 사본에만 바꾼 내용(예: 11/2 추첨 변경)이 아직 없다.
+- Notion 반영(2026-11-10, ISE-32): PR1~PR3(#393·#405·#406)이 사본에 바꾼 곳을 Notion SA MASTER v3.3 페이지에 같은 문장으로 옮겼다. 사본에서 #406 때 빠진 `## 12. 데이터 설계` 제목은 Notion에 그대로 두고 사본에 되살렸다. Notion 결정 기록 #58의 문장(S-16)은 2026-11-12에 사본(15장 #58)과 같은 내용으로 고쳤다. Notion 페이지에는 11/1 이후 다른 담당이 사본에만 바꾼 내용(예: 11/2 추첨 변경)이 아직 없다.
 - SA 변경 요청 PR은 팀 규칙·SA 변경을 별도 PR로 리뷰하는 합의(통합 회의 D9)를 따른다.
 - PR0: 이 목록의 상태 갱신. SA 사본은 고치지 않는다.
 - PR1 돈·예매 계약: S-1·S-2·S-5·S-15·S-16·S-17·S-19. 리뷰: 반효승(S-1·S-17), 이강민(S-16·U9)
