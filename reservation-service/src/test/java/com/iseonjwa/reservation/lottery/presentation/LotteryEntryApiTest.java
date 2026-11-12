@@ -17,11 +17,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -233,6 +236,7 @@ class LotteryEntryApiTest {
 
     @Test
     void 추첨_정보와_응모_규칙은_로그인_없이_조회한다() throws Exception {
+        var before = Instant.now();
         var response = send(HttpRequest.newBuilder(URI.create(base() + "/api/v1/lotteries/" + lotteryId)).GET());
 
         assertEquals(200, response.status());
@@ -246,6 +250,7 @@ class LotteryEntryApiTest {
         assertEquals(false, rules.get("reentryAllowed").asBoolean());
         assertEquals(true, rules.get("billingKeyRequired").asBoolean());
         assertNull(data.get("seed"));
+        assertServerTimeBetween(before, Instant.now(), data);
         assertEquals(404, send(HttpRequest.newBuilder(URI.create(base() + "/api/v1/lotteries/" + Long.MAX_VALUE))
                 .GET()).status());
     }
@@ -259,7 +264,9 @@ class LotteryEntryApiTest {
                 + " open_at, version, created_at, updated_at) VALUES (?, ?, now() + interval '30 day',"
                 + " now() + interval '10 day', 0, now(), now()) RETURNING id", Long.class, concertId, venueId);
 
+        var before = Instant.now();
         var found = lotteryOfSchedule(scheduleId);
+        var after = Instant.now();
         var deleted = lotteryOfSchedule(scheduleIdOf(deletedLotteryId));
         var none = lotteryOfSchedule(scheduleWithoutLottery);
 
@@ -270,8 +277,16 @@ class LotteryEntryApiTest {
         assertEquals("OPEN", data.get("status").asString());
         assertEquals(2, data.get("rules").get("maxPerEntry").asInt());
         assertNull(data.get("seed"));
+        assertServerTimeBetween(before, after, data);
         assertEquals(404, deleted.status());
         assertEquals(404, none.status());
+    }
+
+    // 실제 Clock 빈으로 응답 시각을 만들었는지 요청 앞뒤 시각으로 본다(정확한 값은 LotteryInfoServerTimeTest)
+    private static void assertServerTimeBetween(Instant before, Instant after, JsonNode data) {
+        var serverTime = Instant.parse(data.get("serverTime").asString());
+        assertFalse(serverTime.isBefore(before.truncatedTo(ChronoUnit.MILLIS)), serverTime + " < " + before);
+        assertFalse(serverTime.isAfter(after), serverTime + " > " + after);
     }
 
     // 회차 하나에 추첨 하나라서(UNIQUE(schedule_id)) 추첨마다 회차를 새로 만든다

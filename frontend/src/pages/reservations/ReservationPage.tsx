@@ -14,6 +14,7 @@ import {
 } from '@/api/reservations'
 import { paths, paymentPath } from '@/app/paths'
 import { readPaymentAttempt } from '@/auth/paymentAttempts'
+import { CharmQrCard } from '@/pages/charm/CharmQrCard'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { GradeBadge } from '@/components/ticketing/GradeBadge'
@@ -164,6 +165,7 @@ function ConfirmedResult({
         description={`예매 번호 ${detail.reservationNo}`}
       />
       <TicketsCard detail={detail} heading={heading} showStatus />
+      <CharmQrCard detail={detail} heading={heading} />
       <Actions>
         <Button asChild size="lg">
           <Link to={paths.myReservations}>내 예매 목록</Link>
@@ -187,6 +189,7 @@ function ConfirmedDetail({
     <>
       <DetailHead detail={detail} heading={heading} />
       <TicketsCard detail={detail} heading={heading} showStatus={false} />
+      <CharmQrCard detail={detail} heading={heading} />
       <CancelSection detail={detail} heading={heading} />
       <Actions>
         <Button asChild variant="outline" size="lg">

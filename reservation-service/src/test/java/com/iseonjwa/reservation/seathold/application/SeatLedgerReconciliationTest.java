@@ -241,7 +241,8 @@ class SeatLedgerReconciliationTest {
     }
 
     private Long hold(long userId, List<Long> seats) {
-        return seatHold.hold(new HoldSeatsCommand(userId, UUID.randomUUID(), scheduleId, seats)).reservationId();
+        return ((SyncHoldOutcome.Held) seatHold.hold(new HoldSeatsCommand(userId, UUID.randomUUID(), scheduleId, seats)))
+                .result().reservationId();
     }
 
     // 결제 결과 소비자의 확정을 흉내 낸다. 보유 매수는 확정 때 빼지 않는다

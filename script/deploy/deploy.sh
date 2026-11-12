@@ -56,10 +56,27 @@ deploy_once() {
   git fetch --quiet origin || return 1
   git checkout --quiet --detach "$sha" || return 1
   export IMAGE_TAG="$sha"
+  export_config_hashes "$sha"
   pull_with_retry "${compose[@]}" || return 1
   # --wait: healthcheck가 있는 컨테이너가 healthy가 될 때까지 기다린다. 앱 기동(마이그레이션 포함)을 넉넉히 본다.
   "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 420 || return 1
   script/deploy/smoke.sh || return 1
+}
+
+# Note: 관측 도구는 설정을 파일로 마운트한다. 파일 하나를 마운트한 설정(alertmanager.yml, loki.yml, config.alloy 등)은
+# git checkout이 새 파일로 바꿔도 컨테이너가 옛 파일을 계속 보고, `up -d`는 이미지·compose 정의가 그대로면 다시 만들지 않는다.
+# 11/12에 Alertmanager·Alloy·Loki가 11/9 설정으로 돌고 있었다(TS-64). 그래서 도구마다 설정 파일 해시를 compose 라벨로 넘긴다.
+# 라벨 값이 바뀌면 compose가 그 컨테이너만 다시 만든다. 볼륨(알림 무음, 지표, 로그)은 그대로 남는다.
+# 해시는 그 커밋의 트리에서 구한다(작업 폴더·인덱스와 무관하고 macOS·Linux에서 같은 값이다).
+export_config_hashes() {
+  local sha="$1"
+  config_hash() { git ls-tree -r "$sha" -- "$@" | git hash-object --stdin | cut -c1-12; }
+  export CONFIG_HASH_PROMETHEUS="$(config_hash infra/prometheus.yml infra/prometheus)"
+  export CONFIG_HASH_ALERTMANAGER="$(config_hash infra/alertmanager)"
+  export CONFIG_HASH_LOKI="$(config_hash infra/loki)"
+  export CONFIG_HASH_ALLOY="$(config_hash infra/alloy)"
+  # 대시보드 JSON은 Grafana가 주기적으로 다시 읽으므로 프로비저닝 설정만 본다
+  export CONFIG_HASH_GRAFANA="$(config_hash infra/grafana/provisioning)"
 }
 
 # Note: 11/11 배포에서 pull이 38초 만에 `context canceled`로 끝났고, containerd가 공유 레이어를

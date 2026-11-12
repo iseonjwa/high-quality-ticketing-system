@@ -8,6 +8,7 @@ import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldInventoryRepo
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -38,23 +39,33 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
                 .getResultList();
     }
 
+    // set_config(..., true)는 SET LOCAL과 같다. 트랜잭션이 끝나면 원래 값으로 돌아가 커넥션 풀의 다른 요청에 남지 않는다
+    @Override
+    public void applyLockTimeout(Duration timeout) {
+        em.createNativeQuery("SELECT set_config('lock_timeout', :timeout, true)")
+                .setParameter("timeout", timeout.toMillis() + "ms")
+                .getSingleResult();
+    }
+
     // Note: 변경 감지로 상태를 바꾸면 "읽을 때 AVAILABLE이었다"만 확인하고 덮어쓴다. 조건을 WHERE에 두면
     // 먼저 커밋한 요청이 행을 바꾼 뒤 기다리던 요청은 갱신 0행이 되어 같은 좌석을 두 번 잡지 못한다.
     // 추첨석(LOTTERY)도 같은 WHERE에서 빼서, 요청에 섞이면 이미 잡힌 좌석처럼 409가 된다(추첨 D9).
+    // 잠금은 하위 쿼리의 ORDER BY id FOR UPDATE로 좌석 ID 오름차순을 명시한다(SA 12-7 ②). 한 문장 UPDATE도 같은 계획이면
+    // 순서가 같지만, 실행 계획이 바뀌어도 순서가 흔들리지 않게 문장에 적는다
     @Override
     public int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {
         em.flush();
-        return em.createQuery("""
-                        UPDATE ScheduleSeat s
-                           SET s.status = :held, s.updatedAt = :now, s.updatedBy = :actorId
-                         WHERE s.schedule.id = :scheduleId
-                           AND s.id IN :ids
-                           AND s.status = :available
-                           AND s.grade <> :lottery
+        return em.createNativeQuery("""
+                        UPDATE schedule_seats
+                           SET status = 'HELD', updated_at = :now, updated_by = :actorId
+                         WHERE id IN (SELECT id FROM schedule_seats
+                                       WHERE schedule_id = :scheduleId
+                                         AND id IN (:ids)
+                                         AND status = 'AVAILABLE'
+                                         AND grade <> 'LOTTERY'
+                                       ORDER BY id
+                                         FOR UPDATE)
                         """)
-                .setParameter("held", ScheduleSeatStatus.HELD)
-                .setParameter("lottery", SeatGrade.LOTTERY)
-                .setParameter("available", ScheduleSeatStatus.AVAILABLE)
                 .setParameter("now", now)
                 .setParameter("actorId", actorId)
                 .setParameter("scheduleId", scheduleId)

@@ -56,7 +56,8 @@ receivers:
           - title: 해결
             value: '{{ .Alerts.Resolved | len }}건'
           - title: 바로 가기
-            value: '<http://localhost:3000/d/iseonjwa-payment|결제 대시보드> · <http://localhost:9090/alerts|Prometheus 알림> · <http://localhost:9093|Alertmanager>'
+            # 환경마다 주소가 다르다(배포 서버의 Grafana는 공인 주소, Prometheus·Alertmanager는 SSH 터널). templates/slack.tmpl의 iseonjwa.links
+            value: '{{ template "iseonjwa.links" .CommonLabels.env }}'
             short: false
   # 건별 알림 수신자. 같은 슬랙 설정을 쓰고 해결 메시지만 끈다(건별 알림은 해결할 대상이 아니라 알린 사건이다).
   - name: slack-monitoring-event

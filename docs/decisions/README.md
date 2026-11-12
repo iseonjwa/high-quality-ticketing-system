@@ -42,7 +42,7 @@
 | 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
 | 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
 | 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
-| 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
+| 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 대체됨 (0051) | 2026-10-31 |
 | 0040 | [프론트는 같은 저장소의 frontend/에 React SPA로 만들고 별도 컨테이너로 띄운다](0040-frontend-react-spa-in-monorepo.md) | 채택 (프론트 담당 결정, Notion 결정 #7을 저장소 기록으로 대체. 연결은 nginx 중계) | 2026-11-02 |
 | 0041 | [추첨 시드는 BIGINT가 아니라 BYTEA 32바이트로 저장한다](0041-lottery-seed-bytea-32.md) | 채택 | 2026-11-02 |
 | 0042 | [빌링키는 AES-256-GCM으로 암호화해 저장하고 키는 환경변수 BILLING_KEY_SECRET으로만 주입한다](0042-billing-key-aes-gcm-env-secret.md) | 제안 | 2026-11-02 |
@@ -54,8 +54,11 @@
 | 0048 | [TX1 커밋 응답 유실로 남은 REQUESTED는 재시도가 이어받지 않고, 재확인의 DECLINED(NOT_SENT) 종결을 한계로 둔다](0048-payment-tx1-commit-response-loss.md) | 채택 (ISE-169, 재시도 이어받기 안은 거부) | 2026-11-09 |
 | 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
 | 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 제안 (ISE-230 contract, 대기열 담당 확인 뒤 채택. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
-| 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 제안 (결제 담당 합의 뒤 채택, 0039 대체 예정. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
+| 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 채택 (11/12 결제 담당 합의·구현 `#521`. 일반 결제 허가는 24–30(지금 30, ISE-246 뒤 확정). 0039 대체. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
 | 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 제안 (결제 담당 확인 뒤 채택. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
 | 0053 | [입장 토큰은 좌석 선점이 성공한 순간 소모하고, 소모 여부는 선점 트랜잭션의 DB 고유 제약으로 확인한다](0053-entry-token-consume-on-hold.md) | 제안 (ISE-207 contract. 소모 시점은 11/12 팀 회의 확정, 처리 방식은 담당 확인 뒤 채택. SA 7-3 "1회용이 될 수 없다" 중 선점 API 부분 대체) | 2026-11-12 |
 | 0054 | [회차 좌석 배치 캐시(P4b)는 Redis가 아니라 reservation-service 메모리에 둔다](0054-seat-layout-local-cache.md) | 제안 (최권우 측정 코드와 비교 측정 뒤 결정) | 2026-11-08 |
 | 0055 | [결제 토큰은 비대칭 서명(ES256)으로 하고, 개인키는 예매 서비스에만 공개키는 결제 서비스에만 준다](0055-payment-token-asymmetric-signature.md) | 제안 (ISE-245 contract. 발급기 담당 확인 뒤 채택. SA 7-3 HMAC·0025의 키 부분 대체) | 2026-11-12 |
+| 0056 | [접수형 선점 요청의 좌석이 여러 구역에 걸치면 가장 작은 구역을 메시지 키로 쓴다](0056-async-seat-hold-key-for-mixed-sections.md) | 채택 (ISE-16, SA 10-1 키 형식 유지) | 2026-11-12 |
+| 0057 | [접수형 선점은 접수에서 이미 잡힌 좌석을 즉시 거절하고, 모드는 기동 시 정하며, 결과 조회는 모드와 상관없이 연다](0057-async-seat-hold-intake-and-mode.md) | 채택 (ISE-16. 접수형 POST 즉시 409는 ISE-120 담당 확인 뒤 확정) | 2026-11-12 |
+| 0058 | [접수형으로 시작한 선점 요청은 동기형 서버가 같은 키로 다시 받아도 202로 답한다](0058-sync-replay-of-async-requests.md) | 채택 (ISE-16, 계약 3-2 ⑦) | 2026-11-12 |
