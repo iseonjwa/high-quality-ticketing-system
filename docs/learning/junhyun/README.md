@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서비스마다 DB가 따로일 때 서로 어긋난 것을 어떻게 찾는가 | [qna/2026-11-12-reconciliation-between-services.md](qna/2026-11-12-reconciliation-between-services.md) |
 | 2026-11-12 | 실패한 요청을 언제, 몇 번, 얼마나 기다렸다가 다시 보내야 하는가 | [qna/2026-11-12-retry-backoff-jitter.md](qna/2026-11-12-retry-backoff-jitter.md) |
 | 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
 | 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
