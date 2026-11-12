@@ -7,6 +7,9 @@ spring:
     password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 5
+      # Note: 커넥션을 1초 안에 못 받으면 실패시킨다(ISE-196). 기본값 30초는 Gateway 응답 시한(3초)보다 길어,
+      # Gateway가 이미 포기한 요청을 서버가 끝까지 기다리다 처리해 부하가 끝난 뒤에도 회복하지 못했다(k6-overload-recovery.md R1)
+      connection-timeout: 1000
   kafka:
     producer:
       properties:
