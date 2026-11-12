@@ -30,6 +30,7 @@
 | 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
 | 2026-11-11 | 배포가 실패하면 팀원은 Jenkins에 어떻게 들어가서 다시 배포하나 | [qna/2026-11-11-jenkins-redeploy-after-failure.md](qna/2026-11-11-jenkins-redeploy-after-failure.md) |
 | 2026-11-11 | EC2를 껐다 켜면 무엇이 바뀌고, 보안 그룹을 고쳐야 하나 | [qna/2026-11-11-ec2-stop-start-what-changes-security-group.md](qna/2026-11-11-ec2-stop-start-what-changes-security-group.md) |
+| 2026-11-12 | 서비스를 다시 띄우면 왜 한동안 503이 나나 (서비스 발견의 캐시와 전파 지연) | [qna/2026-11-12-service-discovery-propagation-delay.md](qna/2026-11-12-service-discovery-propagation-delay.md) |
 | 2026-11-12 | 결제 서비스를 성능·로직에서 더 발전시킬 방안 (인스턴스 사양 제외) | [qna/2026-11-12-payment-service-next-improvements.md](qna/2026-11-12-payment-service-next-improvements.md) |
 | 2026-11-12 | 결제 승인 처리량을 더 올릴 수 있나 (동시 허가 수, 리틀의 법칙, 대기열 입장 속도와 맞추기) | [qna/2026-11-12-payment-throughput-improvement.md](qna/2026-11-12-payment-throughput-improvement.md) |
 | 2026-11-12 | HTTPS 인증서는 반드시 외부 기관에서 받아야 하나 (자체 서명, 사설 CA, 공인 CA) | [qna/2026-11-12-https-certificate-self-signed-vs-ca.md](qna/2026-11-12-https-certificate-self-signed-vs-ca.md) |
