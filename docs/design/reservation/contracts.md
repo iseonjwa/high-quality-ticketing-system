@@ -15,6 +15,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | 헤더 | `Authorization` | `Bearer {accessToken}` | 예 | Gateway가 검증 후 `X-User-Id`, `X-User-Role` 헤더로 전달 |
 | 경로 | `scheduleId` | 정수 (`Long`, 양수) | 예 | 예매할 회차 ID. 0 이하·숫자가 아니면 `400 VALIDATION_FAILED` |
 | 헤더 | `X-Entry-Token` | JWS compact (JWT) | 예 | 입장 토큰(계약 ①, [`docs/design/queue/contracts.md`](../queue/contracts.md)). Gateway가 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id`·토큰 `scheduleId` == 경로 `scheduleId`를 검증한다. 선점 서비스는 다시 검증하지 않는다 |
+| 헤더 | `X-Entry-Token-Id` | 문자열 (입장 토큰 `jti`, 지금 발급기는 소문자 hex 32자) | Gateway가 붙임 | Gateway가 입장 토큰 검증을 통과한 요청에만 그 토큰의 `jti`를 넣는다. 클라이언트가 보낸 같은 이름의 헤더는 모든 경로에서 지운다(`X-User-Id`와 같은 방식). 선점 서비스가 입장 토큰 소모 여부를 확인하는 데 쓴다([ADR 0053](../../decisions/0053-entry-token-consume-on-hold.md), ISE-207). 2026-11-12 Gateway 구현, 선점 서비스는 아직 읽지 않는다 |
 | 헤더 | `Idempotency-Key` | UUID 문자열 | 예 | 선점 접수 ID(`requestId`)로 그대로 사용. 누락·UUID 형식 오류 시 `400 VALIDATION_FAILED` |
 | 본문 | `seatIds` | JSON 정수 배열 (`List<Long>`) | 예 | 회차 좌석(`schedule_seats.id`) 목록. 1개 이상 `maxPerUser`(기본 4)개 이하, 중복 불가 |
 
