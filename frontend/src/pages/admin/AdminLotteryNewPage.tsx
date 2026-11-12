@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -16,6 +16,7 @@ import {
 import { createLottery, type AdminLottery } from '@/api/adminLotteries'
 import { isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { concertQueryKeys, getConcert, type ScheduleSummary } from '@/api/concerts'
+import { lotteryQueryKeys } from '@/api/lotteries'
 import { adminConcertPath, adminLotteryPath, lotteryPath, paths } from '@/app/paths'
 import { applyFieldErrors } from '@/components/form/applyFieldErrors'
 import { CopyField } from '@/components/ticketing/CopyField'
@@ -93,6 +94,7 @@ export function AdminLotteryNewPage() {
 }
 
 function LotterySetup({ concertId, schedule }: { concertId: number; schedule: ScheduleSummary }) {
+  const queryClient = useQueryClient()
   const [created, setCreated] = useState<AdminLottery | null>(null)
   // 이 브라우저에서 이미 설정한 추첨(회차마다 하나). 공연 화면처럼 공개 조회로 맞는지 확인한 뒤 쓴다
   const recorded = useRecordedLottery(schedule.scheduleId)
@@ -137,6 +139,10 @@ function LotterySetup({ concertId, schedule }: { concertId: number; schedule: Sc
           schedule={schedule}
           onCreated={(lottery) => {
             saveLotteryOfSchedule(schedule.scheduleId, lottery.lotteryId)
+            // 공연 상세가 이 회차를 "추첨 없음"으로 들고 있을 수 있어 다시 받게 한다(ISE-227)
+            void queryClient.invalidateQueries({
+              queryKey: lotteryQueryKeys.ofSchedule(schedule.scheduleId),
+            })
             setCreated(lottery)
           }}
         />

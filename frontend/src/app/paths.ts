@@ -70,7 +70,7 @@ export function reservationCompletePath(reservationId: number): string {
   return `/reservations/${reservationId}/complete`
 }
 
-// 추첨 응모 화면. 공연·회차에서 추첨을 찾는 API가 없어 운영자가 추첨을 설정하며 받은 이 주소로만 들어온다
+// 추첨 응모 화면. 공연 상세에서 회차를 고르면 그 회차의 추첨(GET /schedules/{id}/lottery)으로 찾아 들어온다(ISE-227)
 export function lotteryPath(lotteryId: number): string {
   return `/lotteries/${lotteryId}`
 }

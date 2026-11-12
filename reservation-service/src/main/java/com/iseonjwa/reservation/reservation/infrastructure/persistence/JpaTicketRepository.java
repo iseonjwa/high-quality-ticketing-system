@@ -5,6 +5,7 @@ import com.iseonjwa.reservation.reservation.domain.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
@@ -15,5 +16,10 @@ public class JpaTicketRepository implements TicketRepository {
     @Override
     public List<Ticket> saveAll(List<Ticket> tickets) {
         return repository.saveAllAndFlush(tickets);
+    }
+
+    @Override
+    public int voidIssuedByReservation(Long reservationId, Instant now, Long actorId) {
+        return repository.voidIssuedByReservation(reservationId, now, actorId);
     }
 }

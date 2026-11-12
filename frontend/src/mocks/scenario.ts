@@ -29,6 +29,8 @@ export interface MockScenario {
   // unknown: 첫 응모 POST가 서버에서는 성립하지만 504. 같은 멱등키로 다시 보내면 201(그 응모의 지금 상태)
   // closed: 응모 POST가 409 LOTTERY_NOT_OPEN
   lottery: 'default' | 'waitlisted' | 'lost' | 'failed' | 'unknown' | 'closed'
+  // 예매 취소 뒤 환불. refunded: 결제 조회 두 번째에 REFUNDED, slow: 환불이 끝나지 않는다(운영자 확인을 기다리는 경우)
+  refund: 'refunded' | 'slow'
 }
 
 const DEFAULT_SCENARIO: MockScenario = {
@@ -37,6 +39,7 @@ const DEFAULT_SCENARIO: MockScenario = {
   payment: 'approved',
   billing: 'ok',
   lottery: 'default',
+  refund: 'refunded',
 }
 
 let current: MockScenario = { ...DEFAULT_SCENARIO }
@@ -72,6 +75,7 @@ export const SCENARIO_SWITCHES = {
   'lottery-failed': { lottery: 'failed' },
   'lottery-unknown': { lottery: 'unknown' },
   'lottery-closed': { lottery: 'closed' },
+  'refund-slow': { refund: 'slow' },
 } as const satisfies Record<string, Partial<MockScenario>>
 
 export function parseScenarioSwitches(value: string): Partial<MockScenario> {

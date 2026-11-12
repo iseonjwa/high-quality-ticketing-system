@@ -261,7 +261,7 @@
 
 ## 3. 결과
 
-시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09), Gateway 느린 호출 기준을 비교한 2차(2026-11-10), Gateway `auth-redis` 차단기 설정 다섯 가지를 비교한 3차(2026-11-10 저녁)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
+시나리오 ID별로 표를 더한다. 배포 서버 측정은 Q1·Q2·Q3 1차(2026-11-09), Gateway 느린 호출 기준을 비교한 2차(2026-11-10), Gateway `auth-redis` 차단기 설정 다섯 가지를 비교한 3차(2026-11-10 저녁), `auth-redis` 재측정 G1 4차(2026-11-10 UTC, 한국 시간 11/11), 좌석 조회 S1·공연 상세 B1-d(2026-11-11)가 있고 나머지는 측정 전이다. 스크립트 상태는 [loadtest/k6/README.md](../../../loadtest/k6/README.md) 1절에 있다(12개 시나리오 모두 2026-11-05 local에서 작은 규모로 동작만 확인). 확인 중 만난 문제는 [troubleshooting.md](../../troubleshooting.md) TS-38~TS-43에 있다.
 
 ### 배포 서버 1차: Q1·Q2·Q3 (2026-11-09 UTC (한국 시간 11/9~11/10), ISE-202·ISE-229, 측정 youngeun)
 
@@ -525,7 +525,7 @@ Redis `CLIENT LIST`에서 Gateway IP 연결만 골랐다.
 | Q1-d | 노트북 한 대에서 300명을 0.1초·1초 안에 진입시키자 Gateway 인증 Redis 차단기(`auth-redis`)가 열려 503이 68~93%였다(Redis 자체 지연은 평균 0.15ms). 100명·1초는 오류 0. 또 Docker Desktop에서 40초를 한 번에 자면 k6 VU가 약 100ms 늦게 깨어나 출발 대기를 나눠 다시 계산하게 고쳤다 | 로컬에서는 동작 확인만 하고 Q1-a ↔ Q1-d 비교는 배포 서버에서 한다 |
 | PAY1 | mock-pg를 다시 띄운 직후 결제 서비스의 PG 연결이 끊겨(`closed`, `UnresolvedAddressException`) 차단기가 열리고 `PG_UNAVAILABLE`이 났다. 안정된 뒤 다시 재면 초당 5~10건에서 `PG_UNAVAILABLE` 4건(발생기 멈춤 구간과 겹침) | 측정 절차: mock-pg 재기동 뒤 30초 넘게 기다린다 | 좌석 조회·선점(K1·K1-H)은 [k6-seathold-bottleneck-plan.md](../reservation/k6-seathold-bottleneck-plan.md) 5절에 둔다.
 
-### 배포 서버 3차: G1 `auth-redis` 재측정 1·2회 (2026-11-10 UTC (한국 시간 11/11), ISE-233·ISE-94, 측정 kangmin)
+### 배포 서버 4차: G1 `auth-redis` 재측정 1·2회 (2026-11-10 UTC (한국 시간 11/11), ISE-233·ISE-94, 측정 kangmin)
 
 1·2차에서 Redis는 정상인데 `auth-redis` 차단기가 열렸다. 차단기가 Gateway 혼잡을 Redis 장애로 오해하지 않게 바꾼 값(시한·창·벌크헤드·거절 제외)이 실제 배포 경로에서 동작하는지 본다. 뒤쪽 비용을 줄여 Gateway 인증 경로만 보려고 L1이 아니라 G1으로 쟀다. 판단 흐름은 [gateway-auth-redis-resilience.md](gateway-auth-redis-resilience.md)에 있다.
 
@@ -571,6 +571,63 @@ Redis `CLIENT LIST`에서 Gateway IP 연결만 골랐다.
 - 각 1회 측정이다. 1·2회 차이에 측정 변동이 섞였을 수 있다.
 - Gateway 메모리가 상한 768MiB에 가깝다(힙 밖 사용이 크다). 11/10 03:50Z 서버 `dmesg`의 컨테이너 OOM(java, 실제 메모리 약 754MB)이 Gateway였는지는 확인 못 함이다.
 - 원자료: 발생기 `~/kangmin/iseonjwa/loadtest/k6/results/g1-gateway-auth-20261110-161934-*`(1회), `-163505-*`(2회).
+
+### 배포 서버: S1 좌석 조회·B1-d 공연 상세 (2026-11-11 UTC 01:16~05:10 (한국 시간 10:16~14:10), ISE-189, 측정 hyoseung)
+
+좌석 조회 경량화 1차(P4a, DTO 직접 조회, #377)의 효과를 배포 서버에서 개선 전과 같은 속도로 비교했다. 개선 전은 dev를 되돌리지 않고 reservation-service만 P4a 직전 이미지로 띄웠다(`measure-mode.sh on loadtest/deploy/compose.seat-before.yml`, `4544d1a`). 시나리오는 [loadtest/k6/README.md](../../../loadtest/k6/README.md)의 S1(`s1-seat-query.js`)과 B1-d(`b1d-concert-detail.js`)다.
+
+측정 환경([load-test.md](load-test.md) 7절 양식, 위 1차와 같은 칸은 생략):
+
+| 항목 | 값 |
+|---|---|
+| 커넥션 풀·스레드 수 | 예매 DB 풀 5(저장소 기본값). Gateway `auth-redis`: 차단기 창 20·느린 호출 50ms·열림 10초, bulkhead 동시 25 |
+| 데이터 규모 | 회차 73(KSPO DOME 15,000석, 응답 약 850KB). 한 사용자 토큰으로 초당 RATE건을 30초 보낸다(동시 접속자 수가 아니라 초당 요청 수) |
+| 커밋 해시 | 배포 `74f91ffb`(1차 포함). 개선 전은 reservation-service만 `4544d1a` |
+| 워밍업 | 측정 모드를 켜거나 이미지를 바꾼 뒤 RATE=5 30초(판정 제외). 같은 속도를 3회, 실행 사이 20초 쉼 |
+
+**S1 좌석 조회, 1차(P4a)** (값은 3회 각각)
+
+| 초당 | 중앙값 | p95 | 실패 | 커넥션 대기 최대 |
+|---|---|---|---|---|
+| 10 | 43.8·43.5·43.3ms | 66.2·64.5·61.9ms | 0 | 0 |
+| 20 | 43.0·42.9·42.8ms | 75.0·73.3·75.9ms | 0 | 0 |
+| 30 | 51.0·49.4·49.6ms | 113.6·95.8·94.5ms | 0 | 0 |
+| 40 | 58.8·58.0·58.3ms | 380.9·339.9·381.9ms | 0 (dropped 1·0·1) | 8 |
+| 50 | 673ms·1.02s·690ms | 1.27·1.74·1.27s | 504 1·3·2건(0.2% 이하), 처리 46.8·45.7·47.0건/초 | 59 |
+
+- 커넥션 대기 최대는 Prometheus `max_over_time(hikaricp_connections_pending{application="reservation-service"}[4m])`(3회 묶음). 5초 표본이라 짧은 대기는 빠질 수 있다.
+- 오류 없이 버틴 최대 속도: 초당 40건(p95 340~380ms). 느려지기 시작하는 지점은 30과 40 사이, 처리량 상한은 초당 약 46~47건이다.
+- 예열 직후 1회씩 올린 한계 찾기에서는 초당 50건이 처리 42.4건/초, 504 31건(2.2%), 커넥션 대기 최대 124였다. 이때 CPU(서버 전체 400%)는 postgres-reservation 약 210%, reservation-service 약 95%, gateway 약 45%이고 Kafka가 12초마다 90~160% 튀었다.
+
+**S1 좌석 조회, 개선 전** (초당 10건에서 중단)
+
+| 회 | 중앙값 | p95 | 실패 |
+|---|---|---|---|
+| 1 | 1.57s | 2.43s | 504 1건(0.3%), dropped 4, 커넥션 대기 최대 15 |
+| 2 | 764ms | 1.24s | 0 |
+| 3 | 277ms | 1.18s | 500 121건(40%, 평균 70ms) |
+
+- 1회 CPU: reservation-service 약 250%, postgres-reservation 약 100%. reservation-service 메모리가 1.116GiB / 상한 1.125GiB에 붙었다(1차는 같은 속도에서 CPU 약 17%, 메모리 약 666MiB).
+- 3회 도중(04:44:16Z) reservation-service가 오류·종료 로그 없이 끊기고 Docker 재시작 정책으로 다시 떴다(RestartCount 1, `OOMKilled=false`). 메모리 상한에 걸린 강제 종료로 보지만 `dmesg`는 확인하지 않았다. 재기동 동안 Gateway가 500을 빠르게 돌려줬다.
+- 서비스가 죽는 속도라 20 이상은 재지 않았다.
+
+**B1-d 공연 상세** (1차 배포 이미지, 공연 1, 공개 API라 토큰 없음)
+
+| 초당 | 중앙값 | p95 | 실패 |
+|---|---|---|---|
+| 100 | 3.95·3.17·2.83ms | 11.0·5.2·4.0ms | 0 |
+| 200 | 2.23·2.20·2.24ms | 3.6·3.3·3.6ms | 0 |
+| 400 | 1.95·1.95·1.95ms | 3.8·3.9·4.4ms | 0 |
+
+- 오류 없이 버틴 최대 속도: 초당 400건 이상(한도는 재지 않음).
+
+**해석**
+
+- 1차의 실패는 `auth-redis` 차단기가 아니라 504(Gateway 응답 시한 3초 초과)다. 차단기는 Gateway의 Redis 로그아웃 토큰 확인만 감싸고, 서비스 호출에는 차단기 없이 응답 시한 3초만 있다. 측정 동안 차단기는 한 번도 열리지 않았다(`resilience4j_circuitbreaker_state{state="open"}` 최대 0).
+- 1차의 병목은 예매 DB다. 좌석 쿼리가 요청마다 15,000행을 조인·정렬하고, 풀 5개라 DB에서 동시에 5개만 돈다. 쿼리가 느려 반납이 늦어지면 요청이 커넥션 앞에 줄을 서고(최대 124), 그 대기가 응답 시간과 504가 된다.
+- 개선 전은 요청마다 엔티티 30,000개를 만들어 서비스 CPU·메모리가 먼저 무너진다. 로컬(노트북)에서 본 원인과 같다.
+- 다음: P4b(배치 정보 메모리 캐시, ISE-204)로 DB 조인·정렬을 없앤 뒤 같은 방식으로 다시 잰다. 커넥션 풀 크기는 효과를 따로 재야 한다(DB CPU가 이미 2코어를 써서 늘려도 다 같이 느려질 수 있다).
+- 원자료: 발생기 `~/hyoseung/iseonjwa/loadtest/k6/results/s1-seat-query-20261111-*`, `b1d-concert-detail-20261111-*`.
 
 ## 4. 검토 요청
 

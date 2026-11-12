@@ -88,6 +88,11 @@ public class JpaReservationRepository implements ReservationRepository {
     }
 
     @Override
+    public int cancelConfirmed(Long reservationId, Instant now, Long actorId) {
+        return repository.cancelConfirmed(reservationId, now, actorId);
+    }
+
+    @Override
     public int extendLotteryHoldOnce(Long reservationId, Instant now, Instant limit, Long actorId) {
         return repository.extendLotteryHoldOnce(reservationId, now, limit, actorId);
     }

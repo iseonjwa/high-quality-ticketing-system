@@ -5,9 +5,12 @@
 # 줄 형식은 payment-service의 PaymentAlertLog가 정한다(필드 순서 고정, 값이 없으면 '-').
 #   event=<E> paymentId=<n> userId=<n> reservationId=<n> paidAt=2026-11-09T14:03:12+09:00 <추가 k=v>
 # 형식을 바꾸면 이 정규식, PaymentAlertLogTest, script/check-loki-rules.sh의 push 줄을 함께 바꾼다.
+# 예매 서비스의 격리 줄은 PaymentResultService.anomaly가 정한다(PaymentResultServiceTest가 형식을 고정한다).
+#   event=PAYMENT_RESULT_ANOMALY type=<APPROVED|DECLINED|REFUNDED> eventId=<uuid> reservationId=<n> paymentId=<n> reason=<자유 문장>
 #
 # 설계 메모
 # - service="payment-service"로 한정한다. reservation-service에도 DEAD_LETTER_OPEN 로그가 있어서 줄 이름만으로는 섞인다.
+#   예외: 예매 서비스의 결제 결과 격리 줄(PAYMENT_RESULT_ANOMALY)은 reservation-service로 한정한다.
 # - 줄을 읽는 구간은 10분이다. 평가는 1분마다라 같은 줄이 10번 평가에 걸리지만, 라벨이 같아 Alertmanager가 한 번만 보낸다.
 #   10분이 지나 줄이 구간 밖으로 나가면 알림이 사라지고, 건별 수신자는 해결 메시지를 보내지 않는다.
 # - regexp 뒤의 event 필터는 형식이 다른 줄을 걸러 낸다. regexp는 맞지 않는 줄을 오류 없이 라벨 없이 통과시키므로, 이 필터가 없으면
@@ -73,3 +76,17 @@ groups:
         annotations:
           summary: '처리하지 못한 DLQ 메시지가 생겼습니다. {{ if eq $labels.userId "-" }}결제를 읽지 못해 어느 유저의 건인지 알 수 없습니다{{ else }}{{ $labels.userId }}번 유저가 {{ reReplaceAll `^\d\d(\d\d)-(\d\d)-(\d\d)T(\d\d:\d\d).*` "${1}${2}${3} ${4}" $labels.paidAt }}에 결제한 건입니다{{ end }}. 확인이 필요합니다'
           runbook: "docs/design/payment/manual-recovery.md 3절"
+      - alert: PaymentResultAnomalyEvent
+        expr: |
+          sum by (env, event, type, reservationId, paymentId) (
+            count_over_time(
+              {service="reservation-service", level="ERROR"} |= "event=PAYMENT_RESULT_ANOMALY "
+              | regexp `event=(?P<event>PAYMENT_RESULT_ANOMALY) type=(?P<type>\S+) eventId=\S+ reservationId=(?P<reservationId>\S+) paymentId=(?P<paymentId>\S+) reason=`
+              | event="PAYMENT_RESULT_ANOMALY"
+              [10m]
+            )
+          ) > 0
+        labels: {service: reservation, urgency: immediate, severity: critical}
+        annotations:
+          summary: '예매 서비스가 결제 결과({{ $labels.type }})를 반영하지 않고 격리했습니다. 예매 {{ $labels.reservationId }}번, 결제 {{ $labels.paymentId }}번입니다. 좌석은 그대로이니 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 6절"

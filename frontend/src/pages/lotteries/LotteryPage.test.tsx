@@ -7,6 +7,7 @@ import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readBillingKeyRecord, saveBillingKeyRecord } from '@/auth/billingKeyRecord'
 import { clearSession } from '@/auth/session'
+import { lotteryQueryKeys } from '@/api/lotteries'
 import { routes } from '@/app/routes'
 import { formatDateTime } from '@/lib/format'
 import { mockDb, type MockLottery, type MockLotteryEntry } from '@/mocks/db'
@@ -165,6 +166,23 @@ async function gate() {
   })
   return { closed, release }
 }
+
+describe('LotteryPage 공연 상세 캐시 맞추기', () => {
+  // 공연 상세의 추첨 안내(ISE-227)는 같은 추첨을 회차 키로 들고 있다. 추첨 화면에서 받은 값으로 맞춰야 돌아갔을 때 옛 단계가 남지 않는다
+  it('추첨 정보를 받으면 회차 키의 캐시도 같은 값으로 채운다', async () => {
+    const { queryClient } = renderLottery(`/lotteries/${OPEN}`)
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(lotteryQueryKeys.ofSchedule(32))).toMatchObject({
+        lotteryId: OPEN,
+        scheduleId: 32,
+      }),
+    )
+    expect(queryClient.getQueryData(lotteryQueryKeys.ofSchedule(32))).toEqual(
+      queryClient.getQueryData(lotteryQueryKeys.info(OPEN)),
+    )
+  })
+})
 
 describe('LotteryPage 단계 배지', () => {
   it.each([

@@ -1,24 +1,27 @@
 # Gateway auth-redis 호출의 동시 실행 제한(bulkhead)과 차단기 기준(느린 호출·창·실패율·열림 시간 등)을 바꿔 배포 서버에서 잴 때만 쓰는 덮어쓰기다(ISE-229).
-# 운영 설정(config-repo)은 바꾸지 않는다. 측정자가 measure-mode.sh on 의 인자로 준다. 값을 안 주면 지금과 같다(동시 25, 켬, 느린 호출 50ms).
+# 운영 설정(config-repo)은 바꾸지 않는다. 측정자가 measure-mode.sh on 의 인자로 준다. 값을 안 주면 운영 설정(config-repo/gateway.yml, ADR 0050)과 같다.
+# 운영 값을 바꾸면 아래 기본값도 같이 바꾼다. 다르면 측정이 옛 값으로 돈다.
 #   AUTH_BULKHEAD=200 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
 #   AUTH_BULKHEAD_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
 #   AUTH_SLOW_CALL=100ms MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
-# 차단기 기준도 바꿀 수 있다. 값을 안 주면 config-repo/gateway.yml의 auth-redis 값과 같다.
-#   AUTH_WINDOW_TYPE(COUNT_BASED) AUTH_WINDOW_SIZE(20) AUTH_MIN_CALLS(20) AUTH_FAILURE_RATE(50)
-#   AUTH_SLOW_RATE(50) AUTH_OPEN_WAIT(10s) AUTH_HALF_OPEN(5)
+# 차단기 기준도 바꿀 수 있다. 괄호 안이 기본값(= config-repo/gateway.yml의 auth-redis 값)이다.
+#   AUTH_BULKHEAD(50) AUTH_SLOW_CALL(100ms)
+#   AUTH_WINDOW_TYPE(TIME_BASED) AUTH_WINDOW_SIZE(10) AUTH_MIN_CALLS(500) AUTH_FAILURE_RATE(50)
+#   AUTH_SLOW_RATE(80) AUTH_OPEN_WAIT(5s) AUTH_HALF_OPEN(20)
 #   TIME_BASED에서 AUTH_WINDOW_SIZE는 호출 수가 아니라 초다.
+# 아래 예시는 ADR 0050 이전(운영 기본값이 건수 창 20·느린 호출 50ms·bulkhead 25·시한 100ms이던 때)의 비교용 기록이다.
 # 11/10 측정 E 값(시간 창 10초, 최소 500건, 느린 호출 100ms·80%, 열림 5초, bulkhead 100):
 #   AUTH_WINDOW_TYPE=TIME_BASED AUTH_WINDOW_SIZE=10 AUTH_MIN_CALLS=500 AUTH_FAILURE_RATE=50 AUTH_SLOW_RATE=80 AUTH_OPEN_WAIT=5s AUTH_HALF_OPEN=20 AUTH_SLOW_CALL=100ms AUTH_BULKHEAD=100 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
 # 열림 시간 비교(나머지는 그대로 두고 AUTH_OPEN_WAIT만 바꿔 두 번 잰다):
 #   AUTH_OPEN_WAIT=10s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
 #   AUTH_OPEN_WAIT=5s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-bulkhead.yml
-# 시한과 차단기 무시 예외도 바꿀 수 있다(ISE-233). 값을 안 주면 지금과 같다.
-#   AUTH_REDIS_TIMEOUT(100ms): 인증 필터가 블랙리스트 조회를 기다리는 시한(auth.redis-timeout). 넘으면 lookup_timeout으로 503이다.
-#   AUTH_LETTUCE_TIMEOUT(100ms): Gateway의 Lettuce 명령 시한(spring.data.redis.timeout). Gateway의 모든 Redis 명령에 걸린다.
+# 시한과 차단기 무시 예외도 바꿀 수 있다(ISE-233). 괄호 안이 기본값(= 운영 값)이다.
+#   AUTH_REDIS_TIMEOUT(200ms): 인증 필터가 블랙리스트 조회를 기다리는 시한(auth.redis-timeout). 넘으면 lookup_timeout으로 503이다.
+#   AUTH_LETTUCE_TIMEOUT(300ms): Gateway의 Lettuce 명령 시한(spring.data.redis.timeout). Gateway의 모든 Redis 명령에 걸린다.
 #     필터 시한보다 크게 둬야 필터 시한이 먼저 걸려 원인이 lookup_timeout으로 남는다.
-#   AUTH_IGNORE_EXCEPTIONS([]): 차단기가 실패로 세지 않을 예외의 JSON 배열(ignoreExceptions). 셸에서는 작은따옴표로 감싼다.
-#     AUTH_IGNORE_EXCEPTIONS='["io.github.resilience4j.bulkhead.BulkheadFullException"]'
-#     켜면 bulkhead 거절은 resilience4j_circuitbreaker_calls_seconds_count{name="auth-redis",kind="ignored"}로 센다.
+#   AUTH_IGNORE_EXCEPTIONS(["io.github.resilience4j.bulkhead.BulkheadFullException"]): 차단기가 실패로 세지 않을 예외의 JSON 배열
+#     (ignoreExceptions). 셸에서는 작은따옴표로 감싼다. 거절을 실패로 세던 예전 동작과 비교하려면 AUTH_IGNORE_EXCEPTIONS='[]'.
+#     기본값이면 bulkhead 거절은 resilience4j_circuitbreaker_calls_seconds_count{name="auth-redis",kind="ignored"}로 센다.
 #     요청은 여전히 503이다. 차단기 실패율에서만 빠진다(AuthRedisResilienceContextTest).
 # 11/10 재측정 값(강민 수용). 두 번 모두 E 값의 창·최소 건수·실패율·열림·반열림을 그대로 둔다.
 #   1회(느린 호출 100ms·80%, 필터 시한 200ms, Lettuce 300ms, bulkhead 100):
@@ -42,11 +45,12 @@
 # 적용 확인: bulkhead 값은 켠 뒤 Grafana에서 resilience4j_bulkhead_max_allowed_concurrent_calls{name="auth-redis"}가
 # 준 값인지 먼저 보고, 아니면 재지 않는다. 끄는 설정(AUTH_BULKHEAD_ENABLED=false)이어도 이 파일이
 # instances.auth-redis.maxConcurrentCalls를 함께 넣으므로 bulkhead 지표(max_allowed)는 남을 수 있다. 꺼졌는지는
-# 몰림 구간에서 resilience4j_bulkhead_available_concurrent_calls{name="auth-redis"}가 줄지 않는지로 본다
-# (추정, ISE-230 gw-obs 컨텍스트 테스트로 확인 예정). 느린 호출 기준과 차단기 기준은 값을 보여 주는 지표가 없어,
+# 몰림 구간에서 resilience4j_bulkhead_available_concurrent_calls{name="auth-redis"}가 줄지 않는지로 본다.
+# 끄면 bulkhead 제공 빈이 만들어지지 않아 호출에 적용되지 않는다(확인함, AuthRedisResilienceContextTest의 bulkhead를_끄면_... 테스트).
+# max_allowed 지표가 남는지는 서버에서 확인하지 않았다. 느린 호출 기준과 차단기 기준은 값을 보여 주는 지표가 없어,
 # 차단기가 열리는 시점·상태 전환으로 간접 확인한다. JSON 안 숫자 자리(AUTH_WINDOW_SIZE 등)에 따옴표나 단위를 넣으면
 # gateway가 뜨지 않으니 숫자만 준다. AUTH_IGNORE_EXCEPTIONS도 JSON 자리라 대괄호와 큰따옴표까지 준다.
 services:
   gateway:
     environment:
-      SPRING_APPLICATION_JSON: '{"auth":{"redis-timeout":"${AUTH_REDIS_TIMEOUT:-100ms}"},"resilience4j":{"bulkhead":{"instances":{"auth-redis":{"maxConcurrentCalls":${AUTH_BULKHEAD:-25}}}},"circuitbreaker":{"instances":{"auth-redis":{"slowCallDurationThreshold":"${AUTH_SLOW_CALL:-50ms}","slidingWindowType":"${AUTH_WINDOW_TYPE:-COUNT_BASED}","slidingWindowSize":${AUTH_WINDOW_SIZE:-20},"minimumNumberOfCalls":${AUTH_MIN_CALLS:-20},"failureRateThreshold":${AUTH_FAILURE_RATE:-50},"slowCallRateThreshold":${AUTH_SLOW_RATE:-50},"waitDurationInOpenState":"${AUTH_OPEN_WAIT:-10s}","permittedNumberOfCallsInHalfOpenState":${AUTH_HALF_OPEN:-5},"ignoreExceptions":${AUTH_IGNORE_EXCEPTIONS:-[]}}}}},"spring":{"data":{"redis":{"timeout":"${AUTH_LETTUCE_TIMEOUT:-100ms}"}},"cloud":{"circuitbreaker":{"bulkhead":{"resilience4j":{"enabled":${AUTH_BULKHEAD_ENABLED:-true}}}}}}}'
+      SPRING_APPLICATION_JSON: '{"auth":{"redis-timeout":"${AUTH_REDIS_TIMEOUT:-200ms}"},"resilience4j":{"bulkhead":{"instances":{"auth-redis":{"maxConcurrentCalls":${AUTH_BULKHEAD:-50}}}},"circuitbreaker":{"instances":{"auth-redis":{"slowCallDurationThreshold":"${AUTH_SLOW_CALL:-100ms}","slidingWindowType":"${AUTH_WINDOW_TYPE:-TIME_BASED}","slidingWindowSize":${AUTH_WINDOW_SIZE:-10},"minimumNumberOfCalls":${AUTH_MIN_CALLS:-500},"failureRateThreshold":${AUTH_FAILURE_RATE:-50},"slowCallRateThreshold":${AUTH_SLOW_RATE:-80},"waitDurationInOpenState":"${AUTH_OPEN_WAIT:-5s}","permittedNumberOfCallsInHalfOpenState":${AUTH_HALF_OPEN:-20},"ignoreExceptions":${AUTH_IGNORE_EXCEPTIONS:-["io.github.resilience4j.bulkhead.BulkheadFullException"]}}}}},"spring":{"data":{"redis":{"timeout":"${AUTH_LETTUCE_TIMEOUT:-300ms}"}},"cloud":{"circuitbreaker":{"bulkhead":{"resilience4j":{"enabled":${AUTH_BULKHEAD_ENABLED:-true}}}}}}}'
