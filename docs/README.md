@@ -10,7 +10,7 @@
 | 개인 질문 노트, 하루 정리 | [`learning/<이름>/`](learning/README.md) | `learning-note` 스킬 |
 | 되돌리기 어려운 결정 | [`decisions/`](decisions/README.md) | `adr` 스킬 |
 | 해결한 문제 | [`troubleshooting.md`](troubleshooting.md) | `troubleshooting` 스킬 |
-| 발표·시연용 스크린샷, 이미지, 아이콘 | [`presentation/`](presentation/README.md) | 파일 이름 `YYYY-MM-DD-<내용>`, 표에 한 줄 |
+| 발표 자료: 아키텍처·배포 그림, 주요 고려점·트러블슈팅·AI 검증 사례 요약, 측정 그래프, 시연 스크린샷, 아이콘 | [`presentation/`](presentation/README.md) | 주제별 하위 폴더에 `YYYY-MM-DD-<내용>`, 그 폴더 표에 한 줄 |
 | 설계 정본 사본(SA MASTER), 마일스톤 | [`core/`](core/) | [`core/milestones.md`](core/milestones.md)는 Notion 일정관리와 함께 고친다 |
 | 설계 검토 결과 | [`sa-review/`](#sa-검토) | 아래 목록 |
 | 서비스별 상세 설계(구현 수준). SA와 달라지는 부분은 SA 변경 요청 | [`design/payment/`](design/payment/README.md), [`design/reservation/contracts.md`](design/reservation/contracts.md), [`design/reservation/hold-expiry.md`](design/reservation/hold-expiry.md), [`design/reservation/seat-ledger-reconciliation.md`](design/reservation/seat-ledger-reconciliation.md), [`design/reservation/mvp-and-troubleshooting-roadmap.md`](design/reservation/mvp-and-troubleshooting-roadmap.md), [`design/reservation/linear-issues-after.md`](design/reservation/linear-issues-after.md), [`design/frontend/`](design/frontend/README.md), [`design/reservation/k6-seathold-story.md`](design/reservation/k6-seathold-story.md)(좌석 선점 k6 측정 발표 준비용 정리), [`design/reservation/k6-contract-proposals.md`](design/reservation/k6-contract-proposals.md)(k6 측정 뒤 공유 설정·Gateway 의논 초안), [`design/reservation/k6-p4d-review.md`](design/reservation/k6-p4d-review.md), [`design/infra/`](design/infra/README.md)(배포·관측·부하 측정), [`design/assistant/`](design/assistant/README.md)(내부 AI 상담) | 결정마다 [`decisions/`](decisions/README.md)에 ADR |
