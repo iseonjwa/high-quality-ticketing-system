@@ -17,6 +17,7 @@ import { fail } from '@/mocks/respond'
 import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
 import { formatDateTime, kstParts } from '@/lib/format'
+import { readCharmPayload } from '@/pages/charm/charmLink'
 import {
   readReservationHeading,
   reservationNavigationState,
@@ -341,6 +342,35 @@ describe('ReservationPage 티켓 카드', () => {
     for (const card of cards) {
       expect(card).not.toHaveTextContent(reservation.reservationNo)
     }
+  })
+})
+
+describe('ReservationPage 발권 이벤트 부적 QR(ISE-257)', () => {
+  it('확정 예매에는 좌석마다 부적 QR과 이 기기에서 열기 링크가 있고, 링크에는 예매·티켓 순서·닉네임·공연이 담긴다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    renderReservation(reservation.reservationId, { heading: HEADING })
+
+    const card = await screen.findByRole('region', { name: '발권 기념 행운 부적' })
+    expect(await within(card).findAllByRole('img', { name: /부적 QR$/ })).toHaveLength(2)
+    const links = within(card).getAllByRole('link', { name: '이 기기에서 열기' })
+    expect(links).toHaveLength(2)
+    const href = new URL(links[1].getAttribute('href')!, window.location.origin)
+    expect(href.pathname).toBe('/charm')
+    expect(readCharmPayload(href.hash)).toMatchObject({
+      r: reservation.reservationId,
+      i: 1,
+      n: '데모',
+      t: HEADING.title,
+      s: HEADING.startsAt,
+    })
+  })
+
+  it('결제 전(HELD) 예매에는 부적 카드가 없다', async () => {
+    const reservation = seedReservation()
+    renderReservation(reservation.reservationId)
+
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '발권 기념 행운 부적' })).not.toBeInTheDocument()
   })
 })
 

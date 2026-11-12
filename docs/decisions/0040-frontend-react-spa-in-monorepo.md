@@ -139,6 +139,7 @@ Refresh 토큰은 탭 단위 `sessionStorage`에 두고, Access 토큰은 메모
 | Pretendard | 1.3.9 (ISE-111) | OFL-1.1. 가변 글꼴 dynamic-subset CSS를 `src/index.css`에서 가져와 Vite가 woff2(92조각, `unicode-range`로 필요한 것만 받는다)를 번들한다. CDN을 쓰지 않는다 |
 | sonner | 2.0.8 (ISE-111) | shadcn `Sonner` 토스트. shadcn 컴포넌트가 쓰던 `next-themes`는 다크 모드를 하지 않아 뺐다 |
 | `@tosspayments/tosspayments-sdk` | 2.10.0 (ISE-125) | 토스 결제창(구버전, API 개별 연동 키). 토스 모드에서 결제창을 열 때만 동적 import한다. 로더는 `vite.config.ts`의 `tosspayments` 묶음(약 3.6 kB)으로 떼어 처음 화면과 Mock 모드에서는 받지 않는다. SDK 본체는 로더가 실행될 때 `https://js.tosspayments.com/v2/standard`에서 받으므로 토스 모드만 외부에 의존한다 |
+| uqr | 0.1.3 (ISE-257) | 발권 이벤트 부적 QR. MIT, 의존성이 없다. `encode`로 칸만 받아 SVG는 직접 그린다. 예매 상세 묶음(booking)에 들어간다 |
 
 ## 결과
 
