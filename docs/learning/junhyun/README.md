@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 실패한 요청을 언제, 몇 번, 얼마나 기다렸다가 다시 보내야 하는가 | [qna/2026-11-12-retry-backoff-jitter.md](qna/2026-11-12-retry-backoff-jitter.md) |
 | 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
 | 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
 | 2026-11-11 | 배포가 실패하면 팀원은 Jenkins에 어떻게 들어가서 다시 배포하나 | [qna/2026-11-11-jenkins-redeploy-after-failure.md](qna/2026-11-11-jenkins-redeploy-after-failure.md) |
