@@ -450,7 +450,9 @@ describe('runPaymentFlow 503 PG_UNAVAILABLE 자동 재시도', () => {
     mockServer.use(http.post(PAYMENTS_PATH, unavailable()))
     const requests = recordRequests(PAYMENTS_PATH)
 
-    const { outcome, states } = await run(held, { onSleep: (_waits, controller) => controller.abort() })
+    const { outcome, states } = await run(held, {
+      onSleep: (_waits, controller) => controller.abort(),
+    })
 
     expect(outcome).toEqual({ step: 'aborted' })
     expect(steps(states)).toEqual(['paying'])
