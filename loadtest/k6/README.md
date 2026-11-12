@@ -120,7 +120,7 @@ PG_DELAY_MS=1900 STAGES=40 bash loadtest/k6/run.sh scenarios/pay1-payment.js   #
 bash loadtest/k6/run.sh scenarios/r1-confirm.js
 ```
 
-추첨(L1~L3)은 덮어쓰기 없이 돈다. L2·L3의 자동결제는 PAY1처럼 mock-pg를 `loadtest` 프로필로 띄워 둔다. 빌링키는 사용자마다 하나라 실행마다 `USER_ID_BASE`를 바꾼다.
+추첨(L1~L3)은 덮어쓰기 없이 돈다. L2·L3의 자동결제는 PAY1처럼 mock-pg를 `loadtest` 프로필로 띄워 둔다. 빌링키는 사용자마다 하나라 실행마다 `USER_ID_BASE`를 바꾼다. Mock PG는 빌링키를 메모리에 두므로 순서는 mock-pg 재시작 → 30초 넘게 안정 대기 → k6 실행(setup이 빌링키를 등록) → 추첨이다. 빌링키 등록 뒤 mock-pg를 다시 띄우면 전원 `BILLING_KEY_MISSING`이 된다.
 
 ```bash
 bash loadtest/k6/run.sh scenarios/l1-lottery-entry.js

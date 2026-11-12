@@ -79,6 +79,7 @@ export default function (data) {
 }
 
 export function teardown(data) {
-  // 순번 확인은 Redis에서 한다: queue:{sid}:seq 값과 waiting 원소 수가 진입한 고유 사용자 수와 같아야 한다
-  console.log(`Q1 확인: redis-cli GET "queue:{${data.scheduleId}}:seq", ZCARD "queue:{${data.scheduleId}}:waiting" → 기대값 ${USERS}`);
+  // 순번 확인은 Redis에서 한다: queue:{sid}:seq 값과 waiting 원소 수가 첫 요청의 201 건수와 같아야 한다.
+  // Note: k6가 반복을 USERS보다 한 번 더 시작할 수 있어(300명 설정에 고유 사용자 301) USERS와 비교하지 않는다
+  console.log(`Q1 확인: redis-cli GET "queue:{${data.scheduleId}}:seq", ZCARD "queue:{${data.scheduleId}}:waiting" → 기대값: 요약의 enter_results{result=joined, attempt=first} 건수(설정 ${USERS}명)`);
 }
