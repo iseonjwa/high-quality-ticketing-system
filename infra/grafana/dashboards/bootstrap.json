@@ -88,6 +88,62 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 5,
+      "title": "Gateway 동시 처리 수와 상한",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (application) (gateway_in_flight_requests{application=\"gateway\"})",
+          "legendFormat": "처리 중",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (application) (gateway_in_flight_limit{application=\"gateway\"})",
+          "legendFormat": "상한",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Gateway 동시 처리 수 상한 거절률",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "상한 거절은 서버 관측보다 앞에서 일어나 http_server_requests에 들어가지 않는다. 분모는 관측된 요청 수 + 거절 수다. 경보 GatewayInFlightRejecting(5분 1%), GatewayInFlightRejectingPeak(1분 1%)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (application) (rate(gateway_in_flight_rejected_total{application=\"gateway\"}[1m])) / (sum by (application) (rate(http_server_requests_seconds_count{application=\"gateway\"}[1m])) + sum by (application) (rate(gateway_in_flight_rejected_total{application=\"gateway\"}[1m])))",
+          "legendFormat": "거절률(1분)",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }

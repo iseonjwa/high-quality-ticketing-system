@@ -63,3 +63,52 @@ tests:
       - eval_time: 8m
         alertname: GatewayAuthRedisBulkheadRejectingPeak
         exp_alerts: []
+
+  # 동시 처리 수 상한 지속 거절: 관측된 요청이 분당 5,880건이고 거절이 분당 120건(들어온 요청의 2%)으로 이어지면 5분 지속 뒤 울린다.
+  # 거절이 분당 30건(약 0.5%)인 앞 구간에서는 울리지 않는다. 거절은 http_server_requests에 들어가지 않으므로 따로 더한다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{application="gateway",uri="/api/v1/queue",status="200"}'
+        values: '0+5880x15'
+      - series: 'gateway_in_flight_rejected_total{application="gateway"}'
+        values: '0+30x4 150+120x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: GatewayInFlightRejecting
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: GatewayInFlightRejecting
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: GatewayInFlightRejecting
+        exp_alerts:
+          - exp_labels: {service: gateway, urgency: threshold, severity: warning, application: gateway}
+            exp_annotations:
+              summary: "Gateway가 들어온 요청의 1% 넘게 동시 처리 수 상한으로 5분 넘게 거절하고 있습니다(5분 평균). 처리량보다 요청이 많은 상태입니다."
+              runbook: "docs/design/infra/gateway-overload-troubleshooting-story.md. gateway_in_flight_requests가 gateway_in_flight_limit에 붙어 있는지, 서버 CPU가 포화인지 함께 본다"
+
+  # 동시 처리 수 상한 오픈 피크: 5분부터 1분 동안만 거절이 분당 120건(약 2%)이면 피크 규칙은 바로 울리고 지속 규칙은 울리지 않는다.
+  # 몰림이 끝나면 피크 규칙도 풀린다.
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{application="gateway",uri="/api/v1/queue",status="200"}'
+        values: '0+1470x39'
+      - series: 'gateway_in_flight_rejected_total{application="gateway"}'
+        values: '0x19 30+30x3 120x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GatewayInFlightRejectingPeak
+        exp_alerts: []
+      - eval_time: 5m45s
+        alertname: GatewayInFlightRejectingPeak
+        exp_alerts:
+          - exp_labels: {service: gateway, urgency: threshold, severity: warning, application: gateway}
+            exp_annotations:
+              summary: "Gateway가 최근 1분 들어온 요청의 1% 넘게 동시 처리 수 상한으로 거절했습니다(오픈 피크)."
+              runbook: "docs/design/infra/gateway-overload-troubleshooting-story.md. 오픈마다 울리면 상한 값(64)이나 장비 분리(ADR 0047)를 다시 본다"
+      - eval_time: 5m45s
+        alertname: GatewayInFlightRejecting
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: GatewayInFlightRejectingPeak
+        exp_alerts: []
