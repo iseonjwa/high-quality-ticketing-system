@@ -1075,6 +1075,84 @@ P4b는 좌석 배치(구역·열·번호·등급·가격 15,000석)를 인스턴
 
 **다음 단계(K1):** L(초당 100명)은 아직 reservation-service가 먼저 막힌다(커넥션 대기 최대 197건, 대기 시한 초과 5,999건). 그래서 계획대로 P4c(좌석 상태 1초 캐시)로 간다. 다만 S는 160명부터 Gateway 인증 차단기가 먼저 막으므로, P4c의 효과는 L과 S의 80명까지에서 본다. Gateway 한계는 측정이 끝난 뒤 Gateway 담당과 조율할 거리(계획 문서 6절 13번)에 K1 근거로 더한다.
 
+## 배포 단계 측정 (2026-11-12 준비, 측정 전)
+
+local에서 쌓은 K1 단계를 배포 서버(m7i.xlarge 4 vCPU·16GiB, 컨테이너 20개가 CPU 상한 없이 나눠 씀)에서 한 번에 다시 잰다. 단계 범위는 base → G1 → R1 → P4a → P4b → P4c → F → 사전 거절(pre) 8개이고, Gateway는 배포 그대로 둔다(ADR 0050 운영값, 맨 앞 동시 처리 상한 64, 직접 메모리 상한 128MB). 측정 모드는 팀 절차(`script/loadtest/measure-mode.sh`, `docs/guides/loadgen.md`)를 따른다.
+
+### 구성 (`reservation-service/k6/deploy/`)
+
+| 파일 | 하는 일 |
+|---|---|
+| `steps.sh` | 단계 순서, 단계 → 이미지 태그, 이미지 태그 → 측정한 커밋 |
+| `overlays/<단계>.yml` | 단계 하나의 덮어쓰기. reservation-service 이미지(`iseonjwa-k6steps/reservation-service:<태그>`, `pull_policy: never`), GC, 풀 크기, 커넥션 대기 시한, 사전 거절, 관찰 설정(GC 로그, Tomcat 지표, 1초·3초 버킷). 풀과 시한은 공유 설정이 바뀌어도 단계 값이 유지되게 환경변수로 못 박는다 |
+| `build-images.sh` | 커밋마다 `:reservation-service:bootJar`를 빌드해 `Dockerfile.step`(저장소 Dockerfile의 실행 단계와 같음)에 얹는다. `SHIP=1`이면 이미지 6개를 한 묶음으로 배포 서버에 `docker load`한다. GHCR에는 올리지 않는다 |
+| `deploy-run.sh` | 내 PC에서 돈다. 단계마다 서버에서 `measure-mode.sh on overlays/<단계>.yml` → Gateway 확인 + 60초 → 서버에서 회차 만들기 → 발생기에서 k6(`run.sh`) → 결과 모으기. 끝나면 측정 모드를 끄고 발생기 키를 지운다 |
+| `server/*.sh` | 서버에서 돈다(서버 `~/<측정자>/k6steps/`에 복사). 회차 만들기(1인 4매·선점 5분, 로컬과 같은 조건), 10초 표본(컨테이너 CPU·메모리, 잠금 대기, 부하 평균), 측정 뒤 수집(대사, GC 로그, 오류 로그, 재시작·OOM). 서버 저장소 파일은 바꾸지 않는다 |
+
+| 단계 | 이미지(커밋) | GC | 풀 | 대기 시한 | 사전 거절 |
+|---|---|---|---|---|---|
+| base | base(`6704969`) | Serial(지정 없음) | 5 | 30초 | 끔 |
+| g1 | base | G1 | 5 | 30초 | 끔 |
+| r1 | base | G1 | 5 | 1초 | 끔 |
+| p4a | p4a(`50a365d`) | G1 | 5 | 1초 | 끔 |
+| p4b | p4b(`d44c729`) | G1 | 5 | 1초 | 끔 |
+| p4c | p4c(`d3820f5`) | G1 | 5 | 1초 | 끔 |
+| f | f(`5e9e42a`, P4c + S1~S4) | G1 | 10 | 1초 | 끔 |
+| pre | pre(`660abb06`) | G1 | 10 | 1초 | 켬 |
+
+- 이미지 6개를 local에서 만들어 확인했다(커밋 라벨, 실행 사용자 `app`, JRE 21). 각 512MB이고, 서버로 보낼 묶음은 gzip으로 약 678MB다(jar 레이어가 단계마다 달라 기반 레이어만 공유된다).
+- 단계 커밋 6개의 예약 DB 마이그레이션은 main과 같다(11/03이 마지막). 옛 이미지가 지금 DB로 뜬다. 같은 방식(이미지만 바꿔 끼우기)은 팀의 `loadtest/deploy/compose.seat-before.yml`이 먼저 썼다.
+- 배포 compose와 합친 결과를 main 파일로 확인했다(`docker compose config`, 비밀값은 가짜 값). 이미지, `pull_policy: never`, 컨테이너 1,152MB, `prod` 프로필, 추적 샘플링 0.01, 단계 값이 의도대로 들어간다.
+
+### 실행
+
+```bash
+# 1. 이미지 만들기(PC, 한 번). 서버에 넣기는 측정 날 서버가 켜진 뒤
+bash reservation-service/k6/deploy/build-images.sh
+SHIP=1 DEPLOY_SSH=iseonjwa bash reservation-service/k6/deploy/build-images.sh
+# 2. 발생기 내 폴더에 저장소 받기(loadgen.md 3절). 측정 브랜치는 deploy-run.sh가 같은 커밋으로 맞춘다
+# 3. 팀 채널 시작 알림(main 머지 금지) 뒤 일괄 실행. 8단계 × L·S 약 2시간 40분
+MEASURER=kwonwoo DEPLOY_SSH=iseonjwa LOADGEN_SSH=ubuntu@<발생기 퍼블릭 IP> bash reservation-service/k6/deploy/deploy-run.sh
+# 일부만: STEPS="base p4c pre" KINDS=L. 순서만 보기: DRY_RUN=1
+```
+
+- 결과는 PC의 `results/deploy-<단계>-<종류>-<시각>-*`다. 로컬 `step-run.sh`의 결과와 같은 파일(k6 원자료·요약, 탐침, 지표 CSV, 대사, GC 로그, 조건)에 서버 표본(`-stats.txt`)과 서버 조건(`-server.txt`)이 더해진다. 지표 CSV에는 reservation-service·Gateway CPU(코어), 힙 사용량, Gateway 동시 처리 수와 그 거절, 인증 차단기 거절을 더했다.
+- 측정 모드를 켜고 다시 켤 때마다 슬랙 측정 채널에 알림이 간다(단계마다 "설정 변경").
+- SSH: 배포 서버 22번은 등록된 팀원 키·IP만 받는다. 발생기는 배포 서버에 들어갈 수 없어 PC가 둘을 함께 다룬다.
+
+### 조건이 local과 다른 점
+
+| 항목 | local 단계 측정 | 배포 단계 측정 | 이유 |
+|---|---|---|---|
+| CPU | 32코어(CPU 상한 회만 4코어) | 4 vCPU를 컨테이너 20개가 나눠 씀 | 배포 그대로 |
+| Gateway | 측정 브랜치 Gateway, 인증 차단기 완화(느린 호출 100ms, 실패율 100%) | 배포 Gateway(ADR 0050 운영값, 동시 처리 상한 64, 메모리 1,024MB) | 사용자 결정(2026-11-12). 실제 환경 수치를 얻는 것이 목적이다 |
+| 측정 무관 컨테이너 | 멈춤(grafana·loki·alloy·zipkin 등) | 그대로 | 공용 서버라 멈추지 않는다 |
+| 선점 만료 스케줄러 | 끔 | 배포 기본(켬) | 배포 그대로. 선점 5분이라 L 후반에 워밍업·초반 선점의 만료가 섞인다 |
+| S 단계 | 5~320명(확장 1,280명) | 5~160명 | 발생기 네트워크 기준 1.562Gbps ≈ 좌석 조회 초당 약 180건(응답 약 830KB, 계산값) |
+| k6 | 같은 기기, 메모리 6GiB | 발생기 c6i.xlarge(4 vCPU·8GiB), 메모리 5GiB | |
+| 반복 | 비교점 3회 | 각 1회(시간이 남으면 base·pre만 3회) | 서버 사용 시간 |
+
+### CPU·힙이 버티지 못할 것으로 보는 단계 (예상)
+
+local 수치로 판단했다. 배포 서버 코어는 local(i9-14900HX)보다 한 코어가 느리고 다른 컨테이너도 같이 돌아서, 같은 4코어 local 측정(CPU 상한 F)보다 조금 나쁠 것으로 본다. "CPU 합"은 local L에서 reservation-service·PostgreSQL·Gateway 최대값을 더한 것이다.
+
+| 단계 | L(초당 100명) | S(5~160명) | 먼저 차는 것 | 근거(local) |
+|---|---|---|---|---|
+| base | **못 버팀** | 5명 단계부터 흔들림 | **힙**(Serial GC) | L 부하의 약 75%가 GC 정지, Full GC 최대 3.9~6.5초. 좌석 조회 한 건이 엔티티 1만 5천 개를 만든다. 긴 정지 동안 Eureka 갱신이 끊길 수 있다. 회복 못 함(대기 시한 30초) |
+| g1 | **못 버팀** | 10~20명 | **CPU** + 힙 할당 | GC 정지는 7%로 줄지만 할당은 그대로라 G1이 여러 코어를 쓴다(이전 기기 reservation-service 약 6코어). 4 vCPU면 Gateway·DB 몫까지 먹는다. 커넥션 대기가 풀리지 않아 회복 못 함 |
+| r1 | **못 버팀** | 10~20명 | **CPU**, 컨테이너 메모리 경계 | L에서 reservation-service 최대 약 9코어 + PostgreSQL 약 2.3코어. S 320명에서 힙이 차고(`Evacuation Failure`) 컨테이너가 1.12GiB(상한 1.125GiB)까지 갔고 한 번은 프로세스가 사라졌다. 배포에서는 더 낮은 단계에서 같은 경계에 닿을 수 있다 |
+| p4a | **못 버팀** | 20~40명 | **CPU**(PostgreSQL) | L CPU 합 약 8.4코어(PostgreSQL 4.3 + reservation 3 + Gateway 1.1). 커넥션 5개가 모두 1만 5천 행 조인·정렬을 돌린다. 힙은 괜찮다(GC 3%) |
+| p4b | 경계(성공하지만 느려짐) | 80~160명에서 무너짐 | **CPU** | L CPU 합 약 4.2코어로 4 vCPU를 꽉 채운다. S 160명은 local에서 reservation 3 + Gateway 3.5 + PostgreSQL 1.9코어. 힙은 괜찮다(GC 0.5%) |
+| p4c | 버팀 | 160명 경계 | **CPU** | CPU 상한 F(P4c 포함): L 100%·p95 18ms·약 3코어, S 160명 p95 149ms(약 3.2코어), 320명에서 실패 시작 |
+| f | 버팀 | 160명 경계 | **CPU** | 위와 같다. 풀 10은 CPU가 모자란 곳에서는 차이가 작다 |
+| pre | 버팀 | 160명 버틸 가능성이 가장 큼 | **CPU** | CPU 상한 S에서 160명 선점 처리 시간 -47%, p95 좌석 조회 121 → 103ms. 320명 좌석 조회 79.6 → 99.9% |
+
+- **힙(reservation-service 768MB)이 먼저 무너지는 단계는 P4a 전(base·G1·R1)뿐이다.** P4a부터는 GC 정지가 3% 아래라 힙은 한계가 아니다. R1까지는 컨테이너 메모리(1,152MB)도 경계라, `-server.txt`의 `oom`과 재시작 수를 먼저 본다.
+- **P4a부터는 CPU가 먼저 찬다.** P4a는 PostgreSQL이, P4b부터는 reservation-service와 Gateway가 4 vCPU를 나눠 쓴다.
+- **Gateway 동시 처리 상한 64가 실패의 모양을 바꾼다.** 리틀의 법칙(동시 처리 수 = 초당 요청 × 응답 시간)으로 보면, 좌석 조회와 선점을 합쳐 초당 약 200건일 때 응답이 0.3초를 넘으면 64에 닿는다(계산값). base~P4a는 응답이 초 단위라 local의 504·500 대신 Gateway의 즉시 503(동시 처리 상한 거절)이 많을 것으로 본다. 서버 쪽 적체가 덜 쌓여 회복은 local보다 빠를 수 있다. P4c 이후 S 160명(초당 약 320건)에서도 p95가 0.2초를 넘으면 거절이 시작된다.
+- **Gateway 메모리는 local CPU 상한 F의 OOMKilled(768MB)와 달리 위험이 낮다.** 배포는 1,024MB에 직접 메모리 상한 128MB이고, 동시 처리 상한 64가 쥐는 응답 수를 묶는다(64 × 830KB ≈ 53MB).
+- 공용 서버 영향: base~P4a는 서버 CPU를 오래 채운다. 같은 시간대의 다른 측정·시연과 겹치지 않게 시간을 잡는다.
+
 ## k6로 직면하지 않는 결함의 확인 (2026-11-06)
 
 S1·S2·S4의 결함은 K1에 그 조건(같은 사용자 동시 요청, 같은 멱등키 재전송, 만료 스케줄러 두 개)이 없어 k6로는 직면하지 않는다(계획 문서 3-4절). 그래서 base 코드(`3dfc750`, dev와 같은 선점 코드)에서 동시성 테스트로 결함이 실제로 있는지 확인했다. 테스트의 단언은 고친 뒤의 목표라 base에서는 실패가 정상이다.

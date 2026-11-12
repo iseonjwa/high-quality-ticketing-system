@@ -1,0 +1,16 @@
+# 배포 서버 단계 측정 f 단계 덮어쓰기다. 측정 브랜치(experiment/ISE-79-k6-steps) 전용이고 저장소의 배포 설정은 바꾸지 않는다.
+# F: P4c에 정합성 수정 S1~S4와 커넥션 풀 10(P1).
+# 이미지는 측정한 커밋 5e9e42a의 reservation-service를 build-images.sh로 만들어 서버에 넣은 것이다(GHCR에 없다).
+# deploy-run.sh가 서버에 복사해 measure-mode.sh on의 인자로 준다. 다른 서비스와 Gateway는 배포 그대로 둔다.
+# Note: 풀 크기·대기 시한은 공유 설정(config-repo)이 바뀌어도 단계 값이 유지되게 환경변수로 못 박는다
+services:
+  reservation-service:
+    image: iseonjwa-k6steps/reservation-service:f
+    # 서버에 넣어 둔 이미지만 쓴다. 없으면 받으러 가지 않고 실패한다
+    pull_policy: never
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms384m -Xmx768m -XX:+UseG1GC -Xlog:gc,gc+heap=info:file=/tmp/gc.log:uptime
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: "10"
+      SPRING_DATASOURCE_HIKARI_CONNECTIONTIMEOUT: "1000"
+      # Tomcat 스레드 지표와 1초·3초 경계 버킷(b8_metrics.py가 읽는다). 로컬 compose.b8-observe.yml과 같다
+      SPRING_APPLICATION_JSON: '{"server":{"tomcat":{"mbeanregistry":{"enabled":true}}},"management":{"metrics":{"distribution":{"slo":{"http.server.requests":"1s,3s"}}}}}'

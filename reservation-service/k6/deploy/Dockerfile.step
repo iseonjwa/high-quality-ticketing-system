@@ -1,0 +1,10 @@
+# 단계 이미지의 실행 단계다. 저장소 Dockerfile의 두 번째 단계(실행 이미지)와 같은 기반·사용자·진입점을 쓰고,
+# 빌드 단계만 build-images.sh가 그 커밋에서 bootJar로 대신한다. 커밋마다 전체 모듈을 Docker 안에서 다시 빌드하지 않으려는 것이다
+FROM eclipse-temurin:21-jre-alpine@sha256:b48e02e0ea88d7bfb305335df94923bdef394905f4147dccd52e873cf17b1088
+RUN apk add --no-cache curl && addgroup -S app && adduser -S app -G app
+WORKDIR /app
+ARG COMMIT
+LABEL k6steps.commit=$COMMIT
+COPY --chown=app:app app.jar /app/app.jar
+USER app
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

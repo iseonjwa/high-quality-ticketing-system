@@ -5,11 +5,13 @@
 """
 import csv
 import json
+import os
 import sys
 import urllib.parse
 import urllib.request
 
-PROM = "http://localhost:9090/api/v1"
+# 배포 측정(deploy/deploy-run.sh)은 SSH 터널로 연 서버 Prometheus 주소를 PROM_URL로 준다
+PROM = os.environ.get("PROM_URL", "http://localhost:9090") + "/api/v1"
 APP = 'application="reservation-service"'
 SEATS = APP + ',uri="/api/v1/schedules/{scheduleId}/seats"'
 HOLD = APP + ',uri="/api/v1/schedules/{scheduleId}/reservations"'
@@ -26,6 +28,14 @@ SERIES = {
     "hold_time_per_s": f"sum(rate(http_server_requests_seconds_sum{{{HOLD}}}[10s]))",
     "hold_409_time_per_s": f'sum(rate(http_server_requests_seconds_sum{{{HOLD},status="409"}}[10s]))',
     "hikari_usage_time_per_s": f"sum(rate(hikaricp_connections_usage_seconds_sum{{{APP}}}[10s]))",
+    # 배포 측정에서 CPU·힙이 버티는지 본다. process_cpu_usage는 컨테이너가 보는 코어 수 대비 비율이라 코어 수를 곱해 코어로 바꾼다
+    "res_cpu_cores": f"sum(process_cpu_usage{{{APP}}} * system_cpu_count{{{APP}}})",
+    "res_heap_used_mb": f'sum(jvm_memory_used_bytes{{{APP},area="heap"}}) / 1048576',
+    "gw_cpu_cores": 'sum(process_cpu_usage{application="gateway"} * system_cpu_count{application="gateway"})',
+    # 배포 Gateway의 맨 앞 동시 처리 상한(ISE 설계 메모 A1)과 인증 차단기 거절. 측정 브랜치 Gateway에는 앞의 두 지표가 없어 0으로 남는다
+    "gw_in_flight": "sum(gateway_in_flight_requests)",
+    "gw_in_flight_rejected_per_s": "sum(rate(gateway_in_flight_rejected_total[10s]))",
+    "gw_auth_not_permitted_per_s": 'sum(rate(resilience4j_circuitbreaker_not_permitted_calls_total{name="auth-redis"}[10s]))',
 }
 
 
