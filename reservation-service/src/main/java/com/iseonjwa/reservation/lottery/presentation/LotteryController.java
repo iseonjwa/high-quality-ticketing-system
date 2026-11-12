@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Clock;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -39,6 +40,7 @@ public class LotteryController {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private final LotteryEntryService lotteryEntryService;
+    private final Clock clock;
 
     // 같은 멱등키로 다시 보내면 처음 응모를 그대로 돌려준다(D3 A안 201)
     @PostMapping("/entries")
@@ -93,7 +95,7 @@ public class LotteryController {
         return ResponseEntity.ok(SuccessResponse.of(
                 200,
                 "추첨 정보입니다",
-                LotteryInfoResponse.from(lottery),
+                LotteryInfoResponse.from(lottery, clock.instant()),
                 MDC.get("traceId")));
     }
 

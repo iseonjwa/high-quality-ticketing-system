@@ -40,6 +40,8 @@ public final class LotteryEntryDtos {
 
     /**
      * 시드를 공개하지 않는, 공개 추첨 정보와 응모 규칙(D4·D5·D7, 시드 약속은 확장안 ISE-95).
+     *
+     * @param serverTime 응답을 만든 서버 시각. 화면이 브라우저 시계 대신 이 값으로 응모·추첨 단계를 나눈다(공연 상세와 같은 기준)
      */
     public record LotteryInfoResponse(Long lotteryId,
                                       Long scheduleId,
@@ -48,9 +50,10 @@ public final class LotteryEntryDtos {
                                       Instant entryStartAt,
                                       Instant entryEndAt,
                                       Instant drawAt,
-                                      Rules rules) {
+                                      Rules rules,
+                                      Instant serverTime) {
 
-        public static LotteryInfoResponse from(Lottery lottery) {
+        public static LotteryInfoResponse from(Lottery lottery, Instant serverTime) {
             return new LotteryInfoResponse(
                     lottery.getId(),
                     lottery.getScheduleId(),
@@ -59,7 +62,8 @@ public final class LotteryEntryDtos {
                     lottery.getEntryStartAt(),
                     lottery.getEntryEndAt(),
                     lottery.getDrawAt(),
-                    Rules.of(lottery.getMaxPerEntry()));
+                    Rules.of(lottery.getMaxPerEntry()),
+                    serverTime);
         }
     }
 
