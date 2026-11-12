@@ -154,7 +154,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 파일 | 하는 일 |
 |---|---|
 | `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 9개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
-| `script/deploy/deploy.sh <SHA>` | 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
+| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
 | `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
@@ -162,6 +162,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | `script/deploy/install-docker.sh` | Ubuntu에 Docker 공식 apt 저장소로 Docker와 compose 플러그인을 설치한다 |
 | `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
 
+- 이미지 보관(ISE-249): 배포마다 서비스 9개의 이미지가 커밋 SHA 태그로 서버에 쌓인다. `deploy.sh`는 이미지를 받기 전에 `ghcr.io/iseonjwa/` 이미지 중 태그가 40자 SHA인 것을 만들어진 시각 최신순으로 세어, 최근 3개 버전(`KEEP_IMAGE_VERSIONS`)과 이번 커밋·직전 성공 커밋(`.deploy/current`)·그 앞의 성공 커밋(`.deploy/previous`)만 남기고 지운다. 실행 중인 컨테이너의 이미지는 Docker가 지우기를 거절해 남는다. 태그 없는 이미지도 지운다. DB·Kafka 같은 다른 이미지와 볼륨은 건드리지 않는다. 지운 버전으로 되돌릴 때(Jenkins `TAG`)는 GHCR에서 다시 받으므로 그만큼 느리다. 정리가 실패해도 배포는 진행하고, 이미지 받기가 끝내 실패하면 디스크 여유를 함께 출력한다. 디스크 사용률 알림은 아직 없다.
 - 앱 프로필은 `prod`다. `local` 전용 컨트롤러(`LocalIdentityController` 등)가 배포 서버에 뜨지 않게 하려는 것이다. `application-prod.yml`의 샘플링은 `${TRACING_SAMPLE_RATE:0.1}`로 바꾸고 배포 compose가 1.0을 넣는다(시연에서 traceId로 트레이스를 본다). 부하 측정 때는 0.01(`loadtest`)로 바꿀지 측정 이슈에서 정한다.
 - 상한 합계는 약 12.5GB(앱 5.2GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 78%로 SA 9-3의 75% 기준을 조금 넘는다. 앱에 `assistant-service` 384m가 더해진 값이다(2026-11-09, ISE-126, 아래 "내부 AI 상담 배포"). 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
 - 2026-11-04 로컬에서 `IMAGE_TAG=<임의 SHA> docker compose -f compose.yml -f compose.deploy.yml config`로 합쳐진 설정(이미지, 빌드 없음, 상한, 포트, 프로필)을 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했고, `smoke.sh`를 로컬 nginx(8000)에 돌려 네 항목이 모두 통과했다. 실제 배포는 첫 main 릴리스로 GHCR 이미지가 생긴 뒤 확인한다.
