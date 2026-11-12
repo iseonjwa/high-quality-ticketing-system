@@ -34,7 +34,7 @@
 | `scenarios/g1-gateway-auth.js` | G1 Gateway 인증 경로. 순번 조회에 초당 요청을 단계적으로 올린다 |
 | `scenarios/q3-admission.js` | Q3 입장 속도 유지. 입장 스케줄러를 켠 채 READY가 되면 입장 토큰을 받고 끝낸다 |
 | `scenarios/b1-browse.js` | B1 오픈 전 공연 상세·목록 조회. `ENTER_RATE`를 주면 대기열 진입을 같이 건다(B1-b) |
-| `scenarios/pay1-payment.js` | PAY1 결제 승인. 반복마다 1석 선점 → 결제, 요청 속도를 단계적으로 올린다 |
+| `scenarios/pay1-payment.js` | PAY1 결제 승인. 반복마다 1석 선점 → 결제, 요청 속도를 단계적으로 올린다. `SCHEDULE_ID`를 주면 관리자 로그인 없이 서버에서 만든 회차를 쓴다(배포 측정) |
 | `scenarios/r1-confirm.js` | R1 결제 결과 반영. 선점 → 결제 → 예매 조회로 CONFIRMED까지의 시간을 잰다 |
 | `scenarios/x1-expiry.js` | X1 선점 만료. 선점 시간 1분 회차의 선점이 만료되는 동안 다른 회차에 선점 부하를 건다 |
 | `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다. 실패 응답은 `entry_results`에 message 출처 태그 `msg`(`auth_unavailable`·`service_unavailable`·`gateway_error`·`other`·`none`)를 붙여, 인증 벌크헤드 503을 다른 503과 나눠 summary에 센다 |
@@ -196,7 +196,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
-**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). G1도 `SCHEDULE_ID`를 주면 건너뛴다. 그 밖의 시나리오(B1, PAY1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). G1도 `SCHEDULE_ID`를 주면 건너뛴다. PAY1도 `SCHEDULE_ID`를 주면 건너뛴다. 그 밖의 시나리오(B1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
 
 **L1~L3 추첨 준비**(서버에서 만들 때 맞출 시각):
 
@@ -237,15 +237,18 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | S1 좌석 조회(현재 배포) | `measure-mode.sh on` | 15,000석 회차(`seed-demo.sh open`) | 아래 S1 명령. 초당 50·150·200·300을 차례로 |
 | S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
 | B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
+| PAY1 결제 승인 | `measure-mode.sh on`. PG 한도를 볼 때는 측정 직전에 아래 "Mock PG 장애 주입"으로 승인 지연 300ms를 건다. 결제 서비스 자체 한도를 볼 때는 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 PAY1 명령. 빈 좌석이 모자라면 setup에서 멈춘다 |
 | R1-d 결제 → 확정 | `measure-mode.sh on` (앱이 다시 떠 Mock PG 지연이 없는 상태) | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 R1-d 명령. 빈 좌석이 모자라면(이미 쓴 회차) setup에서 멈춘다 |
 
-S1·B1-d·R1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
+S1·B1-d·PAY1·R1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
 
 ```bash
 # S1 좌석 조회 (발생기에서)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> RATE=50 bash loadtest/k6/run.sh scenarios/s1-seat-query.js
 # B1-d 공연 상세 (발생기에서)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write CONCERT_ID=<공연 id> RATE=100 bash loadtest/k6/run.sh scenarios/b1d-concert-detail.js
+# PAY1 결제 승인 (발생기에서. 회차는 실행마다 새로. MOCK_PG_URL을 비워 서버에서 건 지연을 쓴다)
+BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write MOCK_PG_URL= SCHEDULE_ID=<회차 id> STAGES=20,40,80 bash loadtest/k6/run.sh scenarios/pay1-payment.js
 # R1-d 결제 → 확정 (발생기에서. 회차는 실행마다 새로)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/r1d-confirm.js
 ```
