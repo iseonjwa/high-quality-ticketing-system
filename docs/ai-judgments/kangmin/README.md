@@ -8,6 +8,9 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | **Gateway 과부하 발표 자료를 HTML 슬라이드로 만들자는 AI 추천을 거부하고, 소스 문서만 정리해 결제 담당이 가공하게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-12-presentation-source-only.md) |
+| 2026-11-12 | **Gateway CPU를 줄이려 대기열 폴링 상한(poll-max)을 10초에서 30초로 늘리자는 AI 제안을 거부함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-12-reject-poll-max-30s.md) |
+| 2026-11-12 | **요청 로그 PR은 리뷰 뒤 머지하고 재측정은 11/13에 하자는 AI 계획을 거부하고, 리뷰 전에 main까지 반영해 바로 배포 측정함(선조치 후보고)** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-12-merge-and-deploy-before-review.md) |
 | 2026-11-12 | 측정표 답글·결제와 예매 DB 풀 contract·요청 로그 B안 설계·R0 준비에 대한 AI 추천 9건(D1~D9)을 그대로 받아들임 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-12-accept-d1-d9-posting-and-h2-plan.md) |
 | 2026-11-12 | **"MD 뷰어로 보게 해 달라"를 앱 파일 패널로 처리한 AI 해석을 바로잡고, 로컬 웹페이지 MD 뷰어부터 만든 뒤 결정을 미룸** | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-12-local-md-viewer-before-decisions.md) |
 | 2026-11-12 | **서사 문서의 7차 빈칸은 별도 커밋으로 미루자는 AI 추천을 거부하고, 커밋 전에 7차 결과를 모두 채움** | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-12-fill-story-blanks-before-commit.md) |
