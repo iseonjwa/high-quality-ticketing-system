@@ -26,6 +26,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 대기 없는 동시 수 제한의 크기를 어떻게 정하는가 | [qna/2026-11-12-erlang-b-bulkhead-sizing.md](qna/2026-11-12-erlang-b-bulkhead-sizing.md) |
+| 2026-11-12 | Kafka 소비자를 늘리면 순서는 어떻게 지켜지는가 | [qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md](qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md) |
 | 2026-11-12 | 실패한 요청을 언제, 몇 번, 얼마나 기다렸다가 다시 보내야 하는가 | [qna/2026-11-12-retry-backoff-jitter.md](qna/2026-11-12-retry-backoff-jitter.md) |
 | 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
 | 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
