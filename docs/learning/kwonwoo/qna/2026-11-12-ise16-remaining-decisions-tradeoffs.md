@@ -10,7 +10,7 @@ tags: [kafka, outbox, seathold, config, trade-off]
 # 접수형 선점(ISE-16)에서 남은 다섯 가지 결정의 트레이드오프와 추천안
 
 ## 질문
-메시지 키 규칙([ADR 0053](../../../decisions/0053-async-seat-hold-key-for-mixed-sections.md))을 정한 뒤 남은 결정 다섯 가지에 대해, 선택지마다 이익과 손실을 구체적으로 적고 추천안을 달아 달라. 결정 근거로 쓰려 한다.
+메시지 키 규칙([ADR 0056](../../../decisions/0056-async-seat-hold-key-for-mixed-sections.md))을 정한 뒤 남은 결정 다섯 가지에 대해, 선택지마다 이익과 손실을 구체적으로 적고 추천안을 달아 달라. 결정 근거로 쓰려 한다.
 
 ## 짧은 답
 
@@ -64,13 +64,13 @@ tags: [kafka, outbox, seathold, config, trade-off]
 
 **D. 선점 메시지만 요청 ID처럼 겹치지 않는 키로 보낸다**
 - 이익: `common`을 고치지 않고 키별 제약을 피한다.
-- 손실: Kafka 파티션 키도 같이 바뀌어 구역 단위 줄 세우기(SA 10-1, ADR 0053)가 사라진다. 지금 `OutboxWriter.write`는 키 하나를 순서 키와 파티션 키로 같이 쓰기 때문이다. 채택하지 않는다.
+- 손실: Kafka 파티션 키도 같이 바뀌어 구역 단위 줄 세우기(SA 10-1, ADR 0056)가 사라진다. 지금 `OutboxWriter.write`는 키 하나를 순서 키와 파티션 키로 같이 쓰기 때문이다. 채택하지 않는다.
 
 **추천 이유**: A로 재고, 숫자가 나쁘면 C를 contract 이슈로 올린다. B는 C를 기다리는 동안 측정에서 쓰는 임시 손잡이로만 둔다.
 
 ### 2. 접수 단계에서 좌석 상태까지 볼지
 
-접수는 구역을 정하려고 요청 좌석(최대 4행)을 `schedule_seats`에서 읽어야 한다(ADR 0053). 같은 행에 `status`가 있으므로 상태를 보는 데 쿼리가 더 들지 않는다. 판매 기간과 "그 회차의 좌석인가" 검사도 같은 읽기로 할 수 있다.
+접수는 구역을 정하려고 요청 좌석(최대 4행)을 `schedule_seats`에서 읽어야 한다(ADR 0056). 같은 행에 `status`가 있으므로 상태를 보는 데 쿼리가 더 들지 않는다. 판매 기간과 "그 회차의 좌석인가" 검사도 같은 읽기로 할 수 있다.
 
 근거 데이터: 동기형 K1-H 측정에서 선점 409가 59,476건이었고, 201과 409 중 409가 87%였다(`docs/design/reservation/k6-seathold-bottleneck-plan.md` 5-4절). 오픈 피크에는 대부분의 요청이 이미 잡힌 좌석을 노린다.
 
@@ -180,7 +180,7 @@ SA 10-1은 동기형, 직접 발행, Outbox 세 가지를 비교하라고 한다
 - 설정을 왜 런타임에 안 바꿨나: 측정 비교의 공정성(같은 시작 조건)과 모드 전환 중 남은 요청 처리라는 경계 문제를 피하려고 재시작을 골랐다.
 
 ## 참고
-- [ADR 0053](../../../decisions/0053-async-seat-hold-key-for-mixed-sections.md), [메시지 키 노트](2026-11-12-async-seat-hold-message-key-options.md)
+- [ADR 0056](../../../decisions/0056-async-seat-hold-key-for-mixed-sections.md), [메시지 키 노트](2026-11-12-async-seat-hold-message-key-options.md)
 - `docs/core/SA MASTER.md` 9-6, 10-1, 10-3
 - `docs/design/reservation/contracts.md` 2-2, 3-2
 - 처리량 수치는 코드로 계산한 추정이다. ISE-17·ISE-18에서 측정한다.

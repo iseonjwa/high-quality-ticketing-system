@@ -32,7 +32,7 @@ shared: 예
 - 검토한 대안: 1안(섞이면 400 거부), 3안(회차 단위 키), 등급 키.
 
 ## 반영
-- [ADR 0053](../../decisions/0053-async-seat-hold-key-for-mixed-sections.md)
+- [ADR 0056](../../decisions/0056-async-seat-hold-key-for-mixed-sections.md)
 - 학습 노트 [2026-11-12-async-seat-hold-message-key-options.md](../../learning/kwonwoo/qna/2026-11-12-async-seat-hold-message-key-options.md)
 - 코드는 미반영(ISE-16 구현 예정, 브랜치 `feat/ISE-16-async-seat-hold-intake`).
 

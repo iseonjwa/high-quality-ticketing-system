@@ -13,7 +13,7 @@ shared: 예
 # 접수형 선점(ISE-16)의 남은 결정 다섯 가지를 AI 추천안대로 정함(접수 단계 409 즉시 거절 포함)
 
 ## 맥락
-- 해결하려던 작업: ISE-16(접수형 선점 접수 API와 결과 조회 API) 구현 전에 정해야 할 것을 정리했다. 메시지 키 규칙은 앞서 [ADR 0053](../../decisions/0053-async-seat-hold-key-for-mixed-sections.md)으로 정했다.
+- 해결하려던 작업: ISE-16(접수형 선점 접수 API와 결과 조회 API) 구현 전에 정해야 할 것을 정리했다. 메시지 키 규칙은 앞서 [ADR 0056](../../decisions/0056-async-seat-hold-key-for-mixed-sections.md)으로 정했다.
 - AI 활용 방식: 남은 결정마다 이익과 손실을 구체적으로 비교하고 추천안을 달아 달라고 요청했다. 결정 근거와 발표 근거로 쓰기 위해서다.
 
 ## AI 제안
@@ -39,7 +39,7 @@ shared: 예
   - 5번: ISE-16에서 같이 만들기, 만들지 않기
 
 ## 반영
-- [ADR 0054](../../decisions/0054-async-seat-hold-intake-and-mode.md)
+- [ADR 0057](../../decisions/0057-async-seat-hold-intake-and-mode.md)
 - `docs/design/reservation/contracts.md` 2-2, 3-2, 4절
 - ISE-17·ISE-18 Linear 이슈 메모
 - 2번은 계약 변경이라 ISE-120 담당(안준현)에게 contract 이슈로 확인을 받는다(초안 단계).

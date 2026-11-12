@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// 접수형 좌석 선점 접수와 결과 조회 API를 실제 HTTP와 PostgreSQL로 확인한다(ISE-16, contracts.md 2-2·3-2, ADR 0053·0054)
+// 접수형 좌석 선점 접수와 결과 조회 API를 실제 HTTP와 PostgreSQL로 확인한다(ISE-16, contracts.md 2-2·3-2, ADR 0056·0057)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
                 "seat-hold.mode=async"})
@@ -281,7 +281,7 @@ class AsyncSeatHoldApiTest {
 
     @Test
     void 선점된_요청을_조회하면_동기형과_같은_예매_블록과_결제_토큰을_준다() throws Exception {
-        // 모드와 상관없이 같은 행을 읽으므로 동기형으로 선점한 결과도 조회된다(ADR 0054)
+        // 모드와 상관없이 같은 행을 읽으므로 동기형으로 선점한 결과도 조회된다(ADR 0057)
         var key = UUID.randomUUID();
         syncService.hold(new HoldSeatsCommand(USER, key, scheduleId, List.of(seatIds.get(1), seatIds.get(0))));
 
@@ -366,7 +366,7 @@ class AsyncSeatHoldApiTest {
                 + " AND payload -> 'payload' ->> 'requestId' = ?", key.toString());
     }
 
-    // 즉시 거절은 seat_hold_requests·Outbox 행을 남기지 않는다(ADR 0054)
+    // 즉시 거절은 seat_hold_requests·Outbox 행을 남기지 않는다(ADR 0057)
     private void assertNoTrace(UUID key) {
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM seat_hold_requests WHERE request_id = ?",
                 Integer.class, key));

@@ -33,7 +33,7 @@ shared: 예
 - 검토한 대안: A(운영 절차), B(409 `RESERVATION_NOT_PAYABLE`), D(`REJECTED`는 원래 사유의 409)
 
 ## 반영
-- [ADR 0055](../../decisions/0055-sync-replay-of-async-requests.md)
+- [ADR 0058](../../decisions/0058-sync-replay-of-async-requests.md)
 - `docs/design/reservation/contracts.md` 3-2 ⑦
 - 코드: `SyncHoldOutcome`(Held·Accepted), `SyncSeatHoldService.replay`, `SeatHoldController`
 - ISE-247 본문 갱신

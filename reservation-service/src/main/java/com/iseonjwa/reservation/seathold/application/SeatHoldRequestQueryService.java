@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.util.UUID;
 
 /**
- * 선점 접수 결과 조회(contracts.md 2-2절). 모드와 상관없이 동작한다(ADR 0054). 동기형은 성공한 선점만 행을 남기므로
+ * 선점 접수 결과 조회(contracts.md 2-2절). 모드와 상관없이 동작한다(ADR 0057). 동기형은 성공한 선점만 행을 남기므로
  * HELD 아니면 404다.
  */
 @Service

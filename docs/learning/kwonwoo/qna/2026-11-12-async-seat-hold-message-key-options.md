@@ -13,7 +13,7 @@ tags: [kafka, outbox, partition-key, seathold, trade-off]
 ISE-16(접수형 선점 접수 API)에서 메시지 키를 `{scheduleId}:{section}`으로 정해 두었는데, 한 요청의 좌석이 여러 구역에 걸치면 키를 무엇으로 할지 정해야 한다. 선택지 세 가지(섞이면 거부, 대표 구역 하나를 키로, 회차 단위 키)의 이점과 손실을 구체적으로 비교해 달라. 발표 근거로도 쓰려 한다.
 
 ## 짧은 답
-- 결정: 2안을 채택했다([ADR 0053](../../../decisions/0053-async-seat-hold-key-for-mixed-sections.md), [판단 기록](../../../ai-judgments/kwonwoo/2026-11-12-async-seat-hold-mixed-section-key.md)).
+- 결정: 2안을 채택했다([ADR 0056](../../../decisions/0056-async-seat-hold-key-for-mixed-sections.md), [판단 기록](../../../ai-judgments/kwonwoo/2026-11-12-async-seat-hold-mixed-section-key.md)).
 - 세 안 모두 중복 판매는 막는다. 정합성은 키가 아니라 좌석 조건부 UPDATE와 좌석 ID 오름차순 잠금이 지킨다. 키가 바꾸는 것은 처리 순서의 범위, 처리량, 계약 변경 비용이다.
 - 회차 단위 키(3안)는 지금 Outbox 릴레이 구조에서 회차당 초당 약 2건만 내보내므로 접수형의 목적과 반대로 간다. 제외한다.
 - 구역이 섞이면 거부(1안)는 "한 요청 = 한 구역" 불변식이 깔끔하지만, 지금 프론트가 구역을 섞어 고를 수 있게 되어 있어 계약·프론트·k6를 함께 바꿔야 한다.

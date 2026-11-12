@@ -27,7 +27,7 @@ import java.util.UUID;
 /**
  * 좌석 선점 API(contracts.md 1·2절). 입장 토큰({@code X-Entry-Token})의 서명·만료·사용자·회차는 Gateway가 검증하므로
  * 여기서 다시 보지 않는다(ISE-20). 사용자 ID는 Gateway가 검증해 전달한 값만 쓴다.
- * 동기형(201)과 접수형(202)은 설정 {@code seat-hold.mode}로 고르고, 분기는 이 API 하나에만 둔다(ADR 0054).
+ * 동기형(201)과 접수형(202)은 설정 {@code seat-hold.mode}로 고르고, 분기는 이 API 하나에만 둔다(ADR 0057).
  */
 @RestController
 public class SeatHoldController {
@@ -57,7 +57,7 @@ public class SeatHoldController {
         return switch (syncService.hold(command)) {
             case SyncHoldOutcome.Held held -> ResponseEntity.status(201).body(
                     SuccessResponse.of(201, "선점되었습니다", HoldResponse.from(held.result()), MDC.get("traceId")));
-            // 접수형으로 시작한 요청은 동기형 서버에서도 202로 답한다(ADR 0055)
+            // 접수형으로 시작한 요청은 동기형 서버에서도 202로 답한다(ADR 0058)
             case SyncHoldOutcome.Accepted accepted -> accepted(accepted.requestId());
         };
     }

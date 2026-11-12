@@ -227,5 +227,15 @@ SA 12-4 그대로(`billing_key_enc` 암호화 저장, 사용자당 ACTIVE 1개, 
 - 다시 등록하면 같은 트랜잭션에서 기존 ACTIVE를 REVOKED로 바꾸고 새 ACTIVE를 넣는다. 해지(`DELETE …/billing-keys/me`)도 REVOKED다.
 - 자동결제 결제 행은 `method = BILLING`이고 멱등 기록을 남기지 않는다. 같은 예매 중복은 `UNIQUE(reservation_id)`가 막는다(0026). 활성 빌링키가 없거나 PG가 빌링키를 거절하면 `decline_code = BILLING_KEY_MISSING`이다.
 
+### 등록 횟수 제한 (ISE-241)
+
+- **무엇을 세나**: 사용자별 빌링키 등록 API의 PG 발급 시도다. 요청마다 PG 호출이 생기고 성공하면 `REVOKED` 행이 하나 늘기 때문에, 목적은 PG 호출 수를 묶는 것이다. 허용한 시도는 PG 결과(성공·거절·결과 모름)와 상관없이 세고 거절(429)한 요청은 세지 않는다. 해지(`DELETE /me`)와 서버 내부의 자동결제는 대상이 아니다.
+- **상한과 근거**: `payment.billing-key.registration-limit.per-minute` 3, `per-day` 10이다. `[가정]`이다. 카드 교체는 드문 일이라 PG 발급 호출을 사용자당 하루 10회로 묶는다. 1 미만이면 기동하지 않는다.
+- **알고리즘**: 슬라이딩 윈도 로그다. 사용자별로 허용한 시각을 쌓고 최근 60초·24시간 안의 수를 센다. 검사와 기록을 `ConcurrentHashMap.compute` 한 구역에서 하는 것이 핵심이다. 따로 하면 동시 요청이 모두 검사를 통과한다(check-then-act 경쟁). 오래 쉰 사용자는 한 시간에 한 번 지워 맵이 사용자 수만큼 자라지 않게 한다.
+- **응답**: 429 `BILLING_KEY_RATE_LIMITED`. `Retry-After`는 `common`의 처리기를 고치지 않고 이 서비스의 전용 처리기(`BillingKeyRateLimitedHandler`)가 올림한 초로 싣는다.
+- **한계**: 메모리에만 있어 재시작하면 초기화되고 인스턴스마다 따로 센다. 배포는 결제 서비스 한 대라 받아들인다.
+- **고르지 않은 대안**: DB 시도 테이블은 막으려는 요청마다 쓰기가 생기고 마이그레이션이 필요하다. Redis 카운터는 결제 서비스가 Redis를 쓰지 않아 의존이 늘고, 인스턴스가 하나인 지금은 이득이 없다. Gateway·nginx의 IP 기준 제한은 사용자 기준이 아니고 로그인한 사용자의 다른 IP 요청을 구분하지 못한다. 여러 인스턴스로 늘면 Redis 카운터를 다시 검토한다.
+- **`REVOKED` 행 정리는 하지 않는다**: 상한으로 사용자당 하루 10행으로 묶이고, 등록 이력은 감사 근거로 남긴다.
+
 ## 12. 보관
 `payments`·`refunds`·`payment_status_histories`·`manual_action_logs`·`dead_letters`·`reconciliation_mismatches`는 자동 삭제하지 않는다(결제 기록 5년 보관, SA 12-1). 정리 대상은 `outbox_events`·`processed_events`·`idempotency_records`뿐이다([events-and-reliability.md](events-and-reliability.md) 8절).

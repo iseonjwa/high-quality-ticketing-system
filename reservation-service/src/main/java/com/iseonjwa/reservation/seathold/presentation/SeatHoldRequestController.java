@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 선점 접수 결과 조회(contracts.md 2-2절). 모드와 상관없이 연다(ADR 0054). 입장 토큰 검사 대상이 아니어서
+ * 선점 접수 결과 조회(contracts.md 2-2절). 모드와 상관없이 연다(ADR 0057). 입장 토큰 검사 대상이 아니어서
  * 입장 토큰이 만료된 뒤에도 결과를 볼 수 있다(Gateway {@code EntryTokenPolicy}는 선점 POST만 본다).
  */
 @RestController

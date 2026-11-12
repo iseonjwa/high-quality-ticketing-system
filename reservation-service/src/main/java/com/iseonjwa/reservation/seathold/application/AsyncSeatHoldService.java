@@ -22,7 +22,7 @@ import java.util.UUID;
  * 접수형 좌석 선점의 접수(M4, SA 10-1 D4, ISE-16). 좌석 행을 잠그지 않고 {@code seat_hold_requests(REQUESTED)}와
  * Outbox {@code SeatHoldRequested}를 한 트랜잭션에 쓴다. 실제 선점은 소비자(ISE-17)가 한다.
  *
- * <p>접수에서 거르는 것은 동기형과 같은 입력 검증과, 이미 잡힌 좌석이다(ADR 0054). 매수 한도는 앞선 접수 요청까지
+ * <p>접수에서 거르는 것은 동기형과 같은 입력 검증과, 이미 잡힌 좌석이다(ADR 0057). 매수 한도는 앞선 접수 요청까지
  * 반영해야 해서 소비자가 판단한다.
  */
 @Service
@@ -86,7 +86,7 @@ public class AsyncSeatHoldService {
     }
 
     // Note: 잠그지 않고 읽은 상태라 그사이 바뀔 수 있다. 여기서 AVAILABLE이어도 소비자의 조건부 UPDATE가 최종 판단이고,
-    // 여기서 잡혀 보인 좌석은 같은 순간 동기형도 409를 준다. 오픈 피크 요청 대부분이 이 경우라 줄에 넣기 전에 거른다(ADR 0054)
+    // 여기서 잡혀 보인 좌석은 같은 순간 동기형도 409를 준다. 오픈 피크 요청 대부분이 이 경우라 줄에 넣기 전에 거른다(ADR 0057)
     private static void requireAllHoldable(List<ScheduleSeat> seats) {
         for (var seat : seats) {
             if (!seat.isHoldable()) {
@@ -95,7 +95,7 @@ public class AsyncSeatHoldService {
         }
     }
 
-    // 구역이 여럿이면 사전순으로 가장 작은 구역을 키로 쓴다. 같은 요청은 늘 같은 키를 얻는다(ADR 0053)
+    // 구역이 여럿이면 사전순으로 가장 작은 구역을 키로 쓴다. 같은 요청은 늘 같은 키를 얻는다(ADR 0056)
     private static String representativeSection(List<ScheduleSeat> seats) {
         return seats.stream()
                 .map(ScheduleSeat::getSection)

@@ -101,7 +101,7 @@ public class SyncSeatHoldService {
         SeatHoldRules.requireSameRequest(previous, command, seatIds);
         // Note: 동기형은 HELD 행만 남기지만, 접수형으로 받은 요청(REQUESTED·REJECTED)이 남은 채 동기형으로 다시 뜰 수 있다.
         // 처리 중인 요청을 실패로 답하면 사용자가 새 좌석을 고르는 사이 앞 요청이 HELD가 되어 모르는 예매가 좌석·매수를 묶는다.
-        // 그래서 접수형으로 시작한 요청은 202로 답하고 결과는 조회 API로 보게 한다(ADR 0055)
+        // 그래서 접수형으로 시작한 요청은 202로 답하고 결과는 조회 API로 보게 한다(ADR 0058)
         if (previous.getStatus() != SeatHoldRequestStatus.HELD) {
             return new SyncHoldOutcome.Accepted(previous.getRequestId());
         }

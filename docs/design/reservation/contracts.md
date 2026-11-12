@@ -75,9 +75,9 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 
 ### 2-2. 접수형 선점 응답 (`202 Accepted` 및 결과 조회, M4 고도화 모드)
 
-서버 설정 `seat-hold.mode=async`일 때 동작한다. 모드는 reservation-service가 기동할 때 한 번 읽고, 바꾸려면 재시작한다(`sync` 기본, [ADR 0054](../../decisions/0054-async-seat-hold-intake-and-mode.md)). 클라이언트는 응답의 `data.status`가 `HELD`(동기형 즉시 완료)인지 `REQUESTED`(접수형 폴링 대기)인지만 분기하면 된다.
+서버 설정 `seat-hold.mode=async`일 때 동작한다. 모드는 reservation-service가 기동할 때 한 번 읽고, 바꾸려면 재시작한다(`sync` 기본, [ADR 0057](../../decisions/0057-async-seat-hold-intake-and-mode.md)). 클라이언트는 응답의 `data.status`가 `HELD`(동기형 즉시 완료)인지 `REQUESTED`(접수형 폴링 대기)인지만 분기하면 된다.
 
-> 2026-11-12 변경(ISE-16, ADR 0053·0054):
+> 2026-11-12 변경(ISE-16, ADR 0056·0057):
 > - 접수형 POST도 접수 단계에서 동기형과 같은 입력 검증을 한다. 요청 좌석이 이미 잡혀 있으면 행을 남기지 않고 즉시 `409 SEAT_ALREADY_HELD`를 준다. 잠금 없는 읽기이고 최종 판단은 소비자가 한다. 이 항목은 ISE-120 담당 확인 뒤 확정한다.
 > - 결과 조회 API는 모드와 상관없이 열려 있다.
 > - 메시지 키는 `{scheduleId}:{section}`이고, 좌석이 여러 구역에 걸치면 사전순으로 가장 작은 구역을 쓴다.
@@ -159,7 +159,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | **④ 첫 요청이 `HELD`로 성공했으나 재요청 시점에 이미 만료·해제·취소(`EXPIRED`·`RELEASED`·`CANCELED`)됨, 또는 `now >= holdExpiresAt - 10초`** | 더 이상 그 선점으로 결제할 수 없으므로 **`409 RESERVATION_NOT_PAYABLE`** (새 좌석 선택·새 멱등키 유도) | `POST`는 `202 Accepted`, `GET /requests/{id}`는 예매의 현재 상태 반영 |
 | **⑤ 첫 요청이 `409`(`SEAT_ALREADY_HELD`·`PURCHASE_LIMIT_EXCEEDED`)로 실패한 뒤 같은 키로 재요청** | 첫 요청 실패 시 트랜잭션이 전체 롤백되어 `seat_hold_requests` 행이 없으므로 새로 선점을 시도한다(여전히 팔린 좌석이면 동일하게 `409`) | 접수 단계에서 즉시 `409`로 거절됐으면 행이 없으므로 새로 판단한다(동기형과 같음). 소비자가 `seat_hold_requests(REJECTED)`를 커밋했으면 `POST`는 `202 Accepted`, `GET /requests/{id}`는 `200 OK (status: REJECTED, reasonCode)` |
 | **⑥ 첫 요청이 아직 처리 중인데 연타(따닥)로 동시에 두 번째 요청 도착** | 한쪽이 PK/Unique 제약 위반을 만나면 `500` 대신 롤백 후 커밋된 첫 요청 결과를 재조회해 ①~④ 규칙으로 응답. M2 기준선(ISE-12)은 사전 조회만 해서 두 번째 요청이 좌석 행 잠금을 기다린 뒤 `409 SEAT_ALREADY_HELD`를 받을 것으로 본다(구조상 추정, 미재현). M4 TS-3에서 재현 후 고친다([ADR 0035](../../decisions/0035-defer-seathold-concurrency-and-reconciliation-to-m4.md)) | `seat_hold_requests`가 `REQUESTED` 상태이므로 **`202 Accepted` + `Location`** 반환 |
-| **⑦ 첫 요청을 접수형 서버가 받았고(`REQUESTED`·`REJECTED`), 그 뒤 서버가 동기형으로 재시작됨** | 실패로 답하지 않고 **`202 Accepted` + `Location`**(접수형 202와 같은 본문). 결과는 `GET /requests/{id}`로 본다. 요청은 시작한 방식으로 끝까지 답한다([ADR 0055](../../decisions/0055-sync-replay-of-async-requests.md)). 행이 `HELD`가 됐으면 ②~④를 따른다 | ①~⑤와 같다 |
+| **⑦ 첫 요청을 접수형 서버가 받았고(`REQUESTED`·`REJECTED`), 그 뒤 서버가 동기형으로 재시작됨** | 실패로 답하지 않고 **`202 Accepted` + `Location`**(접수형 202와 같은 본문). 결과는 `GET /requests/{id}`로 본다. 요청은 시작한 방식으로 끝까지 답한다([ADR 0058](../../decisions/0058-sync-replay-of-async-requests.md)). 행이 `HELD`가 됐으면 ②~④를 따른다 | ①~⑤와 같다 |
 
 ---
 
@@ -176,7 +176,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | `404` | `NOT_FOUND` | 존재하지 않는 `scheduleId`로 선점 요청, 또는 접수 결과 조회 시 존재하지 않거나 타인의 `requestId` 조회 |
 | `409` | `SALE_NOT_OPEN` | 서버 시각(`now`)이 회차의 `open_at` 이전이거나 이미 판매 종료된 회차 (E4) |
 | `409` | `PURCHASE_LIMIT_EXCEEDED` | `user_schedule_quotas` 조건부 UPDATE 결과 0행 (`held_count + 요청 매수 > max_per_user`) (E3, D1) |
-| `409` | `SEAT_ALREADY_HELD` | `schedule_seats` 조건부 UPDATE 결과 갱신 행 수 < 요청 좌석 수, DB `lock_timeout(500ms)` 초과, 또는 `reservation_seats` 부분 유니크 인덱스 충돌 (E1, D2). 접수형은 접수 단계에서 요청 좌석이 `AVAILABLE`이 아니거나 추첨석으로 보일 때도 즉시 반환한다(ADR 0054) |
+| `409` | `SEAT_ALREADY_HELD` | `schedule_seats` 조건부 UPDATE 결과 갱신 행 수 < 요청 좌석 수, DB `lock_timeout(500ms)` 초과, 또는 `reservation_seats` 부분 유니크 인덱스 충돌 (E1, D2). 접수형은 접수 단계에서 요청 좌석이 `AVAILABLE`이 아니거나 추첨석으로 보일 때도 즉시 반환한다(ADR 0057) |
 | `409` | `IDEMPOTENCY_KEY_REUSED` | 이미 사용된 `Idempotency-Key`로 다른 `scheduleId`·다른 `seatIds`·다른 사용자의 요청이 들어온 경우 (E2) |
 | `409` | `RESERVATION_NOT_PAYABLE` | 같은 `Idempotency-Key`로 재요청했으나 기존 선점 예매가 이미 만료(`EXPIRED`)·해제(`RELEASED`)·취소(`CANCELED`)되었거나 결제 토큰 발급 가능 시각(`holdExpiresAt - 10초`)이 지난 경우 |
 | `503` | `SERVICE_UNAVAILABLE` | DB 연결 실패 등 일시적 인프라 장애 |
@@ -189,7 +189,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 선점 모듈(`seathold`)이 예매(`HELD`)를 저장한 직후 응답에 `paymentToken`과 `paymentTokenExpiresAt`을 담으려면 예매 흐름 담당(반효승)이 구현할 **결제 토큰 발급 컴포넌트**를 호출해야 한다([ISE-22](https://linear.app/myworkspace1075/issue/ISE-22)).
 - 결제 토큰 규칙([contracts.md](../payment/contracts.md) 1절 확정):
   - claim: `typ="payment"`, `aud="payment-service"`, `sub`(문자열 userId), `reservationId`(JSON 정수), `amount`(JSON 정수), `exp`(`holdExpiresAt - 10초`), `jti`(UUID)
-  - 서명: HS256, `PAYMENT_TOKEN_SECRET` (`TokenDecoders.signingKey(secret)`)
+  - 서명: ES256, 개인키 `PAYMENT_TOKEN_PRIVATE_KEY`(PKCS#8 DER의 Base64 한 줄, ISE-245·ADR 0055). 결제 서비스는 공개키로 검증한다
 - **인터페이스 제안**:
   ```java
   public interface PaymentTokenIssuer {
