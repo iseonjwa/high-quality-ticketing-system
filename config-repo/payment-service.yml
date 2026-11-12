@@ -37,6 +37,12 @@ messaging:
     lease: 30s
     send-timeout: 12s
 payment:
+  messaging:
+    command:
+      # payment.command 토픽의 파티션 수와 리스너 동시성(ADR 0051, ISE-236). [가정] 11/10 측정에서 소비자 1개가 초당 약 3.2건이라 3개로 올린다.
+      # 같은 예매(키)의 명령은 같은 파티션이라 순서가 지켜진다. 동시성은 파티션 수 이하여야 하고, pg-billing 동시 허가(3)와 같게 둔다
+      partitions: 3
+      concurrency: 3
   token:
     # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
     secret: ${PAYMENT_TOKEN_SECRET:}

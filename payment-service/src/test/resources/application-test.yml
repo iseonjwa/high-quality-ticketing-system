@@ -13,6 +13,9 @@ spring:
     hibernate:
       ddl-auto: validate
   kafka:
+    admin:
+      # 테스트는 브로커가 없다. payment.command 토픽 선언(NewTopic)을 하려고 브로커를 기다리지 않는다
+      auto-create: false
     producer:
       properties:
         # config-repo/payment-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
