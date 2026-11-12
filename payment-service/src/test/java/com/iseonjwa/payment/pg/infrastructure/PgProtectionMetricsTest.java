@@ -20,9 +20,10 @@ class PgProtectionMetricsTest {
         var configuration = new PgProtectionConfiguration();
         var breakers = configuration.pgCircuitBreakerRegistry();
         var bulkheads = configuration.pgBulkheadRegistry();
-        var properties = new PgProtectionProperties(null, null);
+        var properties = new PgProtectionProperties(null, null, null);
         approvalGate = configuration.pgApprovalGate(properties, breakers, bulkheads);
         configuration.pgRecoveryGate(properties, breakers, bulkheads);
+        configuration.pgBillingGate(properties, breakers, bulkheads);
         for (MeterBinder binder : new MeterBinder[] {configuration.pgCircuitBreakerMetrics(breakers),
                 configuration.pgBulkheadMetrics(bulkheads)}) {
             binder.bindTo(meters);
@@ -30,7 +31,7 @@ class PgProtectionMetricsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"pg-approve", "pg-recovery"})
+    @ValueSource(strings = {"pg-approve", "pg-recovery", "pg-billing"})
     void CB_상태와_Bulkhead_여유가_그룹_이름으로_등록된다(String group) {
         assertNotNull(meters.find("resilience4j.circuitbreaker.state").tag("name", group).gauge(), group);
         assertNotNull(meters.find("resilience4j.circuitbreaker.failure.rate").tag("name", group).gauge(), group);

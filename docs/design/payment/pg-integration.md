@@ -66,20 +66,64 @@ PG 호출은 `PgClient` 포트 뒤에 두고, 서비스 코드는 PG별 요청·
 
 ## 5. 호출 보호
 
-PG 호출 자원은 호출 특성과 장애 영향으로 두 그룹만 나눈다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md)). 값은 모두 `[가정]`이며 부하 측정 뒤 조정한다.
+PG 호출 자원은 호출 특성과 장애 영향으로 나눈다. 승인과 복구 두 그룹에 더해 추첨 자동결제 전용 그룹을 둔다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md), 자동결제 분리는 0018 개정(2026-11-12)과 추첨 쪽 ADR 0051). 값은 모두 `[가정]`이며 부하 측정 뒤 조정한다.
 
 | 그룹 | 호출 | 호출자 | Bulkhead | Circuit Breaker | 허가를 못 얻으면 |
 |---|---|---|---|---|---|
-| `pg-approve` | `approve` | 승인 API | 동시 10, 대기 0 | 최근 20회 중 실패율 50% 이상이면 OPEN, OPEN 10초, HALF_OPEN 시험 3회 | 503 `PG_UNAVAILABLE`, 행 없음 |
+| `pg-approve` | `approve` | 승인 API | 동시 30, 대기 0(설정으로 받는다. 코드 기본값은 10이고 `config-repo`가 30으로 덮는다. 아래 "승인 동시 허가 수와 대기 시간") | 최근 20회 중 실패율 50% 이상이면 OPEN, OPEN 10초, HALF_OPEN 시험 3회 | 503 `PG_UNAVAILABLE`, 행 없음 |
+| `pg-billing` | `approveBilling` | `payment.command` 소비자(추첨 자동결제, ADR 0051) | 동시 3(소비자 동시성과 같게), 대기 0 | 같은 기준, 상태는 별도 | 503이 아니라 같은 레코드를 1초 간격으로 다시 읽음(무제한, 행을 만들지 않음, 그 파티션의 뒤 메시지만 멈춤) |
 | `pg-recovery` | `findPayment`, `preventLateApproval`, `refund`, `findRefund` | 재확인 스케줄러, 환불 워커, Ops 명령(조회) | 동시 2(복구 실행기 스레드 수) | 같은 기준, 상태는 별도 | 다음 주기로 넘기고 시도 횟수를 세지 않음. Ops 명령은 거부 |
 
-- 타임아웃은 두 그룹 모두 연결 0.5초·응답 2초다(SA 9-4).
+- 타임아웃은 모든 그룹이 연결 0.5초·응답 2초다(SA 9-4).
 - 결과를 모르는 `Unknown`(`TIMEOUT`·`CONNECTION_LOST`·`PG_ERROR`·`PROCESSING`)은 CB에 실패로 기록하고, 정상 거절과 `NotFound`는 성공으로 센다. `Unknown(CLIENT_ERROR)`(요청·인증을 거절한 4xx)는 셈하지 않고 허가만 반환한다. 분류는 `PgPermit.settle` 한 곳이 맡는다([0018](../../decisions/0018-payment-pg-permit-before-tx1.md) 개정).
 - 허가 획득과 정산은 PG 호출 래퍼 한 곳에서 `try/finally`로 묶는다. 승인은 TX1 앞에서 얻고 TX1이 실패하면 호출 결과로 세지 않고 반환한다.
-- Ops 명령은 별도 프로세스라 같은 설정의 별도 Resilience4j 인스턴스를 쓴다.
+- Ops 명령은 별도 프로세스라 같은 설정의 별도 Resilience4j 인스턴스를 쓴다(세 그룹이 모두 생긴다).
+- 빌링키 발급(`BillingKeyService`의 `issueBillingKey`)은 어느 그룹도 쓰지 않는다. Bulkhead·CB 없이 Mock PG 어댑터를 바로 부르고 결과 모름이면 503 `PG_UNAVAILABLE`로 답한다. 이번에 바꾸지 않았다.
+- 자동결제는 사용자가 기다리지 않는 배경 호출이라 허가를 못 얻어도 사용자 응답이 없다. 그래서 일반 결제처럼 503으로 끝내지 않고 소비자가 같은 레코드를 다시 읽는다. 일반 결제와 자리를 나눠 추첨 자동결제 폭주가 일반 결제의 자리를 빼앗지 않고, 반대도 마찬가지다.
 - 503 `PG_UNAVAILABLE`은 PG 장애만 뜻하지 않는다. 허가는 TX1부터 PG 호출 정산까지 Bulkhead 자리를 잡으므로 DB(TX1)가 느려도 자리가 차서 같은 503이 날 수 있다. 원인은 Bulkhead 가용 수(`resilience4j_bulkhead_available_concurrent_calls{name="pg-approve"}`)와 TX1 지연을 함께 본다(ISE-156 지표). 건수는 `payment_approve_seconds_count{outcome="unavailable"}`다.
-- 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate`다. `tryAcquire`는 허가만 얻고(못 얻으면 빈 값) 호출한 쪽이 `callStarted`·`settle`·`close`를 맡으며, `execute`는 그 위에서 허가·호출·정산을 한 번에 묶는다. 허가를 못 얻으면 호출하지 않고 시도 횟수를 세지 않는다. 재확인 스케줄러는 `tryAcquire`로 "허가 먼저, claim 나중"을 지킨다([events-and-reliability.md](events-and-reliability.md) 6절). 설정은 `payment.pg.protection.{approve,recovery}.*`다. 복구 그룹의 호출자 중 재확인 스케줄러는 ISE-38에서, 환불 워커는 ISE-137에서 붙였다.
+- 구현(ISE-37): `resilience4j-circuitbreaker`·`resilience4j-bulkhead` 2.3.0을 Spring 통합 없이 코어로 쓴다. 승인 그룹은 `PgApprovalGate`(허가를 얻어 `PgPermit`으로 정산), 복구 그룹은 `PgRecoveryGate`다. `tryAcquire`는 허가만 얻고(못 얻으면 빈 값) 호출한 쪽이 `callStarted`·`settle`·`close`를 맡으며, `execute`는 그 위에서 허가·호출·정산을 한 번에 묶는다. 허가를 못 얻으면 호출하지 않고 시도 횟수를 세지 않는다. 재확인 스케줄러는 `tryAcquire`로 "허가 먼저, claim 나중"을 지킨다([events-and-reliability.md](events-and-reliability.md) 6절). 설정은 `payment.pg.protection.{approve,recovery,billing}.*`다. 자동결제 그룹은 `PgBillingGate`다(ISE-236). 복구 그룹의 호출자 중 재확인 스케줄러는 ISE-38에서, 환불 워커는 ISE-137에서 붙였다.
 - PG 호출은 트랜잭션 밖이고 TX1 커밋 뒤에 한다.
+
+### 승인 동시 허가 수와 대기 시간 (ISE-238, 2026-11-12 배포 측정)
+
+`pg-approve`의 Bulkhead 값은 두 가지다. 설정은 `payment.pg.protection.approve.max-concurrent-calls`와 `max-wait-duration`이다(`PgProtectionProperties`).
+
+**허가 수가 정하는 것 두 가지**
+
+- 처리량의 상한: 동시에 진행 중인 승인 수 L = 초당 도착 λ × 한 건이 머무는 시간 W(리틀의 법칙)이고, 허가 수가 L의 상한이다. 그래서 최대 처리량은 `허가 수 ÷ (TX1 + PG 응답 시간)`이다. PG 300ms에서 허가 10이면 초당 약 31건이다.
+- 장애 때 묶이는 스레드 수의 상한: PG가 느려지면 허가를 쥔 요청 스레드가 PG 응답을 기다린다. 허가 수는 그 스레드 수의 최대값이다. Tomcat 요청 스레드(기본 200) 중 이 수만큼만 PG에 묶이고 나머지는 조회·재시도 응답을 계속 처리한다.
+
+두 값이 한 숫자에 걸려 있어 처리량을 올리면 장애 때 묶이는 스레드도 는다. 그래서 필요한 처리량에서 값을 정한다.
+
+**필요한 값**: 대기열이 초당 50명을 들인다(`admit-per-second: 50`). 필요한 허가 ≈ 결제 도착률 50 × PG p99 0.35초 × 여유 2 ≈ 35다.
+
+**측정**([open-peak-scenarios.md](../infra/open-peak-scenarios.md) 3절 "PAY1 PG 동시 허가 30과 짧은 대기 200ms")
+
+| 설정 | PG 300ms에서 승인 한도 | 요청 80/초에서 거절 | 과부하 때 승인 p50 | 과부하 때 거절 응답 p50 |
+|---|---|---|---|---|
+| 허가 10, 대기 0(지금 값) | 초당 31.2건 | 59.5% | 311ms | 즉시 |
+| 허가 30, 대기 0 | 초당 91.5건 | 0.2% | 309ms | 3ms |
+| 허가 30, 대기 200ms | 초당 98.5건 | 0% | 491ms | 203ms |
+
+허가 30에서도 Hikari 활성 연결은 최대 3개(풀 20), 대기 0이었다. PG 호출을 트랜잭션 밖에서 하므로 허가 수가 DB 연결 수요로 이어지지 않는다.
+
+**결정**
+
+- 일반 결제 `pg-approve`는 30으로 올린다(`config-repo/payment-service.yml`에 반영했다, ISE-238). PG가 느린 경우(PAY1-b: 지연 1,000·1,900·2,500ms)는 허가 30으로 배포에서 잰 뒤 24~30 안에서 확정한다(ISE-246). PG가 응답 시한(2초)을 넘기면 결과를 모르는 `UNKNOWN` 결제가 허가 수에 비례해 쌓이고 복구 그룹(동시 2)이 그것을 치우므로, 이 구간을 보고 정한다.
+- 추첨 자동결제는 전용 그룹 `pg-billing`(동시 3)을 쓴다(ISE-236). 일반 결제 30과 합쳐 PG를 동시에 부르는 호출은 일반 30 + 자동결제 3 + 복구 2 = 최대 35다. 토스의 동시 호출 한도는 확인하지 못했다. Mock PG에는 한도가 없고, 토스 모드의 상한은 배포 전에 토스 문서나 지원에 확인해야 한다.
+- 대기 시간은 0으로 둔다. 대기를 주면 포화 때 자리를 기다리는 요청이 스레드를 쥐고, 그때 승인되는 결제가 모두 대기한 만큼 늦어지며 거절도 그만큼 늦게 나간다. 허가 30에서는 순간 몰림 거절이 이미 0이라 얻는 것이 과부하 때 승인 7.7%뿐이다.
+- 대기 시간 설정은 코드에 남긴다(기본 0, 0 이상 1초 이하만 받는다). 실제 PG처럼 지연 편차가 큰 환경에서 다시 잴 때 코드를 고치지 않고 값만 바꾼다. 1초 상한은 승인 한 건의 시간 예산(아래)이 Gateway 3초 안에 들어와야 해서다.
+
+**Erlang B로 본 거절 확률**: 리틀의 법칙은 평균 동시 수를 주고, Erlang B는 무작위로 도착하는 요청이 대기 없는 허가(손실 시스템)에 부딪혀 거절될 확률을 준다. 도착이 포아송이면 평균 동시 수가 허가 수보다 작아도 순간 몰림으로 일부가 거절된다. 아래는 허가를 쥐는 시간 0.315초(TX1 + PG 300ms 등) 기준 계산값이다(측정이 아니다). 제공 부하 a = 초당 도착 × 0.315다.
+
+| 초당 도착 | 허가 10 | 허가 17 | 허가 20 | 허가 24 | 허가 27 | 허가 30 |
+|---|---|---|---|---|---|---|
+| 30건 (a ≈ 9.5) | 18.9% | 0.85% | 0.10% | - | - | - |
+| 50건 (a ≈ 15.8) | - | 13.4% | 5.9% | 1.3% | 0.28% | 0.05% |
+
+k6의 일정한 도착은 포아송보다 몰림이 적어 같은 허가 수에서 거절이 더 낮게 나온다. 위 측정(허가 30에서 0.2%)은 그래서 이 계산값보다 낙관적이다. 계산식과 코드는 [학습 노트](../../learning/junhyun/qna/2026-11-12-erlang-b-bulkhead-sizing.md)에 있다.
+
+**하지 않은 것**: 결제 서비스 인스턴스 증설(허가가 인스턴스마다 따로라 2대면 2배지만 단일 EC2의 메모리 예산 밖이다), PG 호출 비동기화(스레드가 병목이 아니다. 허가 30에서 JVM 스레드 최대 112).
 
 시간 예산: 승인 요청 한 건은 TX1(연결 대기 1초 이내) + PG 최대 2.5초 + TX2(연결 대기 1초 이내)라 Gateway 응답 시한 3초를 넘을 수 있다. 넘으면 클라이언트는 504를 받고 서버는 처리를 계속한다. 같은 키 재시도로 결과를 받는다([api.md](api.md) 응답 절, N29). PG 호출 전 구간(TX1까지)은 DB가 응답 없이 멈춰도 연결을 빌릴 때 1초(대기·생존 검사), 빌린 연결의 첫 문장에서 2초(소켓 시한) 안에 끝나 503으로 응답한다. DB가 멈추지 않고 느리기만 하면 문장마다 1.5초까지 걸려 3초를 넘을 수 있다([events-and-reliability.md](events-and-reliability.md) 7절 DB 시한). TX2 쪽은 위 설명 그대로다(3초를 넘으면 504, 같은 키 재시도).
 
@@ -139,6 +183,10 @@ SA 11-5에 S-28(금액·통화)을 더한 모양이다. 실제 Mock PG 서버를
 | `issueBillingKey`·`approveBilling` | 호출하지 않는다. 빌링은 서버 모드와 상관없이 늘 Mock으로 보낸다(2026-11-10) | 방어용으로 `Unknown(CLIENT_ERROR)` / `Declined(NOT_SENT)`(보내지 않았으므로 확실히 승인되지 않음)를 남겨 둔다 |
 
 시간 초과는 `Unknown(TIMEOUT)`, 연결 실패와 응답 없이 끊김은 `Unknown(CONNECTION_LOST)`다(Mock과 같다). 응답 시각은 `+09:00` 오프셋 ISO 8601이라 `OffsetDateTime`으로 읽는다. 시크릿 키는 헤더로만 보내고 로그·예외·`toString`에 남기지 않는다.
+
+### 건너뛰기 설정의 기본값
+
+토스 모드의 Mock 건너뛰기(`payment.pg.mock-bypass-enabled`)는 꺼진 것이 기본이다. 시연 편의 기능은 꺼진 상태로 두고 환경에서 명시적으로 켠다. 설정을 빠뜨리거나 환경변수가 전달되지 않아도(compose가 변수를 넘기지 않는 실수 포함) 결제창을 거치는 쪽으로 동작하게 하려는 것이다. 켜는 쪽이 기본이면 같은 실수가 결제 없는 승인으로 이어진다. Mock 모드에서는 모든 결제가 Mock이라 이 설정의 영향이 없다. 켜고 끄는 절차는 [deployment.md](../infra/deployment.md) 4절 "결제 PG 모드 전환"에 있다.
 
 ## 7. 토스 어댑터가 확인할 것
 ISE-45에서 가짜 토스 서버로 구현했고 아래 중 "문서"로 표시한 것은 공식 문서 기준이다. 실제 호출로 확인하지 못한 것(`[가정]`)은 테스트 키를 받은 뒤(11/11) `tossSandboxTest`와 시연으로 확인하고 ADR 0023 개정 절을 갱신한다.

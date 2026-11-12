@@ -7,7 +7,7 @@ import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
-import com.iseonjwa.payment.pg.application.PgApprovalGate;
+import com.iseonjwa.payment.pg.application.PgBillingGate;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
@@ -22,8 +22,8 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * 추첨 당첨 자동결제(SA 6-6 F5-5, ISE-96). 승인 API와 같은 TX1 → PG(트랜잭션 밖) → TX2 구조와 {@code pg-approve} 허가를
- * 쓴다(D6 기준선). 결과는 TX2의 전이가 {@code payment.result}로 내보낸다. Kafka 소비는 ISE-89가 이 서비스를 부른다.
+ * 추첨 당첨 자동결제(SA 6-6 F5-5, ISE-96). 승인 API와 같은 TX1 → PG(트랜잭션 밖) → TX2 구조를 쓰되 허가는 자동결제 전용
+ * 그룹 {@code pg-billing}에서 얻는다(ADR 0051, ISE-236. 일반 결제의 {@code pg-approve}와 자리를 나눈다). 결과는 TX2의 전이가 {@code payment.result}로 내보낸다. Kafka 소비는 ISE-89가 이 서비스를 부른다.
  *
  * <p>Note: 같은 예매로 다시 와도 결제는 한 건이다. 기존 결제가 있으면 PG를 부르지 않고 그 결제를 돌려주고, 동시에 와서
  * {@code UNIQUE(reservation_id)}에 부딪혀도 다시 읽어 돌려준다(0026). outbox 릴레이가 같은 요청을 다시 보내는 경우다.
@@ -37,23 +37,23 @@ public class BillingPaymentService {
     private final BillingKeyEncryptor encryptor;
     private final PaymentTx tx;
     private final PgClients pgClients;
-    private final PgApprovalGate approvalGate;
+    private final PgBillingGate billingGate;
 
     public BillingPaymentService(PaymentRepository payments, BillingKeyRepository billingKeys,
-            BillingKeyEncryptor encryptor, PaymentTx tx, PgClients pgClients, PgApprovalGate approvalGate) {
+            BillingKeyEncryptor encryptor, PaymentTx tx, PgClients pgClients, PgBillingGate billingGate) {
         this.payments = payments;
         this.billingKeys = billingKeys;
         this.encryptor = encryptor;
         this.tx = tx;
         this.pgClients = pgClients;
-        this.approvalGate = approvalGate;
+        this.billingGate = billingGate;
     }
 
     /**
      * 자동결제를 한 번 시도한다.
      *
      * @return 이 예매의 결제(새로 만들었거나 이미 있던 것)
-     * @throws PgUnavailableException {@code pg-approve} 허가를 얻지 못했다. 결제 행을 만들지 않았으므로 호출한 쪽(소비자)이
+     * @throws PgUnavailableException {@code pg-billing} 허가를 얻지 못했다. 결제 행을 만들지 않았으므로 호출한 쪽(소비자)이
      *                                메시지를 다시 처리하면 된다(백프레셔, ISE-89)
      */
     public Payment approve(BillingPaymentCommand command) {
@@ -67,7 +67,7 @@ public class BillingPaymentService {
                     .map(payment -> tx.settleBillingDeclined(payment, DeclineReason.BILLING_KEY_MISSING))
                     .orElseGet(() -> reread(command));
         }
-        try (var permit = approvalGate.acquire()) {
+        try (var permit = billingGate.acquire()) {
             var created = create(command);
             if (created.isEmpty()) {
                 permit.release();

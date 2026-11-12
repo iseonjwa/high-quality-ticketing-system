@@ -47,7 +47,9 @@ spring:
           metrics:
             enabled: true
   # Gateway의 Lettuce 명령 시한. 공통 application.yml의 100ms를 Gateway만 늘린다. 인증 필터 시한(auth.redis-timeout)보다 커야
-  # 필터 시한이 먼저 걸려 원인이 lookup_timeout으로 남는다(ADR 0050)
+  # 필터 시한이 먼저 걸려 원인이 lookup_timeout으로 남는다(ADR 0050).
+  # Note: 인증 경로에서는 이 값이 걸리지 않는다. 두 시계가 같은 구간을 재서 필터가 먼저 끊기 때문이다. Lettuce 시한은 끌 수 없어
+  # (비우면 60초) 필터보다 크기만 하면 된다. Lettuce 타이머는 100ms 눈금이라 정한 값보다 최대 약 100ms 늦게 울린다
   data:
     redis:
       timeout: 300ms
@@ -57,6 +59,13 @@ auth:
   # 블랙리스트 조회를 기다리는 시한. 느린 호출 기준(100ms)보다 커야 "느리지만 응답함"과 "응답 없음"이 나뉜다(ADR 0050)
   redis-timeout: 200ms
 iseonjwa:
+  # 요청 로그는 굿풋에서 빠진 요청(5xx, 클라이언트가 끊은 요청, 200ms 이상)만 남긴다. 배포 서버 7차 H2에서 요청 로그를 끄자
+  # 서버 CPU가 1,500/s 93% → 85%로 내려갔다. 정상 요청은 Zipkin 트레이스와 http_server_requests 지표로 본다.
+  # 로컬은 application-local.yml이 all로 되돌린다. 서블릿 서비스는 아직 이 값을 읽지 않는다(2단계, contract 이슈 뒤)
+  request-log:
+    mode: problems
+    min-status: 500
+    slow-threshold: 200ms
   gateway:
     in-flight:
       # Gateway 맨 앞 동시 처리 수 상한(설계 메모 A1). 굿풋이 멈춘 1,480/s에서 p95 200ms에 맞는 평균 40~45ms를 곱한

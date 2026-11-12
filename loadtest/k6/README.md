@@ -25,13 +25,16 @@
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
+| `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
+| `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
+| `tools/r0_solve.py` | G1 결과 계산(로컬). 단계별 Gateway CPU를 받은 요청·거절 수로 연립해 한 건 비용(받은 요청 a, 거절 r)을 푼다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
 | `scenarios/q1d-queue-burst.js` | Q1-d 오픈 순간 몰림. 사용자 수만큼 VU를 미리 두고, 같은 출발 시각부터 `ENTER_SPREAD_SECONDS` 안에 앞쪽이 붐비게 한 번씩 진입한다 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |
 | `scenarios/g1-gateway-auth.js` | G1 Gateway 인증 경로. 순번 조회에 초당 요청을 단계적으로 올린다 |
 | `scenarios/q3-admission.js` | Q3 입장 속도 유지. 입장 스케줄러를 켠 채 READY가 되면 입장 토큰을 받고 끝낸다 |
 | `scenarios/b1-browse.js` | B1 오픈 전 공연 상세·목록 조회. `ENTER_RATE`를 주면 대기열 진입을 같이 건다(B1-b) |
-| `scenarios/pay1-payment.js` | PAY1 결제 승인. 반복마다 1석 선점 → 결제, 요청 속도를 단계적으로 올린다 |
+| `scenarios/pay1-payment.js` | PAY1 결제 승인. 반복마다 1석 선점 → 결제, 요청 속도를 단계적으로 올린다. `SCHEDULE_ID`를 주면 관리자 로그인 없이 서버에서 만든 회차를 쓴다(배포 측정) |
 | `scenarios/r1-confirm.js` | R1 결제 결과 반영. 선점 → 결제 → 예매 조회로 CONFIRMED까지의 시간을 잰다 |
 | `scenarios/x1-expiry.js` | X1 선점 만료. 선점 시간 1분 회차의 선점이 만료되는 동안 다른 회차에 선점 부하를 건다 |
 | `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다. 실패 응답은 `entry_results`에 message 출처 태그 `msg`(`auth_unavailable`·`service_unavailable`·`gateway_error`·`other`·`none`)를 붙여, 인증 벌크헤드 503을 다른 503과 나눠 summary에 센다 |
@@ -53,7 +56,7 @@
 | G1 | `scenarios/g1-gateway-auth.js` | 있음. 2026-11-05 local에서 초당 50 → 100건·각 10초로 동작 확인(오류 0, p95 11ms) |
 | Q3 | `scenarios/q3-admission.js` | 있음. 2026-11-05 local 대기자 1,000명·60초: 1,000명 모두 토큰 발급, 오류 0, 토큰 발급 p95 15ms. 입장 수는 초당 50씩 늘었다 |
 | B1 | `scenarios/b1-browse.js` | 있음. 2026-11-05 local 초당 20 → 40건·각 10초, 진입 초당 10건 동시: 오류 0, 조회 p95 24ms |
-| PAY1 | `scenarios/pay1-payment.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초, PG 300ms: 승인 208, `PG_UNAVAILABLE` 4, 결제 p95 560ms |
+| PAY1 | `scenarios/pay1-payment.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초, PG 300ms: 승인 208, `PG_UNAVAILABLE` 4, 결제 p95 560ms. 2026-11-12 배포 서버: PG 300ms에서 승인 초당 약 31건에서 멈춤(계산값 33), PG 지연 없이 초당 약 190건. 동시 허가를 30으로 덮어쓰면 PG 300ms에서 초당 약 91건([open-peak-scenarios.md](../../docs/design/infra/open-peak-scenarios.md) 3절) |
 | R1 | `scenarios/r1-confirm.js` | 있음. 2026-11-05 local 초당 5 → 10건·각 10초: 212건 모두 확정, 승인 → 확정 p95 624ms(0.5초 간격 조회) |
 | X1 | `scenarios/x1-expiry.js` | 있음. 2026-11-05 local 만료 대상 500건 + 선점 초당 10명·60초: 500건이 만료 시각부터 약 33초 안에 모두 EXPIRED, 그동안 선점 p95 34ms, 오류 0. 묵은 선점이 남아 있으면 결과가 틀어진다(4절 "만료 대기 건") |
 | L1 | `scenarios/l1-lottery-entry.js` | 있음. 2026-11-05 local 초당 10 → 20건·각 10초: 요청 449건(연타 포함) 오류 0, 응모 행 424 = 고유 사용자 424, p95 19ms |
@@ -106,7 +109,7 @@ bash loadtest/k6/run.sh scenarios/q3-admission.js
 bash loadtest/k6/tools/watch-admitted.sh <회차 ID> 700
 ```
 
-B1은 공개 API라 덮어쓰기가 필요 없다. PAY1·R1은 mock-pg를 `loadtest` 프로필로 띄운다. mock-pg를 다시 띄운 직후에는 결제 서비스의 PG 연결이 끊겨 차단기가 열릴 수 있으니 30초 넘게 기다린 뒤 잰다.
+B1은 공개 API라 덮어쓰기가 필요 없다. PAY1·R1은 mock-pg를 `loadtest` 프로필로 띄운다. mock-pg를 다시 띄운 직후에는 결제 서비스의 PG 연결이 끊겨 차단기가 열릴 수 있으니 30초 넘게 기다린 뒤 잰다. 배포 서버에서 서비스를 다시 만들었으면 Gateway가 새 인스턴스를 알 때까지 60초 넘게 기다린다(2026-11-12 PAY-2에서 첫 10초 동안 503 176건).
 
 ```bash
 bash loadtest/k6/run.sh scenarios/b1-browse.js
@@ -117,7 +120,7 @@ PG_DELAY_MS=1900 STAGES=40 bash loadtest/k6/run.sh scenarios/pay1-payment.js   #
 bash loadtest/k6/run.sh scenarios/r1-confirm.js
 ```
 
-추첨(L1~L3)은 덮어쓰기 없이 돈다. L2·L3의 자동결제는 PAY1처럼 mock-pg를 `loadtest` 프로필로 띄워 둔다. 빌링키는 사용자마다 하나라 실행마다 `USER_ID_BASE`를 바꾼다.
+추첨(L1~L3)은 덮어쓰기 없이 돈다. L2·L3의 자동결제는 PAY1처럼 mock-pg를 `loadtest` 프로필로 띄워 둔다. 빌링키는 사용자마다 하나라 실행마다 `USER_ID_BASE`를 바꾼다. Mock PG는 빌링키를 메모리에 두므로 순서는 mock-pg 재시작 → 30초 넘게 안정 대기 → k6 실행(setup이 빌링키를 등록) → 추첨이다. 빌링키 등록 뒤 mock-pg를 다시 띄우면 전원 `BILLING_KEY_MISSING`이 된다.
 
 ```bash
 bash loadtest/k6/run.sh scenarios/l1-lottery-entry.js
@@ -193,7 +196,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 
 **토큰**: 서버에서 `script/loadtest/measure-mode.sh on`이 만든 `~/iseonjwa/.env.measure`(`JWT_ACCESS_SECRET`, `ENTRY_TOKEN_SECRET`)를 발생기 저장소 루트의 `.env`로 옮기면 `run.sh`가 읽는다. 운영 키는 발생기에 두지 않는다. 측정이 끝나면 서버에서 `measure-mode.sh off`로 키를 폐기하고 발생기 `.env`를 지운다.
 
-**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). G1도 `SCHEDULE_ID`를 주면 건너뛴다. 그 밖의 시나리오(B1, PAY1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
+**관리자 계정이 필요한 시나리오**: 회차를 만드는 `lib/admin.js`의 `adminLogin()`이 `ADMIN_EMAIL`·`ADMIN_PASSWORD`를 쓴다. 운영 관리자 비밀번호는 발생기에 두지 않으므로 Q1~Q3은 `SCHEDULE_ID`를, L1~L3은 `LOTTERY_ID`(L2-b·L3은 `SALE_SCHEDULE_ID`도)를 줘서 이 단계를 건너뛴다. 추첨은 서버에서 만든다(ISE-216). G1도 `SCHEDULE_ID`를 주면 건너뛴다. PAY1도 `SCHEDULE_ID`를 주면 건너뛴다. 그 밖의 시나리오(B1, R1, X1, O1)는 아직 공연·회차를 직접 만들어 관리자 계정이 필요하다. 어느 시나리오를 어떻게 돌릴지는 그 측정 전에 정한다.
 
 **L1~L3 추첨 준비**(서버에서 만들 때 맞출 시각):
 
@@ -234,15 +237,18 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | S1 좌석 조회(현재 배포) | `measure-mode.sh on` | 15,000석 회차(`seed-demo.sh open`) | 아래 S1 명령. 초당 50·150·200·300을 차례로 |
 | S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
 | B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
+| PAY1 결제 승인 | `measure-mode.sh on`. PG 한도를 볼 때는 측정 직전에 아래 "Mock PG 장애 주입"으로 승인 지연 300ms를 건다. 결제 서비스 자체 한도를 볼 때는 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 PAY1 명령. 빈 좌석이 모자라면 setup에서 멈춘다 |
 | R1-d 결제 → 확정 | `measure-mode.sh on` (앱이 다시 떠 Mock PG 지연이 없는 상태) | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 R1-d 명령. 빈 좌석이 모자라면(이미 쓴 회차) setup에서 멈춘다 |
 
-S1·B1-d·R1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
+S1·B1-d·PAY1·R1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
 
 ```bash
 # S1 좌석 조회 (발생기에서)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> RATE=50 bash loadtest/k6/run.sh scenarios/s1-seat-query.js
 # B1-d 공연 상세 (발생기에서)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write CONCERT_ID=<공연 id> RATE=100 bash loadtest/k6/run.sh scenarios/b1d-concert-detail.js
+# PAY1 결제 승인 (발생기에서. 회차는 실행마다 새로. MOCK_PG_URL을 비워 서버에서 건 지연을 쓴다)
+BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write MOCK_PG_URL= SCHEDULE_ID=<회차 id> STAGES=20,40,80 bash loadtest/k6/run.sh scenarios/pay1-payment.js
 # R1-d 결제 → 확정 (발생기에서. 회차는 실행마다 새로)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/r1d-confirm.js
 ```
@@ -273,6 +279,21 @@ ssh iseonjwa 'cd ~/iseonjwa && bash loadtest/k6/tools/watch-lottery.sh <추첨 I
 ```
 
 `watch-held.sh`·`watch-lottery.sh`는 DB 사용자 `iseonjwa`를 코드에 쓰고, 배포 `.env`의 `DB_USER`도 `iseonjwa`라 그대로 돈다. 시각은 서버의 `date +%s%3N`(GNU date)이다.
+
+**G1 Gateway 측정 도구**(배포 서버 6·7차 절차를 옮긴 것, [`open-peak-scenarios.md`](../../docs/design/infra/open-peak-scenarios.md) "배포 서버 6차"·"7차"). 회차마다 측정 모드를 켜 Gateway가 다시 뜬 뒤 순서대로 쓴다.
+
+```bash
+# 1) 서버: 수집 시작. check가 실패하면 본 측정으로 가지 않는다
+ssh iseonjwa 'cd ~/iseonjwa && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh start <회차> 1200 && sleep 6 && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh check <회차>'
+# 2) 발생기(tmux 안): 회차 실행. 결과는 ~/<이름>/<회차>-*와 gen-<회차>.tar.gz
+PRE_VUS=3000 MAX_VUS=6000 bash loadtest/k6/tools/g1-run.sh <회차> <SCHEDULE_ID> [본 측정 STAGES]
+# 3) 서버: 수집을 멈추고 /tmp/server-<회차>.tar.gz로 묶는다
+ssh iseonjwa 'cd ~/iseonjwa && S=$(date -d "$(head -1 /tmp/<이름>-<회차>/meta.log)" +%s) && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh stop <회차> && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh archive <회차> $S $(date +%s)'
+```
+
+- `gw-collect.sh`는 Gateway 컨테이너의 `docker-init`(compose의 `init: true`) 아래 Java PID를 찾아 `pidstat -t -p`에 준다. 6·7차 수집기는 `docker inspect`의 `State.Pid`(docker-init)를 그대로 써서 스레드 자료가 비었다. `check`가 이 경우와 Gateway 재시작을 잡는다. 다른 서비스는 `CONTAINER=iseonjwa-<서비스>-1`로 준다.
+- `g1-run.sh`의 기본값은 6·7차와 같다(`USERS` 10000, 본 측정 `1000,0,1500,0,2000,0,2500`, 단계마다 상승 5초 + 30초). 상한(`iseonjwa.gateway.in-flight.max-requests`)을 1로 두는 회차는 setup이 상한에 걸리므로 `USERS=1`을 준다.
+- `r0_solve.py`는 내려받은 두 tar를 풀어 로컬에서 돌린다(사용법은 파일 머리말). 6·7차 자료처럼 pidstat이 비었으면 `--cpu dstats`로 `docker stats`를 쓴다.
 
 ## 3. 시나리오를 더할 때
 

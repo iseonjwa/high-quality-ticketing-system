@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.domain.repository;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +18,9 @@ public interface SeatHoldInventoryRepository {
 
     // 다른 회차의 좌석 ID는 결과에서 빠진다. 요청 개수와 비교해 회차 소속을 확인한다
     List<ScheduleSeat> findSeats(Long scheduleId, List<Long> seatIds);
+
+    // 이 트랜잭션의 남은 문장이 행 잠금을 timeout보다 오래 기다리지 않게 한다(SET LOCAL lock_timeout, SA 9-4)
+    void applyLockTimeout(Duration timeout);
 
     // AVAILABLE인 좌석만 HELD로 바꾸고 바꾼 행 수를 돌려준다(SA 12-7). 요청 수보다 작으면 이미 잡힌 좌석이 섞인 것이다
     int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);

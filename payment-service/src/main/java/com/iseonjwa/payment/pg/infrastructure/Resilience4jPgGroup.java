@@ -44,10 +44,11 @@ final class Resilience4jPgGroup {
                 .waitDurationInOpenState(settings.openDuration())
                 .permittedNumberOfCallsInHalfOpenState(settings.halfOpenPermittedCalls())
                 .build());
-        // 기다리지 않는다. 포화면 바로 거절해야 요청 스레드가 PG 장애에 묶이지 않는다
+        // 기본은 기다리지 않는다. 포화면 바로 거절해야 요청 스레드가 PG 장애에 묶이지 않는다.
+        // 대기를 주면 그 시간만큼 자리를 기다려 순간 몰림을 흡수한다(PAY-2, ISE-238)
         this.bulkhead = bulkheads.bulkhead(name, BulkheadConfig.custom()
                 .maxConcurrentCalls(settings.maxConcurrentCalls())
-                .maxWaitDuration(Duration.ZERO)
+                .maxWaitDuration(settings.maxWaitDuration())
                 .build());
     }
 

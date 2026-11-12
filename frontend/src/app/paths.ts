@@ -20,6 +20,8 @@ export const paths = {
   adminLottery: '/admin/lotteries/:lotteryId',
   adminPasswordReset: '/admin/users/password-reset',
   adminDemoFaults: '/admin/demo/faults',
+  // 발권 이벤트 부적(ISE-257). 값은 주소 조각(#)에 담는다(pages/charm/charmLink.ts)
+  charm: '/charm',
 } as const
 
 export function concertPath(concertId: number): string {

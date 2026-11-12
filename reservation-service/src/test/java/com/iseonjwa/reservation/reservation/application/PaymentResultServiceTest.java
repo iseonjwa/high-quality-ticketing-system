@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.reservation.application;
 
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
+import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -240,8 +241,8 @@ class PaymentResultServiceTest {
     }
 
     private Long hold() {
-        var reservationId = seatHold.hold(new HoldSeatsCommand(USER, UUID.randomUUID(), scheduleId, seatIds))
-                .reservationId();
+        var reservationId = ((SyncHoldOutcome.Held) seatHold.hold(
+                new HoldSeatsCommand(USER, UUID.randomUUID(), scheduleId, seatIds))).result().reservationId();
         reservationIds.add(reservationId);
         return reservationId;
     }

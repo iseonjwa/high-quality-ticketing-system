@@ -125,19 +125,22 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
-- 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다).
+- 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다). 서버의 저장소는 지금 배포된 커밋에 머물러 있어 그 안의 스크립트는 새 키를 모른다. 새 스크립트를 받아 서버 저장소 위치에서 실행한다: `cd ~/iseonjwa && git fetch -q origin main && git show FETCH_HEAD:script/deploy/init-env.sh | sed "s|^cd .*dirname.*|cd $HOME/iseonjwa|" | bash`(main에 나가기 전이면 `main` 자리에 `dev`). 스크립트는 빠진 키만 더하고 값은 출력하지 않는다. 미리 더한 키는 지금 배포된 버전이 읽지 않으므로 먼저 돌려 두어도 된다. 결제 토큰 개인키는 OpenSSL 버전과 무관하게 PKCS#8로 만든다(3.0의 `genpkey -outform DER`는 예매 서비스가 읽지 못하는 SEC1을 낸다, [troubleshooting.md](../../troubleshooting.md) TS-61). 이미 있는 개인키가 PKCS#8이 아니면 같은 키를 PKCS#8로 바꿔 적고, 끝에 `결제 토큰 키 확인: 개인키 PKCS#8, 공개키와 짝이 맞음`을 출력한다. 이 줄이 나오지 않고 실패로 끝나면 배포하지 않는다.
+  - 결제 토큰 키 두 개(`PAYMENT_TOKEN_PRIVATE_KEY`, `PAYMENT_TOKEN_PUBLIC_KEY`)는 손으로 넣지 않는다. 하나의 키 쌍(P-256 개인키와 거기서 나온 공개키)이어야 하고 형식(DER의 Base64 한 줄)도 정해져 있다. 임의 문자열이면 두 서비스가 기동하지 않고, 서로 다른 쌍이면 모든 결제가 403이 된다([ADR 0055](../../decisions/0055-payment-token-asymmetric-signature.md)). 로컬은 `./gradlew initLocalEnv`가 같은 일을 한다.
 
 ### 결제 PG 모드 전환 (ISE-45)
 
-- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 이 세 키와 `PAYMENT_PG_MOCK_BYPASS`를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
 - 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
 - 전환 절차: (1) 토스 결제(`pg_provider=TOSS`)가 진행 중이면 토스 키를 지우지 않는다. Mock 결제는 모드와 상관없이 Mock으로 확인한다. 결제마다 처리한 PG를 기록하므로 모드를 바꿔도 다른 PG에서 조회해 `NotFound`로 보이지 않지만, 토스 키가 없으면 토스 결제의 재확인·환불이 `CLIENT_ERROR`로 계속 결과 모름이다. 토스 키는 둘 다 넣거나 둘 다 지운다(하나만 남기거나 라이브 키가 남으면 mock 모드여도 `payment-service`가 기동하지 않는다). (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
 - 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
 - 빌링(추첨 자동결제)은 서버 모드와 상관없이 늘 Mock이다. 토스 모드에서도 빌링키 발급과 자동 승인이 Mock으로 가고 결제는 `pg_provider=MOCK`으로 남는다.
-- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `true`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. `compose.yml`이 이 변수를 `payment-service`에 넘기지 않아 지금은 기본값 `true`로 동작한다. 끄려면 compose의 `payment-service` 환경에 이 변수를 더해야 한다.
+- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `false`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. 기본이 꺼짐이므로 설정을 빠뜨리거나 값이 전달되지 않아도 결제창을 거치는 쪽으로 동작한다(근거는 [pg-integration.md](../payment/pg-integration.md) 6절 끝). compose가 `payment-service`에 `${PAYMENT_PG_MOCK_BYPASS:-false}`로 넘긴다. Mock 모드에서는 이 설정과 상관없이 모든 결제가 Mock이다.
+  - 켜는 절차: (1) 서버 `.env`에 `PAYMENT_PG_MOCK_BYPASS=true`를 쓴다. (2) `docker compose up -d --force-recreate payment-service`로 다시 만든다. (3) `POST /api/v1/payments/checkout` 응답의 `mockBypass`가 `true`인지 확인한다.
+  - 끄는 절차: `.env`의 값을 비우거나 `false`로 바꾸고 같은 방식으로 다시 만든 뒤 `mockBypass`가 `false`인지 확인한다.
 - 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요
@@ -151,7 +154,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 파일 | 하는 일 |
 |---|---|
 | `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 9개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
-| `script/deploy/deploy.sh <SHA>` | 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
+| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → 관측 도구 설정 해시를 라벨 값으로 넘김(설정이 바뀐 도구만 다시 만들어짐, 4절 아래 "관측 도구 설정 반영") → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
 | `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
@@ -159,12 +162,34 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | `script/deploy/install-docker.sh` | Ubuntu에 Docker 공식 apt 저장소로 Docker와 compose 플러그인을 설치한다 |
 | `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
 
+- 이미지 보관(ISE-249): 배포마다 서비스 9개의 이미지가 커밋 SHA 태그로 서버에 쌓인다. `deploy.sh`는 이미지를 받기 전에 `ghcr.io/iseonjwa/` 이미지 중 태그가 40자 SHA인 것을 만들어진 시각 최신순으로 세어, 최근 3개 버전(`KEEP_IMAGE_VERSIONS`)과 이번 커밋·직전 성공 커밋(`.deploy/current`)·그 앞의 성공 커밋(`.deploy/previous`)만 남기고 지운다. 실행 중인 컨테이너의 이미지는 Docker가 지우기를 거절해 남는다. 태그 없는 이미지도 지운다. DB·Kafka 같은 다른 이미지와 볼륨은 건드리지 않는다. 지운 버전으로 되돌릴 때(Jenkins `TAG`)는 GHCR에서 다시 받으므로 그만큼 느리다. 정리가 실패해도 배포는 진행하고, 이미지 받기가 끝내 실패하면 디스크 여유를 함께 출력한다. 디스크 사용률 알림은 아직 없다.
 - 앱 프로필은 `prod`다. `local` 전용 컨트롤러(`LocalIdentityController` 등)가 배포 서버에 뜨지 않게 하려는 것이다. `application-prod.yml`의 샘플링은 `${TRACING_SAMPLE_RATE:0.1}`로 바꾸고 배포 compose가 1.0을 넣는다(시연에서 traceId로 트레이스를 본다). 부하 측정 때는 0.01(`loadtest`)로 바꿀지 측정 이슈에서 정한다.
 - 상한 합계는 약 12.5GB(앱 5.2GB, 데이터 4.5GB, 관측 2.8GB)다. 16GB급의 약 78%로 SA 9-3의 75% 기준을 조금 넘는다. 앱에 `assistant-service` 384m가 더해진 값이다(2026-11-09, ISE-126, 아래 "내부 AI 상담 배포"). 실제 사용량은 배포 뒤 `docker stats`로 잰다(ISE-176).
 - 2026-11-04 로컬에서 `IMAGE_TAG=<임의 SHA> docker compose -f compose.yml -f compose.deploy.yml config`로 합쳐진 설정(이미지, 빌드 없음, 상한, 포트, 프로필)을 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했고, `smoke.sh`를 로컬 nginx(8000)에 돌려 네 항목이 모두 통과했다. 실제 배포는 첫 main 릴리스로 GHCR 이미지가 생긴 뒤 확인한다.
 - `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
 - 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
+- 관측 도구 설정 반영(2026-11-12, ISE-256): 위 수동 단계는 실제로 하지 않아 11/12에 Alertmanager·Alloy·Loki가 11/9 설정으로 돌고 있었다([troubleshooting.md](../../troubleshooting.md) TS-64). 이제 `deploy.sh`가 그 커밋의 설정 파일 해시(`git ls-tree` → `git hash-object`, 앞 12자)를 `CONFIG_HASH_PROMETHEUS`·`_ALERTMANAGER`·`_LOKI`·`_ALLOY`·`_GRAFANA`로 넘기고, `compose.deploy.yml`이 그 값을 각 도구의 라벨 `iseonjwa.config-hash`로 단다. 라벨이 바뀐 도구만 `up -d`가 다시 만들므로 수동 단계는 더 필요 없다. 대상 경로는 Prometheus `infra/prometheus.yml`·`infra/prometheus/`, Alertmanager `infra/alertmanager/`, Loki `infra/loki/`, Alloy `infra/alloy/`, Grafana `infra/grafana/provisioning/`이다(대시보드 JSON은 Grafana가 스스로 다시 읽으므로 뺐다). 볼륨(알림 무음, 지표, 로그)은 남는다. 라벨이 아직 없는 지금의 컨테이너는 이 변경이 든 첫 배포에서 다섯 개 모두 한 번 다시 만들어진다(각각 몇 초, Loki 재시작으로 건별 알림이 한 번 더 갈 수 있다). 직접 `docker compose up`을 부르면 라벨이 빈 값이라 그 도구들이 다시 만들어질 수 있다.
+
+### 다시 띄운 뒤 서비스 발견 지연 (ISE-244)
+
+서비스 컨테이너가 `healthy`가 된 뒤에도 Gateway가 새 인스턴스를 알기까지 시간이 걸린다. 그동안 그 서비스로 가는 요청은 Gateway에서 503(`No servers available for service: …`)으로 끝난다.
+
+- 본 것: 첫 배포의 스모크 실패([troubleshooting.md](../../troubleshooting.md) TS-34, 약 35초). 2026-11-12 배포 측정에서 `payment-service`만 다시 만들었을 때 컨테이너 시작 46초 뒤에도 10초 동안 결제 176건이 503이었다([open-peak-scenarios.md](open-peak-scenarios.md) 3절 PAY-2). 컨테이너 시작부터 약 55초다.
+- 왜: 인스턴스 목록이 Gateway의 라우팅에 닿기까지 캐시가 세 겹이고 `prod` 프로필에는 주기 값이 없어 모두 기본값이었다. 다시 만든 컨테이너는 IP가 바뀌므로 옛 목록으로는 갈 곳이 없다.
+
+  | 단계 | 설정 | 기본 | 바꾼 값 |
+  |---|---|---|---|
+  | Eureka 서버가 클라이언트에 줄 응답 캐시를 갱신 | `eureka.server.response-cache-update-interval-ms`(`config-repo/eureka.yml`) | 30초 | 5초 |
+  | 클라이언트(Gateway 등)가 레지스트리를 다시 가져옴 | `eureka.client.registry-fetch-interval-seconds`(`application-prod.yml`) | 30초 | 5초 |
+  | Spring Cloud LoadBalancer가 인스턴스 목록을 캐시 | `spring.cloud.loadbalancer.cache.ttl`(`application-prod.yml`) | 35초 | 5초 |
+
+  최악의 합은 95초에서 15초가 된다. 단계별 실제 시간은 재지 않았고, 잰 것은 합계(35초, 55초)뿐이다.
+- 대가: 서비스마다 Eureka 조회가 30초에서 5초 간격이 된다. 변경분만 받는 조회라 가볍고 서비스가 6개다. local 프로필은 처음부터 5초였다.
+- 남는 공백: 인스턴스가 하나라 컨테이너가 내려가고 새 컨테이너의 앱이 뜰 때까지(약 25초)는 요청을 받을 곳이 없다. 이 설정은 그 뒤의 발견 지연만 줄인다. 무중단 배포는 인스턴스가 둘 이상이고 한 대씩 바꿀 때 가능하다(범위 밖).
+- 스모크의 재확인(`SMOKE_WAIT_SECONDS` 120초, TS-34)은 그대로 둔다. 발견 지연이 줄어도 "컨테이너 healthy"와 "Gateway가 찾을 수 있음"은 다른 사실이다.
+- 확인 방법(배포 뒤): 서비스 하나를 다시 만들고 Gateway를 1초 간격으로 불러 503이 끝나는 시각을 잰다. 배포 값은 측정 전이다.
+- 고르지 않은 대안: (1) Gateway가 Eureka 대신 compose 서비스 이름(`http://payment-service:8083`)으로 바로 라우팅한다. Docker DNS는 컨테이너가 바뀌면 바로 따라오므로 발견 지연이 없다. 다만 발제의 Spring Cloud 구성(Eureka)과 여러 인스턴스 분산을 버리게 된다. (2) 주기를 1초로 더 줄인다. 얻는 것이 몇 초이고 Eureka 조회만 늘어난다.
 
 ### 내부 AI 상담 배포 (ISE-126)
 

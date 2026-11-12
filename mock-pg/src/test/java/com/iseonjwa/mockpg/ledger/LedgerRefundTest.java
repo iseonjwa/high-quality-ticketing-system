@@ -183,6 +183,60 @@ class LedgerRefundTest {
         }
     }
 
+    private final TxIdSigner signer = new TxIdSigner("secret-a");
+
+    /** 서명한 거래 ID로 승인한 결제를 둔 원장을 새 원장으로 바꿔(재시작 흉내) 같은 거래 ID의 환불을 판정한다. */
+    private RefundOutcome refundAfterRestart(Ledger restarted, String pgTxId, String refundId, long amount, String currency) {
+        var candidate = new Refunded(refundId, "rf-" + UUID.randomUUID(), pgTxId, BigDecimal.valueOf(amount), currency, Instant.now());
+        return restarted.refund(candidate, signer.verify(pgTxId));
+    }
+
+    private String signedTxId(Ledger original, long amount) {
+        var orderId = "o-" + UUID.randomUUID();
+        var approved = new Approved(orderId, signer.issue(BigDecimal.valueOf(amount), "KRW"), BigDecimal.valueOf(amount), "KRW",
+                Instant.now());
+        original.approve(orderId, () -> approved);
+        return approved.pgTxId();
+    }
+
+    @Test
+    void 원장이_바뀐_뒤에도_서명한_거래_ID는_환불된다() {
+        var pgTxId = signedTxId(ledger, 50_000);
+        var restarted = new Ledger();
+
+        assertInstanceOf(Refunded.class, refundAfterRestart(restarted, pgTxId, "r-1", 20_000, "KRW"));
+        assertEquals(Optional.empty(), restarted.findApproved(pgTxId), "주문은 되살리지 않는다");
+        assertEquals(new java.math.BigDecimal("20000"), restarted.refundsOf(pgTxId).refundedTotal());
+    }
+
+    @Test
+    void 되살린_뒤_부분_환불의_합이_승인_금액을_넘으면_거절한다() {
+        var pgTxId = signedTxId(ledger, 50_000);
+        var restarted = new Ledger();
+
+        assertInstanceOf(Refunded.class, refundAfterRestart(restarted, pgTxId, "r-1", 20_000, "KRW"));
+        assertInstanceOf(Refunded.class, refundAfterRestart(restarted, pgTxId, "r-2", 30_000, "KRW"));
+        assertEquals(new Rejected(RejectCode.NOT_REFUNDABLE), refundAfterRestart(restarted, pgTxId, "r-3", 1, "KRW"));
+    }
+
+    @Test
+    void 되살린_결제도_통화가_다르면_거절하고_항목을_남기지_않는다() {
+        var pgTxId = signedTxId(ledger, 50_000);
+        var restarted = new Ledger();
+
+        assertEquals(new Rejected(RejectCode.NOT_REFUNDABLE), refundAfterRestart(restarted, pgTxId, "r-1", 10_000, "USD"));
+
+        assertEquals(java.math.BigDecimal.ZERO, restarted.refundsOf(pgTxId).refundedTotal());
+        assertEquals(Optional.empty(), restarted.findRefund("r-1"));
+    }
+
+    @Test
+    void 서명이_없는_옛_형식_거래_ID는_거절한다() {
+        var legacy = "pg-" + UUID.randomUUID();
+
+        assertEquals(new Rejected(RejectCode.NOT_REFUNDABLE), refundAfterRestart(new Ledger(), legacy, "r-1", 10_000, "KRW"));
+    }
+
     private static Approved approve(Ledger ledger) {
         var orderId = "o-" + UUID.randomUUID();
         var approved = LedgerTest.approvedOf(orderId);

@@ -8,14 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PaymentTokenConfigurationTest {
-    private static final String VALID = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    private static final String VALID = com.iseonjwa.payment.support.PaymentTokenFixtures.TEST_PUBLIC_KEY;
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(PaymentTokenConfiguration.class);
 
     @Test
     void 올바른_키가_있으면_빈을_만든다() {
-        runner.withPropertyValues("payment.token.secret=" + VALID)
+        runner.withPropertyValues("payment.token.public-key=" + VALID)
                 .run(context -> assertNotNull(context.getBean(PaymentTokenKey.class)));
     }
 
@@ -26,9 +26,9 @@ class PaymentTokenConfigurationTest {
 
     @Test
     void 형식이_틀리면_컨텍스트가_뜨지_않고_실패_원인에_키_값이_없다() {
-        var badKey = VALID.toUpperCase();
+        var badKey = "QUJDREVGRw==";
 
-        runner.withPropertyValues("payment.token.secret=" + badKey).run(context -> {
+        runner.withPropertyValues("payment.token.public-key=" + badKey).run(context -> {
             var failure = context.getStartupFailure();
             assertNotNull(failure);
             for (Throwable cause = failure; cause != null; cause = cause.getCause()) {

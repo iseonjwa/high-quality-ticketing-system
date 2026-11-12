@@ -1,6 +1,6 @@
 package com.iseonjwa.mockpg.payment;
 
-import com.iseonjwa.mockpg.billing.BillingKeyStore;
+import com.iseonjwa.mockpg.billing.BillingKeySigner;
 import com.iseonjwa.mockpg.fault.Fault;
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
@@ -10,12 +10,12 @@ import com.iseonjwa.mockpg.ledger.OrderCall;
 import com.iseonjwa.mockpg.ledger.OrderState;
 import com.iseonjwa.mockpg.ledger.OrderState.Approved;
 import com.iseonjwa.mockpg.ledger.OrderState.Declined;
+import com.iseonjwa.mockpg.ledger.TxIdSigner;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -31,12 +31,14 @@ class PaymentService {
 
     private final LedgerHolder ledgers;
     private final FaultInjector faults;
-    private final BillingKeyStore billingKeys;
+    private final BillingKeySigner billingKeys;
+    private final TxIdSigner txIds;
 
-    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeyStore billingKeys) {
+    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeySigner billingKeys, TxIdSigner txIds) {
         this.ledgers = ledgers;
         this.faults = faults;
         this.billingKeys = billingKeys;
+        this.txIds = txIds;
     }
 
     Outcome approve(ApproveRequest request, String idempotencyKey) {
@@ -93,11 +95,13 @@ class PaymentService {
     private OrderState.Decided decide(ApproveRequest request, Fault fault) {
         if (fault.is(FaultMode.DECLINE)) return new Declined(DECLINE_CODE);
         // 발급하지 않은 빌링키로 온 자동결제는 거절한다
-        if (request.billingKey() != null && !billingKeys.contains(request.billingKey())) {
+        if (request.billingKey() != null && !billingKeys.isIssued(request.billingKey())) {
             return new Declined(BILLING_KEY_DECLINE_CODE);
         }
         // Note: 변조형은 저장하는 금액 자체를 바꾼다. 서비스의 INV-3 금액 대조가 이를 잡는지 계약 테스트가 확인한다
-        return new Approved(request.orderId(), "pg-" + UUID.randomUUID(), approvedAmount(request.amount(), fault),
+        // Note: 거래 ID에 서명하는 금액은 실제로 승인한 금액이다. 되살린 결제의 환불 한도가 이 금액이다
+        var approvedAmount = approvedAmount(request.amount(), fault);
+        return new Approved(request.orderId(), txIds.issue(approvedAmount, request.currency()), approvedAmount,
                 request.currency(), Instant.now());
     }
 

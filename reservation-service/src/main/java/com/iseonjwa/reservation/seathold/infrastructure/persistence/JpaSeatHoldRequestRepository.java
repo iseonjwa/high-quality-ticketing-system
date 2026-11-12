@@ -4,6 +4,7 @@ import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +19,11 @@ public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
     @Override
     public SeatHoldRequest save(SeatHoldRequest request) {
         return repository.saveAndFlush(request);
+    }
+
+    @Override
+    public int markHeld(UUID requestId, Long reservationId, Instant now, Long actorId) {
+        return repository.markHeld(requestId, reservationId, now, actorId);
     }
 
     @Override

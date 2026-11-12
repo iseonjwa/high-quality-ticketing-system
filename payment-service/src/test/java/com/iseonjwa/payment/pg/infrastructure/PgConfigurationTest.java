@@ -162,14 +162,18 @@ class PgConfigurationTest {
     }
 
     @Test
-    void 건너뛰기_허용은_기본이_true이고_설정으로_끌_수_있다() {
-        runner.withPropertyValues("payment.pg.provider=mock", MOCK_URL)
-                .run(context -> assertTrue(context.getBean(PgProperties.class).mockBypassEnabled()));
-        runner.withPropertyValues("payment.pg.provider=toss", MOCK_URL, TOSS_SECRET, TOSS_CLIENT,
-                        "payment.pg.mock-bypass-enabled=false")
+    void 건너뛰기_허용은_설정이_없으면_꺼지고_설정으로_켤_수_있다() {
+        runner.withPropertyValues("payment.pg.provider=toss", MOCK_URL, TOSS_SECRET, TOSS_CLIENT)
                 .run(context -> {
                     assertFalse(context.getBean(PgProperties.class).mockBypassEnabled());
                     assertFalse(context.getBean(com.iseonjwa.payment.pg.application.PgCheckoutProfile.class)
+                            .mockBypassEnabled());
+                });
+        runner.withPropertyValues("payment.pg.provider=toss", MOCK_URL, TOSS_SECRET, TOSS_CLIENT,
+                        "payment.pg.mock-bypass-enabled=true")
+                .run(context -> {
+                    assertTrue(context.getBean(PgProperties.class).mockBypassEnabled());
+                    assertTrue(context.getBean(com.iseonjwa.payment.pg.application.PgCheckoutProfile.class)
                             .mockBypassEnabled());
                 });
     }
