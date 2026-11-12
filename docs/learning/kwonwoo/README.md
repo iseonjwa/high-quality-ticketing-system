@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-11 | 좌석 선점과 부하 경로에서 로컬 캐시·Redis 캐시로 더 개선할 부분은 무엇인가 | [qna/2026-11-11-seathold-cache-improvements.md](qna/2026-11-11-seathold-cache-improvements.md) |
 | 2026-11-11 | CPU를 늘리지 않고 Gateway가 부하를 감당하게 하는 기술은 무엇인가 | [qna/2026-11-11-gateway-load-techniques-beyond-cpu.md](qna/2026-11-11-gateway-load-techniques-beyond-cpu.md) |
 | 2026-11-11 | 큰 좌석 응답 때문에 Gateway 메모리가 차는 문제를 다른 기술로 극복할 방법은 무엇인가 | [qna/2026-11-11-overcome-large-seat-response.md](qna/2026-11-11-overcome-large-seat-response.md) |
 | 2026-11-11 | CPU 상한을 건 스트레스에서 Gateway가 OOMKilled로 죽은 원인은 무엇인가 | [qna/2026-11-11-gateway-oomkilled-under-cpu-limit.md](qna/2026-11-11-gateway-oomkilled-under-cpu-limit.md) |
