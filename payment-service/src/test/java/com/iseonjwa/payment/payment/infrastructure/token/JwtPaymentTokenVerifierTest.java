@@ -4,12 +4,14 @@ import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.payment.global.PaymentTokenKey;
 import com.iseonjwa.payment.payment.application.PaymentErrorCode;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 
-import static com.iseonjwa.payment.support.PaymentTokenFixtures.TEST_SECRET;
+import static com.iseonjwa.payment.support.PaymentTokenFixtures.OTHER_PRIVATE_KEY;
+import static com.iseonjwa.payment.support.PaymentTokenFixtures.TEST_PUBLIC_KEY;
 import static com.iseonjwa.payment.support.PaymentTokenFixtures.token;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,9 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtPaymentTokenVerifierTest {
-    private static final String OTHER_SECRET = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
-
-    private final JwtPaymentTokenVerifier verifier = new JwtPaymentTokenVerifier(PaymentTokenKey.from(TEST_SECRET));
+    private final JwtPaymentTokenVerifier verifier = new JwtPaymentTokenVerifier(PaymentTokenKey.from(TEST_PUBLIC_KEY));
 
     @Test
     void 올바른_토큰의_사용자_예매_금액_만료를_돌려준다() {
@@ -49,13 +49,24 @@ class JwtPaymentTokenVerifierTest {
     }
 
     @Test
-    void 다른_키로_서명한_토큰은_거절한다() {
-        assertInvalid(token(42, 7, 50000).secret(OTHER_SECRET).build());
+    void 다른_개인키로_서명한_토큰은_거절한다() {
+        assertInvalid(token(42, 7, 50000).privateKey(OTHER_PRIVATE_KEY).build());
     }
 
     @Test
-    void HS256이_아닌_알고리즘의_토큰은_거절한다() {
-        assertInvalid(token(42, 7, 50000).algorithm(MacAlgorithm.HS512).build());
+    void HS256으로_서명한_토큰은_거절한다() {
+        // 예전 형식(공유 비밀 HMAC)이다. 어떤 키로 서명했든 ES256이 아니면 서명 검증 전에 거절한다
+        assertInvalid(token(42, 7, 50000)
+                .hs256With("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff".getBytes(StandardCharsets.UTF_8))
+                .build());
+    }
+
+    @Test
+    void 공개키_바이트를_HMAC_키로_써서_만든_HS256_토큰은_거절한다() {
+        // 알고리즘 혼동: 검증기가 헤더의 alg를 믿으면 공개키를 HMAC 키로 받아 위조가 통한다. ES256 고정이라 거절돼야 한다
+        var derBytes = Base64.getDecoder().decode(TEST_PUBLIC_KEY);
+        assertInvalid(token(42, 7, 50000).hs256With(derBytes).build());
+        assertInvalid(token(42, 7, 50000).hs256With(TEST_PUBLIC_KEY.getBytes(StandardCharsets.UTF_8)).build());
     }
 
     @Test

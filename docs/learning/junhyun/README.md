@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서명을 확인만 하는 쪽이 서명도 할 수 있으면 왜 문제이고, 어떻게 나누는가 | [qna/2026-11-12-symmetric-vs-asymmetric-signature.md](qna/2026-11-12-symmetric-vs-asymmetric-signature.md) |
 | 2026-11-12 | 서비스마다 DB가 따로일 때 서로 어긋난 것을 어떻게 찾는가 | [qna/2026-11-12-reconciliation-between-services.md](qna/2026-11-12-reconciliation-between-services.md) |
 | 2026-11-12 | 실패한 요청을 언제, 몇 번, 얼마나 기다렸다가 다시 보내야 하는가 | [qna/2026-11-12-retry-backoff-jitter.md](qna/2026-11-12-retry-backoff-jitter.md) |
 | 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
