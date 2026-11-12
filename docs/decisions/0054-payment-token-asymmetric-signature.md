@@ -52,7 +52,21 @@
 - 결제: `PaymentTokenKey`·`PaymentTokenConfiguration`·`JwtPaymentTokenVerifier`(공개키, ES256 고정), `config-repo/payment-service.yml`, 테스트 토큰 도구(`PaymentTokenFixtures`).
 - 공통: compose 3종, `.env.example`, `init-env.sh`, `LocalEnvironment`(`initLocalEnv`), `LocalApps`.
 - 문서: `docs/design/payment/contracts.md`·`api.md`·`manual-recovery.md`(키 교체), `docs/design/reservation/contracts.md`, `deployment.md` 4절, SA 변경 요청.
-- 측정: 서명·검증 한 번의 시간을 구현 PR에서 재서 여기에 적는다. 선점 경로(토큰 발급)와 승인 경로(검증)에 더해지는 시간이다.
+- 측정(2026-11-12, ISE-245 구현): 같은 JVM에서 예열 2,000회 뒤 5,000회, Apple M4 Pro, OpenJDK 21의 로컬 개발 장비 값이다(배포 서버 `m7i.xlarge`와 다르다). 값은 테스트 출력(`PaymentTokenSigningTimeTest`, `PaymentTokenVerifyTimeTest`)이다.
+
+  | 구간 | ES256 평균 | ES256 p99 | HS256 평균 | HS256 p99 |
+  |---|---|---|---|---|
+  | 서명(예매 `JwtPaymentTokenIssuer.issue`, claim 조립 포함. 비교는 예전 인코더) | 94.5µs | 124.6µs | 11.6µs | 25.1µs |
+  | 검증(결제 `JwtPaymentTokenVerifier.verify`, 서명·claim 확인 전체. 비교는 예전 디코더의 서명 검증) | 278.8µs | 344.7µs | 8.1µs | 15.3µs |
+
+  선점 한 번에 서명이 약 0.08ms, 승인 한 번에 검증이 약 0.27ms 더해진다. 승인 p99 0.33초 기준으로 0.1% 안팎이고 선점 경로의 비용도 작다. 다만 검증은 CPU를 쓰므로 승인을 초당 수백 건 받는 배포 측정에서는 CPU 사용을 함께 본다(추측, 측정 전). HS256 쪽 검증 값은 서명 검증만이라 검증기 전체와 직접 비교하면 ES256에 불리하게 보인다.
+
+## 구현 메모
+
+- 결정 1~9를 그대로 구현했다. 달라진 결정은 없다.
+- 예매 발급기는 Spring의 `NimbusJwtEncoder` 대신 Nimbus `ECDSASigner`로 직접 서명한다. 인코더는 EC 개인키만으로 JWK를 만들려면 공개키가 필요해 서명 키 쌍을 다시 계산해야 하기 때문이다.
+- 결제 검증기는 `NimbusJwtDecoder.withPublicKey`가 RSA 전용이라 `DefaultJWTProcessor` + `SingleKeyJWSKeySelector(ES256, 공개키)`로 만든다. 키 선택기가 헤더 `alg`가 ES256일 때만 키를 돌려주므로 HS256·`none`·공개키 바이트를 HMAC 키로 쓴 HS256 토큰이 모두 서명 검증 전에 거절된다(`JwtPaymentTokenVerifierTest`). 만료 검사를 빼는 기존 동작은 그대로다.
+- 키 쌍은 `initLocalEnv`(`LocalEnvironment`)와 `script/deploy/init-env.sh`가 만든다. 하나만 있으면 새로 만들지 않고 없는 키를 알리며 실패한다. 임시 폴더에서 `init-env.sh`를 돌려 두 키가 한 쌍(공개키가 개인키에서 나온 것과 같음)임을 확인했다.
 
 ## 면접에서 설명할 한 줄
 

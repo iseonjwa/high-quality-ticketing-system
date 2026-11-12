@@ -62,7 +62,7 @@ pg_tx_id에 저장할 값 = effective == TOSS ? clientPaymentRef : null   (MOCK�
 
 | 항목 | 검증 |
 |---|---|
-| 서명 | HMAC-SHA256 고정(헤더 `alg`를 믿지 않고 `none`·다른 알고리즘 거절). 키는 `PAYMENT_TOKEN_SECRET` 문자열의 UTF-8 바이트(0025). 서명 비교는 상수시간 |
+| 서명 | ES256 고정(헤더 `alg`를 믿지 않고 HS256·`none`·다른 알고리즘 거절). 공개키 `PAYMENT_TOKEN_PUBLIC_KEY`(X.509 DER의 Base64)로 검증하고 서명 비교는 라이브러리가 한다(0054) |
 | 용도·대상 | `typ=payment`, `aud=payment-service` |
 | 만료 | `exp` 허용 오차 0초. 지났으면 신규 승인 불가, 기존 결제 조회만(만료 뒤 24시간 이내) |
 | 사용자 | `sub` = `X-User-Id` |
@@ -74,7 +74,7 @@ claim 이름은 상수 한 곳(`JwtPaymentTokenVerifier`가 쓰는 `PaymentToken
 
 ### 구현 메모 (ISE-35)
 
-- **토큰 claim 가정**: 통보를 기다리지 않고 SA 7-3의 서술에서 정한 값으로 구현했다. `sub`=사용자 ID, `reservationId`=예매 ID, `amount`=원화 정수 금액, `typ`=`payment`, `aud`=`payment-service`, `jti`·`iat`·`exp`는 표준 claim이다. HS256, 키는 `PAYMENT_TOKEN_SECRET`(0025). Reservation 발급기는 이 모양으로 만들거나, 다르면 `PaymentTokenClaims`를 고친다. `amount`는 소수 없는 숫자여야 하고 `reservationId`는 숫자여야 한다.
+- **토큰 claim 가정**: 통보를 기다리지 않고 SA 7-3의 서술에서 정한 값으로 구현했다. `sub`=사용자 ID, `reservationId`=예매 ID, `amount`=원화 정수 금액, `typ`=`payment`, `aud`=`payment-service`, `jti`·`iat`·`exp`는 표준 claim이다. ES256, 공개키는 `PAYMENT_TOKEN_PUBLIC_KEY`(0054. 처음 구현은 HS256·`PAYMENT_TOKEN_SECRET`이었고 ISE-245에서 바꿨다). Reservation 발급기는 이 모양으로 만들거나, 다르면 `PaymentTokenClaims`를 고친다. `amount`는 소수 없는 숫자여야 하고 `reservationId`는 숫자여야 한다.
 - **TX1의 쓰기 순서**: 7단계는 멱등 기록을 먼저 쓰라고 했지만 `idempotency_records.resource_id`가 NOT NULL이라 결제 ID가 필요해 결제를 먼저 쓴다. 한 트랜잭션이고 어느 유니크 위반이든 전체가 롤백돼 결과는 같다. 위반(`uq_payments_reservation_id`, `idempotency_records_pkey`) 뒤에는 3단계부터 한 번 다시 조회한다.
 - **6단계 허가(ISE-37)**: 신규 승인 시도만 `pg-approve` 허가(Bulkhead·Circuit Breaker)를 TX1 앞에서 얻는다. 못 얻으면 503 `PG_UNAVAILABLE`이고 행·멱등 기록이 남지 않는다. 허가는 PG 호출 직후 결과로 정산하고(승인·거절은 성공, 결과를 모르면 실패), TX1 실패·만료 재검사로 PG를 부르지 않은 경우는 결과로 세지 않고 반환한다. 같은 키·기존 결제 응답은 허가 없이 나간다. 요청 처리 시간 제한(Gateway 3초)과 504 뒤 재시도는 Gateway 쪽 설정이고, 서버 처리는 클라이언트가 끊어도 계속된다(`PgProtectionApiTest`로 확인).
 - **요청 해시**: 토큰 원문이 해시에 들어가므로(SA의 "같은 본문") 같은 키로 재발급된 다른 토큰을 보내면 409 `IDEMPOTENCY_KEY_REUSED`다. 새 키로 보내면 ALIAS로 결과를 받는다. Reservation이 같은 예매에 토큰을 재발급하는지 확정되면 해시 기준(예: `(reservationId, amount, method)`)을 다시 정한다(0017 순서 변경이라 ADR 개정 필요).

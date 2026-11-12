@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서명을 확인만 하는 쪽이 서명도 할 수 있으면 왜 문제이고, 어떻게 나누는가 | [qna/2026-11-12-symmetric-vs-asymmetric-signature.md](qna/2026-11-12-symmetric-vs-asymmetric-signature.md) |
 | 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
 | 2026-11-12 | 기능 플래그의 기본값은 왜 꺼짐이어야 하나(안전한 기본값, fail-safe defaults) | [qna/2026-11-12-fail-safe-defaults.md](qna/2026-11-12-fail-safe-defaults.md) |
 | 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |

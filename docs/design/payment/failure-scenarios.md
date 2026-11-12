@@ -30,7 +30,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N9 | 다른 사용자 결제 조회 | 404 `NOT_FOUND`(존재하지 않는 ID와 같은 본문), 내부 WARN 로그 | 9 | 0021 | I |
 | N10 | Kafka 장애 중 결제 승인 | 승인은 성공하고 Outbox가 쌓이며 복구 뒤 자동 발행. 영구 오류만 `FAILED` | 5 | 0022 | I |
 | N11 | `processed_events` 삭제 뒤 이벤트 재전달 | 조건부 UPDATE·UNIQUE·`INSERT … SELECT … ON CONFLICT`·재호출 전 조회로 중복 결제·환불 없음 | 1, 2 | 0022 | I |
-| N12 | `PAYMENT_TOKEN_SECRET` 없음·형식(64자 소문자 16진수) 오류 | 서비스 기동 실패(키 값은 메시지에 없음) | 9 | 0025 | U |
+| N12 | `PAYMENT_TOKEN_PUBLIC_KEY`(결제)·`PAYMENT_TOKEN_PRIVATE_KEY`(예매) 없음·Base64·키 형식·P-256 아님 | 서비스 기동 실패(키 값은 메시지에 없음) | 9 | 0054 | U |
 | N13 | 같은 예매에 다른 키 2건 동시 요청 | TX1 `reservation_id` 유니크 충돌, 결제 1건. 진 쪽은 재조회해 202 + ALIAS(500 아님) | 1 | 0026, 0017 | I |
 | N14 | 같은 키 2건 동시 요청 | 결제 1건. 진 쪽은 멱등 기록 재조회로 202 | 1 | 0017 | I |
 | N15 | 토큰이 검증 뒤 PG 호출 전에 만료 | PG 호출 0회, `DECLINED(TOKEN_EXPIRED)` 200, `PaymentDeclined` | 8 | 0018, 0025 | I |

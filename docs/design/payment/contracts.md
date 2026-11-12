@@ -12,9 +12,9 @@ Reservation이 선점 응답에 담아 내려 주고, 사용자가 `POST /api/v1
 
 | 항목 | 값 |
 |---|---|
-| 형식 | JWS compact(JWT), 서명 알고리즘 HS256 고정. 헤더의 `alg`를 믿지 않는다 |
-| 서명 키 | `PAYMENT_TOKEN_SECRET`. 입장 토큰 키와 분리하며 Reservation·Payment만 가진다 |
-| 키 바이트 | 문자열의 UTF-8 바이트를 그대로 쓴다(16진수 디코딩 금지). 발급기도 `TokenDecoders.signingKey(secret)`를 쓴다([0025](../../decisions/0025-payment-token-secret-injection.md)) |
+| 형식 | JWS compact(JWT), 서명 알고리즘 ES256(ECDSA P-256, SHA-256) 고정. 헤더는 `alg=ES256`, `typ=JWT`. 검증기는 헤더의 `alg`를 믿지 않고 ES256만 받는다([0054](../../decisions/0054-payment-token-asymmetric-signature.md)) |
+| 서명 키 | 개인키 `PAYMENT_TOKEN_PRIVATE_KEY`는 Reservation만, 공개키 `PAYMENT_TOKEN_PUBLIC_KEY`는 Payment만 가진다. 입장 토큰 키와 무관하다 |
+| 키 형식 | 개인키는 PKCS#8 DER, 공개키는 X.509 SubjectPublicKeyInfo DER를 줄바꿈 없는 Base64 한 줄로 둔다. 두 서비스는 시작할 때 값 존재·Base64·키 형식·P-256 곡선을 검사하고 어긋나면 기동하지 않는다 |
 | 길이 상한 | 4,096자. 넘으면 검증 전에 거절한다 |
 
 ### claim
@@ -124,7 +124,7 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 | # | 항목 | 기본 가정 |
 |---|---|---|
 | 1 | claim 이름·타입: `sub`, `reservationId`, `amount`, `typ`, `aud`, `exp`, `jti` | 1절 표 그대로(`reservationId`·`amount`는 JSON 정수) |
-| 2 | 서명 방식과 키: HS256, `PAYMENT_TOKEN_SECRET`, `TokenDecoders.signingKey` | 그대로 |
+| 2 | 서명 방식과 키: ES256, 개인키는 Reservation·공개키는 Payment(ISE-245, 0054가 HS256·`PAYMENT_TOKEN_SECRET`을 대체) | 0054 |
 | 3 | 토큰 `exp` = `hold_expires_at - 10초`를 발급기가 맞춘다 | 그대로 |
 | 4 | `reservation.payment_id`를 확정 때 반드시 기록하고 이벤트의 `paymentId`와 대조한다 | 그대로(0027) |
 | 5 | `payment.result` 소비자가 `PaymentApproved`의 `currency`·`approvedAt`을 쓴다 | 그대로 |
