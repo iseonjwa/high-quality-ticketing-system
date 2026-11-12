@@ -35,7 +35,7 @@ class GatewayConfiguration {
 
     @Bean
     ApplicationRunner redisConnectionWarmup(ReactiveStringRedisTemplate redis) {
-        // Note: 준비 완료 전에 실제 연결을 열어 첫 보호 요청의 100ms를 연결 수립에 쓰지 않게 한다.
+        // Note: 준비 완료 전에 실제 연결을 열어 첫 보호 요청이 인증 필터 시한(auth.redis-timeout)을 연결 수립에 쓰지 않게 한다.
         return args -> redis.execute(connection -> connection.ping()).next()
                 .filter("PONG"::equals)
                 .switchIfEmpty(Mono.error(new IllegalStateException("Redis 연결 준비 응답이 없습니다")))
