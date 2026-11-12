@@ -15,6 +15,8 @@ const USERS = numberEnv('USERS', 10000);
 const STAGES = (__ENV.STAGES || '1000,2000,4000,8000').split(',').map(Number);
 const STAGE_SECONDS = numberEnv('STAGE_SECONDS', 60);
 const OPEN_IN_SECONDS = numberEnv('OPEN_IN_SECONDS', 40);
+// 배포 측정처럼 관리자 계정 없이 잴 때. 서버에서 만든 열린 회차를 주면 회차를 만들지 않는다
+const SCHEDULE_ID = __ENV.SCHEDULE_ID;
 
 const authDuration = new Trend('auth_path_duration', true);
 const authResults = new Counter('auth_path_results');
@@ -50,11 +52,17 @@ http.setResponseCallback(http.expectedStatuses(200, 201));
 
 export function setup() {
   assertSigningKeys();
-  const schedule = createSchedule(adminLogin(), { title: 'k6 G1', openInSeconds: OPEN_IN_SECONDS });
-  waitUntil(schedule.openAt + 1000);
-  enterAll(schedule.scheduleId, USERS);
-  console.log(`G1 회차 ${schedule.scheduleId}, 대기자 ${USERS}명, 단계 ${STAGES.join(' → ')}/초, 단계당 ${STAGE_SECONDS}초`);
-  return { scheduleId: schedule.scheduleId };
+  let scheduleId;
+  if (SCHEDULE_ID) {
+    scheduleId = Number(SCHEDULE_ID);
+  } else {
+    const schedule = createSchedule(adminLogin(), { title: 'k6 G1', openInSeconds: OPEN_IN_SECONDS });
+    waitUntil(schedule.openAt + 1000);
+    scheduleId = schedule.scheduleId;
+  }
+  enterAll(scheduleId, USERS);
+  console.log(`G1 회차 ${scheduleId}${SCHEDULE_ID ? '(서버 준비)' : ''}, 대기자 ${USERS}명, 단계 ${STAGES.join(' → ')}/초, 단계당 ${STAGE_SECONDS}초`);
+  return { scheduleId };
 }
 
 // Note: 요청마다 서명하면 k6 CPU를 먹어 발생기가 먼저 한계에 닿는다. VU마다 서명한 토큰을 사용자별로 기억한다

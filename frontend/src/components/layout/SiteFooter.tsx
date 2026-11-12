@@ -1,5 +1,7 @@
 import { Link } from 'react-router'
 import { paths } from '@/app/paths'
+import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
+import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
 import { Logo } from '@/components/layout/Logo'
 
 const REPOSITORY_URL = 'https://github.com/iseonjwa/high-quality-ticketing-system'
@@ -7,17 +9,17 @@ const REPOSITORY_URL = 'https://github.com/iseonjwa/high-quality-ticketing-syste
 // 사이트 아래 정보. 실제 서비스처럼 안내·바로가기·운영 정보를 두되, 없는 약관·고객센터 링크는 만들지 않는다.
 export function SiteFooter() {
   return (
-    <footer className="mt-auto bg-gray-900 text-gray-400">
+    <footer className="mt-auto border-t border-gray-100 bg-gray-0 text-gray-500">
       <div className="mx-auto grid max-w-[1200px] gap-10 px-4 py-12 @min-[40rem]:px-6 @min-[56rem]:grid-cols-[1.4fr_1fr_1fr]">
         <div className="grid content-start gap-3">
-          <Logo tone="light" />
-          <p className="type-body-sm max-w-[320px] text-gray-400">
+          <Logo />
+          <p className="type-body-sm max-w-[320px] text-gray-500">
             티켓 오픈의 폭주 트래픽을 견디는 콘서트 예매 서비스예요. 대기열, 좌석 선점, 추첨
             자동결제로 공정하게 예매해요.
           </p>
         </div>
         <nav aria-label="바로가기" className="grid content-start gap-3">
-          <h2 className="type-body-sm font-semibold text-gray-0">바로가기</h2>
+          <h2 className="type-body-sm font-semibold text-gray-900">바로가기</h2>
           <ul className="grid gap-2 type-body-sm">
             <li>
               <FooterLink to={paths.home}>공연</FooterLink>
@@ -28,10 +30,11 @@ export function SiteFooter() {
             <li>
               <FooterLink to={paths.me}>내 정보·자동결제 카드</FooterLink>
             </li>
+            <AssistantFooterItem />
           </ul>
         </nav>
         <div className="grid content-start gap-3">
-          <h2 className="type-body-sm font-semibold text-gray-0">예매 안내</h2>
+          <h2 className="type-body-sm font-semibold text-gray-900">예매 안내</h2>
           <ul className="grid gap-2 type-body-sm">
             <li>예매는 대기열 → 좌석 선택 → 결제 순서예요.</li>
             <li>일부 좌석은 추첨으로 응모를 받아요.</li>
@@ -39,14 +42,14 @@ export function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 type-caption text-gray-400 @min-[40rem]:px-6">
+      <div className="border-t border-gray-100">
+        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 type-caption text-gray-500 @min-[40rem]:px-6">
           <p>© 2026 이선좌 · 부트캠프 최종 프로젝트 5조</p>
           <a
             href={REPOSITORY_URL}
             target="_blank"
             rel="noreferrer"
-            className="rounded-sm text-gray-400 outline-none hover:text-gray-0 focus-visible:ring-2 focus-visible:ring-primary-300"
+            className="rounded-sm text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring"
           >
             GitHub 저장소
           </a>
@@ -56,12 +59,22 @@ export function SiteFooter() {
   )
 }
 
+// 예매 문의는 위젯을 연다. 위젯이 없는 화면이면 항목을 두지 않는다
+function AssistantFooterItem() {
+  const { available } = useAssistantWidget()
+  return available ? (
+    <li>
+      <AssistantOpenButton className={FOOTER_LINK}>예매 문의</AssistantOpenButton>
+    </li>
+  ) : null
+}
+
+const FOOTER_LINK =
+  'rounded-sm text-gray-500 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring'
+
 function FooterLink({ to, children }: { to: string; children: string }) {
   return (
-    <Link
-      to={to}
-      className="rounded-sm text-gray-400 outline-none hover:text-gray-0 focus-visible:ring-2 focus-visible:ring-primary-300"
-    >
+    <Link to={to} className={FOOTER_LINK}>
       {children}
     </Link>
   )

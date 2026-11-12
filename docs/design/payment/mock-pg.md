@@ -2,7 +2,7 @@
 
 `mock-pg` 모듈에 만들 모의 PG 서버의 설계다. 응답 모양은 [pg-integration.md](pg-integration.md) 6절 "Mock PG 프로토콜"이 정본이고, 이 문서는 그 표가 정하지 않은 내부 구조(원장, 원자성, 장애 주입, 프로필 제한)와 구현 순서를 정한다. 근거는 SA 6-6·11-4·11-5, S-28·S-29([sa-change-requests.md](sa-change-requests.md)), INV-1·INV-2·INV-8([invariants.md](invariants.md)), ADR 0023이다.
 
-상태: 구현 중. 2026-10-30 Opus 리뷰와 사용자 결정 4건을 반영한 개정본이고, 결정 내용은 7절에 있다. 10절의 단계 0(스파이크, ISE-101)을 2026-11-02에 끝냈고 결과는 6절 "스파이크 결과"에 적었다. 10절의 단계 1(ISE-127)은 끝났고, 단계 2(ISE-128, 호출 계수·멱등 헤더 기록·원장 조회·환불 장애 주입·`reset`)는 구현을 마쳤다(2절·5절·9절의 "구현 메모"). 단계 3(ISE-129)과 5(ISE-132)도 끝났다. 단계 4(ISE-130)와 6(ISE-133)이 남았다.
+상태: 구현 완료. 2026-10-30 Opus 리뷰와 사용자 결정 4건을 반영한 개정본이고, 결정 내용은 7절에 있다. 10절의 단계 0(스파이크, ISE-101)을 2026-11-02에 끝냈고 결과는 6절 "스파이크 결과"에 적었다. 10절의 단계 1(ISE-127)은 끝났고, 단계 2(ISE-128, 호출 계수·멱등 헤더 기록·원장 조회·환불 장애 주입·`reset`)는 구현을 마쳤다(2절·5절·9절의 "구현 메모"). 단계 3(ISE-129)과 5(ISE-132)도 끝났다. 단계 4(ISE-130)와 6(ISE-133)도 끝나 공통 계약 23개와 이관한 어댑터 고유 테스트가 실제 서버에서 통과한다.
 
 ## 1. 완료 기준
 
@@ -13,15 +13,15 @@
 | 테스트 | 처리 | 시점 |
 |---|---|---|
 | 망취소 409(`ORDER_CANCELED`) | 이관 | ISE-127(이관 완료) |
-| 그 밖의 409 | 이관. 첫 승인에 `DELAY`를 걸고 지연 중 같은 주문을 다시 승인해 `IN_FLIGHT` 409를 얻는다(3절) | ISE-130 |
+| 그 밖의 409 | 이관. 첫 승인에 `DELAY`를 걸고 지연 중 같은 주문을 다시 승인해 `IN_FLIGHT` 409를 얻는다(3절) | ISE-130(이관 완료, `MockPgServerContractTest`) |
 | 다른 결제의 환불 응답 | 이관 | ISE-132 |
 | 같은 주문 승인 1회 | 이관. 원장의 `approveCalls`로 단정 | ISE-128(이관 완료, `MockPgServerContractTest`) |
 | 같은 환불 1회 | 이관. 원장의 `refundCalls`로 단정. 계수가 있어야 해서 ISE-128에서 옮겼다 | ISE-128(이관 완료, `MockPgServerContractTest`) |
 | 멱등 헤더(`Idempotency-Key`) | 이관. 원장이 헤더를 기록한다(2절) | ISE-128(이관 완료, `MockPgServerContractTest`) |
-| 연결 불가 | 서버가 필요 없는 테스트라 어댑터 단위 테스트에 남긴다 | 이관 안 함 |
-| 본문 코드 없는 404 | 실제 앱이 만들 수 없는 응답이라 가짜 서버에 남긴다 | 이관 안 함 |
+| 연결 불가 | 서버가 필요 없는 테스트라 `MockPgAdapterContractTest`에 남긴다 | 이관 안 함(ISE-133에서 정리 완료) |
+| 본문 코드 없는 404 | 실제 앱이 만들 수 없는 응답이라 가짜 서버에 남긴다 | 이관 안 함(ISE-133에서 정리 완료) |
 
-가짜 서버(`FakeMockPgServer`)는 이미 이 설계와 다르다(조회 때 `IN_FLIGHT`를 404로 응답하고, 같은 주문의 동시 승인이 둘 다 저장되고, 환불 검증이 없다). 그래서 가짜 서버는 이관하지 않는 두 테스트용으로만 남기고, 공통 계약의 정본으로 쓰지 않는다.
+가짜 서버(`FakeMockPgServer`)는 이미 이 설계와 다르다(조회 때 `IN_FLIGHT`를 404로 응답하고, 같은 주문의 동시 승인이 둘 다 저장되고, 환불 검증이 없다). 그래서 가짜 서버는 이관하지 않는 두 테스트용으로만 남기고, 공통 계약의 정본으로 쓰지 않는다. ISE-133에서 `MockPgAdapterContractTest`가 공통 계약 상속을 끊었고, `FakeMockPgServer`는 승인·환불 흉내를 모두 지우고 본문 코드 없는 404만 답한다(연결 불가 테스트는 서버 없이 돈다).
 
 ## 2. 원장
 
@@ -62,7 +62,7 @@
 - 계수에 들어가지 않는 것: 원장 조회 API 호출, 설정 API 호출. 조회가 계수를 올리지 않게 `Ledger.find`(상태만 읽음)와 `Ledger.lookup`(계수 포함)을 나눴다.
 - 저장되지 않는 환불(거절, 장애 응답)의 호출 수는 `refunds?pgTxId=` 목록에 나타나지 않는다. 목록은 저장된 환불만 담는다(8절). 같은 `refundId`를 나중에 저장하면 앞선 호출 수가 합쳐서 보인다.
 
-S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수"는 "주문별 승인 호출 수(`approveCalls`)"로 정정한다(13절).
+S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수"는 "주문별 승인 호출 수(`approveCalls`)"로 정정한다(12절).
 
 ### 재시작 영향
 
@@ -86,7 +86,7 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 
 ## 4. 승인 저장과 망취소의 원자성
 
-주문 하나의 상태는 `orders.compute(orderId, ...)`로만 바꾼다. `ConcurrentHashMap`은 키가 속한 bin 단위로 잠그므로 `FakeMockPgServer`의 전역 락과 달리 서로 다른 주문이 거의 막히지 않는다(같은 bin에 든 키끼리는 잠깐 막힐 수 있다). 지연은 `compute` 밖에서 한다.
+주문 하나의 상태는 `orders.compute(orderId, ...)`로만 바꾼다. `ConcurrentHashMap`은 키가 속한 bin 단위로 잠그므로 이전 `FakeMockPgServer`의 전역 락과 달리 서로 다른 주문이 거의 막히지 않는다(같은 bin에 든 키끼리는 잠깐 막힐 수 있다). 지연은 `compute` 밖에서 한다.
 
 ```
 없음 --approve--> IN_FLIGHT --(지연 뒤, 내 시도일 때만)--> APPROVED | DECLINED
@@ -106,7 +106,7 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 - 확정 단계에서 `Ledger`가 교체되어 있으면(`reset`) 옛 `Ledger`에만 쓰고 끝난다. 새 원장에는 영향이 없다.
 - `paymentsByTx` 색인은 `APPROVED`로 바꾸는 `compute` 안에서 함께 넣는다. 나중에 넣으면 조회가 `pgTxId`를 보여준 직후에 환불이 `NOT_REFUNDABLE`이 되는 창이 생긴다.
 - 장애 설정은 요청이 들어올 때 한 번 읽어(스냅숏) 그 요청이 끝날 때까지 쓴다. 지연 뒤에 다시 읽지 않는다.
-- `IN_FLIGHT`를 `GET`에서 202로 돌려주는 것은 프로토콜 표에 없는 동작이다. 어댑터는 202를 `Unknown(PROCESSING)`으로 해석하므로 호환된다. 표에 한 줄을 추가한다(13절).
+- `IN_FLIGHT`를 `GET`에서 202로 돌려주는 것은 프로토콜 표에 없는 동작이다. 어댑터는 202를 `Unknown(PROCESSING)`으로 해석하므로 호환된다. 표에 한 줄을 추가한다(12절).
 - 응답을 잃은 승인(`DROP_RESPONSE`)도 이 표를 그대로 따른다. 저장은 끝났고 응답만 사라진 상태라 `APPROVED`로 남는다.
 
 ## 5. 장애 주입
@@ -142,7 +142,8 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
   - `mock-pg`는 가상 스레드(`spring.threads.virtual.enabled`)로 돌아서 긴 지연이 요청 스레드를 고갈시키지 않는다. 요청과 설정의 모르는 JSON 필드는 400이다(오타 필드가 `orderId` 한정 규칙을 전역 규칙으로 만들지 않게 한다).
   - (ISE-128) `REFUND`·`REFUND_LOOKUP` 대상과 `REJECT` 모드를 더했다. 모드×호출 적용 표대로 걸 수 없는 조합은 설정할 때 400이다. 환불 쪽 호출은 `orderId` 대신 `refundId`로 한정하고, 종류에 맞지 않는 쪽(`REFUND`에 `orderId`, 승인에 `refundId`)을 주면 400이다. 설정 조회 응답에 `refundId` 필드가 늘었다(없으면 null).
   - (ISE-128) 환불 `DELAY`는 판정·저장 전에 기다린다(8절 3번). `PROCESSING`·`SERVER_ERROR`는 원장에 닿지 않고, `DROP_RESPONSE`는 저장한 뒤 연결을 닫으며, `REJECT`는 422 `NOT_REFUNDABLE`을 답하고 저장하지 않는다. 환불 조회는 `DELAY`·`PROCESSING`·`SERVER_ERROR`만 걸 수 있다. 모두 호출 계수(2절)에 들어간다.
-  - 변조형 모드와 그 프로필 검사(`loadtest`에서 거절)는 ISE-130에서 더한다. 이번에는 `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사까지 구현했다.
+  - (ISE-129) `prod`와 `loadtest`를 함께 켜면 기동하지 않는 검사를 구현했다.
+  - (ISE-130) 변조형 4개(`BAD_REQUEST`, `MISSING_AMOUNT`, `WRONG_AMOUNT`, `FRACTIONAL_AMOUNT`)를 모드와 적용 표대로 더했다. 변조형은 설정 API가 `test` 프로필일 때만 받고, 그 밖의 프로필(`loadtest`)에서는 400 `INVALID_REQUEST`로 거절하며 규칙을 바꾸지 않는다. `test`와 `loadtest`를 함께 켜면 `test`가 있으므로 받는다. `BAD_REQUEST`는 `PROCESSING`·`SERVER_ERROR`처럼 원장에 닿지 않고 호출만 센다. `MISSING_AMOUNT`는 저장은 정상으로 하고 승인·조회·환불·환불 조회의 성공 본문에서 `amount`·`currency` 필드를 뺀다. `WRONG_AMOUNT`·`FRACTIONAL_AMOUNT`는 새 주문을 승인으로 정하는 시점에 저장 금액을 바꾸므로, 이미 결과가 있는 주문에는 효과가 없고 `count`만 쓴다(`DECLINE`과 같다).
 
 ### 모드와 적용 표
 
@@ -181,11 +182,13 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 
 compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄워서 측정·시연 때 `/faults`가 404가 되는 것)는 이 설계가 정하지 않고 팀 확인을 기다린다(7절, S-30).
 
+배포 서버는 `compose.deploy.yml`이 Mock PG를 `loadtest`로 띄워 이 API가 열려 있다(ISE-71). 브라우저의 시연 장애 패널은 Gateway 운영자 경로(`/api/v1/admin/demo/pg/faults`·`/ledger/summary`, ADMIN만)로 설정 조회·변경과 원장 요약만 부른다(ISE-134, [demo-scenarios.md](../../guides/demo-scenarios.md)).
+
 ## 6. 응답 유실 구현 방식
 
 요구: 승인(또는 환불, 망취소)을 저장한 뒤 HTTP 응답을 한 바이트도 보내지 않고 연결을 끊어, 어댑터가 `CONNECTION_LOST`로 분류하게 한다. 지연으로 흉내 내면 `TIMEOUT`이 되어 시나리오가 달라진다.
 
-**클라이언트 쪽 분류는 이미 증명됐다.** `FakeMockPgServer`가 `exchange.close()`로 0바이트를 보낸 채 끊을 때 어댑터는 `CONNECTION_LOST`로 분류하고 해당 테스트가 통과한다. POST가 0바이트로 끊기면 `IOException`이 나고, `DefaultRestClient`가 이를 `ResourceAccessException`으로 감싸고, 응답 시간 초과가 아니면 `CONNECTION_LOST`가 된다. 서버가 같은 상태(0바이트 뒤 종료)를 만들면 된다.
+**클라이언트 쪽 분류는 이미 증명됐다.** 스파이크 때 가짜 서버가 `exchange.close()`로 0바이트를 보낸 채 끊어도 어댑터는 `CONNECTION_LOST`로 분류하고 테스트가 통과했다(지금은 실제 서버를 쓰는 `MockPgServerContractTest`가 같은 것을 확인한다). POST가 0바이트로 끊기면 `IOException`이 나고, `DefaultRestClient`가 이를 `ResourceAccessException`으로 감싸고, 응답 시간 초과가 아니면 `CONNECTION_LOST`가 된다. 서버가 같은 상태(0바이트 뒤 종료)를 만들면 된다.
 
 **1안(채택): Tomcat Valve에서 연결을 즉시 닫는다.**
 - 컨트롤러는 결과를 저장한 뒤 요청 속성을 세우고 `null`을 돌려줘 아무것도 쓰지 않는다. `ResponseEntity`를 돌려주면 `HttpEntityMethodProcessor`가 본문이 없어도 헤더를 flush해서 응답이 커밋된다(Spring Framework 7.0.10 소스로 확인).
@@ -283,7 +286,7 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 - `summary`: `{approvedCount, declinedCount, canceledCount, refundCount, approvedTotal, refundedTotal, inFlightCount, orderCount}`. `orderCount`는 저장된 상태가 있는 주문 수다(`NONE`은 세지 않는다). 맵을 훑어 계산한다.
 - `orders?status=&limit=&cursor=`: `{orders: [{orderId, status, pgTxId}], nextCursor}`다. `status`는 생략하면 상태가 있는 모든 주문, 값은 `IN_FLIGHT`·`APPROVED`·`DECLINED`·`CANCELED`이다. `limit`은 기본 100, 1~1000이고 `cursor`는 기본 0이다. `nextCursor`가 null이면 마지막 쪽이다. 값이 틀리면 400 `INVALID_REQUEST`다. 순번이 작은 주문이 색인에 늦게 보이는 경쟁이 있어서, 요청이 도는 중의 목록은 대조에 쓰지 않고 `inFlightCount`가 0이 된 뒤에 쓴다.
 - `POST /mock-pg/reset`: 204. 원장과 모든 호출 종류의 장애 설정을 새 객체로 바꾼다. 이 API들은 `test`·`loadtest`에서만 열린다(`local`·`prod`는 빈이 없어 404). 조회는 호출 계수를 올리지 않는다.
-- payment-service의 테스트 지원 `MockPgLedgerClient`가 이 API를 감싼다(`payment`, `refunds`, `summary`, `approvedOrders`, `reset`, `awaitNoInFlight`). `awaitNoInFlight`가 `inFlightCount`를 폴링한다. 실제 서버용 `PgScenario.awaitPendingEffects()`는 공통 계약을 상속하는 ISE-130에서 이 메서드로 구현한다. 지금 `awaitPendingEffects()`를 가진 쪽은 가짜 서버용 구현뿐이고 가짜 서버에는 원장이 없어 `sleep`을 그대로 둔다.
+- payment-service의 테스트 지원 `MockPgLedgerClient`가 이 API를 감싼다(`payment`, `refunds`, `summary`, `approvedOrders`, `reset`, `awaitNoInFlight`). `awaitNoInFlight`가 `inFlightCount`를 폴링한다. 실제 서버용 `PgScenario.awaitPendingEffects()`는 공통 계약을 상속한 `MockPgServerContractTest`(ISE-130)가 이 메서드로 구현한다.
 
 ## 10. 구현 단위와 PR 분할
 
@@ -295,11 +298,11 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 | 1 | ISE-127 | 원장 상태 머신(2~4절)과 승인·조회·망취소 | 승인·조회·망취소·늦은 승인 방지·망취소 409를 실제 mock-pg로 검증. 진행 중 |
 | 2 | ISE-128 | 호출 계수·멱등 헤더 기록과 원장 조회 5개(결제·환불·요약·주문 목록·`reset`, `inFlightCount`), 환불·환불 조회 장애 주입(ISE-133에서 당김) | 이관 '같은 주문 승인 1회'(`approveCalls`)·'멱등 헤더' 통과, 409 응답도 계수에 들어감, 처리 중 승인이 `inFlightCount`에 잡힘, `local`·`prod`에서 원장 조회 API가 열리지 않음, 이관 '같은 환불 1회'(`refundCalls`) 통과, 환불 장애 모드별 동작과 호출 계수. 완료 |
 | 3 | ISE-129 | 승인·조회·망취소 운영형 장애 주입 확장(`target=APPROVE·PAYMENT_LOOKUP·CANCEL`, `count`, `orderId` 매칭)과 프로필 제한 | 5절 모드×호출 적용 표대로 적용, `local`·`prod`에서 `/faults`가 없음, `test`·`loadtest`에서 운영형 설정 가능, `prod`와 `loadtest`를 함께 켜면 기동 실패 |
-| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절 |
+| 4 | ISE-130 | `PgScenario` 구현과 변조형 장애 모드, 공통 계약 상속. 환불 테스트는 `@Tag`로 제외 | 환불을 뺀 공통 계약과 "그 밖의 409" 이관 테스트 통과, `loadtest`에서 변조형 모드 거절. **완료.** 환불 `@Tag` 제외는 하지 않았다. 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`, `REJECT`)·원장 조회·`reset`을 ISE-128·132에서 먼저 구현해서 처음부터 공통 계약 23개 전부를 실제 서버로 돌린다. `MockPgServerContractTest`가 `PgClientContractTest`를 상속하고 `PgScenario`는 장애 주입 API(`count=1`)로 구현했다. `awaitPendingEffects()`는 `inFlightCount` 폴링이다 |
 | 5 | ISE-132 | 환불·환불 조회·환불 멱등(8절) | 같은 `refundId` 동시 환불에서 `refundedTotal`이 한 번만 늚, 이관 '다른 결제의 환불 응답' 통과('같은 환불 1회'는 `refundCalls`가 필요해 ISE-128에서 옮겼다), 장애 주입이 필요 없는 환불 테스트 2개(환불 성공, 조회 NotFound 뒤 재호출) 통과 |
-| 6 | ISE-133 | 환불 `@Tag` 제외 해제(공통 계약 23개 완료, ISE-130 뒤). 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`), 주문 목록·환불 원장 조회, `reset`은 2026-11-03 ISE-128로 당겨 구현했다 | 공통 계약 23개 전체와 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김 |
+| 6 | ISE-133 | 환불 `@Tag` 제외 해제(공통 계약 23개 완료, ISE-130 뒤). 환불 장애 주입(`REFUND`·`REFUND_LOOKUP`), 주문 목록·환불 원장 조회, `reset`은 2026-11-03 ISE-128로 당겨 구현했다 | 공통 계약 23개 전체와 이관 고유 테스트 통과. 가짜 서버는 이관하지 않는 두 테스트만 남김. **완료(ISE-133).** `MockPgAdapterContractTest`는 이관하지 않는 두 테스트(본문 코드 없는 404, 연결 불가)만 남기고 공통 계약 상속을 끊었다. `@Tag`를 쓰지 않았으므로 환불 `@Tag` 해제는 해당 없다 |
 
-ISE-130에서 환불 테스트를 제외하는 방법: 공통 테스트 메서드는 접근 제어자가 없고(package-private) 하위 클래스가 다른 패키지에 있어서 재정의해 `@Disabled`할 수 없다. 환불 성공·환불 1회 같은 테스트는 `scenario()`를 부르지 않아 시나리오 쪽 `assume`으로도 막을 수 없다. 환불 관련 테스트(리뷰 기준 6개, 구현 때 세어 확인)에 `@Tag`를 달고 ISE-130의 Gradle 태스크에서 제외한다. 공통 테스트 파일을 고치므로 ISE-130 범위에 든다. ISE-132에서 장애 주입이 필요 없는 두 테스트(환불 성공, 조회 NotFound 뒤 재호출)의 태그를 먼저 떼고, 나머지는 ISE-133에서 뗀다. 테스트마다 장애 설정을 `NONE`으로 되돌린다.
+(이 방법은 쓰지 않았다. 4단계 행 참고.) ISE-130에서 환불 테스트를 제외하려던 계획: 공통 테스트 메서드는 접근 제어자가 없고(package-private) 하위 클래스가 다른 패키지에 있어서 재정의해 `@Disabled`할 수 없다. 환불 성공·환불 1회 같은 테스트는 `scenario()`를 부르지 않아 시나리오 쪽 `assume`으로도 막을 수 없다. 환불 관련 테스트(리뷰 기준 6개, 구현 때 세어 확인)에 `@Tag`를 달고 ISE-130의 Gradle 태스크에서 제외한다. 공통 테스트 파일을 고치므로 ISE-130 범위에 든다. ISE-132에서 장애 주입이 필요 없는 두 테스트(환불 성공, 조회 NotFound 뒤 재호출)의 태그를 먼저 떼고, 나머지는 ISE-133에서 뗀다. 테스트마다 장애 설정을 `NONE`으로 되돌린다.
 
 테스트:
 - 서버 단위 테스트: 4절 상태 표의 칸마다.
@@ -328,3 +331,12 @@ ISE-130에서 환불 테스트를 제외하는 방법: 공통 테스트 메서�
 - [sa-change-requests.md](sa-change-requests.md): S-28의 "주문별 승인 수"를 호출 수로 정정하고, S-29(장애 주입 확장)와 S-30(compose 프로필)을 추가한다.
 - [failure-scenarios.md](failure-scenarios.md) V1: "주문별 승인 수"를 "주문별 승인 호출 수"로 정정한다. 원장 조회가 `test`·`loadtest` 프로필 전용임을 적는다.
 - SA 참조 번호: 이 문서와 S-28은 "SA 10-6"을 인용했지만 SA에 그 절은 없다. 장애 주입은 6-6, 11-4, 11-5에 있다.
+
+## 13. 빌링키
+
+- 형식은 `bk-<UUID>.<서명>`이다. 서명은 `HmacSHA256(서명 키, UUID 문자열)`을 URL-safe Base64(패딩 없음)로 인코딩한 값이다.
+- Mock PG는 발급한 빌링키를 저장하지 않고, 자동결제 승인 때 서명을 다시 계산해 발급한 키인지 확인한다. 서명은 `MessageDigest.isEqual`로 비교한다. 예전에는 메모리 Set에 두어서 컨테이너를 다시 띄우면(배포 때마다) 등록해 둔 빌링키가 모두 `BILLING_KEY_INVALID`로 거절됐고 Set에는 크기 제한도 없었다. 서명 방식은 다시 띄워도 같은 서명 키만 있으면 발급한 키가 유효하고 메모리도 늘지 않는다. 실제 PG는 빌링키를 저장소에 둔다.
+- 서명 키는 설정 `mock-pg.billing.signing-secret`(환경변수 `MOCK_PG_BILLING_SIGNING_SECRET`)이다. 가짜 카드의 빌링키만 지키는 값이라 기본값이 있고, 비어 있으면 기동하지 않는다.
+- 서명 키를 바꾸면 그 전에 발급한 빌링키는 모두 무효가 된다.
+- ISE-235 전에 발급한 `bk-<UUID>` 형식의 키도 서명이 없어 무효다.
+- 응답 형식, 오류 코드, 엔드포인트는 그대로이고 빌링키 문자열 형식만 바뀐다.

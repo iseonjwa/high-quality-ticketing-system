@@ -18,6 +18,11 @@ public interface LotteryRepository {
     Optional<Lottery> findById(Long id);
 
     /**
+     * 회차의 추첨을 읽으며, 지운 추첨은 없는 것으로 본다.
+     */
+    Optional<Lottery> findByScheduleId(Long scheduleId);
+
+    /**
      * 수정 때 회차 행을 먼저 잠그려고 추첨 엔티티를 읽기 전에 회차 ID만 꺼낸다.
      */
     Optional<Long> findScheduleIdById(Long id);

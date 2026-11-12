@@ -23,7 +23,7 @@ SA 2-5의 결제 관련 시나리오(E2·E6·E8~E10·E12~E14), 상세 설계에�
 | N2 | 승인이 `RELEASED` 예매에 도착 | 확정하지 않음, `RefundRequested(NOT_CONFIRMABLE)`, Reservation 즉시 알림 | 4 | 0027 | S(반효승) |
 | N3 | PG 호출 중 같은 키로 재시도, 서버 중단 뒤 재시도 | 202와 기존 `paymentId`. 만료된 토큰으로도 같은 응답 | 1 | 0017 | I |
 | N4 | `pg-approve` CB OPEN 중 같은 키·새 키 재요청 | 기존 상태로 응답(허가 없이, PG 호출 없음) | 1 | 0018, 0019 | I |
-| N5 | 허가 획득 뒤 TX1 실패(DB 오류) | 허가 반환, 결제 행 없음, 503 `SERVICE_UNAVAILABLE` | 5 | 0018 | U, I |
+| N5 | 허가 획득 뒤 TX1 실패(DB 오류) | 허가 반환, 결제 행 없음, 503 `SERVICE_UNAVAILABLE`. 단, TX1 커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md)) | 5 | 0018, 0048 | U, I |
 | N6 | `UNKNOWN` 중 새 키 재요청 | 202 + 기존 `paymentId`, ALIAS 저장. 금액·수단·통화가 다르면 409(`Location` 없음). `NEEDS_MANUAL_CHECK`는 409 + `Location` | 1 | 0019 | I |
 | N7 | `RefundRequested`가 DB 장애로 3회 실패해 DLQ 도착 | DLQ 처리기가 환불 `REQUESTED`로 영속화(`dead_letters` `RESOLVED(AUTO_PERSISTED)`), 환불 워커가 환불, `PaymentRefunded`. 같은 DLQ 메시지 재전달에도 환불 행·PG 환불 1건 | 2, 4 | 0020 | I |
 | N8 | DLQ 처리기의 DB 기록 실패 | 오프셋 미커밋, 백오프 재시도, DB 복구 뒤 영속화와 환불 완료, 메시지 유실 없음 | 4 | 0020 | I |
@@ -75,7 +75,7 @@ Mock PG 원장 조회는 `test`·`loadtest` 프로필 전용 기능이 필요하
 | FT-1 | 메시지 중복 | (a) `PaymentApproved`를 같은 eventId·새 eventId로 재발행: 확정 1회, 환불 없음. (b) `RefundRequested` 3중 발행·DLQ 재전달: 환불 1건. (c) Outbox 전송 확인 전 릴레이 중단으로 중복 전송: 소비 1회. (d) `processed_events` 정리 뒤 재전달 | N7, N11, N22 |
 | FT-2 | PG 응답 유실 | (a) 승인 `DROP_RESPONSE`: `UNKNOWN` → 조회로 `APPROVED`, 승인 1회. (b) 환불 응답 유실: `UNKNOWN` → `findRefund`로 `REFUNDED`. (c) 환불이 PG에 도달하지 않음: `NotFound` → 같은 키 재호출. (d) PG 미도달 승인: `NotFound` → 늦은 승인 방지 → `DECLINED(NOT_SENT)` | E9, N19 |
 | FT-3 | 서버 재시작 | `payment-service` 강제 종료 시점: (a) TX1 커밋 뒤 PG 호출 전, (b) PG 호출 중, (c) PG 승인 뒤 TX2 전, (d) 환불 워커의 claim 뒤 PG 호출 중, (e) Outbox 전송 중, (f) DLQ 처리기 트랜잭션 중. 재기동 뒤 모두 확정되거나 명시적 미해결 | E12, N3, N17 |
-| FT-4 | DB 일시 장애 | `postgres-payment` 일시 정지 시점: (a) TX1: 503, 행 없음, 같은 요청 재시도 성공. (b) TX2: 202, DB 복구 뒤 재확인으로 확정. (c) `payment.command` 소비 중: 재시도 뒤 DLQ, 처리기가 DB 복구까지 대기 후 영속화. (d) 환불 결과 기록 중: 임대 만료 뒤 조회로 확정, PG 환불 1회 | N5, N7, N8 |
+| FT-4 | DB 일시 장애 | `postgres-payment` 일시 정지 시점: (a) TX1: 503, 행 없음, 같은 요청 재시도 성공(커밋 응답 유실이면 `REQUESTED` 행이 남고 재확인이 `NOT_SENT`로 닫는다, 0048). (b) TX2: 202, DB 복구 뒤 재확인으로 확정. (c) `payment.command` 소비 중: 재시도 뒤 DLQ, 처리기가 DB 복구까지 대기 후 영속화. (d) 환불 결과 기록 중: 임대 만료 뒤 조회로 확정, PG 환불 1회 | N5, N7, N8 |
 | FT-5 | 환불 중단 | (a) 환불 중 `pg-recovery` CB OPEN: 시도 횟수 불변, 복구 뒤 완료. (b) 장기 장애: 9회 뒤 NMC, 알림, `refund retry`로 완료. (c) PG 거절: NMC, `refund resolve --close-failed`는 외부 조치 참조가 있어야만 적용. (d) 긴급 콘솔 환불 예외 절차 | N20, N25, N31 |
 
 각 FT는 끝에 V1~V3를 모두 실행하고, 하나라도 어긋나면 실패로 본다. 실제 실행 결과(명령, 주입 방법, V1~V3 출력)는 구현 PR 본문에 남긴다.

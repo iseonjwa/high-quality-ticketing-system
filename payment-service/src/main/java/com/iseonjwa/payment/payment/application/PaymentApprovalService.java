@@ -11,11 +11,15 @@ import com.iseonjwa.payment.payment.domain.Payment;
 import com.iseonjwa.payment.payment.domain.PaymentMethod;
 import com.iseonjwa.payment.payment.domain.PaymentRepository;
 import com.iseonjwa.payment.payment.domain.PaymentStatus;
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.ApproveCommand;
 import com.iseonjwa.payment.pg.application.PgApprovalGate;
+import com.iseonjwa.payment.pg.application.PgCheckoutProfile;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgIdempotencyKey;
 import com.iseonjwa.payment.pg.application.PgOrderId;
+import com.iseonjwa.payment.pg.application.PgPaymentRef;
 import com.iseonjwa.payment.pg.application.PgPermit;
 import com.iseonjwa.payment.pg.application.PgUnavailableException;
 import com.iseonjwa.payment.pg.application.UnknownCause;
@@ -53,26 +57,31 @@ public class PaymentApprovalService {
     private static final int MAX_ATTEMPTS = 2;
     private static final String RESERVATION_UNIQUE = "uq_payments_reservation_id";
     private static final String IDEMPOTENCY_PK = "idempotency_records_pkey";
+    // 예매 하나에 토큰이 같으면 주문 식별자도 같아 같은 요청의 충돌에서 이 제약이 먼저 걸릴 수도 있다
+    private static final String PG_ORDER_UNIQUE = "uq_payments_pg_order_id";
+    private static final String PG_TX_UNIQUE = "uq_payments_pg_tx_id";
 
     private final PaymentTokenVerifier tokens;
     private final PaymentRepository payments;
     private final IdempotencyRecordRepository idempotency;
     private final PaymentTx tx;
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final PgApprovalGate approvalGate;
+    private final PgCheckoutProfile pgProfile;
     private final PaymentMetrics metrics;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public PaymentApprovalService(PaymentTokenVerifier tokens, PaymentRepository payments,
-            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClient pg, PgApprovalGate approvalGate,
-            PaymentMetrics metrics, ObjectMapper mapper, @Qualifier("commonAuditingClock") Clock clock) {
+            IdempotencyRecordRepository idempotency, PaymentTx tx, PgClients pgClients, PgApprovalGate approvalGate,
+            PgCheckoutProfile pgProfile, PaymentMetrics metrics, ObjectMapper mapper, @Qualifier("commonAuditingClock") Clock clock) {
         this.tokens = tokens;
         this.payments = payments;
         this.idempotency = idempotency;
         this.tx = tx;
-        this.pg = pg;
+        this.pgClients = pgClients;
         this.approvalGate = approvalGate;
+        this.pgProfile = pgProfile;
         this.metrics = metrics;
         this.mapper = mapper;
         this.clock = clock;
@@ -110,7 +119,8 @@ public class PaymentApprovalService {
     }
 
     private PaymentOutcome approveFlow(ApprovePaymentCommand command, Recording recording) {
-        var requestHash = PaymentRequestHash.of(command.paymentToken(), command.amount());
+        var requestHash = PaymentRequestHash.of(command.paymentToken(), command.amount(), command.clientPaymentRef(),
+                command.pgProvider());
         for (var attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             // 3단계: 토큰 검증보다 먼저 같은 키의 기록을 본다. 토큰이 이미 만료됐어도 재시도가 결과를 받게 한다(0017)
             var replayed = replayByIdempotencyKey(command, requestHash);
@@ -130,7 +140,9 @@ public class PaymentApprovalService {
                 throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
             }
 
-            var approved = tryNewApproval(command, token, requestHash, recording);
+            // 이 결제를 처리할 PG를 정한다. 허가·TX1 전에 거절해 행도 멱등 기록도 남기지 않는다
+            var provider = decideProvider(command);
+            var approved = tryNewApproval(command, token, requestHash, provider, recording);
             if (approved.isPresent()) return approved.get();
             // 같은 키·같은 예매의 동시 요청과 부딪혔다. 500이 아니라 정상 흐름이므로 처음부터 다시 조회한다(0017·0026)
             log.info("TX1 유니크 충돌 attempt={}", attempt);
@@ -138,16 +150,42 @@ public class PaymentApprovalService {
         throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE);
     }
 
+    // 요청이 고른 PG(없으면 서버 기본)로 정하고, 이 서버가 처리할 수 없는 조합은 400으로 거절한다
+    private PgProvider decideProvider(ApprovePaymentCommand command) {
+        var server = pgProfile.provider();
+        var effective = command.pgProvider() != null ? command.pgProvider() : server;
+        // 토스를 켜지 않은 서버(Mock 모드)에는 결제창이 없어 토스로 처리할 수 없다
+        if (effective == PgProvider.TOSS && server != PgProvider.TOSS) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
+        }
+        // 토스 모드의 Mock 건너뛰기는 설정으로 끌 수 있다
+        if (command.pgProvider() == PgProvider.MOCK && server == PgProvider.TOSS && !pgProfile.mockBypassEnabled()) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
+        }
+        // 토스는 결제창에서 받은 paymentKey 없이 승인할 수 없다
+        if (effective == PgProvider.TOSS && command.clientPaymentRef() == null) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
+        }
+        return effective;
+    }
+
     // 6~10단계: 허가 → TX1 → PG → TX2. TX1이 유니크 충돌이면 비어 있고 호출한 쪽이 다시 조회한다
     private Optional<PaymentOutcome> tryNewApproval(ApprovePaymentCommand command, PaymentToken token,
-            String requestHash, Recording recording) {
+            String requestHash, PgProvider provider, Recording recording) {
         // 6단계: 신규 승인 허가. 못 얻으면 행도 멱등 기록도 만들지 않고 503이다
         try (var permit = acquirePermit()) {
             // 7단계: TX1. 아래 try는 TX1만 감싼다. PG 호출·TX2의 예외가 여기로 들어오면 안 된다
             Payment payment;
             try {
-                payment = tx.createRequested(command, token, requestHash);
+                // 토스 모드에서만 paymentKey를 pg_tx_id에 먼저 저장한다. Mock은 clientPaymentRef를 무시한다
+                // 토스로 처리할 때만 paymentKey를 pg_tx_id에 먼저 저장한다. Mock은 clientPaymentRef를 무시한다
+                var pgTxId = provider == PgProvider.TOSS ? command.clientPaymentRef() : null;
+                payment = tx.createRequested(command, token, requestHash, provider, pgTxId);
             } catch (DataIntegrityViolationException exception) {
+                if (isConflictOn(exception, PG_TX_UNIQUE) && !isExpectedConflict(exception)) {
+                    // 같은 paymentKey가 다른 결제에 이미 연결돼 있다. 일시 장애(503)가 아니라 요청 충돌이다
+                    throw new BusinessException(PaymentErrorCode.PAYMENT_ALREADY_EXISTS);
+                }
                 if (!isExpectedConflict(exception)) throw exception;
                 return Optional.empty();
             }
@@ -176,7 +214,7 @@ public class PaymentApprovalService {
             return settle(payment, () -> tx.settleDeclined(payment, command, DeclineReason.TOKEN_EXPIRED));
         }
         permit.callStarted();
-        var result = callPg(payment);
+        var result = callPg(payment, command);
         // 허가는 PG 호출이 끝난 즉시 정산한다. TX2가 PG 호출 용량을 붙잡으면 안 된다. 분류는 PgPermit.settle이 맡는다
         permit.settle(result);
         recording.set(switch (result) {
@@ -198,13 +236,14 @@ public class PaymentApprovalService {
     }
 
     // 포트는 결과를 예외가 아닌 타입으로 돌려주지만, 예외가 나오면 호출한 쪽이 결과를 모르는 것(Unknown)으로 다룬다
-    private PgClient.ApproveResult callPg(Payment payment) {
+    private PgClient.ApproveResult callPg(Payment payment, ApprovePaymentCommand request) {
         var orderId = new PgOrderId(payment.getPgOrderId());
+        var clientPaymentRef = request.clientPaymentRef() == null ? null : new PgPaymentRef(request.clientPaymentRef());
         // 로컬 객체 생성은 PG 호출이 아니므로 try 밖이다. 여기서 나는 예외를 PG 장애로 세지 않는다
         var command = new ApproveCommand(orderId, payment.getAmount(), payment.getCurrency(),
-                PgIdempotencyKey.ofApproval(orderId), null);
+                PgIdempotencyKey.ofApproval(orderId), clientPaymentRef);
         try {
-            return pg.approve(command);
+            return pgClients.of(payment.getPgProvider()).approve(command);
         } catch (RuntimeException exception) {
             log.error("PG 승인 호출 중 예외 paymentId={}", payment.getId(), exception);
             return new PgClient.Unknown(UnknownCause.PG_ERROR);
@@ -293,8 +332,12 @@ public class PaymentApprovalService {
     }
 
     private static boolean isExpectedConflict(DataIntegrityViolationException exception) {
-        var message = String.valueOf(exception.getMostSpecificCause().getMessage());
-        return message.contains(RESERVATION_UNIQUE) || message.contains(IDEMPOTENCY_PK);
+        return isConflictOn(exception, RESERVATION_UNIQUE) || isConflictOn(exception, IDEMPOTENCY_PK)
+                || isConflictOn(exception, PG_ORDER_UNIQUE);
+    }
+
+    private static boolean isConflictOn(DataIntegrityViolationException exception, String constraint) {
+        return String.valueOf(exception.getMostSpecificCause().getMessage()).contains(constraint);
     }
 
     /**

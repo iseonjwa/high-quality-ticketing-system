@@ -1,6 +1,6 @@
 package com.iseonjwa.mockpg.payment;
 
-import com.iseonjwa.mockpg.billing.BillingKeyStore;
+import com.iseonjwa.mockpg.billing.BillingKeySigner;
 import com.iseonjwa.mockpg.fault.Fault;
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
@@ -12,6 +12,7 @@ import com.iseonjwa.mockpg.ledger.OrderState.Approved;
 import com.iseonjwa.mockpg.ledger.OrderState.Declined;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,12 +26,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 class PaymentService {
     private static final String DECLINE_CODE = "CARD_DECLINED";
     private static final String BILLING_KEY_DECLINE_CODE = "BILLING_KEY_INVALID";
+    private static final BigDecimal WRONG_AMOUNT_DIFFERENCE = BigDecimal.valueOf(1000);
+    private static final BigDecimal FRACTIONAL_AMOUNT_DIFFERENCE = new BigDecimal("0.5");
 
     private final LedgerHolder ledgers;
     private final FaultInjector faults;
-    private final BillingKeyStore billingKeys;
+    private final BillingKeySigner billingKeys;
 
-    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeyStore billingKeys) {
+    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeySigner billingKeys) {
         this.ledgers = ledgers;
         this.faults = faults;
         this.billingKeys = billingKeys;
@@ -82,19 +85,26 @@ class PaymentService {
         return new Outcome(fault, ledger.lookup(orderId));
     }
 
-    // Note: PROCESSING과 SERVER_ERROR는 원장을 건드리지 않는다. 처리 중이라는 응답이나 오류만 주고 상태는 그대로다
+    // Note: PROCESSING, SERVER_ERROR, BAD_REQUEST는 원장을 건드리지 않는다. 처리 중이라는 응답이나 오류만 주고 상태는 그대로다
     private static boolean skipsLedger(Fault fault) {
-        return fault.is(FaultMode.PROCESSING) || fault.is(FaultMode.SERVER_ERROR);
+        return fault.is(FaultMode.PROCESSING) || fault.is(FaultMode.SERVER_ERROR) || fault.is(FaultMode.BAD_REQUEST);
     }
 
     private OrderState.Decided decide(ApproveRequest request, Fault fault) {
         if (fault.is(FaultMode.DECLINE)) return new Declined(DECLINE_CODE);
         // 발급하지 않은 빌링키로 온 자동결제는 거절한다
-        if (request.billingKey() != null && !billingKeys.contains(request.billingKey())) {
+        if (request.billingKey() != null && !billingKeys.isIssued(request.billingKey())) {
             return new Declined(BILLING_KEY_DECLINE_CODE);
         }
-        return new Approved(request.orderId(), "pg-" + UUID.randomUUID(), request.amount(), request.currency(),
-                Instant.now());
+        // Note: 변조형은 저장하는 금액 자체를 바꾼다. 서비스의 INV-3 금액 대조가 이를 잡는지 계약 테스트가 확인한다
+        return new Approved(request.orderId(), "pg-" + UUID.randomUUID(), approvedAmount(request.amount(), fault),
+                request.currency(), Instant.now());
+    }
+
+    private static BigDecimal approvedAmount(BigDecimal requested, Fault fault) {
+        if (fault.is(FaultMode.WRONG_AMOUNT)) return requested.subtract(WRONG_AMOUNT_DIFFERENCE);
+        if (fault.is(FaultMode.FRACTIONAL_AMOUNT)) return requested.subtract(FRACTIONAL_AMOUNT_DIFFERENCE);
+        return requested;
     }
 
     /**

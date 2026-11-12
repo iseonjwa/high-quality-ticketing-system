@@ -1,5 +1,7 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.support.PgClientsTestConfig;
+import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.payment.observability.ApproveOutcome;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@Import(PgClientsTestConfig.class)
 class PaymentApprovalMetricsTest {
     private static final long USER = 42L;
     private static final long AMOUNT = 50000L;
@@ -179,7 +182,7 @@ class PaymentApprovalMetricsTest {
     @Test
     void PG_호출_전_구간의_DB_오류는_error로_센다() {
         doThrow(new DataAccessResourceFailureException("DB 연결 실패")).when(paymentTx).createRequested(any(), any(),
-                any());
+                any(), any(), any());
         var before = counts();
 
         assertThrows(BusinessException.class, () -> service.approve(command(newReservation(), UUID.randomUUID())));
@@ -189,7 +192,7 @@ class PaymentApprovalMetricsTest {
 
     @Test
     void 처리_중_예상하지_못한_예외도_error로_센다() {
-        doThrow(new IllegalStateException("예상하지 못한 오류")).when(paymentTx).createRequested(any(), any(), any());
+        doThrow(new IllegalStateException("예상하지 못한 오류")).when(paymentTx).createRequested(any(), any(), any(), any(), any());
         var before = counts();
 
         assertThrows(IllegalStateException.class, () -> service.approve(command(newReservation(), UUID.randomUUID())));

@@ -9,6 +9,7 @@ import {
   entrySchema,
   getLottery,
   getMyEntry,
+  getScheduleLottery,
   lotterySchema,
 } from '@/api/lotteries'
 import { sessionStore } from '@/auth/session'
@@ -131,6 +132,14 @@ describe('추첨 정보 목', () => {
     expect([error.status, error.code]).toEqual([404, 'NOT_FOUND'])
 
     const bad = await raw('GET', '/lotteries/abc', { signedIn: false })
+    expect([bad.status, bad.body.code]).toEqual([400, 'VALIDATION_FAILED'])
+  })
+
+  it('회차로 찾은 추첨은 추첨 정보와 같고, 추첨이 없는 회차는 null이다', async () => {
+    await expect(getScheduleLottery(32)).resolves.toEqual(await getLottery(OPEN))
+    await expect(getScheduleLottery(51)).resolves.toBeNull()
+
+    const bad = await raw('GET', '/schedules/abc/lottery', { signedIn: false })
     expect([bad.status, bad.body.code]).toEqual([400, 'VALIDATION_FAILED'])
   })
 })

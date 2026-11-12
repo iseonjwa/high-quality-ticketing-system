@@ -14,9 +14,16 @@ public final class PaymentDtos {
     /**
      * 결제 승인 요청 본문. 토큰 길이 상한(4,096자)은 형식 오류(400)가 아니라 토큰 오류(403)라서 여기서 검증하지 않는다.
      * {@code method}는 CARD만 받는다(BILLING은 M4 자동결제 이벤트 전용).
+     * {@code clientPaymentRef}는 구매자가 결제창에서 받은 PG 식별자(토스 paymentKey)다. 토스로 처리할 때 필수이고 Mock으로 처리하면 무시한다.
+     * {@code pgProvider}는 이 결제를 처리할 PG를 고르는 선택 필드다. 없으면 서버 기본 PG이고, 토스 모드에서 MOCK이면 결제창을 건너뛴다(시연용).
      */
     public record ApproveRequest(
             @NotBlank String paymentToken,
             @NotNull @Positive @Digits(integer = 15, fraction = 0, message = "소수 없는 정수여야 합니다") BigDecimal amount,
-            @NotNull @Pattern(regexp = "CARD", message = "CARD만 지원합니다") String method) {}
+            @NotNull @Pattern(regexp = "CARD", message = "CARD만 지원합니다") String method,
+            @Pattern(regexp = "\\S{1,200}", message = "공백 없는 1~200자여야 합니다") String clientPaymentRef,
+            @Pattern(regexp = "MOCK|TOSS", message = "MOCK 또는 TOSS여야 합니다") String pgProvider) {}
+
+    /** 결제창을 열기 전에 준비 정보를 요청하는 본문. 토큰 길이 상한은 승인 API와 같이 서비스가 403으로 거절한다. */
+    public record CheckoutRequest(@NotBlank String paymentToken) {}
 }

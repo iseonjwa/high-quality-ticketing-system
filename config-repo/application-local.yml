@@ -1,5 +1,9 @@
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
+iseonjwa:
+  request-log:
+    # 로컬은 요청 흐름을 다 보려고 모든 요청을 남긴다. 이 파일이 서비스 파일(gateway.yml의 problems)보다 앞선다
+    mode: all
 management:
   server:
     address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}

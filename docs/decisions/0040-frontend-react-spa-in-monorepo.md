@@ -133,10 +133,12 @@ Refresh 토큰은 탭 단위 `sessionStorage`에 두고, Access 토큰은 메모
 | Testing Library | react 16.3.3 · jest-dom 7.0.1 · user-event 14.6.8 | |
 | ESLint · typescript-eslint | 10.14.0 · 8.72.1 | 템플릿 기본은 Oxlint지만 3절에서 정한 ESLint로 만들었다(`--eslint`) |
 | Prettier · eslint-config-prettier | 3.9.10 · 10.1.8 | `semi: false`, `singleQuote: true`, `printWidth: 100`. 템플릿 코드 모양에 맞췄다 |
+| Playwright | 1.64.1 (ISE-118) | 시연 흐름 브라우저 테스트. 정확한 버전으로 고정하고 Chromium만 쓴다. Vitest는 `src/**/*.test.*`만 집어 `e2e/`와 섞이지 않는다 |
 | MSW | 3.0.3 (ISE-110) | 2.x의 `onUnhandledRequest`가 `onUnhandledFrame`으로 바뀌었다. `msw/vite` 플러그인이 개발 서버에서 워커 스크립트를 내주므로 `public/`에 복사하지 않고, 운영 빌드에 워커 파일이 들어가지 않는다 |
 | Zustand | 5.0.16 (ISE-110) | 로그인 토큰 저장소. `persist`의 `partialize`로 Refresh 토큰만 `sessionStorage`에 남긴다 |
 | Pretendard | 1.3.9 (ISE-111) | OFL-1.1. 가변 글꼴 dynamic-subset CSS를 `src/index.css`에서 가져와 Vite가 woff2(92조각, `unicode-range`로 필요한 것만 받는다)를 번들한다. CDN을 쓰지 않는다 |
 | sonner | 2.0.8 (ISE-111) | shadcn `Sonner` 토스트. shadcn 컴포넌트가 쓰던 `next-themes`는 다크 모드를 하지 않아 뺐다 |
+| `@tosspayments/tosspayments-sdk` | 2.10.0 (ISE-125) | 토스 결제창(구버전, API 개별 연동 키). 토스 모드에서 결제창을 열 때만 동적 import한다. 로더는 `vite.config.ts`의 `tosspayments` 묶음(약 3.6 kB)으로 떼어 처음 화면과 Mock 모드에서는 받지 않는다. SDK 본체는 로더가 실행될 때 `https://js.tosspayments.com/v2/standard`에서 받으므로 토스 모드만 외부에 의존한다 |
 
 ## 결과
 

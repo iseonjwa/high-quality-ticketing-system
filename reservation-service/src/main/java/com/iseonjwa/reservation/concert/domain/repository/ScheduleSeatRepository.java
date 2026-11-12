@@ -49,6 +49,9 @@ public interface ScheduleSeatRepository {
     // 결제 거절·승인 뒤 만료(SA 8-3). HELD인 좌석만 AVAILABLE로 되돌리고 되돌린 수를 돌려준다
     int releaseHeldSeats(Long scheduleId, List<Long> seatIds, Instant now);
 
+    // 예매 취소. SOLD인 좌석만 AVAILABLE로 되돌리고 되돌린 수를 돌려준다. actorId는 취소한 사용자다
+    int releaseSoldSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId);
+
     record LotterySeatRow(long seatId, String section, int rowNo, int seatNo) {}
 
     // sectionGrade는 공연장 좌석의 원래 등급이다. 추첨석이면 회차 좌석 등급만 LOTTERY로 바뀐다

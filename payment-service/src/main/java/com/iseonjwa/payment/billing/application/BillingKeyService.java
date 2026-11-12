@@ -5,6 +5,7 @@ import com.iseonjwa.payment.billing.domain.BillingKey;
 import com.iseonjwa.payment.billing.domain.BillingKeyRepository;
 import com.iseonjwa.payment.payment.application.PaymentErrorCode;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,21 +22,27 @@ public class BillingKeyService {
     // 같은 사용자가 동시에 등록해 활성 유니크에 부딪히면 한 번 더 해지·저장한다. 계속 겹치면 마지막 예외를 그대로 낸다
     private static final int MAX_ATTEMPTS = 2;
 
-    private final PgClient pg;
+    private final PgClients pgClients;
     private final BillingKeyRepository billingKeys;
     private final BillingKeyEncryptor encryptor;
     private final TransactionTemplate tx;
+    private final BillingKeyRegistrationLimiter limiter;
 
-    public BillingKeyService(PgClient pg, BillingKeyRepository billingKeys, BillingKeyEncryptor encryptor,
-            TransactionTemplate tx) {
-        this.pg = pg;
+    public BillingKeyService(PgClients pgClients, BillingKeyRepository billingKeys, BillingKeyEncryptor encryptor,
+            TransactionTemplate tx, BillingKeyRegistrationLimiter limiter) {
+        this.pgClients = pgClients;
         this.billingKeys = billingKeys;
         this.encryptor = encryptor;
         this.tx = tx;
+        this.limiter = limiter;
     }
 
     public BillingKeyView register(Long userId, String authKey) {
-        var issued = switch (pg.issueBillingKey(authKey, customerKey(userId))) {
+        // PG 호출 전에 사용자별 상한을 본다. 넘으면 PG를 부르지 않는다
+        limiter.tryAcquire(userId).ifPresent(retryAfter -> {
+            throw new BillingKeyRateLimitedException(retryAfter);
+        });
+        var issued = switch (pgClients.billing().issueBillingKey(authKey, customerKey(userId))) {
             case PgClient.BillingKeyIssued value -> value;
             case PgClient.BillingKeyRejected rejected -> throw new BusinessException(BillingErrorCode.BILLING_KEY_REJECTED);
             case PgClient.Unknown unknown -> {

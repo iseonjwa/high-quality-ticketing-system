@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.payment.application;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
 import com.iseonjwa.payment.payment.domain.DeclineReason;
 import com.iseonjwa.payment.payment.domain.Payment;
@@ -51,7 +52,7 @@ class PaymentTransitionConcurrencyTest {
     @Test
     void 승인과_거절이_동시에_와도_하나만_성공하고_이력은_한_건이다() throws Exception {
         var payment = payments.save(Payment.request("PAY-CONCURRENT", RESERVATION_ID, 1L, BigDecimal.valueOf(50000),
-                PaymentMethod.CARD, UUID.randomUUID(), Instant.now()));
+                PaymentMethod.CARD, UUID.randomUUID(), PgProvider.MOCK, Instant.now()));
         var start = new CountDownLatch(1);
         Callable<Boolean> approve = () -> {
             start.await();

@@ -103,7 +103,7 @@ DLQ에 온 환불 요청도 자동 복구 경로로 되돌린다. 한 트랜잭�
 - 순서는 한 트랜잭션(`TransactionTemplate`)에서 `dead_letters` OPEN 삽입(`ON CONFLICT (event_key) DO NOTHING`, 사유는 우선 "처리 중") → `processed_events` → 파싱 실패면 `OPEN` 유지 → 검증 → 생성(`source=DLQ`) → 결과 반영이다. `Created`는 `RESOLVED(AUTO_PERSISTED)`와 `refund_id`, `Duplicate`는 `RESOLVED(DUPLICATE)`와 `refund_id`, `Invalid`·`NotApproved`는 `OPEN`과 사유다. 사유는 `VARCHAR(500)`이라 길면 자른다. 원문의 NUL 문자는 PostgreSQL 텍스트가 저장하지 못해 U+FFFD로 바꿔 저장한다(내용 때문에 예외가 나면 같은 메시지를 영원히 다시 처리하게 된다). DB·인프라 오류만 예외로 나가고 트랜잭션이 롤백되어 `dead_letters`·환불·`processed_events`가 모두 남지 않는다.
 - 오류 처리기와 컨테이너: `paymentCommandDlqListenerFactory`는 ISE-136 팩토리처럼 Boot configurer 적용 뒤 ack-mode `RECORD`, 동시성 1로 고정하고 전역 `CommonErrorHandler` 빈은 만들지 않는다. 오류 처리기는 복구기 없는 `DefaultErrorHandler`에 무제한 백오프(1초 시작, 2배, 최대 간격 60초, 횟수·경과 시간 제한 없음)를 쓴다. 다른 토픽으로 보내지 않고 건너뛰지도 않아서, DB 장애 동안 같은 레코드를 계속 다시 처리하며 오프셋을 커밋하지 않는다. 모든 예외를 재시도 대상으로 분류한다. `DefaultErrorHandler`는 기본으로 변환·역직렬화 예외를 재시도 없이 복구하고 기본 복구기는 로그만 남기고 건너뛰는데, 이 리스너에서 건너뛰면 환불 의무가 지워질 수 있기 때문이다.
 - 최대 간격 60초는 `max.poll.interval.ms`(기본 5분)보다 작다. 재시도 대기 중에는 컨슈머가 poll하지 못하므로 한 번의 대기가 이 시간을 넘으면 그룹에서 쫓겨나 리밸런스가 반복된다. 이 값을 키우려면 `max.poll.interval.ms`도 함께 본다.
-- `OPEN`으로 끝난 건은 커밋된 뒤 ERROR 로그(`event=DEAD_LETTER_OPEN`, `eventKey`, 사유)만 남긴다. `OPEN` 건수와 최고령은 `dead_letter_open_count`·`dead_letter_open_oldest_seconds{topic}`가 보이고(ISE-156), 처리기가 예외로 끝나면 `payment_dlq_handler_failures_total{topic}`이 오른다(예외는 그대로 다시 던진다). 즉시 알림은 `PaymentDeadLetterOpen`·`PaymentDlqHandlerFailing`·`PaymentDlqConsumerLag` 규칙이다(ISE-157, `infra/prometheus/rules/payment-alerts.yml`). `OPEN` 건의 해결(`REPLAYED`·`NO_OBLIGATION`)은 Ops `dead-letter resolve`라 이 이슈 범위 밖이다.
+- `OPEN`으로 끝난 건은 커밋된 뒤 ERROR 로그만 남긴다. 줄은 `event=DEAD_LETTER_OPEN paymentId=<n> userId=<n> reservationId=<n> paidAt=<KST ISO> eventKey=<키> reason=<사유>` 순서이고, 봉투나 결제를 읽지 못하면 결제 필드는 `-`다(ISE-183, 자유 문장 사유는 맨 뒤라 Loki 건별 규칙이 라벨로 뽑지 않는다). `OPEN` 건수와 최고령은 `dead_letter_open_count`·`dead_letter_open_oldest_seconds{topic}`가 보이고(ISE-156), 처리기가 예외로 끝나면 `payment_dlq_handler_failures_total{topic}`이 오른다(예외는 그대로 다시 던진다). 즉시 알림은 `PaymentDeadLetterOpen`·`PaymentDlqHandlerFailing`·`PaymentDlqConsumerLag` 규칙이다(ISE-157, `infra/prometheus/rules/payment-alerts.yml`). 건별 알림은 Loki 규칙 `DeadLetterOpenEvent`가 위 로그 줄로 낸다(`infra/loki/rules/payment-events.yml`). `OPEN` 건의 해결(`REPLAYED`·`NO_OBLIGATION`)은 Ops `dead-letter resolve`라 이 이슈 범위 밖이다.
 - 테스트 범위: DLQ 레코드를 직접 만들어 리스너를 부르는 통합 테스트(실제 테스트 DB)로 표의 세 경우, 재전달 멱등, 원본 위치 키, DB 오류 시 롤백 뒤 재처리(N8)를 확인했다. 오류 처리기는 브로커 없이 단위로 확인한다(백오프가 60초에서 멈추고 끝나지 않는다, 복구기 없음). 실제 브로커에서 DLQ 토픽 소비와 오프셋 보존은 compose 스택에서 확인한다(미확인).
 
 ## 6. 재확인 스케줄러와 환불 워커 (SA 10-5)
@@ -175,11 +175,26 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
   - `data-source-properties.options: "-c statement_timeout=1500"`(문장 시한 1.5초): DB가 살아 있지만 느릴 때(잠금 대기, 과부하) 서버가 문장을 취소한다(SQLState `57014`). 서버에서 일이 끝나므로 잠금을 쥔 채 도는 쿼리가 남지 않고 연결도 다시 쓸 수 있다.
   - `data-source-properties.socketTimeout: 2`(소켓 시한 2초): 서버가 아예 응답하지 않을 때(프리즈, 네트워크 단절) 클라이언트가 읽기를 포기한다. 서버 취소가 오지 못하는 경우만 맡도록 문장 시한보다 길게 둔다. 연결은 버려지고 Hikari가 새로 만든다.
   - 승인 요청: DB가 멈추면 PG 호출 전 구간(TX1까지)은 연결을 빌릴 때 1초, 또는 빌린 연결의 첫 문장에서 2초 안에 끊겨 503 `SERVICE_UNAVAILABLE`이 된다. 시한은 문장마다 걸리므로, DB가 멈추지 않고 느리기만 하면 이 구간의 여러 문장(멱등 조회, 예매별 결제 조회, TX1 쓰기, 커밋)이 각각 1.5초 가까이 걸려 합이 3초를 넘을 수 있다(그때는 504와 같은 키 재시도, N29). TX2 구간은 기존대로 202이고 재확인이 확정한다.
-  - 한계(커밋 응답 유실): TX1의 커밋 응답을 2초 안에 받지 못하면 클라이언트는 연결을 버리고 503을 준다. 그런데 커밋 메시지가 이미 서버에 닿았다면(멈춘 컨테이너의 커널 버퍼, 늦어진 WAL 기록) DB가 풀린 뒤 커밋된다. PostgreSQL은 커밋 기록 중에는 문장 시한으로 취소하지 않는다. 그러면 `REQUESTED` 결제와 멱등 기록이 남고 PG는 불리지 않았으므로, 같은 키 재시도는 202를 받고 재확인이 PG에서 주문을 찾지 못해 `DECLINED`(`NOT_SENT`)로 닫는다. 이 예매는 다시 결제할 수 없다(`PAYMENT_ALREADY_CLOSED`). FT-3의 "TX1 커밋 뒤 프로세스 중단"과 같은 결말이고, 이제 프로세스가 살아 있어도 DB 지연만으로 생길 수 있다. 시한 전에는 커밋 응답을 끝까지 기다려 승인으로 이어졌다. 구조로 막는 방법(PG 호출 전이 확실한 `REQUESTED`를 같은 키 재시도에서 같은 PG 멱등키로 이어 가기)은 설계 변경이라 따로 다룬다.
+  - 한계(커밋 응답 유실): TX1의 커밋 응답을 2초 안에 받지 못하면 클라이언트는 연결을 버리고 503을 준다. 그런데 커밋 메시지가 이미 서버에 닿았다면(멈춘 컨테이너의 커널 버퍼, 늦어진 WAL 기록) DB가 풀린 뒤 커밋된다. PostgreSQL은 커밋 기록 중에는 문장 시한으로 취소하지 않는다. 그러면 `REQUESTED` 결제와 멱등 기록이 남고 PG는 불리지 않았으므로, 같은 키 재시도는 202를 받고 재확인이 PG에서 주문을 찾지 못해 `DECLINED`(`NOT_SENT`)로 닫는다. 이 예매는 다시 결제할 수 없다(`PAYMENT_ALREADY_CLOSED`). FT-3의 "TX1 커밋 뒤 프로세스 중단"과 같은 결말이고, 이제 프로세스가 살아 있어도 DB 지연만으로 생길 수 있다. 시한 전에는 커밋 응답을 끝까지 기다려 승인으로 이어졌다. 재시도가 `REQUESTED`를 이어받아 승인하는 방법은 PG 호출 기록이 없어 INV-1을 깰 수 있어 거부했고, 이 결말을 한계로 둔다([0048](../../decisions/0048-payment-tx1-commit-response-loss.md)). 승인은 0건이라 돈은 안전하고, `prevent_late_approval`의 `prevented` 지표가 0이 아니면 TX1 커밋에만 긴 소켓 시한을 두는 안을 먼저 한다.
   - 배경 작업(재확인, 환불 워커, 정리 등)은 DB가 멈추면 그 주기만 실패한다. `payment_job_failures_total{task}`가 오르고 다음 주기에 다시 한다.
   - Kafka 소비자: 전에는 DB가 멈추면 리스너 스레드가 기다렸다가 이어서 처리했다. 이제는 시도마다 1~2초 안에 실패해 1·2·4초 재시도 뒤 DLQ로 간다. 대략 10~15초 넘게 멈추면 DLQ로 넘어가고 DLQ 처리기가 DB가 돌아올 때까지 다시 시도한다(FT-4 (c)의 연결 거절과 같은 경로).
   - Ops 명령 JVM(`ops` 프로필)은 `config-repo/payment-service-ops.yml`에서 소켓 시한 30초, 문장 시한 15초로 늘린다. 사람이 한 번 실행하는 명령이라 Gateway 시한과 상관없고, 부하 테스트 뒤 커진 Outbox를 `inspect`가 조회해도 끊기지 않게 한다. 로컬 `application.yml`의 ops 문서에 두면 설정 서버의 값이 이기므로 프로필 파일에 둔다.
   - 한계(마이그레이션): Flyway도 같은 풀로 마이그레이션하므로 문장 시한 1.5초와 소켓 시한 2초가 마이그레이션 문장에도 걸린다. 큰 테이블을 바꾸는 오래 걸리는 마이그레이션이 생기면 시한을 걸지 않은 Flyway 전용 연결을 따로 둬야 한다.
+
+### 기동 웜업 (ISE-243)
+
+- **왜**: 11/12 배포 측정에서 결제 서비스를 다시 띄운 직후 첫 단계(초당 20건)의 승인 p99가 세 번 모두 1.0~1.4초였고 다음 단계는 약 0.33초였다. 같은 구간의 Prometheus 최대값은 승인 1.4~2.0초, PG 호출 0.45~0.55초(Mock PG 지연 300ms 포함), 첫 `findByReservationId` 0.6~0.9초, `saveAndFlush` 0.11~0.12초, 커넥션 획득 0.03~0.16초였다. 첫 JPA 조회가 가장 컸지만 원인이 첫 실행 초기화(클래스 로딩, Hibernate 쿼리 준비, 연결 수립)인지 JIT 컴파일 전의 느린 실행인지는 가르지 못했다.
+- **무엇을 미리 실행하나**(모두 읽기 전용, 결제·멱등 기록·이력·Outbox 행을 만들지 않는다)
+  - `db`: 승인 흐름의 조회 세 가지를 없는 값으로 부른다. `IdempotencyRecordRepository.find(0, 임의 UUID)`, `findByReservationId(-1)`, `findById(-1)`.
+  - `token`: 형식만 맞는 가짜 토큰으로 `PaymentTokenVerifier.verify`를 부르고 거절 예외를 삼킨다. 디코더와 서명 검증 클래스를 미리 올린다. 서명 키로 진짜 토큰을 만들지 않는다.
+  - `pg`: 서버 기본 PG가 Mock일 때만 Mock 어댑터의 `findPayment`를 없는 주문 ID로 부른다. `NotFound`가 정상이고 다른 결과면 그 단계를 실패로 본다. Bulkhead·차단기(`PgApprovalGate`, `PgRecoveryGate`)와 PG 호출 지표를 거치지 않고 지표로 감싸기 전 어댑터(`UnmeteredMockPg`)를 직접 부른다. 웜업 실패가 차단기 실패로 세어지거나 호출 지표를 오염시키지 않게 하려는 것이다. 토스 어댑터는 외부 호출 한도 때문에 부르지 않는다.
+- **무엇을 하지 않나**: 쓰기 경로(INSERT·UPDATE)는 데우지 않는다. 롤백하더라도 식별자 시퀀스를 쓰고, 도메인 쓰기를 가짜 데이터로 돌리는 위험이 있다. 첫 쓰기의 비용(`saveAndFlush` 0.11~0.12초)은 남는다.
+- **언제**: `SmartLifecycle` 빈(`PaymentWarmup`)의 `start()`에서 동기로 실행한다. phase는 웹 서버 시작 단계(`WebServerApplicationContext.START_STOP_LIFECYCLE_PHASE`)보다 1 작은 값이라 Tomcat이 연결을 받기 전이다. Eureka 등록은 웹 서버가 뜬 뒤이므로 그보다도 앞선다. `BackgroundJobScheduler`는 기본 phase(가장 늦음)라 웜업이 끝난 뒤에 시작해 충돌하지 않는다. 로컬 기동 로그에서 `event=PAYMENT_WARMUP step=total`이 `Tomcat started on port`보다 먼저 나오는 것을 확인했다(`PaymentWarmupStartupOrderTest` 실행 출력).
+- **실패 처리**: 웜업은 최적화이지 기동 조건이 아니다. 단계의 예외는 WARN(`event=PAYMENT_WARMUP_STEP_FAILED`)으로 남기고 다음 단계로 간다.
+- **설정**: `payment.warmup.enabled`(기본 true), `iterations`(기본 20, 1~1000), `max-duration`(기본 5초, 웜업 전체 상한). 범위를 벗어나면 기동하지 않는다. 테스트 프로필과 ops 프로필(`payment-service-ops.yml`)은 끈다.
+- **로그와 지표 읽는 법**: 단계마다 `event=PAYMENT_WARMUP step=db firstMs=… secondMs=… restAvgMs=… iterations=…` 한 줄과 전체 `step=total totalMs=… aborted=…` 한 줄이 나온다. 첫 회가 둘째 회 이후보다 훨씬 크면 첫 실행 초기화(클래스 로딩, 연결, 쿼리 준비)가 원인이고, 둘째 회 이후도 느리다가 점점 줄면 JIT 전의 느린 실행이다. 지표는 `payment_warmup_first_call_seconds{step}`와 `payment_warmup_seconds`(기동 때 한 번 기록하는 Gauge)다.
+- **로컬 테스트 환경 값**(실제 DB, 로컬 가짜 Mock PG, 20회, `PaymentWarmupIntegrationTest`. 배포 서버 값과 다르다): `db` 첫 회 184ms·둘째 회 4.4ms·나머지 평균 2.1ms, `token` 18ms·0.2ms·0.2ms, `pg` 37ms·1.1ms·0.7ms, 전체 301ms. 배포 값은 측정 전이다.
+- **한계**: 회차 20번으로는 JIT의 C2 컴파일까지 데우지 못한다(수천 회가 필요해 하지 않는다). 쓰기 경로는 데우지 않는다. 인스턴스가 하나라 기동하는 시간만큼의 공백은 그대로다. 웜업은 그 공백 뒤 첫 요청의 비용만 줄인다.
 
 ## 8. 정리 작업 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
@@ -236,7 +251,7 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
 
 ### 구현 (ISE-168: 예매 내부 조회와 RC-1~RC-6)
 
-예매 서비스의 읽기 전용 내부 조회 API([contracts.md](contracts.md) 5절, #283(ISE-75) 기준, 머지 전)로 결제와 예매를 대조하는 RC-1~RC-6을 더했다. 규칙 판정은 ADR 0029 규칙표를 그대로 따른다. 키는 `(예매 ID, 결제 ID)`이고, `detail`에는 `reason`과 양쪽 상태·금액·사용자 ID·시각을 담으며 개인정보는 담지 않는다.
+예매 서비스의 읽기 전용 내부 조회 API([contracts.md](contracts.md) 5절, #283(ISE-75))로 결제와 예매를 대조하는 RC-1~RC-6을 더했다. 규칙 판정은 ADR 0029 규칙표를 그대로 따른다. 키는 `(예매 ID, 결제 ID)`이고, `detail`에는 `reason`과 양쪽 상태·금액·사용자 ID·시각을 담으며 개인정보는 담지 않는다.
 
 - **준비와 판단 두 단계**: `ReconciliationRule`에 준비(`prepare`)를 더했다. 서비스가 규칙마다 준비(트랜잭션 밖) → 판단·기록(기존처럼 잠금 + 한 트랜잭션) 순서로 부른다. 준비는 예매 API를 부르는 단계라 DB 연결과 advisory 잠금을 쥐지 않는다(7절 원칙). 판단 단계는 결제 DB를 다시 읽어 준비한 스냅숏과 비교하고 원격 호출을 하지 않는다. 준비가 실패하면 그 규칙은 기록도 닫기도 없이 실패하고 `OPEN` 행은 그대로 남는다. RC-7·RC-8은 준비가 비어 있다(기본 메서드).
 - **회차당 한 번 조회**: 서비스가 회차 시작에 `ReconciliationRound`(기준 시각, 정책, 스냅숏 로더)를 만들어 모든 규칙의 준비에 넘긴다. 스냅숏(`ReservationView`)은 처음 요구될 때 `ReservationViewLoader`가 한 번 가져와 RC-1~RC-6이 나눠 쓴다. 대상 예매 ID는 7일 안에 갱신된 `APPROVED`·`REFUNDED` 결제(환불 갱신 포함)와 RC-1~RC-6 `OPEN` 행의 예매이고, 묶음 조회로 100건씩 묻는다. 변경 목록(RC-4의 출발점이자 RC-2 등 결제 쪽 대상 보강)은 먼저 커서로 읽어 묶음 조회 결과와 같은 저장소에 합치고, 묶음 조회에서는 변경 목록에 이미 나온 예매를 뺀다. 조회가 실패하면 회차 문맥이 실패를 기억해 같은 회차의 나머지 규칙이 다시 부르지 않는다(규칙마다 시한을 기다리지 않는다).
@@ -250,4 +265,17 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
   - 스냅숏은 판단 기준 시각 이후에 찍힌다. 그 사이 예매가 바뀌면 L을 넘긴 실제 불일치가 다음 회차에 닫힐 수 있다. 반대로 스냅숏 뒤에 바뀐 예매는 한 회차 동안 잘못 `OPEN`으로 기록될 수 있고 다음 회차에 닫힌다. `reconciliation_mismatch_open` 알림에는 `for`가 없어 그 한 회차 동안 즉시 울릴 수 있다.
   - 대상 예매가 많으면 한 회차의 호출 수가 늘어 `housekeeping` 실행기를 오래 쥔다. 부분 결과로 판단하면 못 받은 예매가 "예매 없음"(RC-2)으로 보이므로 호출 하나라도 실패하면 회차 전체의 예매 규칙을 실패시킨다. 200 응답이라도 대량으로 빠졌으면(한 묶음이 통째로 비었거나 회차 전체 누락이 5건 이상이고 10% 초과) 같은 이유로 조회 실패로 본다. 변경 목록은 빈 쪽이면 끝내고 최대 쪽 수(1,000)를 넘으면 실패로 본다.
   - 인스턴스마다 회차가 전량을 각자 부르고(규칙 잠금은 준비 뒤 판단 때 잡는다), 실행기 스레드가 하나라 예매 호출이 길어지면 같은 실행기의 작업이 밀린다. 이번에는 바꾸지 않았다. 배포는 결제 서비스 한 대이고, 커지면 회차 잠금을 준비 전에 잡거나 전용 실행기로 옮긴다.
-  - 실제 예매 서비스와는 붙여 보지 못했다. 가짜 서버(JDK `HttpServer`)로 응답 해석, 실패 처리, 호출 수, 트랜잭션 밖 호출을 확인했다.
+  - 가짜 서버(JDK `HttpServer`)로 응답 해석, 실패 처리, 호출 수, 트랜잭션 밖 호출을 확인했다. 실제 예매 서비스와는 2026-11-12에 로컬 전체 스택에서 붙여 확인했다(아래 "켜기 (ISE-239)").
+
+### 켜기 (ISE-239)
+
+ISE-170의 완료 기준으로 남아 있던 "실제 예매 서비스와 붙여 한 회차를 돌려 보기"를 2026-11-12 로컬 전체 스택(compose 프로젝트 `ise239`, 새 볼륨)에서 했고, 통과해서 `config-repo/payment-service.yml`의 `payment.reconciliation.reservation.enabled`를 `true`로 켰다. 확인할 때는 대사를 빨리 보려고 `interval` 30초, `allowed-lag` 5초로 덮어썼다(`SPRING_APPLICATION_JSON`). 배포 값은 그대로 5분·10분이다.
+
+- **확인 전 코드 대조**: 예매 `ReconciliationController`·응답 DTO와 결제 `ReservationLookupHttpClient`의 필드 이름, 상태값 5개, 시각(ISO `Z`), 금액(BigDecimal), 커서(`nextCursor` Long), 없는 ID(배열에서 빠짐), 400 조건(ids 0건·100건 초과, `from`≥`to`, 음수 cursor)이 맞았다.
+- **A 정상 회차**: 실제 예매 서비스와 승인 결제 3건(예매 `CONFIRMED`), 환불 결제 3건(예매 `CANCELED`, 전체 흐름 시스템 테스트로 만듦)을 둔 상태에서 회차마다 `대사 규칙 완료 rule=RC-1 … RC-8 found=0`이 모두 나왔다. `reconciliation_mismatches` 행 0, `reconciliation_mismatch_open{rule=RC-1..8}` 모두 0, `payment_job_failures_total{task="reconciliation"}` 0이다. 예매 서비스 로그에 `GET /internal/reconciliation/reservations/changes` 호출이 회차마다 찍혔다. 한 회차는 RC-8 완료(07:50:10.167)에서 다음 회차 RC-1 완료(07:50:40.200)까지 30.033초라 간격 30초를 빼면 회차 자체는 약 0.03초였다(로컬, 결제 6건).
+- **B RC-2 재현**: 승인 결제의 예매를 로컬 예매 DB에서 `EXPIRED`로 바꾸자(07:51:40) 같은 회차에서는 허용 지연 안이라 RC-1·2·5·6이 `undecided=1`(판단을 미룸)이었고, 다음 회차(07:52:10)에 RC-2 `OPEN` 한 행이 생겼다(`결제는 승인됐는데 예매가 EXPIRED이고 환불 행이 없다`, 양쪽 상태·금액·사용자 ID·시각 포함). `reconciliation_mismatch_open{rule="RC-2"}`가 1이 되고 알림 로그 `event=RECONCILIATION_MISMATCH_OPEN rule=RC-2`가 ERROR로 나왔다. 다른 규칙은 열리지 않았다. 불일치가 생긴 뒤 발견까지 한 회차(로컬 약 30초, 배포 설정이면 최대 약 5분 + 허용 지연)다.
+- **C 닫힘**: 예매를 `CONFIRMED`로 되돌리자(07:52:24) 다음 회차(07:52:40)에 그 행이 `RESOLVED`(`resolved_at` 채워짐)가 되고 지표가 0이 됐다.
+- **D 조회 실패**: 예매 서비스 컨테이너만 멈추자(07:52:54) 다음 회차(07:53:10)에 RC-1~RC-6이 각각 `대사 규칙 실패`(인스턴스를 찾지 못해 `호출 실패: IllegalStateException`)로 기록되고 RC-7·RC-8은 `완료`로 돌았다. 회차 끝에 `6개 규칙이 실패했다` 예외가 나 `payment_job_failures_total{task="reconciliation"}`이 올랐다. 실패한 규칙은 `OPEN` 행을 만들지도 닫지도 않았다. 다시 시작한 뒤에도 인스턴스가 Eureka에 다시 보일 때까지 한 회차 더 실패했고(실패 지표 2) 07:54:10 회차부터 RC-1~RC-8이 모두 정상 완료됐다.
+- **켜진 곳·꺼진 곳**: 켜진 곳은 `config-repo/payment-service.yml`이다(설정 서버를 거치는 비테스트 프로필 전부). 꺼진 곳은 테스트 프로필(`application-test.yml`, 가짜 서버로 따로 검증), ops 프로필(작업 자체를 끔), 코드 기본값(`ReservationLookupProperties`의 `@DefaultValue("false")`)이다. 설정 서버에서 값을 받지 못하는 실행은 꺼진 채로 RC-7·RC-8만 돈다.
+- **배포에서 볼 것**: 11/12 부하 측정으로 최근 7일 승인 결제가 약 4만 7천 건이라 첫 회차에 묶음 조회가 약 470회(47,000 / 100) 생긴다. 호출마다 시한 2초이고 `housekeeping` 실행기는 스레드 하나라 `gauge-refresh`(15초)가 밀리는지 본다(`payment_job_last_success_timestamp{task="gauge-refresh"}`). 첫 회차 소요 시간은 로그의 `대사 규칙 완료` 시각 차이로 잰다. 배포 값은 측정 전이다.
+- **"검사하지 않아서 0"**: 규칙을 끈 동안의 `reconciliation_mismatch_open{rule=RC-1..6}`은 0이라 "문제 없음"과 같아 보였다. 이제 켜졌으므로 0은 검사한 결과다. 다시 끄면 같은 착시가 생기므로 그때는 알림 문구에 밝힌다.

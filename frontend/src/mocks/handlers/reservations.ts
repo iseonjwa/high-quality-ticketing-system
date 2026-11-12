@@ -5,6 +5,7 @@ import {
   mockDb,
   nextMockId,
   PAYMENT_TOKEN_MARGIN_MILLIS,
+  releaseSeats,
   settleExpiredHolds,
   toKstIso,
   type MockReservation,
@@ -104,6 +105,16 @@ function concertOfSchedule(scheduleId: number) {
   const schedule = mockDb.schedules.find((candidate) => candidate.scheduleId === scheduleId)!
   const concert = mockDb.concerts.find((candidate) => candidate.concertId === schedule.concertId)!
   return { schedule, concert }
+}
+
+// 예매에 묶인 결제. 확정·취소 예매는 승인(또는 환불)된 결제를 하나 가진다(예매당 결제 하나, ADR 0026)
+function paymentOf(reservation: MockReservation) {
+  for (const payment of mockDb.payments.values()) {
+    if (payment.reservationId === reservation.reservationId) {
+      return payment
+    }
+  }
+  return undefined
 }
 
 function ownReservation(request: Request, reservationId: number): MockReservation {
@@ -267,6 +278,57 @@ export const reservationHandlers = [
               seatId,
             }))
           : [],
+      // 확정·취소 예매만 결제 ID가 있다(서버는 확정 때 payment_id를 채운다)
+      paymentId:
+        reservation.status === 'CONFIRMED' || reservation.status === 'CANCELED'
+          ? (paymentOf(reservation)?.paymentId ?? null)
+          : null,
     })
+  }),
+
+  // 예매 취소(ReservationCancelService, contracts.md 6절). 검사 순서: 404 → 이미 취소면 202 → 추첨 → 상태 → 공연 시작
+  http.post('/api/v1/reservations/:reservationId/cancel', ({ request, params }) => {
+    const reservationId = Number(params.reservationId)
+    requireUser(request)
+    if (!Number.isInteger(reservationId) || reservationId <= 0) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
+    }
+    requireIdempotencyKey(request)
+    settleExpiredHolds()
+    const reservation = ownReservation(request, reservationId)
+    advanceConfirmation(reservation)
+    const payment = paymentOf(reservation)
+    const canceled = () =>
+      ok(
+        {
+          reservationId: reservation.reservationId,
+          status: 'CANCELED',
+          paymentId: payment?.paymentId ?? null,
+        },
+        { status: 202, message: '예매를 취소했습니다' },
+      )
+    if (reservation.status === 'CANCELED') {
+      return canceled()
+    }
+    if (reservation.source === 'LOTTERY') {
+      return fail(
+        409,
+        'LOTTERY_RESERVATION_NOT_CANCELABLE',
+        '추첨으로 배정된 예매는 취소할 수 없습니다',
+      )
+    }
+    if (reservation.status !== 'CONFIRMED') {
+      return fail(409, 'RESERVATION_NOT_CANCELABLE', '취소할 수 없는 예매입니다')
+    }
+    if (Date.now() >= concertOfSchedule(reservation.scheduleId).schedule.startsAtMillis) {
+      return fail(409, 'CANCEL_PERIOD_ENDED', '공연이 시작되어 취소할 수 없습니다')
+    }
+    reservation.status = 'CANCELED'
+    releaseSeats(reservation.seatIds)
+    // 환불 요청(RefundRequested)은 결제 서비스가 비동기로 처리한다. 결제 조회 두 번째에 REFUNDED가 된다
+    if (payment?.status === 'APPROVED') {
+      payment.refundAfterChecks = mockScenario().refund === 'slow' ? Number.POSITIVE_INFINITY : 2
+    }
+    return canceled()
   }),
 ]

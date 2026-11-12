@@ -1,0 +1,11 @@
+# 좌석 조회 개선 전(ISE-189 P4a 이전)을 배포 서버에서 잴 때만 쓰는 덮어쓰기다. reservation-service 이미지만
+# P4a가 main에 들어가기 직전 릴리스(11/6, 4544d1a)로 바꾸고, 나머지 서비스·설정은 지금 배포 그대로 둔다.
+#   script/loadtest/measure-mode.sh on loadtest/deploy/compose.seat-before.yml
+# measure-mode.sh on은 인자로 준 파일만 얹으므로, 이 파일 없이 on 하거나 off 하면 reservation-service가 지금 배포 이미지로 돌아온다.
+#
+# Note: 4544d1a와 P4a 릴리스(2f607d1) 사이 서비스 코드 차이는 P4a(좌석 조회 DTO 조회)뿐이고, 예약 DB 마이그레이션과
+# config-repo 예약 설정은 2026-11-09 dev까지 바뀌지 않았다. 이후 예약 DB 마이그레이션이나 설정이 바뀌면 옛 이미지가
+# 그대로 뜨는지 측정 전에 다시 확인한다.
+services:
+  reservation-service:
+    image: ghcr.io/iseonjwa/reservation-service:4544d1a74df9963a206d1f549314be7cff97f0be

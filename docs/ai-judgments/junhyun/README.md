@@ -8,6 +8,22 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-11 | AI 브리핑이 멘션 알림만 보고 이미 끝난 ISE-224 웹훅 일(서버 `.env`에 이미 있음, 이슈 Done)을 남은 일로 넣었다고 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-11-briefing-listed-finished-webhook.md) |
+| 2026-11-11 | 결제 쪽 취소 환불을 위해 기다리던 예매 취소 API(ISE-206)를 직접 만들기로 하고, 취소 정책(공연 시작 전까지·추첨 예매 제외·결제 조회로 환불 상태 표시·담당 변경)은 AI 추천안을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-11-reservation-cancel-takeover-policy.md) |
+| 2026-11-10 | AI의 "남은 마감 작업" 정리가 내게 배정된 이슈만 훑어 멘션으로 받은 일(ISE-227·ISE-192)을 빠뜨렸다고 지적함 | Claude Code | **거부** | 아니오 | 후보 | [기록](2026-11-10-remaining-work-missed-mentions.md) |
+| 2026-11-10 | 토스 테스트 결제창도 실제 카드 인증이 필요해 "토스연동 건너뛰고 결제하기"를 두기로 하고, 결제마다 PG를 기록하며 빌링은 늘 Mock으로 보내는 추천안을 수용함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-toss-mock-bypass-per-payment-pg.md) |
+| 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-error-response-json-in-common.md) |
+| 2026-11-09 | 상담 스트림에 error 이벤트를 두지 않고, 사용자가 멈춘 요청도 요청 제한과 일일 예산에 넣기로 함 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-09-assistant-stream-error-and-cancel-counting.md) |
+| 2026-11-09 | 예매 문의 챗봇을 /help 페이지로 두자는 추천 대신 모든 화면에서 여는 떠 있는 위젯으로 바꾸기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-09-assistant-floating-widget.md) |
+| 2026-11-09 | '지금 예매 중' 카드를 줄였다는 AI의 말과 달리 포스터가 그대로 길었던 것을 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-09-home-card-shorten-not-applied.md) |
+| 2026-11-09 | 홈 리뉴얼 시안 3종 중 AI 추천(A 배치 + C 로고) 대신 시안 B와 B 로고를 고르고, 라이트·다크 두 모드와 굵기·카드 비율 수정을 요청함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-home-renewal-draft-b-light-dark.md) |
+| 2026-11-08 | 배포 측정 기반(ISE-191)을 M4로 두되 측정 전에 끝내고, 측정용 토큰은 측정 동안만 측정 전용 키로 바꿔 띄우기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-08-deploy-measure-token-key-swap.md) |
+| 2026-11-09 | 토스 어댑터의 orderId를 토큰에서 만들고, 늦은 승인 방지는 Prevented를 내지 않으며, 빌링은 지원하지 않고, 배포 기본은 mock으로 한 추천안을 수용함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-toss-adapter-order-id-and-late-approval.md) |
+| 2026-11-09 | 결제 건별 슬랙 알림(ISE-183)의 세부 여섯 가지(결제 시각 표기, 금액 불일치 합치기, 해결 메시지 없음, 대사 10건 상한, 환불 문구)를 추천안대로 정함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-09-payment-event-alert-details.md) |
+| 2026-11-09 | TX1 커밋 응답 유실 대책으로 AI가 낸 "재시도가 REQUESTED를 이어받아 승인" 방안을 거부하고 한계를 ADR로 기록함(ISE-169) | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-09-ise169-reject-retry-takeover.md) |
+| 2026-11-09 | 백로그 설계안 중 AI 상담은 Claude API 키를 받아 Haiku 5.5로 시작하고, 토스 테스트 키는 수요일에 받고, 시연 장애 버튼은 Gateway 운영자 경로로 두기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-09-backlog-design-decisions.md) |
+| 2026-11-08 | 프론트 사용자가 API를 직접 쏘는 사람보다 대기열에 늦게 선다는 문제를 제기하고 AI 답(rate limit·사전 대기실 등)을 받았으나 기록만 남김 | Claude Code | 보류 | 예 | 후보 | [기록](2026-11-08-queue-fairness-direct-api-record-only.md) |
+| 2026-11-08 | Linear 정리 계획 중 좌석 조회 일정은 두 담당이 합의하게 하고, 내 백로그 줄이기 제안은 거두고 11/13까지 모두 끝내기로 함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-08-linear-cleanup-plan-feedback.md) |
 | 2026-11-05 | 시연 모드 Grafana 링크를 localhost:3000에 고정한 AI 설계를 거두고, 배포 서버 Grafana를 팀원 IP로 열어 화면을 연 호스트 기준으로 잇게 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-05-grafana-link-deploy-host.md) |
 | 2026-11-05 | 배포 서버 앱의 GC는 리허설(11/6)까지 Serial로 두고, 다음 주 부하 측정 전에 G1을 명시하기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-05-deploy-g1-after-rehearsal.md) |
 | 2026-11-05 | 부하 테스트에 대비해 배포 EC2를 flex(m7i-flex.xlarge)에서 같은 크기의 일반 인스턴스(m7i.xlarge)로 바꿈 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-05-deploy-ec2-m7i-standard-for-load-test.md) |
@@ -57,6 +73,10 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-12 | [daily/2026-11-12.md](daily/2026-11-12.md) |
+| 2026-11-11 | [daily/2026-11-11.md](daily/2026-11-11.md) |
+| 2026-11-10 | [daily/2026-11-10.md](daily/2026-11-10.md) |
+| 2026-11-09 | [daily/2026-11-09.md](daily/2026-11-09.md) |
 | 2026-11-05 | [daily/2026-11-05.md](daily/2026-11-05.md) |
 | 2026-11-04 | [daily/2026-11-04.md](daily/2026-11-04.md) |
 | 2026-11-03 | [daily/2026-11-03.md](daily/2026-11-03.md) |

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Armchair, ChevronLeft, CreditCard, PartyPopper, Users } from 'lucide-react'
+import { Armchair, ChevronLeft, CreditCard, PartyPopper, Ticket, Users } from 'lucide-react'
 import { useId, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { isApiError } from '@/api/apiError'
@@ -10,19 +10,25 @@ import {
   type SaleStatus,
   type ScheduleSummary,
 } from '@/api/concerts'
-import { paths, queuePath } from '@/app/paths'
+import { getScheduleLottery, lotteryQueryKeys, type Lottery } from '@/api/lotteries'
+import { queryRetryDelay, shouldRetryQuery } from '@/api/queryClient'
+import { lotteryPath, paths, queuePath } from '@/app/paths'
+import { AssistantOpenButton } from '@/components/assistant/AssistantOpenButton'
+import { useAssistantWidget } from '@/components/assistant/assistantWidgetContext'
 import { concertArt, WIDE_SIZE } from '@/components/ticketing/concertArt'
 import { ConcertPoster } from '@/components/ticketing/ConcertPoster'
 import { Countdown } from '@/components/ticketing/Countdown'
 import { ErrorNotice } from '@/components/ticketing/ErrorNotice'
 import { SaleStatusBadge } from '@/components/ticketing/SaleStatusBadge'
+import { TicketPerforation } from '@/components/ticketing/TicketPerforation'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatDate, formatDateTime, kstParts } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
 import { instantMillis } from '@/lib/instant'
+import { lotteryPhaseOf, type LotteryPhase } from '@/lib/lotteryPhase'
 import { saleStatusAt } from '@/lib/saleStatus'
 import { readRouteId } from '@/lib/routeId'
 import { createServerClock, useNow, type ServerClock } from '@/lib/serverClock'
@@ -80,15 +86,15 @@ export function ConcertDetailPage() {
       <div
         className={cn(
           CONTAINER,
-          'grid gap-10 py-6 @min-[48rem]:py-10 @min-[64rem]:grid-cols-[minmax(0,1fr)_380px] @min-[64rem]:items-start',
+          'grid gap-10 py-6 @min-[48rem]:py-10 @min-[64rem]:grid-cols-[minmax(0,1fr)_380px] @min-[64rem]:items-start @min-[64rem]:py-8',
         )}
       >
         {/* 예매 패널이 첫 화면 안에 들어오게 한다(design-system.md 1절 "다음 행동이 먼저 보인다").
-            좁은 화면에서는 배너 바로 아래에 먼저 두고, 넓은 화면에서는 배너 오른쪽(비워 둔 자리)으로 끌어올려
-            겹치고 스크롤하면 위에 붙는다 */}
+            좁은 화면에서는 배너 바로 아래에 먼저 두고, 넓은 화면에서는 배너 아래 오른쪽 열에 두어 스크롤하면 위에 붙는다.
+            Note: 배너 위로 끌어올려 겹치면 절취선 양 끝 홈(페이지 바탕색으로 칠한다)이 그림 위에 점으로 보인다 */}
         <aside
           aria-label="예매"
-          className="relative z-10 @min-[64rem]:sticky @min-[64rem]:top-24 @min-[64rem]:order-2 @min-[64rem]:-mt-[320px]"
+          className="relative z-10 @min-[64rem]:sticky @min-[64rem]:top-24 @min-[64rem]:order-2"
         >
           <BookingPanel concert={data} clock={clock} />
         </aside>
@@ -112,16 +118,11 @@ function PlainPage({ children }: { children: ReactNode }) {
   )
 }
 
-function BackLink({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
+function BackLink() {
   return (
     <Link
       to={paths.home}
-      className={cn(
-        'inline-flex w-fit items-center gap-1 rounded-sm type-body-sm outline-none focus-visible:ring-2',
-        tone === 'dark'
-          ? 'text-gray-500 hover:text-gray-900 focus-visible:ring-ring'
-          : 'text-white/90 hover:text-white focus-visible:ring-white',
-      )}
+      className="inline-flex w-fit items-center gap-1 rounded-sm type-body-sm text-gray-600 outline-none hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ChevronLeft className="size-4" aria-hidden="true" />
       공연 목록
@@ -146,7 +147,19 @@ function overallStatus(schedules: ScheduleSummary[], nowMillis: number): SaleSta
   return statuses.includes('BEFORE_OPEN') ? 'BEFORE_OPEN' : 'CLOSED'
 }
 
-// 배너: 공연 그림을 흐리게 깔고 포스터와 공연 요약을 얹는다
+// 그림 위 글자: 홈 대표 배너와 같이 페이지 바탕색(gray-25)으로 덮는다. 라이트는 흰 막 + 검은 글자, 다크는 검은 막 +
+// 흰 글자가 된다. 넓은 화면은 왼쪽 65%까지 90% 이상으로 덮어, 그림이 아주 밝거나 어두워도 보조 글자가 4.5:1을 넘는다.
+// Note: 글자 열 끝은 px로 고정이고 막은 화면 폭의 %라, 72rem보다 좁으면 글자 끝이 옅은 구간에 놓인다(900px에서
+// 2.4:1, 셀프 리뷰). 그래서 72rem 미만은 고르게 덮는다
+const ART_WASH =
+  'absolute inset-0 -z-10 bg-linear-to-r from-gray-25/95 via-gray-25/90 via-65% to-gray-25/40 @max-[72rem]:bg-none @max-[72rem]:bg-gray-25/90'
+
+// 넓은 화면에서 배너 높이를 묶는다. 예매 패널이 배너 아래에 있어 배너가 길어지면 [예매하기]가 첫 화면 밖으로 밀린다
+// (3줄 제목이면 1366×650에서 잘렸다, 셀프 리뷰). 제목은 2줄까지, 요약 표는 넓은 화면에서 숨긴다(같은 값이 예매 패널과
+// 회차 일정 표에 있다). 48rem 이상에서 창 높이가 낮으면(620px 이하, 예: 1366×768 125% 배율) 포스터를 줄이고 소개·요약을 숨긴다
+// (`@min-[48rem]:[@media(max-height:620px)]:`). Tailwind가 소스에서 찾도록 클래스를 이어 붙이지 않고 그대로 쓴다
+
+// 배너: 공연 그림을 깔고 포스터와 공연 요약을 얹는다
 function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
   const art = concertArt(concert.concertId)
   const { schedules } = concert
@@ -156,7 +169,7 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
   const last = schedules[schedules.length - 1]
 
   return (
-    <section className="relative overflow-hidden bg-gray-900 text-white">
+    <section className="relative isolate overflow-hidden bg-gray-25 text-gray-900">
       <img
         src={art.wide}
         alt=""
@@ -164,37 +177,48 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
         height={WIDE_SIZE.height}
         fetchPriority="high"
         decoding="async"
-        className="absolute inset-0 size-full scale-110 object-cover opacity-70 blur-2xl"
+        className="absolute inset-0 -z-20 size-full object-cover"
       />
-      {/* 글자가 그림 위에서 읽히도록 위쪽부터 충분히 덮는다(밝은 그림에서 흰 글자 4.5:1) */}
-      <div className="absolute inset-0 bg-linear-to-b from-gray-900/60 via-gray-900/80 to-gray-900" />
+      <div aria-hidden="true" className={ART_WASH} />
       <div
         className={cn(
           CONTAINER,
-          'relative grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-10 @min-[64rem]:pr-[436px]',
+          'grid gap-5 py-6 @min-[48rem]:gap-6 @min-[48rem]:py-8 @min-[64rem]:gap-5 @min-[64rem]:py-7',
         )}
       >
-        <BackLink tone="light" />
+        <BackLink />
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-5 @min-[48rem]:gap-8">
           <ConcertPoster
             concertId={concert.concertId}
             title={concert.title}
             loading="eager"
-            className="w-[104px] rounded-md shadow-[0_24px_60px_rgba(0,0,0,0.5)] ring-1 ring-white/10 @min-[40rem]:w-[150px] @min-[48rem]:w-[190px]"
+            className={cn(
+              'w-[104px] rounded-[10px] shadow-[0_18px_40px_rgba(0,0,0,0.3)] @min-[40rem]:w-[140px] @min-[48rem]:w-[160px] @min-[48rem]:rounded-[14px]',
+              '@min-[48rem]:[@media(max-height:620px)]:w-[112px]',
+            )}
           />
-          <div className="grid min-w-0 gap-3 @min-[48rem]:gap-4">
+          <div className="grid min-w-0 max-w-[640px] gap-3 @min-[48rem]:gap-4">
             {clock ? <LiveSaleBadge schedules={schedules} clock={clock} /> : null}
-            <h1 className="text-[clamp(22px,3.4cqw,40px)] leading-[1.2] font-extrabold tracking-[-0.03em] break-keep">
+            <h1
+              title={concert.title}
+              className="text-[clamp(24px,3.6cqw,48px)] leading-[1.12] font-extrabold tracking-[-0.04em] break-keep @min-[64rem]:line-clamp-2"
+            >
               {concert.title}
             </h1>
             {concert.description ? (
-              <p className="line-clamp-2 max-w-[640px] type-body whitespace-pre-line text-white/85 @max-[40rem]:hidden">
+              <p
+                className={cn(
+                  'line-clamp-2 type-body whitespace-pre-line text-gray-700 @max-[40rem]:hidden',
+                  '@min-[48rem]:[@media(max-height:620px)]:hidden',
+                )}
+              >
                 {concert.description}
               </p>
             ) : null}
-            {/* 좁은 화면에서는 예매 패널을 첫 화면에 올리려고 요약을 숨긴다(같은 값이 회차 일정 표에 있다) */}
+            {/* 좁은 화면(40rem 미만)과 넓은 화면(64rem 이상)에서는 예매 패널을 첫 화면에 올리려고 요약을 숨긴다
+                (같은 값이 예매 패널과 회차 일정 표에 있다) */}
             {first && last ? (
-              <dl className="grid max-w-[680px] grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr]">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 type-body-sm @max-[40rem]:hidden @min-[48rem]:grid-cols-[auto_1fr_auto_1fr] @min-[48rem]:[@media(max-height:620px)]:hidden @min-[64rem]:hidden">
                 <HeroFact label="장소">
                   {venues.length === 1 ? venues[0] : `${venues[0]} 외 ${venues.length - 1}곳`}
                 </HeroFact>
@@ -219,8 +243,8 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
 function HeroFact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-white/70">{label}</dt>
-      <dd className="min-w-0 text-white/90 tabular-nums">{children}</dd>
+      <dt className="text-gray-600">{label}</dt>
+      <dd className="min-w-0 font-medium text-gray-900 tabular-nums">{children}</dd>
     </>
   )
 }
@@ -235,7 +259,8 @@ function LiveSaleBadge({ schedules, clock }: { schedules: ScheduleSummary[]; clo
   ) : null
 }
 
-// 예매 패널: 고른 회차의 오픈 카운트다운이나 [예매하기]를 먼저 두고, 그 아래에서 회차를 바꾼다.
+// 예매 패널(티켓 모양): 위 칸에 고른 회차의 오픈 카운트다운이나 [예매하기]를 두고, 절취선 아래에서 회차를 바꾼다.
+// Note: 시안은 회차 목록이 위였지만 행동을 위에 둔다. 회차가 많아도 오픈 순간 [예매하기]가 첫 화면에 있어야 한다.
 // Note: 판매 상태는 응답의 saleStatus를 그대로 쓰지 않고 서버 시각으로 보정한 지금으로 다시 정한다.
 // 회차 배지는 1초마다 다시 그리고(ScheduleChooser), 고른 회차는 카운트다운 완료로 바로 다시 그린다(ChosenSchedule).
 function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
@@ -243,13 +268,13 @@ function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: Serve
   const groupName = useId()
 
   return (
-    <Card className="gap-0 overflow-hidden p-0 shadow-md">
-      <div className="grid gap-1 border-b border-gray-100 px-5 py-4">
-        <h2 className="type-heading text-gray-900">회차 선택</h2>
-        <p className="type-body-sm text-gray-500">원하는 회차를 고르고 예매해 주세요</p>
-      </div>
+    // overflow-visible: 절취선 양 끝 홈이 카드 테두리 선까지 덮게 한다(잘리면 테두리가 홈 위를 지나간다)
+    <Card className="gap-0 overflow-visible rounded-[22px] p-0 shadow-md">
       {schedules.length === 0 || clock === null ? (
-        <p className="px-5 py-6 type-body-sm text-gray-500">등록된 회차가 없어요</p>
+        <div className="grid gap-1 p-5">
+          <h2 className="type-body font-semibold text-gray-900">회차 선택</h2>
+          <p className="type-body-sm text-gray-500">등록된 회차가 없어요</p>
+        </div>
       ) : (
         <ScheduleChooser concert={concert} clock={clock} groupName={groupName} />
       )}
@@ -286,23 +311,25 @@ function ScheduleChooser({
   const chosen =
     schedules.find((schedule) => schedule.scheduleId === chosenId) ??
     defaultSchedule(schedules, now)
+  const legendId = useId()
 
   return (
     <>
       <ChosenSchedule key={chosen.scheduleId} concert={concert} schedule={chosen} clock={clock} />
-      <fieldset className="grid max-h-[276px] gap-2 overflow-y-auto p-4">
-        <legend className="sr-only">회차</legend>
-        {schedules.length > 1 ? (
-          <p aria-hidden="true" className="type-caption text-gray-500">
-            다른 회차를 고르려면 눌러 주세요
-          </p>
-        ) : null}
-        {schedules.map((schedule) => {
-          const parts = kstParts(schedule.startsAt)
-          return (
+      <TicketPerforation />
+      <div className="grid gap-3 px-5 pt-4 pb-5">
+        <h2 id={legendId} className="type-body-sm font-semibold text-gray-900">
+          회차 선택
+        </h2>
+        {/* 회차가 많으면 이 칸만 스크롤한다. 안쪽 여백(p-1)은 초점 테두리가 잘리지 않게 둔다 */}
+        <fieldset
+          aria-labelledby={legendId}
+          className="-m-1 grid max-h-[252px] gap-2 overflow-y-auto p-1"
+        >
+          {schedules.map((schedule) => (
             <label
               key={schedule.scheduleId}
-              className="relative flex cursor-pointer items-center gap-3 rounded-md border border-gray-100 p-3 transition-colors duration-(--dur-fast) hover:border-gray-200 has-checked:border-primary-600 has-checked:bg-primary-50/60 has-focus-visible:ring-2 has-focus-visible:ring-ring"
+              className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-gray-100 p-3.5 transition-colors duration-(--dur-fast) hover:border-gray-200 has-checked:border-primary-600 has-checked:bg-primary-50 has-checked:ring-1 has-checked:ring-primary-600 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring"
             >
               <input
                 type="radio"
@@ -310,17 +337,8 @@ function ScheduleChooser({
                 value={schedule.scheduleId}
                 checked={schedule.scheduleId === chosen.scheduleId}
                 onChange={() => setChosenId(schedule.scheduleId)}
-                className="sr-only"
+                className="size-[18px] shrink-0 accent-primary-600 outline-none"
               />
-              <span
-                aria-hidden="true"
-                className="grid w-12 shrink-0 justify-items-center rounded-sm bg-gray-50 py-1 type-caption text-gray-500"
-              >
-                <span className="text-[18px] leading-6 font-bold text-gray-900 tabular-nums">
-                  {parts.day}
-                </span>
-                {parts.weekday}
-              </span>
               <span className="grid min-w-0 flex-1 gap-0.5">
                 <span className="type-body-sm font-semibold text-gray-900 tabular-nums">
                   {formatDateTime(schedule.startsAt)}
@@ -329,9 +347,9 @@ function ScheduleChooser({
               </span>
               <SaleStatusBadge status={statusOf(schedule, now)} />
             </label>
-          )
-        })}
-      </fieldset>
+          ))}
+        </fieldset>
+      </div>
     </>
   )
 }
@@ -356,7 +374,9 @@ function ChosenSchedule({
   const openAtId = `open-at-${schedule.scheduleId}`
 
   return (
-    <div className="grid gap-3 border-b border-gray-100 bg-gray-25 p-5">
+    <div className="grid gap-3 px-5 pt-5 pb-6">
+      {/* 제목으로 이동해도 [예매하기]를 건너뛰지 않게 위 칸에도 제목을 둔다 */}
+      <h2 className="sr-only">고른 회차</h2>
       <p className="type-body-sm font-semibold text-gray-900 tabular-nums">
         {formatDateTime(schedule.startsAt)}
         <span className="font-normal text-gray-500"> · {schedule.venueName}</span>
@@ -372,7 +392,7 @@ function ChosenSchedule({
               onComplete={rerender}
             />
           </div>
-          <Button disabled size="lg" className="w-full" aria-describedby={openAtId}>
+          <Button disabled size="lg" className="w-full rounded-full" aria-describedby={openAtId}>
             예매하기
           </Button>
           <p id={openAtId} className="text-center type-caption tabular-nums text-gray-500">
@@ -380,19 +400,29 @@ function ChosenSchedule({
           </p>
         </>
       ) : status === 'ON_SALE' ? (
-        <Button asChild size="lg" className="w-full">
-          <Link
-            to={queuePath(schedule.scheduleId)}
-            state={queueNavigationState({
-              concertId: concert.concertId,
-              title: concert.title,
-              startsAt: schedule.startsAt,
-              venueName: schedule.venueName,
-            })}
-          >
-            예매하기
-          </Link>
-        </Button>
+        <>
+          {/* 보는 중에 열렸으면 카운트다운 줄 자리를 남긴다. 줄이 사라지면 [예매하기]가 44px 위로 뛰어, 0초에 버튼이 있던
+            자리를 누르면 안내 글자를 누르게 된다(셀프 리뷰). 열린 사실은 아래 알림 영역이 읽는다 */}
+          {openedLater ? (
+            <div aria-hidden="true" className="flex items-baseline justify-between gap-3">
+              <span className="type-body-sm text-gray-500">티켓 오픈</span>
+              <span className="type-title text-gray-900">지금 열렸어요</span>
+            </div>
+          ) : null}
+          <Button asChild size="lg" className="w-full rounded-full">
+            <Link
+              to={queuePath(schedule.scheduleId)}
+              state={queueNavigationState({
+                concertId: concert.concertId,
+                title: concert.title,
+                startsAt: schedule.startsAt,
+                venueName: schedule.venueName,
+              })}
+            >
+              예매하기
+            </Link>
+          </Button>
+        </>
       ) : (
         <p className="py-2 text-center type-body-sm text-gray-500">판매가 끝났어요</p>
       )}
@@ -403,6 +433,7 @@ function ChosenSchedule({
             ? `1인 최대 ${schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 골라요`
             : `1인 최대 ${schedule.maxPerUser}매 · 대기열을 거쳐 좌석을 골라요`}
       </p>
+      <ScheduleLotteryNotice scheduleId={schedule.scheduleId} clock={clock} />
       {/* 카운트다운은 매초 읽지 않으므로(timer) 열린 순간만 알린다. 알림 영역은 처음부터 있어야 읽힌다 */}
       <p aria-live="polite" className="sr-only">
         {openedLater && status === 'ON_SALE' ? '예매가 열렸어요' : ''}
@@ -411,8 +442,101 @@ function ChosenSchedule({
   )
 }
 
+const LOTTERY_NOTICE_RETRIES = 1
+// 서버가 Retry-After를 주면 그 값을 따른다(queryRetryDelay)
+const LOTTERY_NOTICE_RETRY_MIN_MILLIS = 3000
+
+// 고른 회차의 추첨 안내(ISE-227). 회차에 추첨이 있으면 단계에 맞는 문구와 추첨 화면으로 가는 링크를 보인다.
+// 추첨이 없거나(404) 아직 받는 중이거나 받지 못했으면 아무것도 그리지 않는다. 추첨은 예매 패널의 보조 안내라 실패를 알리지 않는다.
+// Note: 오픈 순간에는 상세 화면이 몰리고 API 앞에 캐시가 없다. 고른 회차 하나만 받고, 추첨 설정은 자주 바뀌지 않아
+// 5분 동안 다시 받지 않는다. 운영자 설정·추첨 화면이 같은 회차 키를 갱신한다(AdminLotteryNewPage·AdminLotteryPage·LotteryPage).
+// Note: 실패(5xx·연결 끊김)하면 최소 3초 뒤 한 번만 다시 받는다. 관리자가 공유하는 주소를 빼면 사용자가 추첨 화면으로 가는 길이
+// 이 안내뿐이라, 한 번의 실패로 그 회차의 길이 사라지지 않게 하려는 것이다. 늘어나는 요청은 실패한 사람 수만큼이다.
+// 단계는 공연 응답의 서버 시계로 나눠 [예매하기] 카운트다운과 같은 시각을 쓰고, 부모와 상관없이 1초마다 다시 정한다
+function ScheduleLotteryNotice({ scheduleId, clock }: { scheduleId: number; clock: ServerClock }) {
+  const titleId = useId()
+  const detailId = useId()
+  const now = useNow(1000, clock)
+  const lottery = useQuery({
+    queryKey: lotteryQueryKeys.ofSchedule(scheduleId),
+    queryFn: () => getScheduleLottery(scheduleId),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) =>
+      failureCount < LOTTERY_NOTICE_RETRIES && shouldRetryQuery(failureCount, error),
+    retryDelay: (attemptIndex, error) =>
+      queryRetryDelay(attemptIndex, error, Math.random, LOTTERY_NOTICE_RETRY_MIN_MILLIS),
+  })
+  if (!lottery.data) {
+    return null
+  }
+  const copy = lotteryNoticeCopy(lottery.data, lotteryPhaseOf(lottery.data, now))
+  return (
+    <div className="flex items-center gap-3 rounded-[14px] bg-primary-50 p-3.5">
+      {/* 좁은 화면(앱 화면 28rem 미만)에서는 아이콘을 숨긴다. 두면 390px에서 마감 시각 줄의 "마감"만 다음 줄로 떨어졌다 */}
+      <span
+        aria-hidden="true"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-0 text-primary-600 @max-[28rem]:hidden"
+      >
+        <Ticket className="size-[18px]" />
+      </span>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <p id={titleId} className="type-body-sm font-semibold text-gray-900">
+          {copy.title}
+        </p>
+        <p id={detailId} className="type-caption text-gray-600 tabular-nums">
+          {copy.detail}
+        </p>
+      </div>
+      <Button asChild variant="outline" size="sm" className="shrink-0 rounded-full">
+        <Link to={lotteryPath(lottery.data.lotteryId)} aria-describedby={`${titleId} ${detailId}`}>
+          {copy.action}
+        </Link>
+      </Button>
+    </div>
+  )
+}
+
+// 응모 기간 전·중·후로 문구를 바꾼다. 추첨 화면의 단계(LotteryPage)와 같은 기준이다
+function lotteryNoticeCopy(
+  lottery: Lottery,
+  phase: LotteryPhase,
+): { title: string; detail: string; action: string } {
+  switch (phase) {
+    case 'beforeEntry':
+      return {
+        title: `추첨석 ${lottery.seatCount}석 · 응모 예정`,
+        detail: `${formatDateTime(lottery.entryStartAt)} 응모 시작`,
+        action: '응모 안내',
+      }
+    case 'entry':
+      return {
+        title: `추첨석 ${lottery.seatCount}석 · 응모 중`,
+        detail: `${formatDateTime(lottery.entryEndAt)} 마감`,
+        action: '추첨 응모',
+      }
+    case 'afterEntry':
+      return {
+        title: '추첨 응모 마감',
+        detail: `${formatDateTime(lottery.drawAt)} 추첨`,
+        action: '추첨 보기',
+      }
+    // 이 안내는 추첨 결과를 다시 받지 않으므로 "곧 정해요"처럼 바뀔 것을 약속하지 않는다
+    case 'drawing':
+      return {
+        title: '추첨 시각이 지났어요',
+        detail: '결과는 추첨 화면에서 봐요',
+        action: '추첨 보기',
+      }
+    case 'drawn':
+      return { title: '추첨 완료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+    // 승계까지 끝나 남은 추첨석을 일반 판매로 돌린 상태다. 추첨 화면 배지("종료")와 이름을 맞춘다
+    case 'done':
+      return { title: '추첨 종료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+  }
+}
+
 function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
-  const art = concertArt(concert.concertId)
   return (
     <Tabs defaultValue="info">
       <TabsList aria-label="공연 안내">
@@ -420,15 +544,6 @@ function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: Server
         <TabsTrigger value="guide">예매 안내</TabsTrigger>
       </TabsList>
       <TabsContent value="info" className="grid gap-10">
-        <img
-          src={art.wide}
-          alt=""
-          width={WIDE_SIZE.width}
-          height={WIDE_SIZE.height}
-          loading="lazy"
-          decoding="async"
-          className="aspect-[1600/667] w-full rounded-lg object-cover"
-        />
         <section className="grid gap-3">
           <h3 className="type-heading text-gray-900">공연 소개</h3>
           {concert.description ? (
@@ -453,23 +568,23 @@ function ScheduleTable({ schedules, clock }: { schedules: ScheduleSummary[]; clo
   return (
     <section className="grid gap-3">
       <h3 className="type-heading text-gray-900">회차 일정</h3>
-      <div className="overflow-x-auto rounded-md border border-gray-100 bg-gray-0">
+      <div className="overflow-x-auto rounded-[16px] border border-gray-100 bg-gray-0">
         <table className="w-full min-w-[600px] type-body-sm whitespace-nowrap">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="text-left type-caption text-gray-500">
             <tr>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 공연 일시
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 장소
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 티켓 오픈
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 1인 최대
               </th>
-              <th scope="col" className="px-4 py-3 font-medium">
+              <th scope="col" className="border-b border-gray-100 px-4 py-3.5 font-medium">
                 상태
               </th>
             </tr>
@@ -477,11 +592,15 @@ function ScheduleTable({ schedules, clock }: { schedules: ScheduleSummary[]; clo
           <tbody className="divide-y divide-gray-100 text-gray-900">
             {schedules.map((schedule) => (
               <tr key={schedule.scheduleId}>
-                <td className="px-4 py-3 tabular-nums">{formatDateTime(schedule.startsAt)}</td>
-                <td className="px-4 py-3">{schedule.venueName}</td>
-                <td className="px-4 py-3 tabular-nums">{formatDateTime(schedule.openAt)}</td>
-                <td className="px-4 py-3 tabular-nums">{schedule.maxPerUser}매</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3.5 font-semibold tabular-nums">
+                  {formatDateTime(schedule.startsAt)}
+                </td>
+                <td className="px-4 py-3.5 text-gray-700">{schedule.venueName}</td>
+                <td className="px-4 py-3.5 text-gray-700 tabular-nums">
+                  {formatDateTime(schedule.openAt)}
+                </td>
+                <td className="px-4 py-3.5 text-gray-700 tabular-nums">{schedule.maxPerUser}매</td>
+                <td className="px-4 py-3.5 text-gray-700">
                   <SaleStatusBadge status={statusOf(schedule, now)} />
                 </td>
               </tr>
@@ -555,13 +674,28 @@ function BookingGuide() {
             결제 결과를 바로 알 수 없으면 "확인 중"으로 보이고, 결과가 나오면 화면이 바뀌어요.
           </li>
           <li>
-            일부 좌석은 추첨으로 팔아요. 운영자가 안내한 응모 화면에서 응모하고, 당첨되면 자동결제
-            카드로 결제돼요.
+            추첨이 있는 회차는 일부 좌석을 추첨으로 팔아요. 회차를 고르면 보이는 [추첨 응모]에서
+            응모하고, 당첨되면 자동결제 카드로 결제돼요.
           </li>
         </ul>
+        <AssistantHint />
       </section>
     </div>
   )
+}
+
+// 예매 문의 위젯을 여는 안내. 위젯이 없는 화면(위젯을 숨긴 경우)이면 두지 않는다
+function AssistantHint() {
+  const { available } = useAssistantWidget()
+  return available ? (
+    <p className="type-body-sm text-gray-700">
+      더 궁금한 점은{' '}
+      <AssistantOpenButton className="rounded-sm font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+        예매 문의
+      </AssistantOpenButton>
+      에서 물어볼 수 있어요.
+    </p>
+  ) : null
 }
 
 function NotFoundNotice() {

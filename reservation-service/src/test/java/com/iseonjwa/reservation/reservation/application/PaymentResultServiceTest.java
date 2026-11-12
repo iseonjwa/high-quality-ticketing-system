@@ -5,8 +5,11 @@ import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -17,12 +20,14 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // 결제 결과 반영(ISE-73, ADR 0027)을 실제 PostgreSQL로 확인한다. 리스너는 테스트에서 꺼져 있어 서비스를 직접 부른다.
 // 선점은 실제 선점 서비스로 만든다. 좌석 2석(165,000원씩), 예매 총액 330,000원이다
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class PaymentResultServiceTest {
     private static final String MARK = "ISE-73 결제 결과 테스트";
     private static final long USER = 42L;
@@ -203,6 +208,25 @@ class PaymentResultServiceTest {
         assertEquals("CONFIRMED", reservationStatus(reservationId));
         assertEquals(List.of("SOLD", "SOLD"), scheduleSeatStatuses());
         assertEquals(List.of("ISSUED", "ISSUED"), ticketStatuses(reservationId));
+    }
+
+    // Loki 건별 알림 규칙(PaymentResultAnomalyEvent)이 읽는 줄 형식이다. 바꾸면 규칙과 script/check-loki-rules.sh를 함께 바꾼다
+    @Test
+    void 확정_예매의_결제가_환불되면_격리_줄을_알림_규칙이_읽는_형식으로_남긴다(CapturedOutput output) {
+        var reservationId = hold();
+        paymentResults.handle(approved(reservationId, PAYMENT_ID, TOTAL, Instant.now()));
+        var refundEventId = UUID.randomUUID();
+
+        paymentResults.handle(PaymentResult.refunded(refundEventId, PAYMENT_ID, reservationId, USER, TOTAL,
+                "KRW", Instant.now()));
+
+        var line = output.getAll().lines()
+                .filter(text -> text.contains("event=PAYMENT_RESULT_ANOMALY "))
+                .filter(text -> text.contains("reservationId=" + reservationId + " "))
+                .findFirst().orElseThrow(() -> new AssertionError("격리 줄이 없습니다"));
+        var body = line.substring(line.indexOf("event=PAYMENT_RESULT_ANOMALY "));
+        assertTrue(body.startsWith("event=PAYMENT_RESULT_ANOMALY type=REFUNDED eventId=" + refundEventId + " "), body);
+        assertTrue(body.contains(" reservationId=" + reservationId + " paymentId=" + PAYMENT_ID + " reason="), body);
     }
 
     @Test

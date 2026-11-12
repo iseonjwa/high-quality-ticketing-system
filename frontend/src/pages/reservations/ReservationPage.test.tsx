@@ -14,14 +14,16 @@ import { routes } from '@/app/routes'
 import { savePaymentAttempt } from '@/auth/paymentAttempts'
 import { mockDb, toKstIso } from '@/mocks/db'
 import { fail } from '@/mocks/respond'
+import { setMockScenario } from '@/mocks/scenario'
 import { mockServer } from '@/mocks/server'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, kstParts } from '@/lib/format'
 import {
   readReservationHeading,
   reservationNavigationState,
+  type ReservationHeading,
 } from '@/pages/reservations/reservationNavigation'
 import { recordRequests, SEAT_A1, SEAT_A2, signInAsDemo } from '@/test/api'
-import { seedReservation } from '@/test/reservations'
+import { seedPayment, seedReservation } from '@/test/reservations'
 
 const HEADING = {
   title: '노을섬 단독 콘서트 〈새벽의 좌석〉',
@@ -40,7 +42,7 @@ afterEach(() => {
 
 interface RenderOptions {
   variant?: 'complete' | 'detail'
-  heading?: typeof HEADING | null
+  heading?: ReservationHeading | null
   // 화면을 그리기 전에 조회 캐시에 넣어 둘 값(결제 화면이 확정 뒤 넣고 오는 값)
   primed?: ReservationDetail
 }
@@ -59,12 +61,12 @@ function renderReservation(reservationId: number | string, options: RenderOption
   if (primed) {
     queryClient.setQueryData(reservationQueryKeys.detail(primed.reservationId), primed)
   }
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  return { router, queryClient }
+  return { router, queryClient, unmount: view.unmount }
 }
 
 function linkNamed(name: string) {
@@ -107,8 +109,13 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
     ).toBeInTheDocument()
-    expect(screen.getByText(HEADING_LINE)).toBeInTheDocument()
+    // 머리에는 예매 번호, 공연 제목·일시·공연장은 티켓에 있다
+    expect(screen.getByText(`예매 번호 ${reservation.reservationNo}`)).toBeInTheDocument()
     const tickets = screen.getByRole('region', { name: '티켓 2매' })
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(
+      within(tickets).getByText(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`),
+    ).toBeInTheDocument()
     const items = within(tickets).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('A구역 1열 1번')
@@ -132,17 +139,16 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(screen.queryByText(HEADING.title)).not.toBeInTheDocument()
   })
 
-  it('공연장 이름이 없는 값(내 예매 목록에서 넘김)이면 제목과 일시만 한 줄로 보인다', async () => {
+  it('공연장 이름이 없는 값(내 예매 목록에서 넘김)이면 티켓의 일시 줄에 일시만 보인다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, {
       variant: 'complete',
       heading: { ...HEADING, venueName: null },
     })
 
-    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
-    expect(
-      screen.getByText(`${HEADING.title} · ${formatDateTime(HEADING.startsAt)}`),
-    ).toBeInTheDocument()
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(within(tickets).getByText(formatDateTime(HEADING.startsAt))).toBeInTheDocument()
   })
 
   it('헤더 예매 단계가 "완료"를 현재 단계로 표시한다', async () => {
@@ -183,6 +189,7 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
         ticketNo: `T${reservation.reservationId}-${seatId}`,
         seatId,
       })),
+      paymentId: null,
     }
     renderReservation(reservation.reservationId, { variant: 'complete', primed })
 
@@ -222,43 +229,49 @@ function confirmedDetail(
       })),
     paymentToken: null,
     tickets,
+    paymentId: null,
   }
 }
 
-// 좌석 티켓의 꾸밈 바코드(티켓 번호로 그린다)
-const barcodeOf = (ticket: HTMLElement) => ticket.querySelector('svg[preserveAspectRatio="none"]')
+// 떼는 칸의 꾸밈 바코드(예매 번호로 그린다). 넓은 화면용과 좁은 화면용이 하나씩 있다
+const barcodesOf = (ticket: HTMLElement) =>
+  Array.from(ticket.querySelectorAll('[data-slot="ticket-barcode"]'))
 
 describe('ReservationPage 티켓 카드', () => {
-  it('좌석 수만큼 티켓 카드를 두고 "Ticket n/N"으로 번호를 매긴다', async () => {
+  it('한 장짜리 티켓에 "ADMIT n"과 좌석마다 한 줄(좌석·등급·가격)을 둔다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    const cards = within(tickets).getAllByRole('listitem')
-    expect(cards).toHaveLength(2)
-    expect(cards[0]).toHaveTextContent('Ticket 1/2')
-    expect(cards[1]).toHaveTextContent('Ticket 2/2')
-    expect(cards[0]).toHaveTextContent('VIP')
-    expect(cards[0]).toHaveTextContent('A구역 1열 1번')
-    expect(cards[1]).toHaveTextContent('A구역 1열 2번')
+    expect(tickets).toHaveTextContent('ADMIT 2')
+    const rows = within(tickets).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('A구역 1열 1번')
+    expect(rows[0]).toHaveTextContent('VIP석')
+    expect(rows[0]).toHaveTextContent('165,000원')
+    expect(rows[1]).toHaveTextContent('A구역 1열 2번')
   })
 
-  it('티켓 번호가 있으면 글자로 보이고 꾸밈 바코드를 함께 그린다(낭독에서는 뺀다)', async () => {
+  it('티켓 번호는 좌석 줄에 글자로 보이고, 꾸밈 바코드는 떼는 칸에만 그린다(낭독에서는 뺀다)', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    for (const [index, card] of within(tickets).getAllByRole('listitem').entries()) {
+    for (const [index, row] of within(tickets).getAllByRole('listitem').entries()) {
       const seatId = [SEAT_A1, SEAT_A2][index]
-      expect(card).toHaveTextContent(`티켓 번호 T${reservation.reservationId}-${seatId}`)
-      const barcode = barcodeOf(card)
-      expect(barcode).not.toBeNull()
-      expect(barcode).toHaveAttribute('aria-hidden', 'true')
-      expect(barcode!.querySelectorAll('rect').length).toBeGreaterThan(0)
+      expect(row).toHaveTextContent(`티켓 번호 T${reservation.reservationId}-${seatId}`)
+      expect(barcodesOf(row)).toHaveLength(0)
+    }
+    const barcodes = barcodesOf(tickets)
+    expect(barcodes).toHaveLength(2)
+    for (const barcode of barcodes) {
+      // svg 자신도 aria-hidden이라, 감싼 떼는 칸(날짜 포함)이 낭독에서 빠지는지 부모부터 본다
+      expect(barcode.parentElement?.closest('[aria-hidden="true"]')).not.toBeNull()
+      expect(barcode.querySelectorAll('rect').length).toBeGreaterThan(0)
     }
   })
 
-  it('티켓 번호가 없는 좌석은 번호도 바코드도 없고 좌석과 가격만 보인다', async () => {
+  it('티켓 번호가 없는 좌석은 번호 없이 좌석·등급·가격만 보인다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     // 두 좌석 중 첫 좌석의 티켓만 발급된 응답
     const detail = confirmedDetail(reservation, [
@@ -268,22 +281,40 @@ describe('ReservationPage 티켓 카드', () => {
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
     const [issued, notIssued] = within(tickets).getAllByRole('listitem')
-    expect(barcodeOf(issued)).not.toBeNull()
+    expect(issued).toHaveTextContent('티켓 번호')
     expect(notIssued).not.toHaveTextContent('티켓 번호')
-    expect(barcodeOf(notIssued)).toBeNull()
     expect(notIssued).toHaveTextContent('A구역 1열 2번')
+    expect(notIssued).toHaveTextContent('VIP석')
     expect(notIssued).toHaveTextContent('165,000원')
   })
 
-  it('화면 이동 값이 있으면 카드마다 공연 제목과 일시·공연장을 얹고, 없으면 얹지 않는다', async () => {
+  it('화면 이동 값이 있으면 공연 제목과 일시·공연장을 한 번 보이고, 떼는 칸에 공연 날짜를 둔다', async () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'detail', heading: HEADING })
 
     const tickets = await screen.findByRole('region', { name: '티켓 2매' })
-    for (const card of within(tickets).getAllByRole('listitem')) {
-      expect(card).toHaveTextContent(HEADING.title)
-      expect(card).toHaveTextContent(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`)
-    }
+    expect(within(tickets).getByText(HEADING.title)).toBeInTheDocument()
+    expect(
+      within(tickets).getByText(`${formatDateTime(HEADING.startsAt)} · ${HEADING.venueName}`),
+    ).toBeInTheDocument()
+    const { month, day } = kstParts(HEADING.startsAt)
+    expect(within(tickets).getAllByText(`${month}.${day}`)).toHaveLength(2)
+  })
+
+  it('화면 이동 값에 공연 번호가 있을 때만 포스터를 붙인다', async () => {
+    const reservation = seedReservation({ status: 'CONFIRMED' })
+    const view = renderReservation(reservation.reservationId, {
+      variant: 'complete',
+      heading: { ...HEADING, concertId: 7 },
+    })
+
+    const tickets = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(tickets.querySelector('img')).not.toBeNull()
+    view.unmount()
+
+    renderReservation(reservation.reservationId, { variant: 'complete', heading: HEADING })
+    const plain = await screen.findByRole('region', { name: '티켓 2매' })
+    expect(plain.querySelector('img')).toBeNull()
   })
 
   it('화면 이동 값이 없으면 카드에 공연 제목이 없다', async () => {
@@ -549,54 +580,334 @@ describe('ReservationPage 결제 대기 동안 다시 받기', () => {
   })
 })
 
-const ENDED: { status: ReservationStatus; title: string; badge: string; description: string }[] = [
+const ENDED: {
+  status: ReservationStatus
+  title: string
+  badge: string
+  description: string
+  seatsTitle: string
+}[] = [
   {
     status: 'EXPIRED',
     title: '예매가 확정되지 않았어요',
     badge: '기한 만료',
     description: '결제 가능 시간이 지나 잡아 둔 좌석이 풀렸어요. 결제한 금액이 있으면 환불돼요.',
+    seatsTitle: '풀린 좌석',
   },
   {
     status: 'RELEASED',
     title: '좌석이 풀렸어요',
     badge: '좌석 반환',
     description: '결제가 거절돼 잡아 둔 좌석을 돌려놓았어요.',
+    seatsTitle: '풀린 좌석',
   },
   {
     status: 'CANCELED',
     title: '취소된 예매예요',
     badge: '취소됨',
     description: '예매를 취소해 좌석을 돌려놓았어요.',
+    seatsTitle: '취소한 좌석',
   },
 ]
 
-describe.each(ENDED)('ReservationPage $status', ({ status, title, badge, description }) => {
-  it.each(['detail', 'complete'] as const)(
-    '%s 경로에서 상태별 결과 머리와 풀린 좌석 카드를 보인다',
-    async (variant) => {
+describe.each(ENDED)(
+  'ReservationPage $status',
+  ({ status, title, badge, description, seatsTitle }) => {
+    it.each(['detail', 'complete'] as const)(
+      '%s 경로에서 상태별 결과 머리와 좌석 카드를 보인다',
+      async (variant) => {
+        const reservation = seedReservation({ status })
+        renderReservation(reservation.reservationId, { variant })
+
+        expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+        expect(screen.getByText(description)).toBeInTheDocument()
+        const seats = screen.getByRole('region', { name: seatsTitle })
+        expect(within(seats).getByText(badge)).toBeInTheDocument()
+        expect(within(seats).getAllByRole('listitem')).toHaveLength(2)
+        expect(within(seats).getByText(reservation.reservationNo)).toBeInTheDocument()
+        expect(within(seats).getByText('330,000원')).toBeInTheDocument()
+        expect(linkNamed('내 예매 목록')).toHaveAttribute('href', '/me/reservations')
+        expect(linkNamed('공연 보러 가기')).toHaveAttribute('href', '/')
+        expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
+        expect(screen.queryByText(/티켓 번호/)).not.toBeInTheDocument()
+      },
+    )
+
+    it('공연 값이 있으면 설명 앞에 공연 한 줄을 붙인다', async () => {
       const reservation = seedReservation({ status })
-      renderReservation(reservation.reservationId, { variant })
+      renderReservation(reservation.reservationId, { heading: HEADING })
 
-      expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
-      expect(screen.getByText(description)).toBeInTheDocument()
-      const seats = screen.getByRole('region', { name: '풀린 좌석' })
-      expect(within(seats).getByText(badge)).toBeInTheDocument()
-      expect(within(seats).getAllByRole('listitem')).toHaveLength(2)
-      expect(within(seats).getByText(reservation.reservationNo)).toBeInTheDocument()
-      expect(within(seats).getByText('330,000원')).toBeInTheDocument()
-      expect(linkNamed('내 예매 목록')).toHaveAttribute('href', '/me/reservations')
-      expect(linkNamed('공연 보러 가기')).toHaveAttribute('href', '/')
-      expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
-      expect(screen.queryByText(/티켓 번호/)).not.toBeInTheDocument()
-    },
-  )
+      await screen.findByRole('heading', { level: 1, name: title })
+      expect(screen.getByText(`${HEADING_LINE} · ${description}`)).toBeInTheDocument()
+    })
+  },
+)
 
-  it('공연 값이 있으면 설명 앞에 공연 한 줄을 붙인다', async () => {
-    const reservation = seedReservation({ status })
-    renderReservation(reservation.reservationId, { heading: HEADING })
+// 예매 취소와 환불 상태(ISE-119). 목 서버는 취소 뒤 결제 조회 두 번째에 REFUNDED가 된다
+function seedConfirmedWithPayment(fields: Parameters<typeof seedReservation>[0] = {}) {
+  const reservation = seedReservation({ status: 'CONFIRMED', ...fields })
+  const payment = seedPayment(reservation)
+  return { reservation, payment }
+}
 
-    await screen.findByRole('heading', { level: 1, name: title })
-    expect(screen.getByText(`${HEADING_LINE} · ${description}`)).toBeInTheDocument()
+async function openCancelDialog() {
+  await userEvent.click(await screen.findByRole('button', { name: '예매 취소' }))
+  return within(await screen.findByRole('dialog', { name: '예매를 취소할까요?' }))
+}
+
+describe('ReservationPage 예매 취소', () => {
+  it('확인 대화상자를 거쳐 취소하면 취소 화면으로 바뀌고, 환불 진행에서 완료로 바뀐다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { reservation, payment } = seedConfirmedWithPayment()
+    const cancels = recordRequests(`/api/v1/reservations/${reservation.reservationId}/cancel`)
+    const paymentReads = recordRequests(`/api/v1/payments/${payment.paymentId}`)
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    expect(dialog.getByText(/좌석 2석을 돌려놓고 결제한 330,000원을 환불해요/)).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    // 누른 버튼과 대화상자가 사라지므로 바뀐 화면의 제목이 초점을 받는다
+    await waitFor(() => expect(title).toHaveFocus())
+    expect(cancels).toHaveLength(1)
+    expect(cancels[0].headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/)
+    expect(screen.queryByText(/티켓 번호/)).not.toBeInTheDocument()
+
+    const refund = screen.getByRole('region', { name: '환불' })
+    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+    const steps = within(refund).getByRole('list', { name: '환불 단계' })
+    expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('환불 진행')
+
+    await advance(3000)
+    expect(await within(refund).findByText('환불이 끝났어요')).toBeInTheDocument()
+    expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('환불 완료')
+    expect(
+      within(refund).getByText(/330,000원 · .+에 결제한 수단으로 돌려드렸어요/),
+    ).toBeInTheDocument()
+
+    // 환불이 끝나면 더 받지 않는다
+    const readsAtDone = paymentReads.length
+    await advance(10_000)
+    expect(paymentReads).toHaveLength(readsAtDone)
+  })
+
+  it('돌아가기를 누르면 아무것도 보내지 않고 확정 화면 그대로다', async () => {
+    const { reservation } = seedConfirmedWithPayment()
+    const cancels = recordRequests(`/api/v1/reservations/${reservation.reservationId}/cancel`)
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '돌아가기' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(cancels).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '예매 취소' })).toHaveFocus()
+  })
+
+  it('공연 시작이 지난 것을 알면 버튼 대신 안내를 보인다', async () => {
+    const { reservation } = seedConfirmedWithPayment()
+    renderReservation(reservation.reservationId, {
+      heading: { ...HEADING, startsAt: '2020-01-01T19:00:00+09:00' },
+    })
+
+    expect(await screen.findByText('공연이 시작돼 취소할 수 없어요.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '예매 취소' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['CANCEL_PERIOD_ENDED', '공연이 시작돼 취소할 수 없어요'],
+    ['LOTTERY_RESERVATION_NOT_CANCELABLE', '추첨으로 배정된 예매는 취소할 수 없어요'],
+  ])('서버가 %s로 거절하면 대화상자에 이유를 보이고 예매는 그대로다', async (code, message) => {
+    const { reservation } = seedConfirmedWithPayment()
+    mockServer.use(
+      http.post(`/api/v1/reservations/${reservation.reservationId}/cancel`, () =>
+        fail(409, code, '거절'),
+      ),
+    )
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+
+    expect(await dialog.findByText(message)).toBeInTheDocument()
+    // 대화상자가 열린 동안 배경은 접근성 트리에서 숨겨진다
+    expect(
+      screen.queryByRole('heading', { level: 1, name: '취소된 예매예요', hidden: true }),
+    ).not.toBeInTheDocument()
+    expect(mockDb.reservations.get(reservation.reservationId)?.status).toBe('CONFIRMED')
+  })
+
+  it('목 서버의 추첨 예매도 같은 이유로 거절된다', async () => {
+    const { reservation } = seedConfirmedWithPayment({ source: 'LOTTERY' })
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+
+    expect(await dialog.findByText('추첨으로 배정된 예매는 취소할 수 없어요')).toBeInTheDocument()
+  })
+
+  it('결과를 모르면(504) 확인하지 못했다고 알리고, 다시 누르면 같은 멱등키로 보내 취소를 확인한다', async () => {
+    const { reservation } = seedConfirmedWithPayment()
+    const cancels = recordRequests(`/api/v1/reservations/${reservation.reservationId}/cancel`)
+    let calls = 0
+    mockServer.use(
+      http.post(`/api/v1/reservations/${reservation.reservationId}/cancel`, () => {
+        calls += 1
+        // 첫 요청은 응답이 사라진 것처럼 504. 두 번째부터는 목 서버가 처리한다
+        return calls === 1
+          ? fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+          : undefined
+      }),
+    )
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' }),
+    ).toBeInTheDocument()
+    expect(cancels).toHaveLength(2)
+    expect(cancels[1].headers.get('Idempotency-Key')).toBe(
+      cancels[0].headers.get('Idempotency-Key'),
+    )
+  })
+
+  // 첫 요청은 서버에서 취소가 끝났는데 응답만 사라진 경우(504)를 만든다. 두 번째부터는 목 서버가 처리한다(이미 취소면 202)
+  function cancelCommitsButTimesOut(reservationId: number, paymentId: number) {
+    let calls = 0
+    mockServer.use(
+      http.post(`/api/v1/reservations/${reservationId}/cancel`, () => {
+        calls += 1
+        if (calls > 1) {
+          return undefined
+        }
+        mockDb.reservations.get(reservationId)!.status = 'CANCELED'
+        mockDb.payments.get(paymentId)!.refundAfterChecks = 2
+        return fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+      }),
+    )
+  }
+
+  it('504였지만 서버에서 취소됐으면, 다시 누를 때 202로 취소 화면이 되고 제목이 초점을 받는다', async () => {
+    const { reservation, payment } = seedConfirmedWithPayment()
+    cancelCommitsButTimesOut(reservation.reservationId, payment.paymentId)
+    const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    // 결과를 모를 때는 바로 다시 받지 않는다(대화상자가 설명 없이 사라지지 않게)
+    const readsAfterUnknown = reads.length
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(reads).toHaveLength(readsAfterUnknown)
+
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('결과를 모른 채 대화상자를 닫으면 예매를 다시 받고, 취소됐으면 취소 화면의 제목이 초점을 받는다', async () => {
+    const { reservation, payment } = seedConfirmedWithPayment()
+    cancelCommitsButTimesOut(reservation.reservationId, payment.paymentId)
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: '돌아가기' }))
+
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('그사이 확정이 아니게 됐으면(RESERVATION_NOT_CANCELABLE) 예매를 다시 받아 지금 상태를 보인다', async () => {
+    const { reservation } = seedConfirmedWithPayment()
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    mockDb.reservations.get(reservation.reservationId)!.status = 'EXPIRED'
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+
+    const title = await screen.findByRole('heading', { level: 1, name: '예매가 확정되지 않았어요' })
+    await waitFor(() => expect(title).toHaveFocus())
+  })
+
+  it('다시 보내도 바뀌지 않는 거절(공연 시작)을 받으면 버튼을 거두고 이유를 남긴다', async () => {
+    const { reservation } = seedConfirmedWithPayment()
+    mockServer.use(
+      http.post(`/api/v1/reservations/${reservation.reservationId}/cancel`, () =>
+        fail(409, 'CANCEL_PERIOD_ENDED', '공연이 시작되어 취소할 수 없습니다'),
+      ),
+    )
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    expect(await dialog.findByText('공연이 시작돼 취소할 수 없어요')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: '예매 취소' })).toBeDisabled()
+    await userEvent.click(dialog.getByRole('button', { name: '돌아가기' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText('공연이 시작돼 취소할 수 없어요.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '예매 취소' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '예매 취소' })).toHaveFocus()
+  })
+
+  it('환불 상태를 처음 받지 못하면 오류와 다시 시도를 보인다', async () => {
+    const reservation = seedReservation({ status: 'CANCELED' })
+    const payment = seedPayment(reservation)
+    let calls = 0
+    mockServer.use(
+      http.get(`/api/v1/payments/${payment.paymentId}`, () => {
+        calls += 1
+        return calls === 1
+          ? fail(500, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+          : undefined
+      }),
+    )
+    renderReservation(reservation.reservationId)
+
+    await userEvent.click(await screen.findByRole('button', { name: '다시 시도' }))
+    const refund = await screen.findByRole('region', { name: '환불' })
+    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+  })
+
+  it('환불이 2분 넘게 끝나지 않으면 다시 받기를 멈추고 늦어진다고 알린다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setMockScenario({ refund: 'slow' })
+    const { reservation, payment } = seedConfirmedWithPayment()
+    const paymentReads = recordRequests(`/api/v1/payments/${payment.paymentId}`)
+    renderReservation(reservation.reservationId)
+
+    const dialog = await openCancelDialog()
+    await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
+    const refund = await screen.findByRole('region', { name: '환불' })
+    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+
+    await advance(121_000, 3000)
+    expect(await within(refund).findByText('환불이 늦어지고 있어요')).toBeInTheDocument()
+    expect(within(refund).getByText(new RegExp(reservation.reservationNo))).toBeInTheDocument()
+    const readsAtSlow = paymentReads.length
+    await advance(15_000, 3000)
+    expect(paymentReads).toHaveLength(readsAtSlow)
+    // 직접 다시 확인할 수 있다
+    await userEvent.click(within(refund).getByRole('button', { name: '환불 다시 확인' }))
+    await waitFor(() => expect(paymentReads).toHaveLength(readsAtSlow + 1))
+  })
+
+  it('주소로 연 취소된 예매도 결제 ID로 환불 상태를 보인다', async () => {
+    const reservation = seedReservation({ status: 'CANCELED' })
+    seedPayment(reservation, { status: 'REFUNDED', refundedAtMillis: Date.now() })
+    renderReservation(reservation.reservationId)
+
+    const refund = await screen.findByRole('region', { name: '환불' })
+    expect(await within(refund).findByText('환불이 끝났어요')).toBeInTheDocument()
   })
 })
 

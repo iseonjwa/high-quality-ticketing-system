@@ -250,6 +250,30 @@ class LotteryEntryApiTest {
                 .GET()).status());
     }
 
+    @Test
+    void 회차로_추첨을_로그인_없이_찾고_추첨이_없거나_지운_회차는_404다() throws Exception {
+        Long scheduleId = scheduleIdOf(lotteryId);
+        Long deletedLotteryId = insertLottery("now() - interval '1 hour'", "now() + interval '1 hour'", 2);
+        jdbc.update("UPDATE lotteries SET deleted_at = now() WHERE id = ?", deletedLotteryId);
+        Long scheduleWithoutLottery = jdbc.queryForObject("INSERT INTO schedules (concert_id, venue_id, starts_at,"
+                + " open_at, version, created_at, updated_at) VALUES (?, ?, now() + interval '30 day',"
+                + " now() + interval '10 day', 0, now(), now()) RETURNING id", Long.class, concertId, venueId);
+
+        var found = lotteryOfSchedule(scheduleId);
+        var deleted = lotteryOfSchedule(scheduleIdOf(deletedLotteryId));
+        var none = lotteryOfSchedule(scheduleWithoutLottery);
+
+        assertEquals(200, found.status());
+        var data = found.json().get("data");
+        assertEquals(lotteryId, data.get("lotteryId").asLong());
+        assertEquals(scheduleId, data.get("scheduleId").asLong());
+        assertEquals("OPEN", data.get("status").asString());
+        assertEquals(2, data.get("rules").get("maxPerEntry").asInt());
+        assertNull(data.get("seed"));
+        assertEquals(404, deleted.status());
+        assertEquals(404, none.status());
+    }
+
     // 회차 하나에 추첨 하나라서(UNIQUE(schedule_id)) 추첨마다 회차를 새로 만든다
     private Long insertLottery(String entryStartSql, String entryEndSql, int maxPerEntry) {
         Long scheduleId = jdbc.queryForObject("INSERT INTO schedules (concert_id, venue_id, starts_at, open_at,"
@@ -260,6 +284,15 @@ class LotteryEntryApiTest {
                 + " VALUES (?, 'S', 100, 50, ?, " + entryStartSql + ", " + entryEndSql + ","
                 + " now() + interval '3 hour', ?, 'OPEN', now(), now()) RETURNING id",
                 Long.class, scheduleId, maxPerEntry, new byte[32]);
+    }
+
+    private Long scheduleIdOf(Long lotteryId) {
+        return jdbc.queryForObject("SELECT schedule_id FROM lotteries WHERE id = ?", Long.class, lotteryId);
+    }
+
+    private Response lotteryOfSchedule(Long scheduleId) throws Exception {
+        return send(HttpRequest.newBuilder(URI.create(base() + "/api/v1/schedules/" + scheduleId + "/lottery"))
+                .GET());
     }
 
     private int countEntries(Long lotteryId) {

@@ -201,3 +201,71 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | 2 | 동기형 실패(409) 시 `seat_hold_requests` 행도 함께 롤백하고, 성공(`HELD`) 시에만 커밋해 멱등 재요청에 응답 | 3절 표 그대로 ([ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)) |
 | 3 | 이미 만료·해제·취소됐거나 `holdExpiresAt - 10초`가 지난 선점에 같은 멱등키로 재요청 시 `409 RESERVATION_NOT_PAYABLE` 반환 | 3절 표 그대로 |
 | 4 | 결제 토큰 발급기(`PaymentTokenIssuer`) 시그니처와 패키지 위치(`reservation` 도메인/응용 또는 공유 포트) | 5-1절 제안 그대로 |
+
+---
+
+## 6. 예매 취소 (`POST /api/v1/reservations/{reservationId}/cancel`, ISE-206)
+
+확정(`CONFIRMED`)된 본인의 일반 예매를 공연 시작 전까지 취소한다. 취소하면 좌석을 돌려주고 티켓을 무효로 만들고, 결제 서비스에 환불을 요청한다. 환불 요청은 결제 서비스가 이미 처리하는 `RefundRequested(reason=CANCELED)`이므로 이번 계약은 예매 서비스 안에서 끝난다.
+
+### 6-1. 요청과 응답
+- 경로 `reservationId`는 1 이상의 정수다. 로그인한 사용자 ID는 Gateway가 넘긴 `X-User-Id`만 쓴다.
+- `Idempotency-Key` 헤더는 필수이고 UUID 표준 형식(8-4-4-4-12)이어야 한다. 요청 본문은 없다.
+- 성공은 `202 Accepted`이고 `data`는 다음과 같다. 환불은 비동기로 처리되므로 환불 상태는 예매 상세(`GET /api/v1/reservations/{reservationId}`)의 `paymentId`로 결제 조회 API를 불러 본다(2026-11-11 사용자 결정, ISE-206).
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `reservationId` | number | 취소한 예매 ID |
+| `status` | string | 항상 `CANCELED` |
+| `paymentId` | number | 환불 대상 결제 ID |
+
+### 6-2. 에러 코드
+
+| 상태 | 코드 | 발생 조건 |
+|---|---|---|
+| `404` | `NOT_FOUND` | 없는 예매이거나 다른 사용자의 예매. 예매 상세 조회와 같은 기준으로 둘을 구분하지 않는다 |
+| `400` | `VALIDATION_FAILED` | `Idempotency-Key`가 없거나 UUID 형식이 아님, `reservationId`가 0 이하 |
+| `409` | `RESERVATION_NOT_CANCELABLE` | 상태가 `HELD`·`EXPIRED`·`RELEASED`, 회차가 없음, 또는 취소하는 사이에 상태가 바뀜 |
+| `409` | `LOTTERY_RESERVATION_NOT_CANCELABLE` | 추첨(`source=LOTTERY`)으로 배정된 예매 |
+| `409` | `CANCEL_PERIOD_ENDED` | 지금 시각이 회차 `startsAt`과 같거나 지남 |
+
+### 6-3. 취소 조건과 검사 순서
+취소할 수 있는 예매는 `status=CONFIRMED`, `source=GENERAL`이고 지금 시각이 회차 `startsAt`보다 이른 예매다(2026-11-11 사용자 결정, ISE-206). 검사는 다음 순서로 한다.
+
+1. 본인의 예매가 아니면 `404`.
+2. 이미 `CANCELED`이면 아무것도 쓰지 않고 `202`를 다시 돌려준다. 기한이 지났어도 같다.
+3. 추첨 예매이면 `LOTTERY_RESERVATION_NOT_CANCELABLE`.
+4. 상태가 `CONFIRMED`가 아니면 `RESERVATION_NOT_CANCELABLE`.
+5. 회차 시작 시각이 지났으면 `CANCEL_PERIOD_ENDED`.
+
+### 6-4. 멱등 규칙
+`Idempotency-Key`는 형식만 확인하고 저장하지 않는다. 취소는 예매마다 한 번만 일어나는 전이라 예매 상태가 곧 멱등 기록이기 때문이다(설계 판단이며 ISE-206 댓글로 공유했다). 같은 예매에 키가 같든 다르든 다시 요청하면 둘째부터는 아무것도 쓰지 않고 같은 `202`를 돌려주므로 환불 요청도 한 건만 나간다. 동시에 두 요청이 들어와도 조건부 UPDATE(`WHERE status='CONFIRMED'`)가 한쪽만 통과시키고, 진 쪽은 상태를 다시 읽어 `CANCELED`이면 `202`로 답한다.
+
+### 6-5. 한 트랜잭션에서 바뀌는 것
+다음 순서로 쓰고 순서를 바꾸지 않는다.
+
+1. 예매 `CONFIRMED → CANCELED`. `updated_at`을 갱신한다. 결제 서비스 대사(ADR 0029)가 `updated_at`으로 취소를 찾는다.
+2. 사용자·회차별 보유 매수(`user_schedule_quotas.held_count`)를 예매 수량만큼 뺀다.
+3. 예매 좌석 `CONFIRMED → RELEASED`. 부분 유니크 인덱스에서 빠져 같은 좌석을 다시 선점할 수 있다.
+4. 회차 좌석 `SOLD → AVAILABLE`. 같은 예매의 취소끼리는 1번의 예매 행 잠금에서 줄을 서고, 좌석 선점은 `AVAILABLE` 좌석만 잠가 `SOLD` 좌석과 잠금 순서가 엇갈리지 않는다.
+5. 티켓 `ISSUED → VOID`.
+6. 상태 이력 `CONFIRMED → CANCELED`(사유 `USER_CANCELED`).
+7. outbox에 `RefundRequested` 한 건을 쓴다.
+
+매수 행을 좌석보다 먼저 잠그는 이유는 좌석 선점이 매수 행 → 회차 좌석 순서로 잠그기 때문이다. 같은 사용자가 같은 회차에서 선점과 취소를 동시에 할 때 순서가 반대면 교착이 날 수 있다.
+
+### 6-6. RefundRequested(CANCELED)
+토픽은 `payment.command`, 이벤트 타입은 `RefundRequested`, 버전은 1, 메시지 키는 `reservationId`다. 필드는 SA 10-3과 같고 값은 예매 원장에서 가져온다.
+
+| 필드 | 값 |
+|---|---|
+| `reservationId` | 취소한 예매 ID |
+| `paymentId` | 예매의 `payment_id` |
+| `userId` | 예매한 사용자 ID |
+| `amount` | 예매 총액(`total_amount`) |
+| `currency` | `KRW` |
+| `reason` | `CANCELED` |
+
+### 6-7. 범위 밖
+- 추첨 예매의 취소: 추첨 예매의 좌석은 추첨석(`LOTTERY` 등급)이라, 진행 중인 추첨에서 풀리면 승계 배정과 종결 때의 등급 되돌리기와 얽힌다. 그래서 이번 범위에서 뺐다(2026-11-11 사용자 결정, ISE-206). 필요해지면 추첨 담당과 따로 정한다.
+- 부분 취소(좌석 일부만 취소)와 취소 수수료는 다루지 않는다. 취소는 예매 전체를 환불한다.

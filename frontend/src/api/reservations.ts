@@ -66,8 +66,19 @@ export const reservationDetailSchema = z.object({
   paymentToken: z.string().nullable(),
   // CONFIRMED일 때만 채워진다
   tickets: z.array(z.object({ ticketNo: z.string(), seatId: entityId })),
+  // 확정에 쓰인 결제(CONFIRMED·CANCELED). 취소 뒤 환불 상태는 이 ID로 결제 조회를 본다(ISE-206).
+  // 이 필드가 없던 서버는 null로 읽는다
+  paymentId: entityId.nullable().default(null),
 })
 export type ReservationDetail = z.infer<typeof reservationDetailSchema>
+
+// 예매 취소 202(contracts.md 6절). 환불은 결제 서비스가 비동기로 끝낸다
+export const canceledReservationSchema = z.object({
+  reservationId: entityId,
+  status: z.literal('CANCELED'),
+  paymentId: entityId.nullable(),
+})
+export type CanceledReservation = z.infer<typeof canceledReservationSchema>
 
 export const myReservationSchema = z.object({
   reservationId: entityId,
@@ -123,5 +134,17 @@ export function getMyReservations(params: { page?: number; size?: number } = {})
     method: 'GET',
     path: `/reservations/me?${query}`,
     schema: pageSchema(myReservationSchema),
+  })
+}
+
+// 확정 예매 취소(ISE-206). 본인의 일반 예매를 공연 시작 전까지만 취소한다. 이미 취소된 예매에 다시 보내도 같은 202다.
+// 서버는 멱등키를 저장하지 않고 예매 상태로 멱등을 지킨다. 결과를 모르면(isOutcomeUnknown) 같은 키로 다시 보내면 된다.
+// 409: RESERVATION_NOT_CANCELABLE(확정 아님), LOTTERY_RESERVATION_NOT_CANCELABLE(추첨 예매), CANCEL_PERIOD_ENDED(공연 시작)
+export function cancelReservation(reservationId: number, idempotencyKey: string) {
+  return apiRequest({
+    method: 'POST',
+    path: `/reservations/${reservationId}/cancel`,
+    schema: canceledReservationSchema,
+    idempotencyKey,
   })
 }

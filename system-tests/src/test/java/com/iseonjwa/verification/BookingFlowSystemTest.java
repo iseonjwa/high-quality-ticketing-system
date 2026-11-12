@@ -12,6 +12,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.iseonjwa.verification.WorkspaceClient.await;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 실행 중인 local 스택에서 Gateway를 거쳐 일반 예매 한 흐름(공연 준비 → 대기열 → 선점 → 결제 → 확정)을 확인한다.
+ * 실행 중인 local 스택에서 Gateway를 거쳐 일반 예매 한 흐름(공연 준비 → 대기열 → 선점 → 결제 → 확정 → 취소 → 환불 완료)을 확인한다.
  * 실행할 때마다 회차가 하나 생기고 회차마다 좌석이 15,000석 만들어지므로 local DB가 점점 커진다.
  */
 @Tag("system")
@@ -42,7 +43,7 @@ class BookingFlowSystemTest {
     }
 
     @Test
-    void 일반_예매가_대기열_선점_결제_확정까지_이어진다() throws Exception {
+    void 일반_예매가_대기열_선점_결제_확정_취소_환불까지_이어진다() throws Exception {
         // 1. 관리자가 공연·회차·좌석을 준비한다.
         var admin = client.login(client.env("ADMIN_EMAIL"), client.env("ADMIN_PASSWORD")).get("accessToken").asString();
         var title = "E2E 예매 공연 " + UUID.randomUUID().toString().substring(0, 8);
@@ -105,6 +106,7 @@ class BookingFlowSystemTest {
         // 7. 예매 확정: 같은 멱등키와 좌석으로 선점을 다시 보내 CONFIRMED 응답을 기다린다.
         // Note: 예매 조회 API(ISE-171)가 나오면 예매 상세 조회로 바꾼다.
         var last = new AtomicReference<String>("응답 없음");
+        var confirmedReservationId = new AtomicLong();
         try {
             await("예매 확정", () -> {
                 WorkspaceClient.Response again;
@@ -118,11 +120,54 @@ class BookingFlowSystemTest {
                 last.set("HTTP " + again.status() + ", body=" + again.body());
                 var data = again.body() == null ? null : again.body().get("data");
                 var status = data == null || data.get("status") == null ? "-" : data.get("status").asString();
-                return (again.status() == 200 || again.status() == 201) && "CONFIRMED".equals(status);
+                var confirmed = (again.status() == 200 || again.status() == 201) && "CONFIRMED".equals(status);
+                if (confirmed) confirmedReservationId.set(data.get("reservationId").asLong());
+                return confirmed;
             }, Duration.ofSeconds(30));
         } catch (AssertionError e) {
             throw new AssertionError(e.getMessage() + " (마지막 응답: " + last.get() + ")", e);
         }
+        var reservationId = confirmedReservationId.get();
+        assertEquals(hold.get("reservationId").asLong(), reservationId, "확정 응답의 예매 ID");
+
+        // 8. 예매를 취소한다. 202는 접수이고 환불은 결제 서비스가 비동기로 끝낸다.
+        var cancel = client.check("예매 취소", "POST", "/api/v1/reservations/" + reservationId + "/cancel", 202, null,
+                user.access(), Map.of("Idempotency-Key", UUID.randomUUID().toString())).get("data");
+        assertEquals("CANCELED", cancel.get("status").asString(), "취소 응답 상태");
+        assertEquals(paymentId, cancel.get("paymentId").asLong(), "취소 응답의 결제 ID");
+
+        // 9. 결제가 REFUNDED가 되고 환불 시각이 채워질 때까지 기다린다.
+        var refunded = new AtomicReference<JsonNode>();
+        await("환불 완료", () -> {
+            var response = client.request("GET", "/api/v1/payments/" + paymentId, null, user.access());
+            if (response.status() != 200) return false;
+            var data = response.body().get("data");
+            refunded.set(data);
+            return "REFUNDED".equals(data.get("status").asString());
+        }, Duration.ofSeconds(60));
+        var refundedAt = refunded.get().get("refundedAt");
+        assertTrue(refundedAt != null && !refundedAt.isNull(), "환불 시각(refundedAt)이 비어 있다: " + refunded.get());
+
+        // 10. 예매 상세는 CANCELED이고 티켓이 없다.
+        var canceled = client.check("취소한 예매 조회", "GET", "/api/v1/reservations/" + reservationId, 200, null,
+                user.access()).get("data");
+        assertEquals("CANCELED", canceled.get("status").asString(), "취소한 예매 상태");
+        assertEquals(0, canceled.get("tickets").size(), "취소한 예매의 티켓");
+        assertEquals(paymentId, canceled.get("paymentId").asLong(), "예매 상세의 결제 ID");
+
+        // 11. 취소한 좌석이 다시 빈 좌석으로 보인다.
+        var seatsAfter = client.check("취소 뒤 좌석 조회", "GET", "/api/v1/schedules/" + scheduleId + "/seats", 200, null,
+                user.access(), entry, Duration.ofSeconds(30)).get("data");
+        assertTrue(isAvailable(seatsAfter, seatId), "취소한 좌석이 다시 선택 가능해야 한다: seatId=" + seatId);
+    }
+
+    private static boolean isAvailable(JsonNode seats, long seatId) {
+        for (var section : seats.get("sections")) {
+            for (var seat : section.get("seats")) {
+                if (seat.get("seatId").asLong() == seatId) return seat.get("available").asBoolean();
+            }
+        }
+        throw new AssertionError("좌석 조회에 좌석이 없다: seatId=" + seatId);
     }
 
     private static boolean anyMatch(JsonNode array, String field, long expected) {

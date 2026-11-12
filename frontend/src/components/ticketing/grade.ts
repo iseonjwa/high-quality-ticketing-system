@@ -7,5 +7,5 @@ const GRADE_COLORS: Record<string, string> = {
 }
 
 export function gradeColor(grade: string): string {
-  return GRADE_COLORS[grade] ?? 'var(--primary-600)'
+  return GRADE_COLORS[grade] ?? 'var(--brand-600)'
 }

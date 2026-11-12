@@ -1,0 +1,92 @@
+# 결제 한 건에 묶이는 사건을 로그 줄에서 읽어 슬랙으로 알리는 Loki 규칙이다(ADR 0045 결정 4, ISE-183).
+# 슬랙에 "몇 번 유저가 언제 결제한 건인지"를 담으려는 것이다. 건수·경과 시간 같은 지표 알림(infra/prometheus/rules)은 그대로 두고
+# 이 규칙이 그 위에 건별로 더한다. 평가 결과는 ruler가 Alertmanager로 보내고, event 라벨이 있으면 건별 경로·수신자를 탄다.
+#
+# 줄 형식은 payment-service의 PaymentAlertLog가 정한다(필드 순서 고정, 값이 없으면 '-').
+#   event=<E> paymentId=<n> userId=<n> reservationId=<n> paidAt=2026-11-09T14:03:12+09:00 <추가 k=v>
+# 형식을 바꾸면 이 정규식, PaymentAlertLogTest, script/check-loki-rules.sh의 push 줄을 함께 바꾼다.
+# 예매 서비스의 격리 줄은 PaymentResultService.anomaly가 정한다(PaymentResultServiceTest가 형식을 고정한다).
+#   event=PAYMENT_RESULT_ANOMALY type=<APPROVED|DECLINED|REFUNDED> eventId=<uuid> reservationId=<n> paymentId=<n> reason=<자유 문장>
+#
+# 설계 메모
+# - service="payment-service"로 한정한다. reservation-service에도 DEAD_LETTER_OPEN 로그가 있어서 줄 이름만으로는 섞인다.
+#   예외: 예매 서비스의 결제 결과 격리 줄(PAYMENT_RESULT_ANOMALY)은 reservation-service로 한정한다.
+# - 줄을 읽는 구간은 10분이다. 평가는 1분마다라 같은 줄이 10번 평가에 걸리지만, 라벨이 같아 Alertmanager가 한 번만 보낸다.
+#   10분이 지나 줄이 구간 밖으로 나가면 알림이 사라지고, 건별 수신자는 해결 메시지를 보내지 않는다.
+# - regexp 뒤의 event 필터는 형식이 다른 줄을 걸러 낸다. regexp는 맞지 않는 줄을 오류 없이 라벨 없이 통과시키므로, 이 필터가 없으면
+#   라벨이 없는 알림이 생겨 건별 경로를 타지 못하고 일반 즉시 경로로 샌다.
+# - 라벨로 뽑는 값은 내부 ID·사유·키뿐이다. DLQ의 자유 문장 사유는 줄 맨 뒤에 있어 라벨로 뽑지 않는다.
+# - 이 파일은 compose가 테넌트 폴더(/etc/loki/rules/fake)로 읽기 전용 마운트한다. 인증이 꺼진 Loki의 테넌트 ID는 fake다.
+groups:
+  - name: payment-events
+    rules:
+      - alert: PaymentNeedsManualCheckEvent
+        expr: |
+          sum by (env, event, paymentId, userId, reservationId, paidAt, reason) (
+            count_over_time(
+              {service="payment-service", level="ERROR"} |= "event=PAYMENT_NEEDS_MANUAL_CHECK "
+              | regexp `event=(?P<event>PAYMENT_NEEDS_MANUAL_CHECK) paymentId=(?P<paymentId>\S+) userId=(?P<userId>\S+) reservationId=(?P<reservationId>\S+) paidAt=(?P<paidAt>\S+) reason=(?P<reason>\S+)`
+              | event="PAYMENT_NEEDS_MANUAL_CHECK"
+              [10m]
+            )
+          ) > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: '결제가 운영자 확인 상태가 됐습니다(사유 {{ $labels.reason }}). {{ $labels.userId }}번 유저가 {{ reReplaceAll `^\d\d(\d\d)-(\d\d)-(\d\d)T(\d\d:\d\d).*` "${1}${2}${3} ${4}" $labels.paidAt }}에 결제한 건입니다. 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 2절"
+      - alert: RefundNeedsManualCheckEvent
+        expr: |
+          sum by (env, event, paymentId, userId, reservationId, paidAt, refundId, reason) (
+            count_over_time(
+              {service="payment-service", level="ERROR"} |= "event=REFUND_NEEDS_MANUAL_CHECK "
+              | regexp `event=(?P<event>REFUND_NEEDS_MANUAL_CHECK) paymentId=(?P<paymentId>\S+) userId=(?P<userId>\S+) reservationId=(?P<reservationId>\S+) paidAt=(?P<paidAt>\S+) refundId=(?P<refundId>\S+) reason=(?P<reason>\S+)`
+              | event="REFUND_NEEDS_MANUAL_CHECK"
+              [10m]
+            )
+          ) > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: '환불이 운영자 확인 상태가 됐습니다(사유 {{ $labels.reason }}). {{ $labels.userId }}번 유저가 {{ reReplaceAll `^\d\d(\d\d)-(\d\d)-(\d\d)T(\d\d:\d\d).*` "${1}${2}${3} ${4}" $labels.paidAt }}에 결제한 건의 환불입니다. 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 2절"
+      - alert: ReconciliationMismatchOpenEvent
+        expr: |
+          sum by (env, event, paymentId, userId, reservationId, paidAt, rule) (
+            count_over_time(
+              {service="payment-service", level="ERROR"} |= "event=RECONCILIATION_MISMATCH_OPEN "
+              | regexp `event=(?P<event>RECONCILIATION_MISMATCH_OPEN) paymentId=(?P<paymentId>\S+) userId=(?P<userId>\S+) reservationId=(?P<reservationId>\S+) paidAt=(?P<paidAt>\S+) rule=(?P<rule>\S+)`
+              | event="RECONCILIATION_MISMATCH_OPEN"
+              [10m]
+            )
+          ) > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: '대사에서 새 불일치를 찾았습니다({{ $labels.rule }}). {{ if eq $labels.paymentId "-" }}결제 없이 예매 {{ $labels.reservationId }}번에서 찾은 건입니다{{ else }}{{ $labels.userId }}번 유저가 {{ reReplaceAll `^\d\d(\d\d)-(\d\d)-(\d\d)T(\d\d:\d\d).*` "${1}${2}${3} ${4}" $labels.paidAt }}에 결제한 건입니다{{ end }}. 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 6절"
+      - alert: DeadLetterOpenEvent
+        expr: |
+          sum by (env, event, paymentId, userId, reservationId, paidAt, eventKey) (
+            count_over_time(
+              {service="payment-service", level="ERROR"} |= "event=DEAD_LETTER_OPEN "
+              | regexp `event=(?P<event>DEAD_LETTER_OPEN) paymentId=(?P<paymentId>\S+) userId=(?P<userId>\S+) reservationId=(?P<reservationId>\S+) paidAt=(?P<paidAt>\S+) eventKey=(?P<eventKey>\S+)`
+              | event="DEAD_LETTER_OPEN"
+              [10m]
+            )
+          ) > 0
+        labels: {service: payment, urgency: immediate, severity: critical}
+        annotations:
+          summary: '처리하지 못한 DLQ 메시지가 생겼습니다. {{ if eq $labels.userId "-" }}결제를 읽지 못해 어느 유저의 건인지 알 수 없습니다{{ else }}{{ $labels.userId }}번 유저가 {{ reReplaceAll `^\d\d(\d\d)-(\d\d)-(\d\d)T(\d\d:\d\d).*` "${1}${2}${3} ${4}" $labels.paidAt }}에 결제한 건입니다{{ end }}. 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 3절"
+      - alert: PaymentResultAnomalyEvent
+        expr: |
+          sum by (env, event, type, reservationId, paymentId) (
+            count_over_time(
+              {service="reservation-service", level="ERROR"} |= "event=PAYMENT_RESULT_ANOMALY "
+              | regexp `event=(?P<event>PAYMENT_RESULT_ANOMALY) type=(?P<type>\S+) eventId=\S+ reservationId=(?P<reservationId>\S+) paymentId=(?P<paymentId>\S+) reason=`
+              | event="PAYMENT_RESULT_ANOMALY"
+              [10m]
+            )
+          ) > 0
+        labels: {service: reservation, urgency: immediate, severity: critical}
+        annotations:
+          summary: '예매 서비스가 결제 결과({{ $labels.type }})를 반영하지 않고 격리했습니다. 예매 {{ $labels.reservationId }}번, 결제 {{ $labels.paymentId }}번입니다. 좌석은 그대로이니 확인이 필요합니다'
+          runbook: "docs/design/payment/manual-recovery.md 6절"

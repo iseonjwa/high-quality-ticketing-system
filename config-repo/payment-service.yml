@@ -43,6 +43,10 @@ payment:
   billing-key:
     # 빌링키 암호화 키(AES-256-GCM, ADR 0042). 환경변수로만 주입하고 저장소에는 이름만 둔다
     secret: ${BILLING_KEY_SECRET:}
+    # [가정] 빌링키 등록 횟수 제한(ISE-241). 사용자당 PG 발급 시도 수다. 카드 교체는 드문 일이라 하루 10회로 묶는다
+    registration-limit:
+      per-minute: 3
+      per-day: 10
   ops:
     # Ops 명령을 실행·승인할 수 있는 팀원 ID(docs/ai-judgments 아래 사람별 폴더 이름). 비밀값이 아니다.
     # 이 ID는 --operator로 받는 자기 신고라 신원 증명이 아니다. 감사 기록의 정확성은 호스트의 SSH 접근 통제에 기댄다(ADR 0028 결정 7)
@@ -70,12 +74,19 @@ payment:
         failure-rate-threshold: 50
         open-duration: 10s
         half-open-permitted-calls: 3
-    # 현재 어댑터는 mock뿐이다. toss는 M4에서 추가한다(ADR 0023)
-    provider: mock
+    # 기본은 mock이다. toss는 시연 때만 켠다(토스 결제가 진행 중이면 토스 키를 지우지 않는다. 부하 측정은 늘 mock). 절차는 deployment.md에 있다
+    provider: ${PAYMENT_PG_PROVIDER:mock}
+    # 시연용. 토스 모드에서도 결제창 없이 Mock으로 승인한다. 기본은 꺼짐이고 시연 서버에서만 환경변수로 켠다
+    mock-bypass-enabled: ${PAYMENT_PG_MOCK_BYPASS:false}
     mock:
       base-url: ${MOCK_PG_URL:http://localhost:8090}
+    toss:
+      base-url: https://api.tosspayments.com
+      # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다. 키가 있으면 test_sk_, test_ck_로 시작하는 테스트 키만 받는다(toss 모드는 필수, mock 모드는 진행 중인 토스 결제를 조회하려고 있으면 어댑터를 만든다)
+      secret-key: ${TOSS_SECRET_KEY:}
+      client-key: ${TOSS_CLIENT_KEY:}
   reconciliation:
     reservation:
-      # 예매 내부 조회 API(ISE-75)가 생기면 켠다. API가 없는 채로 켜면 회차마다 RC-1~RC-6이 실패해 대사 정체 알림이 울린다.
-      # 켜면 RC-7·RC-8은 그대로 돌고 RC-1~RC-6이 더해진다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
-      enabled: false
+      # 예매 내부 조회 API(ISE-75)와 2026-11-12 로컬에서 붙여 확인하고 켰다(ISE-239). 끄면 RC-7·RC-8만 돈다.
+      # 예매 서비스가 내려가 있으면 회차마다 RC-1~RC-6이 실패로 기록되어 대사 작업 실패 지표가 오른다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
+      enabled: true

@@ -5,6 +5,7 @@ import com.iseonjwa.payment.ops.domain.OpsInspectionRepository.OutboxView;
 import com.iseonjwa.payment.ops.domain.OpsInspectionRepository.PaymentView;
 import com.iseonjwa.payment.ops.domain.OpsInspectionRepository.RefundView;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.iseonjwa.payment.pg.application.PgClients;
 import com.iseonjwa.payment.pg.application.PgClient.Approved;
 import com.iseonjwa.payment.pg.application.PgClient.Declined;
 import com.iseonjwa.payment.pg.application.PgClient.NotFound;
@@ -39,11 +40,11 @@ public class InspectQuery implements OpsQuery {
     private static final int RECENT_RESOLVED_DAYS = 7;
 
     private final OpsInspectionRepository inspection;
-    private final ObjectProvider<PgClient> pgClient;
+    private final ObjectProvider<PgClients> pgClients;
 
-    public InspectQuery(OpsInspectionRepository inspection, ObjectProvider<PgClient> pgClient) {
+    public InspectQuery(OpsInspectionRepository inspection, ObjectProvider<PgClients> pgClients) {
         this.inspection = inspection;
-        this.pgClient = pgClient;
+        this.pgClients = pgClients;
     }
 
     @Override
@@ -111,7 +112,7 @@ public class InspectQuery implements OpsQuery {
                 + " 사용자=" + payment.userId());
         lines.add("  상태=" + payment.status() + " 금액=" + payment.amount().toPlainString() + " " + payment.currency()
                 + " 방식=" + payment.method());
-        lines.add("  PG 주문=" + payment.pgOrderId() + " PG 거래=" + or(payment.pgTxId()) + " PG 승인 금액="
+        lines.add("  PG=" + payment.pgProvider() + " PG 주문=" + payment.pgOrderId() + " PG 거래=" + or(payment.pgTxId()) + " PG 승인 금액="
                 + (payment.pgApprovedAmount() == null ? NONE : payment.pgApprovedAmount().toPlainString()));
         lines.add("  사유(decline_code)=" + or(payment.declineCode()) + " 재확인 횟수=" + payment.unknownRetryCount()
                 + " 다음 확인=" + or(payment.nextCheckAt()));
@@ -187,13 +188,21 @@ public class InspectQuery implements OpsQuery {
 
     private void addPgComparison(List<String> lines, PaymentView payment, RefundView refund) {
         lines.add("[PG 대조]");
-        var client = pgClient.getIfAvailable();
-        if (client == null) {
+        var clients = pgClients.getIfAvailable();
+        if (clients == null) {
             lines.add("  PG 클라이언트가 설정되어 있지 않아 조회하지 못했다");
             return;
         }
         if (payment == null) {
             lines.add("  결제가 없어 PG를 조회하지 않는다");
+            return;
+        }
+        // 결제가 기록한 PG로 조회한다. 설정에 없는 PG(토스 키 없이 TOSS 결제)면 조회하지 못했다고 알린다
+        PgClient client;
+        try {
+            client = clients.of(payment.pgProvider());
+        } catch (RuntimeException exception) {
+            lines.add("  " + payment.pgProvider() + " PG 클라이언트가 설정되어 있지 않아 조회하지 못했다");
             return;
         }
         lines.add("  결제: " + comparePayment(client, payment));

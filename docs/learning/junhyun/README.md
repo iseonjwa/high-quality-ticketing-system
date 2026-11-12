@@ -26,6 +26,34 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서비스마다 DB가 따로일 때 서로 어긋난 것을 어떻게 찾는가 | [qna/2026-11-12-reconciliation-between-services.md](qna/2026-11-12-reconciliation-between-services.md) |
+| 2026-11-12 | 실패한 요청을 언제, 몇 번, 얼마나 기다렸다가 다시 보내야 하는가 | [qna/2026-11-12-retry-backoff-jitter.md](qna/2026-11-12-retry-backoff-jitter.md) |
+| 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
+| 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
+| 2026-11-12 | 기능 플래그의 기본값은 왜 꺼짐이어야 하나(안전한 기본값, fail-safe defaults) | [qna/2026-11-12-fail-safe-defaults.md](qna/2026-11-12-fail-safe-defaults.md) |
+| 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
+| 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
+| 2026-11-11 | 배포가 실패하면 팀원은 Jenkins에 어떻게 들어가서 다시 배포하나 | [qna/2026-11-11-jenkins-redeploy-after-failure.md](qna/2026-11-11-jenkins-redeploy-after-failure.md) |
+| 2026-11-11 | EC2를 껐다 켜면 무엇이 바뀌고, 보안 그룹을 고쳐야 하나 | [qna/2026-11-11-ec2-stop-start-what-changes-security-group.md](qna/2026-11-11-ec2-stop-start-what-changes-security-group.md) |
+| 2026-11-12 | 결제 서비스를 성능·로직에서 더 발전시킬 방안 (인스턴스 사양 제외) | [qna/2026-11-12-payment-service-next-improvements.md](qna/2026-11-12-payment-service-next-improvements.md) |
+| 2026-11-12 | 결제 승인 처리량을 더 올릴 수 있나 (동시 허가 수, 리틀의 법칙, 대기열 입장 속도와 맞추기) | [qna/2026-11-12-payment-throughput-improvement.md](qna/2026-11-12-payment-throughput-improvement.md) |
+| 2026-11-12 | HTTPS 인증서는 반드시 외부 기관에서 받아야 하나 (자체 서명, 사설 CA, 공인 CA) | [qna/2026-11-12-https-certificate-self-signed-vs-ca.md](qna/2026-11-12-https-certificate-self-signed-vs-ca.md) |
+| 2026-11-11 | 부하를 늘려 가며 결제 단계별 시간과 임계치를 재는 법 | [qna/2026-11-11-payment-stage-latency-under-ramp.md](qna/2026-11-11-payment-stage-latency-under-ramp.md) |
+| 2026-11-11 | 스프링 안에서 new Thread(Runnable)로 스레드를 직접 만들어도 되나, 스레드란 무엇인가 | [qna/2026-11-11-new-thread-in-spring-and-thread-basics.md](qna/2026-11-11-new-thread-in-spring-and-thread-basics.md) |
+| 2026-11-11 | 스레드 풀 크기는 CPU 바운드와 I/O 바운드에서 어떻게 다르게 잡나 | [qna/2026-11-11-thread-pool-size-cpu-vs-io-bound.md](qna/2026-11-11-thread-pool-size-cpu-vs-io-bound.md) |
+| 2026-11-11 | 팀 공용 부하 발생기로 배포 서버를 재는 순서 (한 단계씩) | [qna/2026-11-11-loadgen-step-by-step.md](qna/2026-11-11-loadgen-step-by-step.md) |
+| 2026-11-10 | 오픈 피크 부하 시나리오 PAY1·R1·L2는 각각 무엇을 재는가 | [qna/2026-11-10-open-peak-payment-scenarios.md](qna/2026-11-10-open-peak-payment-scenarios.md) |
+| 2026-11-09 | 배포 서버에 부하 측정을 하면 AWS 요금이 더 나오나 | [qna/2026-11-09-load-test-aws-cost.md](qna/2026-11-09-load-test-aws-cost.md) |
+| 2026-11-09 | 부하 발생기 EC2는 얼마나 커야 하나 (c6i.large와 c6i.xlarge) | [qna/2026-11-09-loadgen-instance-size.md](qna/2026-11-09-loadgen-instance-size.md) |
+| 2026-11-09 | Anthropic API 키는 어디에 넣고, 배포 때도 따라가나 | [qna/2026-11-09-anthropic-key-local-and-deploy.md](qna/2026-11-09-anthropic-key-local-and-deploy.md) |
+| 2026-11-09 | Spring AI는 어떤 프레임워크이고, 쓰면 무엇이 좋은가 (우리 챗봇과 비교) | [qna/2026-11-09-spring-ai-what-and-why.md](qna/2026-11-09-spring-ai-what-and-why.md) |
+| 2026-11-09 | 예매 문의 챗봇(ISE-126)은 어떻게 구현돼 있나, 왜 별도 모듈인가 | [qna/2026-11-09-assistant-chatbot-structure.md](qna/2026-11-09-assistant-chatbot-structure.md) |
+| 2026-11-09 | ISE-169 결제 TX1 커밋 응답 유실은 무엇이고, 왜 "재시도가 이어받기" 원안으로는 풀리지 않나 | [qna/2026-11-09-tx1-commit-response-loss.md](qna/2026-11-09-tx1-commit-response-loss.md) |
+| 2026-11-08 | 실제 티켓 서비스는 매크로와 직접 API 호출을 어떻게 막나 | [qna/2026-11-08-production-ticketing-anti-bot-layers.md](qna/2026-11-08-production-ticketing-anti-bot-layers.md) |
+| 2026-11-08 | 프론트를 거치는 사람은 API를 직접 쏘는 사람보다 대기열에 늦게 서지 않나 | [qna/2026-11-08-queue-fairness-frontend-vs-direct-api.md](qna/2026-11-08-queue-fairness-frontend-vs-direct-api.md) |
+| 2026-11-08 | 오픈 시각이 되면 새로고침 없이 [예매하기]가 켜지는 것을 어떻게 구현했나 | [qna/2026-11-08-open-countdown-button-without-refresh.md](qna/2026-11-08-open-countdown-button-without-refresh.md) |
+| 2026-11-08 | 접수형(async) 좌석 선점은 무엇이고, 왜 하며, 지금 어디까지 왔나 | [qna/2026-11-08-async-seat-hold-what-and-why.md](qna/2026-11-08-async-seat-hold-what-and-why.md) |
+| 2026-11-05 | EC2에 직접 올리는 것 말고, HTTPS까지 알아서 붙여 주는 AWS 서비스(Lightsail 등)는 무엇이 있나 | [qna/2026-11-05-aws-managed-https-options.md](qna/2026-11-05-aws-managed-https-options.md) |
 | 2026-11-05 | 외부에서 IP로 프론트가 안 열린다는데 왜이고, HTTPS는 무료로 달 수 있나 | [qna/2026-11-05-why-front-unreachable-by-ip.md](qna/2026-11-05-why-front-unreachable-by-ip.md) |
 | 2026-11-05 | 주소에 ?demo=on을 붙이면 보이는 요청 로그 패널은 어떻게 쓰나 | [qna/2026-11-05-demo-mode-request-log-panel.md](qna/2026-11-05-demo-mode-request-log-panel.md) |
 | 2026-11-05 | 팀원에게 받은 공개 키와 IP로 배포 서버 SSH 접속을 열어 주는 방법 | [qna/2026-11-05-team-ssh-access-to-deploy-server.md](qna/2026-11-05-team-ssh-access-to-deploy-server.md) |
