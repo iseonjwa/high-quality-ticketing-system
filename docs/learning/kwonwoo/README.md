@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 좌석 배치 캐시를 로컬 메모리에 둘까 Redis에 둘까 (개념부터 측정·원인까지) | [qna/2026-11-12-p4b-p4c-local-cache-not-redis.md](qna/2026-11-12-p4b-p4c-local-cache-not-redis.md) |
 | 2026-11-11 | 좌석 선점과 부하 경로에서 로컬 캐시·Redis 캐시로 더 개선할 부분은 무엇인가 | [qna/2026-11-11-seathold-cache-improvements.md](qna/2026-11-11-seathold-cache-improvements.md) |
 | 2026-11-11 | CPU를 늘리지 않고 Gateway가 부하를 감당하게 하는 기술은 무엇인가 | [qna/2026-11-11-gateway-load-techniques-beyond-cpu.md](qna/2026-11-11-gateway-load-techniques-beyond-cpu.md) |
 | 2026-11-11 | 큰 좌석 응답 때문에 Gateway 메모리가 차는 문제를 다른 기술로 극복할 방법은 무엇인가 | [qna/2026-11-11-overcome-large-seat-response.md](qna/2026-11-11-overcome-large-seat-response.md) |

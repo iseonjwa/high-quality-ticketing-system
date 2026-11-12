@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 좌석 배치는 로컬 캐시가 Redis보다 낫다는 AI 설명을 그대로 받지 않고, Redis로도 구현해 측정으로 비교하게 함 | kwonwoo | Claude Code | 보류 | 후보 | [기록](kwonwoo/2026-11-12-verify-local-vs-redis-layout-cache-by-measurement.md) |
 | 2026-11-11 | **H1 배포와 7차 측정을 내일 아침에 하자는 AI 추천을 거부하고, H1 PR이 dev에 머지되면 오늘 이어서 배포·측정함** | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-11-run-7th-measurement-today.md) |
 | 2026-11-11 | **Gateway 동시 처리 수 상한 기본값을 128로 올리자는 6차 세션 제안을 거부하고, p95 여유를 이유로 64 유지를 추천한 메인 세션 안을 받아들임** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-keep-in-flight-limit-64.md) |
 | 2026-11-11 | **긴 측정 뒤 배포 실패를 막으려고 Zipkin 힙을 늘리자는 AI 추천을 거부하고, 메모리 설정은 두고 스케줄러 Redis 스팬을 근원에서 줄이며 이미지 받기 재시도를 더함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-11-reduce-scheduler-redis-spans-keep-zipkin-memory.md) |

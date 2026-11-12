@@ -8,6 +8,7 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 좌석 배치는 로컬 캐시가 Redis보다 낫다는 AI 설명을 그대로 받지 않고, Redis로도 구현해 측정으로 비교하게 함 | Claude Code | 보류 | 예 | 후보 | [기록](2026-11-12-verify-local-vs-redis-layout-cache-by-measurement.md) |
 | 2026-11-10 | 좌석 조회 경량화는 담당자(반효승)가 dev에 넣은 P4a를 살려 진행하고, 측정 브랜치 코드는 참고로만 둠 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-10-adopt-owner-p4a-keep-measurement-code-as-reference.md) |
 | 2026-11-09 | P4d 조건이 맞았지만 K1 좌석 조회 개선을 P4c에서 마치고 K1-H로 넘어감 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-09-k1-stop-at-p4c-skip-p4d.md) |
 | 2026-11-09 | **측정 기기를 옮길 때 번들 대신 브랜치를 푸시하고, 세션 핸드오프 메모는 푸시하지 않고 직접 옮김** | Claude Code | 거부 | 예 | 아님 | [기록](2026-11-09-push-measurement-branches-keep-handoff-local.md) |
@@ -33,6 +34,7 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-12 | [일지](daily/2026-11-12.md) |
 | 2026-11-11 | [일지](daily/2026-11-11.md) |
 | 2026-11-10 | [일지](daily/2026-11-10.md) |
 | 2026-11-09 | [일지](daily/2026-11-09.md) |
