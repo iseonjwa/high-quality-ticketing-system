@@ -6,8 +6,21 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 동시 수 상한으로도 CPU 포화가 안 풀리면 어떻게 하나, 로드밸런서가 필요한가(작업 보존형, 효율·수요·용량 세 방향, 폴링 간격 계산, 한 대 안 로드밸런서가 소용없는 이유, 남은 트러블슈팅) | [qna/2026-11-12-gateway-cpu-saturation-next-steps.md](qna/2026-11-12-gateway-cpu-saturation-next-steps.md) |
+| 2026-11-11 | 7차 H1 재해석: 굿풋 +12.8%인데 한 건당 CPU가 그대로인 이유(포화 구간 지표 한계, 성공 한 건당 CPU, 받은·거절 한 건 비용 연립 계산, 동시 수 상한은 작업 보존형), 다른 AI 분석 판정(Netty 파싱 뒤 실행, 카운터·503 쓰기 비용, 이벤트 루프 자료 수집 오류), 다음 가설 | [qna/2026-11-11-h1-reinterpret-netty-cost.md](qna/2026-11-11-h1-reinterpret-netty-cost.md) |
+| 2026-11-11 | HttpHandler 데코레이터로 동시 처리 수 상한을 관측보다 앞에서 거절하는 원리(Netty부터 GlobalFilter까지 층별 소스 위치, 데코레이터 패턴과 `defer`·`doFinally` 반납, WebFilter·ObservationPredicate·Netty 단계와 비교, 거절에서 사라지는 기록, 관리 포트 무영향, 7차 확인 지표) | [qna/2026-11-11-gateway-httphandler-decorator-early-reject.md](qna/2026-11-11-gateway-httphandler-decorator-early-reject.md) |
 | 2026-11-11 | H1의 "관측 비용 가설"은 무엇이고 HttpHandler 데코레이터는 왜 "부담"이라고 했나(요청이 지나는 층 순서, Boot 4 서버 관측 위치, WebFilter안과 데코레이터안 비교, 거절된 요청만 잃는 것) | [qna/2026-11-11-observation-cost-hypothesis-and-handler-decorator.md](qna/2026-11-11-observation-cost-hypothesis-and-handler-decorator.md) |
+| 2026-11-11 | application 계층은 HTTP를 몰라야 하는데 왜 에러 코드(HTTP 상태 포함)가 application에 있나(컴파일 의존과 의미 의존, 실패 종류 매핑 대안, 바꿀 조건) | [qna/2026-11-11-error-code-http-status-in-application.md](qna/2026-11-11-error-code-http-status-in-application.md) |
+| 2026-11-11 | `resilience4j.circuitbreaker.instances.auth-redis` 값은 코드 어디서 읽나(`@Value`가 아닌 자동 구성·`@ConfigurationProperties` 바인딩, 등록소 이름 조회, 재기동해야 반영되는 이유) | [qna/2026-11-11-resilience4j-config-binding.md](qna/2026-11-11-resilience4j-config-binding.md) |
+| 2026-11-11 | 스케줄러 쪽 추적 스팬을 끄면 무엇을 못 보게 되나(끄는 범위별 손실, Kafka로 이어지는 추적, 관측과 스팬 구분) | [qna/2026-11-11-scheduler-span-off-what-we-lose.md](qna/2026-11-11-scheduler-span-off-what-we-lose.md) |
 | 2026-11-11 | bulkhead 거절 경보의 "1%·5분"은 무슨 뜻이고 슬랙 메시지는 언제 몇 번 가나(`rate`·`for`, `group_wait`·`repeat_interval`, 피크 규칙) | [qna/2026-11-11-bulkhead-rejecting-alert-timing.md](qna/2026-11-11-bulkhead-rejecting-alert-timing.md) |
+| 2026-11-11 | 요청률 제한으로 "차단기를 예민하게 세팅해 CPU 포화 전에 열기"의 약점을 줄일 수 있나(넘친 만큼만 거절, 인증 앞 로컬 제한기, 버스트 크기, 503·`Retry-After`, 비교 실험) | [qna/2026-11-11-gateway-rate-limiter-vs-breaker.md](qna/2026-11-11-gateway-rate-limiter-vs-breaker.md) |
+| 2026-11-11 | 결제 pg-approve 동시 10의 근거와 높일 때의 효과·대가(리틀의 법칙, 장애 피해 상한) | [qna/2026-11-11-pg-approve-concurrency-10-basis.md](qna/2026-11-11-pg-approve-concurrency-10-basis.md) |
+| 2026-11-11 | 추첨 자동결제 경로(배정 워커·outbox·릴레이·Kafka·결제 소비자·PG 허가·PG 호출) 키워드별 설명 | [qna/2026-11-11-lottery-autopay-pipeline.md](qna/2026-11-11-lottery-autopay-pipeline.md) |
+| 2026-11-11 | 추첨 당첨 예매의 선점 만료는 왜 30분인가(자동결제 최악 확정 시간 예산, 연장·상한 60분) | [qna/2026-11-11-lottery-hold-30min-basis.md](qna/2026-11-11-lottery-hold-30min-basis.md) |
+| 2026-11-11 | Gateway CPU 포화는 사양 문제일 뿐인가, 요청률 제한이 도움이 되나(프로파일링·요청당 CPU 줄이기·입구 제한) | [qna/2026-11-11-gateway-cpu-saturation-improvements.md](qna/2026-11-11-gateway-cpu-saturation-improvements.md) |
+| 2026-11-11 | 벌크헤드 거절(503)을 auth-redis 차단기에서 예외로 뺄까, 실패로 세어 차단기를 열게 할까(Hystrix 기본값과 전제, 실패 표) | [qna/2026-11-11-bulkhead-rejection-breaker-count.md](qna/2026-11-11-bulkhead-rejection-breaker-count.md) |
+| 2026-11-11 | 장비 CPU가 한도에 닿기 전에 차단기가 열려야 하지 않나(차단기 vs 부하 차단·유입 제어) | [qna/2026-11-11-breaker-vs-cpu-saturation.md](qna/2026-11-11-breaker-vs-cpu-saturation.md) |
 | 2026-11-10 | dev→main PR은 왜 충돌했고, 동기화 PR로 어떻게 풀었나(squash 머지와 공통 조상, main 머지로만 배포) | [qna/2026-11-10-squash-merge-dev-main-conflict.md](qna/2026-11-10-squash-merge-dev-main-conflict.md) |
 | 2026-11-10 | CPU·메모리가 빡빡한 배포 서버에서 컨테이너를 가볍게 만들어 해결할 수 있나 | [qna/2026-11-10-lighten-containers-on-shared-server.md](qna/2026-11-10-lighten-containers-on-shared-server.md) |
 | 2026-11-10 | Gateway 스레드·벌크헤드·연결 풀 수치가 4 vCPU 배포 서버 사양을 고려해 정한 값인지, CPU 100%·과수용·차단기 시간 측정 주체·시한과 벌크헤드 재측정 값까지(16개 절) | [qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md](qna/2026-11-10-gateway-threads-bulkhead-vs-server-spec.md) |
