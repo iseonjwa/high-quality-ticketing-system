@@ -143,7 +143,8 @@ class SeatHoldExpiryTest {
     }
 
     private Long hold(long userId, List<Long> seats) {
-        return seatHold.hold(new HoldSeatsCommand(userId, UUID.randomUUID(), scheduleId, seats)).reservationId();
+        return ((SyncHoldOutcome.Held) seatHold.hold(new HoldSeatsCommand(userId, UUID.randomUUID(), scheduleId, seats)))
+                .result().reservationId();
     }
 
     // 5분을 기다리지 않고 선점 기한을 과거로 옮긴다.

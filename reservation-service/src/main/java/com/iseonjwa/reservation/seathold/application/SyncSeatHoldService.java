@@ -31,7 +31,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -54,14 +53,14 @@ public class SyncSeatHoldService {
     private final ReservationSeatRepository reservationSeats;
     private final ReservationStatusHistoryRepository histories;
     private final SeatHoldRequestRepository seatHoldRequests;
-    private final PaymentTokenIssuer paymentTokenIssuer;
+    private final HeldReservationResults results;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
     public SyncSeatHoldService(SeatHoldInventoryRepository inventory, UserScheduleQuotaRepository quotas,
             ReservationRepository reservations, ReservationSeatRepository reservationSeats,
             ReservationStatusHistoryRepository histories,
-            SeatHoldRequestRepository seatHoldRequests, PaymentTokenIssuer paymentTokenIssuer,
+            SeatHoldRequestRepository seatHoldRequests, HeldReservationResults results,
             @Qualifier("commonAuditingClock") Clock clock) {
         this.inventory = inventory;
         this.quotas = quotas;
@@ -69,24 +68,22 @@ public class SyncSeatHoldService {
         this.reservationSeats = reservationSeats;
         this.histories = histories;
         this.seatHoldRequests = seatHoldRequests;
-        this.paymentTokenIssuer = paymentTokenIssuer;
+        this.results = results;
         this.clock = clock;
     }
 
     @Transactional
-    public SeatHoldResult hold(HoldSeatsCommand command) {
-        var seatIds = sortedDistinctSeatIds(command.seatIds());
+    public SyncHoldOutcome hold(HoldSeatsCommand command) {
+        var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
         var previous = seatHoldRequests.findById(command.requestId());
         if (previous.isPresent()) {
             return replay(previous.get(), command, seatIds);
         }
         var schedule = inventory.findSchedule(command.scheduleId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        if (seatIds.size() > schedule.getMaxPerUser()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
-        }
+        SeatHoldRules.requireWithinPerUserLimit(schedule, seatIds);
         var now = clock.instant();
-        requireOnSale(schedule, now);
+        SeatHoldRules.requireOnSale(schedule, now);
         var seats = findSeatsOfSchedule(schedule.getId(), seatIds);
 
         addHeldCount(command.userId(), schedule, seatIds.size(), now);
@@ -95,63 +92,30 @@ public class SyncSeatHoldService {
         seatHoldRequests.save(SeatHoldRequest.held(command.requestId(), command.userId(), schedule.getId(), seatIds,
                 reservation.getId()));
 
-        return result(reservation, seatIds, issueToken(reservation));
+        return new SyncHoldOutcome.Held(results.withToken(reservation, seatIds));
     }
 
     // 같은 멱등키 재요청(contracts.md 3절). 좌석·매수를 다시 건드리지 않고 첫 요청이 만든 예매로 응답한다.
     // 회차·판매 기간 검사보다 먼저 와서, 그사이 판매가 끝났거나 회차가 지워져도 이미 잡은 선점 결과를 돌려준다
-    private SeatHoldResult replay(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
-        if (!previous.getUserId().equals(command.userId())
-                || !previous.getScheduleId().equals(command.scheduleId())
-                || !previous.getSeatIds().equals(seatIds)) {
-            throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
-        }
-        // 동기형은 성공한 선점만 행을 남기므로 HELD가 아니거나 예매가 없으면 데이터가 깨진 것이다
+    private SyncHoldOutcome replay(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
+        SeatHoldRules.requireSameRequest(previous, command, seatIds);
+        // Note: 동기형은 HELD 행만 남기지만, 접수형으로 받은 요청(REQUESTED·REJECTED)이 남은 채 동기형으로 다시 뜰 수 있다.
+        // 처리 중인 요청을 실패로 답하면 사용자가 새 좌석을 고르는 사이 앞 요청이 HELD가 되어 모르는 예매가 좌석·매수를 묶는다.
+        // 그래서 접수형으로 시작한 요청은 202로 답하고 결과는 조회 API로 보게 한다(ADR 0055)
         if (previous.getStatus() != SeatHoldRequestStatus.HELD) {
-            throw new IllegalStateException("동기형 선점 요청이 HELD가 아닙니다: " + previous.getRequestId());
+            return new SyncHoldOutcome.Accepted(previous.getRequestId());
         }
+        // HELD인데 예매가 없으면 데이터가 깨진 것이다
         var reservation = reservations.findById(previous.getReservationId())
                 .orElseThrow(() -> new IllegalStateException("선점 요청의 예매가 없습니다: " + previous.getRequestId()));
 
         if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
-            return result(reservation, seatIds, null);
+            return new SyncHoldOutcome.Held(results.withoutToken(reservation, seatIds));
         }
-        // Note: 만료 스케줄러가 돌기 전이면 기한이 지나도 HELD로 남아 있어서 상태만 보지 않고 시각도 본다
-        if (reservation.getStatus() == ReservationStatus.HELD && clock.instant()
-                .isBefore(reservation.getHoldExpiresAt().minus(PaymentTokenIssuer.EXPIRY_MARGIN))) {
-            return result(reservation, seatIds, issueToken(reservation));
+        if (SeatHoldRules.isPayable(reservation, clock.instant())) {
+            return new SyncHoldOutcome.Held(results.withToken(reservation, seatIds));
         }
         throw new BusinessException(SeatHoldErrorCode.RESERVATION_NOT_PAYABLE);
-    }
-
-    // 재요청에도 새로 서명한다. exp는 선점 만료에서 계산해 첫 토큰과 같고 jti만 다르다(결제 토큰 폐기 목록 없음)
-    private PaymentTokenIssuer.IssuedPaymentToken issueToken(Reservation reservation) {
-        return paymentTokenIssuer.issue(reservation.getUserId(), reservation.getId(),
-                reservation.getTotalAmount().toBigDecimal().longValueExact(), reservation.getHoldExpiresAt());
-    }
-
-    // 결제 확정된 예매는 토큰을 주지 않는다
-    private static SeatHoldResult result(Reservation reservation, List<Long> seatIds,
-            PaymentTokenIssuer.IssuedPaymentToken token) {
-        return new SeatHoldResult(reservation.getRequestId(), reservation.getId(), reservation.getReservationNo(),
-                reservation.getScheduleId(), seatIds, reservation.getStatus(), reservation.getHoldExpiresAt(),
-                reservation.getTotalAmount(), token == null ? null : token.token(),
-                token == null ? null : token.expiresAt());
-    }
-
-    // 정렬한 목록을 응답·seat_hold_requests.seat_ids·멱등 본문 비교의 기준으로 같이 쓴다(contracts.md 1절)
-    private static List<Long> sortedDistinctSeatIds(List<Long> requested) {
-        if (requested.isEmpty() || new HashSet<>(requested).size() != requested.size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
-        }
-        return requested.stream().sorted().toList();
-    }
-
-    // 판매 기간은 오픈 시각부터 공연 시작 전까지다. 시각은 클라이언트 값이 아니라 서버 시계로 판단한다(E4)
-    private static void requireOnSale(Schedule schedule, Instant now) {
-        if (now.isBefore(schedule.getOpenAt()) || !now.isBefore(schedule.getStartsAt())) {
-            throw new BusinessException(SeatHoldErrorCode.SALE_NOT_OPEN);
-        }
     }
 
     // 다른 회차의 좌석이나 없는 좌석 ID가 섞이면 조회 결과가 요청보다 적다

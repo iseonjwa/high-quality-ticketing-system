@@ -387,6 +387,58 @@ class SeatHoldApiTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())), 401, "UNAUTHORIZED");
     }
 
+    // 접수형으로 받은 요청이 남은 채 동기형으로 다시 뜬 경우다. 처리 중인 요청을 실패로 답하지 않고 202로 결과 조회를 안내한다(ADR 0055)
+    @Test
+    void 접수형이_남긴_처리_중_요청을_같은_키로_다시_받으면_202와_Location을_준다() throws Exception {
+        var key = UUID.randomUUID();
+        insertAsyncRequest(key, List.of(seatIds.get(0)), "REQUESTED", null);
+
+        var response = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0)));
+
+        assertEquals(202, response.status(), response.json().toString());
+        assertEquals("/api/v1/reservations/requests/" + key, response.location());
+        var data = response.json().get("data");
+        assertEquals("REQUESTED", data.get("status").asString());
+        assertEquals(1, data.get("nextPollAfterSeconds").asInt());
+        // 좌석·매수·예매를 새로 만들지 않는다
+        assertEquals(List.of("AVAILABLE", "AVAILABLE", "AVAILABLE"), seatStatuses());
+        assertEquals(0, heldCount(USER));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM reservations WHERE request_id = ?",
+                Integer.class, key));
+    }
+
+    @Test
+    void 접수형이_거절한_요청도_같은_키_재요청에는_202를_주고_사유는_조회로_본다() throws Exception {
+        var key = UUID.randomUUID();
+        insertAsyncRequest(key, List.of(seatIds.get(0)), "REJECTED", "SEAT_ALREADY_HELD");
+
+        var response = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0)));
+        var result = send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + response.location()))
+                .header("X-User-Id", String.valueOf(USER))
+                .header("X-User-Role", "USER")
+                .GET());
+
+        assertEquals(202, response.status(), response.json().toString());
+        assertEquals(200, result.status(), result.json().toString());
+        assertEquals("REJECTED", result.json().get("data").get("status").asString());
+        assertEquals("SEAT_ALREADY_HELD", result.json().get("data").get("reasonCode").asString());
+    }
+
+    @Test
+    void 접수형이_남긴_요청이라도_다른_본문이면_409다() throws Exception {
+        var key = UUID.randomUUID();
+        insertAsyncRequest(key, List.of(seatIds.get(0)), "REQUESTED", null);
+
+        assertFailure(hold(USER, key.toString(), scheduleId, List.of(seatIds.get(1))), 409, "IDEMPOTENCY_KEY_REUSED");
+    }
+
+    private void insertAsyncRequest(UUID key, List<Long> seats, String status, String reasonCode) {
+        var array = seats.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElseThrow();
+        jdbc.update("INSERT INTO seat_hold_requests (request_id, user_id, schedule_id, seat_ids, status, reason_code,"
+                + " created_at, updated_at) VALUES (?, ?, ?, ?::bigint[], ?, ?, now(), now())",
+                key, USER, scheduleId, "{" + array + "}", status, reasonCode);
+    }
+
     private Long createSchedule(String openAt, String startsAt) {
         var venueId = jdbc.queryForObject("INSERT INTO venues (name, created_at, updated_at)"
                 + " VALUES ('ISE-11 테스트 공연장', now(), now()) RETURNING id", Long.class);
@@ -466,7 +518,8 @@ class SeatHoldApiTest {
 
     private Response send(HttpRequest.Builder request) throws Exception {
         var response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
-        return new Response(response.statusCode(), mapper.readTree(response.body()));
+        return new Response(response.statusCode(), mapper.readTree(response.body()),
+                response.headers().firstValue("Location").orElse(null));
     }
 
     private String body(List<Long> seatIds) {
@@ -485,5 +538,5 @@ class SeatHoldApiTest {
         assertFalse(response.json().has("data"), response.json().toString());
     }
 
-    private record Response(int status, JsonNode json) {}
+    private record Response(int status, JsonNode json, String location) {}
 }
