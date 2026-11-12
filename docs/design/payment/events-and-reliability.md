@@ -181,6 +181,21 @@ Spring `@Scheduled`의 기본 스케줄러는 스레드 1개라 PG 재조회가 
   - Ops 명령 JVM(`ops` 프로필)은 `config-repo/payment-service-ops.yml`에서 소켓 시한 30초, 문장 시한 15초로 늘린다. 사람이 한 번 실행하는 명령이라 Gateway 시한과 상관없고, 부하 테스트 뒤 커진 Outbox를 `inspect`가 조회해도 끊기지 않게 한다. 로컬 `application.yml`의 ops 문서에 두면 설정 서버의 값이 이기므로 프로필 파일에 둔다.
   - 한계(마이그레이션): Flyway도 같은 풀로 마이그레이션하므로 문장 시한 1.5초와 소켓 시한 2초가 마이그레이션 문장에도 걸린다. 큰 테이블을 바꾸는 오래 걸리는 마이그레이션이 생기면 시한을 걸지 않은 Flyway 전용 연결을 따로 둬야 한다.
 
+### 기동 웜업 (ISE-243)
+
+- **왜**: 11/12 배포 측정에서 결제 서비스를 다시 띄운 직후 첫 단계(초당 20건)의 승인 p99가 세 번 모두 1.0~1.4초였고 다음 단계는 약 0.33초였다. 같은 구간의 Prometheus 최대값은 승인 1.4~2.0초, PG 호출 0.45~0.55초(Mock PG 지연 300ms 포함), 첫 `findByReservationId` 0.6~0.9초, `saveAndFlush` 0.11~0.12초, 커넥션 획득 0.03~0.16초였다. 첫 JPA 조회가 가장 컸지만 원인이 첫 실행 초기화(클래스 로딩, Hibernate 쿼리 준비, 연결 수립)인지 JIT 컴파일 전의 느린 실행인지는 가르지 못했다.
+- **무엇을 미리 실행하나**(모두 읽기 전용, 결제·멱등 기록·이력·Outbox 행을 만들지 않는다)
+  - `db`: 승인 흐름의 조회 세 가지를 없는 값으로 부른다. `IdempotencyRecordRepository.find(0, 임의 UUID)`, `findByReservationId(-1)`, `findById(-1)`.
+  - `token`: 형식만 맞는 가짜 토큰으로 `PaymentTokenVerifier.verify`를 부르고 거절 예외를 삼킨다. 디코더와 서명 검증 클래스를 미리 올린다. 서명 키로 진짜 토큰을 만들지 않는다.
+  - `pg`: 서버 기본 PG가 Mock일 때만 Mock 어댑터의 `findPayment`를 없는 주문 ID로 부른다. `NotFound`가 정상이고 다른 결과면 그 단계를 실패로 본다. Bulkhead·차단기(`PgApprovalGate`, `PgRecoveryGate`)와 PG 호출 지표를 거치지 않고 지표로 감싸기 전 어댑터(`UnmeteredMockPg`)를 직접 부른다. 웜업 실패가 차단기 실패로 세어지거나 호출 지표를 오염시키지 않게 하려는 것이다. 토스 어댑터는 외부 호출 한도 때문에 부르지 않는다.
+- **무엇을 하지 않나**: 쓰기 경로(INSERT·UPDATE)는 데우지 않는다. 롤백하더라도 식별자 시퀀스를 쓰고, 도메인 쓰기를 가짜 데이터로 돌리는 위험이 있다. 첫 쓰기의 비용(`saveAndFlush` 0.11~0.12초)은 남는다.
+- **언제**: `SmartLifecycle` 빈(`PaymentWarmup`)의 `start()`에서 동기로 실행한다. phase는 웹 서버 시작 단계(`WebServerApplicationContext.START_STOP_LIFECYCLE_PHASE`)보다 1 작은 값이라 Tomcat이 연결을 받기 전이다. Eureka 등록은 웹 서버가 뜬 뒤이므로 그보다도 앞선다. `BackgroundJobScheduler`는 기본 phase(가장 늦음)라 웜업이 끝난 뒤에 시작해 충돌하지 않는다. 로컬 기동 로그에서 `event=PAYMENT_WARMUP step=total`이 `Tomcat started on port`보다 먼저 나오는 것을 확인했다(`PaymentWarmupStartupOrderTest` 실행 출력).
+- **실패 처리**: 웜업은 최적화이지 기동 조건이 아니다. 단계의 예외는 WARN(`event=PAYMENT_WARMUP_STEP_FAILED`)으로 남기고 다음 단계로 간다.
+- **설정**: `payment.warmup.enabled`(기본 true), `iterations`(기본 20, 1~1000), `max-duration`(기본 5초, 웜업 전체 상한). 범위를 벗어나면 기동하지 않는다. 테스트 프로필과 ops 프로필(`payment-service-ops.yml`)은 끈다.
+- **로그와 지표 읽는 법**: 단계마다 `event=PAYMENT_WARMUP step=db firstMs=… secondMs=… restAvgMs=… iterations=…` 한 줄과 전체 `step=total totalMs=… aborted=…` 한 줄이 나온다. 첫 회가 둘째 회 이후보다 훨씬 크면 첫 실행 초기화(클래스 로딩, 연결, 쿼리 준비)가 원인이고, 둘째 회 이후도 느리다가 점점 줄면 JIT 전의 느린 실행이다. 지표는 `payment_warmup_first_call_seconds{step}`와 `payment_warmup_seconds`(기동 때 한 번 기록하는 Gauge)다.
+- **로컬 테스트 환경 값**(실제 DB, 로컬 가짜 Mock PG, 20회, `PaymentWarmupIntegrationTest`. 배포 서버 값과 다르다): `db` 첫 회 184ms·둘째 회 4.4ms·나머지 평균 2.1ms, `token` 18ms·0.2ms·0.2ms, `pg` 37ms·1.1ms·0.7ms, 전체 301ms. 배포 값은 측정 전이다.
+- **한계**: 회차 20번으로는 JIT의 C2 컴파일까지 데우지 못한다(수천 회가 필요해 하지 않는다). 쓰기 경로는 데우지 않는다. 인스턴스가 하나라 기동하는 시간만큼의 공백은 그대로다. 웜업은 그 공백 뒤 첫 요청의 비용만 줄인다.
+
 ## 8. 정리 작업 ([0022](../../decisions/0022-outbox-retry-and-retention.md))
 
 | 대상 | 삭제 조건 | 기간 |
