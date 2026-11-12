@@ -131,7 +131,10 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
   // 추첨
   LOTTERY_NOT_OPEN: { tone: 'info', message: '지금은 응모 기간이 아니에요' },
   LOTTERY_ALREADY_ENTERED: { tone: 'info', message: '이미 응모했어요. 결과 발표를 기다려 주세요' },
-  BILLING_KEY_RATE_LIMITED: { tone: 'warning', message: '카드 등록을 너무 자주 시도했어요. 잠시 뒤 다시 시도해 주세요' },
+  BILLING_KEY_RATE_LIMITED: {
+    tone: 'warning',
+    message: '카드 등록을 너무 자주 시도했어요. 잠시 뒤 다시 시도해 주세요',
+  },
   BILLING_KEY_REQUIRED: { tone: 'warning', message: '자동결제 카드를 먼저 등록해 주세요' },
 
   // 운영자
