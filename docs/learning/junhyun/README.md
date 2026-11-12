@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 서버를 막 띄운 직후 첫 요청들은 왜 느리고 어떻게 줄이는가 | [qna/2026-11-12-jvm-warmup-cold-start.md](qna/2026-11-12-jvm-warmup-cold-start.md) |
 | 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
 | 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
 | 2026-11-11 | 배포가 실패하면 팀원은 Jenkins에 어떻게 들어가서 다시 배포하나 | [qna/2026-11-11-jenkins-redeploy-after-failure.md](qna/2026-11-11-jenkins-redeploy-after-failure.md) |
