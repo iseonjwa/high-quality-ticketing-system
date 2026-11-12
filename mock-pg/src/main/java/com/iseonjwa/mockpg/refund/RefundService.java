@@ -9,6 +9,7 @@ import com.iseonjwa.mockpg.ledger.RefundOutcome;
 import com.iseonjwa.mockpg.ledger.RefundOutcome.Refunded;
 import com.iseonjwa.mockpg.ledger.RefundOutcome.RejectCode;
 import com.iseonjwa.mockpg.ledger.RefundOutcome.Rejected;
+import com.iseonjwa.mockpg.ledger.TxIdSigner;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -24,10 +25,12 @@ import java.util.UUID;
 class RefundService {
     private final LedgerHolder ledgers;
     private final FaultInjector faults;
+    private final TxIdSigner txIds;
 
-    RefundService(LedgerHolder ledgers, FaultInjector faults) {
+    RefundService(LedgerHolder ledgers, FaultInjector faults, TxIdSigner txIds) {
         this.ledgers = ledgers;
         this.faults = faults;
+        this.txIds = txIds;
     }
 
     RefundResult refund(RefundRequest request, String idempotencyKey) {
@@ -46,7 +49,8 @@ class RefundService {
         // Note: refundTxId와 환불 시각은 원장 잠금 밖에서 정한다. 같은 refundId가 이미 저장돼 있으면 이 후보는 버려지고 저장된 결과가 나간다
         var candidate = new Refunded(request.refundId(), "rf-" + UUID.randomUUID(), request.pgTxId(), request.amount(),
                 request.currency(), Instant.now());
-        return new RefundResult(fault, ledger.refund(candidate));
+        // Note: 서명 확인은 순수 계산이라 잠금 밖에서 하고 결과만 원장에 넘긴다. 원장에 있는 결제면 쓰이지 않는다
+        return new RefundResult(fault, ledger.refund(candidate, txIds.verify(request.pgTxId())));
     }
 
     LookupResult find(String refundId) {
