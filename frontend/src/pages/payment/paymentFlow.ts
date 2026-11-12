@@ -69,6 +69,11 @@ export interface RunPaymentFlowOptions {
 
 // 승인 요청을 결과 모름·일시 장애로 다시 보내는 최대 횟수(처음 요청 제외)
 const MAX_RESENDS = 8
+// 503 PG_UNAVAILABLE 자동 재시도(ISE-242). 누름 한 번당 한 번만 다시 보낸다. 기다림은 1~2초 무작위이고,
+// 응답에 Retry-After가 있으면 그 값을 쓰되 3초를 넘기지 않는다
+const PG_UNAVAILABLE_BASE_MILLIS = 1000
+const PG_UNAVAILABLE_JITTER_MILLIS = 1000
+const PG_UNAVAILABLE_MAX_MILLIS = 3000
 // 지연의 최소 기본값. Retry-After가 있으면 그것이 우선이다
 const MIN_RETRY_MILLIS = 3000
 // 202에 간격이 없던 경우(결과 모름 재전송 뒤 곧바로 조회로 넘어가는 경우)의 기본 조회 간격
@@ -97,6 +102,8 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
   let paymentId: number | undefined
   let pollMillis = DEFAULT_POLL_MILLIS
   let resends = 0
+  // 503 PG_UNAVAILABLE를 자동으로 다시 보냈는지. 이 실행(사용자의 누름 한 번)에서 한 번만 보내고, 결과 모름 재전송 한도와 따로 센다
+  let pgUnavailableRetried = false
   let approved = false
   // checking이 처음 된 때부터 기다린 시간의 합
   let checking = false
@@ -142,6 +149,14 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
     } catch (error) {
       if (signal.aborted) {
         return aborted
+      }
+      // 서버는 이 503에서 결제 행도 멱등 기록도 만들지 않으므로(ADR 0018) 같은 키·같은 본문으로 다시 보내도 안전하다.
+      // 한 번만 보내는 이유: 차단기가 열린 장애(10초)는 다시 보내도 또 503이고, 여러 번·지연 없이 보내면 포화 때 요청이 더 몰린다.
+      // 무작위 지연은 같은 순간에 거절된 사용자들이 같은 순간에 다시 몰리지 않게 한다. 기다리는 동안 단계는 paying 그대로다
+      if (isPgUnavailable(error) && !pgUnavailableRetried) {
+        pgUnavailableRetried = true
+        await sleep(pgUnavailableRetryDelay(error, random), signal)
+        continue
       }
       const settled = settleApproveError(error)
       if (settled !== null) {
@@ -248,6 +263,17 @@ export async function runPaymentFlow(options: RunPaymentFlowOptions): Promise<Pa
       failures += 1
     }
   }
+}
+
+function isPgUnavailable(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 503 && error.code === 'PG_UNAVAILABLE'
+}
+
+function pgUnavailableRetryDelay(error: ApiError, random: () => number): number {
+  if (error.retryAfterSeconds !== null) {
+    return Math.min(error.retryAfterSeconds * 1000, PG_UNAVAILABLE_MAX_MILLIS)
+  }
+  return Math.round(PG_UNAVAILABLE_BASE_MILLIS + random() * PG_UNAVAILABLE_JITTER_MILLIS)
 }
 
 // 다시 보내지 않고 끝나는 승인 오류는 마지막 단계로 바꾼다. 다시 보낼 오류면 null

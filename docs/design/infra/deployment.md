@@ -132,12 +132,14 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ### 결제 PG 모드 전환 (ISE-45)
 
-- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 이 세 키와 `PAYMENT_PG_MOCK_BYPASS`를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
 - 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
 - 전환 절차: (1) 토스 결제(`pg_provider=TOSS`)가 진행 중이면 토스 키를 지우지 않는다. Mock 결제는 모드와 상관없이 Mock으로 확인한다. 결제마다 처리한 PG를 기록하므로 모드를 바꿔도 다른 PG에서 조회해 `NotFound`로 보이지 않지만, 토스 키가 없으면 토스 결제의 재확인·환불이 `CLIENT_ERROR`로 계속 결과 모름이다. 토스 키는 둘 다 넣거나 둘 다 지운다(하나만 남기거나 라이브 키가 남으면 mock 모드여도 `payment-service`가 기동하지 않는다). (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
 - 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
 - 빌링(추첨 자동결제)은 서버 모드와 상관없이 늘 Mock이다. 토스 모드에서도 빌링키 발급과 자동 승인이 Mock으로 가고 결제는 `pg_provider=MOCK`으로 남는다.
-- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `true`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. `compose.yml`이 이 변수를 `payment-service`에 넘기지 않아 지금은 기본값 `true`로 동작한다. 끄려면 compose의 `payment-service` 환경에 이 변수를 더해야 한다.
+- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `false`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. 기본이 꺼짐이므로 설정을 빠뜨리거나 값이 전달되지 않아도 결제창을 거치는 쪽으로 동작한다(근거는 [pg-integration.md](../payment/pg-integration.md) 6절 끝). compose가 `payment-service`에 `${PAYMENT_PG_MOCK_BYPASS:-false}`로 넘긴다. Mock 모드에서는 이 설정과 상관없이 모든 결제가 Mock이다.
+  - 켜는 절차: (1) 서버 `.env`에 `PAYMENT_PG_MOCK_BYPASS=true`를 쓴다. (2) `docker compose up -d --force-recreate payment-service`로 다시 만든다. (3) `POST /api/v1/payments/checkout` 응답의 `mockBypass`가 `true`인지 확인한다.
+  - 끄는 절차: `.env`의 값을 비우거나 `false`로 바꾸고 같은 방식으로 다시 만든 뒤 `mockBypass`가 `false`인지 확인한다.
 - 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요
@@ -165,6 +167,26 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
 - 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
+
+### 다시 띄운 뒤 서비스 발견 지연 (ISE-244)
+
+서비스 컨테이너가 `healthy`가 된 뒤에도 Gateway가 새 인스턴스를 알기까지 시간이 걸린다. 그동안 그 서비스로 가는 요청은 Gateway에서 503(`No servers available for service: …`)으로 끝난다.
+
+- 본 것: 첫 배포의 스모크 실패([troubleshooting.md](../../troubleshooting.md) TS-34, 약 35초). 2026-11-12 배포 측정에서 `payment-service`만 다시 만들었을 때 컨테이너 시작 46초 뒤에도 10초 동안 결제 176건이 503이었다([open-peak-scenarios.md](open-peak-scenarios.md) 3절 PAY-2). 컨테이너 시작부터 약 55초다.
+- 왜: 인스턴스 목록이 Gateway의 라우팅에 닿기까지 캐시가 세 겹이고 `prod` 프로필에는 주기 값이 없어 모두 기본값이었다. 다시 만든 컨테이너는 IP가 바뀌므로 옛 목록으로는 갈 곳이 없다.
+
+  | 단계 | 설정 | 기본 | 바꾼 값 |
+  |---|---|---|---|
+  | Eureka 서버가 클라이언트에 줄 응답 캐시를 갱신 | `eureka.server.response-cache-update-interval-ms`(`config-repo/eureka.yml`) | 30초 | 5초 |
+  | 클라이언트(Gateway 등)가 레지스트리를 다시 가져옴 | `eureka.client.registry-fetch-interval-seconds`(`application-prod.yml`) | 30초 | 5초 |
+  | Spring Cloud LoadBalancer가 인스턴스 목록을 캐시 | `spring.cloud.loadbalancer.cache.ttl`(`application-prod.yml`) | 35초 | 5초 |
+
+  최악의 합은 95초에서 15초가 된다. 단계별 실제 시간은 재지 않았고, 잰 것은 합계(35초, 55초)뿐이다.
+- 대가: 서비스마다 Eureka 조회가 30초에서 5초 간격이 된다. 변경분만 받는 조회라 가볍고 서비스가 6개다. local 프로필은 처음부터 5초였다.
+- 남는 공백: 인스턴스가 하나라 컨테이너가 내려가고 새 컨테이너의 앱이 뜰 때까지(약 25초)는 요청을 받을 곳이 없다. 이 설정은 그 뒤의 발견 지연만 줄인다. 무중단 배포는 인스턴스가 둘 이상이고 한 대씩 바꿀 때 가능하다(범위 밖).
+- 스모크의 재확인(`SMOKE_WAIT_SECONDS` 120초, TS-34)은 그대로 둔다. 발견 지연이 줄어도 "컨테이너 healthy"와 "Gateway가 찾을 수 있음"은 다른 사실이다.
+- 확인 방법(배포 뒤): 서비스 하나를 다시 만들고 Gateway를 1초 간격으로 불러 503이 끝나는 시각을 잰다. 배포 값은 측정 전이다.
+- 고르지 않은 대안: (1) Gateway가 Eureka 대신 compose 서비스 이름(`http://payment-service:8083`)으로 바로 라우팅한다. Docker DNS는 컨테이너가 바뀌면 바로 따라오므로 발견 지연이 없다. 다만 발제의 Spring Cloud 구성(Eureka)과 여러 인스턴스 분산을 버리게 된다. (2) 주기를 1초로 더 줄인다. 얻는 것이 몇 초이고 Eureka 조회만 늘어난다.
 
 ### 내부 AI 상담 배포 (ISE-126)
 
