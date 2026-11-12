@@ -1,22 +1,18 @@
 package com.iseonjwa.reservation.seathold.presentation;
 
-import com.iseonjwa.common.auth.TokenDecoders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import com.iseonjwa.reservation.seathold.infrastructure.token.PaymentTokenTestKeys;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,8 +44,6 @@ class SeatHoldApiTest {
     int port;
     @Autowired
     JdbcTemplate jdbc;
-    @Value("${payment.token.secret}")
-    String paymentTokenSecret;
 
     private Long scheduleId;
     private List<Long> seatIds;
@@ -436,12 +430,7 @@ class SeatHoldApiTest {
     }
 
     private NimbusJwtDecoder paymentTokenDecoder() {
-        var decoder = NimbusJwtDecoder
-                .withSecretKey(new SecretKeySpec(TokenDecoders.signingKey(paymentTokenSecret), "HmacSHA256"))
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-        decoder.setJwtValidator(jwt -> OAuth2TokenValidatorResult.success());
-        return decoder;
+        return PaymentTokenTestKeys.decoder();
     }
 
     private Response hold(long userId, String key, Long scheduleId, List<Long> seatIds) throws Exception {

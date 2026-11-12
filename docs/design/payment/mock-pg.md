@@ -62,7 +62,7 @@
 - 계수에 들어가지 않는 것: 원장 조회 API 호출, 설정 API 호출. 조회가 계수를 올리지 않게 `Ledger.find`(상태만 읽음)와 `Ledger.lookup`(계수 포함)을 나눴다.
 - 저장되지 않는 환불(거절, 장애 응답)의 호출 수는 `refunds?pgTxId=` 목록에 나타나지 않는다. 목록은 저장된 환불만 담는다(8절). 같은 `refundId`를 나중에 저장하면 앞선 호출 수가 합쳐서 보인다.
 
-S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수"는 "주문별 승인 호출 수(`approveCalls`)"로 정정한다(13절).
+S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수"는 "주문별 승인 호출 수(`approveCalls`)"로 정정한다(12절).
 
 ### 재시작 영향
 
@@ -106,7 +106,7 @@ S-28과 [failure-scenarios.md](failure-scenarios.md) V1의 "주문별 승인 수
 - 확정 단계에서 `Ledger`가 교체되어 있으면(`reset`) 옛 `Ledger`에만 쓰고 끝난다. 새 원장에는 영향이 없다.
 - `paymentsByTx` 색인은 `APPROVED`로 바꾸는 `compute` 안에서 함께 넣는다. 나중에 넣으면 조회가 `pgTxId`를 보여준 직후에 환불이 `NOT_REFUNDABLE`이 되는 창이 생긴다.
 - 장애 설정은 요청이 들어올 때 한 번 읽어(스냅숏) 그 요청이 끝날 때까지 쓴다. 지연 뒤에 다시 읽지 않는다.
-- `IN_FLIGHT`를 `GET`에서 202로 돌려주는 것은 프로토콜 표에 없는 동작이다. 어댑터는 202를 `Unknown(PROCESSING)`으로 해석하므로 호환된다. 표에 한 줄을 추가한다(13절).
+- `IN_FLIGHT`를 `GET`에서 202로 돌려주는 것은 프로토콜 표에 없는 동작이다. 어댑터는 202를 `Unknown(PROCESSING)`으로 해석하므로 호환된다. 표에 한 줄을 추가한다(12절).
 - 응답을 잃은 승인(`DROP_RESPONSE`)도 이 표를 그대로 따른다. 저장은 끝났고 응답만 사라진 상태라 `APPROVED`로 남는다.
 
 ## 5. 장애 주입
@@ -331,3 +331,12 @@ compose의 프로필 문제(공유 파일이 모든 서비스를 `local`로 띄�
 - [sa-change-requests.md](sa-change-requests.md): S-28의 "주문별 승인 수"를 호출 수로 정정하고, S-29(장애 주입 확장)와 S-30(compose 프로필)을 추가한다.
 - [failure-scenarios.md](failure-scenarios.md) V1: "주문별 승인 수"를 "주문별 승인 호출 수"로 정정한다. 원장 조회가 `test`·`loadtest` 프로필 전용임을 적는다.
 - SA 참조 번호: 이 문서와 S-28은 "SA 10-6"을 인용했지만 SA에 그 절은 없다. 장애 주입은 6-6, 11-4, 11-5에 있다.
+
+## 13. 빌링키
+
+- 형식은 `bk-<UUID>.<서명>`이다. 서명은 `HmacSHA256(서명 키, UUID 문자열)`을 URL-safe Base64(패딩 없음)로 인코딩한 값이다.
+- Mock PG는 발급한 빌링키를 저장하지 않고, 자동결제 승인 때 서명을 다시 계산해 발급한 키인지 확인한다. 서명은 `MessageDigest.isEqual`로 비교한다. 예전에는 메모리 Set에 두어서 컨테이너를 다시 띄우면(배포 때마다) 등록해 둔 빌링키가 모두 `BILLING_KEY_INVALID`로 거절됐고 Set에는 크기 제한도 없었다. 서명 방식은 다시 띄워도 같은 서명 키만 있으면 발급한 키가 유효하고 메모리도 늘지 않는다. 실제 PG는 빌링키를 저장소에 둔다.
+- 서명 키는 설정 `mock-pg.billing.signing-secret`(환경변수 `MOCK_PG_BILLING_SIGNING_SECRET`)이다. 가짜 카드의 빌링키만 지키는 값이라 기본값이 있고, 비어 있으면 기동하지 않는다.
+- 서명 키를 바꾸면 그 전에 발급한 빌링키는 모두 무효가 된다.
+- ISE-235 전에 발급한 `bk-<UUID>` 형식의 키도 서명이 없어 무효다.
+- 응답 형식, 오류 코드, 엔드포인트는 그대로이고 빌링키 문자열 형식만 바뀐다.

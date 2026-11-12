@@ -42,6 +42,9 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-12 | 추첨 쪽이 요청한 PG 허가 조정(ISE-236)에 일반 결제 허가는 17보다 큰 24~30(PAY1-b 측정 뒤 확정), 자동결제는 전용 그룹 `pg-billing` 3으로 답하기로 함 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-12-pg-permits-approve-and-billing-group.md) |
+| 2026-11-12 | **입장 토큰 소모 시점으로 AI가 추천한 A'(선점 시 소모 + 한 번 더 기회) 대신, 팀 회의에서 A(선점 성공 시 소모)로 정함** | 팀(kangmin 전달) | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-entry-token-consume-on-hold-team-decision.md) |
+| 2026-11-12 | **Gateway 과부하 발표 자료를 HTML 슬라이드로 만들자는 AI 추천을 거부하고, 소스 문서만 정리해 결제 담당이 가공하게 함** | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-12-presentation-source-only.md) |
 | 2026-11-12 | **Gateway CPU를 줄이려 대기열 폴링 상한(poll-max)을 10초에서 30초로 늘리자는 AI 제안을 거부함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-reject-poll-max-30s.md) |
 | 2026-11-12 | **요청 로그 PR은 리뷰 뒤 머지하고 재측정은 11/13에 하자는 AI 계획을 거부하고, 리뷰 전에 main까지 반영해 바로 배포 측정함(선조치 후보고)** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-merge-and-deploy-before-review.md) |
 | 2026-11-12 | 측정표 답글·결제와 예매 DB 풀 contract·요청 로그 B안 설계·R0 준비에 대한 AI 추천 9건(D1~D9)을 그대로 받아들임 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-12-accept-d1-d9-posting-and-h2-plan.md) |

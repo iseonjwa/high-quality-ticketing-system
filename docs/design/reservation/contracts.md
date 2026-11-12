@@ -176,7 +176,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 선점 모듈(`seathold`)이 예매(`HELD`)를 저장한 직후 응답에 `paymentToken`과 `paymentTokenExpiresAt`을 담으려면 예매 흐름 담당(반효승)이 구현할 **결제 토큰 발급 컴포넌트**를 호출해야 한다([ISE-22](https://linear.app/myworkspace1075/issue/ISE-22)).
 - 결제 토큰 규칙([contracts.md](../payment/contracts.md) 1절 확정):
   - claim: `typ="payment"`, `aud="payment-service"`, `sub`(문자열 userId), `reservationId`(JSON 정수), `amount`(JSON 정수), `exp`(`holdExpiresAt - 10초`), `jti`(UUID)
-  - 서명: HS256, `PAYMENT_TOKEN_SECRET` (`TokenDecoders.signingKey(secret)`)
+  - 서명: ES256, 개인키 `PAYMENT_TOKEN_PRIVATE_KEY`(PKCS#8 DER의 Base64 한 줄, ISE-245·ADR 0055). 결제 서비스는 공개키로 검증한다
 - **인터페이스 제안**:
   ```java
   public interface PaymentTokenIssuer {

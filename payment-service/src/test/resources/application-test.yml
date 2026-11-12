@@ -13,6 +13,9 @@ spring:
     hibernate:
       ddl-auto: validate
   kafka:
+    admin:
+      # 테스트는 브로커가 없다. payment.command 토픽 선언(NewTopic)을 하려고 브로커를 기다리지 않는다
+      auto-create: false
     producer:
       properties:
         # config-repo/payment-service.yml과 같다. 릴레이 전송 시한(12초) 안에 들어와야 기동한다
@@ -33,6 +36,8 @@ messaging:
     # 테스트는 릴레이를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
     relay-enabled: false
 payment:
+  warmup:
+    enabled: false
   recheck:
     # 테스트는 재확인 서비스를 직접 호출한다. 스케줄러가 돌면 테스트 데이터를 먼저 집어 간다
     enabled: false
@@ -57,8 +62,8 @@ payment:
     mock:
       base-url: http://127.0.0.1:8090
   token:
-    # 테스트 전용 값이다. 형식은 운영 키와 같다(소문자 16진수 64자)
-    secret: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    # 테스트 전용 값이다. 형식은 운영 키와 같다(X.509 SubjectPublicKeyInfo DER의 Base64 한 줄). PaymentTokenFixtures.TEST_PUBLIC_KEY와 같다
+    public-key: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERbRqQuh/pqTmCpZ8IAYSdwX85aAFPBTpf1oWcn57ImRp6e93MDM7wd0V9yJvuvQh59/8Nk/ZMFAqv7OC64Z4mw==
   billing-key:
     # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다(ADR 0042)
     secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
