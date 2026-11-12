@@ -25,6 +25,9 @@
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
+| `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
+| `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
+| `tools/r0_solve.py` | G1 결과 계산(로컬). 단계별 Gateway CPU를 받은 요청·거절 수로 연립해 한 건 비용(받은 요청 a, 거절 r)을 푼다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
 | `scenarios/q1d-queue-burst.js` | Q1-d 오픈 순간 몰림. 사용자 수만큼 VU를 미리 두고, 같은 출발 시각부터 `ENTER_SPREAD_SECONDS` 안에 앞쪽이 붐비게 한 번씩 진입한다 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |
@@ -273,6 +276,21 @@ ssh iseonjwa 'cd ~/iseonjwa && bash loadtest/k6/tools/watch-lottery.sh <추첨 I
 ```
 
 `watch-held.sh`·`watch-lottery.sh`는 DB 사용자 `iseonjwa`를 코드에 쓰고, 배포 `.env`의 `DB_USER`도 `iseonjwa`라 그대로 돈다. 시각은 서버의 `date +%s%3N`(GNU date)이다.
+
+**G1 Gateway 측정 도구**(배포 서버 6·7차 절차를 옮긴 것, [`open-peak-scenarios.md`](../../docs/design/infra/open-peak-scenarios.md) "배포 서버 6차"·"7차"). 회차마다 측정 모드를 켜 Gateway가 다시 뜬 뒤 순서대로 쓴다.
+
+```bash
+# 1) 서버: 수집 시작. check가 실패하면 본 측정으로 가지 않는다
+ssh iseonjwa 'cd ~/iseonjwa && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh start <회차> 1200 && sleep 6 && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh check <회차>'
+# 2) 발생기(tmux 안): 회차 실행. 결과는 ~/<이름>/<회차>-*와 gen-<회차>.tar.gz
+PRE_VUS=3000 MAX_VUS=6000 bash loadtest/k6/tools/g1-run.sh <회차> <SCHEDULE_ID> [본 측정 STAGES]
+# 3) 서버: 수집을 멈추고 /tmp/server-<회차>.tar.gz로 묶는다
+ssh iseonjwa 'cd ~/iseonjwa && S=$(date -d "$(head -1 /tmp/<이름>-<회차>/meta.log)" +%s) && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh stop <회차> && MEASURER=<이름> bash loadtest/k6/tools/gw-collect.sh archive <회차> $S $(date +%s)'
+```
+
+- `gw-collect.sh`는 Gateway 컨테이너의 `docker-init`(compose의 `init: true`) 아래 Java PID를 찾아 `pidstat -t -p`에 준다. 6·7차 수집기는 `docker inspect`의 `State.Pid`(docker-init)를 그대로 써서 스레드 자료가 비었다. `check`가 이 경우와 Gateway 재시작을 잡는다. 다른 서비스는 `CONTAINER=iseonjwa-<서비스>-1`로 준다.
+- `g1-run.sh`의 기본값은 6·7차와 같다(`USERS` 10000, 본 측정 `1000,0,1500,0,2000,0,2500`, 단계마다 상승 5초 + 30초). 상한(`iseonjwa.gateway.in-flight.max-requests`)을 1로 두는 회차는 setup이 상한에 걸리므로 `USERS=1`을 준다.
+- `r0_solve.py`는 내려받은 두 tar를 풀어 로컬에서 돌린다(사용법은 파일 머리말). 6·7차 자료처럼 pidstat이 비었으면 `--cpu dstats`로 `docker stats`를 쓴다.
 
 ## 3. 시나리오를 더할 때
 
