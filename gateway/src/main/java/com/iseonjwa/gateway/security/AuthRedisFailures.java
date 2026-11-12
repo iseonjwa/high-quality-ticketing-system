@@ -48,7 +48,7 @@ public class AuthRedisFailures {
         }
     }
 
-    /** 필터 안쪽 Redis 조회 시한(100ms) 초과. 바깥 TimeLimiter의 TimeoutException과 구별하려고 따로 둔다. */
+    /** 필터의 Redis 조회 시한({@code auth.redis-timeout}) 초과. 바깥 TimeLimiter의 TimeoutException과 구별하려고 따로 둔다. */
     static final class RedisLookupTimeout extends RuntimeException {
         RedisLookupTimeout() {
             super("Redis 로그아웃 조회가 시한을 넘었습니다", null, false, false);

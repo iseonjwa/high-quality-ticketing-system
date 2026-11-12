@@ -36,10 +36,10 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     private final AuthRedisFailures redisFailures;
     private final Duration redisTimeout;
 
-    // Note: 기본 100ms는 SA 9-4의 Redis 시한이다. 운영 설정(config-repo)에는 키를 두지 않고, 배포 측정 덮어쓰기에서만 바꾼다(ISE-233).
+    // Note: 운영 값은 config-repo/gateway.yml의 200ms다(ADR 0050). 기본값도 같게 둬 설정이 빠져도 느린 호출 기준(100ms)과 겹치지 않게 한다.
     public GatewayAuthenticationFilter(JwtDecoder decoder, ReactiveStringRedisTemplate redis,
             GatewayErrorWriter errors, ReactiveCircuitBreakerFactory<?, ?> breakers,
-            AuthRedisFailures redisFailures, @Value("${auth.redis-timeout:100ms}") Duration redisTimeout) {
+            AuthRedisFailures redisFailures, @Value("${auth.redis-timeout:200ms}") Duration redisTimeout) {
         this.decoder = decoder;
         this.redis = redis;
         this.errors = errors;
