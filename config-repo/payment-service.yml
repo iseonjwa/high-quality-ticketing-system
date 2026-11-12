@@ -43,6 +43,10 @@ payment:
   billing-key:
     # 빌링키 암호화 키(AES-256-GCM, ADR 0042). 환경변수로만 주입하고 저장소에는 이름만 둔다
     secret: ${BILLING_KEY_SECRET:}
+    # [가정] 빌링키 등록 횟수 제한(ISE-241). 사용자당 PG 발급 시도 수다. 카드 교체는 드문 일이라 하루 10회로 묶는다
+    registration-limit:
+      per-minute: 3
+      per-day: 10
   ops:
     # Ops 명령을 실행·승인할 수 있는 팀원 ID(docs/ai-judgments 아래 사람별 폴더 이름). 비밀값이 아니다.
     # 이 ID는 --operator로 받는 자기 신고라 신원 증명이 아니다. 감사 기록의 정확성은 호스트의 SSH 접근 통제에 기댄다(ADR 0028 결정 7)

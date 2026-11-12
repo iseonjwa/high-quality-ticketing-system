@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 요청 횟수 제한은 어떤 방식이 있고 어디에 두는가 | [qna/2026-11-12-rate-limiting-algorithms.md](qna/2026-11-12-rate-limiting-algorithms.md) |
 | 2026-11-12 | 기능 플래그의 기본값은 왜 꺼짐이어야 하나(안전한 기본값, fail-safe defaults) | [qna/2026-11-12-fail-safe-defaults.md](qna/2026-11-12-fail-safe-defaults.md) |
 | 2026-11-11 | 배포 서버에서 잰 구간별 처리량(TPS)은 얼마인가 | [qna/2026-11-11-deploy-measured-throughput.md](qna/2026-11-11-deploy-measured-throughput.md) |
 | 2026-11-11 | 측정 모드 알림용 슬랙 웹훅을 배포 서버에 넣는 법 | [qna/2026-11-11-loadtest-slack-webhook-on-server.md](qna/2026-11-11-loadtest-slack-webhook-on-server.md) |
