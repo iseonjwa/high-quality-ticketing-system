@@ -57,6 +57,8 @@ payment:
       # 값은 모두 [가정]이며 부하 측정 뒤 조정한다(pg-integration.md 5절, ADR 0018).
       # 승인: 사용자가 기다리는 신규 승인. 복구: 조회·늦은 승인 방지·환불(복구 실행기 스레드 수와 같은 2)
       approve:
+        # Note: 2026-11-12 배포 측정에서 30이면 PG 300ms 기준 한도가 초당 31 → 91건이었다. PG가 느린 경우(PAY1-b)를 잰 뒤 올린다(ISE-238).
+        # max-wait-duration(자리 대기)은 기본 0이다. 200ms는 승인 지연만 늘려 쓰지 않는다(pg-integration.md 5절)
         max-concurrent-calls: 10
         sliding-window-size: 20
         minimum-number-of-calls: 20
