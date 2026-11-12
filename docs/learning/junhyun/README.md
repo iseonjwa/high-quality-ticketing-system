@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 저장하지 않고도 내가 발급한 값인지, 그 안의 값이 바뀌지 않았는지 어떻게 아는가 | [qna/2026-11-12-signed-identifiers-stateless-verification.md](qna/2026-11-12-signed-identifiers-stateless-verification.md) |
 | 2026-11-12 | 대기 없는 동시 수 제한의 크기를 어떻게 정하는가 | [qna/2026-11-12-erlang-b-bulkhead-sizing.md](qna/2026-11-12-erlang-b-bulkhead-sizing.md) |
 | 2026-11-12 | Kafka 소비자를 늘리면 순서는 어떻게 지켜지는가 | [qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md](qna/2026-11-12-kafka-partitions-consumer-concurrency-ordering.md) |
 | 2026-11-12 | 서명을 확인만 하는 쪽이 서명도 할 수 있으면 왜 문제이고, 어떻게 나누는가 | [qna/2026-11-12-symmetric-vs-asymmetric-signature.md](qna/2026-11-12-symmetric-vs-asymmetric-signature.md) |
