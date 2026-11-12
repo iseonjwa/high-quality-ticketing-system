@@ -2,6 +2,15 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL}
+    # Note: 기본 30초면 서비스를 다시 띄운 뒤 Gateway가 새 인스턴스를 알기까지 합계 약 55초가 걸렸다(2026-11-12 배포 측정, ISE-244).
+    # 다시 만든 서비스는 주소가 바뀌므로 그동안 요청이 503으로 끝난다. local 프로필과 같은 5초로 맞춘다
+    registry-fetch-interval-seconds: 5
+spring:
+  cloud:
+    loadbalancer:
+      cache:
+        # 기본 35초. Eureka에서 받은 인스턴스 목록을 LoadBalancer가 따로 한 번 더 캐시한다. 위 주기와 맞춘다
+        ttl: 5s
 management:
   tracing:
     sampling:
