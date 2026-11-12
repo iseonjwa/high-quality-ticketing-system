@@ -27,9 +27,8 @@ public class ScheduleSeatQueryService {
     private final ScheduleSeatRepository scheduleSeatRepository;
     private final SeatMapReader seatMapReader;
 
-    // P4b: 배치는 판매 중에 바뀌지 않아 만료가 없다. 좌석을 아직 만들지 않은 회차(빈 목록)는 남기지 않는다
-    private final SharedLoadCache<Long, List<SeatLayoutRow>> layoutCache =
-            new SharedLoadCache<>(null, layout -> !layout.isEmpty());
+    // P4b: 배치는 판매 중에 바뀌지 않아 만료가 없다. 저장소(로컬·Redis)는 SeatLayoutCache가 고른다
+    private final SeatLayoutCache layoutCache;
 
     // P4c: 선점 가능 좌석 ID도 1초 동안 같은 값을 쓴다. 회차마다 DB 조회가 1초에 한 번으로 준다.
     // Note: 1초 안에는 이미 잡힌 좌석이 고를 수 있는 것으로 보이고, 지운 회차도 200이다. 선점 요청이 최종 판정하므로 정합성은 깨지지 않는다
@@ -47,7 +46,7 @@ public class ScheduleSeatQueryService {
 
     // P4b·P4c: 배치는 만료 없는 캐시에서, 선점 가능 여부는 1초 캐시에서 읽는다. 구역 → 열 → 번호 순이다
     public List<SeatMapRow> getSeatMap(Long scheduleId) {
-        List<SeatLayoutRow> layout = layoutCache.get(scheduleId, () -> seatMapReader.readLayout(scheduleId));
+        List<SeatLayoutRow> layout = layoutCache.get(scheduleId);
         long[] holdableSeatIds = stateCache.get(scheduleId, () -> seatMapReader.readHoldableSeatIds(scheduleId));
         return merge(layout, holdableSeatIds);
     }

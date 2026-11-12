@@ -974,6 +974,24 @@ S의 640명 단계는 앞 단계에서 매진되어 좌석 조회만 남는다(�
 - 지표는 인스턴스마다 남겼다(`results/precheck-pre2-X-V.txt`). 회 뒤 자동 수집은 관리 포트를 8082로 잘못 적어 비었고, 측정 직후 같은 인스턴스에서 9080으로 다시 읽었다. 인스턴스는 X-V 시작 때 새로 떴으므로 X-V만의 값이다.
 - 한계: 1회, 초당 100명이다. 만료 한 주기 상한이 100이라 만료 적체가 약 7,000건 남았다. 상한을 올리면(ISE-13) 1초 안에 풀리는 좌석이 늘어 잘못된 거절 기회도 는다. 그때 다시 본다.
 
+### P4b 배치 캐시 로컬 대 Redis 예상 (2026-11-12, 측정 전)
+
+P4b는 좌석 배치(구역·열·번호·등급·가격 15,000석)를 인스턴스 메모리에 만료 없이 둔다. 같은 배치를 공유 Redis에 두면 어떻게 달라지는지 잰다. 코드는 `SeatLayoutCache`이고 설정 `seatmap.layout-cache`(local·redis)로 고른다. Redis 모드는 `compose.layout-redis.yml`을 `EXTRA_OVERLAYS`로 얹어 켠다. 1초 상태 캐시(P4c)와 나머지 F 조건은 두 모드가 같다. 사전 거절은 끈다.
+
+- **Redis 모드 방식:** 배치를 Jackson JSON 문자열 하나(키 `k6:seatmap:layout:<회차>`, TTL 1시간)로 넣고 좌석 조회마다 `GET`해 `List<SeatLayoutRow>`로 역직렬화한다. 키가 없으면 DB에서 읽어 넣는다. 로컬 근접 캐시는 두지 않는다(그러면 로컬 모드와 같아진다). Spring Data Redis의 흔한 사용 방식(값 하나를 JSON으로)이다.
+- **환경 차이:** Redis는 Gateway 인증·대기열과 같은 인스턴스 하나다(`maxmemory 128mb`, AOF 켬, 단일 스레드). 배치 읽기가 다른 Redis 사용자와 같은 줄에 선다.
+- **비교:** 같은 커밋에서 로컬(F)과 Redis(R)를 번갈아 각 1회 잰다. Redis `INFO stats`(내보낸 바이트, 명령 수)를 회 앞뒤로 남긴다.
+  1. Gateway 경유, 상한 없음, L(초당 100명 300초)
+  2. reservation-service 직접 호출(`IDENTITY=direct`), 상한 없음, M(5~1,280명)
+  3. Gateway 경유, CPU 4코어(`compose.cpuset-4.yml`), S(5~1,280명)
+- **예상:**
+  - 배치 JSON은 약 1.3~1.5MB다. 좌석 조회 한 건마다 Redis가 이만큼 내보내고 reservation-service가 15,000개 객체로 역직렬화한다. 로컬 모드에는 둘 다 없다.
+  - L: 성공률은 둘 다 100%다. 매진 전 좌석 조회 p50·p95가 로컬(4·7ms 안팎)보다 5~15ms 오른다. reservation-service CPU가 1.5~2배가 된다(역직렬화가 직렬화(JFR 약 32%)와 비슷한 몫). Redis 내보내기는 초당 약 250MB, Redis CPU 0.3~0.6코어.
+  - 직접 M: 좌석 조회 처리량 한계가 30~50% 낮아진다. 로컬은 reservation-service CPU가 한계이고, Redis는 그 CPU에 역직렬화가 더해지며 Redis 단일 스레드(초당 GB 단위 내보내기)도 한계 후보가 된다.
+  - 4코어 S: Redis·reservation-service·Gateway가 4코어를 나눠 써서 버틴 단계가 한 단계 낮아진다. Gateway 인증 Redis 호출이 같은 Redis 줄에 서서 느려지면 인증 차단기가 더 일찍 열릴 수 있다.
+  - Redis가 앞서는 지표는 이 측정에서는 없을 것으로 본다. Redis의 장점(여러 대가 한 번만 만든 배치를 공유, 무효화 한 곳)은 DB 읽기 횟수 차이인데, 배치는 회차당 한 번만 읽으므로 대 수가 늘어도 차이가 작다.
+  - 대사 위반은 0이다.
+
 ### P4b 실측 S (`e60ac1f`, 내부망 직결)
 
 | 회 | 실측 | 대조 (P4a 재측정 S) |

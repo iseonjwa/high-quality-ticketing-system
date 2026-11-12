@@ -1,0 +1,7 @@
+# P4b 배치 캐시를 로컬 메모리 대신 Redis에 둔다. 측정 브랜치 전용이다(STEPS.md "P4b 배치 캐시 로컬 대 Redis").
+# 배치를 JSON 문자열 하나로 공유 Redis에 넣고, 좌석 조회마다 GET해 역직렬화한다(SeatLayoutCache).
+# 단계 목록(step-overlays.txt)에 넣지 않고 EXTRA_OVERLAYS로 얹어, 같은 커밋에서 로컬 회와 Redis 회를 비교한다
+services:
+  reservation-service:
+    environment:
+      SEATMAP_LAYOUT_CACHE: redis
