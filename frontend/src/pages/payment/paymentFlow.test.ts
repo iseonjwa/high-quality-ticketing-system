@@ -59,6 +59,7 @@ async function run(
   held: Held,
   options: {
     idempotencyKey?: string
+    random?: () => number
     onSleep?: (waits: number[], controller: AbortController) => void
   } = {},
 ): Promise<RunResult> {
@@ -78,7 +79,7 @@ async function run(
       }
       return Promise.resolve()
     },
-    random: () => 0.5,
+    random: options.random ?? (() => 0.5),
   })
   return { outcome, states, waits, controller }
 }
@@ -208,7 +209,7 @@ describe('runPaymentFlow 승인 응답 분기', () => {
     expect(waits).toEqual([])
   })
 
-  it('pg-unavailable: 503 PG_UNAVAILABLE는 다시 보내지 않고 pgUnavailable이다', async () => {
+  it('pg-unavailable: 503 PG_UNAVAILABLE가 두 번 이어지면 한 번 다시 보낸 뒤 pgUnavailable이다', async () => {
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     const requests = recordRequests(PAYMENTS_PATH)
@@ -216,8 +217,8 @@ describe('runPaymentFlow 승인 응답 분기', () => {
     const { outcome, waits } = await run(held)
 
     expect(outcome).toEqual({ step: 'pgUnavailable' })
-    expect(waits).toEqual([])
-    expect(requests).toHaveLength(1)
+    expect(waits).toEqual([1500])
+    expect(requests).toHaveLength(2)
   })
 
   it.each([
@@ -383,6 +384,104 @@ describe('runPaymentFlow 결제 조회', () => {
     expect(waits).toHaveLength(3)
     expect(waits[1]).toBe(100_000)
     expect(waits[2]).toBe(100_000)
+  })
+})
+
+describe('runPaymentFlow 503 PG_UNAVAILABLE 자동 재시도', () => {
+  const unavailable = (headers?: HeadersInit) => () =>
+    fail(503, 'PG_UNAVAILABLE', 'PG 장애', { headers })
+
+  it('처음 503이면 1~2초 기다린 뒤 같은 키·같은 본문으로 다시 보내고, 그동안 pgUnavailable은 나오지 않는다', async () => {
+    const held = await hold()
+    errorOnce(PAYMENTS_PATH, 'post', unavailable())
+    const requests = recordRequests(PAYMENTS_PATH)
+    const idempotencyKey = newIdempotencyKey()
+
+    const { outcome, states, waits } = await run(held, { idempotencyKey })
+
+    expect(outcome.step).toBe('confirmed')
+    expect(steps(states)).toEqual(['paying', 'confirming', 'confirmed'])
+    expect(waits[0]).toBe(1500)
+    expect(requests).toHaveLength(2)
+    expect(requests[0].headers.get('Idempotency-Key')).toBe(idempotencyKey)
+    expect(requests[1].headers.get('Idempotency-Key')).toBe(idempotencyKey)
+    expect(await requests[1].text()).toBe(await requests[0].text())
+  })
+
+  it('두 번 연속 503이면 요청은 정확히 둘이고 pgUnavailable로 끝난다', async () => {
+    const held = await hold()
+    mockServer.use(http.post(PAYMENTS_PATH, unavailable()))
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { outcome, states } = await run(held)
+
+    expect(outcome).toEqual({ step: 'pgUnavailable' })
+    expect(steps(states)).toEqual(['paying', 'pgUnavailable'])
+    expect(requests).toHaveLength(2)
+  })
+
+  it.each([
+    [0, 1000],
+    [0.999, 2000],
+  ])('random이 %f이면 기다림은 %i ms 근처다', async (value, expected) => {
+    const held = await hold()
+    errorOnce(PAYMENTS_PATH, 'post', unavailable())
+
+    const { waits } = await run(held, { random: () => value })
+
+    expect(waits[0]).toBeGreaterThanOrEqual(expected - 1)
+    expect(waits[0]).toBeLessThanOrEqual(expected)
+  })
+
+  it.each([
+    ['1', 1000],
+    ['30', 3000],
+  ])('Retry-After %s초이면 기다림은 %i ms다(3초 상한)', async (retryAfter, expected) => {
+    const held = await hold()
+    errorOnce(PAYMENTS_PATH, 'post', unavailable({ 'Retry-After': retryAfter }))
+
+    const { waits } = await run(held)
+
+    expect(waits[0]).toBe(expected)
+  })
+
+  it('기다리는 중에 취소하면 다시 보내지 않고 aborted다', async () => {
+    const held = await hold()
+    mockServer.use(http.post(PAYMENTS_PATH, unavailable()))
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { outcome, states } = await run(held, { onSleep: (_waits, controller) => controller.abort() })
+
+    expect(outcome).toEqual({ step: 'aborted' })
+    expect(steps(states)).toEqual(['paying'])
+    expect(requests).toHaveLength(1)
+  })
+
+  it('다시 보낸 뒤 결과 모름(504)이면 기존 재전송 흐름으로 넘어가 checking이 된다', async () => {
+    const held = await hold()
+    errorOnce(PAYMENTS_PATH, 'post', unavailable())
+    errorOnce(PAYMENTS_PATH, 'post', () => fail(504, 'INTERNAL_SERVER_ERROR', '시한 초과'))
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { outcome, states } = await run(held)
+
+    expect(outcome.step).toBe('confirmed')
+    expect(steps(states).slice(0, 2)).toEqual(['paying', 'checking'])
+    expect(states[1]).toEqual({ step: 'checking', paymentId: null })
+    expect(requests).toHaveLength(3)
+  })
+
+  it('자동 재시도는 결과 모름 재전송 한도와 따로 센다', async () => {
+    const held = await hold()
+    // 503 PG_UNAVAILABLE 한 번 + 결과 모름 8번 뒤에도 한 번 더 보낸 뒤에야 slowConfirm이다
+    mockServer.use(http.post(PAYMENTS_PATH, () => HttpResponse.error()))
+    errorOnce(PAYMENTS_PATH, 'post', unavailable())
+    const requests = recordRequests(PAYMENTS_PATH)
+
+    const { outcome } = await run(held)
+
+    expect(outcome).toEqual({ step: 'slowConfirm', approved: false })
+    expect(requests).toHaveLength(1 + 1 + 8)
   })
 })
 
