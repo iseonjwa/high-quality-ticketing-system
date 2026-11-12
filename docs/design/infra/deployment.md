@@ -125,7 +125,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_SECRET`, `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다).
@@ -167,6 +167,26 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - `seed-demo.sh`(ISE-177)는 2026-11-04 로컬 nginx(8000)에서 확인했다. 처음에는 공연 1개·회차 2개(좌석 15,000석씩)를 만들었고 상태는 `ON_SALE`과 `BEFORE_OPEN`이었다. 두 번째 실행은 공연 만들기를 건너뛰었고, 샘플 사용자 로그인은 200이었다. 샘플 가입(201)은 임시 `.env`의 새 이메일로, 잘못된 관리자 비밀번호는 401과 `code`·`message` 출력 뒤 종료 1로 확인했다. 스크립트는 `bash -n`과 shellcheck(경고 없음)를 통과했다. 오픈 시각 사전 검사(형식·없는 날짜·8일 뒤보다 늦음은 모두 종료 2, 생성 없음)와 `open` 하위 명령(10분 뒤 회차 추가)도 같은 날 확인했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
 - 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
+
+### 다시 띄운 뒤 서비스 발견 지연 (ISE-244)
+
+서비스 컨테이너가 `healthy`가 된 뒤에도 Gateway가 새 인스턴스를 알기까지 시간이 걸린다. 그동안 그 서비스로 가는 요청은 Gateway에서 503(`No servers available for service: …`)으로 끝난다.
+
+- 본 것: 첫 배포의 스모크 실패([troubleshooting.md](../../troubleshooting.md) TS-34, 약 35초). 2026-11-12 배포 측정에서 `payment-service`만 다시 만들었을 때 컨테이너 시작 46초 뒤에도 10초 동안 결제 176건이 503이었다([open-peak-scenarios.md](open-peak-scenarios.md) 3절 PAY-2). 컨테이너 시작부터 약 55초다.
+- 왜: 인스턴스 목록이 Gateway의 라우팅에 닿기까지 캐시가 세 겹이고 `prod` 프로필에는 주기 값이 없어 모두 기본값이었다. 다시 만든 컨테이너는 IP가 바뀌므로 옛 목록으로는 갈 곳이 없다.
+
+  | 단계 | 설정 | 기본 | 바꾼 값 |
+  |---|---|---|---|
+  | Eureka 서버가 클라이언트에 줄 응답 캐시를 갱신 | `eureka.server.response-cache-update-interval-ms`(`config-repo/eureka.yml`) | 30초 | 5초 |
+  | 클라이언트(Gateway 등)가 레지스트리를 다시 가져옴 | `eureka.client.registry-fetch-interval-seconds`(`application-prod.yml`) | 30초 | 5초 |
+  | Spring Cloud LoadBalancer가 인스턴스 목록을 캐시 | `spring.cloud.loadbalancer.cache.ttl`(`application-prod.yml`) | 35초 | 5초 |
+
+  최악의 합은 95초에서 15초가 된다. 단계별 실제 시간은 재지 않았고, 잰 것은 합계(35초, 55초)뿐이다.
+- 대가: 서비스마다 Eureka 조회가 30초에서 5초 간격이 된다. 변경분만 받는 조회라 가볍고 서비스가 6개다. local 프로필은 처음부터 5초였다.
+- 남는 공백: 인스턴스가 하나라 컨테이너가 내려가고 새 컨테이너의 앱이 뜰 때까지(약 25초)는 요청을 받을 곳이 없다. 이 설정은 그 뒤의 발견 지연만 줄인다. 무중단 배포는 인스턴스가 둘 이상이고 한 대씩 바꿀 때 가능하다(범위 밖).
+- 스모크의 재확인(`SMOKE_WAIT_SECONDS` 120초, TS-34)은 그대로 둔다. 발견 지연이 줄어도 "컨테이너 healthy"와 "Gateway가 찾을 수 있음"은 다른 사실이다.
+- 확인 방법(배포 뒤): 서비스 하나를 다시 만들고 Gateway를 1초 간격으로 불러 503이 끝나는 시각을 잰다. 배포 값은 측정 전이다.
+- 고르지 않은 대안: (1) Gateway가 Eureka 대신 compose 서비스 이름(`http://payment-service:8083`)으로 바로 라우팅한다. Docker DNS는 컨테이너가 바뀌면 바로 따라오므로 발견 지연이 없다. 다만 발제의 Spring Cloud 구성(Eureka)과 여러 인스턴스 분산을 버리게 된다. (2) 주기를 1초로 더 줄인다. 얻는 것이 몇 초이고 Eureka 조회만 늘어난다.
 
 ### 내부 AI 상담 배포 (ISE-126)
 

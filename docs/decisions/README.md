@@ -28,7 +28,7 @@
 | 0022 | [Outbox는 지속 재시도하고, 실제로 바뀐 전이만 이벤트를 만들며, 정리는 미처리 건을 지우지 않는 배치로 한다](0022-outbox-retry-and-retention.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
 | 0023 | [PG 호출은 PgClient 포트와 PG 독립 결과 타입으로 나누고, 어댑터는 같은 계약 테스트를 통과한다](0023-payment-pg-client-port.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
 | 0024 | [결제는 핵심 지표와 대시보드 1장, 금전 정합성 알림을 MVP에 둔다](0024-payment-observability-metrics.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
-| 0025 | [결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다](0025-payment-token-secret-injection.md) | 제안 (SA 변경 요청 필요, 10/28 개정) | 2026-10-27 |
+| 0025 | [결제 토큰 키는 환경변수로 주입하고 시작할 때 검증하며, 키 바이트는 기존 JWT 키와 같은 방식으로 해석한다](0025-payment-token-secret-injection.md) | 제안 (SA 변경 요청 필요, 10/28 개정. 키 부분은 0055로 대체) | 2026-10-27 |
 | 0026 | [결제 행은 예매당 하나인 논리적 결제로 두고 reservation_id 전체 UNIQUE로 강제한다](0026-payment-one-per-reservation.md) | 제안 (SA 변경 요청 필요, U9 결과에 따라 재검토) | 2026-10-28 |
 | 0027 | [예매 서비스는 결제 이벤트를 예매 원장과 대조해 상태별 규칙으로 처리한다](0027-reservation-payment-event-contract.md) | 채택 | 2026-10-28 |
 | 0028 | [운영자 복구는 감사되는 Ops 명령으로만 하고 상태를 바꾸는 직접 SQL을 금지한다](0028-payment-ops-commands.md) | 제안 (SA 변경 요청 필요) | 2026-10-28 |
@@ -57,3 +57,5 @@
 | 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 제안 (결제 담당 합의 뒤 채택, 0039 대체 예정. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
 | 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 제안 (결제 담당 확인 뒤 채택. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
 | 0053 | [입장 토큰은 좌석 선점이 성공한 순간 소모하고, 소모 여부는 선점 트랜잭션의 DB 고유 제약으로 확인한다](0053-entry-token-consume-on-hold.md) | 제안 (ISE-207 contract. 소모 시점은 11/12 팀 회의 확정, 처리 방식은 담당 확인 뒤 채택. SA 7-3 "1회용이 될 수 없다" 중 선점 API 부분 대체) | 2026-11-12 |
+| 0054 | [회차 좌석 배치 캐시(P4b)는 Redis가 아니라 reservation-service 메모리에 둔다](0054-seat-layout-local-cache.md) | 제안 (최권우 측정 코드와 비교 측정 뒤 결정) | 2026-11-08 |
+| 0055 | [결제 토큰은 비대칭 서명(ES256)으로 하고, 개인키는 예매 서비스에만 공개키는 결제 서비스에만 준다](0055-payment-token-asymmetric-signature.md) | 제안 (ISE-245 contract. 발급기 담당 확인 뒤 채택. SA 7-3 HMAC·0025의 키 부분 대체) | 2026-11-12 |

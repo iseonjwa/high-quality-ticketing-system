@@ -4,3 +4,7 @@ eureka:
   client:
     register-with-eureka: false
     fetch-registry: false
+  server:
+    # 기본 30초. Eureka 서버는 클라이언트에 줄 응답을 따로 캐시하고 이 주기로만 갱신한다. 새 인스턴스가 등록돼도
+    # 캐시가 갱신되기 전에는 클라이언트가 옛 목록을 받는다(ISE-244)
+    response-cache-update-interval-ms: 5000

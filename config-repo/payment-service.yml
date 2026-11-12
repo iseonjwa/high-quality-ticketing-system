@@ -44,8 +44,8 @@ payment:
       partitions: 3
       concurrency: 3
   token:
-    # 키는 환경변수로만 주입한다. 저장소에는 이름만 둔다(ADR 0025)
-    secret: ${PAYMENT_TOKEN_SECRET:}
+    # 결제 토큰 검증 공개키(ES256, X.509 SubjectPublicKeyInfo DER의 Base64 한 줄). 환경변수로만 주입하고 저장소에는 이름만 둔다(ADR 0055)
+    public-key: ${PAYMENT_TOKEN_PUBLIC_KEY:}
   billing-key:
     # 빌링키 암호화 키(AES-256-GCM, ADR 0042). 환경변수로만 주입하고 저장소에는 이름만 둔다
     secret: ${BILLING_KEY_SECRET:}
@@ -105,6 +105,6 @@ payment:
       client-key: ${TOSS_CLIENT_KEY:}
   reconciliation:
     reservation:
-      # 예매 내부 조회 API(ISE-75)가 생기면 켠다. API가 없는 채로 켜면 회차마다 RC-1~RC-6이 실패해 대사 정체 알림이 울린다.
-      # 켜면 RC-7·RC-8은 그대로 돌고 RC-1~RC-6이 더해진다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
-      enabled: false
+      # 예매 내부 조회 API(ISE-75)와 2026-11-12 로컬에서 붙여 확인하고 켰다(ISE-239). 끄면 RC-7·RC-8만 돈다.
+      # 예매 서비스가 내려가 있으면 회차마다 RC-1~RC-6이 실패로 기록되어 대사 작업 실패 지표가 오른다. 나머지 값(base-url, 시한, 묶음 크기)은 기본값을 쓴다
+      enabled: true

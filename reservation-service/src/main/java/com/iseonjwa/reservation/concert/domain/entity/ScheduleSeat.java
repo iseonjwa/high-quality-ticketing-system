@@ -61,7 +61,7 @@ public class ScheduleSeat extends BaseEntity {
         return isHoldable(status, grade);
     }
 
-    // 엔티티 없이 열만 읽은 조회 결과(ScheduleSeatRow)도 같은 기준을 쓰게 한다
+    // 엔티티 없이 열만 읽은 조회 결과(SeatStateRow)도 같은 기준을 쓰게 한다
     public static boolean isHoldable(ScheduleSeatStatus status, SeatGrade grade) {
         return status == ScheduleSeatStatus.AVAILABLE && grade != SeatGrade.LOTTERY;
     }
