@@ -1,0 +1,26 @@
+# Gateway 맨 앞 동시 처리 수 상한(iseonjwa.gateway.in-flight, ISE-230 #497)을 끄거나 값을 바꿔 배포 서버에서 잴 때만 쓰는
+# 덮어쓰기다. 운영 설정(config-repo/gateway.yml)은 바꾸지 않는다. 값을 안 주면 운영 설정(켬, 64, 2s)과 같다.
+#   INFLIGHT_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-inflight.yml
+#   INFLIGHT_MAX=256 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.gateway-inflight.yml
+# 좌석 조회 단계 비교와 함께 쓸 때는 파일을 같이 준다(measure-mode.sh on은 인자로 준 파일을 모두 얹는다).
+#   INFLIGHT_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.seat-before.yml loadtest/deploy/compose.gateway-inflight.yml
+# 괄호 안이 기본값(= config-repo/gateway.yml)이다. 운영 값을 바꾸면 아래 기본값도 같이 바꾼다.
+#   INFLIGHT_ENABLED(true) INFLIGHT_MAX(64) INFLIGHT_RETRY_AFTER(2s)
+# measure-mode.sh on은 인자로 준 파일만 얹으므로, 이 파일 없이 on 하거나 off 하면 gateway가 운영 값으로 돌아온다.
+# 값을 바꿔 다시 on 하면 gateway만 다시 만들어진다. 재시작 직후 Gateway는 식어 있으니 워밍업 뒤에 잰다.
+#
+# 왜: 2026-11-12 좌석 조회(P4b) 로컬 측정에서 서비스(17ms)와 Gateway 처리(평균 44ms)는 빨랐는데 초당 500건에서 실패 1.79%가
+# 났고 모두 이 상한의 503이었다(거절 카운터 +177, 실패 172). 응답 약 820KB를 받는 쪽이 느리면 자리를 전송이 끝날 때까지 잡아
+# 처리 중 수가 64를 넘는다. 상한은 Gateway 전체에 하나라 다른 API도 함께 거절된다. 상한 없음·64·더 큰 값을 같은 조건에서 비교한다.
+#
+# 적용 확인: 켠 뒤 gateway_in_flight_limit가 준 값인지 본다. 끄면(INFLIGHT_ENABLED=false) 데코레이터 빈이 만들어지지 않아
+# gateway_in_flight_* 지표가 사라진다. 상한을 처음 둔 이유가 동시 수에 따른 Gateway 힙 증가(배포 서버 5차 OOM)라, 끄거나 키운
+# 측정에서는 Gateway 메모리(container_memory·JVM 힙)와 OOMKilled를 같이 본다.
+#
+# Note: compose.gateway-bulkhead.yml도 SPRING_APPLICATION_JSON을 쓰므로 두 파일을 함께 주면 뒤 파일 값만 남는다. 함께 쓰지 않는다.
+# Note: SPRING_APPLICATION_JSON은 config 서버에서 받은 gateway.yml보다 우선이다(compose.gateway-bulkhead.yml 설명과 같다).
+# JSON 안 숫자·불리언 자리(INFLIGHT_MAX, INFLIGHT_ENABLED)에 따옴표를 넣으면 gateway가 뜨지 않으니 값만 준다.
+services:
+  gateway:
+    environment:
+      SPRING_APPLICATION_JSON: '{"iseonjwa":{"gateway":{"in-flight":{"enabled":${INFLIGHT_ENABLED:-true},"max-requests":${INFLIGHT_MAX:-64},"retry-after":"${INFLIGHT_RETRY_AFTER:-2s}"}}}}'

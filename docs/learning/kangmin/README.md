@@ -6,7 +6,12 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-12 | 긴 에이전트 세션의 할루시네이션을 막으려면 인수인계 없이 한 세션으로 이어가는 게 나은가(긴 세션이 틀리는 이유, 한 세션·긴 인수인계·짧은 인수인계+재확인 비교, 인수인계를 기억이 아닌 재확인 색인으로) | [qna/2026-11-12-long-session-vs-handoff-hallucination.md](qna/2026-11-12-long-session-vs-handoff-hallucination.md) |
+| 2026-11-12 | 우리 Gateway는 어떤 구조로 짜여 있나(요청이 지나는 층과 순서, 라우트, AccessPolicy·인증 필터·입장 토큰, auth-redis 보호 계단, 관측·오류 형식) | [qna/2026-11-12-gateway-structure-overview.md](qna/2026-11-12-gateway-structure-overview.md) |
+| 2026-11-12 | 클라이언트가 느려 Gateway 동시 처리 수 상한(64)에 막히면 상한을 전역 대신 auth-redis별로 걸어야 하나(두 상한이 지키는 것, 반납 시점과 리틀의 법칙, 라우트별·반납 앞당김·느린 연결 시한·적응형 비교, 가설 확인 지표) | [qna/2026-11-12-in-flight-limit-slow-client-global-vs-auth-redis.md](qna/2026-11-12-in-flight-limit-slow-client-global-vs-auth-redis.md) |
 | 2026-11-12 | 겹겹이 걸린 시한은 각각 어디서부터 재고 어떤 순서로 터져야 원인을 알 수 있나(Gateway 인증 계단 100·200·300·1000ms, 시계 시작점, 안 걸리는 시한의 뜻, `SLOW_ERROR` 이중 집계, Gateway 응답 시한 범위, config-repo 시한 지도, 흐름별 시한 예산) | [qna/2026-11-12-timeout-layers-and-config-repo-map.md](qna/2026-11-12-timeout-layers-and-config-repo-map.md) |
+| 2026-11-12 | Redis 시한은 한 값으로 맞춰야 하나, 시점마다 달리해야 하나, 지금 값은 너무 큰가(정의 위치 표, 규칙 하나·값은 사용처별, 피크에 늘리거나 줄일 때의 결과, 장애 중 통과량과 차단기 열림 시간 계산, 꼬리 지연 측정 필요) | [qna/2026-11-12-redis-timeout-consistency-timing-size.md](qna/2026-11-12-redis-timeout-consistency-timing-size.md) |
+| 2026-11-12 | 인증 필터 시한과 Lettuce 명령 시한 중 어느 쪽이 바깥이고, 정상적인 시한 순서는 무엇인가(필터가 바깥·Lettuce가 안쪽, 일반 원칙은 안쪽이 짧다, 필터·Lettuce만 일부러 뒤집은 이유, 두 시계가 같은 구간을 재 하나는 걸리지 않음) | [qna/2026-11-12-filter-vs-lettuce-timeout-order.md](qna/2026-11-12-filter-vs-lettuce-timeout-order.md) |
 | 2026-11-12 | 선점 성공 시 입장 토큰을 무효화하려면 어떻게 처리해야 하나(JWT는 만료시킬 수 없다, 비교 위치 G·S·Q, 선점 API DB 부분 고유 인덱스 + issued ZREM, 담당별 할 일, 거절 코드, 테스트) | [qna/2026-11-12-entry-token-consume-on-hold-implementation.md](qna/2026-11-12-entry-token-consume-on-hold-implementation.md) |
 | 2026-11-12 | 입장 토큰은 언제 소모해야 하나, 결제 토큰이 먼저 만료되면 어떻게 동작하나(세 가지 TTL, 403 PAYMENT_TOKEN_INVALID 뒤 좌석·화면, 자기 선점에 막히는 빈틈, 소모 시점 A·A′·B·C 비교와 정할 것) | [qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md](qna/2026-11-12-entry-token-consume-timing-and-payment-token-expiry.md) |
 | 2026-11-12 | 벌크헤드와 동시 처리 수 상한은 무엇이 다른가(감싸는 범위·위치·지키는 것, 건물 정문과 엘리베이터 비유, 요청이 지나는 순서, 둘 다 필요한 이유, 차단기와 구분, 값 정하기) | [qna/2026-11-12-bulkhead-vs-in-flight-limit.md](qna/2026-11-12-bulkhead-vs-in-flight-limit.md) |
