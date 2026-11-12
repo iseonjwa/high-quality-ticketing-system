@@ -130,13 +130,13 @@ Payment 쪽 고칠 곳: 필드는 `PaymentApprovedEvent`·`PaymentDeclinedEvent`
 | 5 | `payment.result` 소비자가 `PaymentApproved`의 `currency`·`approvedAt`을 쓴다 | 그대로 |
 | 6 | 만료 뒤·확정 불가 승인에 `RefundRequested`를 `payment.command`로 발행한다(필드: `reservationId`, `paymentId`, `userId`, `amount`, `currency`, `reason`) | 그대로(M3에서 Payment가 소비) |
 | 7 | 소비 실패 DLQ 처리와 이상 격리 위치는 Reservation이 정한다 | 그대로 |
-| 8 | 대사용 읽기 전용 내부 조회 API 두 개(5절). 응답 형태(공통 응답으로 감쌈), 200이 아닌 응답은 모두 조회 실패, 없는 ID는 `data` 배열에서 빠짐 | 5절 그대로(#283 기준, 머지 전) |
+| 8 | 대사용 읽기 전용 내부 조회 API 두 개(5절). 응답 형태(공통 응답으로 감쌈), 200이 아닌 응답은 모두 조회 실패, 없는 ID는 `data` 배열에서 빠짐 | 5절 그대로(#283 기준, 2026-11-12 실제 예매 서비스와 확인) |
 
 확정되면 이 문서의 상태를 "확정"으로 바꾸고 SA의 7-3과 10-3에 claim 이름(S-15)과 `currency`(S-18)를 반영한다. 변경 요청 목록은 [sa-change-requests.md](sa-change-requests.md)에 있다.
 
-## 5. 계약 ⑤ 대사용 예매 조회 (Payment → Reservation, #283(ISE-75) 기준, 머지 전)
+## 5. 계약 ⑤ 대사용 예매 조회 (Payment → Reservation, #283(ISE-75))
 
-[0029](../../decisions/0029-payment-reservation-reconciliation.md)의 대사가 부르는 Reservation의 읽기 전용 내부 API다. **아래 형태는 반효승의 PR #283(ISE-75) 기준이고 아직 머지 전이다.** 예매 쪽은 팀 공통 응답 형식을 그대로 두고 결제 쪽 어댑터(`ReservationLookupHttpClient`)와 가짜 서버를 이 모양에 맞췄다(2026-11-03 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md)). #283이 바뀌면 다시 맞춘다. 머지 뒤 compose에서 확인하기 전에는 `payment.reconciliation.reservation.enabled`가 `false`라 호출하지 않는다.
+[0029](../../decisions/0029-payment-reservation-reconciliation.md)의 대사가 부르는 Reservation의 읽기 전용 내부 API다. **아래 형태는 반효승의 PR #283(ISE-75)이고 머지됐다.** 예매 쪽은 팀 공통 응답 형식을 그대로 두고 결제 쪽 어댑터(`ReservationLookupHttpClient`)와 가짜 서버를 이 모양에 맞췄다(2026-11-03 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md)). 예매 쪽 응답이 바뀌면 다시 맞춘다. 2026-11-12에 로컬 전체 스택(compose)에서 실제 예매 서비스와 붙여 확인했고(ISE-239, [events-and-reliability.md](events-and-reliability.md) 10절 "켜기") `payment.reconciliation.reservation.enabled`를 `true`로 켰다.
 
 | API | 응답 |
 |---|---|

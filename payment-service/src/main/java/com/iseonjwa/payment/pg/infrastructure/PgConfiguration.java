@@ -14,9 +14,14 @@ public class PgConfiguration {
     // 키가 있으면 만들어, 모드를 mock으로 되돌린 뒤에도 진행 중인 토스 결제를 조회할 수 있게 한다. 키 형식과 mock base-url은
     // PgProperties 바인딩에서 검사해 어긋나면 기동이 실패한다. 어댑터는 MeteredPgClient가 감싸서 돌려준다. 어댑터를 새로 더할 때도 같은 데코레이터로 감싼다.
     @Bean
-    PgClients pgClients(PgProperties properties, PaymentMetrics metrics) {
-        var mock = new MeteredPgClient(MockPgAdapter.create(properties.mock().baseUrl(), properties.connectTimeout(),
-                properties.readTimeout()), metrics);
+    UnmeteredMockPg unmeteredMockPg(PgProperties properties) {
+        return new UnmeteredMockPg(MockPgAdapter.create(properties.mock().baseUrl(), properties.connectTimeout(),
+                properties.readTimeout()));
+    }
+
+    @Bean
+    PgClients pgClients(PgProperties properties, PaymentMetrics metrics, UnmeteredMockPg unmeteredMock) {
+        var mock = new MeteredPgClient(unmeteredMock.client(), metrics);
         MeteredPgClient toss = null;
         if (properties.tossConfigured()) {
             var config = properties.toss();

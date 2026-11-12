@@ -648,12 +648,15 @@ describe('PaymentPage 결제하기', () => {
   })
 
   it('결제사 장애에서는 저장한 선점을 남긴다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
     renderPayment({ navigation: { held } })
 
     await clickPay()
+    // 503은 한 번 자동으로 다시 보낸 뒤에 안내한다(ISE-242)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
 
     expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
@@ -796,23 +799,27 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
   })
 
   it('결제사 장애면 안내하고 다시 결제하기는 같은 멱등키로 보내며, 결제 가능 시간은 계속 보인다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     setMockScenario({ payment: 'pg-unavailable' })
     const held = await hold()
     const payments = recordRequests(PAYMENTS_API)
     renderPayment({ navigation: { held } })
 
     await clickPay()
+    // 누름 한 번에 자동 재시도가 한 번 있어 요청은 둘이고, 그 뒤에 안내한다(ISE-242)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
+    expect(payments).toHaveLength(2)
 
     expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
     expect(alertSlotOf('결제사 연결이 원활하지 않아요')).toHaveFocus()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     await userEvent.click(screen.getByRole('button', { name: '다시 결제하기' }))
-    await waitFor(() => expect(payments).toHaveLength(2))
+    await advanceUntil(() => payments.length >= 4)
 
     const keys = payments.map((request) => request.headers.get('Idempotency-Key'))
     expect(keys[0]).toBeTruthy()
-    expect(keys[1]).toBe(keys[0])
-    expect(await screen.findByRole('button', { name: '다시 결제하기' })).toBeInTheDocument()
+    expect(new Set(keys).size).toBe(1)
+    await advanceUntil(() => screen.queryByRole('button', { name: '다시 결제하기' }) !== null)
   })
 
   it('그 밖의 오류면 오류 안내와 다시 결제하기를 보이고 같은 멱등키로 다시 보낸다', async () => {

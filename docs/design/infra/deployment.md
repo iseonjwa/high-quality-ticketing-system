@@ -132,12 +132,14 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ### 결제 PG 모드 전환 (ISE-45)
 
-- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 세 키를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
+- 환경변수: `PAYMENT_PG_PROVIDER`(서버 기본 PG, `mock` 또는 `toss`, 비우면 `mock`), `TOSS_SECRET_KEY`, `TOSS_CLIENT_KEY`. compose가 `payment-service`에 그대로 넘기고 `config-repo/payment-service.yml`이 `payment.pg.provider`와 `payment.pg.toss.*`에 연결한다. `init-env.sh`는 이 세 키와 `PAYMENT_PG_MOCK_BYPASS`를 빈 값으로 만들 뿐이고 실제 값은 사람이 서버 `.env`에 직접 넣는다. 채팅·저장소·로그에 붙이지 않는다.
 - 기본은 `mock`이다. 토스는 시연 때만 켠다. 토스 모드는 키가 `test_sk_`(시크릿)·`test_ck_`(클라이언트)로 시작할 때만 기동하고, 라이브 키나 빈 키는 `payment-service`가 기동에 실패한다. 빈 값으로 둔 채 `toss`를 고르는 실수도 같은 방식으로 막힌다.
 - 전환 절차: (1) 토스 결제(`pg_provider=TOSS`)가 진행 중이면 토스 키를 지우지 않는다. Mock 결제는 모드와 상관없이 Mock으로 확인한다. 결제마다 처리한 PG를 기록하므로 모드를 바꿔도 다른 PG에서 조회해 `NotFound`로 보이지 않지만, 토스 키가 없으면 토스 결제의 재확인·환불이 `CLIENT_ERROR`로 계속 결과 모름이다. 토스 키는 둘 다 넣거나 둘 다 지운다(하나만 남기거나 라이브 키가 남으면 mock 모드여도 `payment-service`가 기동하지 않는다). (2) `.env`를 고친다. (3) `docker compose up -d --force-recreate payment-service`로 다시 만든다(환경변수는 재생성해야 반영된다). (4) 기동 로그에 어댑터 선택 오류가 없고 `POST /api/v1/payments/checkout`이 `provider: TOSS`와 `clientKey`를 돌려주는지 본다. 되돌릴 때도 같은 순서로 `PAYMENT_PG_PROVIDER=`를 비운다.
 - 부하 측정과 장애 시나리오 측정은 늘 `mock`이다. 토스 테스트 환경은 호출 한도와 지연을 우리가 정할 수 없어 측정 결과를 오염시킨다.
 - 빌링(추첨 자동결제)은 서버 모드와 상관없이 늘 Mock이다. 토스 모드에서도 빌링키 발급과 자동 승인이 Mock으로 가고 결제는 `pg_provider=MOCK`으로 남는다.
-- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `true`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. `compose.yml`이 이 변수를 `payment-service`에 넘기지 않아 지금은 기본값 `true`로 동작한다. 끄려면 compose의 `payment-service` 환경에 이 변수를 더해야 한다.
+- 건너뛰기 설정 `PAYMENT_PG_MOCK_BYPASS`(기본 `false`)는 `config-repo/payment-service.yml`의 `payment.pg.mock-bypass-enabled`에 연결된다. 토스 모드에서 승인 API가 `pgProvider: MOCK`(결제창 건너뛰기)을 받을지 정하는 시연용 설정이고 `false`면 400이다. 기본이 꺼짐이므로 설정을 빠뜨리거나 값이 전달되지 않아도 결제창을 거치는 쪽으로 동작한다(근거는 [pg-integration.md](../payment/pg-integration.md) 6절 끝). compose가 `payment-service`에 `${PAYMENT_PG_MOCK_BYPASS:-false}`로 넘긴다. Mock 모드에서는 이 설정과 상관없이 모든 결제가 Mock이다.
+  - 켜는 절차: (1) 서버 `.env`에 `PAYMENT_PG_MOCK_BYPASS=true`를 쓴다. (2) `docker compose up -d --force-recreate payment-service`로 다시 만든다. (3) `POST /api/v1/payments/checkout` 응답의 `mockBypass`가 `true`인지 확인한다.
+  - 끄는 절차: `.env`의 값을 비우거나 `false`로 바꾸고 같은 방식으로 다시 만든 뒤 `mockBypass`가 `false`인지 확인한다.
 - 토스 키가 없는 환경의 기본 테스트는 가짜 토스 서버로 도는 계약 테스트까지이고, 실제 토스 테스트 환경 통합 테스트는 `TOSS_TEST_SECRET_KEY=test_sk_… ./gradlew :payment-service:tossSandboxTest`로 따로 돈다(기본 CI 밖).
 
 ## 5. 배포·되돌림 절차 개요

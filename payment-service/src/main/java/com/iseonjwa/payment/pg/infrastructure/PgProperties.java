@@ -7,7 +7,7 @@ import java.time.Duration;
 
 /**
  * @param provider 서버 기본 PG. mock이 기본이고 toss는 시연 때만 켠다(ADR 0023).
- * @param mockBypassEnabled 토스 모드에서 승인 API의 Mock 건너뛰기를 받을지. 비우면 true다(시연용).
+ * @param mockBypassEnabled 토스 모드에서 승인 API의 Mock 건너뛰기를 받을지. 비우면 false다. 시연 서버에서만 켠다.
  */
 @ConfigurationProperties(prefix = "payment.pg")
 public record PgProperties(PgProvider provider, Mock mock, Toss toss, Boolean mockBypassEnabled,
@@ -38,7 +38,7 @@ public record PgProperties(PgProvider provider, Mock mock, Toss toss, Boolean mo
                         + TOSS_TEST_CLIENT_PREFIX + "로 시작)여야 합니다");
             }
         }
-        mockBypassEnabled = mockBypassEnabled == null || mockBypassEnabled;
+        mockBypassEnabled = mockBypassEnabled != null && mockBypassEnabled;
         // SA 9-4: 연결 0.5초, 응답 2초
         connectTimeout = connectTimeout != null ? connectTimeout : Duration.ofMillis(500);
         readTimeout = readTimeout != null ? readTimeout : Duration.ofSeconds(2);

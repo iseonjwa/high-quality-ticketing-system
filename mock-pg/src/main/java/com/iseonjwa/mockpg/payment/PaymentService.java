@@ -1,6 +1,6 @@
 package com.iseonjwa.mockpg.payment;
 
-import com.iseonjwa.mockpg.billing.BillingKeyStore;
+import com.iseonjwa.mockpg.billing.BillingKeySigner;
 import com.iseonjwa.mockpg.fault.Fault;
 import com.iseonjwa.mockpg.fault.FaultInjector;
 import com.iseonjwa.mockpg.fault.FaultMode;
@@ -31,9 +31,9 @@ class PaymentService {
 
     private final LedgerHolder ledgers;
     private final FaultInjector faults;
-    private final BillingKeyStore billingKeys;
+    private final BillingKeySigner billingKeys;
 
-    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeyStore billingKeys) {
+    PaymentService(LedgerHolder ledgers, FaultInjector faults, BillingKeySigner billingKeys) {
         this.ledgers = ledgers;
         this.faults = faults;
         this.billingKeys = billingKeys;
@@ -93,7 +93,7 @@ class PaymentService {
     private OrderState.Decided decide(ApproveRequest request, Fault fault) {
         if (fault.is(FaultMode.DECLINE)) return new Declined(DECLINE_CODE);
         // 발급하지 않은 빌링키로 온 자동결제는 거절한다
-        if (request.billingKey() != null && !billingKeys.contains(request.billingKey())) {
+        if (request.billingKey() != null && !billingKeys.isIssued(request.billingKey())) {
             return new Declined(BILLING_KEY_DECLINE_CODE);
         }
         // Note: 변조형은 저장하는 금액 자체를 바꾼다. 서비스의 INV-3 금액 대조가 이를 잡는지 계약 테스트가 확인한다

@@ -12,6 +12,11 @@ spring:
     deserialization:
       # 오타 필드(예: orderID)를 조용히 무시하면 주문 한정 규칙이 전역 규칙이 되어 배경 호출이 횟수를 가져간다
       fail-on-unknown-properties: true
+mock-pg:
+  billing:
+    # 빌링키 서명 키. Mock PG는 빌링키를 저장하지 않고 서명으로 확인하므로, 다시 띄워도 같은 값이어야 발급한 키가 유효하다(ISE-235).
+    # 가짜 카드의 빌링키만 지키는 값이라 기본값을 둔다. 바꾸면 그 전에 발급한 빌링키는 모두 거절된다
+    signing-secret: ${MOCK_PG_BILLING_SIGNING_SECRET:mock-pg-billing-key-signing-default}
 ---
 spring:
   config:
