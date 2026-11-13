@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-13 | 다른 조 저장소 5곳에서 배울 점과 우리 프로젝트에 적용할 것 | [qna/2026-11-13-other-teams-repos-lessons.md](qna/2026-11-13-other-teams-repos-lessons.md) |
 | 2026-11-13 | Synthetic Data가 뭐고, 부하 테스트에서 왜 필요한가 | [qna/2026-11-13-what-is-synthetic-data.md](qna/2026-11-13-what-is-synthetic-data.md) |
 | 2026-11-13 | 최종 발표에서 심사위원은 무엇을 보나, 우리는 무엇을 더 채워야 하나(4조 비교, AI 코드 검토 방법) | [qna/2026-11-13-final-presentation-gaps-vs-rubric.md](qna/2026-11-13-final-presentation-gaps-vs-rubric.md) |
 | 2026-11-12 | 이미지 생성 API 없이 서버가 LLM(Claude API)으로 그림(SVG)을 만들 수 있나 | [qna/2026-11-12-server-side-svg-generation-with-llm.md](qna/2026-11-12-server-side-svg-generation-with-llm.md) |
