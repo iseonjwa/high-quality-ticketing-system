@@ -7,6 +7,8 @@ import com.iseonjwa.reservation.seathold.application.AsyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
 import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
+import com.iseonjwa.reservation.seathold.observability.SeatHoldMetrics;
+import com.iseonjwa.reservation.seathold.observability.SeatHoldMetrics.Outcome;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.AcceptedResponse;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldRequest;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldResponse;
@@ -38,12 +40,14 @@ public class SeatHoldController {
     private final SyncSeatHoldService syncService;
     private final AsyncSeatHoldService asyncService;
     private final SeatHoldMode mode;
+    private final SeatHoldMetrics metrics;
 
     public SeatHoldController(SyncSeatHoldService syncService, AsyncSeatHoldService asyncService,
-            @Value("${seat-hold.mode:sync}") String mode) {
+            @Value("${seat-hold.mode:sync}") String mode, SeatHoldMetrics metrics) {
         this.syncService = syncService;
         this.asyncService = asyncService;
         this.mode = SeatHoldMode.from(mode);
+        this.metrics = metrics;
     }
 
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations")
@@ -51,6 +55,18 @@ public class SeatHoldController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
             @PathVariable Long scheduleId, @Valid @RequestBody HoldRequest request) {
+        try {
+            var response = holdOnce(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);
+            metrics.record(response.getStatusCode().value() == 201 ? Outcome.HELD : Outcome.ACCEPTED);
+            return response;
+        } catch (RuntimeException exception) {
+            metrics.recordFailure(exception);
+            throw exception;
+        }
+    }
+
+    private ResponseEntity<SuccessResponse<?>> holdOnce(Long currentUserId, String idempotencyKey,
+            String entryTokenJti, Long scheduleId, HoldRequest request) {
         if (scheduleId <= 0) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
