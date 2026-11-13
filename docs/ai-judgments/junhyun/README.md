@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-13 | 발표 전 보완 제안(빈 필수 산출물, AI 코드 검토 방법, AI 대표 사례)을 받아들이고, 11/11 취소된 Synthetic Data를 발제 필수 항목으로 되살림 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-fill-presentation-gaps-restore-synthetic-data.md) |
 | 2026-11-12 | 추첨 쪽이 요청한 PG 허가 조정(ISE-236)에 일반 결제 허가는 17보다 큰 24~30(PAY1-b 측정 뒤 확정), 자동결제는 전용 그룹 `pg-billing` 3으로 답하기로 함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-12-pg-permits-approve-and-billing-group.md) |
 | 2026-11-11 | 시스템 구조도의 "EC2 컨테이너 분리"를 컨테이너별 메모리 상한 표시로 읽은 AI 해석을 바로잡고, Jenkins EC2와 부하 발생기 EC2를 그림에 넣게 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-11-system-diagram-ec2-scope.md) |
 | 2026-11-11 | AI 브리핑이 멘션 알림만 보고 이미 끝난 ISE-224 웹훅 일(서버 `.env`에 이미 있음, 이슈 Done)을 남은 일로 넣었다고 지적함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-11-briefing-listed-finished-webhook.md) |

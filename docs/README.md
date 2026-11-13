@@ -21,6 +21,7 @@
 | 서비스 간 접점(contract) 변경 알림과 작업 전 확인 | [`guides/contract-issues.md`](guides/contract-issues.md) | Linear 라벨 `contract` |
 | 코드 가독성·책임 분리·실패 처리·선택적인 `Note:` 주석 기준 | [`guides/code-style.md`](guides/code-style.md) | 코드 작성·수정·리뷰 때 적용 |
 | Java·JUnit 테스트 위치와 기본·시스템 검증 실행 | [`guides/testing.md`](guides/testing.md) | 테스트 작성·실행 때 적용 |
+| AI가 만든 코드를 검토하는 방법(다섯 겹, 잡은 결함, 거부 기준, 한계), 리뷰 프롬프트와 `script/ai-review.sh` | [`guides/ai-code-review.md`](guides/ai-code-review.md), [`guides/ai-code-review-prompt.md`](guides/ai-code-review-prompt.md) | 7절은 팀 동의 전 제안 |
 | 공통 모듈의 사용 계약(응답·예외·사용자 컨텍스트·토큰·감사·이벤트) | [`guides/common-modules.md`](guides/common-modules.md) | 팀 합의 전 |
 | 전체 Boot 앱·Config·인프라·인증 실행과 검증 | [`guides/workspace.md`](guides/workspace.md) | 현재 개발 워크스페이스 |
 | 배포·Jenkins 서버 접속(SSH 키, 터널), 서버에서 지킬 것, 부하 측정 계획 | [`guides/deploy-server-access.md`](guides/deploy-server-access.md) | 팀원용. 서버 주소·일정이 바뀌면 고친다 |
