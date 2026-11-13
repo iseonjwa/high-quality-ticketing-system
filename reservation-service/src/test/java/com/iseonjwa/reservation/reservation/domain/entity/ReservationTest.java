@@ -4,6 +4,7 @@ import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,5 +58,29 @@ class ReservationTest {
     void 선점할_좌석이_비어_있으면_접수_요청을_만들_수_없다() {
         assertThrows(IllegalArgumentException.class,
                 () -> SeatHoldRequest.request(UUID.randomUUID(), 10L, 20L, List.of()));
+    }
+
+    @Test
+    void HELD_예매는_결제_마감_여유_직전까지만_결제할_수_있다() {
+        var reservation = held();
+        var closesAt = HOLD_EXPIRES_AT.minus(Reservation.PAYMENT_CLOSE_MARGIN);
+
+        assertTrue(reservation.isPayableAt(closesAt.minusNanos(1)));
+        assertFalse(reservation.isPayableAt(closesAt), "마감 시각 자체는 결제할 수 없다");
+        assertFalse(reservation.isPayableAt(HOLD_EXPIRES_AT), "만료 스케줄러가 돌기 전이라도 기한이 지나면 결제할 수 없다");
+    }
+
+    @Test
+    void HELD가_아닌_예매는_시각과_관계없이_결제할_수_없다() {
+        var reservation = held();
+        // 상태는 저장소의 조건부 UPDATE로만 바뀌므로 단위 테스트에서는 필드를 직접 바꾼다
+        ReflectionTestUtils.setField(reservation, "status", ReservationStatus.CONFIRMED);
+
+        assertFalse(reservation.isPayableAt(HOLD_EXPIRES_AT.minusSeconds(60)));
+    }
+
+    private static Reservation held() {
+        return Reservation.hold("R-20261101-0001", UUID.randomUUID(), 10L, 20L, List.of(Money.of(165_000)),
+                HOLD_EXPIRES_AT);
     }
 }

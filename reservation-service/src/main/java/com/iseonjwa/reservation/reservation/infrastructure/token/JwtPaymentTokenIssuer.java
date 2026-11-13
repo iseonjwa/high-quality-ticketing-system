@@ -1,6 +1,7 @@
-package com.iseonjwa.reservation.seathold.infrastructure.token;
+package com.iseonjwa.reservation.reservation.infrastructure.token;
 
-import com.iseonjwa.reservation.seathold.application.PaymentTokenIssuer;
+import com.iseonjwa.reservation.reservation.application.PaymentTokenIssuer;
+import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -50,7 +51,7 @@ public class JwtPaymentTokenIssuer implements PaymentTokenIssuer {
 
     @Override
     public IssuedPaymentToken issue(Long userId, Long reservationId, long amount, Instant holdExpiresAt) {
-        var expiresAt = holdExpiresAt.minus(EXPIRY_MARGIN);
+        var expiresAt = holdExpiresAt.minus(Reservation.PAYMENT_CLOSE_MARGIN);
         var claims = new JWTClaimsSet.Builder()
                 .subject(userId.toString())
                 .audience(AUDIENCE_VALUE)

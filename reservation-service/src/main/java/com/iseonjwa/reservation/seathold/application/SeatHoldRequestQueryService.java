@@ -50,7 +50,7 @@ public class SeatHoldRequestQueryService {
     private SeatHoldResult heldReservation(SeatHoldRequest request) {
         var reservation = reservations.findById(request.getReservationId())
                 .orElseThrow(() -> new IllegalStateException("선점 요청의 예매가 없습니다: " + request.getRequestId()));
-        if (SeatHoldRules.isPayable(reservation, clock.instant())) {
+        if (reservation.isPayableAt(clock.instant())) {
             return results.withToken(reservation, request.getSeatIds());
         }
         return results.withoutToken(reservation, request.getSeatIds());

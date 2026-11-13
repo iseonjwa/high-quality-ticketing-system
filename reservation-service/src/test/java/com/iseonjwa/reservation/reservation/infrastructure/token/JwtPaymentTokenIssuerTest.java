@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.seathold.infrastructure.token;
+package com.iseonjwa.reservation.reservation.infrastructure.token;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
@@ -10,9 +10,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-import static com.iseonjwa.reservation.seathold.infrastructure.token.PaymentTokenTestKeys.OTHER_PRIVATE_KEY;
-import static com.iseonjwa.reservation.seathold.infrastructure.token.PaymentTokenTestKeys.P384_PRIVATE_KEY;
-import static com.iseonjwa.reservation.seathold.infrastructure.token.PaymentTokenTestKeys.PRIVATE_KEY;
+import static com.iseonjwa.reservation.reservation.infrastructure.token.PaymentTokenTestKeys.OTHER_PRIVATE_KEY;
+import static com.iseonjwa.reservation.reservation.infrastructure.token.PaymentTokenTestKeys.P384_PRIVATE_KEY;
+import static com.iseonjwa.reservation.reservation.infrastructure.token.PaymentTokenTestKeys.PRIVATE_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

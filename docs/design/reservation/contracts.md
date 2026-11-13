@@ -210,6 +210,8 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
       record IssuedPaymentToken(String token, Instant expiresAt) {}
   }
   ```
+- **위치(2026-11-13 정함, ISE-273)**: 포트는 `reservation.application.PaymentTokenIssuer`, 구현은 `reservation.infrastructure.token.JwtPaymentTokenIssuer`다. 토큰 claim(예매 ID·금액·만료)이 모두 예매의 값이라 예매 모듈이 소유하고, 선점 모듈은 [ADR 0034](../../decisions/0034-seathold-unidirectional-module-boundary.md)가 허용한 `seathold → reservation` 방향으로 쓴다. 처음에는 선점 응답만 써서 `seathold`에 뒀으나 예매 상세 조회(ISE-171)도 발급하면서 `reservation → seathold` import가 생겨 옮겼다.
+- **결제 가능 판정**: "HELD이고 `holdExpiresAt - 10초` 전"은 `Reservation.isPayableAt(now)` 하나로 판단한다. 10초는 `Reservation.PAYMENT_CLOSE_MARGIN`이고 토큰 `exp`도 같은 상수로 계산한다. 선점 재요청(3절 3번), 접수형 결과 조회, 예매 상세 조회가 모두 이 판정을 쓴다.
 
 ### 5-2. 대기열 모듈·Gateway(권영은)와의 경계 — 입장 토큰 회차 검증 (`ISE-20`)
 - 2026-10-29 정함: 선점 경로에 `scheduleId`를 둔다(`POST /api/v1/schedules/{scheduleId}/reservations`).
@@ -225,7 +227,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | 1 | 동기형 201 응답 및 접수형 `reservation` 블록 필드: `requestId`, `reservationId`, `reservationNo`, `scheduleId`, `seatIds`, `status`, `holdExpiresAt`, `totalAmount`, `paymentToken`, `paymentTokenExpiresAt` | 2절 표 그대로 (`scheduleId`·`seatIds` 포함) |
 | 2 | 동기형 실패(409) 시 `seat_hold_requests` 행도 함께 롤백하고, 성공(`HELD`) 시에만 커밋해 멱등 재요청에 응답 | 3절 표 그대로 ([ADR 0032](../../decisions/0032-seat-hold-result-and-idempotency-contract.md)) |
 | 3 | 이미 만료·해제·취소됐거나 `holdExpiresAt - 10초`가 지난 선점에 같은 멱등키로 재요청 시 `409 RESERVATION_NOT_PAYABLE` 반환 | 3절 표 그대로 |
-| 4 | 결제 토큰 발급기(`PaymentTokenIssuer`) 시그니처와 패키지 위치(`reservation` 도메인/응용 또는 공유 포트) | 5-1절 제안 그대로 |
+| 4 | 결제 토큰 발급기(`PaymentTokenIssuer`) 시그니처와 패키지 위치(`reservation` 도메인/응용 또는 공유 포트) | 시그니처는 5-1절 제안 그대로. 위치는 `reservation.application`(포트)·`reservation.infrastructure.token`(구현)으로 정함(2026-11-13, ISE-273) |
 
 ---
 
