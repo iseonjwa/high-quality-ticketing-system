@@ -44,7 +44,7 @@
 | 준현 | 구현은 옆 패널의 Sonnet 작업자, 설계·지시·리뷰는 Opus 메인. PR 전 Opus(deep-reasoner) 리뷰, 찾은 것과 반영한 것을 PR 본문에 적음. 팀원 PR을 AI로 리뷰해 PR 코멘트로 올림 | PR #280·#284·#481, [두 에이전트 독립 검토](../ai-judgments/junhyun/2026-10-26-two-agent-review-fixes.md), [효승 PR 리뷰](../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
 | 강민 | 구현 세션의 하위 에이전트가 미커밋 변경을 리뷰하고, 다른 세션이 지적을 코드와 대조해 "이번 PR 수정·담당자 확인·후속"으로 나눔. 담당 이슈 33개 엄격 리뷰 보고서. AI 조사 결과를 라이브러리 바이트코드(`javap`)로 다시 확인 | [ISE-150 지적 11건 분류](../ai-judgments/kangmin/2026-11-04-ise-150-review-triage.md), [추첨 MVP 코드 리뷰 보고서](../learning/kangmin/qna/2026-11-02-lottery-mvp-code-review-report.md), [기본 벌크헤드 확인](../ai-judgments/kangmin/2026-11-09-gateway-has-default-bulkhead.md) |
 | 권우 | AI에게 설계 허점 점검을 시키고, 결과를 동시성 테스트와 k6 측정으로 확인. 측정 도구의 한계는 사람이 막음 | [예약 설계 리뷰](../learning/kwonwoo/qna/2026-10-28-reservation-system-design-review.md), [JUnit 근사 대신 k6](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
-| 영은 | AI가 낸 설계 근거를 하나씩 되물어 틀린 것을 철회시킴 | [대기열 AI 근거 정정](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md) |
+| 영은 | 코드는 직접 쓰고, AI(Cowork 채팅)에게 단계별 설명과 리뷰를 받는다. AI가 낸 근거를 되물어 틀린 것을 철회시키고(멱등성·자동 복구), 원칙에 어긋난 제안은 직접 짚어 고친다(재시도 시간을 infrastructure에 두는 안). AI가 추천한 값·방식도 근거를 들어 바꾸거나 거부한다(느린 호출 50ms → 100ms, 이벤트 리스너 → 트랜잭션 밖 메서드 호출). Claude Code가 낸 측정 보고서와 팀원 PR은 다른 세션(Cowork 채팅)에서 다시 검토한다 | [대기열 AI 근거 정정](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), [503 위치](../ai-judgments/youngeun/2026-11-11-queue-redis-timeout-503-layer.md), [차단기 값](../ai-judgments/youngeun/2026-11-12-queue-redis-circuit-breaker-values.md), [정리 메서드 호출](../ai-judgments/youngeun/2026-11-13-entry-token-discard-method-call.md), [PR #487 리뷰 반영](../ai-judgments/kangmin/2026-11-11-pr487-review-peak-alert.md) |
 | 효승 | 본인 기록은 저장소에 없다. 효승의 PR #282·#283은 준현이 AI로 리뷰했고 효승이 수정 커밋으로 반영했다 | PR #282·#283 |
 
 공통 원칙:
@@ -109,6 +109,7 @@
 | "Gateway에는 벌크헤드가 없다"는 AI 조사 결과 | 설정에 없으면 기본값이라는 반문에서 시작해 바이트코드로 기본 벌크헤드(동시 25)를 확인 | [kangmin 11/9](../ai-judgments/kangmin/2026-11-09-gateway-has-default-bulkhead.md), TS-56 |
 | 대기열 설계 근거(멱등이면 같은 응답, issued 선기록이면 자동 복구) | 멱등은 응답이 아니라 서버 상태에 대한 효과가 같다는 뜻이고, 토큰 만료 뒤에는 틈이 생긴다 | [youngeun 10/29](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), ADR 0031 |
 | 측정을 위해 차단기 기준을 완화 | 운영에서는 나오지 않을 숫자가 나온다. Gateway는 다른 담당 영역이다 | [youngeun 11/10](../ai-judgments/youngeun/2026-11-10-no-breaker-relax-for-measurement.md) |
+| 입장 토큰 정리를 이벤트 리스너(AFTER_COMMIT)로 유지 | 동기 리스너는 커넥션을 반납하기 전에 돌아 Redis 정리 시간만큼 커넥션을 더 쥔다. 트랜잭션 밖 메서드 호출로 바꿈 | [youngeun 11/13](../ai-judgments/youngeun/2026-11-13-entry-token-discard-method-call.md), ISE-207 |
 | 같은 JVM 안의 JUnit으로 부하를 근사 | Gateway를 거치지 않아 실제 경로가 아니다. k6로 다시 재니 결론이 달랐다 | [kwonwoo 11/4](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
 
 공통 판단 표 기준 전체 판단 170건 중 거부 55건, 부분 수용 31건이다([`ai-judgments/README.md`](../ai-judgments/README.md)). 이 숫자는 코드 리뷰만이 아니라 AI의 모든 제안에 대한 판단을 합친 것이다.
