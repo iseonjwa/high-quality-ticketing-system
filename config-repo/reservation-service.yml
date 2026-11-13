@@ -21,6 +21,14 @@ spring:
         linger.ms: 0
     consumer:
       group-id: reservation-service.bootstrap
+management:
+  metrics:
+    distribution:
+      # 서버 쪽 p95·p99를 Prometheus에서 계산하려고 HTTP 지연 히스토그램을 고정 버킷으로 켠다(ISE-277).
+      # Note: percentiles-histogram(약 70개 버킷) 대신 선점 SLO 근처 버킷만 둔다. 버킷 하나가 URI·상태 조합마다
+      # 시계열 하나라, 버킷 수가 곧 늘어나는 시계열 수다. 이 서비스에만 켜고 다른 서비스는 바꾸지 않는다
+      slo:
+        http.server.requests: 25ms,50ms,100ms,200ms,300ms,500ms,1s,3s
 messaging:
   outbox:
     # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
