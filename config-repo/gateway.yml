@@ -72,8 +72,10 @@ iseonjwa:
       # 60~67(리틀의 법칙, 계산값)에서 골랐다. 처리 중 수가 260을 넘은 단계는 p95가 이미 435ms 이상이었다(배포 서버 5차).
       # 32·64·128·500을 측정 모드에서 비교해 확정한다
       max-requests: 64
-      # 거절된 사용자가 1초 뒤 다시 와서 다음 몫을 또 다투지 않게 bulkhead 거절(1초)보다 길게 둔다
-      retry-after: 2s
+      # 대기열 최소 조회 간격(queue.poll-min 3초)보다 빨리 돌아오지 않게 하고, 원인이 같은(Gateway 자기 과부하)
+      # auth-redis bulkhead 거절과 같은 3초로 둔다. 측정 근거는 아직 없다. 2·3·5초 비교는 상한 반복 측정 때 한다
+      # (docs/learning/kangmin/qna/2026-11-13-retry-after-value-criteria.md 5절)
+      retry-after: 3s
 entry-token:
   # 입장 토큰 검증 키. 발급하는 reservation-service와 같은 키다. 환경변수로만 주입한다(docs/design/queue/contracts.md 1절)
   secret: ${ENTRY_TOKEN_SECRET}

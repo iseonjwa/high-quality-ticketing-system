@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-13 | 503의 Retry-After는 무엇을 기준으로 2초·3초를 정하고 최적값은 어떻게 찾나(바꾸는 것 세 가지, 거절 비용 계산, 회복 시점·정상 속도·같은 원인 기준, 프론트 폴링이 Retry-After로 최소 간격을 건너뛰는 문제, 비교 실험 설계) | [qna/2026-11-13-retry-after-value-criteria.md](qna/2026-11-13-retry-after-value-criteria.md) |
 | 2026-11-12 | 긴 에이전트 세션의 할루시네이션을 막으려면 인수인계 없이 한 세션으로 이어가는 게 나은가(긴 세션이 틀리는 이유, 한 세션·긴 인수인계·짧은 인수인계+재확인 비교, 인수인계를 기억이 아닌 재확인 색인으로) | [qna/2026-11-12-long-session-vs-handoff-hallucination.md](qna/2026-11-12-long-session-vs-handoff-hallucination.md) |
 | 2026-11-12 | 우리 Gateway는 어떤 구조로 짜여 있나(요청이 지나는 층과 순서, 라우트, AccessPolicy·인증 필터·입장 토큰, auth-redis 보호 계단, 관측·오류 형식) | [qna/2026-11-12-gateway-structure-overview.md](qna/2026-11-12-gateway-structure-overview.md) |
 | 2026-11-12 | 클라이언트가 느려 Gateway 동시 처리 수 상한(64)에 막히면 상한을 전역 대신 auth-redis별로 걸어야 하나(두 상한이 지키는 것, 반납 시점과 리틀의 법칙, 라우트별·반납 앞당김·느린 연결 시한·적응형 비교, 가설 확인 지표) | [qna/2026-11-12-in-flight-limit-slow-client-global-vs-auth-redis.md](qna/2026-11-12-in-flight-limit-slow-client-global-vs-auth-redis.md) |
