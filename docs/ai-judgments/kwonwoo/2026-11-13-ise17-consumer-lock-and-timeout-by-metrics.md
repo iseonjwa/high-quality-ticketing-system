@@ -41,6 +41,11 @@ shared: 예
 - `SeatHoldRequestConsumerTest` 14건 통과(실제 PostgreSQL·Redis, 접수가 Outbox에 남긴 원문을 리스너에 넘김)
   - 다른 트랜잭션이 좌석 행을 쥔 상태에서 소비자가 450ms 안에 `SEAT_ALREADY_HELD`로 끝나고 `lock_timeout`이 1 늘었다.
   - 시한 정리가 잠긴 요청을 기다리지 않고 1초 안에 다른 요청만 닫았다.
+- `SeatHoldKafkaFlowTest` 3건 통과(로컬 Kafka 4.1.1, 접수 → Outbox 릴레이 → `seat-hold.request` → 소비자 전 구간). ISE-17 완료 기준 세 가지다.
+  - 같은 좌석에 접수된 두 요청이 같은 키 순서대로 `HELD`, `REJECTED(SEAT_ALREADY_HELD)`가 됐다.
+  - 선점 본체에 예외를 넣자 4번(첫 시도 + 재시도 3번) 불렸고, 약 7.6초 뒤 DLQ를 거쳐 `REJECTED(PROCESSING_FAILED)`가 됐다.
+  - 시한 정리로 `TIMEOUT`이 된 요청의 메시지를 늦게 보내도 좌석을 잡지 않고 처리 기록만 남겼다.
+  - 토픽은 선언대로 파티션 6개로 만들어졌다.
 - 오픈 피크 지표(늦은 메시지 비율, 잠금 시한 초과 수, 접수→처리 지연)는 미측정이다.
 
 ## 판단 이력
