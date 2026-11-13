@@ -24,6 +24,8 @@
 | `compose.expiry-on.yml` | X1용 덮어쓰기. 배포 메모리 덮어쓰기가 끈 선점 만료 스케줄러를 다시 켠다 |
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
+| `tools/a0-report.py` | A0 결과 계산. 요약 JSON(`results/*-summary.json`)에서 발제 표 한 줄(요청 수, 성공률, 409 수, 평균·p95·최대 응답 시간, 측정 창, 처리량, 판정)을 마크다운으로 만든다. 판정 기준은 `docs/design/infra/synthetic-data.md` 5-0절 |
+| `data/` | O1 Synthetic 모드가 읽는 가상 사용자 CSV(`loadtest/synthetic/generate.py` 출력). 측정에 쓰는 `data/o1-synthetic-3000.csv`(시드 20261113)는 발제 산출물이라 커밋한다. 그 밖의 파일(토큰 CSV 등)은 커밋하지 않는다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
 | `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
@@ -40,7 +42,8 @@
 | `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다. 실패 응답은 `entry_results`에 message 출처 태그 `msg`(`auth_unavailable`·`service_unavailable`·`gateway_error`·`other`·`none`)를 붙여, 인증 벌크헤드 503을 다른 503과 나눠 summary에 센다 |
 | `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
 | `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
-| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다 |
+| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다 |
+| `scenarios/a0-assignment-baseline.js` | A0 발제 기준선. 동시 100명이 1초 안에 시작해 각 10번씩 좌석 선점을 요청한다(총 1,000회). 반복마다 사용자·좌석을 새로 써 409 없이 선점의 처리량을 잰다. 요청 수가 1,000건이 아니거나 409가 있거나 오류율이 1% 이상이면 임계값을 어겨 종료 코드 99로 끝난다(요약 JSON은 남는다) |
 | `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
 | `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
 | `scenarios/r1d-confirm.js` | R1-d. R1을 배포 서버에서 돌리는 판. 관리자 로그인 없이 서버에서 만든 회차(`SCHEDULE_ID`)를 받는다. 좌석을 팔므로 실행마다 새 회차를 쓴다 |
@@ -63,6 +66,8 @@
 | L2 | `scenarios/l2-lottery-billing.js` | 있음. 2026-11-05 local 응모 300명, 추첨석 60석, PG 300ms: 추첨 뒤 약 10초에 당첨 39명, 그 뒤 약 20초 안에 39명 모두 배정·결제(PAID) |
 | L3 | `scenarios/l3-lottery-interference.js` | 있음. 2026-11-05 local 선점 초당 10명, 응모 300명: 선점 p95 추첨 전 28ms, 중 30ms, 후 23ms, 오류 0 |
 | O1 | `scenarios/o1-open-peak.js` | 있음. 2026-11-05 local 사용자 200명(오픈 전 40초, 오픈 뒤 120초): 확정 180, 결제 전 이탈 18(설정 10%), 오류 2. 좌석 조회 p95 4.15초로 가장 느렸다(K1과 같은 병목) |
+| O1 Synthetic | `scenarios/o1-open-peak.js` + `USERS_CSV` | 있음(ISE-262). 같은 시나리오에 `USERS_CSV`를 주면 사용자마다 도착 시각, 새로고침 간격, 진입 연타, 좌석 수·등급, 고민 시간, 409 뒤 행동, 대기 인내, 결제 이탈이 페르소나 분포로 다르다. 균일 모드와 같은 서버·`USERS`로 돌려 `loadtest/synthetic/compare.py`로 비교한다. 배포 측정 전 |
+| A0 | `scenarios/a0-assignment-baseline.js` | 있음(ISE-262). 배포 측정 전. 결과는 `tools/a0-report.py`로 낸다 |
 | S1 | `scenarios/s1-seat-query.js` | 있음(ISE-189). 로컬(노트북 1대)에서 같은 방식으로 잰 단계별 결과는 ISE-189에 있다. 2026-11-11 배포: 1차 초당 40건까지 실패 0(p95 약 370ms), 상한 약 47건/초. 개선 전은 초당 10건에서 서비스 재시작. 결과는 [open-peak-scenarios.md](../../docs/design/infra/open-peak-scenarios.md) 3절 |
 | B1-d | `scenarios/b1d-concert-detail.js` | 있음. 2026-11-06 local(같은 방식, 공연 상세 하나)에서 초당 10~400건으로 잰 결과는 개인 기록에 있다. 2026-11-11 배포: 초당 400건까지 실패 0, p95 4ms 안팎(같은 문서) |
 | R1-d | `scenarios/r1d-confirm.js` | 있음(ISE-189). R1과 같은 흐름·판정 기준. 배포 서버 측정 전 |
@@ -160,7 +165,8 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `BASE_URL` | `http://host.docker.internal:8080` | Gateway. 발생기 EC2에서는 Gateway 사설 주소 |
 | `TOKEN_MODE` | `sign` | k6가 토큰을 직접 서명한다. 배포는 측정 모드의 측정 전용 키를 발생기 `.env`에 두고 쓴다(아래 "배포 서버 측정") |
 | `USER_ID_BASE` | 1000000 | 가상 사용자 ID 시작값 |
-| `SCHEDULE_ID` | 없음 | 측정 대상 회차. Q1·Q2·Q3·G1: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). L1~L3: 선택이며, 주면 `LOTTERY_ID` 추첨의 회차와 같은지 확인한다(오타 방지). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다 |
+| `SCHEDULE_ID` | 없음 | 측정 대상 회차. Q1·Q2·Q3·G1: 주면 관리자 로그인과 회차 만들기를 건너뛰고 그 회차로 잰다(열려 있어야 한다). L1~L3: 선택이며, 주면 `LOTTERY_ID` 추첨의 회차와 같은지 확인한다(오타 방지). 배포 측정에서 관리자 비밀번호를 발생기에 두지 않으려는 것이다. O1: 주면 `CONCERT_ID`와 `OPEN_AT`도 반드시 줘야 한다(오픈 전인 회차). A0: 주면 그 회차(빈 좌석이 `VUS × ITERATIONS`석 이상, 이미 열린 회차) |
+| `CONCERT_ID` | 없음 | B1-d: 조회할 공연. O1: `SCHEDULE_ID`를 줄 때 그 회차의 공연(오픈 전 상세 새로고침이 이 공연을 부른다) |
 | `LOTTERY_ID` | 없음 | L1~L3: 서버에서 만든 추첨(상태 `OPEN`). 주면 관리자 로그인과 회차·추첨 만들기를 건너뛰고, 로그인 없는 추첨 조회로 회차와 응모·추첨 시각을 읽는다. 이때 `START_IN_SECONDS`·`SEAT_COUNT`·`WAITLIST_COUNT`·`DRAW_AFTER_SECONDS`는 쓰지 않는다(서버에서 만들 때 정해진다). 회차 ID만 주고 `LOTTERY_ID`를 빼면 실패한다 |
 | `SALE_SCHEDULE_ID` | 없음 | L2-b(`PAY_RATE > 0`)·L3: 추첨 회차와 다른, 판매 중인 일반 판매 회차. `LOTTERY_ID`를 줄 때 반드시 같이 준다. L1·L2-a에 주면 실패한다 |
 | `USERS` / `ENTER_SECONDS` | 30000 / 10 | Q1: 진입할 사용자 수와 그 시간(초). 초당 속도는 둘을 나눈 값 |
@@ -184,7 +190,10 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `PG_MODE` / `DECLINE_RATE` | `delay` / 0.05 | L2: `delay`는 승인 지연 `PG_DELAY_MS`, `decline`은 승인의 일부를 거절. Mock PG는 호출 종류마다 규칙이 하나라 둘을 같이 걸 수 없다 |
 | `DRAW_AFTER_SECONDS` / `DRAW_WINDOW_SECONDS` / `WITH_BILLING` | 60 / 120 / 1 | L3: 측정 시작 뒤 추첨까지, 추첨 뒤 "중"으로 볼 시간, 빌링키 등록 여부(자동결제까지 겹칠지) |
 | `PRE_OPEN_SECONDS` / `AFTER_OPEN_SECONDS` | 600 / 900 | O1: 오픈 전 조회 시간, 오픈 뒤 진행 시간 |
-| `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도 |
+| `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도. 균일 모드에서만 쓴다(Synthetic 모드는 CSV 행이 정한다) |
+| `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). 없으면 균일 모드 |
+| `OPEN_AT` | 없음 | O1: `SCHEDULE_ID`를 줄 때 그 회차의 오픈 시각(ISO-8601 UTC). 지금 + 30초 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 한다(setup이 검사). `PRE_OPEN_SECONDS`는 발생기에서 `$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) ))`로 맞춘다 |
+| `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다 |
 
 새 시나리오가 변수를 더하면 `run.sh`의 `PASS_ENV` 목록에도 더한다. Docker가 목록에 있는 변수만 컨테이너로 넘긴다.
 
@@ -238,6 +247,9 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
 | B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
 | PAY1 결제 승인 | `measure-mode.sh on`. PG 한도를 볼 때는 측정 직전에 아래 "Mock PG 장애 주입"으로 승인 지연 300ms를 건다. 결제 서비스 자체 한도를 볼 때는 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 PAY1 명령. 빈 좌석이 모자라면 setup에서 멈춘다 |
+| O1(균일) 오픈 피크 | `measure-mode.sh on`. 결제 지연 300ms는 측정 직전에 아래 "Mock PG 장애 주입"으로 건다 | 실행마다 새 15,000석 회차를 오픈 약 10분 전에(`seed-demo.sh open "<OPEN_AT>"`). Synthetic 사용자의 접속 시각이 오픈 10분 전부터라, 오픈 전 시간이 짧으면 그보다 이른 접속이 측정 시작 한순간에 몰린다. 비교하려면 균일도 같은 길이로 잰다 | 아래 O1 명령 |
+| O1(Synthetic) 오픈 피크 | O1(균일)과 같게 | 실행마다 새 회차. 균일 실행과 같은 `USERS`·`VUS`·서버 상태로 | 아래 O1 명령에 `USERS_CSV`를 더한다 |
+| A0 발제 기준선 | `measure-mode.sh on`. 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다). 1,000석이 필요하다 | 아래 A0 명령 |
 | R1-d 결제 → 확정 | `measure-mode.sh on` (앱이 다시 떠 Mock PG 지연이 없는 상태) | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 R1-d 명령. 빈 좌석이 모자라면(이미 쓴 회차) setup에서 멈춘다 |
 
 S1·B1-d·PAY1·R1-d는 주소를 명령에 직접 넣어 쓴다. 사설 IP `172.31.4.93`만 쓴다(공인 IP는 전송 요금이 붙고 보안 그룹에 막힌다, `docs/guides/loadgen.md` 2절).
@@ -251,6 +263,26 @@ BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/writ
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write MOCK_PG_URL= SCHEDULE_ID=<회차 id> STAGES=20,40,80 bash loadtest/k6/run.sh scenarios/pay1-payment.js
 # R1-d 결제 → 확정 (발생기에서. 회차는 실행마다 새로)
 BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/r1d-confirm.js
+# A0 발제 기준선 (발생기에서. 회차는 실행마다 새로. 끝나면 표 한 줄을 낸다)
+BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/a0-assignment-baseline.js
+# 새 회차로 세 번 잰 뒤 세 요약을 한 번에 넘긴다. 판정 열: 무효(다시 잰다)·불합격·합격
+python3 loadtest/k6/tools/a0-report.py loadtest/k6/results/a0-assignment-baseline-{<시각1>,<시각2>,<시각3>}-summary.json
+```
+
+**O1 균일·Synthetic 비교**: 같은 서버, 같은 `USERS`·`VUS`로 두 번 돌린다. 오픈 시각이 있는 회차는 `seed-demo.sh open "<OPEN_AT>"`로 서버에서 만들고(출력의 공연 id·새 회차 id를 쓴다), 발생기에서 `PRE_OPEN_SECONDS`를 오픈까지 남은 초로 맞춘다. 오픈은 지금 + 30초(회차 캐시 갱신) 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 하며 어긋나면 setup이 이유와 함께 실패한다. 좌석을 파는 실행이라 회차를 다시 쓰지 않는다. CSV는 발생기에서 `generate.py`로 만든다(`data/`는 커밋하지 않는다).
+
+```bash
+# 서버에서: 약 10분 뒤 오픈하는 회차를 만든다(균일, Synthetic 각각 한 번씩). 짧게 동작만 볼 때는 "+80 seconds"처럼 줄여도 된다
+ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "+10 minutes" +%Y-%m-%dT%H:%M:%SZ)"'
+# 발생기에서: 가상 사용자 CSV는 저장소에 있다(같은 시드로 다시 만들면 같은 파일). 측정 전에 검증만 한다
+python3 loadtest/synthetic/validate.py --personas loadtest/synthetic/o1-personas.json --csv loadtest/k6/data/o1-synthetic-3000.csv
+# 발생기에서: O1(균일). OPEN_AT은 위에서 만든 회차의 오픈 시각이다
+export OPEN_AT=<ISO-8601 UTC> BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write MOCK_PG_URL=
+PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+# 발생기에서: O1(Synthetic). 새 회차를 만들고 OPEN_AT·SCHEDULE_ID를 바꿔 USERS_CSV만 더한다
+PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<새 회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 USERS_CSV=../data/o1-synthetic-3000.csv bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+# 두 실행의 원자료를 비교표로
+python3 loadtest/synthetic/compare.py --base loadtest/k6/results/<균일>-raw.csv.gz --synthetic loadtest/k6/results/<synthetic>-raw.csv.gz
 ```
 
 `measure-mode.sh on`은 인자로 준 파일이 전체 목록이다. Q2에서 Q3로 넘어갈 때 `queue-hold.yml` 없이 다시 실행하면 reservation-service가 다시 만들어지며 스케줄러가 켜진다. `.env.measure`의 키는 그대로라 발생기 `.env`를 다시 옮기지 않아도 된다. reservation-service가 다시 뜬 뒤 30초 넘게 기다렸다가 잰다.
