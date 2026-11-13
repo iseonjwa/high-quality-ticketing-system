@@ -32,8 +32,8 @@ public class ScheduleSeatReader {
         return scheduleSeatRepository.findSeatLayouts(scheduleId);
     }
 
-    // 일반 선점이 잡을 수 있는 좌석 ID. 요청마다 부른다.
-    // 배치를 캐시해 두어도 회차를 지우면 여기서 404가 나서 지운 회차를 계속 보여 주지 않는다
+    // 일반 선점이 잡을 수 있는 좌석 ID. 1초 캐시가 만료됐을 때 부른다.
+    // 배치를 캐시해 두어도 회차를 지우면 여기서 404가 나서 지운 회차를 1초 넘게 보여 주지 않는다
     public List<Long> readHoldableSeatIds(Long scheduleId) {
         requireSchedule(scheduleId);
         return scheduleSeatRepository.findHoldableSeatIds(scheduleId);
