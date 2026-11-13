@@ -125,9 +125,9 @@
 
 ### 7-1. PR마다 AI 리뷰 결과를 PR에 남긴다
 작성 세션과 다른 세션에서 리뷰를 돌리고, 결과를 PR 코멘트로 올린다. 작성자는 지적마다 수용·거부로 답한다. 거부는 판단 기록 개별 기록으로 남긴다.
-- **스크립트**: `script/ai-review.sh <PR 번호>`가 PR 머리 커밋을 임시 worktree로 꺼내 Claude Code(읽기 전용 도구만)로 리뷰하고 결과를 `build/ai-review/`에 쓴다. `--post`를 주면 PR 코멘트로 올린다. 프롬프트는 [`ai-code-review-prompt.md`](ai-code-review-prompt.md)다.
+- **스크립트**: `script/ai-review.sh <PR 번호>`가 PR 머리 커밋을 임시 worktree로 꺼내 Claude Code(읽기 전용 도구만)로 리뷰하고 결과를 `build/ai-review/`에 쓴다. codex CLI만 쓰면 `--engine codex`(read-only 샌드박스)다. `--post`를 주면 PR 코멘트로 올린다. 프롬프트는 [`ai-code-review-prompt.md`](ai-code-review-prompt.md)다. PR #577로 시험했을 때 Claude와 codex가 짚은 곳이 달랐다(프롬프트 문서 첫 단락).
 - **Claude Code 안에서**: 내장 `/code-review <PR 번호> --comment`도 인라인 코멘트로 올린다. 프로젝트 기준을 쓰려면 위 프롬프트 파일을 같이 읽게 한다.
-- **codex**: `codex`에 같은 프롬프트 파일과 `gh pr diff <번호>` 결과를 주고 읽기 전용으로 돌린다. 다른 모델의 눈이라 Claude가 쓴 코드에 특히 쓸 만하다.
+- **Claude 채팅(웹·앱)**: 저장소를 읽지 못하므로 PR의 `.diff`(PR 주소 끝에 `.diff`)와 프롬프트 파일을 첨부한다. 방법은 [`presentation/required-deliverables.md`](../presentation/required-deliverables.md) K7이다.
 
 ### 7-2. CodeRabbit을 단다 (선택)
 - 공개 저장소는 무료다(CodeRabbit 요금제 문서, 2026-11-13 확인). GitHub 조직 관리자가 앱을 설치한다.
@@ -139,7 +139,7 @@
 
 ## 8. 팀원 세션에서 바로 쓰는 리뷰 지시문
 
-작성한 세션이 아닌 새 세션(다른 모델이면 더 좋다)에 아래를 붙여 넣는다. `<PR 번호>`만 바꾼다.
+작성한 세션이 아닌 새 CLI 세션(Claude Code나 codex, 다른 모델이면 더 좋다)에 아래를 붙여 넣는다. `<PR 번호>`만 바꾼다. Claude 채팅만 쓰면 [`required-deliverables.md`](../presentation/required-deliverables.md) K7의 첨부 방법을 쓴다.
 
 ```text
 이선좌 저장소의 PR #<PR 번호>를 리뷰해 줘. 이 PR의 코드는 AI가 썼고, 너는 작성한 세션이 아니다.
