@@ -67,7 +67,7 @@ tags: [presentation, load-test, review, archunit, saga, comparison]
 ### 4. 코드 품질 장치
 | 배울 점 | 어디서 | 우리에게 적용 | 5일 안 | 이슈 |
 |---|---|---|---|---|
-| ArchUnit 계층 규칙: domain은 presentation·application·infrastructure·Spring·Kafka에 의존하지 않고, application은 presentation·infrastructure에 의존하지 않음. 빈 계층 허용 | commerce-settle `*/ArchitectureTest.java` 4개, Good-Ticket `LayeredArchitectureRules` | 계층형 검증 대상이던 user-service부터 한 파일. 위반이 나오면 그 목록이 발표 재료다(예: 앞서 본 `ReservationService` → `seathold.application` import) | 부분, 2~3시간 | 새로 나눌 일 |
+| ArchUnit 계층 규칙: domain은 presentation·application·infrastructure·Spring·Kafka에 의존하지 않고, application은 presentation·infrastructure에 의존하지 않음. 빈 계층 허용 | commerce-settle `*/ArchitectureTest.java` 4개, Good-Ticket `LayeredArchitectureRules` | 계층형 검증 대상이던 user-service부터 한 파일. 위반이 나오면 그 목록이 발표 재료다(예: 앞서 본 `ReservationService` → `seathold.application` import. 같은 날 ISE-273으로 고쳐짐) | 부분, 2~3시간 | 새로 나눌 일 |
 | CI 중복 실행 취소(`concurrency` + `cancel-in-progress`) | ITDA, travelpay, commerce-settle | 우리 `build.yml`에는 없다(`images.yml`에만 있음). 몇 줄 | 가능, 10분 | 새로 나눌 일 |
 | PR 본문 CI 결과 구간 자동 갱신 | 4조 `.github/scripts/update-pr-status.js` | PR마다 검증 근거가 본문에 남는다. 쓰기 권한 설정이 필요하다 | 부분, 1~2시간 | ISE-271과 같이 |
 | Synthetic CSV를 생성 코드로 다시 만들면 커밋한 파일과 바이트로 같은지 테스트 | 4조 `loadtest/synthetic/tests` | 우리 `test_synthetic.py`는 같은 시드 결정성만 보고 커밋한 CSV와의 일치는 보지 않는다. 한 개 테스트 | 가능, 30분 | ISE-262 |

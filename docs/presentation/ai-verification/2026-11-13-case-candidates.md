@@ -25,4 +25,4 @@
 ## 정리하면서 본 공백 (판단자가 채울 것)
 - 검증 칸이 실제보다 늦은 기록: 영은 10/29(테스트가 dev에 있음), 강민 11/3 입구 어댑터 이동(PR #272가 있음), 강민 F1 실행 결정(F1 실행 완료).
 - 효승의 판단 기록은 저장소에 2건뿐이고 발표 후보가 없다. DLQ·ADR 0054 쪽 판단을 기록으로 남기면 사례 8을 효승 관점으로도 쓸 수 있다.
-- 6번 계층형 검증을 좌석 선점 쪽에 다시 돌리지 않았다. 점검 중 `ReservationService`가 `seathold.application.PaymentTokenIssuer`를 import하는 것이 ADR 0034 단방향 규칙과 맞는지 확인이 필요하다(코드 읽기 판단, 재현하지 않음).
+- 6번 계층형 검증을 좌석 선점 쪽에 다시 돌리지 않았다. 점검 중 본 `ReservationService`의 `seathold.application.PaymentTokenIssuer` import(ADR 0034 반대 방향)는 강민이 같은 날 따로 찾아 ISE-273(PR #592)으로 고쳤다. 같은 위반을 사람이 찾지 않아도 되도록 ArchUnit 검사를 ISE-275로 올렸다.
