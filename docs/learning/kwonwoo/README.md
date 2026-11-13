@@ -8,6 +8,7 @@
 |---|---|---|
 | 2026-11-13 | ISE-207(입장 토큰을 선점 성공 때 소모) 초안대로 구현하면 어디서 어긋나나 | [qna/2026-11-13-ise207-entry-token-consume-gaps.md](qna/2026-11-13-ise207-entry-token-consume-gaps.md) |
 | 2026-11-13 | ISE-255 접수형 장애 때 동기형 비상 전환을 범위에 둘지, 무엇을 보고 정하나 | [qna/2026-11-13-ise255-emergency-mode-switch-scope.md](qna/2026-11-13-ise255-emergency-mode-switch-scope.md) |
+| 2026-11-13 | Kafka를 쓰려면 producer와 consumer가 다 필요한데, 좌석 선점에는 왜 producer를 따로 만들지 않았나 | [qna/2026-11-13-why-no-seathold-kafka-producer.md](qna/2026-11-13-why-no-seathold-kafka-producer.md) |
 | 2026-11-13 | ISE-17 접수형 소비자에서 30초 시한과 겹칠 때, 좌석 잠금을 못 얻었을 때 어떻게 할까(오픈 피크 성능 포함) | [qna/2026-11-13-ise17-consumer-race-and-lock-timeout-tradeoffs.md](qna/2026-11-13-ise17-consumer-race-and-lock-timeout-tradeoffs.md) |
 | 2026-11-12 | 벌크헤드(Bulkhead)와 동시 처리수 상한(Concurrency Limit)의 차이 | [qna/2026-11-12-bulkhead-vs-concurrency-limit.md](qna/2026-11-12-bulkhead-vs-concurrency-limit.md) |
 | 2026-11-12 | 접수형으로 받은 요청을 동기형 서버가 같은 키로 다시 받으면 왜 500이 나고, 어떻게 막을 것인가 | [qna/2026-11-12-mode-switch-replay-gap.md](qna/2026-11-12-mode-switch-replay-gap.md) |
