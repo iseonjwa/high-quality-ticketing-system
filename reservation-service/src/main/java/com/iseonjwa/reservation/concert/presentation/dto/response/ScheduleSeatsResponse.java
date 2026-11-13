@@ -25,7 +25,7 @@ public class ScheduleSeatsResponse {
 
     // 배치는 구역 → 열 → 번호 순으로 와야 한다. LinkedHashMap이 구역이 처음 나온 순서를 지킨다
     public static ScheduleSeatsResponse of(Long scheduleId, Instant serverTime, ScheduleSeatsResult result) {
-        List<SeatLayoutRow> seats = result.getLayout().getSeats();
+        List<SeatLayoutRow> seats = result.getSeats();
         boolean[] available = result.getAvailable();
         Map<String, SeatSectionResponse> sections = new LinkedHashMap<>();
         for (int i = 0; i < seats.size(); i++) {

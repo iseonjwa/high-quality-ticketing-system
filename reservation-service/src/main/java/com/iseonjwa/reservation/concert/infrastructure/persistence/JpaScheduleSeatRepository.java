@@ -1,9 +1,9 @@
 package com.iseonjwa.reservation.concert.infrastructure.persistence;
 
+import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeatStatus;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.concert.domain.repository.ScheduleSeatRepository;
 import com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow;
-import com.iseonjwa.reservation.concert.domain.repository.SeatStateRow;
 import com.iseonjwa.reservation.global.vo.Money;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -30,8 +30,9 @@ public class JpaScheduleSeatRepository implements ScheduleSeatRepository {
     }
 
     @Override
-    public List<SeatStateRow> findSeatStates(Long scheduleId) {
-        return springDataScheduleSeatRepository.findSeatStates(scheduleId);
+    public List<Long> findHoldableSeatIds(Long scheduleId) {
+        return springDataScheduleSeatRepository.findSeatIdsByStatusExcludingGrade(
+                scheduleId, ScheduleSeatStatus.AVAILABLE, SeatGrade.LOTTERY);
     }
 
     @Override

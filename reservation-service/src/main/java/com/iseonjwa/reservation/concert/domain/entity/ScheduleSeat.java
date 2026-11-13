@@ -56,13 +56,9 @@ public class ScheduleSeat extends BaseEntity {
     @Column(nullable = false, length = 10)
     private ScheduleSeatStatus status;
 
-    // 일반 선점이 잡을 수 있는 좌석인가. 선점 쿼리의 조건(status = AVAILABLE AND grade <> LOTTERY)과 같은 기준이다
+    // 일반 선점이 잡을 수 있는 좌석인가.
+    // Note: 같은 조건이 선점 쿼리(JpaSeatHoldInventoryRepository)와 좌석 조회 쿼리(findHoldableSeatIds)에도 있다. 바꿀 때 함께 바꾼다
     public boolean isHoldable() {
-        return isHoldable(status, grade);
-    }
-
-    // 엔티티 없이 열만 읽은 조회 결과(SeatStateRow)도 같은 기준을 쓰게 한다
-    public static boolean isHoldable(ScheduleSeatStatus status, SeatGrade grade) {
         return status == ScheduleSeatStatus.AVAILABLE && grade != SeatGrade.LOTTERY;
     }
 
