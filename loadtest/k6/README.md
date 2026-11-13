@@ -30,6 +30,7 @@
 | `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
 | `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
 | `tools/r0_solve.py` | G1 결과 계산(로컬). 단계별 Gateway CPU를 받은 요청·거절 수로 연립해 한 건 비용(받은 요청 a, 거절 r)을 푼다 |
+| `tools/burst_buckets.py` | Q1·Q1-d 결과 계산(로컬). 시나리오가 남긴 `enter_send_offset`(보낸 순간)으로 100ms 구간마다 보낸 수와 결과(진입·상한 거절·인증 거절·무응답)를 센다. 고른 도착과 앞쪽 몰림을 같은 사용자 수로 나란히 본다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
 | `scenarios/q1d-queue-burst.js` | Q1-d 오픈 순간 몰림. 사용자 수만큼 VU를 미리 두고, 같은 출발 시각부터 `ENTER_SPREAD_SECONDS` 안에 앞쪽이 붐비게 한 번씩 진입한다 |
 | `scenarios/q2-queue-poll.js` | Q2 순번 폴링. VU 하나가 대기자 여러 명의 다음 폴링 시각을 들고 서버가 준 간격대로 부른다 |

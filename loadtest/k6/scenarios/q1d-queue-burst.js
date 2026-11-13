@@ -8,7 +8,7 @@ import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv } from '../lib/env.js';
 import { accessToken, assertSigningKeys, userIdOf } from '../lib/tokens.js';
-import { authHeaders, errorCodeOf, outcomeOf, url } from '../lib/http.js';
+import { authHeaders, errorCodeOf, messageTagOf, outcomeOf, url } from '../lib/http.js';
 import { adminLogin, createSchedule } from '../lib/admin.js';
 
 // VU 하나가 사용자 한 명이다. VU는 메모리를 몇 MB씩 쓰므로 발생기 한 대로는 수만 명 정도가 한계다
@@ -28,6 +28,9 @@ const enterResults = new Counter('enter_results');
 const sendLag = new Trend('send_lag', true);
 // 출발 시각부터 응답을 받을 때까지. 몰림이 서버에서 얼마나 늦게 풀렸는지 본다
 const doneAfterStart = new Trend('done_after_start', true);
+// 출발 시각부터 이 요청을 실제로 보낸 순간까지(ms). 결과 태그와 함께 남겨 100ms 구간별 보낸 수·거절 수를 본다
+// (tools/burst_buckets.py). HTTP 지표의 CSV 시각은 응답이 끝난 때라 보낸 순간의 몰림 모양을 알 수 없다
+const enterSendOffset = new Trend('enter_send_offset', true);
 
 export const options = {
   setupTimeout: '180s',
@@ -91,7 +94,8 @@ export default function (data) {
   const headers = authHeaders(accessToken(userIdOf(index)));
   const plannedAt = data.startAt + offsetMillis();
   sleepUntil(plannedAt);
-  sendLag.add(Math.max(0, Date.now() - plannedAt));
+  const sentAt = Date.now();
+  sendLag.add(Math.max(0, sentAt - plannedAt));
 
   const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/queue`), null,
     { headers, tags: { api: 'queue_enter' } });
@@ -99,7 +103,16 @@ export default function (data) {
   // 201: 새로 진입, 200: 이미 진입(멱등). 200이 나오면 앞 실행과 사용자가 겹친 것이다(USER_ID_BASE를 바꾼다)
   const result = res.status === 201 ? 'joined' : res.status === 200 ? 'already' : outcomeOf(res);
   enterDuration.add(res.timings.duration, { result });
-  enterResults.add(1, { result, code: result === 'error' || result === 'rejected' ? errorCodeOf(res) : String(res.status) });
+  // 응답 자체가 없으면(연결 거절·시한 초과, status 0) 본문이 없어 UNKNOWN이 되므로 따로 이름을 붙인다.
+  // 사용자마다 새 연결을 몰림 순간에 열므로 Gateway 수락 대기열(backlog)이 넘치면 여기에 잡힌다
+  const failCode = res.status === 0 ? 'NO_RESPONSE' : errorCodeOf(res);
+  const tags = { result, code: result === 'error' || result === 'rejected' ? failCode : String(res.status) };
+  // Note: 인증 bulkhead 거절과 서비스 503은 code가 같은 SERVICE_UNAVAILABLE이라 message로 가른다
+  if (result === 'error' || result === 'rejected') {
+    tags.msg = messageTagOf(res);
+  }
+  enterResults.add(1, tags);
+  enterSendOffset.add(sentAt - data.startAt, tags);
   check(res, { '진입 201 또는 200': (r) => r.status === 201 || r.status === 200 });
 }
 
