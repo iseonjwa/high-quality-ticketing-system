@@ -1,4 +1,4 @@
-package com.iseonjwa.reservation.seathold.infrastructure.token;
+package com.iseonjwa.reservation.reservation.infrastructure.token;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.Test;
