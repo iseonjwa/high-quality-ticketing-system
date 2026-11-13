@@ -1,5 +1,5 @@
 ---
-title: 서버 접근을 보안 그룹·사람별 키·접속 기록으로 묶은 것이 발표에서 장점이 되나
+title: 서버 접근을 보안 그룹·사람별 키·접속 기록으로 묶은 것이 발표에서 장점이 되나(이어서 HTTPS로 평문 전송 보완)
 date: 2026-11-13
 updated: 2026-11-13
 asker: Junhyun An
@@ -52,6 +52,15 @@ tags: [security, aws, ssh, deploy, presentation]
 | IP 허용 목록을 손으로 고친다 | 집·카페마다 IP가 바뀌어 운영 부담이 있고, 같은 공인 IP를 쓰는 다른 사람도 통과한다(키가 있어야 들어오지만) | 바뀌면 담당에게 IP를 보냄 | Session Manager는 22번을 열지 않아도 된다 |
 | Grafana 익명 보기 | 팀원 IP에서는 로그인 없이 지표를 본다 | 읽기 전용, 팀원 IP만 | 시연 뒤 닫거나 로그인 |
 
+### 이어진 질문: 비밀번호·JWT 평문 전송은 보완할 수 있나
+"로그인 비밀번호와 JWT가 평문으로 가는 거 보완할 수 있어?" 답은 HTTPS다. 브라우저와 서버 사이를 TLS로 암호화하면 중간에서 엿보거나 바꾸지 못한다.
+
+- **HTTPS가 푸는 것**: 브라우저 → 프론트 nginx 구간의 비밀번호, access·refresh 토큰, 입장 토큰, 결제 요청이 암호화된다. 그 뒤 nginx → Gateway → 서비스는 같은 서버 안의 compose 네트워크라 밖을 지나지 않는다.
+- **HTTPS가 풀지 않는 것**: 토큰을 브라우저 저장소에 두는 위험(XSS로 읽힘), 짧은 토큰 수명·블랙리스트 같은 인증 설계, 서버 접근(앞 절의 공용 계정)은 그대로다. 발생기 → Gateway 사설 IP 구간도 HTTP지만 측정 전용 키로 만든 토큰만 오간다.
+- **도메인 없이 가능한가**: 가능하다. Let's Encrypt가 IP 주소 인증서를 2026-01-15부터 일반 제공한다. IP 인증서는 유효기간 160시간(약 6일)짜리 shortlived 프로필만 된다. Certbot도 2026년 3월부터 IP 인증서 발급을 지원하지만, 웹 서버에 설치해 주지는 않는다. 배포 설계 문서에도 "리허설 뒤 Let's Encrypt IP 인증서로 붙인다"는 계획이 이미 있다(`deployment.md` 미정 표의 HTTPS 행).
+- **붙이려면 할 일**: 서버에서 certbot으로 발급(포트 80 웹루트 확인), 프론트 nginx에 443과 인증서 마운트, 80은 인증서 확인 경로만 두고 443으로 넘김, 보안 그룹 443 열기, 2~3일마다 자동 갱신과 nginx 다시 읽기. 프론트의 Grafana 링크가 화면 주소의 scheme을 따라가서(`grafana.ts`) https 화면에서는 `https://...:3000`이 되어 깨진다. Grafana 링크는 http로 고정해야 한다.
+- **주의**: 인증서가 6일이라 갱신이 한 번 실패하면 며칠 안에 화면이 막힌다. 시연(11/19) 전에 갱신 실패 알림을 둔다. IP 인증서와 짧은 수명 때문에 HSTS(브라우저가 https만 쓰게 기억)는 켜지 않는다. 갱신이 실패했을 때 http로도 열 수 없게 되기 때문이다.
+
 ### 발표에 넣는 방법
 - 보안을 따로 한 장으로 세우지 않는다. 배포 장표 한쪽에 "운영 원칙: 최소 노출·사람별 키·측정 잠금" 상자 하나와, 한계 표(ISE-276)에 위 다섯 줄을 넣는 정도가 맞다. 발제 요구사항과 짝지은 SA 3장 목표 표에 보안 항목은 따로 없다.
 - 가장 설득력 있는 예는 측정 쪽이다. 발생기에는 운영 키를 두지 않고 측정 전용 키만 그날만 두며, 측정 모드를 누가 켰는지 슬랙에 자동으로 남는다. "공용 기기를 여럿이 쓰면서도 권한과 책임을 사람 단위로 나눴다"는 이야기가 된다.
@@ -68,6 +77,8 @@ tags: [security, aws, ssh, deploy, presentation]
 - 장점을 말할 때 한계(HTTP)를 먼저 꺼내면 질문을 미리 막는다.
 
 ## 참고
+- Let's Encrypt, "6-Day and IP Address Certificates Are Generally Available"(2026-01-15): https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability.html
+- EFF, "Certbot and Let's Encrypt Now Support IP Address Certificates"(2026-03): https://eff.org/deeplinks/2026/03/certbot-and-lets-encrypt-now-support-ip-address-certificates
 - `docs/core/SA MASTER.md` 9-2절
 - `docs/design/infra/deployment.md` 3절, `docs/design/infra/load-test.md` 2-1절, ADR 0046
 - `docs/ai-judgments/junhyun/2026-11-04-aws-region-and-team-access.md`, `docs/ai-judgments/junhyun/2026-11-05-grafana-link-deploy-host.md`
