@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.concert.application;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -78,6 +79,19 @@ class SharedLoadCacheTest {
 
         assertEquals(2, loads.get());
         assertEquals("layout", cache.get(1L, () -> "other"));
+    }
+
+    // P4c(1초 캐시)가 쓰는 만료
+    @Test
+    void 만료_시간이_지나면_다시_읽는다() throws Exception {
+        SharedLoadCache<Long, String> ttlCache = new SharedLoadCache<>(Duration.ofMillis(200), value -> true);
+        AtomicInteger loads = new AtomicInteger();
+
+        ttlCache.get(1L, () -> "v" + loads.incrementAndGet());
+        assertEquals("v1", ttlCache.get(1L, () -> "v" + loads.incrementAndGet()));
+        Thread.sleep(300);
+
+        assertEquals("v2", ttlCache.get(1L, () -> "v" + loads.incrementAndGet()));
     }
 
     private static void await(CountDownLatch latch) {
