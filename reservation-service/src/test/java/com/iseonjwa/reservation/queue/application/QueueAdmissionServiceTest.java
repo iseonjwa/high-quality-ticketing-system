@@ -112,6 +112,16 @@ class QueueAdmissionServiceTest {
         public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public Optional<Long> issuedAt(long scheduleId, long userId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void discardToken(long scheduleId, long userId, long issuedAtEpochMillis) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     // 정해 둔 회차를 판매 중으로 돌려주는 가짜 창구

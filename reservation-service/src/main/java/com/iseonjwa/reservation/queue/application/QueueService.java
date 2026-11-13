@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -101,5 +102,15 @@ public class QueueService {
 
         EntryToken entryToken = entryTokenIssuer.issue(userId, scheduleId, issueTokenOutcome.issuedAt());
         return new QueueTokenResult(AdmissionStatus.ADMITTED, entryToken.value(), entryToken.expiresAt());
+    }
+
+    public void discardEntryToken(long scheduleId, long userId, String entryTokenJti) {
+        Optional<Long> issuedAt = queueRepository.issuedAt(scheduleId, userId);
+        if (issuedAt.isEmpty()) return;
+        long at = issuedAt.get();
+
+        if (!EntryTokenJti.of(scheduleId, userId, at).equals(entryTokenJti)) return;
+
+        queueRepository.discardToken(scheduleId, userId, at);
     }
 }
