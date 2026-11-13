@@ -31,6 +31,10 @@ import java.util.UUID;
  */
 @RestController
 public class SeatHoldController {
+    // Gateway가 검증한 입장 토큰의 jti를 넣고, 클라이언트가 보낸 같은 헤더는 지운다(contracts.md 1절, ADR 0053).
+    // Note: 선택 헤더로 받는다. 배포 경로에서는 Gateway가 이 API 앞에서 입장 토큰을 요구해 늘 붙는다
+    static final String ENTRY_TOKEN_ID_HEADER = "X-Entry-Token-Id";
+
     private final SyncSeatHoldService syncService;
     private final AsyncSeatHoldService asyncService;
     private final SeatHoldMode mode;
@@ -44,13 +48,14 @@ public class SeatHoldController {
 
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations")
     public ResponseEntity<SuccessResponse<?>> hold(@RequestAttribute Long currentUserId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey, @PathVariable Long scheduleId,
-            @Valid @RequestBody HoldRequest request) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
+            @PathVariable Long scheduleId, @Valid @RequestBody HoldRequest request) {
         if (scheduleId <= 0) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
         var command = new HoldSeatsCommand(currentUserId, RequestIds.parse(idempotencyKey), scheduleId,
-                request.seatIds());
+                request.seatIds(), entryTokenJti);
         if (mode == SeatHoldMode.ASYNC) {
             return accepted(asyncService.accept(command));
         }
