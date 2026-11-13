@@ -20,4 +20,13 @@ interface SpringDataSeatHoldRequestRepository extends JpaRepository<SeatHoldRequ
             """)
     int markHeld(@Param("requestId") UUID requestId, @Param("reservationId") Long reservationId,
             @Param("now") Instant now, @Param("actorId") Long actorId);
+
+    // 부분 유니크 인덱스(uq_seat_hold_requests_entry_token_jti)와 같은 조건이라 그 인덱스로 찾는다
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (
+                SELECT 1 FROM seat_hold_requests
+                 WHERE entry_token_jti = :jti
+                   AND status <> 'REJECTED')
+            """)
+    boolean existsActiveByEntryTokenJti(@Param("jti") String entryTokenJti);
 }

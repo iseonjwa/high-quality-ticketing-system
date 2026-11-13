@@ -46,6 +46,8 @@
 | 2026-11-13 | 다른 조 저장소 5곳에서 스택·결정이 아니라 형식·판단 방식만 가져오기로 하고, 판정 기준 사전 고정·전/후 표·실패 시나리오 표·한계 표·ArchUnit·리뷰 보강·CodeRabbit 적용 설계를 맡김 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-borrow-formats-not-stacks-from-other-teams.md) |
 | 2026-11-13 | **팀원 지시문이 Claude Code 세션만 전제했다는 지적으로, 필수 산출물 작업을 팀원 모두가 채팅·CLI·터미널 어느 것으로든 돌리게 점검표와 키트로 바꿈** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-13-deliverables-for-all-teammates-any-tool.md) |
 | 2026-11-13 | 발표 전 보완 제안(빈 필수 산출물, AI 코드 검토 방법, AI 대표 사례)을 받아들이고, 11/11 취소된 Synthetic Data를 발제 필수 항목으로 되살림(ISE-262·263) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-fill-presentation-gaps-restore-synthetic-data.md) |
+| 2026-11-13 | 접수형 소비자(ISE-17)보다 입장 토큰 소모(ISE-207) 선점 쪽 구현을 먼저 함 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-13-ise207-before-ise17.md) |
+| 2026-11-13 | **입장 토큰 소모 뒤 `issued` 정리를 AFTER_COMMIT 리스너(ADR 0053 초안) 대신 트랜잭션 밖 메서드 호출로 바꿈(리스너는 커넥션 반납 전에 돎)** | 팀 (권영은 제안, kwonwoo 동의) | Claude Code | **거부** | 후보 | [기록](kwonwoo/2026-11-13-entry-token-discard-by-method-not-listener.md) |
 | 2026-11-13 | **입장 토큰 소모 뒤 issued 정리를 이벤트 리스너로 유지하자는 AI 추천을 거부하고, 커넥션을 오래 잡지 않게 선점 쪽이 트랜잭션 밖에서 대기열 메서드를 jti와 함께 부르게 함** | youngeun | Claude | **거부** | 후보 | [기록](youngeun/2026-11-13-entry-token-discard-method-call.md) |
 | 2026-11-13 | **ISE-230 남은 확인 세 건은 답을 받은 뒤 마무리하자는 AI 순서를 거부하고, Retry-After 분리(A안)와 ADR 0050·0052 채택·대시보드·경보를 선조치 후보고로 진행함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-13-adopt-adr-0050-0052-before-replies.md) |
 | 2026-11-12 | 대기열 Redis 차단기 값을 Gateway auth-redis와 같게 두되, 느린 호출 기준을 AI 제안 50ms 대신 100ms로 올리고 공통 Redis 시한을 200ms로 늘림 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-12-queue-redis-circuit-breaker-values.md) |

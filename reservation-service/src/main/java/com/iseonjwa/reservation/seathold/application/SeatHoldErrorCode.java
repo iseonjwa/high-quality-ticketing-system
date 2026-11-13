@@ -12,7 +12,9 @@ public enum SeatHoldErrorCode implements ErrorCode {
     PURCHASE_LIMIT_EXCEEDED(409, "회차당 구매 가능 매수를 넘었습니다"),
     SEAT_ALREADY_HELD(409, "이미 선택된 좌석입니다"),
     // 같은 멱등키 재요청인데 첫 선점이 이미 닫혔거나 결제 토큰을 줄 수 있는 시각이 지났다(contracts.md 3-2 ④)
-    RESERVATION_NOT_PAYABLE(409, "결제할 수 없는 예매입니다");
+    RESERVATION_NOT_PAYABLE(409, "결제할 수 없는 예매입니다"),
+    // 이 입장 토큰으로 이미 선점했다. 403이라 프론트가 ENTRY_TOKEN_INVALID처럼 토큰을 지우고 대기열로 보낸다(ADR 0053 결정 4)
+    ENTRY_TOKEN_USED(403, "이미 좌석 선점에 쓴 입장 토큰입니다. 대기열에 다시 서 주세요");
 
     private final int status;
     private final String message;

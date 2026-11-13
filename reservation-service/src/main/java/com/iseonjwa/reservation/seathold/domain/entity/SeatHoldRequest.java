@@ -56,25 +56,35 @@ public class SeatHoldRequest extends BaseEntity implements Persistable<UUID> {
     @Column(name = "reason_code", updatable = false, length = 40)
     private String reasonCode;
 
+    // 이 선점에 쓴 입장 토큰의 jti. 입장 토큰 없이 들어온 요청은 null이다(ADR 0053)
+    @Column(name = "entry_token_jti", updatable = false, length = 64)
+    private String entryTokenJti;
+
     // Note: ID를 직접 정하는 엔티티는 Spring Data가 새 엔티티로 보지 않고 merge로 저장한다. merge는 같은 PK가 있으면
     // 위반 없이 넘어가 "같은 멱등키 재요청은 PK 충돌로 감지한다"는 계약이 깨진다. 저장 전까지 새 엔티티로 표시해 persist로 보낸다.
     @Getter(AccessLevel.NONE)
     @Transient
     private boolean isNew = true;
 
-    private SeatHoldRequest(UUID requestId, Long userId, Long scheduleId, List<Long> seatIds) {
+    private SeatHoldRequest(UUID requestId, Long userId, Long scheduleId, List<Long> seatIds, String entryTokenJti) {
         this.requestId = requestId;
         this.userId = userId;
         this.scheduleId = scheduleId;
         this.seatIds = List.copyOf(seatIds);
         this.status = SeatHoldRequestStatus.REQUESTED;
+        this.entryTokenJti = entryTokenJti;
     }
 
     public static SeatHoldRequest request(UUID requestId, Long userId, Long scheduleId, List<Long> seatIds) {
+        return request(requestId, userId, scheduleId, seatIds, null);
+    }
+
+    public static SeatHoldRequest request(UUID requestId, Long userId, Long scheduleId, List<Long> seatIds,
+            String entryTokenJti) {
         if (seatIds.isEmpty()) {
             throw new IllegalArgumentException("선점할 좌석이 없습니다");
         }
-        return new SeatHoldRequest(requestId, userId, scheduleId, seatIds);
+        return new SeatHoldRequest(requestId, userId, scheduleId, seatIds, entryTokenJti);
     }
 
     // 동기형은 선점과 같은 트랜잭션에서 결과까지 정해지므로 REQUESTED를 거치지 않고 HELD로 저장한다(ADR 0032)

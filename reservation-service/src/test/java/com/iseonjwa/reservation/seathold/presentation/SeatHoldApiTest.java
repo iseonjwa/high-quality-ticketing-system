@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
-import com.iseonjwa.reservation.seathold.infrastructure.token.PaymentTokenTestKeys;
+import com.iseonjwa.reservation.reservation.infrastructure.token.PaymentTokenTestKeys;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;

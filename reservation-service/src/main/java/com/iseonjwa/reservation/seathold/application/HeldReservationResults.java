@@ -1,5 +1,6 @@
 package com.iseonjwa.reservation.seathold.application;
 
+import com.iseonjwa.reservation.reservation.application.PaymentTokenIssuer;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import org.springframework.stereotype.Component;
 
