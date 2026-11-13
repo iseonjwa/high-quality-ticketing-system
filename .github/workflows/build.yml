@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# 같은 PR에 커밋을 연달아 올리면 앞선 빌드를 취소한다(ISE-274). 결과가 필요한 것은 마지막 커밋뿐이다.
+# main·dev push는 취소하지 않는다. 머지마다 빌드 결과가 남아야 어느 머지에서 깨졌는지 안다.
+# Note: 한 그룹에는 대기 실행이 하나만 남고 먼저 기다리던 실행은 cancel-in-progress가 false여도 취소된다(images.yml과 같은 이유).
+#       그래서 push는 브랜치가 아니라 커밋(SHA)마다 그룹을 따로 둔다
+concurrency:
+  group: build-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
