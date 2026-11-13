@@ -3,10 +3,8 @@ package com.iseonjwa.reservation.reservation.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
-import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationSeatRepository;
-import com.iseonjwa.reservation.seathold.application.PaymentTokenIssuer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,11 +40,10 @@ public class ReservationService {
                 reservationRepository.countByUserId(userId));
     }
 
-    // Note: 선점 재요청(SyncSeatHoldService)과 같은 기준이다. 선점 만료 10초 전부터는 토큰을 주지 않는다.
+    // Note: 선점 재요청·접수형 결과 조회와 같은 판정(Reservation.isPayableAt)이다. 선점 만료 10초 전부터는 토큰을 주지 않는다.
     // 그 안에 결제하면 승인이 선점 만료 뒤에 도착해 환불로 끝날 수 있다(설계 검토 07 G6)
     private String paymentToken(Reservation reservation) {
-        if (reservation.getStatus() != ReservationStatus.HELD || !clock.instant()
-                .isBefore(reservation.getHoldExpiresAt().minus(PaymentTokenIssuer.EXPIRY_MARGIN))) {
+        if (!reservation.isPayableAt(clock.instant())) {
             return null;
         }
         // 조회할 때마다 새로 서명한다. 만료는 선점 만료에서 계산해 선점 응답의 토큰과 같고 jti만 다르다

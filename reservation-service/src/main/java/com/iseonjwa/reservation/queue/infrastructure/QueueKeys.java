@@ -9,6 +9,10 @@ public record QueueKeys(String prefix) {
         return new QueueKeys("queue:{" + scheduleId + "}:");
     }
 
+    String issuedKey() {
+        return prefix + "issued";
+    }
+
     List<String> enterKeys() {
         return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued");
     }
@@ -23,5 +27,9 @@ public record QueueKeys(String prefix) {
 
     List<String> issueTokenKeys() {
         return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued");
+    }
+
+    List<String> discardEntryTokenKeys() {
+        return List.of(issuedKey());
     }
 }

@@ -1,6 +1,6 @@
 # 0050. Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다
 
-- 상태: 제안 (ISE-230 contract. 대기열 담당 확인 뒤 채택)
+- 상태: 채택 (2026-11-13. 마감 일정 때문에 대기열 담당 확인 전에 선조치 후보고로 채택했다. 이견은 ISE-230에서 받고, 이견이 나오면 다시 제안으로 돌린다)
 - 날짜: 2026-11-11
 - 결정자: 이강민(사용자 결정), 근거 측정 권영은·이강민
 - 관련 AI 판단: [운영값과 거절 경보 선택](../ai-judgments/kangmin/2026-11-11-gateway-auth-redis-operating-values.md), [11/10 재측정 값](../ai-judgments/kangmin/2026-11-10-auth-redis-timeout-bulkhead-measure-values.md)
@@ -61,5 +61,5 @@
   - Redis 장애 감지가 늦어 문제가 되면 느린 호출 비율·최소 건수를 낮춘다. 장애 주입(Redis 지연)으로 감지 시간을 먼저 잰다.
 - 후속
   - 배포 뒤 측정 모드 없이 G1 또는 Q1로 한 번 재서 운영값이 덮어쓰기 측정과 같은지 확인한다. 대기열 담당이 2026-11-15에 Q1·Q2-10k·Q1-d로 Gateway 덮어쓰기 없이 잰다(PR `#487` 리뷰). 이때 피크 경보가 울리는지도 본다.
-  - Retry-After 분리(ISE-230 3번)는 따로 한다.
+  - Retry-After 분리(ISE-230 3번)는 2026-11-13에 했다. 차단기 열림 거절은 `auth-redis` 열림 시간(올림한 정수 초), 닫힌 상태의 한 번 실패는 `auth.redis-retry-after`(기본 3초, 대기열 최소 조회 간격과 같음)다. 열림 시간을 바꾸면 Retry-After도 따라온다(`AuthRedisRetryAfter`).
   - 차단기 열림 경보(Redis 장애)는 이번에 넣지 않았다.

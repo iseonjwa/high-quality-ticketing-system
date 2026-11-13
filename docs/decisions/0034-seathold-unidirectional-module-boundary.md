@@ -42,3 +42,4 @@ SA MASTER 13장의 `reservation-service` 패키지 구조 초안은 `concert`, `
   - `seathold.application`에서 `reservation.domain`의 엔티티·저장소(또는 포트)를 import해 조합해야 한다.
 - 후속 작업:
   - 예매 흐름 담당(반효승) 확인 후 SA 13장 패키지 구조에 `seathold`를 반영한다.
+- 위반 정리(2026-11-13, ISE-273): 예매 상세 조회(ISE-171)가 `seathold.application.PaymentTokenIssuer`를 import해 `reservation → seathold` 방향이 1곳 생겼다. 토큰 claim이 모두 예매의 값이라 포트를 `reservation.application`, 구현을 `reservation.infrastructure.token`으로 옮겨 없앴다. 선점 모듈은 이 포트를 `seathold → reservation` 방향으로 쓴다. 패키지 순환 `reservation → lottery → seathold → reservation`은 남아 있으나 이 ADR이 금지한 방향(`reservation`·`concert` → `seathold` 직접 import)은 아니다. 규칙을 자동으로 검사하는 테스트는 아직 없다.

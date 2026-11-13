@@ -1,9 +1,12 @@
 package com.iseonjwa.reservation.queue.presentation;
 
+import com.iseonjwa.common.auth.EntryTokenDecoder;
+import com.iseonjwa.reservation.queue.application.QueueService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,6 +26,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // 대기열 진입·순번 조회·토큰 발급 API를 실제 HTTP, Redis, PostgreSQL로 확인
@@ -52,6 +56,10 @@ class QueueApiTest {
     JdbcTemplate jdbc;
     @Autowired
     StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    QueueService queueService;
+    @Value("${entry-token.secret}")
+    String entryTokenSecret;
 
 
     @AfterEach
@@ -217,6 +225,36 @@ class QueueApiTest {
             assertEquals(first.get("entryTokenExpiresAt").asString(), second.get("entryTokenExpiresAt").asString());
         }
 
+        // ISE-207 완료 기준: 소모 뒤 대기열에 다시 진입하면 새 번호와 새 jti 토큰을 받는다
+        @Test
+        void 선점에_쓴_토큰을_정리하면_다시_줄을_서서_새_jti_토큰을_받는다() throws Exception {
+            long scheduleId = createOnSaleSchedule();
+            enter(USER_ID, scheduleId);
+            admitUntil(scheduleId, 1);
+            String usedJti = jti(issueToken(USER_ID, scheduleId));
+
+            queueService.discardEntryToken(scheduleId, USER_ID, usedJti); // 선점 쪽이 트랜잭션 밖에서 부르는 것과 같다
+
+            Response reentered = enter(USER_ID, scheduleId);
+            assertEquals(201, reentered.status(), reentered.json().toString()); // 새로 줄을 선다
+            assertEquals(2.0, stringRedisTemplate.opsForZSet().score(key(scheduleId, "waiting"), String.valueOf(USER_ID)));
+            admitUntil(scheduleId, 2);
+            String newJti = jti(issueToken(USER_ID, scheduleId));
+            assertNotEquals(usedJti, newJti);
+        }
+
+        @Test
+        void 다른_토큰의_jti로는_정리되지_않아_같은_토큰을_다시_받는다() throws Exception {
+            long scheduleId = createOnSaleSchedule();
+            enter(USER_ID, scheduleId);
+            admitUntil(scheduleId, 1);
+            String jti = jti(issueToken(USER_ID, scheduleId));
+
+            queueService.discardEntryToken(scheduleId, USER_ID, "0".repeat(32));
+
+            assertEquals(jti, jti(issueToken(USER_ID, scheduleId)));
+        }
+
         @Test
         void 차례_전이면_409_QUEUE_NOT_READY() throws Exception {
             long scheduleId = createOnSaleSchedule();
@@ -276,6 +314,12 @@ class QueueApiTest {
 
     private Response issueToken(long userId, long scheduleId) throws Exception {
         return send(post(queuePath(scheduleId) + "/token", userId));
+    }
+
+    private String jti(Response tokenResponse) {
+        assertEquals(200, tokenResponse.status(), tokenResponse.json().toString());
+        String token = tokenResponse.json().get("data").get("entryToken").asString();
+        return new EntryTokenDecoder(entryTokenSecret).decode(token).getId();
     }
 
     private static String queuePath(long scheduleId) {

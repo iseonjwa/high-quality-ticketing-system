@@ -45,6 +45,16 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  redis:
+    # config-repo/reservation-service.yml과 같은 값이다. 테스트 호출 수가 최소 호출 수(500)보다 훨씬 적어 열리지 않는다
+    circuit-breaker:
+      sliding-window-size: 10
+      minimum-number-of-calls: 500
+      failure-rate-threshold: 50
+      slow-call-duration-threshold: 100ms
+      slow-call-rate-threshold: 80
+      wait-duration-in-open-state: 5s
+      permitted-number-of-calls-in-half-open-state: 20
 entry-token:
   # 테스트 전용 값이다. 결제 토큰 키와 다르게 둔다
   secret: ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100

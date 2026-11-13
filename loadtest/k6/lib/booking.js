@@ -57,6 +57,50 @@ export function pickSeatsFromMap(body, count, hotRatio = 0.7, hotShare = 0.1) {
   return seatIds;
 }
 
+// 등급 구간의 경계. 좌석 조회 응답은 구역을 A~Y 순서로 주고(ScheduleSeatsResponse, 구역 오름차순) 구역 등급은
+// A~E VIP, F~O R, P~Y S다(venue 시드). 그래서 구역 시작 표지를 본문에서 찾아 등급 구간을 문자열 위치로 정한다
+const ZONE_MARKS = { VIP: ['"section":"A"', '"section":"F"'], R: ['"section":"F"', '"section":"P"'], S: ['"section":"P"', null] };
+
+// 좌석 조회 응답에서 등급(VIP·R·S·ANY) 구간 안의 선택 가능한 좌석 count개를 고른다. 구간 안 무작위 위치부터 찾고
+// 구간 끝까지 없으면 구간 처음부터 찾는다. 두 번째 좌석부터는 바로 다음 선택 가능 좌석이다(pickSeatsFromMap과 같다).
+// count개를 못 모으면 빈 배열을 돌려준다. k6 API를 쓰지 않는 순수 함수다
+export function pickSeatsInZone(body, count, zone) {
+  const marks = ZONE_MARKS[zone] || [null, null];
+  const from = marks[0] === null ? 0 : body.indexOf(marks[0]);
+  if (from < 0) {
+    return [];
+  }
+  const nextMark = marks[1] === null ? -1 : body.indexOf(marks[1], from);
+  const to = nextMark < 0 ? body.length : nextMark;
+  let start = body.indexOf(AVAILABLE, from + Math.floor(Math.random() * (to - from)));
+  if (start < 0 || start >= to) {
+    start = body.indexOf(AVAILABLE, from);
+  }
+  if (start < 0 || start >= to) {
+    return [];
+  }
+  const seatIds = [];
+  // 시작 위치부터 구간 끝까지 모으고, 모자라면 구간 처음부터 시작 위치 앞까지 이어서 모은다
+  collectSeats(body, start, to, count, seatIds);
+  if (seatIds.length < count && start > from) {
+    collectSeats(body, from, start, count, seatIds);
+  }
+  return seatIds.length === count ? seatIds : [];
+}
+
+function collectSeats(body, first, limit, count, seatIds) {
+  let position = body.indexOf(AVAILABLE, first);
+  while (position >= 0 && position < limit && seatIds.length < count) {
+    const start = body.lastIndexOf('{', position);
+    const end = body.indexOf('}', position);
+    const match = /"seatId":(\d+)/.exec(body.substring(start, end));
+    if (match && seatIds.indexOf(Number(match[1])) < 0) {
+      seatIds.push(Number(match[1]));
+    }
+    position = body.indexOf(AVAILABLE, position + AVAILABLE.length);
+  }
+}
+
 export function isSoldOut(body) {
   return body.indexOf(AVAILABLE) < 0;
 }

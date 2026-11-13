@@ -26,6 +26,10 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-13 | 서버 접근을 보안 그룹·사람별 키·접속 기록으로 묶은 것이 발표에서 장점이 되나(한 것, 한계, 발표에 넣는 법), 비밀번호·JWT 평문 전송을 HTTPS(IP 인증서)로 보완하는 법 | [qna/2026-11-13-server-access-security-as-strength.md](qna/2026-11-13-server-access-security-as-strength.md) |
+| 2026-11-13 | 다른 조 저장소 5곳에서 배울 점과 우리 프로젝트에 적용할 것 | [qna/2026-11-13-other-teams-repos-lessons.md](qna/2026-11-13-other-teams-repos-lessons.md) |
+| 2026-11-13 | Synthetic Data가 뭐고, 부하 테스트에서 왜 필요한가 | [qna/2026-11-13-what-is-synthetic-data.md](qna/2026-11-13-what-is-synthetic-data.md) |
+| 2026-11-13 | 최종 발표에서 심사위원은 무엇을 보나, 우리는 무엇을 더 채워야 하나(4조 비교, AI 코드 검토 방법) | [qna/2026-11-13-final-presentation-gaps-vs-rubric.md](qna/2026-11-13-final-presentation-gaps-vs-rubric.md) |
 | 2026-11-12 | 이미지 생성 API 없이 서버가 LLM(Claude API)으로 그림(SVG)을 만들 수 있나 | [qna/2026-11-12-server-side-svg-generation-with-llm.md](qna/2026-11-12-server-side-svg-generation-with-llm.md) |
 | 2026-11-12 | 저장하지 않고도 내가 발급한 값인지, 그 안의 값이 바뀌지 않았는지 어떻게 아는가 | [qna/2026-11-12-signed-identifiers-stateless-verification.md](qna/2026-11-12-signed-identifiers-stateless-verification.md) |
 | 2026-11-12 | 매번 전체를 다시 읽지 않고 바뀐 것만 따라 읽으려면 무엇을 기억해야 하는가 | [qna/2026-11-12-incremental-read-watermark.md](qna/2026-11-12-incremental-read-watermark.md) |

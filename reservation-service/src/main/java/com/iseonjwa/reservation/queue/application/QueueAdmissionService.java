@@ -1,6 +1,7 @@
 package com.iseonjwa.reservation.queue.application;
 
 import com.iseonjwa.reservation.queue.domain.QueueRepository;
+import com.iseonjwa.reservation.queue.domain.QueueStorageUnavailableException;
 import com.iseonjwa.reservation.queue.domain.ScheduleReader;
 import com.iseonjwa.reservation.queue.domain.ScheduleTimes;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,8 @@ public class QueueAdmissionService {
                         queueProperties.entryTokenTtl().toMillis(),
                         queueProperties.cleanupLimit(),
                         scheduleTimes.startsAt().plus(queueProperties.keyRetentionAfterStart()).getEpochSecond());
+            } catch (QueueStorageUnavailableException e) {
+                log.warn("Redis가 잠시 응답하지 않아 이번 입장 처리를 건너뜁니다. scheduleId={}", scheduleTimes.id());
             } catch (RuntimeException e) {
                 log.error("입장 처리에 실패했습니다. 다음 주기에 다시 시도합니다. scheduleId={}", scheduleTimes.id(), e);
             }

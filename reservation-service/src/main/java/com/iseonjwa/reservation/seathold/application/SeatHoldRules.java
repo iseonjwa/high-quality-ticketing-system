@@ -3,9 +3,8 @@ package com.iseonjwa.reservation.seathold.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
-import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
-import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
+import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -39,6 +38,14 @@ final class SeatHoldRules {
         }
     }
 
+    // 입장 토큰은 선점이 성공한 순간 소모한다(ADR 0053). 거절되지 않은 요청(처리 중·성공)이 이미 쓴 토큰이면 거절한다.
+    // 이 조회는 빠른 거절용이고, 동시에 온 요청은 저장할 때 부분 유니크 인덱스가 막는다
+    static void requireUnusedEntryToken(SeatHoldRequestRepository requests, HoldSeatsCommand command) {
+        if (command.entryTokenJti() != null && requests.existsActiveByEntryTokenJti(command.entryTokenJti())) {
+            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+        }
+    }
+
     // 같은 멱등키는 같은 사용자·회차·좌석일 때만 재요청으로 인정한다(contracts.md 3-1)
     static void requireSameRequest(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
         if (!previous.getUserId().equals(command.userId())
@@ -46,11 +53,5 @@ final class SeatHoldRules {
                 || !previous.getSeatIds().equals(seatIds)) {
             throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
         }
-    }
-
-    // Note: 만료 스케줄러가 돌기 전이면 기한이 지나도 HELD로 남아 있어서 상태만 보지 않고 시각도 본다
-    static boolean isPayable(Reservation reservation, Instant now) {
-        return reservation.getStatus() == ReservationStatus.HELD
-                && now.isBefore(reservation.getHoldExpiresAt().minus(PaymentTokenIssuer.EXPIRY_MARGIN));
     }
 }

@@ -7,6 +7,8 @@ import com.iseonjwa.reservation.seathold.application.AsyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.application.HoldSeatsCommand;
 import com.iseonjwa.reservation.seathold.application.SyncHoldOutcome;
 import com.iseonjwa.reservation.seathold.application.SyncSeatHoldService;
+import com.iseonjwa.reservation.seathold.observability.SeatHoldMetrics;
+import com.iseonjwa.reservation.seathold.observability.SeatHoldMetrics.Outcome;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.AcceptedResponse;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldRequest;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldResponse;
@@ -31,26 +33,45 @@ import java.util.UUID;
  */
 @RestController
 public class SeatHoldController {
+    // Gateway가 검증한 입장 토큰의 jti를 넣고, 클라이언트가 보낸 같은 헤더는 지운다(contracts.md 1절, ADR 0053).
+    // Note: 선택 헤더로 받는다. 배포 경로에서는 Gateway가 이 API 앞에서 입장 토큰을 요구해 늘 붙는다
+    static final String ENTRY_TOKEN_ID_HEADER = "X-Entry-Token-Id";
+
     private final SyncSeatHoldService syncService;
     private final AsyncSeatHoldService asyncService;
     private final SeatHoldMode mode;
+    private final SeatHoldMetrics metrics;
 
     public SeatHoldController(SyncSeatHoldService syncService, AsyncSeatHoldService asyncService,
-            @Value("${seat-hold.mode:sync}") String mode) {
+            @Value("${seat-hold.mode:sync}") String mode, SeatHoldMetrics metrics) {
         this.syncService = syncService;
         this.asyncService = asyncService;
         this.mode = SeatHoldMode.from(mode);
+        this.metrics = metrics;
     }
 
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations")
     public ResponseEntity<SuccessResponse<?>> hold(@RequestAttribute Long currentUserId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey, @PathVariable Long scheduleId,
-            @Valid @RequestBody HoldRequest request) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
+            @PathVariable Long scheduleId, @Valid @RequestBody HoldRequest request) {
+        try {
+            var response = holdOnce(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);
+            metrics.record(response.getStatusCode().value() == 201 ? Outcome.HELD : Outcome.ACCEPTED);
+            return response;
+        } catch (RuntimeException exception) {
+            metrics.recordFailure(exception);
+            throw exception;
+        }
+    }
+
+    private ResponseEntity<SuccessResponse<?>> holdOnce(Long currentUserId, String idempotencyKey,
+            String entryTokenJti, Long scheduleId, HoldRequest request) {
         if (scheduleId <= 0) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
         var command = new HoldSeatsCommand(currentUserId, RequestIds.parse(idempotencyKey), scheduleId,
-                request.seatIds());
+                request.seatIds(), entryTokenJti);
         if (mode == SeatHoldMode.ASYNC) {
             return accepted(asyncService.accept(command));
         }

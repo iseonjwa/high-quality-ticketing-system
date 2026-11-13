@@ -49,6 +49,17 @@ class QueueAdmissionServiceTest {
     }
 
     @Test
+    void Redis가_잠시_안_돼도_다음_회차는_처리한다() {
+        repository.failingScheduleIds = Set.of(31L);
+        repository.failure = new QueueStorageUnavailableException(new RuntimeException("timeout"));
+        var service = service(List.of(schedule(31L), schedule(32L)));
+
+        service.admitOnSale(); // 예외가 밖으로 나오지 않아야 한다
+
+        assertEquals(List.of(31L, 32L), repository.admittedScheduleIds());
+    }
+
+    @Test
     void 판매_중인_회차가_없으면_아무것도_하지_않는다() {
         var service = service(List.of());
 
@@ -73,12 +84,13 @@ class QueueAdmissionServiceTest {
     static class RecordingQueueRepository implements QueueRepository {
         final List<Admit> calls = new ArrayList<>();
         Set<Long> failingScheduleIds = Set.of();
+        RuntimeException failure = new IllegalStateException("Redis 오류");
 
         @Override
         public void admit(long scheduleId, int admitPerSecond, long tokenTtlMillis, int cleanupLimit, long keyExpireAtEpochSecond) {
             calls.add(new Admit(scheduleId, admitPerSecond, tokenTtlMillis, cleanupLimit, keyExpireAtEpochSecond));
             if (failingScheduleIds.contains(scheduleId)) {
-                throw new IllegalStateException("Redis 오류");
+                throw failure;
             }
         }
 
@@ -98,6 +110,16 @@ class QueueAdmissionServiceTest {
 
         @Override
         public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<Long> issuedAt(long scheduleId, long userId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void discardToken(long scheduleId, long userId, long issuedAtEpochMillis) {
             throw new UnsupportedOperationException();
         }
     }

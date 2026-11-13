@@ -45,6 +45,8 @@ class GatewayAuthenticationFilterTimeoutTest {
             .withBean(GatewayErrorWriter.class, () -> new GatewayErrorWriter(JsonMapper.builder().build(), mock(Tracer.class)))
             .withBean(ReactiveCircuitBreakerFactory.class, GatewayAuthenticationFilterTimeoutTest::passThroughBreakers)
             .withBean(AuthRedisFailures.class, () -> new AuthRedisFailures(meters, CircuitBreakerRegistry.ofDefaults()))
+            .withBean(CircuitBreakerRegistry.class, CircuitBreakerRegistry::ofDefaults)
+            .withUserConfiguration(AuthRedisRetryAfter.class)
             .withUserConfiguration(GatewayAuthenticationFilter.class);
 
     @Test
@@ -57,6 +59,8 @@ class GatewayAuthenticationFilterTimeoutTest {
 
             assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(elapsed).isGreaterThanOrEqualTo(Duration.ofMillis(200));
+            // auth.redis-retry-after가 없으면 한 번 실패의 Retry-After는 3초다
+            assertThat(exchange.getResponse().getHeaders().getFirst("Retry-After")).isEqualTo("3");
         });
     }
 

@@ -2,6 +2,7 @@ package com.iseonjwa.reservation.queue.infrastructure;
 
 import com.iseonjwa.common.auth.EntryTokenDecoder;
 import com.iseonjwa.reservation.queue.domain.EntryToken;
+import com.iseonjwa.reservation.queue.domain.EntryTokenJti;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -61,5 +62,12 @@ class JwtEntryTokenIssuerTest {
         String b = decoder.decode(issuer.issue(USER_ID, SCHEDULE_ID, ISSUED_AT_MILLIS + 1).value()).getId();
 
         assertNotEquals(a, b); // iat은 같은 초여도 jti는 ms로 구분된다
+    }
+
+    @Test
+    void 토큰의_jti는_대기열_정리가_다시_계산하는_값과_같다() {
+        String jti = decoder.decode(issuer.issue(USER_ID, SCHEDULE_ID, ISSUED_AT_MILLIS).value()).getId();
+
+        assertEquals(EntryTokenJti.of(SCHEDULE_ID, USER_ID, ISSUED_AT_MILLIS), jti);
     }
 }

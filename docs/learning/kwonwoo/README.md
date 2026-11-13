@@ -6,6 +6,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-13 | ISE-207(입장 토큰을 선점 성공 때 소모) 초안대로 구현하면 어디서 어긋나나 | [qna/2026-11-13-ise207-entry-token-consume-gaps.md](qna/2026-11-13-ise207-entry-token-consume-gaps.md) |
+| 2026-11-13 | ISE-255 접수형 장애 때 동기형 비상 전환을 범위에 둘지, 무엇을 보고 정하나 | [qna/2026-11-13-ise255-emergency-mode-switch-scope.md](qna/2026-11-13-ise255-emergency-mode-switch-scope.md) |
+| 2026-11-13 | ISE-277 서버 지표(HTTP 히스토그램, 선점 결과 카운터)를 더하면 선점 성능이 떨어지나 | [qna/2026-11-13-ise277-metrics-performance-impact.md](qna/2026-11-13-ise277-metrics-performance-impact.md) |
 | 2026-11-12 | 벌크헤드(Bulkhead)와 동시 처리수 상한(Concurrency Limit)의 차이 | [qna/2026-11-12-bulkhead-vs-concurrency-limit.md](qna/2026-11-12-bulkhead-vs-concurrency-limit.md) |
 | 2026-11-12 | 접수형으로 받은 요청을 동기형 서버가 같은 키로 다시 받으면 왜 500이 나고, 어떻게 막을 것인가 | [qna/2026-11-12-mode-switch-replay-gap.md](qna/2026-11-12-mode-switch-replay-gap.md) |
 | 2026-11-12 | 접수형 선점(ISE-16)에서 남은 다섯 가지 결정의 트레이드오프와 추천안 | [qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md](qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md) |

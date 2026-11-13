@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -27,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataRedisTest
 @ActiveProfiles("test")
-@Import(RedisQueueRepository.class) // 슬라이스 테스트는 @Repository를 자동으로 안 띄워서 직접 넣어야 함
+// 슬라이스 테스트는 @Repository와 차단기 설정을 자동으로 안 띄워서 직접 넣어야 함
+@Import({RedisQueueRepository.class, QueueRedisCircuitBreakerConfiguration.class})
 class RedisQueueRepositoryTest {
 
     static final long SCHEDULE_ID = 31L;
@@ -552,6 +554,68 @@ class RedisQueueRepositoryTest {
             stringRedisTemplate.opsForValue().set("queue:{" + OTHER_SCHEDULE_ID + "}:admitted", "10");
 
             assertEquals(IssueTokenOutcome.Type.NOT_JOINED, issue(42).type());
+        }
+    }
+
+    // 선점에 쓴 토큰의 발급 기록 읽기·지우기 (ISE-207)
+    @Nested
+    class 토큰_정리 {
+
+        static final long ISSUED_AT = 1_793_176_230_123L; // ms. double로 저장돼도 그대로 돌아오는지 본다
+
+        @Test
+        void 발급_시각을_ms_그대로_읽는다() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", ISSUED_AT);
+
+            assertEquals(Optional.of(ISSUED_AT), queueRepository.issuedAt(SCHEDULE_ID, 42));
+        }
+
+        @Test
+        void 발급_기록이_없으면_빈_값이다() {
+            assertEquals(Optional.empty(), queueRepository.issuedAt(SCHEDULE_ID, 42));
+        }
+
+        @Test
+        void 발급_시각이_같으면_지운다() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", ISSUED_AT);
+
+            queueRepository.discardToken(SCHEDULE_ID, 42, ISSUED_AT);
+
+            assertNull(stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+        }
+
+        @Test
+        void 발급_시각이_다르면_새로_받은_기록이라_지우지_않는다() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", ISSUED_AT + 60_000);
+
+            queueRepository.discardToken(SCHEDULE_ID, 42, ISSUED_AT);
+
+            assertEquals(Double.valueOf(ISSUED_AT + 60_000), stringRedisTemplate.opsForZSet().score(ISSUED, "42"));
+        }
+
+        @Test
+        void 발급_기록이_없어도_오류_없이_끝난다() {
+            assertDoesNotThrow(() -> queueRepository.discardToken(SCHEDULE_ID, 42, ISSUED_AT)); // Lua가 nil을 돌려줘도 된다
+        }
+
+        @Test
+        void 같은_시각에_받은_다른_사용자는_지우지_않는다() {
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", ISSUED_AT);
+            stringRedisTemplate.opsForZSet().add(ISSUED, "43", ISSUED_AT);
+
+            queueRepository.discardToken(SCHEDULE_ID, 42, ISSUED_AT);
+
+            assertEquals(Double.valueOf(ISSUED_AT), stringRedisTemplate.opsForZSet().score(ISSUED, "43"));
+        }
+
+        @Test
+        void 다른_회차의_기록은_지우지_않는다() {
+            String otherIssued = "queue:{" + OTHER_SCHEDULE_ID + "}:issued";
+            stringRedisTemplate.opsForZSet().add(otherIssued, "42", ISSUED_AT);
+
+            queueRepository.discardToken(SCHEDULE_ID, 42, ISSUED_AT);
+
+            assertEquals(Double.valueOf(ISSUED_AT), stringRedisTemplate.opsForZSet().score(otherIssued, "42"));
         }
     }
 }

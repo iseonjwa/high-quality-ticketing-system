@@ -34,17 +34,20 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     private final GatewayErrorWriter errors;
     private final ReactiveCircuitBreaker redisBreaker;
     private final AuthRedisFailures redisFailures;
+    private final AuthRedisRetryAfter retryAfter;
     private final Duration redisTimeout;
 
     // Note: 운영 값은 config-repo/gateway.yml의 200ms다(ADR 0050). 기본값도 같게 둬 설정이 빠져도 느린 호출 기준(100ms)과 겹치지 않게 한다.
     public GatewayAuthenticationFilter(JwtDecoder decoder, ReactiveStringRedisTemplate redis,
             GatewayErrorWriter errors, ReactiveCircuitBreakerFactory<?, ?> breakers,
-            AuthRedisFailures redisFailures, @Value("${auth.redis-timeout:200ms}") Duration redisTimeout) {
+            AuthRedisFailures redisFailures, AuthRedisRetryAfter retryAfter,
+            @Value("${auth.redis-timeout:200ms}") Duration redisTimeout) {
         this.decoder = decoder;
         this.redis = redis;
         this.errors = errors;
         this.redisBreaker = breakers.create(AUTH_REDIS_BREAKER);
         this.redisFailures = redisFailures;
+        this.retryAfter = retryAfter;
         this.redisTimeout = redisTimeout;
     }
 
@@ -90,7 +93,7 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
                         : chain.filter(withIdentity(exchange, jwt)))
                 .onErrorResume(AuthDependencyUnavailable.class,
                         exception -> errors.write(exchange, 503, "SERVICE_UNAVAILABLE",
-                                "일시적으로 인증을 확인할 수 없습니다"));
+                                "일시적으로 인증을 확인할 수 없습니다", exception.retryAfter));
     }
 
     private Mono<Boolean> isRevoked(Jwt jwt) {
@@ -100,8 +103,8 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
         return Mono.defer(() -> {
             var startedAt = System.nanoTime();
             return redisBreaker.run(lookup).onErrorMap(exception -> {
-                redisFailures.record(exception, Duration.ofNanos(System.nanoTime() - startedAt));
-                return new AuthDependencyUnavailable();
+                var cause = redisFailures.record(exception, Duration.ofNanos(System.nanoTime() - startedAt));
+                return new AuthDependencyUnavailable(retryAfter.of(cause));
             });
         });
     }
@@ -128,5 +131,12 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
                 .build();
     }
 
-    private static final class AuthDependencyUnavailable extends RuntimeException {}
+    private static final class AuthDependencyUnavailable extends RuntimeException {
+        private final Duration retryAfter;
+
+        AuthDependencyUnavailable(Duration retryAfter) {
+            super(null, null, false, false);
+            this.retryAfter = retryAfter;
+        }
+    }
 }
