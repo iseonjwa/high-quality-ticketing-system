@@ -8,6 +8,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-13 | 대기열 입장 속도를 예매 서비스 감당량에 맞추는 방법(고정값 측정·AIMD 적응형·동시 입장 슬롯 비교, 한 명당 CPU로 본 감당량 추정, Hikari 고갈이 CPU 포화의 증상인 이유, 30·40·50 측정 계획, 대기열 담당 질문 9개) | [qna/2026-11-13-queue-admission-rate-capacity-matching.md](qna/2026-11-13-queue-admission-rate-capacity-matching.md) |
 | 2026-11-13 | 좌석 선점·대기열·공연에는 Prometheus 지표가 없어서 합성 부하로 재도 제대로 된 지표를 못 보는가(자동 HTTP·풀·JVM 지표는 있음, 도메인 지표·히스토그램·exporter 없음, 질문별 답 가능 여부, k6·사후 집계로 메우는 범위, 선택지 A~D) | [qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md](qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md) |
 | 2026-11-13 | k6, Prometheus, Grafana는 각각 무슨 일을 하고 이 저장소에서는 어떻게 이어져 있나(부하 발생·수집 저장·화면 분담, 서버 지표 pull 대 k6 remote write push, 한 화면에서 원인 맞추기, Alertmanager·Loki·Alloy·Zipkin, 감수한 점, remote write 카디널리티 OOM 사례, remote write를 끄면 잃는 것) | [qna/2026-11-13-k6-prometheus-grafana-roles.md](qna/2026-11-13-k6-prometheus-grafana-roles.md) |
 | 2026-11-13 | 11/13 O1 측정으로 병목을 짚을 수 있나, 스크립트에서 더 고칠 것과 중요도, CPU가 먼저 차는 4 vCPU 한 대에서 사용자를 감당하는 법(아는 것·모르는 것, 새 회차 통계 의심, 감당 처리율 = CPU ÷ 성공 한 건당 CPU, 낭비 제거·입장 제어·격리·증설, 순서) | [qna/2026-11-13-o1-bottleneck-and-cpu-budget.md](qna/2026-11-13-o1-bottleneck-and-cpu-budget.md) |
