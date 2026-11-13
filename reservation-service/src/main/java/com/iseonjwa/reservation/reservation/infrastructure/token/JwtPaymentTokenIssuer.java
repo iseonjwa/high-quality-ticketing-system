@@ -1,6 +1,6 @@
-package com.iseonjwa.reservation.seathold.infrastructure.token;
+package com.iseonjwa.reservation.reservation.infrastructure.token;
 
-import com.iseonjwa.reservation.seathold.application.PaymentTokenIssuer;
+import com.iseonjwa.reservation.reservation.application.PaymentTokenIssuer;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;

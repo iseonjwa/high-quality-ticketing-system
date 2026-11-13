@@ -6,7 +6,6 @@ import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationSeatRepository;
-import com.iseonjwa.reservation.seathold.application.PaymentTokenIssuer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
