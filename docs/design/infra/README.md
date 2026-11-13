@@ -7,6 +7,7 @@ EC2 배포 파이프라인, 로그·알림 관측, 부하 측정 환경의 설�
 | [deployment.md](deployment.md) | EC2 한 대 배포 구조, GitHub Actions·GHCR·Jenkins 파이프라인, 보안그룹, 비밀값, 되돌림, 인스턴스 크기 결정 방법 |
 | [observability.md](observability.md) | Loki·Alloy 로그, 요청 로그 대시보드, Alertmanager·슬랙 알림, 메모리 추가분, 시연 방식과 프론트가 할 일 |
 | [load-test.md](load-test.md) | k6 도구, 임시 발생기 EC2, 범위와 시나리오, 준비물, 지표, 측정 환경 기록표, ISE-25와의 분담 |
+| [synthetic-data.md](synthetic-data.md) | LLM이 만든 가상 사용자(Synthetic Data): 트래픽 시나리오, 프롬프트·응답 원문, 생성·검증, O1 연동, 균일 부하와의 비교(ISE-262) |
 | [open-peak-load-plan.md](open-peak-load-plan.md) | 오픈 피크 흐름에서 트래픽이 몰리는 구간, 구간별 측정 시나리오와 단계별 개선 방안·트레이드오프·예상 결과, 측정 순서(ISE-181) |
 | [open-peak-scenarios.md](open-peak-scenarios.md) | 구간별 부하 시나리오 명세(G1·B1·Q1~Q3·PAY1·R1·X1·L1~L3·O1): 준비, 부하 모양, 지표, 판정 기준, 담당 검토 요청 |
 | [single-host-msa-resource-isolation.md](single-host-msa-resource-isolation.md) | 한 서버(4 vCPU) 안에서 서비스 경계를 CPU·메모리·유입량 경계로 옮기는 방법 비교와 추천 순서(초안) |
