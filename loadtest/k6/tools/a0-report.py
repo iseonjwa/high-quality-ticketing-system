@@ -21,6 +21,7 @@ def row(path):
     with open(path, encoding="utf-8") as file:
         summary = json.load(file)
     requests = int(metric(summary, "http_reqs{api:hold}")["count"])
+    # Note: http_req_failed는 실패한 요청에 참(1)을 넣는 Rate 지표다. 요약 JSON의 passes가 참인 표본 수, 곧 실패 수다
     failures = int(metric(summary, "http_req_failed{api:hold}")["passes"])
     duration = metric(summary, "a0_hold_duration")
     window = (metric(summary, "a0_window_end")["max"] - metric(summary, "a0_window_start")["min"]) / 1000

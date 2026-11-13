@@ -25,7 +25,7 @@
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
 | `tools/watch-held.sh` | X1 보조. 회차의 HELD·EXPIRED·만료 시각이 지난 HELD 수를 주기마다 CSV로 남긴다 |
 | `tools/a0-report.py` | A0 결과 계산. 요약 JSON(`results/*-summary.json`)에서 발제 표 한 줄(요청 수, 성공률, 평균·p95·최대 응답 시간, 측정 창, 처리량)을 마크다운으로 만든다 |
-| `data/` | O1 Synthetic 모드가 읽는 가상 사용자 CSV(`loadtest/synthetic/generate.py` 출력, 예 `data/o1-synthetic-3000.csv`). 커밋하지 않는다 |
+| `data/` | O1 Synthetic 모드가 읽는 가상 사용자 CSV(`loadtest/synthetic/generate.py` 출력). 측정에 쓰는 `data/o1-synthetic-3000.csv`(시드 20261113)는 발제 산출물이라 커밋한다. 그 밖의 파일(토큰 CSV 등)은 커밋하지 않는다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
 | `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
@@ -247,7 +247,7 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | S1 좌석 조회(개선 전) | `measure-mode.sh on loadtest/deploy/compose.seat-before.yml` (reservation-service만 4544d1a로 다시 뜬다) | 위와 같은 회차 | 아래 S1 명령 그대로. 끝나면 파일 없이 `on`이나 `off`로 지금 배포 이미지로 돌아온다 |
 | B1-d 공연 상세 | `measure-mode.sh on` | 시연 공연(`seed-demo.sh`가 출력한 공연 id) | 아래 B1-d 명령 |
 | PAY1 결제 승인 | `measure-mode.sh on`. PG 한도를 볼 때는 측정 직전에 아래 "Mock PG 장애 주입"으로 승인 지연 300ms를 건다. 결제 서비스 자체 한도를 볼 때는 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 PAY1 명령. 빈 좌석이 모자라면 setup에서 멈춘다 |
-| O1(균일) 오픈 피크 | `measure-mode.sh on`. 결제 지연 300ms는 측정 직전에 아래 "Mock PG 장애 주입"으로 건다 | 실행마다 새 15,000석 회차를 오픈 약 1~2분 전으로(`seed-demo.sh open "<OPEN_AT>"`) | 아래 O1 명령 |
+| O1(균일) 오픈 피크 | `measure-mode.sh on`. 결제 지연 300ms는 측정 직전에 아래 "Mock PG 장애 주입"으로 건다 | 실행마다 새 15,000석 회차를 오픈 약 10분 전에(`seed-demo.sh open "<OPEN_AT>"`). Synthetic 사용자의 접속 시각이 오픈 10분 전부터라, 오픈 전 시간이 짧으면 그보다 이른 접속이 측정 시작 한순간에 몰린다. 비교하려면 균일도 같은 길이로 잰다 | 아래 O1 명령 |
 | O1(Synthetic) 오픈 피크 | O1(균일)과 같게 | 실행마다 새 회차. 균일 실행과 같은 `USERS`·`VUS`·서버 상태로 | 아래 O1 명령에 `USERS_CSV`를 더한다 |
 | A0 발제 기준선 | `measure-mode.sh on`. 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다). 1,000석이 필요하다 | 아래 A0 명령 |
 | R1-d 결제 → 확정 | `measure-mode.sh on` (앱이 다시 떠 Mock PG 지연이 없는 상태) | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 R1-d 명령. 빈 좌석이 모자라면(이미 쓴 회차) setup에서 멈춘다 |
@@ -271,10 +271,9 @@ python3 loadtest/k6/tools/a0-report.py loadtest/k6/results/a0-assignment-baselin
 **O1 균일·Synthetic 비교**: 같은 서버, 같은 `USERS`·`VUS`로 두 번 돌린다. 오픈 시각이 있는 회차는 `seed-demo.sh open "<OPEN_AT>"`로 서버에서 만들고(출력의 공연 id·새 회차 id를 쓴다), 발생기에서 `PRE_OPEN_SECONDS`를 오픈까지 남은 초로 맞춘다. 오픈은 지금 + 30초(회차 캐시 갱신) 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 하며 어긋나면 setup이 이유와 함께 실패한다. 좌석을 파는 실행이라 회차를 다시 쓰지 않는다. CSV는 발생기에서 `generate.py`로 만든다(`data/`는 커밋하지 않는다).
 
 ```bash
-# 서버에서: 약 80초 뒤 오픈하는 회차를 만든다(균일, Synthetic 각각 한 번씩)
-ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "+80 seconds" +%Y-%m-%dT%H:%M:%SZ)"'
-# 발생기에서: 가상 사용자 CSV를 만들고(한 번) 검증한다
-python3 loadtest/synthetic/generate.py --personas loadtest/synthetic/o1-personas.json --users 3000 --seed 20261113 --out loadtest/k6/data/o1-synthetic-3000.csv
+# 서버에서: 약 10분 뒤 오픈하는 회차를 만든다(균일, Synthetic 각각 한 번씩). 짧게 동작만 볼 때는 "+80 seconds"처럼 줄여도 된다
+ssh iseonjwa 'cd ~/iseonjwa && script/deploy/seed-demo.sh open "$(date -u -d "+10 minutes" +%Y-%m-%dT%H:%M:%SZ)"'
+# 발생기에서: 가상 사용자 CSV는 저장소에 있다(같은 시드로 다시 만들면 같은 파일). 측정 전에 검증만 한다
 python3 loadtest/synthetic/validate.py --personas loadtest/synthetic/o1-personas.json --csv loadtest/k6/data/o1-synthetic-3000.csv
 # 발생기에서: O1(균일). OPEN_AT은 위에서 만든 회차의 오픈 시각이다
 export OPEN_AT=<ISO-8601 UTC> BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http://172.31.4.93:9090/api/v1/write MOCK_PG_URL=
