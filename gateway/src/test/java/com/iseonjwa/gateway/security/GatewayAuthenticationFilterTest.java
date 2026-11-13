@@ -3,6 +3,8 @@ package com.iseonjwa.gateway.security;
 import com.iseonjwa.common.auth.TokenDecoders;
 import com.iseonjwa.common.auth.TokenType;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.Tracer;
@@ -50,6 +52,9 @@ class GatewayAuthenticationFilterTest {
 
     private final AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    // 운영(config-repo/gateway.yml)과 같은 열림 시간 5초
+    private final CircuitBreakerRegistry breakers = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
+            .waitDurationInOpenState(Duration.ofSeconds(5)).build());
     private final GatewayFilterChain chain = exchange -> {
         forwarded.set(exchange);
         return Mono.empty();
@@ -145,14 +150,14 @@ class GatewayAuthenticationFilterTest {
     }
 
     @Test
-    void Redis_오류는_응답을_바꾸지_않고_503과_Retry_After_1을_주며_원인을_센다() {
+    void Redis_오류는_503과_한_번_실패의_Retry_After_3을_주며_원인을_센다() {
         var exchange = exchange(HttpMethod.GET, "/api/v1/users/me", true);
 
         filterWith(mockDecoder("USER"), Mono.error(new RedisConnectionFailureException("연결 끊김")))
                 .filter(exchange, chain).block();
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
-        assertEquals("1", exchange.getResponse().getHeaders().getFirst("Retry-After"));
+        assertEquals("3", exchange.getResponse().getHeaders().getFirst("Retry-After"));
         assertEquals("SERVICE_UNAVAILABLE", responseCode(exchange));
         assertEquals("일시적으로 인증을 확인할 수 없습니다", responseMessage(exchange));
         assertNull(forwarded.get());
@@ -166,9 +171,23 @@ class GatewayAuthenticationFilterTest {
         filterWith(mockDecoder("USER"), Mono.never()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
-        assertEquals("1", exchange.getResponse().getHeaders().getFirst("Retry-After"));
+        assertEquals("3", exchange.getResponse().getHeaders().getFirst("Retry-After"));
         assertEquals(1.0, failureCount("lookup_timeout"));
         assertEquals(0.0, failureCount("time_limiter"));
+    }
+
+    @Test
+    void 차단기가_열려_거절하면_503에_열림_시간만큼_Retry_After를_준다() {
+        var exchange = exchange(HttpMethod.GET, "/api/v1/users/me", true);
+        var open = CallNotPermittedException.createCallNotPermittedException(
+                breakers.circuitBreaker(GatewayAuthenticationFilter.AUTH_REDIS_BREAKER));
+
+        filterWith(mockDecoder("USER"), Mono.error(open)).filter(exchange, chain).block();
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
+        assertEquals("5", exchange.getResponse().getHeaders().getFirst("Retry-After"));
+        assertEquals("SERVICE_UNAVAILABLE", responseCode(exchange));
+        assertEquals(1.0, failureCount("breaker_open"));
     }
 
     private double failureCount(String cause) {
@@ -260,7 +279,8 @@ class GatewayAuthenticationFilterTest {
         when(breaker.run(any(Mono.class))).thenAnswer(call -> call.getArgument(0));
 
         var writer = new GatewayErrorWriter(JsonMapper.builder().build(), mock(Tracer.class));
-        var failures = new AuthRedisFailures(meters, CircuitBreakerRegistry.ofDefaults());
-        return new GatewayAuthenticationFilter(decoder, redis, writer, factory, failures, Duration.ofMillis(100));
+        var failures = new AuthRedisFailures(meters, breakers);
+        var retryAfter = new AuthRedisRetryAfter(breakers, Duration.ofSeconds(3));
+        return new GatewayAuthenticationFilter(decoder, redis, writer, factory, failures, retryAfter, Duration.ofMillis(100));
     }
 }

@@ -30,3 +30,27 @@ groups:
         annotations:
           summary: "Gateway가 최근 1분 인증 요청의 1% 넘게 bulkhead로 거절했습니다(오픈 피크). Gateway 과부하이거나 Redis 응답 지연입니다."
           runbook: "docs/decisions/0050-gateway-auth-redis-breaker-bulkhead-split.md 결정 2·바꿀 조건. gateway_auth_redis_failures_total의 lookup_timeout·redis_error가 함께 늘었으면 Redis 지연, 아니면 Gateway 과부하"
+      # 맨 앞 동시 처리 수 상한(InFlightLimitHandlerDecorator) 거절률. 모양은 위 bulkhead 규칙과 같다(5분·1분 평균 1%, [가정]).
+      # Note: 상한 거절은 서버 관측보다 앞(HttpHandler)에서 일어나 http_server_requests에 들어가지 않는다(#497).
+      # 그래서 분모는 관측된 요청 수에 거절 수를 더한 "Gateway에 들어온 요청 수"다.
+      - alert: GatewayInFlightRejecting
+        expr: >-
+          sum by (application) (rate(gateway_in_flight_rejected_total{application="gateway"}[5m]))
+          / (sum by (application) (rate(http_server_requests_seconds_count{application="gateway"}[5m]))
+             + sum by (application) (rate(gateway_in_flight_rejected_total{application="gateway"}[5m])))
+          > 0.01
+        for: 5m
+        labels: {service: gateway, urgency: threshold, severity: warning}
+        annotations:
+          summary: "Gateway가 들어온 요청의 1% 넘게 동시 처리 수 상한으로 5분 넘게 거절하고 있습니다(5분 평균). 처리량보다 요청이 많은 상태입니다."
+          runbook: "docs/design/infra/gateway-overload-troubleshooting-story.md. gateway_in_flight_requests가 gateway_in_flight_limit에 붙어 있는지, 서버 CPU가 포화인지 함께 본다"
+      - alert: GatewayInFlightRejectingPeak
+        expr: >-
+          sum by (application) (rate(gateway_in_flight_rejected_total{application="gateway"}[1m]))
+          / (sum by (application) (rate(http_server_requests_seconds_count{application="gateway"}[1m]))
+             + sum by (application) (rate(gateway_in_flight_rejected_total{application="gateway"}[1m])))
+          > 0.01
+        labels: {service: gateway, urgency: threshold, severity: warning}
+        annotations:
+          summary: "Gateway가 최근 1분 들어온 요청의 1% 넘게 동시 처리 수 상한으로 거절했습니다(오픈 피크)."
+          runbook: "docs/design/infra/gateway-overload-troubleshooting-story.md. 오픈마다 울리면 상한 값(64)이나 장비 분리(ADR 0047)를 다시 본다"

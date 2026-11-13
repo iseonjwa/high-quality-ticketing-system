@@ -70,7 +70,7 @@ class InFlightLimitHandlerDecoratorTest {
 
         assertThat(forwarded).hasValue(LIMIT);
         assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(rejected.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("2");
+        assertThat(rejected.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("3");
         var body = body(rejected);
         assertThat(body.get("code").asString()).isEqualTo("GATEWAY_OVERLOADED");
         // 서버 관측이 열리기 전이라 스팬이 없다
@@ -208,11 +208,11 @@ class InFlightLimitHandlerDecoratorTest {
         loader.load("application", new FileSystemResource("../config-repo/application.yml"))
                 .forEach(source -> environment.getPropertySources().addLast(source));
 
-        // 앱과 같은 변환 규칙("2s" → Duration)으로 읽으려고 Binder를 쓴다
+        // 앱과 같은 변환 규칙("3s" → Duration)으로 읽으려고 Binder를 쓴다
         var binder = new Binder(ConfigurationPropertySources.get(environment));
         assertThat(binder.bind("iseonjwa.gateway.in-flight.max-requests", Integer.class).get()).isEqualTo(64);
         assertThat(binder.bind("iseonjwa.gateway.in-flight.retry-after", Duration.class).get())
-                .isEqualTo(Duration.ofSeconds(2));
+                .isEqualTo(Duration.ofSeconds(3));
         // 액추에이터(헬스·Prometheus 수집)는 관리 포트의 별도 HttpHandler라 이 데코레이터를 거치지 않는다
         assertThat(environment.getProperty("management.server.port")).isEqualTo("9080");
         assertThat(environment.getProperty("server.port")).isEqualTo("8080");
@@ -227,7 +227,7 @@ class InFlightLimitHandlerDecoratorTest {
     }
 
     private InFlightLimitHandlerDecorator decorator(int limit) {
-        return new InFlightLimitHandlerDecorator(writer(), meters, limit, Duration.ofSeconds(2));
+        return new InFlightLimitHandlerDecorator(writer(), meters, limit, Duration.ofSeconds(3));
     }
 
     private static GatewayErrorWriter writer() {

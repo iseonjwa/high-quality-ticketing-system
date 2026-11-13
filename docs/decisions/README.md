@@ -53,9 +53,9 @@
 | 0047 | [배포는 EC2 한 대에 DB·캐시·브로커까지 띄워 시작하고, 서버를 멈춘 기간(11/7~11/12)에 RDS 등 매니지드 서비스 분리를 검토한다](0047-single-ec2-first-managed-split-review.md) | 채택 (분리는 11/7~11/12 검토) | 2026-11-04 |
 | 0048 | [TX1 커밋 응답 유실로 남은 REQUESTED는 재시도가 이어받지 않고, 재확인의 DECLINED(NOT_SENT) 종결을 한계로 둔다](0048-payment-tx1-commit-response-loss.md) | 채택 (ISE-169, 재시도 이어받기 안은 거부) | 2026-11-09 |
 | 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
-| 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 제안 (ISE-230 contract, 대기열 담당 확인 뒤 채택. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
+| 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 채택 (2026-11-13 선조치 후보고, 대기열 담당 사후 확인. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
 | 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 채택 (11/12 결제 담당 합의·구현 `#521`. 일반 결제 허가는 24–30(지금 30, ISE-246 뒤 확정). 0039 대체. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
-| 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 제안 (결제 담당 확인 뒤 채택. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
+| 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 채택 (2026-11-13 선조치 후보고, 결제 담당 사후 확인. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
 | 0053 | [입장 토큰은 좌석 선점이 성공한 순간 소모하고, 소모 여부는 선점 트랜잭션의 DB 고유 제약으로 확인한다](0053-entry-token-consume-on-hold.md) | 제안 (ISE-207 contract. 소모 시점은 11/12 팀 회의 확정, 처리 방식은 담당 확인 뒤 채택. SA 7-3 "1회용이 될 수 없다" 중 선점 API 부분 대체) | 2026-11-12 |
 | 0054 | [회차 좌석 배치 캐시(P4b)는 Redis가 아니라 reservation-service 메모리에 둔다](0054-seat-layout-local-cache.md) | 제안 (최권우 측정 코드와 비교 측정 뒤 결정) | 2026-11-08 |
 | 0055 | [결제 토큰은 비대칭 서명(ES256)으로 하고, 개인키는 예매 서비스에만 공개키는 결제 서비스에만 준다](0055-payment-token-asymmetric-signature.md) | 제안 (ISE-245 contract. 발급기 담당 확인 뒤 채택. SA 7-3 HMAC·0025의 키 부분 대체) | 2026-11-12 |
