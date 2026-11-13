@@ -1,7 +1,7 @@
 ---
 title: 대기열 설계 설명 중 AI가 든 근거 두 가지(멱등성, issued 선기록의 자동 복구)를 틀렸다고 지적했다
 date: 2026-10-29
-updated: 2026-10-29
+updated: 2026-11-14
 judge: youngeun
 ai: Claude (Cowork 앱 대화)
 verdict: 거부
@@ -36,10 +36,16 @@ shared: 예
 - 3: 반영할 문서 없음
 
 ## 검증
-구현 전. ISE-52·55·57 완료 기준에 "`issued`와 `waiting`에 모두 남은 상태 → 만료 정리 뒤 `waiting`에도 없음", "만료 기록 + `waiting` 잔여 상태 → 진입은 새 seq, 토큰 API는 `QUEUE_NOT_JOINED`" 테스트를 넣는다.
+결정 7(만료된 `issued` 기록 처리)을 진입·순번 조회·토큰 발급·입장 처리 네 경로에서 테스트로 확인했다. 모두 dev에서 통과한다.
+- 진입: 만료된 `issued` 기록과 `waiting` 잔여가 있으면 옛 seq를 쓰지 않고 새 번호를 받는다(`RedisQueueRepositoryTest` `만료된_issued_기록과_waiting_잔여가_있으면_새_번호를_받는다`, ISE-52 #99)
+- 순번 조회: 토큰이 만료되고 `waiting` 잔여가 있어도 옛 자리를 보지 않고 `NOT_JOINED`(`토큰이_만료되고_waiting_잔여가_있으면_옛_자리를_보지_않고_NOT_JOINED`, ISE-55 #141). API로는 404 `QUEUE_NOT_JOINED`(`QueueApiTest` `토큰_기록이_만료됐으면_404_QUEUE_NOT_JOINED`, ISE-100 #319)
+- 토큰 발급: 만료된 토큰이면 `NOT_JOINED`이고 `issued`·`waiting`을 모두 지운다(`만료된_토큰이면_NOT_JOINED이고_issued와_waiting을_모두_지운다`, ISE-69 #307)
+- 입장 처리: 1초마다 만료된 `issued`와 그 사람의 `waiting` 잔여를 함께 지우고, 유효한 `issued`는 남긴다(`만료된_issued와_그_사람의_waiting_잔여를_함께_지우고_유효한_issued는_남긴다`, ISE-54 #268)
+- 결과: AI가 말한 "issued 선기록으로 자동 복구"가 깨지는 틈(토큰 만료 뒤 남은 옛 seq로 줄을 다시 서지 않고 입장)은 네 경로 모두에서 닫혔다.
 
 ## 판단 이력
 - 2026-10-29 거부: 멱등성 근거와 issued 선기록 자동 복구 주장의 오류를 지적, 만료 기록 처리 규칙을 추가
+- 2026-11-14 검증: 결정 7 구현과 테스트(ISE-52·54·55·69·100) 결과로 검증 칸을 채움 (ISE-268)
 
 ## 발표·면접 포인트
 - "issued를 먼저 쓰면 복구된다"는 AI 설명을 시간 축으로 따라가 보니, 토큰 만료로 기록이 정리된 뒤 남은 옛 대기 자리로 다시 입장하는 틈이 있었다. 만료 판단과 정리 위치를 정해 막았다.
