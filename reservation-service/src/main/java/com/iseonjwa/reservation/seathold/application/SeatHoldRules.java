@@ -3,8 +3,6 @@ package com.iseonjwa.reservation.seathold.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
-import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
-import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 
 import java.time.Instant;
@@ -46,11 +44,5 @@ final class SeatHoldRules {
                 || !previous.getSeatIds().equals(seatIds)) {
             throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
         }
-    }
-
-    // Note: 만료 스케줄러가 돌기 전이면 기한이 지나도 HELD로 남아 있어서 상태만 보지 않고 시각도 본다
-    static boolean isPayable(Reservation reservation, Instant now) {
-        return reservation.getStatus() == ReservationStatus.HELD
-                && now.isBefore(reservation.getHoldExpiresAt().minus(PaymentTokenIssuer.EXPIRY_MARGIN));
     }
 }
