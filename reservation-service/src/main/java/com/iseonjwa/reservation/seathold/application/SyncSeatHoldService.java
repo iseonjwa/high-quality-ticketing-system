@@ -161,7 +161,7 @@ public class SyncSeatHoldService {
         if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
             return new SyncHoldOutcome.Held(results.withoutToken(reservation, seatIds));
         }
-        if (SeatHoldRules.isPayable(reservation, clock.instant())) {
+        if (reservation.isPayableAt(clock.instant())) {
             return new SyncHoldOutcome.Held(results.withToken(reservation, seatIds));
         }
         throw new BusinessException(SeatHoldErrorCode.RESERVATION_NOT_PAYABLE);

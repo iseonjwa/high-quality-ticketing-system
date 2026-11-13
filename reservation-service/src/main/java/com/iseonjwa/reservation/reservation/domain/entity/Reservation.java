@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,12 @@ import java.util.UUID;
 @Table(name = "reservations")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reservation extends BaseEntity {
+    /**
+     * 결제 마감 여유. 선점 만료 이 시간 전부터는 결제할 수 없고, 결제 토큰도 이 시각에 만료된다. 승인이 선점 만료 뒤에
+     * 도착하는 경우를 줄이려는 값이다(Gateway 타임아웃 3초 + 결과 반영 2초 + 여유 5초, SA 7-3).
+     */
+    public static final Duration PAYMENT_CLOSE_MARGIN = Duration.ofSeconds(10);
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -109,5 +116,10 @@ public class Reservation extends BaseEntity {
         }
         return new Reservation(reservationNo, requestId, userId, scheduleId, seatPrices.size(), totalAmount,
                 holdExpiresAt, source);
+    }
+
+    // Note: 만료 스케줄러가 돌기 전이면 기한이 지나도 HELD로 남아 있어서 상태만 보지 않고 시각도 본다
+    public boolean isPayableAt(Instant now) {
+        return status == ReservationStatus.HELD && now.isBefore(holdExpiresAt.minus(PAYMENT_CLOSE_MARGIN));
     }
 }
