@@ -127,6 +127,44 @@ class AsyncSeatHoldApiTest {
     }
 
     @Test
+    void 입장_토큰_jti를_요청_행과_SeatHoldRequested_페이로드에_싣는다() throws Exception {
+        var key = UUID.randomUUID();
+        var jti = "a".repeat(32);
+
+        assertEquals(202, hold(USER, key.toString(), scheduleId, List.of(seatIds.get(0)), jti).status());
+
+        assertEquals(jti, jdbc.queryForObject("SELECT entry_token_jti FROM seat_hold_requests WHERE request_id = ?",
+                String.class, key));
+        var payload = mapper.readTree((String) outboxRows(key).getFirst().get("payload"));
+        assertEquals(jti, payload.get("entryTokenJti").asString());
+    }
+
+    @Test
+    void 같은_토큰의_앞선_요청이_처리_중이면_다른_멱등키의_접수는_403_ENTRY_TOKEN_USED다() throws Exception {
+        var jti = "b".repeat(32);
+        assertEquals(202, hold(USER, UUID.randomUUID().toString(), scheduleId, List.of(seatIds.get(0)), jti).status());
+        var key = UUID.randomUUID();
+
+        var second = hold(USER, key.toString(), scheduleId, List.of(seatIds.get(1)), jti);
+
+        assertFailure(second, 403, "ENTRY_TOKEN_USED");
+        assertNoTrace(key);
+    }
+
+    @Test
+    void 같은_토큰의_앞선_요청이_거절됐으면_토큰을_다시_쓸_수_있다() throws Exception {
+        var jti = "c".repeat(32);
+        var firstKey = UUID.randomUUID();
+        assertEquals(202, hold(USER, firstKey.toString(), scheduleId, List.of(seatIds.get(0)), jti).status());
+        jdbc.update("UPDATE seat_hold_requests SET status = 'REJECTED', reason_code = 'SEAT_ALREADY_HELD'"
+                + " WHERE request_id = ?", firstKey);
+
+        var second = hold(USER, UUID.randomUUID().toString(), scheduleId, List.of(seatIds.get(1)), jti);
+
+        assertEquals(202, second.status(), second.json().toString());
+    }
+
+    @Test
     void 좌석이_여러_구역에_걸치면_가장_작은_구역을_키로_쓴다() throws Exception {
         var sectionC = createSeats(scheduleId, "C", "R", 1).getFirst();
         var sectionB = createSeats(scheduleId, "B", "VIP", 1).getFirst();
@@ -374,12 +412,21 @@ class AsyncSeatHoldApiTest {
     }
 
     private Response hold(long userId, String key, Long scheduleId, List<Long> seatIds) throws Exception {
-        return send(HttpRequest.newBuilder(uri("/api/v1/schedules/" + scheduleId + "/reservations"))
+        return hold(userId, key, scheduleId, seatIds, null);
+    }
+
+    private Response hold(long userId, String key, Long scheduleId, List<Long> seatIds, String entryTokenJti)
+            throws Exception {
+        var request = HttpRequest.newBuilder(uri("/api/v1/schedules/" + scheduleId + "/reservations"))
                 .header("Content-Type", "application/json")
                 .header("X-User-Id", String.valueOf(userId))
                 .header("X-User-Role", "USER")
                 .header("Idempotency-Key", key)
-                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(Map.of("seatIds", seatIds)))));
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(Map.of("seatIds", seatIds))));
+        if (entryTokenJti != null) {
+            request.header("X-Entry-Token-Id", entryTokenJti);
+        }
+        return send(request);
     }
 
     private Response find(long userId, String requestId) throws Exception {
