@@ -4,6 +4,8 @@
 
 발제 필수 산출물의 상태와 남은 일, 팀원별·도구별 작업 방법은 [required-deliverables.md](required-deliverables.md)에 있다.
 
+발표 자료에 쓰는 증명 형식(판정 기준표, 전/후 표, 실패 시나리오 표, 도입하지 않은 것·한계 등)의 견본과 적용 위치는 [evidence-formats.md](evidence-formats.md)에 있다. 다른 조 저장소에서 스택이 아니라 형식만 가져왔다.
+
 ## 폴더
 
 표 순서는 발표 순서의 가안이다. 순서는 발표 준비(11/16~) 때 팀이 정한다.

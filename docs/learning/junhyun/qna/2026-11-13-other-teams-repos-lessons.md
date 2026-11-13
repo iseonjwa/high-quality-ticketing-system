@@ -95,6 +95,7 @@ tags: [presentation, load-test, review, archunit, saga, comparison]
 3. **"Kafka 비동기 결제에서 유실·중복·늦은 승인은?"** Outbox, 처리 이력, DLQ, 대사, 만료 뒤 승인 자동 환불을 상황별 표로 보인다.
 
 ## 이 프로젝트에서는
+- 적용 설계(형식 견본 T1~T11, 적용 위치·담당·완료 기준, ArchUnit 설계)는 [`docs/presentation/evidence-formats.md`](../../../presentation/evidence-formats.md)다. 새 이슈: ISE-274(CI 중복 빌드 취소), ISE-275(ArchUnit), ISE-276(도입하지 않은 것·한계).
 - 이슈별로 들어갈 곳: ISE-264(판정 기준 사전 고정, k6 합격 조건, 대사 대조, 측정 신뢰도 4줄), ISE-265(파티션 근거 문장), ISE-266·269(전/후 표 형식과 대가 칸), ISE-267(실패 시나리오 표, 경쟁 테스트 이름 표, 위반 0행 캡처), ISE-271(답글에 커밋 SHA, PR 본문 AI 리뷰 한 줄), ISE-272(알림 규칙 표, README 발표 입구), ISE-262·263(Synthetic 재생성 일치 테스트, 리뷰 프롬프트 세 줄, 살아남은 변이).
 - 아직 이슈가 없는 것: "도입하지 않은 것·알려진 한계" 한 장, ArchUnit 계층 규칙, `build.yml` 중복 실행 취소.
 

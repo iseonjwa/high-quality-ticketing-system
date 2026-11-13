@@ -74,6 +74,7 @@ ISE-28이 튜터 협의로 빠진 것인지, 다른 이슈로 옮긴 것인지�
 
 남은 기간에 보탤 것:
 - 남은 PR부터 2번의 결과를 PR에 남긴다. 방법은 둘이다. Claude Code의 `/code-review --comment`로 지적을 인라인 코멘트로 올리고 작성자가 수용·거부로 답한다. 또는 CodeRabbit을 단다. CodeRabbit 공식 문서는 공개 저장소를 무료(Team 기능)로 본다고 적는다. 설치는 GitHub 조직 관리자가 한다.
+  - 이후 같은 날 결정: CodeRabbit은 리뷰 횟수의 시간당 한도 때문에 넣지 않고 프롬프트로만 리뷰한다([판단 기록](../../../ai-judgments/junhyun/2026-11-13-no-coderabbit-prompt-review-only.md)).
 - 지난 기록에서 "AI 리뷰가 실제로 잡은 결함"과 "AI 리뷰 지적을 거부한 사례"를 각각 골라 대표 사례로 만든다. 사례에는 빌드·테스트·API 검증 결과가 들어가야 한다.
 - 이 방법을 팀 규칙으로 바꾸려면 `git-workflow.md` 5절을 PR로 고치고 팀이 동의해야 한다.
 

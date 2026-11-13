@@ -42,6 +42,8 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-13 | **호출 한도가 있어 CodeRabbit을 넣지 않고, AI 코드 리뷰는 저장소 프롬프트와 스크립트(Claude·codex)로만 하기로 함** | junhyun | Claude Code | **거부** | 후보 | [기록](junhyun/2026-11-13-no-coderabbit-prompt-review-only.md) |
+| 2026-11-13 | 다른 조 저장소 5곳에서 스택·결정이 아니라 형식·판단 방식만 가져오기로 하고, 판정 기준 사전 고정·전/후 표·실패 시나리오 표·한계 표·ArchUnit·리뷰 보강·CodeRabbit 적용 설계를 맡김 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-borrow-formats-not-stacks-from-other-teams.md) |
 | 2026-11-13 | **팀원 지시문이 Claude Code 세션만 전제했다는 지적으로, 필수 산출물 작업을 팀원 모두가 채팅·CLI·터미널 어느 것으로든 돌리게 점검표와 키트로 바꿈** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-13-deliverables-for-all-teammates-any-tool.md) |
 | 2026-11-13 | 발표 전 보완 제안(빈 필수 산출물, AI 코드 검토 방법, AI 대표 사례)을 받아들이고, 11/11 취소된 Synthetic Data를 발제 필수 항목으로 되살림(ISE-262·263) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-fill-presentation-gaps-restore-synthetic-data.md) |
 | 2026-11-13 | **입장 토큰 소모 뒤 issued 정리를 이벤트 리스너로 유지하자는 AI 추천을 거부하고, 커넥션을 오래 잡지 않게 선점 쪽이 트랜잭션 밖에서 대기열 메서드를 jti와 함께 부르게 함** | youngeun | Claude | **거부** | 후보 | [기록](youngeun/2026-11-13-entry-token-discard-method-call.md) |
