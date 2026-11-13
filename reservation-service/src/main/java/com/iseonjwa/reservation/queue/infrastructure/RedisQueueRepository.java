@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 @Repository
@@ -25,6 +26,8 @@ public class RedisQueueRepository implements QueueRepository {
             RedisScript.of(new ClassPathResource("/redis/queue/admit.lua"), List.class);
     private final RedisScript<List> ISSUE_TOKEN =
             RedisScript.of(new ClassPathResource("/redis/queue/issue-token.lua"), List.class);
+    private final RedisScript<Void> DISCARD_TOKEN =
+            RedisScript.of(new ClassPathResource("/redis/queue/discard-token.lua"));
 
     private final StringRedisTemplate stringRedisTemplate;
     private final CircuitBreaker circuitBreaker;
@@ -79,7 +82,20 @@ public class RedisQueueRepository implements QueueRepository {
         return new IssueTokenOutcome(type, (Long) r.get(1));
     }
 
+    @Override
+    public Optional<Long> issuedAt(long scheduleId, long userId) {
+        Double score = call(() -> stringRedisTemplate.opsForZSet()
+                .score(QueueKeys.of(scheduleId).issuedKey(), String.valueOf(userId)));
+        return Optional.ofNullable(score).map(Double::longValue);
+    }
 
+    @Override
+    public void discardToken(long scheduleId, long userId, long issuedAtEpochMillis) {
+        call(() -> stringRedisTemplate.execute(DISCARD_TOKEN, QueueKeys.of(scheduleId).discardEntryTokenKeys(),
+                String.valueOf(userId), String.valueOf(issuedAtEpochMillis)));
+    }
+
+    // Redis 장애가 발생했을 때 따로 예외처리를 하기 위한 메서드
     private <T> T call(Supplier<T> supplier) {
         try {
             return circuitBreaker.executeSupplier(supplier); // 호출 시간과 성공·실패를 차단기에 기록하고, 원래 예외를 그대로 다시 던짐

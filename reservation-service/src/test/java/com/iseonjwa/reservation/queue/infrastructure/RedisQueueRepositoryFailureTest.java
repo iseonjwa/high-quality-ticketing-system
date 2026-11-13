@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +64,19 @@ class RedisQueueRepositoryFailureTest {
                 () -> repository.admit(1L, 50, 600_000L, 500, 0L));
         assertThrows(QueueStorageUnavailableException.class,
                 () -> repository.issueToken(1L, 42L, 600_000L, 0L));
+        assertThrows(QueueStorageUnavailableException.class,
+                () -> repository.discardToken(1L, 42L, 1_000L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 발급_시각_읽기도_변환한다() {
+        ZSetOperations<String, String> zSet = mock(ZSetOperations.class);
+        when(template.opsForZSet()).thenReturn(zSet);
+        when(zSet.score(anyString(), anyString())).thenThrow(new QueryTimeoutException("Redis command timed out"));
+
+        var e = assertThrows(QueueStorageUnavailableException.class, () -> repository.issuedAt(1L, 42L));
+        assertInstanceOf(QueryTimeoutException.class, e.getCause());
     }
 
     // execute(스크립트, 키 목록, 가변 인자)를 인자 개수와 상관없이 실패시킨다

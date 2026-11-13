@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-13 | **입장 토큰 소모 뒤 issued 정리를 이벤트 리스너로 유지하자는 AI 추천을 거부하고, 커넥션을 오래 잡지 않게 선점 쪽이 트랜잭션 밖에서 대기열 메서드를 jti와 함께 부르게 함** | youngeun | Claude | **거부** | 후보 | [기록](youngeun/2026-11-13-entry-token-discard-method-call.md) |
 | 2026-11-13 | **ISE-230 남은 확인 세 건은 답을 받은 뒤 마무리하자는 AI 순서를 거부하고, Retry-After 분리(A안)와 ADR 0050·0052 채택·대시보드·경보를 선조치 후보고로 진행함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-13-adopt-adr-0050-0052-before-replies.md) |
 | 2026-11-12 | 대기열 Redis 차단기 값을 Gateway auth-redis와 같게 두되, 느린 호출 기준을 AI 제안 50ms 대신 100ms로 올리고 공통 Redis 시한을 200ms로 늘림 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-12-queue-redis-circuit-breaker-values.md) |
 | 2026-11-12 | **걸릴 일이 없는 Gateway Lettuce 시한 300ms를 "마지막 안전망"으로 유지하자는 AI 결론을 거부함** | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-12-reject-keep-dead-lettuce-timeout.md) |

@@ -1,5 +1,7 @@
 package com.iseonjwa.reservation.queue.domain;
 
+import java.util.Optional;
+
 public interface QueueRepository {
 
     EnterOutcome enter(long scheduleId,
@@ -13,4 +15,8 @@ public interface QueueRepository {
 
     IssueTokenOutcome issueToken(long scheduleId,
                                  long userId, long tokenTtlMillis, long keyExpireAtEpochSecond);
+
+    Optional<Long> issuedAt(long scheduleId, long userId);
+
+    void discardToken(long scheduleId, long userId, long issuedAtEpochMillis);
 }

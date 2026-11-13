@@ -28,7 +28,7 @@ SA 17-2 U1의 계약 ① 입장 토큰 claim을 대기열 담당 기준으로 �
 | `scheduleId` | JSON 정수 | 예 | 회차 ID. 요청 경로의 `{scheduleId}`와 같아야 한다. 문자열·소수는 거절한다. 이전 안의 `sid` 대신 결제 토큰의 `reservationId`처럼 전체 이름을 쓴다 |
 | `exp` | NumericDate(초) | 예 | `floor(발급 시각 ms / 1000) + 600`. 만료 10분은 SA 9-4의 T `[가정]` |
 | `iat` | NumericDate(초) | 예 | `floor(발급 시각 ms / 1000)`. 검증하지 않는다 |
-| `jti` | 문자열 | 예 | `entry:{scheduleId}:{sub}:{발급 시각 ms}`의 SHA-256 앞 16바이트(소문자 hex 32자). 추적·로그용이며 검증하지 않는다 |
+| `jti` | 문자열 | 예 | `entry:{scheduleId}:{sub}:{발급 시각 ms}`의 SHA-256 앞 16바이트(소문자 hex 32자). Gateway는 검증하지 않고 `X-Entry-Token-Id`로 서비스에 넘긴다. 선점 API가 소모 확인에 쓰고, 대기열이 같은 공식(`EntryTokenJti`)으로 다시 계산해 `issued` 정리에 쓴다 |
 
 - 발급 시각(ms)은 토큰 발급 Lua가 Redis `TIME`으로 정해 `issued`에 기록한 값이다. 재발급 때는 같은 값을 쓰므로 `exp`·`iat`·`jti`가 같고, 같은 키로 서명하면 토큰 문자열까지 같다(ADR 0031 결정 9).
 - 다른 claim이 더 있어도 무시한다. 위 표의 claim만 발급한다.
@@ -57,11 +57,19 @@ SA 17-2 U1의 계약 ① 입장 토큰 claim을 대기열 담당 기준으로 �
 - Redis를 쓰지 않으므로 Redis 장애 중에도 이미 받은 토큰은 검증을 통과한다(SA 9-5).
 - 통과하면 요청을 그대로 서비스에 넘긴다. 서비스는 입장 토큰을 다시 검증하지 않는다. 좌석이 그 회차의 좌석인지 같은 업무 검증은 서비스가 한다.
 
+### 소모 (ADR 0053, ISE-207)
+
+- 입장 토큰은 좌석 선점이 성공한 순간 소모된다. 소모 여부는 선점 API가 DB(`seat_hold_requests.entry_token_jti`)로 확인한다. 실패한 선점은 소모하지 않는다.
+- 선점 쪽은 선점 트랜잭션이 끝난 뒤, 트랜잭션 밖에서 `QueueService.discardEntryToken(scheduleId, userId, jti)`를 부른다. `ENTRY_TOKEN_USED`로 거절할 때도 한 번 더 부른다. DB 커넥션을 반납한 뒤 Redis를 부르려고 트랜잭션 밖에서 부른다.
+- 대기열은 `issued`에 기록된 발급 시각으로 `jti`를 다시 계산해 **넘겨받은 `jti`와 같을 때만** 지운다(Lua로 확인 후 삭제). 기록이 없거나 다른 토큰이면 아무 일도 하지 않아 여러 번 불러도 된다. 늦게 온 옛 토큰 요청이 새로 받은 토큰의 기록을 지우지 않게 하기 위해서다.
+- 지운 뒤 다시 진입하면 새 번호로 줄 맨 뒤에 서고, 차례가 되면 새 발급 시각으로 서명해 `jti`가 다른 새 토큰을 받는다.
+- Redis 장애나 대기열 Redis 차단기가 열리면 `QueueStorageUnavailableException`이 난다. 선점 쪽이 잡아 로그만 남긴다. 정리가 실패하면 그 사용자는 토큰이 만료될 때까지(최대 10분) 같은 토큰을 다시 받는다.
+
 Gateway 쪽 고칠 곳: 입장 토큰 필터(ISE-58). 발급 쪽 고칠 곳: 토큰 서명(ISE-56), 토큰 API(ISE-69). claim 이름은 발급과 검증이 다른 모듈이므로 `common`의 `auth` 패키지에 두는 것을 권장하고, ISE-56에서 확정한다.
 
 ## 2. 프론트 사용 규칙
 
-SA 11-5를 따른다. 입장 토큰은 `sessionStorage`에 두고, 만료(`entryTokenExpiresAt`) 전이면 대기열을 건너뛴다. 403 `ENTRY_TOKEN_INVALID`를 받으면 저장한 토큰을 지우고 대기열 진입부터 다시 한다.
+SA 11-5를 따른다. 입장 토큰은 `sessionStorage`에 두고, 만료(`entryTokenExpiresAt`) 전이면 대기열을 건너뛴다. 403 `ENTRY_TOKEN_INVALID`를 받으면 저장한 토큰을 지우고 대기열 진입부터 다시 한다. 선점이 성공(201)하면 저장한 입장 토큰을 지운다. `ENTRY_TOKEN_USED`를 받으면 `ENTRY_TOKEN_INVALID`처럼 토큰을 지우고 대기열 진입부터 다시 한다(ADR 0053 결정 5).
 
 ## 3. 바뀐 점
 
@@ -72,6 +80,7 @@ SA 11-5를 따른다. 입장 토큰은 `sessionStorage`에 두고, 만료(`entry
 | `exp`·`jti` | 규칙 없음 | 발급 시각 ms에서 계산 |
 | 선점 경로 | POST `/api/v1/reservations`, 본문 `scheduleId` | POST `/api/v1/schedules/{scheduleId}/reservations`, 본문 `seatIds`만 |
 | 회차 비교 | 위치 미정 | Gateway가 경로로 비교 |
+| 선점 재사용 | 10분 안에 같은 토큰으로 여러 번 선점 가능 | 선점 성공 시 소모, 대기열 `issued` 정리(ADR 0053) |
 
 ## 4. 확인 결과
 

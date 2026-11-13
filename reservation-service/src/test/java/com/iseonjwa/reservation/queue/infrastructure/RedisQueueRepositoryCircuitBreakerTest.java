@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
@@ -19,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -108,6 +111,23 @@ class RedisQueueRepositoryCircuitBreakerTest {
         }
 
         assertEquals(CircuitBreaker.State.OPEN, circuitBreaker.getState());
+    }
+
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 열려_있으면_토큰_정리도_Redis를_부르지_않는다() {
+        ZSetOperations<String, String> zSet = mock(ZSetOperations.class);
+        when(template.opsForZSet()).thenReturn(zSet);
+        circuitBreaker.transitionToOpenState();
+
+        var read = assertThrows(QueueStorageUnavailableException.class, () -> repository.issuedAt(1L, 42L));
+        var discard = assertThrows(QueueStorageUnavailableException.class, () -> repository.discardToken(1L, 42L, 1_000L));
+
+        assertInstanceOf(CallNotPermittedException.class, read.getCause());
+        assertInstanceOf(CallNotPermittedException.class, discard.getCause());
+        verify(zSet, never()).score(anyString(), anyString());
+        verifyRedisCalled(0);
     }
 
 
