@@ -5,6 +5,7 @@ import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
+import com.iseonjwa.reservation.seathold.domain.repository.EntryTokenAlreadyUsedException;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldInventoryRepository;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -51,6 +52,12 @@ public class AsyncSeatHoldService {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
         try {
             return transaction.execute(status -> acceptOnce(command, seatIds));
+        } catch (EntryTokenAlreadyUsedException exception) {
+            // 같은 토큰의 다른 요청이 먼저 접수됐다. 같은 멱등키 연타가 이 인덱스에 먼저 걸렸을 수 있어 내 행부터 본다
+            var committed = seatHoldRequests.findById(command.requestId())
+                    .orElseThrow(() -> new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED));
+            SeatHoldRules.requireSameRequest(committed, command, seatIds);
+            return committed.getRequestId();
         } catch (DataIntegrityViolationException exception) {
             // Note: 같은 키가 거의 동시에 두 번 오면 둘 다 사전 조회를 통과하고 늦은 쪽이 PK 위반을 만난다(contracts.md 3-2 ⑥).
             // 실패한 트랜잭션은 되돌려졌으므로 새로 읽어 먼저 커밋된 요청과 같은 요청인지 본다. 행이 없으면 다른 제약 위반이다
@@ -66,6 +73,9 @@ public class AsyncSeatHoldService {
             SeatHoldRules.requireSameRequest(previous.get(), command, seatIds);
             return previous.get().getRequestId();
         }
+        // Note: 앞선 요청이 아직 처리 중(REQUESTED)이어도 거절한다. 같은 토큰으로 여러 요청을 줄에 넣어 두는 것을 막는다.
+        // 앞선 요청이 소비자에서 거절(REJECTED)되면 토큰은 다시 쓸 수 있다. 대기열 issued 정리는 HELD를 커밋한 소비자가 한다(ISE-17)
+        SeatHoldRules.requireUnusedEntryToken(seatHoldRequests, command);
         var schedule = inventory.findSchedule(command.scheduleId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         SeatHoldRules.requireWithinPerUserLimit(schedule, seatIds);
@@ -78,10 +88,11 @@ public class AsyncSeatHoldService {
         requireAllHoldable(seats);
 
         seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), schedule.getId(),
-                seatIds));
+                seatIds, command.entryTokenJti()));
         var section = representativeSection(seats);
         outbox.write(TOPIC, schedule.getId() + ":" + section, EVENT_TYPE, VERSION,
-                new SeatHoldRequested(command.requestId(), command.userId(), schedule.getId(), section, seatIds, now));
+                new SeatHoldRequested(command.requestId(), command.userId(), schedule.getId(), section, seatIds,
+                        command.entryTokenJti(), now));
         return command.requestId();
     }
 
@@ -103,7 +114,8 @@ public class AsyncSeatHoldService {
                 .orElseThrow();
     }
 
-    // SA 10-3 페이로드. section은 키를 만든 근거이고, 소비자는 seatIds를 기준으로 선점한다
+    // SA 10-3 페이로드. section은 키를 만든 근거이고, 소비자는 seatIds를 기준으로 선점한다.
+    // entryTokenJti는 소비자가 HELD를 커밋한 뒤 대기열 issued를 정리할 때 쓴다(ADR 0053). 입장 토큰 없이 들어오면 null이다
     record SeatHoldRequested(UUID requestId, long userId, long scheduleId, String section, List<Long> seatIds,
-            Instant requestedAt) {}
+            String entryTokenJti, Instant requestedAt) {}
 }

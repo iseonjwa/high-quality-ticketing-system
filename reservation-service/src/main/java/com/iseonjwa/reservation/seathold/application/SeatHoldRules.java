@@ -6,6 +6,7 @@ import com.iseonjwa.reservation.concert.domain.entity.Schedule;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
+import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -36,6 +37,14 @@ final class SeatHoldRules {
     static void requireOnSale(Schedule schedule, Instant now) {
         if (now.isBefore(schedule.getOpenAt()) || !now.isBefore(schedule.getStartsAt())) {
             throw new BusinessException(SeatHoldErrorCode.SALE_NOT_OPEN);
+        }
+    }
+
+    // 입장 토큰은 선점이 성공한 순간 소모한다(ADR 0053). 거절되지 않은 요청(처리 중·성공)이 이미 쓴 토큰이면 거절한다.
+    // 이 조회는 빠른 거절용이고, 동시에 온 요청은 저장할 때 부분 유니크 인덱스가 막는다
+    static void requireUnusedEntryToken(SeatHoldRequestRepository requests, HoldSeatsCommand command) {
+        if (command.entryTokenJti() != null && requests.existsActiveByEntryTokenJti(command.entryTokenJti())) {
+            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
         }
     }
 

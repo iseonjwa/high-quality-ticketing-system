@@ -15,7 +15,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | 헤더 | `Authorization` | `Bearer {accessToken}` | 예 | Gateway가 검증 후 `X-User-Id`, `X-User-Role` 헤더로 전달 |
 | 경로 | `scheduleId` | 정수 (`Long`, 양수) | 예 | 예매할 회차 ID. 0 이하·숫자가 아니면 `400 VALIDATION_FAILED` |
 | 헤더 | `X-Entry-Token` | JWS compact (JWT) | 예 | 입장 토큰(계약 ①, [`docs/design/queue/contracts.md`](../queue/contracts.md)). Gateway가 서명·`typ=entry`·`aud=gateway`·`exp`·`sub == X-User-Id`·토큰 `scheduleId` == 경로 `scheduleId`를 검증한다. 선점 서비스는 다시 검증하지 않는다 |
-| 헤더 | `X-Entry-Token-Id` | 문자열 (입장 토큰 `jti`, 지금 발급기는 소문자 hex 32자) | Gateway가 붙임 | Gateway가 입장 토큰 검증을 통과한 요청에만 그 토큰의 `jti`를 넣는다. 클라이언트가 보낸 같은 이름의 헤더는 모든 경로에서 지운다(`X-User-Id`와 같은 방식). 선점 서비스가 입장 토큰 소모 여부를 확인하는 데 쓴다([ADR 0053](../../decisions/0053-entry-token-consume-on-hold.md), ISE-207). 2026-11-12 Gateway 구현, 선점 서비스는 아직 읽지 않는다 |
+| 헤더 | `X-Entry-Token-Id` | 문자열 (입장 토큰 `jti`, 지금 발급기는 소문자 hex 32자) | Gateway가 붙임 | Gateway가 입장 토큰 검증을 통과한 요청에만 그 토큰의 `jti`를 넣는다. 클라이언트가 보낸 같은 이름의 헤더는 모든 경로에서 지운다(`X-User-Id`와 같은 방식). 선점 서비스가 입장 토큰 소모 여부를 확인하는 데 쓴다([ADR 0053](../../decisions/0053-entry-token-consume-on-hold.md), ISE-207). 2026-11-12 Gateway 구현, 2026-11-13 선점 서비스 구현. 선점 서비스는 이 헤더가 없으면 소모를 확인하지 않는다(추첨 선점·서비스 직접 호출). 소모 규칙은 아래 1-1절 |
 | 헤더 | `Idempotency-Key` | UUID 문자열 | 예 | 선점 접수 ID(`requestId`)로 그대로 사용. 누락·UUID 형식 오류 시 `400 VALIDATION_FAILED` |
 | 본문 | `seatIds` | JSON 정수 배열 (`List<Long>`) | 예 | 회차 좌석(`schedule_seats.id`) 목록. 1개 이상 `maxPerUser`(기본 4)개 이하, 중복 불가 |
 
@@ -30,6 +30,16 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 
 - 서버는 내부 처리와 응답 생성 전에 `seatIds`를 오름차순으로 정렬한다(DB 행 잠금 교착 방지 및 멱등 본문 비교 기준 통일).
 - `seatIds` 개수가 0개이거나 회차의 `max_per_user`(기본 4매)를 넘거나 배열 안에 중복된 좌석 ID가 있으면 DB 잠금을 잡기 전에 `400 SEAT_COUNT_MISMATCH`로 거절한다.
+
+### 1-1. 입장 토큰 소모 (ISE-207, ADR 0053)
+
+- 입장 토큰은 좌석 선점이 성공한 순간 소모한다. 선점 요청 행(`seat_hold_requests.entry_token_jti`)에 `X-Entry-Token-Id`를 저장하고, 거절되지 않은(`REQUESTED`·`HELD`) 행끼리 같은 `jti`를 가질 수 없게 부분 유니크 인덱스를 둔다.
+- 검사 순서: 같은 멱등키 재요청 판정 → 토큰 사용 여부 → 회차·판매 기간·좌석 검사 → 좌석 잠금. 그래서 같은 멱등키 재요청은 소모 뒤에도 첫 결과(201)를 받는다.
+- 다른 멱등키로 같은 토큰을 다시 쓰면 `403 ENTRY_TOKEN_USED`다. 같은 토큰으로 동시에 두 번 보내면 유니크 인덱스가 하나만 통과시킨다.
+- 실패한 선점(`409 SEAT_ALREADY_HELD` 등)은 롤백돼 행이 남지 않으므로 토큰을 소모하지 않는다.
+- 접수형은 접수할 때 `jti`를 `REQUESTED` 행에 저장한다. 앞선 요청이 처리 중이어도 같은 토큰의 다른 요청은 `403 ENTRY_TOKEN_USED`다. 소비자가 거절해 `REJECTED`가 되면 토큰을 다시 쓸 수 있다. `SeatHoldRequested` 페이로드에 `entryTokenJti`(없으면 `null`)를 싣는다.
+- 대기열 정리: 선점이 성공하면(동기형은 응답 전, 접수형은 소비자가 `HELD`를 커밋한 뒤) 선점 트랜잭션이 끝나 커넥션을 돌려준 다음 `QueueService.discardEntryToken(scheduleId, userId, jti)`를 부른다. 대기열 `issued`의 기록이 같은 `jti`일 때만 지우므로, 옛 토큰의 늦은 요청이 새로 받은 입장을 지우지 않는다. `ENTRY_TOKEN_USED`로 거절할 때도 한 번 더 부른다(앞선 정리가 실패한 경우). 정리에 실패해도 응답은 바뀌지 않고 경고 로그만 남는다.
+- 거절 상태 코드 403은 ADR 0053 초안을 따른다. 프론트 담당 확인이 남아 있다(ISE-207 11-12 댓글).
 
 ---
 
@@ -174,6 +184,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | `400` | `SEAT_COUNT_MISMATCH` | `seatIds`가 비어 있거나 회차의 `max_per_user`(기본 4매)를 초과하거나, 배열 안에 중복된 `seatId`가 있거나, 요청한 `seatId`가 해당 `scheduleId`에 속하지 않는 경우 |
 | `401` | `UNAUTHORIZED` / `TOKEN_EXPIRED` / `TOKEN_REVOKED` | Access JWT 누락·만료·로그아웃 (Gateway 또는 `GatewayIdentityFilter`) |
 | `403` | `ENTRY_TOKEN_INVALID` | `X-Entry-Token` 누락·서명 위조·만료·`typ`/`aud` 불일치·`sub != X-User-Id`·토큰 `scheduleId` != 경로 `scheduleId` (E5, E14). Gateway가 응답한다 |
+| `403` | `ENTRY_TOKEN_USED` | 이 입장 토큰으로 이미 선점했거나(`HELD`) 접수형으로 처리 중(`REQUESTED`)이다. 선점 서비스가 응답한다. 프론트는 `ENTRY_TOKEN_INVALID`처럼 토큰을 지우고 대기열로 보낸다(1-1절, ADR 0053) |
 | `404` | `NOT_FOUND` | 존재하지 않는 `scheduleId`로 선점 요청, 또는 접수 결과 조회 시 존재하지 않거나 타인의 `requestId` 조회 |
 | `409` | `SALE_NOT_OPEN` | 서버 시각(`now`)이 회차의 `open_at` 이전이거나 이미 판매 종료된 회차 (E4) |
 | `409` | `PURCHASE_LIMIT_EXCEEDED` | `user_schedule_quotas` 조건부 UPDATE 결과 0행 (`held_count + 요청 매수 > max_per_user`) (E3, D1) |

@@ -18,6 +18,7 @@ import com.iseonjwa.reservation.reservation.domain.repository.ReservationStatusH
 import com.iseonjwa.reservation.reservation.domain.repository.UserScheduleQuotaRepository;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
+import com.iseonjwa.reservation.seathold.domain.repository.EntryTokenAlreadyUsedException;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -58,6 +59,7 @@ public class SyncSeatHoldService {
     private final ReservationStatusHistoryRepository histories;
     private final SeatHoldRequestRepository seatHoldRequests;
     private final HeldReservationResults results;
+    private final ConsumedEntryTokens consumedEntryTokens;
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
@@ -67,6 +69,7 @@ public class SyncSeatHoldService {
             ReservationRepository reservations, ReservationSeatRepository reservationSeats,
             ReservationStatusHistoryRepository histories,
             SeatHoldRequestRepository seatHoldRequests, HeldReservationResults results,
+            ConsumedEntryTokens consumedEntryTokens,
             @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager) {
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -78,23 +81,54 @@ public class SyncSeatHoldService {
         this.histories = histories;
         this.seatHoldRequests = seatHoldRequests;
         this.results = results;
+        this.consumedEntryTokens = consumedEntryTokens;
         this.clock = clock;
     }
 
     /**
      * Note: 트랜잭션을 이 메서드 안에서 연다. 같은 멱등키의 다른 요청에 진 트랜잭션은 rollback-only가 되므로,
      * 먼저 커밋된 결과를 다시 읽는 일은 그 트랜잭션이 끝난 뒤 새 읽기 트랜잭션에서 해야 한다(ADR 0032, TS-3).
+     * 입장 토큰의 대기열 정리도 트랜잭션이 끝나 커넥션을 돌려준 뒤에 한다(ADR 0053, {@link ConsumedEntryTokens}).
      */
     public SyncHoldOutcome hold(HoldSeatsCommand command) {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
+        SyncHoldOutcome outcome;
         try {
-            return writeTransaction.execute(status -> holdInTransaction(command, seatIds));
+            outcome = writeTransaction.execute(status -> holdInTransaction(command, seatIds));
         } catch (ConcurrentSameKeyException lost) {
-            return readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+            outcome = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
                     .map(previous -> replay(previous, command, seatIds))
                     .orElseThrow(() -> new IllegalStateException("먼저 커밋된 선점 요청이 없습니다: " + command.requestId(),
                             lost)));
+        } catch (ConcurrentEntryTokenException lost) {
+            outcome = replayOrRejectUsedToken(command, seatIds);
+        } catch (BusinessException rejected) {
+            // 앞선 선점 뒤의 정리가 실패했을 수 있어 거절할 때 한 번 더 지운다. 같은 jti일 때만 지우므로 새로 받은 토큰은 남는다
+            if (rejected.getErrorCode() == SeatHoldErrorCode.ENTRY_TOKEN_USED) {
+                discardEntryToken(command);
+            }
+            throw rejected;
         }
+        if (outcome instanceof SyncHoldOutcome.Held) {
+            discardEntryToken(command);
+        }
+        return outcome;
+    }
+
+    // Note: 같은 토큰의 다른 요청이 먼저 커밋해 유니크 인덱스에 걸렸다. 같은 멱등키 연타가 PK보다 이 인덱스에 먼저 걸렸을 수도 있어,
+    // 내 요청 행이 이미 있으면 같은 키 재요청으로 답한다. 없으면 다른 요청이 이 토큰을 썼다
+    private SyncHoldOutcome replayOrRejectUsedToken(HoldSeatsCommand command, List<Long> seatIds) {
+        var replayed = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                .map(previous -> replay(previous, command, seatIds)));
+        if (replayed.isPresent()) {
+            return replayed.get();
+        }
+        discardEntryToken(command);
+        throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+    }
+
+    private void discardEntryToken(HoldSeatsCommand command) {
+        consumedEntryTokens.discard(command.scheduleId(), command.userId(), command.entryTokenJti());
     }
 
     private SyncHoldOutcome holdInTransaction(HoldSeatsCommand command, List<Long> seatIds) {
@@ -102,6 +136,8 @@ public class SyncSeatHoldService {
         if (previous.isPresent()) {
             return replay(previous.get(), command, seatIds);
         }
+        // 같은 멱등키 재요청은 위에서 첫 결과로 답하고, 다른 요청이 이 토큰을 썼으면 좌석을 잠그기 전에 거절한다(ADR 0053 결정 2)
+        SeatHoldRules.requireUnusedEntryToken(seatHoldRequests, command);
         var schedule = inventory.findSchedule(command.scheduleId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         SeatHoldRules.requireWithinPerUserLimit(schedule, seatIds);
@@ -129,10 +165,15 @@ public class SyncSeatHoldService {
     }
 
     // Note: 멱등키를 매수·좌석보다 먼저 쓴다. 같은 키의 두 번째 요청은 PK에서 첫 요청의 커밋을 기다린 뒤 유니크 위반을 받고,
-    // 좌석 경로로 들어가 자기 좌석에 409를 받는 일이 없어진다. 첫 요청이 실패해 롤백되면 두 번째 요청이 이어서 선점한다
+    // 좌석 경로로 들어가 자기 좌석에 409를 받는 일이 없어진다. 첫 요청이 실패해 롤백되면 두 번째 요청이 이어서 선점한다.
+    // 입장 토큰 jti도 이 행에 함께 쓴다. 같은 토큰의 동시 요청은 유니크 인덱스에서 먼저 온 요청의 커밋을 기다리고,
+    // 먼저 온 요청이 성공하면 위반을, 실패해 롤백되면 이어서 선점한다
     private void claimRequest(HoldSeatsCommand command, Long scheduleId, List<Long> seatIds) {
         try {
-            seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), scheduleId, seatIds));
+            seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), scheduleId, seatIds,
+                    command.entryTokenJti()));
+        } catch (EntryTokenAlreadyUsedException exception) {
+            throw new ConcurrentEntryTokenException(exception);
         } catch (DataIntegrityViolationException exception) {
             throw new ConcurrentSameKeyException(exception);
         }
@@ -140,6 +181,12 @@ public class SyncSeatHoldService {
 
     private static final class ConcurrentSameKeyException extends RuntimeException {
         ConcurrentSameKeyException(Throwable cause) {
+            super(cause);
+        }
+    }
+
+    private static final class ConcurrentEntryTokenException extends RuntimeException {
+        ConcurrentEntryTokenException(Throwable cause) {
             super(cause);
         }
     }
