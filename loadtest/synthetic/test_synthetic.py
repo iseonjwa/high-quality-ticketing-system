@@ -155,8 +155,8 @@ class CompareTest(unittest.TestCase):
             "http_reqs,100,1.0,,,,true,,POST,n,,s,,201,,,u,api=hold,",
             "http_reqs,105,1.0,,,,true,,POST,n,,s,,409,,,u,api=hold,",
             "http_reqs,105,1.0,,,,true,,GET,n,,s,,200,,,u,api=setup,",
-            "step_duration,100,10.0,,,,,,,,,s,,,,,,step=hold&persona=a,",
-            "step_duration,105,30.0,,,,,,,,,s,,,,,,step=hold&persona=a,",
+            "step_duration,100,10.0,,,,,,,,,s,,,,,,step=hold&persona=a&zone=VIP&code=201,",
+            "step_duration,105,30.0,,,,,,,,,s,,,,,,step=hold&persona=a&zone=VIP&code=409,",
             "o1_outcomes,105,1.0,,,,,,,,,s,,,,,,persona=a&outcome=gave_up,",
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -170,6 +170,48 @@ class CompareTest(unittest.TestCase):
         self.assertIn("50.0%", report)
         self.assertIn("gave_up", report)
         self.assertIn("20.0", report)
+        self.assertEqual(run.peak("hold"), (1, 0))
+        self.assertIn("## 6. API별 초당 최대 요청 수", report)
+        self.assertIn("## 7. 오픈 뒤 1분 구간별 선점 결과", report)
+        self.assertEqual(dict(run.hold_by_zone["VIP"]), {"201": 1, "409": 1})
+        self.assertIn("| VIP | 2 | 1 (50.0%) |", report)
+
+    def test_waves_count_from_first_queue_enter(self):
+        header = "metric_name,timestamp,metric_value,check,error,error_code,expected_response,group,method,name,proto,scenario,service,status,subproto,tls_version,url,extra_tags,metadata"
+        rows = [
+            "http_reqs,1000,1.0,,,,true,,GET,n,,s,,200,,,u,api=concert_detail,",
+            "http_reqs,1600,1.0,,,,true,,POST,n,,s,,201,,,u,api=queue_enter,",
+            "http_reqs,1601,1.0,,,,true,,POST,n,,s,,201,,,u,api=queue_enter,",
+            "http_reqs,1630,1.0,,,,true,,POST,n,,s,,201,,,u,api=hold,",
+            "http_reqs,1930,1.0,,,,true,,POST,n,,s,,201,,,u,api=hold,",
+            "http_reqs,1931,1.0,,,,true,,POST,n,,s,,409,,,u,api=hold,",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "raw.csv")
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                file.write("\n".join([header] + rows) + "\n")
+            run = compare.Run(path)
+            report = compare.build_report(run, run)
+        self.assertEqual(run.open_second, 1600)
+        self.assertEqual(run.peak("queue_enter"), (1, 600))
+        # 오픈 뒤 30초의 선점은 0~60 구간, 330·331초의 선점은 300~360 구간이다
+        self.assertIn("| 0~60 | 1 | 0 | 1 | 0 |", report)
+        self.assertIn("| 300~360 | 1 | 1 | 1 | 1 |", report)
+
+
+class CommittedCsvTest(unittest.TestCase):
+    """저장소에 커밋한 측정용 CSV가 LLM 분포 JSON과 시드로 다시 만든 결과와 바이트 단위로 같은지 본다(4조 방식).
+    다르면 누군가 CSV나 JSON을 손으로 고쳤거나 생성 코드가 바뀐 것이다."""
+
+    def test_committed_csv_matches_regenerated(self):
+        repo = os.path.abspath(os.path.join(HERE, "..", ".."))
+        personas = os.path.join(HERE, "o1-personas.json")
+        committed = os.path.join(repo, "loadtest", "k6", "data", "o1-synthetic-3000.csv")
+        with open(personas, encoding="utf-8") as file:
+            doc = json.load(file)
+        with open(committed, encoding="utf-8", newline="") as file:
+            expected = file.read()
+        self.assertEqual(generate.generate(doc, 3000, 20261113), expected)
 
 
 if __name__ == "__main__":

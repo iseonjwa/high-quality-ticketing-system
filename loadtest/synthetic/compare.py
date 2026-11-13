@@ -17,6 +17,9 @@ from collections import Counter, defaultdict
 
 STEP_ORDER = ["browse", "enter", "poll", "token", "seats", "hold", "pay"]
 SETUP_API = "setup"
+# 초당 최대치를 볼 API(설계 문서 synthetic-data.md 5-0절의 LLM 예측 판정에 쓴다)
+PEAK_APIS = ["concert_detail", "queue_enter", "queue_poll", "seats", "hold", "payment"]
+WAVE_SECONDS = 60
 
 
 def open_text(path):
@@ -51,6 +54,9 @@ class Run:
         self.outcomes = Counter()
         self.persona_outcomes = defaultdict(Counter)
         self.request_count = 0
+        self.per_second = defaultdict(Counter)
+        self.hold_by_second = defaultdict(Counter)
+        self.hold_by_zone = defaultdict(Counter)
         self.first = None
         self.last = None
         self.read()
@@ -60,7 +66,11 @@ class Run:
             for row in csv.DictReader(file):
                 metric = row["metric_name"]
                 if metric == "step_duration":
-                    self.step_values[tag(row, tags_of(row), "step")].append(float(row["metric_value"]))
+                    tags = tags_of(row)
+                    step = tag(row, tags, "step")
+                    self.step_values[step].append(float(row["metric_value"]))
+                    if step == "hold" and tags.get("code"):
+                        self.hold_by_zone[tags.get("zone") or "ANY"][tags["code"]] += 1
                 elif metric == "http_reqs":
                     self.add_request(row)
                 elif metric == "o1_outcomes":
@@ -79,6 +89,9 @@ class Run:
         self.api_status[(api, row.get("status", ""))] += count
         self.request_count += count
         stamp = int(float(row["timestamp"]))
+        self.per_second[api][stamp] += count
+        if api == "hold":
+            self.hold_by_second[stamp][row.get("status", "")] += count
         self.first = stamp if self.first is None else min(self.first, stamp)
         self.last = stamp if self.last is None else max(self.last, stamp)
 
@@ -88,6 +101,20 @@ class Run:
         if self.first is None:
             return 0
         return max(self.last - self.first, 1)
+
+    def peak(self, api):
+        """초당 최대 요청 수와 그 시각(첫 요청부터 몇 초 뒤)"""
+        seconds = self.per_second.get(api)
+        if not seconds:
+            return 0, None
+        stamp, count = max(seconds.items(), key=lambda item: (item[1], -item[0]))
+        return count, stamp - self.first
+
+    @property
+    def open_second(self):
+        # Note: 원자료에는 오픈 시각이 없다. 첫 대기열 진입 요청을 오픈으로 본다(진입은 오픈 뒤에만 받는다)
+        seconds = self.per_second.get("queue_enter")
+        return min(seconds) if seconds else self.first
 
     def api_total(self, api):
         return sum(count for (name, _), count in self.api_status.items() if name == api)
@@ -170,6 +197,62 @@ def persona_table(run):
     return table(["persona", "합계"] + names, rows)
 
 
+def peak_table(runs):
+    apis = [api for api in PEAK_APIS if any(api in run.per_second for _, run in runs)]
+    rows = []
+    for api in apis:
+        row = [api]
+        for _, run in runs:
+            count, offset = run.peak(api)
+            row += [f"{count:,}", "-" if offset is None else offset]
+        rows.append(row)
+    header = ["api"]
+    for label, _ in runs:
+        header += [label + " 초당 최대", label + " 시각(초)"]
+    return table(header, rows)
+
+
+def wave_table(runs):
+    buckets = {}
+    for label, run in runs:
+        start = run.open_second
+        if start is None:
+            continue
+        for stamp, statuses in run.hold_by_second.items():
+            bucket = (stamp - start) // WAVE_SECONDS
+            buckets.setdefault(bucket, {}).setdefault(label, Counter()).update(statuses)
+    rows = []
+    for bucket in sorted(buckets):
+        row = [f"{bucket * WAVE_SECONDS}~{(bucket + 1) * WAVE_SECONDS}"]
+        for label, _ in runs:
+            counter = buckets[bucket].get(label, Counter())
+            row += [f"{counter.get('201', 0):,}", f"{counter.get('409', 0):,}"]
+        rows.append(row)
+    header = ["오픈 뒤(초)"]
+    for label, _ in runs:
+        header += [label + " 201", label + " 409"]
+    return table(header, rows)
+
+
+def zone_table(runs):
+    zones = sorted({zone for _, run in runs for zone in run.hold_by_zone})
+    rows = []
+    for zone in zones + ["전체"]:
+        row = [zone]
+        for _, run in runs:
+            if zone == "전체":
+                counter = sum(run.hold_by_zone.values(), Counter())
+            else:
+                counter = run.hold_by_zone.get(zone, Counter())
+            total = sum(counter.values())
+            row += [f"{total:,}", f"{counter.get('409', 0):,} ({percent(counter.get('409', 0), total)})"]
+        rows.append(row)
+    header = ["처음 노린 등급"]
+    for label, _ in runs:
+        header += [label + " 선점 요청", label + " 409(비율)"]
+    return table(header, rows)
+
+
 def summary_table(runs):
     rows = []
     for label, run in runs:
@@ -187,6 +270,12 @@ def build_report(base, synthetic):
         "## 4. 페르소나별 결과(Synthetic)", persona_table(synthetic),
         "## 5. 요청 수와 처리량",
         summary_table(runs) + "\n\n`api=setup`(준비 요청)은 뺐다. 측정 시간은 첫 요청부터 마지막 요청까지의 timestamp 차이다(초 단위).",
+        "## 6. API별 초당 최대 요청 수",
+        peak_table(runs) + "\n\n시각은 그 실행의 첫 요청부터 잰 초다. 오픈 직후 진입이 더 뾰족하게 몰리는지, 오픈 전 상세 조회의 정점이 높은지를 본다.",
+        "## 7. 오픈 뒤 1분 구간별 선점 결과",
+        wave_table(runs) + "\n\n오픈은 첫 대기열 진입 요청 시각으로 본다. 선점 유지 5분이 지나 풀린 좌석에 두 번째 몰림이 오는지(5~7분 구간)를 본다.",
+        "## 8. 처음 노린 등급별 선점 409 비율",
+        zone_table(runs) + "\n\n균일 모드는 등급을 정하지 않아 모두 ANY다. 등급 태그가 없는 예전 원자료면 표가 비어 있다.",
     ]
     return "\n\n".join(parts) + "\n"
 

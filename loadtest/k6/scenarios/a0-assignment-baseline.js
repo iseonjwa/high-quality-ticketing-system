@@ -27,10 +27,13 @@ export const options = {
     a0: { executor: 'per-vu-iterations', vus: VUS, iterations: ITERATIONS, maxDuration: '120s' },
   },
   summaryTrendStats: ['avg', 'min', 'med', 'p(95)', 'p(99)', 'max'],
-  // Note: k6는 임계값이 걸린 하위 지표만 요약 JSON에 내보낸다. a0-report.py가 읽을 선점 요청 수와 실패 수를 내보내려고 항상 참인 조건을 둔다
+  // 판정 기준은 측정 전에 고정한다(docs/design/infra/synthetic-data.md 5-0). 하나라도 어기면 k6가 종료 코드 99로 끝나고 요약 JSON은 그대로 남는다.
+  // 요청 수가 다르거나 409가 하나라도 있으면 측정이 무효다(준비한 좌석·사용자가 겹쳤다). 오류율 1% 이상은 불합격이다.
+  // Note: k6는 임계값이 걸린 하위 지표만 요약 JSON에 내보낸다. 이 조건들이 a0-report.py가 읽을 지표를 내보내는 역할도 한다
   thresholds: {
-    'http_reqs{api:hold}': ['count>=0'],
-    'http_req_failed{api:hold}': ['rate>=0'],
+    'http_reqs{api:hold}': [`count==${VUS * ITERATIONS}`],
+    'http_req_failed{api:hold}': ['rate<0.01'],
+    'a0_results{status:409}': ['count==0'],
   },
 };
 

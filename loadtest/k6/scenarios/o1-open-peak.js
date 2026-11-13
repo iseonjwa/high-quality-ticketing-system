@@ -239,7 +239,14 @@ function finish(user, outcome) {
 }
 
 function record(user, step, res) {
-  stepDuration.add(res.timings.duration, { step, persona: user.profile.persona });
+  const tags = { step, persona: user.profile.persona };
+  if (step === 'hold') {
+    // 선점에는 처음 노린 등급과 응답 코드를 붙인다. compare.py가 등급별 409 비율을 낸다(LLM 예측 "409가 VIP에 몰린다" 판정)
+    // Note: 태그 이름을 status로 하면 k6 CSV의 기본 status 열과 겹친다. 그래서 code로 쓴다
+    tags.zone = user.profile.zone || 'ANY';
+    tags.code = String(res.status);
+  }
+  stepDuration.add(res.timings.duration, tags);
 }
 
 const STEPS = {
