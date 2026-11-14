@@ -29,6 +29,20 @@ export function errorCodeOf(res) {
   return match ? match[1] : 'UNKNOWN';
 }
 
+// 실패한 요청을 다시 보내기까지 기다릴 시간(ms). 503에 Retry-After(초)가 있으면 그 값에 0~20%를 더하고, 그 밖에는 fallbackMillis다.
+// Note: 같은 순간 503을 받은 사용자들이 Retry-After 그대로 다시 오면 한 시각에 다시 몰린다. 그래서 난수로 조금씩 흩는다.
+// 대기열 503(QueueExceptionHandler)은 초 단위 숫자를 보낸다. 날짜 형식이나 헤더가 없는 503(예: Gateway 인증 503)은 fallbackMillis를 쓴다
+export function retryDelayMillis(res, fallbackMillis = 3000) {
+  if (res.status !== 503) {
+    return fallbackMillis;
+  }
+  const seconds = Number(res.headers['Retry-After']);
+  if (!res.headers['Retry-After'] || !Number.isFinite(seconds) || seconds < 0) {
+    return fallbackMillis;
+  }
+  return seconds * 1000 * (1 + Math.random() * 0.2);
+}
+
 // 오류 응답 message를 짧은 태그로 바꾼다. 같은 code(예: 503 SERVICE_UNAVAILABLE)라도 낸 곳이 다르면 message가 다르다
 const MESSAGE_TAGS = {
   '일시적으로 인증을 확인할 수 없습니다': 'auth_unavailable', // Gateway 인증의 Redis 벌크헤드·차단기 거절

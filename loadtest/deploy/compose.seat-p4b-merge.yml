@@ -1,0 +1,7 @@
+# 좌석 조회 2차 보강(ISE-204, #603: 커넥션을 DB 읽기 동안만 쥐고 첫 요청이 몰려도 배치를 한 번만 읽음)을 배포 서버에서 잴 때만 쓰는
+# 덮어쓰기다. reservation-service 이미지만 #603이 들어간 main 릴리스(11/13, 7b07236, #604)로 바꾸고, 나머지는 지금 배포 그대로 둔다.
+#   script/loadtest/measure-mode.sh on loadtest/deploy/compose.seat-p4b-merge.yml
+# 3차(P4c, #605)가 main에 들어간 뒤 2차 보강만 따로 재려는 것이다. 예약 DB 마이그레이션 차이는 없다.
+services:
+  reservation-service:
+    image: ghcr.io/iseonjwa/reservation-service:7b07236d497e7bcc85ddab5e93d40e58cd37bc48

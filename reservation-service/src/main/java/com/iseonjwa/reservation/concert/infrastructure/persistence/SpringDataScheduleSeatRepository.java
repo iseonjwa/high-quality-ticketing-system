@@ -1,8 +1,9 @@
 package com.iseonjwa.reservation.concert.infrastructure.persistence;
 
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeatStatus;
+import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.concert.domain.repository.SeatLayoutRow;
-import com.iseonjwa.reservation.concert.domain.repository.SeatStateRow;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -24,10 +25,13 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
             + " and ss.deletedAt is null order by ss.section asc, vs.rowNo asc, vs.seatNo asc")
     List<SeatLayoutRow> findSeatLayouts(@Param("scheduleId") Long scheduleId);
 
-    // 배치는 캐시에서 쓰므로 바뀌는 열만 읽는다. 조인·정렬이 없다(ISE-204)
-    @Query("select new com.iseonjwa.reservation.concert.domain.repository.SeatStateRow(ss.id, ss.grade, ss.status)"
-            + " from ScheduleSeat ss where ss.schedule.id = :scheduleId and ss.deletedAt is null")
-    List<SeatStateRow> findSeatStates(@Param("scheduleId") Long scheduleId);
+    // 배치는 캐시에서 쓰므로 바뀌는 값은 선점 가능한 좌석 ID만 읽는다. 조인·정렬이 없다(ISE-204)
+    // Note: 조건을 네이티브 SQL 문자열이 아니라 JPQL과 enum 파라미터로 쓴다. 필드 이름이 틀리면 서버가 뜰 때 알 수 있다
+    @Query("select ss.id from ScheduleSeat ss where ss.schedule.id = :scheduleId and ss.deletedAt is null"
+            + " and ss.status = :status and ss.grade <> :excludedGrade")
+    List<Long> findSeatIdsByStatusExcludingGrade(@Param("scheduleId") Long scheduleId,
+                                                 @Param("status") ScheduleSeatStatus status,
+                                                 @Param("excludedGrade") SeatGrade excludedGrade);
 
     // Note: 15,000석을 엔티티로 하나씩 save하면 INSERT가 15,000번 나간다.
     // DB 안에서 venue_seats를 읽어 바로 넣는 INSERT ... SELECT 한 문장으로 만든다.
