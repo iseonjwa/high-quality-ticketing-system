@@ -8,6 +8,8 @@ hyoseung이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-08 | 좌석 배치 캐시(P4b): AI 설명만으로 채택하지 않고 Redis 비교 측정 뒤 서비스 메모리로 확정 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-08-seat-layout-cache-memory-not-redis.md) |
+| 2026-11-03 | DLQ 처리기(#282): AI 리뷰 지적을 선택 사항까지 모두 받아 고치고 시험 5개 → 9개 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-03-dlq-review-fixes-all-accepted.md) |
 | 2026-10-29 | Flyway: 설명 없이 DDL을 써 오라는 AI 안내 대신 개념·예시부터 배우고 쓰기 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-10-29-flyway-teach-before-assign.md) |
 | 2026-10-28 | 이슈 순서: AI의 시드·API 우선 구성 대신 도메인 엔티티 설계를 첫 이슈로 | Claude Code | **거부** | 아니오 | 후보 | [기록](2026-10-28-entity-design-before-features.md) |
 | 2026-10-28 | Linear 이슈: AI의 일괄·대리 생성 제안 대신 본인이 그날 할 만큼만 만들고 조금씩 추가 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-10-28-linear-issues-self-and-incremental.md) |
