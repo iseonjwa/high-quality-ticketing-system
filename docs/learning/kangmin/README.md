@@ -8,6 +8,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-14 | 이미 쓴 입장 토큰으로 선점하면 403과 409 중 무엇을 돌려줘야 하나(HTTP 뜻, 이 API에서 403·409가 쓰이는 대응, 프런트는 코드 이름으로 분기, 409로 바꾸는 비용) | [qna/2026-11-14-entry-token-used-403-vs-409.md](qna/2026-11-14-entry-token-used-403-vs-409.md) |
+| 2026-11-14 | ISE-271: 남은 기간 PR마다 AI 리뷰를 남길지, 계약 경계 PR을 상대 담당이 볼지(1번 최소형 전부·위험 PR만 코멘트, 3번 상대 확인·반나절 뒤 사후 확인, 대안 비교와 바꿀 조건) | [qna/2026-11-14-ise271-ai-review-policy-options.md](qna/2026-11-14-ise271-ai-review-policy-options.md) |
+| 2026-11-13 | 공연 상세 조회 한 건은 왜 CPU 약 3ms를 쓰고 어떻게 줄이나(세 컨테이너 몫 나누기, 쿼리는 0.2ms로 싸고 회차 91개·응답 13.5KB, 로컬 캐시와 판매 상태 요청마다 계산 추천, B1-d 측정 계획) | [qna/2026-11-13-concert-detail-cost.md](qna/2026-11-13-concert-detail-cost.md) |
 | 2026-11-13 | 대기열 입장 속도를 예매 서비스 감당량에 맞추는 방법(고정값 측정·AIMD 적응형·동시 입장 슬롯 비교, 한 명당 CPU로 본 감당량 추정, Hikari 고갈이 CPU 포화의 증상인 이유, 30·40·50 측정 계획, 대기열 담당 질문 9개) | [qna/2026-11-13-queue-admission-rate-capacity-matching.md](qna/2026-11-13-queue-admission-rate-capacity-matching.md) |
 | 2026-11-13 | 좌석 선점·대기열·공연에는 Prometheus 지표가 없어서 합성 부하로 재도 제대로 된 지표를 못 보는가(자동 HTTP·풀·JVM 지표는 있음, 도메인 지표·히스토그램·exporter 없음, 질문별 답 가능 여부, k6·사후 집계로 메우는 범위, 선택지 A~D) | [qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md](qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md) |
 | 2026-11-13 | k6, Prometheus, Grafana는 각각 무슨 일을 하고 이 저장소에서는 어떻게 이어져 있나(부하 발생·수집 저장·화면 분담, 서버 지표 pull 대 k6 remote write push, 한 화면에서 원인 맞추기, Alertmanager·Loki·Alloy·Zipkin, 감수한 점, remote write 카디널리티 OOM 사례, remote write를 끄면 잃는 것) | [qna/2026-11-13-k6-prometheus-grafana-roles.md](qna/2026-11-13-k6-prometheus-grafana-roles.md) |
