@@ -30,7 +30,7 @@
 
 | 폴더 | 내용 |
 |---|---|
-| [hyoseung](hyoseung/README.md) | 개별 기록 5건, 일지 19일 |
+| [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 42건, 일지 9일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 22건, 일지 10일 |
@@ -115,6 +115,7 @@
 | 2026-11-09 | 자동결제 겹침 contract 이슈를 추천안 하나로 좁히지 않고 모든 선택지·트레이드오프를 담아 결제 담당과 고르기로 함 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-09-billing-overlap-issue-all-options.md) |
 | 2026-11-09 | 입장 토큰 만료 시점으로 결제 완료 대신 좌석 선점 성공 시점을 고름 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-09-entry-token-consume-on-hold.md) |
 | 2026-11-09 | 부하 발생기 EC2 안내가 1인용 구성이라 팀 공용(팀원 IP·키, 각자 폴더, 한 번에 한 측정)으로 바꾸게 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-09-loadgen-shared-by-team.md) |
+| 2026-11-08 | 좌석 배치 캐시(P4b)를 Redis가 아니라 서비스 메모리에 두되, AI 설명만으로 채택하지 않고 측정 뒤 확정 | hyoseung | Claude Code | 수용 | 후보 | [기록](hyoseung/2026-11-08-seat-layout-cache-memory-not-redis.md) |
 | 2026-11-08 | 커넥션 대기 1초 동의와 추첨 시나리오 L1~L3 검토 의견을 AI 초안 그대로 Linear에 올림 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-08-connection-timeout-and-lottery-scenario-review.md) |
 | 2026-11-08 | 서버 측정을 11/13 재가동 뒤로 두자는 일정안 거부, 11/9에 서버를 켬 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-08-server-start-tomorrow.md) |
 | 2026-11-09 | 오류 응답이 Accept에 따라 비는 결함을 상담 서비스 안이 아니라 공통 예외 처리기(common)에서 고치기로 함(ISE-221) | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-09-error-response-json-in-common.md) |
@@ -150,6 +151,7 @@
 | 2026-11-04 | 리허설 일정에 맞춰 측정 전에 배포 EC2를 16GB급으로 정하고 AWS Paid plan으로 바꿈 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-deploy-ec2-16gb-paid-plan.md) |
 | 2026-11-04 | M3 배포 순서(173·178 → 176 → 174·177 → 175)를 받아들이고 프론트 nginx(ISE-109)를 M4에서 M3로 당겨 이미지 워크플로(ISE-173)와 함께 함 | junhyun | Claude Code | 부분 수용 | 아님 | [기록](junhyun/2026-11-04-m3-deploy-order-with-ise109.md) |
 | 2026-11-04 | 배포용 AWS 계정 운영: 시드니 리전 유지(서울 전환 안 함), 팀원은 각자 SSH 키와 IP로 접속하고 콘솔 초대는 필요한 사람만 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-04-aws-region-and-team-access.md) |
+| 2026-11-03 | payment.result DLQ 처리기(#282)의 AI 리뷰 지적을 선택 사항까지 모두 받아 고치고 테스트 5개 → 9개 | hyoseung | Claude Code | 수용 | 후보 | [기록](hyoseung/2026-11-03-dlq-review-fixes-all-accepted.md) |
 | 2026-11-03 | ISE-79 동시성 시나리오(S0~S4, C1~C7, L1~L6)와 이슈 전제 검토를 수용하고 워크트리에서 단계별 실측 | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md) |
 | 2026-11-03 | 배포·관측·부하 측정 설계: AI 추천 대부분 수용, Jenkins를 더하고 main 머지 자동 배포·오픈 피크 전체 시나리오를 고름, 요청 로그는 공통 필터로 | junhyun | Claude Code | 부분 수용 | 후보 | [기록](junhyun/2026-11-03-deploy-observability-loadtest-design.md) |
 | 2026-11-03 | 반효승 PR #282(DLQ 처리기)·#283(대사 내부 조회 API) AI 리뷰를 PR 코멘트로 남기고, 대사 응답 모양은 #283에 맞춰 결제 쪽 어댑터를 고치기로 함 | junhyun | Claude Code, Opus 리뷰 | 수용 | 아님 | [기록](junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
