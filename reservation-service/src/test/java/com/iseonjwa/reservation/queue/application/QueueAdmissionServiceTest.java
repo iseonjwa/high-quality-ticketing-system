@@ -1,12 +1,16 @@
 package com.iseonjwa.reservation.queue.application;
 
 import com.iseonjwa.reservation.queue.domain.*;
+import com.iseonjwa.reservation.queue.observability.QueueMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -23,6 +27,8 @@ class QueueAdmissionServiceTest {
             50, Duration.ofMinutes(10), Duration.ofSeconds(3), Duration.ofSeconds(10), 0.2, 500, Duration.ofHours(1));
 
     final RecordingQueueRepository repository = new RecordingQueueRepository();
+    final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    final QueueMetrics metrics = new QueueMetrics(registry);
 
     @Test
     void 판매_중인_회차마다_설정값으로_admit을_부른다() {
@@ -68,10 +74,79 @@ class QueueAdmissionServiceTest {
         assertTrue(repository.calls.isEmpty());
     }
 
+    @Test
+    void 판매_중인_회차들의_통계를_합쳐_지표에_넣는다() {
+        repository.stats.put(31L, new QueueStats(100, 80, 20, 5, 30));
+        repository.stats.put(32L, new QueueStats(10, 8, 2, 1, 3));
+        var service = service(List.of(schedule(31L), schedule(32L)));
+
+        service.admitOnSale();
+
+        assertEquals(110.0, gauge("queue.joined"));
+        assertEquals(88.0, gauge("queue.admitted"));
+        assertEquals(22.0, gauge("queue.waiting"));
+        assertEquals(6.0, gauge("queue.admitted.unissued"));
+        assertEquals(33.0, gauge("queue.entry.tokens.active"));
+        assertEquals(List.of(31L, 32L), repository.statsScheduleIds);
+        assertEquals(600_000L, repository.statsTokenTtlMillis);
+    }
+
+    @Test
+    void 한_회차라도_실패하면_지표를_갱신하지_않고_이전_값을_둔다() {
+        repository.stats.put(31L, new QueueStats(100, 80, 20, 5, 30));
+        repository.stats.put(32L, new QueueStats(10, 8, 2, 1, 3));
+        var service = service(List.of(schedule(31L), schedule(32L)));
+        service.admitOnSale(); // 정상: 110
+
+        repository.failingScheduleIds = Set.of(31L);
+        repository.failure = new QueueStorageUnavailableException(new RuntimeException("timeout"));
+        service.admitOnSale(); // 31번 실패: 10으로 덮어쓰지 않는다
+
+        assertEquals(110.0, gauge("queue.joined"));
+    }
+
+    @Test
+    void 실패가_풀리면_다시_갱신한다() {
+        repository.stats.put(31L, new QueueStats(100, 80, 20, 5, 30));
+        var service = service(List.of(schedule(31L)));
+        repository.failingScheduleIds = Set.of(31L);
+        service.admitOnSale(); // 실패: 처음 값 0 그대로
+
+        repository.failingScheduleIds = Set.of();
+        service.admitOnSale();
+
+        assertEquals(100.0, gauge("queue.joined"));
+    }
+
+    @Test
+    void 매번_새로_합친다() {
+        repository.stats.put(31L, new QueueStats(100, 80, 20, 5, 30));
+        var service = service(List.of(schedule(31L)));
+
+        service.admitOnSale();
+        service.admitOnSale();
+
+        assertEquals(100.0, gauge("queue.joined")); // 200이 아니다
+    }
+
+    @Test
+    void 판매_중인_회차가_없으면_지표는_0이다() {
+        metrics.update(new QueueStats(100, 80, 20, 5, 30));
+        var service = service(List.of());
+
+        service.admitOnSale();
+
+        assertEquals(0.0, gauge("queue.joined"));
+    }
+
     // --- 도우미 ---
 
+    double gauge(String name) {
+        return registry.get(name).gauge().value();
+    }
+
     QueueAdmissionService service(List<ScheduleTimes> onSale) {
-        return new QueueAdmissionService(new FixedScheduleReader(onSale), repository, properties);
+        return new QueueAdmissionService(new FixedScheduleReader(onSale), repository, properties, metrics);
     }
 
     static ScheduleTimes schedule(long id) {
@@ -121,6 +196,17 @@ class QueueAdmissionServiceTest {
         @Override
         public void discardToken(long scheduleId, long userId, long issuedAtEpochMillis) {
             throw new UnsupportedOperationException();
+        }
+
+        final Map<Long, QueueStats> stats = new HashMap<>();
+        final List<Long> statsScheduleIds = new ArrayList<>();
+        long statsTokenTtlMillis;
+
+        @Override
+        public QueueStats stats(long scheduleId, long tokenTtlMillis) {
+            statsScheduleIds.add(scheduleId);
+            statsTokenTtlMillis = tokenTtlMillis;
+            return stats.getOrDefault(scheduleId, QueueStats.EMPTY);
         }
     }
 

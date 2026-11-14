@@ -66,6 +66,8 @@ class RedisQueueRepositoryFailureTest {
                 () -> repository.issueToken(1L, 42L, 600_000L, 0L));
         assertThrows(QueueStorageUnavailableException.class,
                 () -> repository.discardToken(1L, 42L, 1_000L));
+        assertThrows(QueueStorageUnavailableException.class,
+                () -> repository.stats(1L, 600_000L));
     }
 
     @Test

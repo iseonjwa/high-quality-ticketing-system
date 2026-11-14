@@ -8,6 +8,7 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-14 | 대기열 지표를 입장 처리 Lua에 얹자는 AI 첫 설계를 되물어 읽기 전용 Lua·회차 합계 게이지로 바꾸고, 이름은 admittedUnissued로 함 | Claude | 부분 수용 | 예 | 후보 | [기록](2026-11-14-queue-metrics-design.md) |
 | 2026-11-13 | **입장 토큰 소모 뒤 issued 정리를 이벤트 리스너로 유지하자는 AI 추천을 거부하고, 선점 쪽이 트랜잭션 밖에서 대기열 메서드를 jti와 함께 부르게 함** | Claude | **거부** | 예 | 후보 | [기록](2026-11-13-entry-token-discard-method-call.md) |
 | 2026-11-12 | 대기열 Redis 차단기 값을 Gateway와 같게 두되 느린 호출을 50ms 대신 100ms로, 공통 Redis 시한을 200ms로 올림 | Claude | 부분 수용 | 예 | 후보 | [기록](2026-11-12-queue-redis-circuit-breaker-values.md) |
 | 2026-11-11 | 대기열 Redis 시한 초과를 503으로 바꾸는 위치로 저장소에서 대기열 예외로 바꾸는 안(A)을 고름 | Claude | 수용 | 예 | 후보 | [기록](2026-11-11-queue-redis-timeout-503-layer.md) |
