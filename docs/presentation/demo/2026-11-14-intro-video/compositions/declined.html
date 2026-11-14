@@ -1,0 +1,23 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    #d-cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; }
+    #d-vid { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; object-fit: cover; }
+    #d-band { position: absolute; left: 0; bottom: 96px; background: #14101A; color: #FFF8EE; padding: 26px 56px 30px 120px; }
+    #d-band .k { font-size: 30px; font-weight: 800; color: #FF2D78; }
+    #d-band .t { font-size: 58px; font-weight: 900; letter-spacing: -1.5px; margin-top: 4px; }
+  </style>
+  <div id="root" data-composition-id="declined" data-width="1920" data-height="1080">
+    <div id="d-cam">
+      <video id="d-vid" class="clip" src="assets/video/declined.mp4" data-start="0" data-duration="5.4" data-media-start="2.2" data-playback-rate="0.7" muted playsinline data-track-index="1"></video>
+    </div>
+    <div id="d-band"><p class="k">결제 실패</p><p class="t">카드가 거절되면?</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#d-band', { xPercent: -105 }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#d-cam', { scale: 1 }, { scale: 1.6, transformOrigin: '36% 34%', duration: 0.6, ease: 'power2.inOut' }, 2.6);
+    window.__timelines['declined'] = tl;
+  </script>
+</template>

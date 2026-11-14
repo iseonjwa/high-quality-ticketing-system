@@ -1,0 +1,24 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    #q-cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; }
+    #q-vid { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; object-fit: cover; }
+    #q-band { position: absolute; left: 0; bottom: 96px; background: #14101A; color: #FFF8EE; padding: 26px 56px 30px 120px; }
+    #q-band .k { font-size: 30px; font-weight: 800; color: #FF2D78; }
+    #q-band .t { font-size: 58px; font-weight: 900; letter-spacing: -1.5px; margin-top: 4px; }
+  </style>
+  <div id="root" data-composition-id="queue" data-width="1920" data-height="1080">
+    <div id="q-cam">
+      <video id="q-vid" class="clip" src="assets/video/booking.mp4" data-start="0" data-duration="7" data-media-start="1.0" data-playback-rate="0.5" muted playsinline data-track-index="1"></video>
+    </div>
+    <div id="q-band"><p class="k">대기열</p><p class="t">새로고침 대신, 줄어드는 내 순번</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#q-band', { xPercent: -105 }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, 0.3);
+    tl.fromTo('#q-cam', { scale: 1 }, { scale: 1.75, transformOrigin: '50% 24%', duration: 0.6, ease: 'power2.inOut' }, 3.3);
+    tl.to('#q-cam', { scale: 1, duration: 0.5, ease: 'power2.inOut' }, 6.3);
+    window.__timelines['queue'] = tl;
+  </script>
+</template>

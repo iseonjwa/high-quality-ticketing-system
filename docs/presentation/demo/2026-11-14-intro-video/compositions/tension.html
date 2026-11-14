@@ -1,0 +1,34 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFD23F; font-family: 'Pretendard', sans-serif; color: #14101A; overflow: hidden; }
+    #ten-kicker { position: absolute; left: 120px; top: 140px; font-size: 44px; font-weight: 800; }
+    #ten-big { position: absolute; left: 112px; top: 230px; font-size: 220px; font-weight: 900; letter-spacing: -8px; line-height: 1; }
+    #ten-note { position: absolute; left: 120px; top: 500px; width: 700px; font-size: 44px; font-weight: 700; line-height: 1.35; color: #4A3B00; }
+    .ten-toast { position: absolute; width: 820px; padding: 34px 44px; background: #FFF8EE; border: 5px solid #14101A; border-radius: 22px; box-shadow: 10px 12px 0 #14101A; display: flex; align-items: center; gap: 28px; }
+    .ten-toast .dot { width: 44px; height: 44px; border-radius: 50%; background: #FF2D78; flex: none; }
+    .ten-toast p { font-size: 46px; font-weight: 800; letter-spacing: -1px; }
+  </style>
+  <div id="root" data-composition-id="tension" data-width="1920" data-height="1080">
+    <p id="ten-kicker">작년 오픈 정각</p>
+    <p id="ten-big">또 실패</p>
+    <p id="ten-note">새로고침을 누를수록 느려지고, 고르는 자리마다 막혔다</p>
+    <div id="ten-t1" class="ten-toast" style="left:960px;top:150px"><div class="dot"></div><p>이미 선택된 좌석입니다.</p></div>
+    <div id="ten-t2" class="ten-toast" style="left:1010px;top:330px"><div class="dot"></div><p>이미 선택된 좌석입니다.</p></div>
+    <div id="ten-t3" class="ten-toast" style="left:930px;top:510px"><div class="dot"></div><p>이미 선택된 좌석입니다.</p></div>
+    <div id="ten-t4" class="ten-toast" style="left:1040px;top:690px"><div class="dot"></div><p>이미 선택된 좌석입니다.</p></div>
+    <div id="ten-t5" class="ten-toast" style="left:980px;top:420px"><div class="dot"></div><p>이미 선택된 좌석입니다.</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#ten-kicker', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power3.out' }, 0.05);
+    tl.fromTo('#ten-big', { opacity: 0, scale: 1.3, transformOrigin: '0% 50%' }, { opacity: 1, scale: 1, duration: 0.4, ease: 'power4.out' }, 0.15);
+    tl.fromTo('#ten-note', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.6);
+    const rot = [-4, 3, -2, 5, -6];
+    ['#ten-t1', '#ten-t2', '#ten-t3', '#ten-t4', '#ten-t5'].forEach((id, i) => {
+      tl.fromTo(id, { opacity: 0, scale: 0.5, rotation: rot[i] * 3 }, { opacity: 1, scale: 1, rotation: rot[i], duration: 0.32, ease: 'back.out(1.8)' }, 1.0 + i * 0.75);
+    });
+    tl.fromTo('#ten-t5', { x: 0 }, { x: 18, duration: 0.06, ease: 'none', yoyo: true, repeat: 5 }, 4.4);
+    window.__timelines['tension'] = tl;
+  </script>
+</template>

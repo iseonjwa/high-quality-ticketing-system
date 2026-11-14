@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #14101A; font-family: 'Pretendard', sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="92" data-width="1920" data-height="1080">
+      <div id="hook" data-composition-id="hook" data-composition-src="compositions/hook.html" data-start="0" data-duration="6.6" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="tension" data-composition-id="tension" data-composition-src="compositions/tension.html" data-start="6.6" data-duration="6.6" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="reveal" data-composition-id="reveal" data-composition-src="compositions/reveal.html" data-start="13.2" data-duration="7" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="queue" data-composition-id="queue" data-composition-src="compositions/queue.html" data-start="20.2" data-duration="7" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="seat" data-composition-id="seat" data-composition-src="compositions/seat.html" data-start="27.2" data-duration="9.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="declined" data-composition-id="declined" data-composition-src="compositions/declined.html" data-start="36.6" data-duration="5.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="saga" data-composition-id="saga" data-composition-src="compositions/saga.html" data-start="42" data-duration="6.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="confirmed" data-composition-id="confirmed" data-composition-src="compositions/confirmed.html" data-start="48.4" data-duration="6" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="lottery" data-composition-id="lottery" data-composition-src="compositions/lottery.html" data-start="54.4" data-duration="12.2" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="numbers" data-composition-id="numbers" data-composition-src="compositions/numbers.html" data-start="66.6" data-duration="11" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="payoff" data-composition-id="payoff" data-composition-src="compositions/payoff.html" data-start="77.6" data-duration="6" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="endcard" data-composition-id="endcard" data-composition-src="compositions/endcard.html" data-start="83.6" data-duration="8.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+
+      <audio id="vo-h01" class="clip" src="assets/voice/h01.mp3" data-start="0.5" data-duration="3.89" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-h02" class="clip" src="assets/voice/h02.mp3" data-start="7.0" data-duration="4.54" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n01" class="clip" src="assets/voice/n01.mp3" data-start="14.0" data-duration="5.04" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n02" class="clip" src="assets/voice/n02.mp3" data-start="20.6" data-duration="5.72" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n03" class="clip" src="assets/voice/n03.mp3" data-start="28.0" data-duration="4.70" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-h03" class="clip" src="assets/voice/h03.mp3" data-start="34.4" data-duration="0.96" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-h04" class="clip" src="assets/voice/h04.mp3" data-start="39.3" data-duration="1.75" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n04" class="clip" src="assets/voice/n04.mp3" data-start="42.4" data-duration="5.23" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n05" class="clip" src="assets/voice/n05.mp3" data-start="49.7" data-duration="1.77" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n06" class="clip" src="assets/voice/n06.mp3" data-start="54.8" data-duration="6.25" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-h05" class="clip" src="assets/voice/h05.mp3" data-start="62.6" data-duration="2.38" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n08" class="clip" src="assets/voice/n08.mp3" data-start="67.0" data-duration="9.70" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-h06" class="clip" src="assets/voice/h06.mp3" data-start="78.6" data-duration="1.81" data-track-index="2" data-volume="1"></audio>
+      <audio id="vo-n07" class="clip" src="assets/voice/n07.mp3" data-start="85.2" data-duration="2.15" data-track-index="2" data-volume="1"></audio>
+
+      <audio id="sfx-w1" class="clip" src="assets/sfx/sfx_002.mp3" data-start="6.6" data-duration="0.57" data-track-index="3" data-volume="0.35"></audio>
+      <audio id="sfx-w2" class="clip" src="assets/sfx/sfx_002.mp3" data-start="13.2" data-duration="0.57" data-track-index="3" data-volume="0.28"></audio>
+      <audio id="sfx-w3" class="clip" src="assets/sfx/sfx_002.mp3" data-start="20.2" data-duration="0.57" data-track-index="3" data-volume="0.3"></audio>
+      <audio id="sfx-w4" class="clip" src="assets/sfx/sfx_002.mp3" data-start="42" data-duration="0.57" data-track-index="3" data-volume="0.28"></audio>
+      <audio id="sfx-w5" class="clip" src="assets/sfx/sfx_002.mp3" data-start="54.4" data-duration="0.57" data-track-index="3" data-volume="0.3"></audio>
+      <audio id="sfx-w6" class="clip" src="assets/sfx/sfx_002.mp3" data-start="66.6" data-duration="0.57" data-track-index="3" data-volume="0.28"></audio>
+      <audio id="sfx-w7" class="clip" src="assets/sfx/sfx_002.mp3" data-start="77.6" data-duration="0.57" data-track-index="3" data-volume="0.3"></audio>
+      <audio id="sfx-p1" class="clip" src="assets/sfx/sfx_003.mp3" data-start="68.55" data-duration="0.9" data-track-index="4" data-volume="0.3"></audio>
+      <audio id="sfx-p2" class="clip" src="assets/sfx/sfx_003.mp3" data-start="72.25" data-duration="0.9" data-track-index="4" data-volume="0.3"></audio>
+      <audio id="sfx-click1" class="clip" src="assets/sfx/sfx_001.mp3" data-start="33.7" data-duration="0.37" data-track-index="4" data-volume="0.35"></audio>
+      <audio id="sfx-click2" class="clip" src="assets/sfx/sfx_001.mp3" data-start="38.64" data-duration="0.37" data-track-index="4" data-volume="0.3"></audio>
+      <audio id="sfx-click3" class="clip" src="assets/sfx/sfx_001.mp3" data-start="49.57" data-duration="0.37" data-track-index="4" data-volume="0.35"></audio>
+      <audio id="sfx-click4" class="clip" src="assets/sfx/sfx_001.mp3" data-start="55.83" data-duration="0.37" data-track-index="4" data-volume="0.3"></audio>
+      <audio id="sfx-click5" class="clip" src="assets/sfx/sfx_001.mp3" data-start="58.15" data-duration="0.37" data-track-index="4" data-volume="0.35"></audio>
+      <audio id="sfx-riser" class="clip" src="assets/sfx/sfx_004.mp3" data-start="80.73" data-duration="4.3" data-track-index="5" data-volume="0.32"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>
