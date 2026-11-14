@@ -52,7 +52,7 @@ compose로 띄우는 인프라의 역할:
 ### 초기 환경과 공통 모듈의 차이 (추가 질문: "각각 뭘 해야 하는지 읽어도 이해가 안 된다")
 - 초기 환경은 앱이 돌아갈 무대다. 앱을 빌드하는 틀(Gradle 멀티모듈), 설정을 나눠 주는 곳(Config 서버), 서비스 주소록(Eureka), 정문(Gateway), DB·Redis·Kafka·모니터링을 한 번에 켜는 스위치(docker compose와 `.env`)다. 다 되면 "명령 하나로 전부 켜지고, 요청이 정문을 지나 서비스까지 간다".
 - 공통 모듈은 모든 서비스가 가져다 쓰는 공용 코드다. 응답 모양(`common-response`), 에러를 그 모양으로 바꿔 주는 처리기(`common-web`), DB 공통 컬럼과 Kafka 메시지 봉투(`common`)다. 다 되면 "새 서비스가 의존성 한 줄만 추가해도 응답과 에러가 팀 규칙대로 나간다".
-- 구현 결과와 실행 방법은 `docs/guides/local-environment.md`에 있다.
+- 구현 결과와 실행 방법은 `hyoseung/chore/init-env` 브랜치의 `docs/guides/local-environment.md`에 있다. 10/27 통합 회의에서 준현 브랜치 기준으로 합쳐 이 안은 비교용으로 끝났다. 지금 구조는 `docs/guides/workspace.md`와 `docs/guides/common-modules.md`를 본다.
 
 ### M1이 "세팅"만인가 (추가 질문: "세팅 마일스톤은 딱 이것까지만 하는 건가")
 아니다. M1(10/27–10/29)은 세팅보다 넓어서 인증까지 들어간다(`docs/core/milestones.md`).
