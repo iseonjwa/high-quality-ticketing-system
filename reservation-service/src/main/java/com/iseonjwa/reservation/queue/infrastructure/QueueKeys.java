@@ -32,4 +32,8 @@ public record QueueKeys(String prefix) {
     List<String> discardEntryTokenKeys() {
         return List.of(issuedKey());
     }
+
+    List<String> statsKeys() {
+        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued");
+    }
 }

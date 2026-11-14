@@ -19,4 +19,6 @@ public interface QueueRepository {
     Optional<Long> issuedAt(long scheduleId, long userId);
 
     void discardToken(long scheduleId, long userId, long issuedAtEpochMillis);
+
+    QueueStats stats(long scheduleId, long tokenTtlMillis);
 }

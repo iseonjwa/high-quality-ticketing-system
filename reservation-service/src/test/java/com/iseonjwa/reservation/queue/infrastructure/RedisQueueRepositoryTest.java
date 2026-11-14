@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.queue.infrastructure;
 import com.iseonjwa.reservation.queue.domain.EnterOutcome;
 import com.iseonjwa.reservation.queue.domain.IssueTokenOutcome;
 import com.iseonjwa.reservation.queue.domain.PositionOutcome;
+import com.iseonjwa.reservation.queue.domain.QueueStats;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -554,6 +555,80 @@ class RedisQueueRepositoryTest {
             stringRedisTemplate.opsForValue().set("queue:{" + OTHER_SCHEDULE_ID + "}:admitted", "10");
 
             assertEquals(IssueTokenOutcome.Type.NOT_JOINED, issue(42).type());
+        }
+    }
+
+    // 지표용 통계는 읽기만 한다 (ISE-61)
+    @Nested
+    class 통계 {
+
+        QueueStats stats() {
+            return queueRepository.stats(SCHEDULE_ID, TOKEN_TTL_MILLIS);
+        }
+
+        @Test
+        void 키가_없으면_모두_0이다() {
+            assertEquals(QueueStats.EMPTY, stats());
+        }
+
+        @Test
+        void 차례_전과_후를_admitted를_경계로_나눈다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "5");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "3");
+            for (int seq = 1; seq <= 5; seq++) {
+                stringRedisTemplate.opsForZSet().add(WAITING, String.valueOf(40 + seq), seq);
+            }
+
+            QueueStats s = stats();
+
+            assertEquals(5, s.joined());
+            assertEquals(3, s.admitted());
+            assertEquals(2, s.waiting());          // 4, 5번
+            assertEquals(3, s.admittedUnissued()); // 1, 2, 3번 (admitted 번호 포함)
+        }
+
+        @Test
+        void 토큰을_받으면_waiting에서_빠져_발급_안_된_인원에_들지_않는다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "2");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "2");
+            stringRedisTemplate.opsForZSet().add(WAITING, "41", 1);
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 2);
+            queueRepository.issueToken(SCHEDULE_ID, 42, TOKEN_TTL_MILLIS, KEY_EXPIRE_AT_EPOCH_SECOND);
+
+            QueueStats s = stats();
+
+            assertEquals(1, s.admittedUnissued()); // 41번만
+            assertEquals(1, s.activeTokens());     // 42번
+        }
+
+        @Test
+        void 만료된_토큰은_유효_토큰에_세지_않는다() {
+            long now = System.currentTimeMillis();
+            stringRedisTemplate.opsForZSet().add(ISSUED, "41", now - Duration.ofMinutes(1).toMillis());
+            stringRedisTemplate.opsForZSet().add(ISSUED, "42", now - Duration.ofMinutes(11).toMillis());
+
+            assertEquals(1, stats().activeTokens());
+        }
+
+        @Test
+        void 읽기만_하고_아무것도_바꾸지_않는다() {
+            stringRedisTemplate.opsForValue().set(SEQ, "2");
+            stringRedisTemplate.opsForValue().set(ADMITTED, "1");
+            stringRedisTemplate.opsForZSet().add(WAITING, "41", 1);
+            stringRedisTemplate.opsForZSet().add(WAITING, "42", 2);
+
+            stats();
+
+            assertEquals("1", stringRedisTemplate.opsForValue().get(ADMITTED));
+            assertEquals(2L, stringRedisTemplate.opsForZSet().zCard(WAITING));
+            assertNull(stringRedisTemplate.opsForValue().get(LAST_TICK));
+        }
+
+        @Test
+        void 다른_회차는_세지_않는다() {
+            stringRedisTemplate.opsForValue().set("queue:{" + OTHER_SCHEDULE_ID + "}:seq", "9");
+
+            assertEquals(0, stats().joined());
         }
     }
 

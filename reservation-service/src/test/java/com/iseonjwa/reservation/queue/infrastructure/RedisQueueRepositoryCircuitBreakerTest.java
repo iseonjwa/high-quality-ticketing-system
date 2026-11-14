@@ -126,6 +126,8 @@ class RedisQueueRepositoryCircuitBreakerTest {
 
         assertInstanceOf(CallNotPermittedException.class, read.getCause());
         assertInstanceOf(CallNotPermittedException.class, discard.getCause());
+        var stats = assertThrows(QueueStorageUnavailableException.class, () -> repository.stats(1L, 600_000L));
+        assertInstanceOf(CallNotPermittedException.class, stats.getCause());
         verify(zSet, never()).score(anyString(), anyString());
         verifyRedisCalled(0);
     }
