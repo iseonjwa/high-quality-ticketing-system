@@ -20,7 +20,6 @@
 | `compose.queue-hold.yml` | Q2·G1용 덮어쓰기. reservation-service의 입장 스케줄러를 끈다. 배포 서버에서는 `measure-mode.sh on`에 인자로 준다 |
 | [`../deploy/compose.measure.yml`](../deploy/compose.measure.yml) | 배포 서버 측정 모드 덮어쓰기. 추적 샘플링 0.01, Prometheus remote write 수신과 9090 |
 | [`../deploy/compose.seat-before.yml`](../deploy/compose.seat-before.yml) | S1 개선 전 측정용 덮어쓰기. reservation-service 이미지만 P4a 이전 릴리스(4544d1a)로 바꾼다. `measure-mode.sh on`에 인자로 준다 |
-| [`../deploy/compose.queue-admit-10.yml`](../deploy/compose.queue-admit-10.yml) | O1 Synthetic 대기 이탈 추가 실행용 덮어쓰기. reservation-service의 입장 속도를 초당 10명으로 낮춘다. `measure-mode.sh on`에 인자로 준다(2절 "O1 입장 속도 10/s 추가 실행") |
 | `compose.mockpg-loadtest.yml` | PAY1·R1·L2용 덮어쓰기. local mock-pg를 `local,loadtest` 프로필로 띄워 장애 주입 API를 연다 |
 | `compose.expiry-on.yml` | X1용 덮어쓰기. 배포 메모리 덮어쓰기가 끈 선점 만료 스케줄러를 다시 켠다 |
 | `tools/watch-admitted.sh` | Q3 보조. Redis의 입장 수·순번·대기 수를 1초마다 CSV로 남긴다 |
@@ -261,7 +260,6 @@ SCHEDULE_ID=<회차 id> bash loadtest/k6/run.sh scenarios/q1-queue-enter.js
 | PAY1 결제 승인 | `measure-mode.sh on`. PG 한도를 볼 때는 측정 직전에 아래 "Mock PG 장애 주입"으로 승인 지연 300ms를 건다. 결제 서비스 자체 한도를 볼 때는 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 PAY1 명령. 빈 좌석이 모자라면 setup에서 멈춘다 |
 | O1(균일) 오픈 피크 | `measure-mode.sh on`. 결제 지연 300ms는 측정 직전에 아래 "Mock PG 장애 주입"으로 건다 | 실행마다 새 15,000석 회차를 오픈 약 10분 전에(`seed-demo.sh open "<OPEN_AT>"`). Synthetic 사용자의 접속 시각이 오픈 10분 전부터라, 오픈 전 시간이 짧으면 그보다 이른 접속이 측정 시작 한순간에 몰린다. 비교하려면 균일도 같은 길이로 잰다 | 아래 O1 명령 |
 | O1(Synthetic) 오픈 피크 | O1(균일)과 같게 | 실행마다 새 회차. 균일 실행과 같은 `USERS`·`VUS`·서버 상태로 | 아래 O1 명령에 `USERS_CSV`를 더한다 |
-| O1(Synthetic) 입장 속도 10/s 추가 실행 | `measure-mode.sh on loadtest/deploy/compose.queue-admit-10.yml`. 앱이 다시 뜨므로 Mock PG 지연 300ms를 다시 건다. 판정 실행(균일·Synthetic)이 끝난 뒤에 한다 | 새 15,000석 회차, 오픈 약 10분 전 | 아래 "O1 입장 속도 10/s 추가 실행" |
 | A0 발제 기준선 | `measure-mode.sh on`. 지연 없이 잰다 | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다). 1,000석이 필요하다 | 아래 A0 명령 |
 | R1-d 결제 → 확정 | `measure-mode.sh on` (앱이 다시 떠 Mock PG 지연이 없는 상태) | 실행마다 새 15,000석 회차(`seed-demo.sh open`, 오픈 시각이 지난 뒤 잰다) | 아래 R1-d 명령. 빈 좌석이 모자라면(이미 쓴 회차) setup에서 멈춘다 |
 
@@ -297,32 +295,6 @@ PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<새
 # 두 실행의 원자료를 비교표로
 python3 loadtest/synthetic/compare.py --base loadtest/k6/results/<균일>-raw.csv.gz --synthetic loadtest/k6/results/<synthetic>-raw.csv.gz
 ```
-
-**O1 입장 속도 10/s 추가 실행**: [synthetic-data.md](../../docs/design/infra/synthetic-data.md) 5-0절 판정 실행과 분리한 추가 실행이다. 판정과 LLM 예측 비교에는 쓰지 않는다. 3,000명·초당 50명에서는 최대 대기가 약 44초라 대기 인내(`queue_patience_s`)에 걸리는 사람이 없다. 그래서 인내 시간과 CSV는 그대로 두고 입장 속도만 10으로 낮춰, 줄이 길 때 떠나는 사람과 그 대가를 본다. CSV 모의 계산으로는 최대 대기 약 236초, 이탈 137명이다(50/s는 44.5초, 0명). 5-1절 7번(Synthetic)까지 마친 뒤, 측정 모드를 끄기 전에 한다. 약 25분이 더 든다.
-
-```bash
-# 서버에서: 입장 속도 10으로 reservation-service를 다시 띄운다. 다시 뜬 뒤 30초 넘게 기다린다
-MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.queue-admit-10.yml
-# 서버에서: 적용 확인 1. 컨테이너에 값이 들어갔는지(10이 나와야 한다)
-docker exec "$(docker ps -qf name=reservation-service)" printenv QUEUE_ADMITPERSECOND
-# 서버에서: 앱이 다시 떠 Mock PG 지연이 풀렸으므로 300ms를 다시 건다(아래 "Mock PG 장애 주입")
-# 서버에서: 새 회차(오픈 약 10분 뒤). 출력의 공연 id·회차 id와 OPEN_AT을 적는다
-script/deploy/seed-demo.sh open "$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
-# 서버의 다른 창에서: 적용 확인 2. 오픈 직전에 띄워 두면 입장 수(admitted)가 초당 10씩 늘어야 한다. 50씩 늘면 덮어쓰기가 먹지 않은 것이라 k6를 멈춘다
-REDIS_CONTAINER="$(docker ps --format '{{.Names}}' | grep -m1 redis)" bash loadtest/k6/tools/watch-admitted.sh <새 회차 id> 900
-# 발생기에서: O1(Synthetic)과 같은 명령에 새 회차만 준다
-PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<새 회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 USERS_CSV=../data/o1-synthetic-3000.csv bash loadtest/k6/run.sh scenarios/o1-open-peak.js
-# 서버에서: 끝나면 파일 없이 다시 켜거나(측정을 이어 갈 때) 끈다. 입장 속도가 50으로 돌아온다
-MEASURER=<영문 이름> script/loadtest/measure-mode.sh on
-```
-
-| 볼 지표 | 보는 곳 | 뜻 |
-|---|---|---|
-| 이탈자 수 | `o1_outcomes{outcome:left_queue}`(`compare.py` 결과 표, 페르소나별 표) | 계산값 137명과 비교한다 |
-| 버려진 입장 자리 | 실행 끝의 Redis `queue:{<회차>}:admitted` − 입장 토큰을 받은 사용자 수(`http_reqs{api:queue_token,status:200}`) | 취소 API가 없어 떠난 사람도 순번에 남고, 입장 스케줄러는 그 순번에도 자리를 준다. 그 자리는 아무도 토큰을 받지 않는다. 줄이 다 빠졌으면 이탈자 수와 같아야 한다. 계산으로는 한 자리마다 뒤 사람 대기가 0.1초씩 늘어 137자리면 마지막 사람이 약 14초 더 기다린다 |
-| 남은 사람의 대기 | `queue_wait` p50·p95·최대(요약 JSON) | 토큰을 받은 사람만 기록된다(떠난 사람은 빠진다). 태그가 없어 페르소나별로는 나뉘지 않는다 |
-
-확인 못 함: `queue.admit-per-second`를 환경변수로 덮어 실제로 10/s가 된 실행은 아직 없다. 같은 방식(`QUEUE_ADMISSIONENABLED`)이 배포 서버 Q2에서 config-repo 값을 이긴 것이 근거라서, 위 적용 확인 두 가지를 먼저 본다. 서버의 Redis 컨테이너 이름과 `watch-admitted.sh`를 서버에서 돌린 적이 있는지도 확인하지 않았다. 실행이 끝날 때 줄이 다 빠져 `admitted`가 진입자 수에 닿는지도 확인 못 함(계산상 약 283초면 빠진다).
 
 `measure-mode.sh on`은 인자로 준 파일이 전체 목록이다. Q2에서 Q3로 넘어갈 때 `queue-hold.yml` 없이 다시 실행하면 reservation-service가 다시 만들어지며 스케줄러가 켜진다. `.env.measure`의 키는 그대로라 발생기 `.env`를 다시 옮기지 않아도 된다. reservation-service가 다시 뜬 뒤 30초 넘게 기다렸다가 잰다.
 
