@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
-| [kangmin](kangmin/README.md) | 개별 기록 42건, 일지 9일 |
+| [kangmin](kangmin/README.md) | 개별 기록 43건, 일지 9일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 22건, 일지 10일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -43,6 +43,7 @@
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
 | 2026-11-14 | 대기열 지표를 입장 처리 Lua에 얹고 회차별 라벨로 내보내자는 AI 첫 설계를 되물어, 읽기 전용 Lua와 회차 합계 게이지로 바꿈 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-14-queue-metrics-design.md) |
+| 2026-11-14 | SA 14장 4번 행(응모 Kafka 접수 거부)과 10/29 동기 INSERT 수용의 어긋남을, 판단 칸은 덮어쓰지 않고 프롬프트 칸만 지금 고치고 이력 보존·#11 행 추가안을 팀 안건으로 올림 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-14-sa14-row4-keep-history-add-row.md) |
 | 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-14-ise271-review-minimum-all-comment-risky.md) |
 | 2026-11-13 | Synthetic O1 페르소나 세분화에서 AI가 낸 행동 축 6개 안을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-13-synthetic-persona-six-factors.md) |
 | 2026-11-13 | O1 시나리오 검토 제안 중 2~4번을 받아들이되 그림자 폴러는 multi_device에만 두고, 대기 이탈 비용은 별도 실행 대신 계산으로 보기로 함 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-13-o1-scenario-review-four-proposals.md) |

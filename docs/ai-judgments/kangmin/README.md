@@ -8,6 +8,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-14 | SA 14장 4번 행(응모 Kafka 접수 거부)과 10/29 동기 INSERT 수용의 어긋남을, 판단 칸은 덮어쓰지 않고 프롬프트 칸만 지금 고치고 이력 보존·#11 행 추가안을 팀 안건으로 올림 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-14-sa14-row4-keep-history-add-row.md) |
 | 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-14-ise271-review-minimum-all-comment-risky.md) |
 | 2026-11-13 | Synthetic O1 페르소나 세분화에서 AI가 낸 행동 축 6개 안(도착·진입 공격성·좌석 욕심·결정 속도·집착도·구매 의지)을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-synthetic-persona-six-factors.md) |
 | 2026-11-13 | O1 시나리오 검토 제안 중 2~4번을 받아들이되 그림자 폴러는 multi_device에만 두고, 대기 이탈 비용은 별도 실행 대신 계산으로 보기로 함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-13-o1-scenario-review-four-proposals.md) |

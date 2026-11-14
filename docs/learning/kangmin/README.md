@@ -8,6 +8,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-14 | Spring Boot Actuator는 무엇인가(Micrometer와 역할 구분, 엔드포인트, 관리 포트 9080 분리와 노출 제한 이유, Docker healthcheck·Prometheus가 부르는 경로, liveness·readiness) | [qna/2026-11-14-spring-boot-actuator.md](qna/2026-11-14-spring-boot-actuator.md) |
+| 2026-11-14 | 좌석 선점 Prometheus 지표가 코드에서 어떻게 만들어지고 수집되나(pull 방식, Counter·Timer 등록, 라벨 카디널리티, SLO 버킷 설정, `_total`·`_bucket` 이름 변환, Grafana PromQL) | [qna/2026-11-14-micrometer-prometheus-seathold-metrics.md](qna/2026-11-14-micrometer-prometheus-seathold-metrics.md) |
+| 2026-11-14 | JVM 프로파일러가 5%로 본 요청 로그 비용이 왜 서버 CPU 12%p였나(JFR은 JVM 밖을 못 봄, 서버 전체 → 컨테이너 → 프로세스 순서), 같은 날 번갈아 재는 대조군으로 운영 설정 효과 확인 | [qna/2026-11-14-profiler-blind-spot-and-same-day-control.md](qna/2026-11-14-profiler-blind-spot-and-same-day-control.md) |
 | 2026-11-14 | 이미 쓴 입장 토큰으로 선점하면 403과 409 중 무엇을 돌려줘야 하나(HTTP 뜻, 이 API에서 403·409가 쓰이는 대응, 프런트는 코드 이름으로 분기, 409로 바꾸는 비용) | [qna/2026-11-14-entry-token-used-403-vs-409.md](qna/2026-11-14-entry-token-used-403-vs-409.md) |
 | 2026-11-14 | ISE-271: 남은 기간 PR마다 AI 리뷰를 남길지, 계약 경계 PR을 상대 담당이 볼지(1번 최소형 전부·위험 PR만 코멘트, 3번 상대 확인·반나절 뒤 사후 확인, 대안 비교와 바꿀 조건) | [qna/2026-11-14-ise271-ai-review-policy-options.md](qna/2026-11-14-ise271-ai-review-policy-options.md) |
 | 2026-11-13 | 공연 상세 조회 한 건은 왜 CPU 약 3ms를 쓰고 어떻게 줄이나(세 컨테이너 몫 나누기, 쿼리는 0.2ms로 싸고 회차 91개·응답 13.5KB, 로컬 캐시와 판매 상태 요청마다 계산 추천, B1-d 측정 계획) | [qna/2026-11-13-concert-detail-cost.md](qna/2026-11-13-concert-detail-cost.md) |
