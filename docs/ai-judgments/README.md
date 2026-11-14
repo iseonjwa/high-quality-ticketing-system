@@ -50,6 +50,7 @@
 | 2026-11-13 | 다른 조 저장소 5곳에서 스택·결정이 아니라 형식·판단 방식만 가져오기로 하고, 판정 기준 사전 고정·전/후 표·실패 시나리오 표·한계 표·ArchUnit·리뷰 보강·CodeRabbit 적용 설계를 맡김 | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-borrow-formats-not-stacks-from-other-teams.md) |
 | 2026-11-13 | **팀원 지시문이 Claude Code 세션만 전제했다는 지적으로, 필수 산출물 작업을 팀원 모두가 채팅·CLI·터미널 어느 것으로든 돌리게 점검표와 키트로 바꿈** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-13-deliverables-for-all-teammates-any-tool.md) |
 | 2026-11-13 | 발표 전 보완 제안(빈 필수 산출물, AI 코드 검토 방법, AI 대표 사례)을 받아들이고, 11/11 취소된 Synthetic Data를 발제 필수 항목으로 되살림(ISE-262·263) | junhyun | Claude Code | 수용 | 후보 | [기록](junhyun/2026-11-13-fill-presentation-gaps-restore-synthetic-data.md) |
+| 2026-11-13 | ISE-17 접수형 소비자의 30초 시한 경합은 요청 행 잠금(추천안)으로, 소비자 잠금 시한은 AI 추천(동기형과 같은 500ms) 대신 오픈 피크 지표가 나은 100ms로 정함 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-13-ise17-consumer-lock-and-timeout-by-metrics.md) |
 | 2026-11-13 | ISE-277 서버 지표를 SLO 버킷 방식(reservation-service만, 버킷 8개)과 선점 결과 카운터(outcome 9개)로 ISE-17보다 먼저 처리함 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-13-ise277-slo-buckets-before-ise17.md) |
 | 2026-11-13 | 접수형 소비자(ISE-17)보다 입장 토큰 소모(ISE-207) 선점 쪽 구현을 먼저 함 | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-13-ise207-before-ise17.md) |
 | 2026-11-13 | **입장 토큰 소모 뒤 `issued` 정리를 AFTER_COMMIT 리스너(ADR 0053 초안) 대신 트랜잭션 밖 메서드 호출로 바꿈(리스너는 커넥션 반납 전에 돎)** | 팀 (권영은 제안, kwonwoo 동의) | Claude Code | **거부** | 후보 | [기록](kwonwoo/2026-11-13-entry-token-discard-by-method-not-listener.md) |

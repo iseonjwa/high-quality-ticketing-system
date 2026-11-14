@@ -38,6 +38,14 @@ messaging:
 seat-hold:
   # sync(동기형 선점 201, 기본) 또는 async(접수형 202). 기동할 때 한 번 읽으므로 바꾸려면 재시작한다(ADR 0057)
   mode: sync
+  # 접수형 소비자(ISE-17). 모드와 상관없이 늘 켠다
+  consumer:
+    # 토픽 파티션은 늘리기만 된다. 동시성보다 넉넉히 둔다
+    partitions: 6
+    # 동시성 하나가 처리 중에 커넥션 하나를 쥔다. 풀(maximum-pool-size)을 HTTP와 나눠 쓴다
+    concurrency: 2
+    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 파티션의 뒤 메시지가 멈춰 동기형(500ms)보다 짧게 둔다
+    lock-timeout: 100ms
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m
