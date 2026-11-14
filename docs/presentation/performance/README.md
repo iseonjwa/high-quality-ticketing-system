@@ -13,3 +13,11 @@
 
 | 날짜 | 파일 | 내용 | 조건 |
 |---|---|---|---|
+| 2026-11-14 | [2026-11-14-gateway-overload-one-page.md](2026-11-14-gateway-overload-one-page.md) | Gateway 과부하 개선 발표 한 장. 상한 64·거절 앞당김(H1)·요청 로그 줄임(H2) 전·후 표, 개선 내역 3줄, 예상 질문 3개. 원천은 [11/12 발표 소스](../2026-11-12-gateway-overload-source.md) | 배포 서버 m7i.xlarge, G1 순번 조회 1,000~2,500/s 단계별 30초, 2026-11-11 6차 L500·L64(`8b95fe68`)·7차 H1·H2(`1e9b1c75`), 회차당 1회 |
+| 2026-11-13 | [2026-11-13-safety-net-limit-source.md](2026-11-13-safety-net-limit-source.md), 그림 `2026-11-13-safety-net-limit-summary`·`-inflight`(.svg·.png, 원본 `-charts.py`) | Gateway 동시 처리 상한 64·256·512·끔을 O1 섞인 흐름으로 비교. 장면 4개, 예상 질문, 숫자 사용 주의. remote write 카디널리티로 Prometheus OOM 난 일 | 배포 서버 m7i.xlarge, O1 15,000명·VU 500·입장 50/s·PG 300ms, 값마다 1회(512는 2회), main 43015207 |
+
+## 미리보기
+
+![상한 값별 Gateway 처리 중 수와 메모리](2026-11-13-safety-net-limit-summary.png)
+
+![오픈 뒤 Gateway 처리 중 요청 수](2026-11-13-safety-net-limit-inflight.png)

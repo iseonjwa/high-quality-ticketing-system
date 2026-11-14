@@ -202,7 +202,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `DRAW_AFTER_SECONDS` / `DRAW_WINDOW_SECONDS` / `WITH_BILLING` | 60 / 120 / 1 | L3: 측정 시작 뒤 추첨까지, 추첨 뒤 "중"으로 볼 시간, 빌링키 등록 여부(자동결제까지 겹칠지) |
 | `PRE_OPEN_SECONDS` / `AFTER_OPEN_SECONDS` | 600 / 900 | O1: 오픈 전 조회 시간, 오픈 뒤 진행 시간 |
 | `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도. 균일 모드에서만 쓴다(Synthetic 모드는 CSV 행이 정한다) |
-| `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). 없으면 균일 모드 |
+| `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). CSV에 행동 축 열(`ax_*`)이 있으면 `step_duration`·`o1_outcomes`에 같은 이름의 태그로 붙인다. `USERS_CSV`가 없으면 균일 모드 |
 | `OPEN_AT` | 없음 | O1: `SCHEDULE_ID`를 줄 때 그 회차의 오픈 시각(ISO-8601 UTC). 지금 + 30초 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 한다(setup이 검사). `PRE_OPEN_SECONDS`는 발생기에서 `$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) ))`로 맞춘다 |
 | `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다 |
 

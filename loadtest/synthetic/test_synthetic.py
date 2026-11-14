@@ -85,6 +85,60 @@ class GenerateTest(unittest.TestCase):
         self.assertEqual(text.splitlines()[0], ",".join(persona_spec.CSV_HEADER))
 
 
+LOWEST = {"arrive_s": 600, "refresh_s": 0, "enter_delay_ms": 60000, "enter_clicks": 0, "seats": 1, "zone": "ANY",
+          "think_ms": 30000, "max_retry": 0, "on_conflict": "give_up", "queue_patience_s": 30,
+          "abandon_after_hold": 1, "pay_delay_s": 280}
+HIGHEST = {"arrive_s": -600, "refresh_s": 3, "enter_delay_ms": 0, "enter_clicks": 5, "seats": 4, "zone": "VIP",
+           "think_ms": 300, "max_retry": 5, "on_conflict": "same_zone", "queue_patience_s": 0,
+           "abandon_after_hold": 0, "pay_delay_s": 3}
+
+
+class AxisTest(unittest.TestCase):
+    def test_every_field_belongs_to_one_axis_except_shared(self):
+        owners = {}
+        for code, _, parts in persona_spec.AXES:
+            for field, _ in parts:
+                owners.setdefault(field, []).append(code)
+        self.assertEqual(set(owners), set(persona_spec.FIELDS))
+        shared = {field for field, codes in owners.items() if len(codes) > 1}
+        self.assertEqual(shared, persona_spec.SHARED_FIELDS)
+        self.assertEqual(len(persona_spec.AXES), 6)
+
+    def test_extreme_rows_score_zero_and_one(self):
+        self.assertEqual(persona_spec.axis_scores(LOWEST), [0.0] * 6)
+        self.assertEqual(persona_spec.axis_scores(HIGHEST), [1.0] * 6)
+        self.assertEqual(persona_spec.axis_levels(LOWEST), [0] * 6)
+        self.assertEqual(persona_spec.axis_levels(HIGHEST), [2] * 6)
+
+    def test_level_boundaries(self):
+        cases = {0.0: 0, 0.33: 0, 1 / 3: 1, 0.5: 1, 0.66: 1, 2 / 3: 2, 1.0: 2}
+        for score, level in cases.items():
+            self.assertEqual(persona_spec.axis_level(score), level, score)
+
+    def test_middle_values(self):
+        row = dict(LOWEST, seats=2, zone="R", enter_clicks=1, max_retry=5, on_conflict="any_zone")
+        scores = persona_spec.axis_scores(row)
+        demand = [code for code, _, _ in persona_spec.AXES].index("demand")
+        # 좌석 2석 = 1/3, R = 0.5의 평균
+        self.assertAlmostEqual(scores[demand], (1 / 3 + 0.5) / 2)
+        # 진입 0번이 아니면 구매 의지는 진입 성분 1, 선점 뒤 이탈(1) 성분 0의 평균이다
+        intent = [code for code, _, _ in persona_spec.AXES].index("intent")
+        self.assertAlmostEqual(scores[intent], 0.5)
+
+    def test_axis_columns_do_not_change_drawn_values(self):
+        doc = load_fixture()
+        with_axes = list(csv.DictReader(io.StringIO(generate.generate(doc, 500, 7))))
+        original = generate.axis_levels
+        generate.axis_levels = lambda row: [9] * 6
+        try:
+            fake = list(csv.DictReader(io.StringIO(generate.generate(doc, 500, 7))))
+        finally:
+            generate.axis_levels = original
+        base = persona_spec.BASE_HEADER
+        self.assertEqual([[r[c] for c in base] for r in with_axes], [[r[c] for c in base] for r in fake])
+        self.assertTrue(all(r["ax_intent"] in ("0", "1", "2") for r in with_axes))
+
+
 class ValidateTest(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -147,6 +201,25 @@ class ValidateTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("seats", output)
 
+    def test_base_header_csv_passes(self):
+        lines = generate.generate(load_fixture(), 3000, 20261113).splitlines()
+        width = len(persona_spec.BASE_HEADER)
+        text = "\n".join(",".join(line.split(",")[:width]) for line in lines) + "\n"
+        csv_path = write_temp(self.directory.name, "base.csv", text)
+        code, output = run_validate(FIXTURE, [csv_path])
+        self.assertEqual(code, 0, output)
+
+    def test_catches_hand_edited_axis_level(self):
+        lines = generate.generate(load_fixture(), 100, 5).splitlines()
+        cells = lines[1].split(",")
+        column = persona_spec.CSV_HEADER.index("ax_demand")
+        cells[column] = "2" if cells[column] != "2" else "0"
+        lines[1] = ",".join(cells)
+        csv_path = write_temp(self.directory.name, "axis.csv", "\n".join(lines) + "\n")
+        code, output = run_validate(FIXTURE, [csv_path])
+        self.assertEqual(code, 1)
+        self.assertIn("ax_demand", output)
+
 
 class CompareTest(unittest.TestCase):
     def test_report_has_tables(self):
@@ -197,6 +270,36 @@ class CompareTest(unittest.TestCase):
         # 오픈 뒤 30초의 선점은 0~60 구간, 330·331초의 선점은 300~360 구간이다
         self.assertIn("| 0~60 | 1 | 0 | 1 | 0 |", report)
         self.assertIn("| 300~360 | 1 | 1 | 1 | 1 |", report)
+
+    def test_axis_tables(self):
+        header = "metric_name,timestamp,metric_value,check,error,error_code,expected_response,group,method,name,proto,scenario,service,status,subproto,tls_version,url,extra_tags,metadata"
+        axes = "ax_arrival=2&ax_entry=1&ax_demand=2&ax_speed=0&ax_persistence=2&ax_intent=2"
+        rows = [
+            f"step_duration,100,10.0,,,,,,,,,s,,,,,,step=hold&persona=a&{axes}&zone=VIP&code=409,",
+            f"step_duration,101,10.0,,,,,,,,,s,,,,,,step=hold&persona=a&{axes}&zone=VIP&code=201,",
+            f"o1_outcomes,105,1.0,,,,,,,,,s,,,,,,persona=a&{axes}&outcome=confirmed,",
+            "o1_outcomes,105,1.0,,,,,,,,,s,,,,,,persona=b&outcome=confirmed,",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "raw.csv")
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                file.write("\n".join([header] + rows) + "\n")
+            run = compare.Run(path)
+            report = compare.build_report(run, run)
+        self.assertEqual(dict(run.axis_hold[("ax_demand", "2")]), {"409": 1, "201": 1})
+        self.assertEqual(dict(run.axis_outcomes[("ax_speed", "0")]), {"confirmed": 1})
+        self.assertIn("| 좌석 욕심 | 높음 | 1 | 1 (100.0%) | 2 | 1 (50.0%) |", report)
+        self.assertIn("| 좌석 욕심 높음 | 0/0 (-) | 0/0 (-) | 1/2 (50.0%) |", report)
+
+    def test_axis_tables_without_tags(self):
+        header = "metric_name,timestamp,metric_value,check,error,error_code,expected_response,group,method,name,proto,scenario,service,status,subproto,tls_version,url,extra_tags,metadata"
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "raw.csv")
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                file.write(header + "\no1_outcomes,105,1.0,,,,,,,,,s,,,,,,persona=uniform&outcome=confirmed,\n")
+            run = compare.Run(path)
+            report = compare.build_report(run, run)
+        self.assertIn("축 태그(`ax_*`)가 없는 원자료", report)
 
 
 class CommittedCsvTest(unittest.TestCase):

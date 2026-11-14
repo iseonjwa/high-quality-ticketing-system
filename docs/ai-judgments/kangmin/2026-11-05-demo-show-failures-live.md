@@ -1,7 +1,7 @@
 ---
 title: 장애 주입을 현장에서 빼자는 제안을 거부하고 MVP 시연에서 장애 상황도 함께 보이기로 함
 date: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-14
 judge: kangmin
 ai: Claude Code
 verdict: 거부
@@ -31,8 +31,15 @@ shared: 예
 ## 검증
 구현 전. 서버 장애 주입은 아직 실행하지 않았다.
 
+11/14 보강: 장애 장면은 로컬 리허설과 이후 배포 서버에서 실행됐다. 11/6 MVP 시연 현장에서 어느 장애 장면을 실제로 보였는지는 저장소 기록이 없어 확인 못 함.
+- 로컬 리허설(2026-11-06 00:24~01:42 KST, 로컬 compose, Claude Code 세션 실행): F-01~F-10 10개의 결과 칸이 모두 통과다(F-08은 타이밍 조건, F-10은 `docker restart` 정상 종료 기준). 예: F-04 결제 거절 → 예매 `RELEASED`·회차 좌석 `AVAILABLE`, F-06 응답 유실 → `UNKNOWN`에서 `APPROVED`까지 10.5초, 원장 승인 1회([시연 시나리오](../../design/demo/2026-11-06-mvp-scenarios.md) 5절, [리허설 기록](../../test-scenarios/runs/2026-11-06-rehearsal.md)).
+- 서버 추첨 리허설(2026-11-06 14:51 KST, 추첨 3): 카드 미등록 당첨자 1건이 `FAILED`·`BILLING_KEY_MISSING`이 되고 순위 30이 승계해 `PAID`가 됐다. 같은 기록은 "같은 날 진행한 다른 장면은 수치를 받지 못해 쓰지 않았다"고 적는다([서버 추첨 리허설 기록](../../test-scenarios/runs/2026-11-06-server-lottery.md)).
+- 서버 장애 주입: 2026-11-11 16:25~16:57 KST에 F1(결제 서버 `docker kill`, Kafka 정지·재기동)을 실행했다. 원장 승인 38 = 결제 DB `APPROVED` 38, 중복 주문 0, `dead_letters` 0/0이다([`docs/design/lottery/f1-fault-injection.md`](../../design/lottery/f1-fault-injection.md) 7절).
+- 배포 서버 시연 장애 패널: 2026-11-14 main `e109c11`에서 결제 거절 1건을 걸어 예매가 `HELD` → `RELEASED`(PAYMENT_DECLINED)로 바뀌고 좌석이 다시 선택 가능해진 화면을 캡처했다([결제 거절 뒤 보상 한 장 요약](../../presentation/architecture/2026-11-14-saga-payment-declined.md), PR `#613`).
+
 ## 판단 이력
 - 2026-11-05 거부: 장애 상황을 시연에 포함
+- 2026-11-14 검증 보강: 로컬 리허설·서버 추첨 리허설·서버 F1·11/14 시연 패널 캡처 결과를 검증 칸에 더함. 11/6 현장 실행 여부는 확인 못 함
 
 ## 발표·면접 포인트
 - 정상 흐름뿐 아니라 실패 경로의 복구를 시연으로 보인다.

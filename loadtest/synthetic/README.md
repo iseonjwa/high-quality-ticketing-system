@@ -12,7 +12,8 @@
 | `o1-sample-40.csv` | 응답의 3-2절 CSV 블록(표본 40명)을 그대로 잘라 낸 것 | 응답에서 추출(값 수정 없음) |
 | `generate.py` | 페르소나 JSON으로 N명 CSV를 만든다. 시드가 같으면 같은 파일이 나온다 | 코드 |
 | `validate.py` | 페르소나 JSON과 CSV가 형식·범위·비율을 지키는지 검사한다 | 코드 |
-| `compare.py` | 균일 난수 O1과 Synthetic O1 두 실행의 k6 원자료를 비교표로 만든다 | 코드 |
+| `persona_spec.py` | 필드 범위·허용 값과 행동 축 6개(점수 규칙) 규격. `generate.py`·`validate.py`·`compare.py`가 같이 쓴다 | 코드 |
+| `compare.py` | 균일 난수 O1과 Synthetic O1 두 실행의 k6 원자료를 비교표로 만든다. 9·10절은 행동 축 구간별 표다 | 코드 |
 | `test_synthetic.py`, `testdata/` | 위 도구의 단위 테스트와 테스트 전용 픽스처 | 코드 |
 | `../k6/data/o1-synthetic-3000.csv` | 측정에 쓰는 3,000명 CSV. k6가 읽는 폴더에 둔다 | `generate.py` |
 
@@ -27,6 +28,8 @@
 | 응답 SHA-256 | `22f2b0082baa90e28d3f3ddfa2696a9c3686862ae6cbdcf6aad664da4a69a60d` |
 
 LLM은 응답 첫머리에 "실행 도구가 없어 40명 표본은 분포를 보며 직접 뽑았고, 실제 난수 생성기로 뽑은 결과는 아니다. 대규모 생성은 생성기로 다시 뽑기를 권한다"고 적었다. 그래서 측정용 CSV는 LLM이 쓴 행이 아니라, LLM이 정한 분포(`o1-personas.json`)로 `generate.py`가 시드 고정으로 만든다. LLM이 쓴 표본 40행은 `validate.py`로 검사만 한다.
+
+생성한 CSV 끝에는 행동 축 구간 열 6개(`ax_arrival` 등, 0 낮음 · 1 중간 · 2 높음)가 붙는다. 이미 뽑은 값에서 계산만 하므로 기존 14열은 그대로다. 축 정의는 [`synthetic-data.md`](../../docs/design/infra/synthetic-data.md) 4-1절에 있다.
 
 ## 다시 만들기
 

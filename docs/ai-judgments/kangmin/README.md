@@ -8,9 +8,15 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-14-ise271-review-minimum-all-comment-risky.md) |
+| 2026-11-13 | Synthetic O1 페르소나 세분화에서 AI가 낸 행동 축 6개 안(도착·진입 공격성·좌석 욕심·결정 속도·집착도·구매 의지)을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-synthetic-persona-six-factors.md) |
 | 2026-11-13 | O1 시나리오 검토 제안 중 2~4번을 받아들이되 그림자 폴러는 multi_device에만 두고, 대기 이탈 비용은 별도 실행 대신 계산으로 보기로 함 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-13-o1-scenario-review-four-proposals.md) |
+| 2026-11-13 | 대기열 조회만으로 정한 Gateway 통합 상한 64의 측정 범위를 지적하고, 섞인 트래픽에서는 통합 상한을 메모리 안전망으로 올리고 경로별 상한은 측정 뒤에 두자는 추천을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-in-flight-limit-as-safety-net-first.md) |
 | 2026-11-13 | **ISE-230 남은 확인 세 건은 답을 받은 뒤 마무리하자는 AI 순서를 거부하고, Retry-After 분리(A안)와 ADR 0050·0052 채택·대시보드·경보를 선조치 후보고로 진행함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-13-adopt-adr-0050-0052-before-replies.md) |
 | 2026-11-12 | **걸릴 일이 없는 Gateway Lettuce 시한 300ms를 "마지막 안전망"으로 유지하자는 AI 결론을 거부함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-12-reject-keep-dead-lettuce-timeout.md) |
+| 2026-11-13 | 결제 토큰 발급 포트를 seathold에서 reservation 모듈로 옮기자는 추천을 받아들이고 직접 맡아 판정 통합까지 처리함 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-move-payment-token-issuer-to-reservation.md) |
+| 2026-11-12 | 선점 뒤 issued 정리를 리스너 대신 훅 메서드로 하자는 추천을 담당 의견을 받은 뒤 정하기로 함(ISE-207) | Claude Code | 보류 | 예 | 아님 | [기록](2026-11-12-issued-cleanup-hook-over-listener.md) |
+| 2026-11-12 | Mock PG 원장 유실로 닫을 수 없는 환불 NMC를 묵음 처리하려다 철회하고 결제 담당에게 맡김 | Claude Code | 보류 | 예 | 아님 | [기록](2026-11-12-silence-refund-manual-check-aging.md) |
 | 2026-11-12 | **입장 토큰 소모 시점으로 AI가 추천한 A'(선점 시 소모 + 한 번 더 기회) 대신, 팀 회의에서 A(선점 성공 시 소모)로 정함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-12-entry-token-consume-on-hold-team-decision.md) |
 | 2026-11-12 | **Gateway 과부하 발표 자료를 HTML 슬라이드로 만들자는 AI 추천을 거부하고, 소스 문서만 정리해 결제 담당이 가공하게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-12-presentation-source-only.md) |
 | 2026-11-12 | **Gateway CPU를 줄이려 대기열 폴링 상한(poll-max)을 10초에서 30초로 늘리자는 AI 제안을 거부함** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-12-reject-poll-max-30s.md) |
@@ -122,6 +128,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-14 | [daily/2026-11-14.md](daily/2026-11-14.md) |
 | 2026-11-13 | [daily/2026-11-13.md](daily/2026-11-13.md) |
 | 2026-11-12 | [daily/2026-11-12.md](daily/2026-11-12.md) |
 | 2026-11-11 | [daily/2026-11-11.md](daily/2026-11-11.md) |

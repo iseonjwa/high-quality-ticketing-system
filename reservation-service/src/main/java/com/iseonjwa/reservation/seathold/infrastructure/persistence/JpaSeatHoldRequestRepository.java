@@ -39,6 +39,21 @@ public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
     }
 
     @Override
+    public Optional<Instant> lockRequestedCreatedAt(UUID requestId) {
+        return repository.lockRequestedCreatedAt(requestId);
+    }
+
+    @Override
+    public int markRejected(UUID requestId, String reasonCode, Instant now) {
+        return repository.markRejected(requestId, reasonCode, now);
+    }
+
+    @Override
+    public int rejectTimedOut(Instant createdBefore, Instant now, int limit) {
+        return repository.rejectTimedOut(createdBefore, now, limit);
+    }
+
+    @Override
     public Optional<SeatHoldRequest> findById(UUID requestId) {
         return repository.findById(requestId);
     }
