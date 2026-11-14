@@ -39,6 +39,9 @@ const SCHEDULE_CACHE_SECONDS = 30;
 const CSV_NUMBER_COLUMNS = ['arrive_s', 'refresh_s', 'enter_delay_ms', 'enter_clicks', 'seats', 'think_ms', 'max_retry',
   'queue_patience_s', 'abandon_after_hold', 'pay_delay_s'];
 const CSV_TEXT_COLUMNS = ['persona', 'zone', 'on_conflict'];
+// 행동 축 구간(0 낮음, 1 중간, 2 높음). 있으면 지표 태그로만 붙이고 행동에는 쓰지 않는다. 없는 CSV(예전 파일)도 그대로 돈다
+// Note: 열 이름과 계산 규칙의 정본은 loadtest/synthetic/persona_spec.py의 AXES다. 여기서는 값을 다시 계산하지 않는다
+const CSV_AXIS_COLUMNS = ['ax_arrival', 'ax_entry', 'ax_demand', 'ax_speed', 'ax_persistence', 'ax_intent'];
 
 // Note: SharedArray는 VU마다 복사하지 않고 한 번 읽은 CSV를 모든 VU가 나눠 본다. 3,000행도 VU 1,000개가 따로 들면 메모리가 낭비된다
 const csvRows = __ENV.USERS_CSV ? new SharedArray('o1-users', () => parseUsersCsv(open(__ENV.USERS_CSV))) : null;
@@ -152,6 +155,7 @@ function usersOfThisVu(data) {
 function uniformProfile(data) {
   return {
     persona: 'uniform',
+    axes: {},
     // 첫 행동은 흩고, 진입은 오픈 뒤 ENTER_SPREAD_SECONDS초 안에 흩는다
     firstAt: Date.now() + Math.random() * Math.min(PRE_OPEN_SECONDS, 60) * 1000,
     enterAt: data.openAt + 1000 + Math.random() * ENTER_SPREAD_SECONDS * 1000,
@@ -188,6 +192,7 @@ function csvProfile(row, data) {
   }
   return {
     persona: row.persona,
+    axes: axisTagsOf(row),
     firstAt,
     enterAt,
     viewFirst: true,
@@ -202,6 +207,16 @@ function csvProfile(row, data) {
     abandonRatio: row.abandon_after_hold,
     payDelayMs: row.pay_delay_s * 1000,
   };
+}
+
+function axisTagsOf(row) {
+  const axes = {};
+  for (const name of CSV_AXIS_COLUMNS) {
+    if (row[name] !== undefined) {
+      axes[name] = row[name];
+    }
+  }
+  return axes;
 }
 
 // 머리말 한 줄, 쉼표 구분, 따옴표 없음(loadtest/synthetic/generate.py가 만드는 형식)
@@ -235,11 +250,11 @@ function nextUser(list) {
 
 function finish(user, outcome) {
   user.state = 'done';
-  outcomes.add(1, { outcome, persona: user.profile.persona });
+  outcomes.add(1, Object.assign({ outcome, persona: user.profile.persona }, user.profile.axes));
 }
 
 function record(user, step, res) {
-  const tags = { step, persona: user.profile.persona };
+  const tags = Object.assign({ step, persona: user.profile.persona }, user.profile.axes);
   if (step === 'hold') {
     // 선점에는 처음 노린 등급과 응답 코드를 붙인다. compare.py가 등급별 409 비율을 낸다(LLM 예측 "409가 VIP에 몰린다" 판정)
     // Note: 태그 이름을 status로 하면 k6 CSV의 기본 status 열과 겹친다. 그래서 code로 쓴다
