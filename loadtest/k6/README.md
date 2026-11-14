@@ -42,7 +42,7 @@
 | `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다. 실패 응답은 `entry_results`에 message 출처 태그 `msg`(`auth_unavailable`·`service_unavailable`·`gateway_error`·`other`·`none`)를 붙여, 인증 벌크헤드 503을 다른 503과 나눠 summary에 센다 |
 | `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
 | `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
-| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다 |
+| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다. 진입 연타는 `http.batch`로 한꺼번에 보내고, `multi_device`는 남은 기기만큼 그림자 폴러를 둔다. 503의 `Retry-After`를 따른다(2절 "O1 요청 동작") |
 | `scenarios/a0-assignment-baseline.js` | A0 발제 기준선. 동시 100명이 1초 안에 시작해 각 10번씩 좌석 선점을 요청한다(총 1,000회). 반복마다 사용자·좌석을 새로 써 409 없이 선점의 처리량을 잰다. 요청 수가 1,000건이 아니거나 409가 있거나 오류율이 1% 이상이면 임계값을 어겨 종료 코드 99로 끝난다(요약 JSON은 남는다) |
 | `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
 | `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
@@ -141,6 +141,17 @@ O1은 기본값(3만 명, 오픈 전 10분, 오픈 뒤 15분)이 25분 넘게 �
 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 USERS=200 VUS=20 PRE_OPEN_SECONDS=40 AFTER_OPEN_SECONDS=120 bash loadtest/k6/run.sh scenarios/o1-open-peak.js   # 짧게 확인
 ```
+
+**O1 요청 동작**(2026-11-13 대기열 담당 검토 반영, [판단 기록](../../docs/ai-judgments/kangmin/2026-11-13-o1-scenario-review-four-proposals.md)):
+
+| 동작 | 규칙 | 지표에서 나누는 법 |
+|---|---|---|
+| 진입 연타 | 클릭이 2번 이상(`enter_clicks` ≥ 2)이면 `http.batch`로 동시에 보낸다. 한 번이면 예전처럼 하나만 보낸다. 마지막 성공 응답으로 순번을 읽는다 | 첫 요청 `step_duration{step:enter}`·`http_reqs{api:queue_enter}`, 나머지 `step:enter_dup`·`click:dup` |
+| 그림자 폴러 | `persona`가 `multi_device`인 사용자만, `enter_clicks`를 기기 수로 본다. 대기(WAITING)에 들어가면 기기 수 − 1개의 그림자가 같은 사용자 토큰으로 순번 조회만 한다. 첫 폴링은 그 기기의 진입 응답, 그 뒤는 서버가 준 `nextPollAfterMillis`를 따른다. 본 사용자가 대기를 끝내면(토큰 단계, 대기 이탈, 종료) 같이 멈추고, 그림자가 READY를 보면 그 그림자만 멈춘다. 토큰은 본 사용자만 받는다. `refresh_spammer`의 `enter_clicks`는 한 기기 연타라 그림자를 두지 않는다 | `step_duration{step:poll_shadow}`, `http_reqs{api:queue_poll,device:shadow}`. 본 폴링 `step:poll`에는 섞이지 않는다. `o1_outcomes`는 사용자 한 명에 한 번만 센다 |
+| 실패 뒤 다시 보내기 | 진입·순번 조회(그림자 포함)·입장 토큰이 503이고 `Retry-After`(초)가 있으면 그 값 × (1 + 0~0.2 난수)만큼 기다린다(`lib/http.js`의 `retryDelayMillis`). 헤더가 없거나 503이 아니면 3초다. 진입 연타가 모두 실패하면 첫 요청의 응답으로 정한다 | 따로 태그하지 않는다. 503 수는 `http_reqs{api:...,status:503}`로 본다 |
+
+균일 모드(`enter_clicks` 1, 페르소나 `uniform`)에는 batch와 그림자가 생기지 않는다. 바뀐 점은 503에 `Retry-After`가 있을 때 3초 대신 그 값을 따르는 것뿐이다.
+`compare.py`의 단계별 응답 시간 표(`STEP_ORDER`)에는 `poll_shadow`·`enter_dup`가 없어 본 요청만 비교한다. API별 요청 수·초당 최대 표는 `http_reqs`의 `api` 태그로 세므로 그림자 폴링과 연타가 `queue_poll`·`queue_enter`에 들어간다.
 
 X1은 만료 스케줄러를 켜고, **만료 시각이 지났는데 HELD로 남은 예매가 없는 DB**에서 잰다(4절).
 

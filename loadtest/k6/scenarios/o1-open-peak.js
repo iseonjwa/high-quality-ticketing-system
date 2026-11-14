@@ -14,7 +14,7 @@ import { SharedArray } from 'k6/data';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv, requireEnv } from '../lib/env.js';
 import { accessToken, assertSigningKeys, userIdOf, uuid } from '../lib/tokens.js';
-import { authHeaders, dataOf, errorCodeOf, jsonHeaders, url } from '../lib/http.js';
+import { authHeaders, dataOf, errorCodeOf, jsonHeaders, retryDelayMillis, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { enterPath, positionPath } from '../lib/queue.js';
 import { isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus } from '../lib/booking.js';
@@ -267,22 +267,25 @@ const STEPS = {
     const interval = profile.refreshMs === null ? (10 + Math.random() * 20) * 1000 : profile.refreshMs;
     user.nextAt = interval > 0 ? Math.min(Date.now() + interval, user.enterAt) : user.enterAt;
   },
-  // 2. 대기열 진입. 연타(enterClicks ≥ 2)는 사이에 쉬지 않고 이어 보내고, 마지막 성공 응답으로 순번을 읽는다
+  // 2. 대기열 진입. 연타(enterClicks ≥ 2)는 http.batch로 한꺼번에 보내고, 마지막 성공 응답으로 순번을 읽는다.
+  //    multi_device는 연타 한 번이 기기 하나다. 대기에 들어가면 본 사용자 말고 남은 기기마다 그림자 폴러를 둔다
   enter(user, data) {
+    const responses = sendEnterClicks(user, data);
     let accepted = null;
-    for (let click = 0; click < user.profile.enterClicks; click++) {
-      const tags = click === 0 ? { api: 'queue_enter' } : { api: 'queue_enter', click: 'dup' };
-      const res = http.post(url(enterPath(data.scheduleId)), null, { headers: authHeaders(user.access), tags });
+    responses.forEach((res, click) => {
       record(user, click === 0 ? 'enter' : 'enter_dup', res);
-      if (res.status === 201 || res.status === 200) {
+      if (isQueueAccepted(res)) {
         accepted = { body: dataOf(res) };
       }
-    }
+    });
     if (accepted === null) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(responses[0]));
     }
     user.enteredAt = Date.now();
     afterPosition(user, accepted.body);
+    if (user.state === 'wait' && user.profile.persona === MULTI_DEVICE_PERSONA) {
+      startShadowPollers(user, responses.slice(1));
+    }
   },
   // 3. 순번 폴링
   wait(user, data) {
@@ -293,9 +296,28 @@ const STEPS = {
     const res = http.get(url(positionPath(data.scheduleId)), { headers: authHeaders(user.access), tags: { api: 'queue_poll' } });
     record(user, 'poll', res);
     if (res.status !== 200) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(res));
     }
     afterPosition(user, dataOf(res));
+  },
+  // 3-1. 그림자 폴링(multi_device의 다른 기기). 같은 사용자 토큰으로 순번 폴링만 한다
+  shadow(shadow, data) {
+    const owner = shadow.owner;
+    // 본 사용자가 대기를 끝냈다(토큰 단계로 넘어감, 이탈, done). 다른 기기도 같이 닫힌 것으로 본다
+    if (owner.state !== 'wait' || leftQueue(owner)) {
+      shadow.state = 'done';
+      return;
+    }
+    const res = http.get(url(positionPath(data.scheduleId)),
+      { headers: authHeaders(shadow.access), tags: { api: 'queue_poll', device: 'shadow' } });
+    record(shadow, 'poll_shadow', res);
+    const body = res.status === 200 ? dataOf(res) : null;
+    if (body && body.status !== 'WAITING') {
+      // READY를 본 기기는 더 부르지 않는다. 토큰은 본 사용자만 받는다(그림자는 폴링 부하만 더한다)
+      shadow.state = 'done';
+      return;
+    }
+    shadow.nextAt = Date.now() + nextPollDelayMillis(res, body);
   },
   // 4. 입장 토큰
   token(user, data) {
@@ -304,7 +326,7 @@ const STEPS = {
     record(user, 'token', res);
     const body = dataOf(res);
     if (res.status !== 200 || !body || !body.entryToken) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(res));
     }
     user.entry = body.entryToken;
     queueWait.add(Date.now() - user.enteredAt);
@@ -424,6 +446,56 @@ function afterPosition(user, body) {
     user.state = 'token';
     user.nextAt = Date.now();
   }
+}
+
+// 진입 요청을 보낸다. 한 번이면 그대로, 연타면 http.batch로 동시에 보낸다. 응답은 보낸 순서(첫 요청이 본 클릭)다.
+// Note: 반복문으로 이어 보내면 VU 하나에서는 앞 응답을 기다린 뒤 다음이 나간다. 실제 연타·여러 기기는 응답을 기다리지 않으므로 batch로 겹친다.
+// 연타 수(CSV 최대 5)는 k6 batchPerHost 기본값(6)보다 작아 한 번에 모두 나간다
+function sendEnterClicks(user, data) {
+  const paramsOf = (click) => ({
+    headers: authHeaders(user.access),
+    tags: click === 0 ? { api: 'queue_enter' } : { api: 'queue_enter', click: 'dup' },
+  });
+  if (user.profile.enterClicks === 1) {
+    return [http.post(url(enterPath(data.scheduleId)), null, paramsOf(0))];
+  }
+  const requests = [];
+  for (let click = 0; click < user.profile.enterClicks; click++) {
+    requests.push({ method: 'POST', url: url(enterPath(data.scheduleId)), body: null, params: paramsOf(click) });
+  }
+  return http.batch(requests);
+}
+
+// 진입(201·200)과 순번 조회(200)의 성공
+function isQueueAccepted(res) {
+  return res.status === 201 || res.status === 200;
+}
+
+// 그림자 폴러를 두는 페르소나. enter_clicks를 기기 수로 본다.
+// Note: refresh_spammer의 enter_clicks는 한 기기에서 누른 횟수라 그림자를 두지 않는다(docs/ai-judgments/kangmin/2026-11-13-o1-scenario-review-four-proposals.md)
+const MULTI_DEVICE_PERSONA = 'multi_device';
+
+// 본 사용자 말고 남은 기기(enter_clicks − 1개)를 같은 VU의 상태 기계에 더한다. 첫 폴링은 그 기기가 받은 진입 응답의 간격을 따른다.
+// 그림자는 결과(o1_outcomes)를 남기지 않고 step_duration{step:poll_shadow}와 http_reqs{device:shadow}로만 센다
+function startShadowPollers(owner, enterResponses) {
+  for (const res of enterResponses) {
+    const body = isQueueAccepted(res) ? dataOf(res) : null;
+    users.push({
+      owner,
+      profile: owner.profile,
+      access: owner.access,
+      state: 'shadow',
+      nextAt: Date.now() + nextPollDelayMillis(res, body),
+    });
+  }
+}
+
+// 다음 폴링까지(ms). 성공 응답은 서버가 준 nextPollAfterMillis, 실패는 retryDelayMillis(503이면 Retry-After)
+function nextPollDelayMillis(res, body) {
+  if (!isQueueAccepted(res)) {
+    return retryDelayMillis(res);
+  }
+  return (body && body.nextPollAfterMillis) || 3000;
 }
 
 function retryLater(user, millis) {
