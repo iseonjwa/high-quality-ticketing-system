@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-14 | 발표 자료 세 가지(2분 영상, Notion 브로셔, 10분 발표)의 축과 형식을 AI 선택지에서 고르고, 브로셔 형식·영상 소리·AI 축 줄기·발표자·디자인은 직접 정함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-14-presentation-materials-plan.md) |
 | 2026-11-13 | 호출 한도가 있어 CodeRabbit을 넣지 않고, AI 코드 리뷰는 저장소 프롬프트와 스크립트로만 하기로 함 | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-13-no-coderabbit-prompt-review-only.md) |
 | 2026-11-13 | 다른 조 저장소에서 스택과 결정이 아니라 형식과 판단 방식만 가져오기로 하고, 바로 할 것 두 가지와 전체 적용 설계·CodeRabbit 적용까지 맡김 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-borrow-formats-not-stacks-from-other-teams.md) |
 | 2026-11-13 | 팀원 지시문이 Claude Code 세션만 전제했다는 지적으로, 필수 산출물 작업을 팀원 모두가 도구와 상관없이 돌리게 바꿈 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-13-deliverables-for-all-teammates-any-tool.md) |
