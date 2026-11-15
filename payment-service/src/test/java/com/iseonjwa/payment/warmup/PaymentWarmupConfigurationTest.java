@@ -1,6 +1,13 @@
 package com.iseonjwa.payment.warmup;
 
+import com.iseonjwa.payment.global.PaymentTokenKey;
 import com.iseonjwa.payment.pg.application.PgClient;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jose.crypto.impl.ECDSA;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.proc.SingleKeyJWSKeySelector;
 import com.iseonjwa.payment.observability.PaymentMetrics;
 import com.iseonjwa.payment.payment.application.PaymentTokenVerifier;
 import com.iseonjwa.payment.payment.domain.IdempotencyRecordRepository;
@@ -12,7 +19,10 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import static com.iseonjwa.payment.support.PaymentTokenFixtures.TEST_PUBLIC_KEY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -43,6 +53,23 @@ class PaymentWarmupConfigurationTest {
 
         warmup(PgProvider.MOCK, pg).start();
         verify(pg, times(3)).findPayment(any());
+    }
+
+    // 웜업 토큰이 키 선택에서 거절되면 ECDSA 계산이 데워지지 않는다(ISE-264). 키 선택·서명 형식을 지나 서명 검증에서 거절되는지 본다
+    @Test
+    void 웜업_토큰은_키_선택과_서명_형식을_지나_ES256_서명_검증에서_거절된다() throws Exception {
+        var publicKey = PaymentTokenKey.from(TEST_PUBLIC_KEY).publicKey();
+        var jws = JWSObject.parse(PaymentWarmupConfiguration.FAKE_TOKEN);
+
+        var selected = new SingleKeyJWSKeySelector<SecurityContext>(JWSAlgorithm.ES256, publicKey)
+                .selectJWSKeys(jws.getHeader(), null);
+        assertEquals(1, selected.size());
+
+        var signature = jws.getSignature().decode();
+        assertEquals(ECDSA.getSignatureByteArrayLength(JWSAlgorithm.ES256), signature.length);
+        assertDoesNotThrow(() -> ECDSA.ensureLegalSignature(signature, JWSAlgorithm.ES256));
+
+        assertFalse(jws.verify(new ECDSAVerifier(publicKey)));
     }
 
     private PaymentWarmup warmup(PgProvider provider, PgClient pg) {
