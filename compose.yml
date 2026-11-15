@@ -253,11 +253,17 @@ services:
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes: ["kafka:/var/lib/kafka/data"]
+    # Note: kafka-broker-api-versions.sh는 실행마다 JVM을 띄워 한 번에 1~4초, CPU 45~224%를 썼다(ISE-264, TS-70).
+    # bash의 /dev/tcp로 ApiVersions 요청(API 키 18, 버전 0) 15바이트를 직접 보내고 응답 길이 4바이트가 오는지만 본다.
+    # 포트만 여는 검사와 달리 브로커가 요청을 처리하지 못하면(멈춤·기동 중) 3초 뒤 실패한다.
+    # 기동 중(start_period)에는 2초마다 검사해 healthy를 빨리 알리고, 그 뒤에는 30초마다 검사한다.
     healthcheck:
-      test: [CMD-SHELL, "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 20
+      test: [CMD, bash, -c, 'exec 3<>/dev/tcp/localhost/9092 && printf "\x00\x00\x00\x0b\x00\x12\x00\x00\x00\x00\x00\x01\x00\x01h" >&3 && timeout 3 head -c 4 <&3 | wc -c | grep -qx 4']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+      start_interval: 2s
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
     mem_limit: 384m

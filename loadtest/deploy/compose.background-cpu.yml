@@ -10,21 +10,22 @@
 #   RES_POOL_MAX=10 KAFKA_HEALTH_INTERVAL=60s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on \
 #     loadtest/deploy/compose.reservation-pool.yml loadtest/deploy/compose.background-cpu.yml
 # 괄호 안이 기본값(= 운영)이다. 운영 값을 바꾸면 아래 기본값도 같이 바꾼다.
-#   KAFKA_HEALTH_INTERVAL(10s, compose.yml kafka healthcheck) REQUEST_LOG_ENABLED(true, config-repo/application.yml)
+#   KAFKA_HEALTH_INTERVAL(30s, compose.yml kafka healthcheck) REQUEST_LOG_ENABLED(true, config-repo/application.yml)
 # 기본값이면 동작은 운영과 같지만, reservation·payment에는 환경변수가 하나 늘어 이 파일을 얹는 것만으로 두 서비스가 다시 만들어진다.
 #
 # 왜: 배포 서버는 4 vCPU 한 대에 모든 컨테이너가 있어, 측정 대상이 아닌 일도 같은 CPU를 쓴다.
-# - kafka healthcheck는 10초마다 kafka-broker-api-versions.sh를 실행하고, 이 스크립트는 실행할 때마다 JVM을 새로 띄운다.
-#   11/15 배포 서버 조사에서 한 번에 1.80~3.76초 걸렸다(측정 세션 값, 이 파일 작성 때 다시 재지 않음).
+# - (11/16 이전) kafka healthcheck는 10초마다 kafka-broker-api-versions.sh를 실행했고, 이 스크립트는 실행할 때마다 JVM을 새로 띄웠다.
+#   11/15 배포 서버 조사에서 한 번에 1.80~3.76초 걸렸다. ISE-264에서 운영 검사를 JVM 없는 ApiVersions 요청(bash /dev/tcp)과
+#   30초 간격으로 바꿨다(TS-70). 이제 이 변수는 간격만 더 늘렸을 때의 차이를 본다.
 # - reservation-service·payment-service는 정상 요청까지 요청마다 로그 한 줄을 남긴다. Gateway는 ADR 0052 1단계로
 #   문제 요청만 남기지만, 서비스 쪽 공통 필터(2단계)는 아직 적용 전이다.
 # 이 둘을 줄였을 때 측정값이 얼마나 바뀌는지 본다.
 #
-# Note: kafka healthcheck는 interval만 바꾼다. compose는 healthcheck를 키별로 합치므로 test·timeout·retries는 compose.yml 값이 남는다.
+# Note: kafka healthcheck는 interval만 바꾼다. compose는 healthcheck를 키별로 합치므로 test·timeout·retries·start_period·start_interval은 compose.yml 값이 남는다.
 # interval을 바꾸면 kafka 컨테이너가 다시 만들어진다(Kafka 재시작). on·off 때마다 Kafka가 다시 뜨고, 소비자들이 다시 붙는다.
 # 재시작 직후의 몇 분은 측정에서 뺀다. 측정 전에 docker inspect --format '{{.State.Health.Status}}' <kafka 컨테이너>가 healthy인지 확인한다.
-# Note: interval을 늘리면 재시작 뒤 첫 healthy 판정도 그만큼 늦다. Docker는 첫 검사를 interval 뒤에 하므로 60s면 Kafka가 healthy가
-# 되기까지 최소 약 60초다. measure-mode.sh on은 up -d --wait --wait-timeout 420이라 kafka가 healthy가 될 때까지 기다리고,
+# Note: 기동 직후 start_period(120초) 동안은 start_interval(2초)마다 검사하므로 interval을 늘려도 첫 healthy 판정은 늦어지지 않는다.
+# 다만 기동이 120초를 넘기면 그 뒤 검사는 interval마다라 판정이 그만큼 늦다. measure-mode.sh on은 up -d --wait --wait-timeout 420이라 kafka가 healthy가 될 때까지 기다리고,
 # 420초 안이면 실패하지 않는다(interval을 수 분 이상으로 두지 않는다). depends_on: condition: service_healthy로 kafka를 기다리는
 # 서비스(reservation·payment·kafka-ui 등)는 새로 만들어질 때 이 조건을 본다. 설정이 같아 다시 만들어지지 않는 서비스는
 # 떠 있는 채로 Kafka에 다시 연결할 것으로 본다(추정, 배포 서버에서 확인 못 함).
@@ -40,7 +41,7 @@
 services:
   kafka:
     healthcheck:
-      interval: ${KAFKA_HEALTH_INTERVAL:-10s}
+      interval: ${KAFKA_HEALTH_INTERVAL:-30s}
   reservation-service:
     environment:
       ISEONJWA_REQUESTLOG_ENABLED: ${REQUEST_LOG_ENABLED:-true}
