@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -43,5 +44,25 @@ public class ScheduleSeatQueryService {
             available[i] = holdable.contains(seats.get(i).seatId());
         }
         return new ScheduleSeatsResult(seats, available);
+    }
+
+    /**
+     * 요청한 좌석 중 1초 캐시에서 이미 선점 불가로 보이는 좌석이 있는지 본다(ISE-281, 선점 사전 거절용).
+     * 이미 잡힌 좌석, 추첨석, 그 회차에 없는 좌석이 선점 불가다.
+     *
+     * <p>Note: 캐시에 그 회차 항목이 없거나 1초가 지났으면 DB를 읽지 않고 false를 돌려준다. 선점 경로에
+     * DB 조회와 커넥션 점유를 늘리지 않으려는 것이다. true여도 최대 1초 낡은 판단이라 최종 판정은 선점의 조건부 UPDATE가 한다.
+     */
+    public boolean anyNotHoldable(Long scheduleId, Collection<Long> seatIds) {
+        HoldableSeatIds holdable = holdableCache.peekFresh(scheduleId);
+        if (holdable == null) {
+            return false;
+        }
+        for (Long seatId : seatIds) {
+            if (!holdable.contains(seatId)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
