@@ -13,6 +13,9 @@
 // 빈 좌석을 사용자마다 겹치지 않게 나눠 두고, 측정 중에는 좌석 조회 없이 바로 선점한다. 서버가 좌석을 고르는 비용은 빠진다.
 // partitioned에서는 등급(zone)을 보지 않고 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. 예:
 //   SEAT_MODE=partitioned SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+// auto는 자동 배정 API(POST .../reservations/auto, ISE-264)를 실제로 부른다. 좌석 조회 없이 구역·등급과 매수만 보내고 서버가 고른다.
+// partitioned와 달리 서버가 고르는 비용과 구역 매진(409 ZONE_SOLD_OUT)이 들어간다. 구역을 고르는 규칙은 map과 맞춘다(autoCriteria 참고). 예:
+//   SEAT_MODE=auto SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 //
 // ARRIVAL_MODE(기본 profile)는 도착·진입 시각을 정하는 방법이다. profile은 지금 동작 그대로 균일 규칙 또는 CSV 행을 쓴다.
 // realistic은 실제 티켓 오픈처럼 대부분이 오픈 전에 상세를 보고 기다리다 오픈 0~1초에 진입을 누르는 모습을 흉내 낸다.
@@ -53,8 +56,8 @@ const MAX_RETRY = numberEnv('MAX_RETRY', 2);
 const PG_DELAY_MS = numberEnv('PG_DELAY_MS', 300);
 const SCHEDULE_ID = __ENV.SCHEDULE_ID ? Number(__ENV.SCHEDULE_ID) : 0;
 const SEAT_MODE = __ENV.SEAT_MODE || 'map';
-if (SEAT_MODE !== 'map' && SEAT_MODE !== 'partitioned') {
-  throw new Error(`SEAT_MODE(${SEAT_MODE})는 map 또는 partitioned여야 합니다`);
+if (SEAT_MODE !== 'map' && SEAT_MODE !== 'partitioned' && SEAT_MODE !== 'auto') {
+  throw new Error(`SEAT_MODE(${SEAT_MODE})는 map, partitioned, auto 중 하나여야 합니다`);
 }
 const ARRIVAL_MODE = __ENV.ARRIVAL_MODE || 'profile';
 if (ARRIVAL_MODE !== 'profile' && ARRIVAL_MODE !== 'realistic') {
@@ -427,6 +430,9 @@ const STEPS = {
     if (SEAT_MODE === 'partitioned') {
       return takePartitionedSeats(user, data);
     }
+    if (SEAT_MODE === 'auto') {
+      return chooseAutoCriteria(user);
+    }
     const res = http.get(url(`/api/v1/schedules/${data.scheduleId}/seats`),
       { headers: authHeaders(user.access, { 'X-Entry-Token': user.entry }), tags: { api: 'seats' }, timeout: '10s' });
     record(user, 'seats', res);
@@ -444,9 +450,11 @@ const STEPS = {
     const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
     user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
   },
-  // 6. 선점. 409면 좌석 조회부터 다시(프로필의 maxRetry번까지)
+  // 6. 선점. 409면 좌석 조회부터 다시(프로필의 maxRetry번까지). auto는 좌석 대신 구역·등급과 매수를 보낸다
   hold(user, data) {
-    const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/reservations`), JSON.stringify({ seatIds: user.seatIds }), {
+    const path = SEAT_MODE === 'auto' ? 'reservations/auto' : 'reservations';
+    const body = SEAT_MODE === 'auto' ? user.autoBody : { seatIds: user.seatIds };
+    const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/${path}`), JSON.stringify(body), {
       headers: Object.assign(jsonHeaders(user.access, { 'Idempotency-Key': uuid() }), { 'X-Entry-Token': user.entry }),
       tags: { api: 'hold' },
     });
@@ -511,6 +519,29 @@ function takePartitionedSeats(user, data) {
   const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
   user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
 }
+
+// auto의 5단계. 좌석 조회 없이 본문(구역·등급, 매수)만 정하고, 고민 시간은 map과 같다.
+// Note: 비교 공정성. map 균일 규칙은 70%가 좌석 조회 본문 앞 10%(약 1,500석 = 구역 A·B와 C 절반, 구역당 600석)에서,
+// 30%가 전체에서 고른다. auto 균일은 같은 비율로 70%가 구역 A~C 중 하나, 30%가 구역 A~Y 중 하나를 무작위로 고른다(앞 구역 쏠림 유지,
+// 인기 범위는 1,800석으로 map보다 조금 넓다). Synthetic은 CSV zone(VIP·R·S)을 등급으로 보내고, ANY는 회차 전체(본문에 범위 없음)다.
+// 409 뒤에는 map처럼 다시 고른다. 균일은 같은 규칙으로 새 구역을, any_zone 사용자는 ANY(회차 전체)로 바꿔 보낸다
+function chooseAutoCriteria(user) {
+  const count = seatCountOf(user.profile);
+  if (user.profile.zone === null) {
+    const hot = Math.random() < 0.7;
+    const index = Math.floor(Math.random() * (hot ? AUTO_HOT_SECTIONS : AUTO_SECTIONS));
+    user.autoBody = { section: String.fromCharCode(65 + index), quantity: count };
+  } else {
+    user.autoBody = user.zone === 'ANY' ? { quantity: count } : { grade: user.zone, quantity: count };
+  }
+  user.state = 'hold';
+  const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
+  user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
+}
+
+// 공연장 시드(V20261030_2__venue_seed.sql)는 구역 A~Y 25개, 구역당 600석이다
+const AUTO_SECTIONS = 25;
+const AUTO_HOT_SECTIONS = 3;
 
 function seatCountOf(profile) {
   return profile.seats === null ? (Math.random() < 0.5 ? 1 : 2) : profile.seats;
