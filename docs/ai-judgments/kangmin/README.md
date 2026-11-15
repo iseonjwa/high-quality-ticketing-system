@@ -8,6 +8,10 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-15 | 서버 명령은 사람이 치고 AI는 명령표만 만든다는 방식을 바꿔 배포 서버 점검·측정을 AI에게 전부 맡기고 상황 보고를 이어서 받기로 함 | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-15-delegate-server-measurement.md) |
+| 2026-11-15 | 팀 답을 기다린 뒤 진행하자는 AI 계획을 받지 않고 ISE-269 4번 행 처리안과 ISE-230 안전망 상한을 선조치 후보고로 진행하기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-15-proceed-without-team-reply.md) |
+| 2026-11-15 | dev → main 뒤 재측정을 오늘은 하지 말자는 AI 추천을 받지 않고 main 기준 측정 뒤 같은 날 머지·재측정까지 하기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-15-remeasure-after-main-today.md) |
+| 2026-11-14 | Synthetic O1 측정 전 dev → main을 먼저 하자는 AI 추천을 받지 않고 지금 배포된 main(`e109c11c`)으로 측정하기로 함 | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-14-measure-on-current-main.md) |
 | 2026-11-14 | SA 14장 4번 행(응모 Kafka 접수 거부)과 10/29 동기 INSERT 수용의 어긋남을, 판단 칸은 덮어쓰지 않고 프롬프트 칸만 지금 고치고 이력 보존·#11 행 추가안을 팀 안건으로 올림 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-14-sa14-row4-keep-history-add-row.md) |
 | 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-14-ise271-review-minimum-all-comment-risky.md) |
 | 2026-11-13 | Synthetic O1 페르소나 세분화에서 AI가 낸 행동 축 6개 안(도착·진입 공격성·좌석 욕심·결정 속도·집착도·구매 의지)을 받아들임 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-synthetic-persona-six-factors.md) |
@@ -129,6 +133,7 @@ kangmin이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-15 | [daily/2026-11-15.md](daily/2026-11-15.md) |
 | 2026-11-14 | [daily/2026-11-14.md](daily/2026-11-14.md) |
 | 2026-11-13 | [daily/2026-11-13.md](daily/2026-11-13.md) |
 | 2026-11-12 | [daily/2026-11-12.md](daily/2026-11-12.md) |

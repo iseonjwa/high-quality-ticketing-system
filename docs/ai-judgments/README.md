@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
-| [kangmin](kangmin/README.md) | 개별 기록 43건, 일지 9일 |
+| [kangmin](kangmin/README.md) | 개별 기록 118건, 일지 20일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 22건, 일지 10일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -44,6 +44,9 @@
 |---|---|---|---|---|---|---|
 | 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-11-15-entry-token-ttl-single-source.md) |
 | 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-11-15-queue-ready-decided-in-lua.md) |
+| 2026-11-15 | 팀 답을 기다린 뒤 진행하자는 AI 계획을 받지 않고 ISE-269 4번 행 처리안과 ISE-230 안전망 상한을 선조치 후보고로 진행하기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-15-proceed-without-team-reply.md) |
+| 2026-11-15 | dev → main 뒤 재측정을 오늘은 하지 말자는 AI 추천을 받지 않고 main 기준 측정 뒤 같은 날 머지·재측정까지 하기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-15-remeasure-after-main-today.md) |
+| 2026-11-14 | Synthetic O1 측정 전 dev → main을 먼저 하자는 AI 추천을 받지 않고 지금 배포된 main(`e109c11c`)으로 측정하기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-14-measure-on-current-main.md) |
 | 2026-11-14 | 대기열 지표를 입장 처리 Lua에 얹고 회차별 라벨로 내보내자는 AI 첫 설계를 되물어, 읽기 전용 Lua와 회차 합계 게이지로 바꿈 | youngeun | Claude | 부분 수용 | 후보 | [기록](youngeun/2026-11-14-queue-metrics-design.md) |
 | 2026-11-14 | SA 14장 4번 행(응모 Kafka 접수 거부)과 10/29 동기 INSERT 수용의 어긋남을, 판단 칸은 덮어쓰지 않고 프롬프트 칸만 지금 고치고 이력 보존·#11 행 추가안을 팀 안건으로 올림 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-14-sa14-row4-keep-history-add-row.md) |
 | 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-14-ise271-review-minimum-all-comment-risky.md) |
