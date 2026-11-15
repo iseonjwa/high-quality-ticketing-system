@@ -690,3 +690,11 @@
 - 해결: `run.sh` 기본값을 `K6_MEMORY=6g`, `K6_GOMEMLIMIT=5632MiB`로 올렸다(측정 브랜치 `78a91fc`). 같은 조건에서 K1 S 1,280명이 100%(p95 32ms)가 되고 k6 CPU가 약 7코어로 내려갔다. F 3회에서도 1,280명은 2회 100%, 1회 81.6%였다. k6가 여유 있어도 차단기는 가끔 열리지만 훨씬 드물다. 상한 근처에서 잰 회의 해석은 측정 브랜치 `STEPS.md`와 [판단 기록](ai-judgments/kwonwoo/2026-11-09-k1-stop-at-p4c-skip-p4d.md)에서 정정했다.
 - 덧붙임: `GOMEMLIMIT=5.5GiB`처럼 소수를 쓰면 k6가 시작하지 못하고 `k6_exit` 2로 끝난다. 정수와 단위(`5632MiB`)로 쓴다.
 - 배운 점: 부하 생성기의 CPU·메모리를 서버 지표와 같이 본다. 생성기가 상한에 붙으면 요청 모양(몰림)이 바뀌어, 다른 구성 요소의 한계처럼 보이는 결과를 만든다. 기기를 바꾸면 측정 도구의 상한도 다시 정한다.
+
+### TS-70 Kafka 헬스체크가 실행마다 JVM을 띄워 약 12초마다 CPU가 튀었다
+- 서비스·작성: infra(kafka) / kangmin / 2026-11-16
+- 문제: 11/15 배포 서버(4 vCPU 한 대)에서 부하가 없을 때 Kafka 컨테이너 CPU가 평소 1.2%인데 약 12초마다 45~224%로 1~2초씩 튀었다. 튀는 시각이 헬스체크 시작 시각과 겹쳤고, 헬스체크 한 번이 1.80~3.76초 걸렸다. 오픈 피크에도 kafka가 25~228%였다. 같은 장비의 앱과 CPU를 나눠 써 측정값에 잡음이 섞인다.
+- 원인: `compose.yml`의 kafka 헬스체크가 10초마다 `kafka-broker-api-versions.sh`를 실행했고, 이 스크립트는 실행할 때마다 JVM을 새로 띄워 클래스를 읽고 관리 클라이언트를 만든다. 약 12초 주기는 간격 10초에 실행 시간 1~4초가 더해진 값이다(Docker가 앞 검사가 끝난 뒤 간격을 세는 것으로 본다. 추정).
+- 해결: 검사를 JVM 없이 bash `/dev/tcp`로 ApiVersions 요청(API 키 18, 버전 0) 15바이트를 보내고 응답 앞 4바이트(길이)가 3초 안에 오는지 보는 방식으로 바꿨다. 간격은 30초, 기동 중 120초는 2초마다 검사한다(`start_period`·`start_interval`, Docker 25 이상. 배포 서버는 29.9). 관련 파일 `compose.yml`, `loadtest/deploy/compose.background-cpu.yml`(`KAFKA_HEALTH_INTERVAL` 기본값 30s).
+- 확인(로컬, Docker 29.8): 같은 이미지에서 새 검사는 4~6ms, 옛 스크립트는 1,348~1,604ms였다. `docker pause`로 브로커를 멈추면 새 검사는 3초 뒤 실패하고 포트만 여는 검사(`</dev/tcp/localhost/9092`)는 성공했다. 닫힌 포트와 엉뚱한 바이트도 실패한다. `docker compose up -d --wait kafka kafka-ui`는 7초에 끝났고 kafka는 기동 2초 뒤 두 번째 검사에서 healthy, `depends_on: condition: service_healthy`인 kafka-ui도 healthy였다. 그 뒤 약 50초 동안 kafka CPU 표본 25개의 최댓값은 4.21%였다. 배포 서버 재측정은 아직 하지 않았다.
+- 배운 점: 헬스체크는 장비의 상시 부하다. 무거운 CLI(JVM 도구)를 짧은 간격으로 돌리면 같은 장비의 측정에 주기적인 잡음이 생긴다. 프로토콜 요청을 가볍게 직접 보내면 포트 확인보다 강하면서 비용은 거의 없다.
