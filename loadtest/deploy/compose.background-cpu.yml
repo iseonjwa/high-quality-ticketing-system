@@ -1,6 +1,11 @@
 # 같은 장비의 배경 CPU(측정 대상이 아닌 일)를 배포 서버 측정 모드에서만 줄이는 덮어쓰기다(ISE-264 실험 X2).
 # 운영 설정(compose.yml, config-repo)은 바꾸지 않는다. 값을 안 주면 운영과 같다.
 #   KAFKA_HEALTH_INTERVAL=60s REQUEST_LOG_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.background-cpu.yml
+# 한 번에 하나씩 비교할 때는 바꿀 변수 하나만 준다. 주지 않은 변수는 운영값이다.
+#   KAFKA_HEALTH_INTERVAL=60s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.background-cpu.yml
+#   REQUEST_LOG_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.background-cpu.yml
+#   비교 기준(대조) 실행도 이 파일을 변수 없이 얹어 켠다. 아래처럼 파일을 얹기만 해도 두 서비스가 다시 만들어지므로,
+#   파일 없이 켠 실행과 비교하면 재기동 여부가 함께 달라진다.
 # 다른 덮어쓰기와 함께 쓸 때는 파일을 같이 준다(measure-mode.sh on은 인자로 준 파일을 모두 얹는다).
 #   RES_POOL_MAX=10 KAFKA_HEALTH_INTERVAL=60s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on \
 #     loadtest/deploy/compose.reservation-pool.yml loadtest/deploy/compose.background-cpu.yml
@@ -10,13 +15,14 @@
 #
 # 왜: 배포 서버는 4 vCPU 한 대에 모든 컨테이너가 있어, 측정 대상이 아닌 일도 같은 CPU를 쓴다.
 # - kafka healthcheck는 10초마다 kafka-broker-api-versions.sh를 실행하고, 이 스크립트는 실행할 때마다 JVM을 새로 띄운다.
+#   11/15 배포 서버 조사에서 한 번에 1.80~3.76초 걸렸다(측정 세션 값, 이 파일 작성 때 다시 재지 않음).
 # - reservation-service·payment-service는 정상 요청까지 요청마다 로그 한 줄을 남긴다. Gateway는 ADR 0052 1단계로
 #   문제 요청만 남기지만, 서비스 쪽 공통 필터(2단계)는 아직 적용 전이다.
 # 이 둘을 줄였을 때 측정값이 얼마나 바뀌는지 본다.
 #
 # Note: kafka healthcheck는 interval만 바꾼다. compose는 healthcheck를 키별로 합치므로 test·timeout·retries는 compose.yml 값이 남는다.
 # interval을 바꾸면 kafka 컨테이너가 다시 만들어진다(Kafka 재시작). on·off 때마다 Kafka가 다시 뜨고, 소비자들이 다시 붙는다.
-# 재시작 직후의 몇 분은 측정에서 뺀다.
+# 재시작 직후의 몇 분은 측정에서 뺀다. 측정 전에 docker inspect --format '{{.State.Health.Status}}' <kafka 컨테이너>가 healthy인지 확인한다.
 # Note: interval을 늘리면 재시작 뒤 첫 healthy 판정도 그만큼 늦다. Docker는 첫 검사를 interval 뒤에 하므로 60s면 Kafka가 healthy가
 # 되기까지 최소 약 60초다. measure-mode.sh on은 up -d --wait --wait-timeout 420이라 kafka가 healthy가 될 때까지 기다리고,
 # 420초 안이면 실패하지 않는다(interval을 수 분 이상으로 두지 않는다). depends_on: condition: service_healthy로 kafka를 기다리는
