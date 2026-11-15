@@ -7,6 +7,12 @@
 // Note: 사용자 한 명이 수 분 동안 대기하므로 사용자마다 VU를 두면 VU가 수만 개 필요하다.
 // VU 하나가 사용자 여러 명을 상태 기계로 들고, 다음 행동 시각이 가장 이른 사용자부터 한 걸음씩 진행한다.
 // 한 VU 안의 요청은 순서대로 나가므로 좌석 조회처럼 느린 요청이 있으면 같은 VU의 다른 사용자가 늦어진다. 그 정도를 action_lateness로 남긴다
+//
+// SEAT_MODE(기본 map)는 좌석을 정하는 방법이다. map은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다.
+// partitioned는 서버가 좌석을 골라 주는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다. setup에서 좌석 조회를 한 번만 해
+// 빈 좌석을 사용자마다 겹치지 않게 나눠 두고, 측정 중에는 좌석 조회 없이 바로 선점한다. 서버가 좌석을 고르는 비용은 빠진다.
+// partitioned에서는 등급(zone)을 보지 않고 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. 예:
+//   SEAT_MODE=partitioned SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 import http from 'k6/http';
 import { sleep } from 'k6';
 import exec from 'k6/execution';
@@ -17,7 +23,7 @@ import { accessToken, assertSigningKeys, userIdOf, uuid } from '../lib/tokens.js
 import { authHeaders, dataOf, errorCodeOf, jsonHeaders, retryDelayMillis, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { enterPath, positionPath } from '../lib/queue.js';
-import { isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus } from '../lib/booking.js';
+import { availableSeatIds, isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus, userOf } from '../lib/booking.js';
 import { setApproveDelay } from '../lib/mockpg.js';
 
 const USERS = numberEnv('USERS', 30000);
@@ -31,6 +37,10 @@ const ABANDON_RATIO = numberEnv('ABANDON_RATIO', 0.1);
 const MAX_RETRY = numberEnv('MAX_RETRY', 2);
 const PG_DELAY_MS = numberEnv('PG_DELAY_MS', 300);
 const SCHEDULE_ID = __ENV.SCHEDULE_ID ? Number(__ENV.SCHEDULE_ID) : 0;
+const SEAT_MODE = __ENV.SEAT_MODE || 'map';
+if (SEAT_MODE !== 'map' && SEAT_MODE !== 'partitioned') {
+  throw new Error(`SEAT_MODE(${SEAT_MODE})는 map 또는 partitioned여야 합니다`);
+}
 // 오픈 전 상세 새로고침을 하지 않는 사용자(진입 0번)가 오픈 뒤에도 새로고침하는 시간
 const NO_ENTER_BROWSE_MS = 60000;
 // 대기열 회차 캐시 갱신 주기(30초). 오픈이 이보다 가까우면 진입이 캐시를 타지 않는다
@@ -83,8 +93,25 @@ export function setup() {
   const schedule = SCHEDULE_ID ? scheduleFromEnv() : createSchedule(adminLogin(), { title: 'k6 O1', openInSeconds: PRE_OPEN_SECONDS });
   setApproveDelay(PG_DELAY_MS);
   console.log(`O1 회차 ${schedule.scheduleId}(공연 ${schedule.concertId}), 사용자 ${USERS}명(${csvRows === null ? '균일' : 'Synthetic ' + __ENV.USERS_CSV}), `
-    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}`);
-  return { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
+    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}`);
+  const data = { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
+  if (SEAT_MODE === 'partitioned') {
+    Object.assign(data, partitionSeats(schedule.scheduleId));
+  }
+  return data;
+}
+
+// partitioned: 사용자 번호 i에게 seatIds[i × perUser]부터 perUser석을 준다. perUser는 한 사용자가 잡을 수 있는 최대 좌석 수다.
+// Note: 좌석 조회는 여기서 한 번뿐이고 측정 구간(오픈 전 조회부터) 밖이다. 서명한 입장 토큰으로 부르는 것은 A0와 같다
+function partitionSeats(scheduleId) {
+  const perUser = csvRows === null ? 2 : csvRows.reduce((max, row) => Math.max(max, row.seats), 1);
+  const seatIds = availableSeatIds(scheduleId, userOf(userIdOf(0) - 1, scheduleId));
+  const needed = USERS * perUser;
+  if (seatIds.length < needed) {
+    throw new Error(`SEAT_MODE=partitioned: 빈 좌석 ${seatIds.length}석이 필요한 ${needed}석(USERS ${USERS} × 사용자당 ${perUser}석)보다 적습니다`);
+  }
+  console.log(`좌석 나눔: 빈 좌석 ${seatIds.length}석 중 ${needed}석을 사용자마다 ${perUser}석씩`);
+  return { seatIds: seatIds.slice(0, needed), seatsPerUser: perUser };
 }
 
 // 서버에서 만든 회차(seed-demo.sh open "<OPEN_AT>")를 받는다. 관리자 로그인과 회차 만들기를 건너뛴다.
@@ -133,6 +160,7 @@ function usersOfThisVu(data) {
     const userId = userIdOf(first + i);
     const profile = csvRows === null ? uniformProfile(data) : csvProfile(csvRows[first + i], data);
     list.push({
+      index: first + i,
       userId,
       access: accessToken(userId),
       profile,
@@ -350,6 +378,9 @@ const STEPS = {
   },
   // 5. 좌석 조회 → 첫 고민(균일은 1~3초, 재시도는 0.5~1초)
   seats(user, data) {
+    if (SEAT_MODE === 'partitioned') {
+      return takePartitionedSeats(user, data);
+    }
     const res = http.get(url(`/api/v1/schedules/${data.scheduleId}/seats`),
       { headers: authHeaders(user.access, { 'X-Entry-Token': user.entry }), tags: { api: 'seats' }, timeout: '10s' });
     record(user, 'seats', res);
@@ -425,6 +456,15 @@ const STEPS = {
     user.nextAt = Date.now() + 500;
   },
 };
+
+// partitioned의 5단계. 좌석 조회 없이 setup에서 나눠 둔 좌석을 쓰고, 고민 시간은 map과 같다
+function takePartitionedSeats(user, data) {
+  const base = user.index * data.seatsPerUser;
+  user.seatIds = data.seatIds.slice(base, base + seatCountOf(user.profile));
+  user.state = 'hold';
+  const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
+  user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
+}
 
 function seatCountOf(profile) {
   return profile.seats === null ? (Math.random() < 0.5 ? 1 : 2) : profile.seats;

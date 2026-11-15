@@ -203,6 +203,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `PRE_OPEN_SECONDS` / `AFTER_OPEN_SECONDS` | 600 / 900 | O1: 오픈 전 조회 시간, 오픈 뒤 진행 시간 |
 | `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도. 균일 모드에서만 쓴다(Synthetic 모드는 CSV 행이 정한다) |
 | `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). CSV에 행동 축 열(`ax_*`)이 있으면 `step_duration`·`o1_outcomes`에 같은 이름의 태그로 붙인다. `USERS_CSV`가 없으면 균일 모드 |
+| `SEAT_MODE` | `map` | O1: 좌석을 정하는 방법. `map`은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다. `partitioned`는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다: setup에서 좌석 조회를 한 번 해 빈 좌석을 사용자마다 겹치지 않게 나누고(사용자당 균일 2석, Synthetic은 CSV `seats` 최댓값), 측정 중에는 좌석 조회 없이 바로 선점한다. 등급(`zone`)은 보지 않고 서버가 고르는 비용은 빠진다. 빈 좌석이 `USERS` × 사용자당 석 수보다 적으면 setup에서 실패하고, 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. `o1_outcomes`·태그는 두 모드가 같다 |
 | `OPEN_AT` | 없음 | O1: `SCHEDULE_ID`를 줄 때 그 회차의 오픈 시각(ISO-8601 UTC). 지금 + 30초 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 한다(setup이 검사). `PRE_OPEN_SECONDS`는 발생기에서 `$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) ))`로 맞춘다 |
 | `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다 |
 
