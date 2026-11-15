@@ -10,6 +10,7 @@ import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequestStatus;
 import com.iseonjwa.reservation.seathold.domain.repository.EntryTokenAlreadyUsedException;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
+import com.iseonjwa.reservation.seathold.observability.SeatHoldMetrics;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -44,12 +45,17 @@ public class SyncSeatHoldService {
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
+    private final HeldSeatPreCheck heldSeatPreCheck;
+    private final SeatHoldMetrics metrics;
 
     public SyncSeatHoldService(SeatHoldInventoryRepository inventory, ReservationRepository reservations,
             SeatHolding seatHolding,
             SeatHoldRequestRepository seatHoldRequests, HeldReservationResults results,
             ConsumedEntryTokens consumedEntryTokens,
-            @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager) {
+            @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager,
+            HeldSeatPreCheck heldSeatPreCheck, SeatHoldMetrics metrics) {
+        this.heldSeatPreCheck = heldSeatPreCheck;
+        this.metrics = metrics;
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
@@ -71,7 +77,11 @@ public class SyncSeatHoldService {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
         SyncHoldOutcome outcome;
         try {
-            outcome = writeTransaction.execute(status -> holdInTransaction(command, seatIds));
+            if (heldSeatPreCheck.anyNotHoldable(command.scheduleId(), seatIds)) {
+                outcome = replayOrRejectHeldSeat(command, seatIds);
+            } else {
+                outcome = writeTransaction.execute(status -> holdInTransaction(command, seatIds));
+            }
         } catch (ConcurrentSameKeyException lost) {
             outcome = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
                     .map(previous -> replay(previous, command, seatIds))
@@ -90,6 +100,21 @@ public class SyncSeatHoldService {
             discardEntryToken(command);
         }
         return outcome;
+    }
+
+    // Note: 좌석 조회의 1초 캐시가 이미 잡힌 좌석이 섞였다고 해서 확실히 질 요청으로 보고 쓰기 트랜잭션 없이 409로 끝낸다(ISE-281).
+    // 거절하기 전에 같은 멱등키의 앞선 요청부터 찾는다. 성공한 선점의 재시도는 캐시에서 자기 좌석이 잡힘으로 보여,
+    // 이 조회를 건너뛰면 201 대신 409를 받는다. 조회는 캐시가 잡힘이라 할 때만 하므로 통과하는 요청에는 DB 조회가 늘지 않는다.
+    // 대가는 두 가지다. 1초 안에 풀린 좌석에 409가 날 수 있고, 매수·판매 기간·입장 토큰·회차 소속 검사보다 먼저 와서
+    // 그 거절 사유보다 SEAT_ALREADY_HELD가 먼저 나갈 수 있다(contracts.md 1-1)
+    private SyncHoldOutcome replayOrRejectHeldSeat(HoldSeatsCommand command, List<Long> seatIds) {
+        var replayed = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                .map(previous -> replay(previous, command, seatIds)));
+        if (replayed.isPresent()) {
+            return replayed.get();
+        }
+        metrics.recordPreRejected();
+        throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
     }
 
     // Note: 같은 토큰의 다른 요청이 먼저 커밋해 유니크 인덱스에 걸렸다. 같은 멱등키 연타가 PK보다 이 인덱스에 먼저 걸렸을 수도 있어,

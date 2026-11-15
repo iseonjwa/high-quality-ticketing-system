@@ -42,7 +42,10 @@ public class SeatHoldMetrics {
         }
     }
 
+    static final String PRE_REJECTED_NAME = "seathold.pre_rejected";
+
     private final Map<Outcome, Counter> counters = new EnumMap<>(Outcome.class);
+    private final Counter preRejected;
 
     // 기동할 때 모든 결과를 0으로 등록해 둔다. 요청마다 등록하지 않고, 아직 없는 결과도 rate()가 0으로 보인다
     public SeatHoldMetrics(MeterRegistry registry) {
@@ -52,10 +55,19 @@ public class SeatHoldMetrics {
                     .tag("outcome", outcome.label)
                     .register(registry));
         }
+        // Note: outcome 값을 늘리지 않고 따로 센다. 사전 거절도 응답은 같은 409라 seathold.result에는 seat_conflict로 들어가고,
+        // 이 카운터는 그중 트랜잭션 전에 끝난 수다. seat_conflict를 둘로 나누면 기존 대시보드의 좌석 충돌 비율이 바뀐다(ISE-281)
+        preRejected = Counter.builder(PRE_REJECTED_NAME)
+                .description("좌석 조회 1초 캐시로 트랜잭션 전에 거절한 선점 수(seat_conflict의 일부)")
+                .register(registry);
     }
 
     public void record(Outcome outcome) {
         counters.get(outcome).increment();
+    }
+
+    public void recordPreRejected() {
+        preRejected.increment();
     }
 
     public void recordFailure(RuntimeException exception) {
