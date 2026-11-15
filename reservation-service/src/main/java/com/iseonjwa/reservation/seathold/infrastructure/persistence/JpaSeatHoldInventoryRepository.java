@@ -79,26 +79,36 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
     // ORDER BY id는 일반 선점과 같은 좌석 ID 오름차순 잠금 순서(SA 12-7 ②)이고, 좌석 ID가 구역·열·번호 순으로 만들어져
     // 2매가 대개 같은 열의 붙은 자리가 된다. 건너뛴 행이나 열 끝에서는 떨어질 수 있다(연석 보장 안 함, ADR 0059).
     // 조건(AVAILABLE, LOTTERY 아님)은 holdAvailableSeats와 같다. 잠근 뒤 상태 전이는 그 조건부 UPDATE가 한다
+    // Note: 등급·구역 조건은 받은 것만 SQL에 넣는다. ":p IS NULL OR col = :p" 모양은 드라이버가 준비된 문장을
+    // 일반 계획으로 바꾸면 인덱스 조건이 되지 못해 pk(id)를 처음부터 훑는다(TS-72). 회차 안 ID 순 탐색은
+    // (schedule_id, id)·(schedule_id, section, id)·(schedule_id, grade, id) 인덱스가 맡는다(V20261116_6)
     @Override
     @SuppressWarnings("unchecked")
     public List<Long> lockAvailableSeatIds(Long scheduleId, SeatGrade grade, String section, int limit) {
         em.flush();
-        List<Number> ids = em.createNativeQuery("""
-                        SELECT id FROM schedule_seats
-                         WHERE schedule_id = :scheduleId
-                           AND status = 'AVAILABLE'
-                           AND grade <> 'LOTTERY'
-                           AND (CAST(:grade AS varchar) IS NULL OR grade = CAST(:grade AS varchar))
-                           AND (CAST(:section AS varchar) IS NULL OR section = CAST(:section AS varchar))
-                         ORDER BY id
-                         LIMIT :limit
-                           FOR UPDATE SKIP LOCKED
-                        """)
+        StringBuilder sql = new StringBuilder("""
+                SELECT id FROM schedule_seats
+                 WHERE schedule_id = :scheduleId
+                   AND status = 'AVAILABLE'
+                   AND grade <> 'LOTTERY'
+                """);
+        if (grade != null) {
+            sql.append("   AND grade = :grade\n");
+        }
+        if (section != null) {
+            sql.append("   AND section = :section\n");
+        }
+        sql.append(" ORDER BY id\n LIMIT :limit\n   FOR UPDATE SKIP LOCKED");
+        var query = em.createNativeQuery(sql.toString())
                 .setParameter("scheduleId", scheduleId)
-                .setParameter("grade", grade == null ? null : grade.name())
-                .setParameter("section", section)
-                .setParameter("limit", limit)
-                .getResultList();
+                .setParameter("limit", limit);
+        if (grade != null) {
+            query.setParameter("grade", grade.name());
+        }
+        if (section != null) {
+            query.setParameter("section", section);
+        }
+        List<Number> ids = query.getResultList();
         return ids.stream().map(Number::longValue).toList();
     }
 
