@@ -395,9 +395,11 @@ const STEPS = {
     finish(user, res.status === 409 ? 'gave_up' : 'error');
   },
   // 7. 결제
+  // Note: 배포 결제 서버는 기본 PG가 토스라 pgProvider가 없으면 결제창 값(clientPaymentRef)을 요구해 400이 난다.
+  // MOCK을 명시하면 Mock 건너뛰기(PAYMENT_PG_MOCK_BYPASS)로 승인되고, local(Mock 기본)에서도 그대로 MOCK이다.
   pay(user) {
     const res = http.post(url('/api/v1/payments'),
-      JSON.stringify({ paymentToken: user.held.paymentToken, method: 'CARD', amount: user.held.totalAmount }), {
+      JSON.stringify({ paymentToken: user.held.paymentToken, method: 'CARD', amount: user.held.totalAmount, pgProvider: 'MOCK' }), {
         headers: jsonHeaders(user.access, { 'Idempotency-Key': uuid() }), tags: { api: 'payment' }, timeout: '10s',
       });
     record(user, 'pay', res);
