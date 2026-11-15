@@ -130,7 +130,11 @@ public class SyncSeatHoldService {
     }
 
     private void discardEntryToken(HoldSeatsCommand command) {
-        consumedEntryTokens.discard(command.scheduleId(), command.userId(), command.entryTokenJti());
+        discardEntryToken(command.scheduleId(), command.userId(), command.entryTokenJti());
+    }
+
+    private void discardEntryToken(Long scheduleId, Long userId, String entryTokenJti) {
+        consumedEntryTokens.discard(scheduleId, userId, entryTokenJti);
     }
 
     private SyncHoldOutcome holdInTransaction(HoldSeatsCommand command, List<Long> seatIds) {
@@ -163,14 +167,85 @@ public class SyncSeatHoldService {
     // 입장 토큰 jti도 이 행에 함께 쓴다. 같은 토큰의 동시 요청은 유니크 인덱스에서 먼저 온 요청의 커밋을 기다리고,
     // 먼저 온 요청이 성공하면 위반을, 실패해 롤백되면 이어서 선점한다
     private void claimRequest(HoldSeatsCommand command, Long scheduleId, List<Long> seatIds) {
+        claim(SeatHoldRequest.request(command.requestId(), command.userId(), scheduleId, seatIds,
+                command.entryTokenJti()));
+    }
+
+    private void claim(SeatHoldRequest request) {
         try {
-            seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), scheduleId, seatIds,
-                    command.entryTokenJti()));
+            seatHoldRequests.save(request);
         } catch (EntryTokenAlreadyUsedException exception) {
             throw new ConcurrentEntryTokenException(exception);
         } catch (DataIntegrityViolationException exception) {
             throw new ConcurrentSameKeyException(exception);
         }
+    }
+
+    /**
+     * 자동 배정 선점(ISE-264). 구역·등급과 매수만 받아 서버가 좌석을 고른다. 멱등키·입장 토큰·매수 한도·판매 기간 규칙과
+     * 트랜잭션 경계는 {@link #hold}와 같다. 좌석 조회 1초 캐시 사전 거절은 하지 않는다. 서버가 DB의 지금 상태로 고르기 때문이다.
+     *
+     * <p>Note: 설정 {@code seat-hold.mode}가 접수형이어도 이 API는 동기형으로 답한다. 고를 좌석이 없으면 접수형 메시지 키(구역)를
+     * 정할 수 없고, 이번 범위는 측정에서 본 좌석 충돌·재조회를 없애는 것이라 동기형만 둔다(ADR 0059).
+     */
+    public SyncHoldOutcome holdAuto(AutoHoldSeatsCommand command) {
+        SyncHoldOutcome outcome;
+        try {
+            outcome = writeTransaction.execute(status -> holdAutoInTransaction(command));
+        } catch (ConcurrentSameKeyException lost) {
+            outcome = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                    .map(previous -> replayAuto(previous, command))
+                    .orElseThrow(() -> new IllegalStateException("먼저 커밋된 선점 요청이 없습니다: " + command.requestId(),
+                            lost)));
+        } catch (ConcurrentEntryTokenException lost) {
+            var replayed = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
+                    .map(previous -> replayAuto(previous, command)));
+            if (replayed.isEmpty()) {
+                discardEntryToken(command.scheduleId(), command.userId(), command.entryTokenJti());
+                throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+            }
+            outcome = replayed.get();
+        } catch (BusinessException rejected) {
+            if (rejected.getErrorCode() == SeatHoldErrorCode.ENTRY_TOKEN_USED) {
+                discardEntryToken(command.scheduleId(), command.userId(), command.entryTokenJti());
+            }
+            throw rejected;
+        }
+        if (outcome instanceof SyncHoldOutcome.Held) {
+            discardEntryToken(command.scheduleId(), command.userId(), command.entryTokenJti());
+        }
+        return outcome;
+    }
+
+    // 순서는 hold와 같다. 멱등키 행을 먼저 쓰고(좌석은 빈 배열), 매수 → 좌석 → 예매 뒤에 고른 좌석으로 행을 채운다
+    private SyncHoldOutcome holdAutoInTransaction(AutoHoldSeatsCommand command) {
+        var previous = seatHoldRequests.findById(command.requestId());
+        if (previous.isPresent()) {
+            return replayAuto(previous.get(), command);
+        }
+        SeatHoldRules.requireUnusedEntryToken(seatHoldRequests, command.entryTokenJti());
+        var schedule = inventory.findSchedule(command.scheduleId())
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        SeatHoldRules.requireWithinPerUserLimit(schedule, command.quantity());
+        var now = clock.instant();
+        SeatHoldRules.requireOnSale(schedule, now);
+
+        claim(SeatHoldRequest.autoAssign(command.requestId(), command.userId(), schedule.getId(),
+                command.criteriaKey(), command.entryTokenJti()));
+        // 좌석은 건너뛰어 기다리지 않지만, 같은 사용자의 다른 탭이 쥔 매수 행은 기다린다. 그 대기에 같은 시한을 건다
+        inventory.applyLockTimeout(LOCK_TIMEOUT);
+        var held = seatHolding.holdAuto(command.requestId(), command.userId(), schedule, command.grade(),
+                command.section(), command.quantity(), now);
+        if (seatHoldRequests.markAutoHeld(command.requestId(), held.reservation().getId(), held.seatIds(), now,
+                command.userId()) != 1) {
+            throw new IllegalStateException("자동 배정 요청을 HELD로 바꾸지 못했습니다: " + command.requestId());
+        }
+        return new SyncHoldOutcome.Held(results.withToken(held.reservation(), held.seatIds()));
+    }
+
+    private SyncHoldOutcome replayAuto(SeatHoldRequest previous, AutoHoldSeatsCommand command) {
+        SeatHoldRules.requireSameAutoRequest(previous, command);
+        return replayResult(previous, previous.getSeatIds());
     }
 
     private static final class ConcurrentSameKeyException extends RuntimeException {
@@ -189,6 +264,10 @@ public class SyncSeatHoldService {
     // 회차·판매 기간 검사보다 먼저 와서, 그사이 판매가 끝났거나 회차가 지워져도 이미 잡은 선점 결과를 돌려준다
     private SyncHoldOutcome replay(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
         SeatHoldRules.requireSameRequest(previous, command, seatIds);
+        return replayResult(previous, seatIds);
+    }
+
+    private SyncHoldOutcome replayResult(SeatHoldRequest previous, List<Long> seatIds) {
         // Note: 동기형은 HELD 행만 남기지만, 접수형으로 받은 요청(REQUESTED·REJECTED)이 남은 채 동기형으로 다시 뜰 수 있다.
         // 처리 중인 요청을 실패로 답하면 사용자가 새 좌석을 고르는 사이 앞 요청이 HELD가 되어 모르는 예매가 좌석·매수를 묶는다.
         // 그래서 접수형으로 시작한 요청은 202로 답하고 결과는 조회 API로 보게 한다(ADR 0058)

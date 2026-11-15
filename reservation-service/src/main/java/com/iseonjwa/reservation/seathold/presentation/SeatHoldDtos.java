@@ -5,6 +5,7 @@ import com.iseonjwa.reservation.seathold.application.SeatHoldRequestQueryService
 import com.iseonjwa.reservation.seathold.application.SeatHoldResult;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -22,6 +23,10 @@ public final class SeatHoldDtos {
 
     // 빈 배열·중복·매수 초과는 형식 오류가 아니라 SEAT_COUNT_MISMATCH라서 서비스가 검증한다
     public record HoldRequest(@NotNull List<@NotNull @Positive Long> seatIds) {}
+
+    // 자동 배정(ISE-264). grade(VIP·R·S)와 section은 둘 중 하나만 주거나 둘 다 비운다(회차 전체). 값 검사는 컨트롤러가 한다
+    public record AutoHoldRequest(String grade, @Size(min = 1, max = 10) String section,
+            @NotNull @Positive Integer quantity) {}
 
     public record HoldResponse(UUID requestId, Long reservationId, String reservationNo, Long scheduleId,
             List<Long> seatIds, String status, OffsetDateTime holdExpiresAt, long totalAmount, String paymentToken,

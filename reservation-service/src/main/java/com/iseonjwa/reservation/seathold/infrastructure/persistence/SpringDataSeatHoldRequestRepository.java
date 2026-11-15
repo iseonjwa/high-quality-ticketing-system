@@ -22,6 +22,20 @@ interface SpringDataSeatHoldRequestRepository extends JpaRepository<SeatHoldRequ
     int markHeld(@Param("requestId") UUID requestId, @Param("reservationId") Long reservationId,
             @Param("now") Instant now, @Param("actorId") Long actorId);
 
+    // 자동 배정은 고른 좌석도 함께 쓴다. 배열은 PostgreSQL 배열 리터럴("{1,2}")을 bigint[]로 바꿔 넣는다.
+    // Note: 값은 Long 목록에서만 만들어 SQL 조각이 섞이지 않는다. 드라이버별 배열 바인딩 차이를 피하려고 문자열로 넘긴다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE seat_hold_requests
+               SET status = 'HELD', reservation_id = :reservationId, seat_ids = CAST(:seatIds AS bigint[]),
+                   updated_at = :now, updated_by = :actorId
+             WHERE request_id = :requestId
+               AND status = 'REQUESTED'
+               AND auto_criteria IS NOT NULL
+            """)
+    int markAutoHeld(@Param("requestId") UUID requestId, @Param("reservationId") Long reservationId,
+            @Param("seatIds") String seatIds, @Param("now") Instant now, @Param("actorId") Long actorId);
+
     @Query(nativeQuery = true, value = """
             SELECT created_at FROM seat_hold_requests
              WHERE request_id = :requestId

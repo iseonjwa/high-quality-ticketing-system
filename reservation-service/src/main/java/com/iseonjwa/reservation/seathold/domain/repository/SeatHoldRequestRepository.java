@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.domain.repository;
 import com.iseonjwa.reservation.seathold.domain.entity.SeatHoldRequest;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +19,9 @@ public interface SeatHoldRequestRepository {
 
     // REQUESTED 요청을 HELD로 바꾸고 예매를 연결한다. 바꾼 행 수를 돌려준다
     int markHeld(UUID requestId, Long reservationId, Instant now, Long actorId);
+
+    // 자동 배정 요청(REQUESTED)을 HELD로 바꾸고 서버가 고른 좌석과 예매를 기록한다. 바꾼 행 수를 돌려준다(ISE-264)
+    int markAutoHeld(UUID requestId, Long reservationId, List<Long> seatIds, Instant now, Long actorId);
 
     // REQUESTED 요청을 잠그고 접수 시각을 돌려준다. 이미 닫혔거나 없으면 비어 있다. 30초 시한 정리와 순서를 정하려고 잠근다(ISE-17)
     Optional<Instant> lockRequestedCreatedAt(UUID requestId);

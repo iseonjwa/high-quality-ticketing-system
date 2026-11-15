@@ -26,6 +26,8 @@ public class SeatHoldMetrics {
         // 접수형 202. 동기형 서버가 접수형으로 시작한 요청에 답한 202도 여기다(ADR 0058)
         ACCEPTED("accepted"),
         SEAT_CONFLICT("seat_conflict"),
+        // 자동 배정에서 고른 구역·등급에 남은 좌석이 모자람(ISE-264). 좌석 충돌과 나눠 본다
+        ZONE_SOLD_OUT("zone_sold_out"),
         LIMIT_EXCEEDED("limit_exceeded"),
         NOT_OPEN("not_open"),
         NOT_PAYABLE("not_payable"),
@@ -83,6 +85,7 @@ public class SeatHoldMetrics {
         }
         return switch (code) {
             case SEAT_ALREADY_HELD -> Outcome.SEAT_CONFLICT;
+            case ZONE_SOLD_OUT -> Outcome.ZONE_SOLD_OUT;
             case PURCHASE_LIMIT_EXCEEDED -> Outcome.LIMIT_EXCEEDED;
             case SALE_NOT_OPEN -> Outcome.NOT_OPEN;
             case RESERVATION_NOT_PAYABLE -> Outcome.NOT_PAYABLE;
