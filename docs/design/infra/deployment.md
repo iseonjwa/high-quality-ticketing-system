@@ -317,6 +317,22 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 - Jenkins: Jenkins 서버에서 만든 배포 전용 키(`/opt/jenkins/deploy_ssh_key`, ed25519)를 배포 서버 `authorized_keys`에 더하고, Jenkins 서버에서 배포 서버 사설 IP로 SSH가 되는 것(보안 그룹 참조 규칙)을 확인했다. `/opt/jenkins/jenkins.env`(관리자 비밀번호 무작위, 배포 웹훅은 로컬 `.env`에서 출력 없이)로 띄우자 폴링이 첫 빌드를 시작했다. 빌드 #1은 커밋 확인 → 이미지 8개 확인 → SSH 배포 → 스모크 4개 통과로 23초 만에 SUCCESS였다.
 - 유휴 메모리(배포 직후, `docker stats`): 사용 약 4.7GB / 15.7GB. 큰 것부터 reservation 505MiB(상한 1,152m의 44%), kafka 429MiB, payment 404MiB, user 384MiB(60%), gateway 347MiB, grafana 278MiB(384m의 72%), eureka 273MiB. 부하 중 측정은 ISE-176·181에서 한다. Loki에 앱 7개 라벨이 모두 들어왔다.
 
+### 앱 컨테이너 메모리 예산 (ISE-264)
+
+컨테이너 상한은 힙 최대 + 비힙 committed(Metaspace·코드 캐시) + 직접 버퍼 + JVM 지표 밖(스레드 스택·GC 자료구조·malloc)으로 잡는다. 지표 밖 메모리는 cgroup 사용량에서 힙·비힙 committed를 빼서 잰다. 아래 실측은 2026-11-15 17:48(UTC) 배포 서버 값이다(Prometheus `jvm_memory_committed_bytes`, 컨테이너 `memory.current`). payment는 재시작 7분 뒤다.
+
+| 서비스 | 상한 | 힙 최대 | 힙 committed | 비힙 committed | 지표 밖(계산) | 힙 최대일 때(계산) | 판단 |
+|---|---|---|---|---|---|---|---|
+| payment-service | 768m → **1024m** | 512 | 375 | 193(최대 216) | 약 144 | 약 870 | 11/15 cgroup OOM 5회(TS-71). 상한을 올리고 힙 밖 상한을 둠 |
+| gateway | 1024m | 512 | 256 | 170 | 약 104 | 약 786 + 직접 128 상한 | ISE-264 이전에 고침 |
+| reservation-service | 1152m | 768 | 384 | 272 | 약 140 | 약 1,180 | 계산상 넘을 수 있음. 죽은 기록 없음 |
+| user-service | 640m | 384 | 192 | 193 | 약 96 | 약 673 | 계산상 넘을 수 있음. 죽은 기록 없음 |
+| assistant-service | 384m | 192 | 96 | 124 | 약 75 | 약 391 | 계산상 경계. 죽은 기록 없음 |
+
+- payment 옵션: `-Xms256m -Xmx512m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC`. 힙 밖 상한은 실측의 약 2~3배라 평소에는 닿지 않고, 누수가 생기면 컨테이너 강제 종료(exit 137) 대신 JVM 오류로 보인다.
+- 컨테이너 상한 합: 12,992 → 13,248MiB(22개 서비스, `docker compose -f compose.yml -f compose.deploy.yml config` 계산). 장비 15,701MiB의 84%다. 11/15 17:48 `free -m`의 실제 사용은 7,217MiB였다.
+- reservation·user·assistant는 힙이 최대까지 커진 적이 아직 없다. 각각 128·128·64MiB 늘리면 합이 13,568MiB(장비의 86%)가 되어 남은 여유가 줄므로, 부하 중 cgroup 사용량이 상한의 90%를 넘으면 같은 방식으로 다시 정한다.
+
 ## 6. 인스턴스 크기 결정 방법 (SA U10)
 
 결정(2026-11-04, 사용자): 16GB급. 금요일(11/6) 리허설에 맞추려고 측정을 기다리지 않고 SA 9-3 합계(관측 추가분 포함 약 12GB)로 정했다. Free plan은 8GB급까지라 Paid plan으로 바꿨다. 측정(ISE-176)은 배포 서버의 실제 사용량으로 대신하고, 아래 근거는 결정 전 기록이다.
