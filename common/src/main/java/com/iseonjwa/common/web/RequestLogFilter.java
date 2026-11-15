@@ -12,11 +12,18 @@ import org.springframework.web.servlet.HandlerMapping;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-// 요청마다 메서드·경로·상태·처리 시간을 한 줄 남긴다. 정상 요청은 다른 로그를 남기지 않아 요청 로그 대시보드가 비기 때문이다(ISE-182).
+// 요청의 메서드·경로·상태·처리 시간을 한 줄 남긴다(ISE-182). Gateway의 RequestLogWebFilter와 같은 형식이다.
 // traceId는 로그 패턴이 MDC에서 붙인다. 본문·헤더·쿼리 문자열은 남기지 않는다.
+// 어떤 요청을 남길지는 iseonjwa.request-log.mode(all·problems)가 정한다(RequestLogPolicy, ADR 0052). 운영 기본값은 config-repo/application.yml이다.
 public class RequestLogFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(RequestLogFilter.class);
     private static final String ACTUATOR_PREFIX = "/actuator";
+
+    private final RequestLogPolicy policy;
+
+    public RequestLogFilter(RequestLogPolicy policy) {
+        this.policy = policy;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -33,7 +40,10 @@ public class RequestLogFilter extends OncePerRequestFilter {
             status = response.getStatus();
         } finally {
             var millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-            log.info("요청 {} {} {} {}ms", request.getMethod(), path(request), status, millis);
+            // Note: 서블릿에는 Gateway의 CANCEL 신호가 없다. 클라이언트가 끊으면 응답을 쓰다 예외가 나므로 위의 500으로 남는다.
+            if (policy.shouldLog(status, false, millis)) {
+                log.info("요청 {} {} {} {}ms", request.getMethod(), path(request), status, millis);
+            }
         }
     }
 

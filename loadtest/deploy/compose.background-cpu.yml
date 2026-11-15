@@ -16,8 +16,8 @@
 # 왜: 배포 서버는 4 vCPU 한 대에 모든 컨테이너가 있어, 측정 대상이 아닌 일도 같은 CPU를 쓴다.
 # - kafka healthcheck는 10초마다 kafka-broker-api-versions.sh를 실행하고, 이 스크립트는 실행할 때마다 JVM을 새로 띄운다.
 #   11/15 배포 서버 조사에서 한 번에 1.80~3.76초 걸렸다(측정 세션 값, 이 파일 작성 때 다시 재지 않음).
-# - reservation-service·payment-service는 정상 요청까지 요청마다 로그 한 줄을 남긴다. Gateway는 ADR 0052 1단계로
-#   문제 요청만 남기지만, 서비스 쪽 공통 필터(2단계)는 아직 적용 전이다.
+# - reservation-service·payment-service는 2026-11-16 전까지 정상 요청까지 요청마다 로그 한 줄을 남겼다. ADR 0052 2단계(ISE-286)
+#   뒤로는 Gateway처럼 문제 요청만 남기므로, 이 끄기는 남은 문제 요청 줄까지 없앤 차이만 본다.
 # 이 둘을 줄였을 때 측정값이 얼마나 바뀌는지 본다.
 #
 # Note: kafka healthcheck는 interval만 바꾼다. compose는 healthcheck를 키별로 합치므로 test·timeout·retries는 compose.yml 값이 남는다.
@@ -29,7 +29,7 @@
 # 서비스(reservation·payment·kafka-ui 등)는 새로 만들어질 때 이 조건을 본다. 설정이 같아 다시 만들어지지 않는 서비스는
 # 떠 있는 채로 Kafka에 다시 연결할 것으로 본다(추정, 배포 서버에서 확인 못 함).
 # Note: REQUEST_LOG_ENABLED=false는 요청 로그 필터를 아예 등록하지 않는다(CommonWebConfiguration, @ConditionalOnProperty).
-# "문제 요청만 남기기"(iseonjwa.request-log.mode=problems)는 서비스 쪽 필터(RequestLogFilter)가 mode를 읽지 않아 코드 변경이 필요하다.
+# "문제 요청만 남기기"(iseonjwa.request-log.mode=problems)는 2단계부터 config-repo/application.yml의 운영 기본값이다(ADR 0052).
 # 변수 이름 ISEONJWA_REQUESTLOG_ENABLED는 Spring Boot 환경변수 규칙(점은 _, 하이픈은 지움)을 따른다.
 # 환경변수는 config 서버에서 받은 설정보다 우선이다(compose.reservation-pool.yml 머리말과 같다).
 #

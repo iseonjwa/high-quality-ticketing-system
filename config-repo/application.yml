@@ -61,5 +61,12 @@ eureka:
     instance-id: ${spring.application.name}:${server.port}:${random.uuid}
 iseonjwa:
   request-log:
-    # 요청마다 한 줄(메서드·경로·상태·시간)을 남긴다(ISE-182). 부하 측정 때 로그 양을 줄이려면 false로 둔다.
+    # 요청 한 줄(메서드·경로·상태·시간, ISE-182)을 남기는 필터. false면 등록하지 않는다(부하 측정 때 로그 양 조절).
     enabled: true
+    # 운영은 굿풋에서 빠진 요청(5xx, 클라이언트가 끊은 요청, 200ms 이상)만 남긴다(ADR 0052). Gateway와 서블릿 서비스가 같이 읽는다.
+    # 배포 서버 7차 H2에서 Gateway 요청 로그를 끄자 서버 CPU가 1,000/s 78% → 66%로 내려갔다. 비용 대부분이 JVM 밖 로그 경로
+    # (표준 출력 → Docker → Alloy → Loki)라 줄 수를 줄인다. 정상 요청은 Zipkin 트레이스와 http_server_requests 지표로 본다.
+    # 로컬은 application-local.yml이 all로 되돌린다. 4xx까지 보려면 min-status를 400으로 내린다
+    mode: problems
+    min-status: 500
+    slow-threshold: 200ms
