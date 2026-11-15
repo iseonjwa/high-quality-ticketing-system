@@ -8,6 +8,9 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-15 | 배포 서버 측정 중에는 왜 main 머지를 막아야 하나(main 머지 = 배포, 두 O1 같은 환경 V3, main·dev 코드 차이) | [노트](qna/2026-11-15-why-no-main-merge-during-measurement.md) |
+| 2026-11-14 | 대기열 폴링 중 이탈했다가 재진입·주소창 호출·탭 복원하면 순번은 어떻게 되나(서버는 이탈을 모름, 번호표는 userId 기준, 로그인·입장 토큰은 탭 단위 sessionStorage) | [노트](qna/2026-11-14-queue-leave-and-reenter.md) |
+| 2026-11-14 | 대기열에 Prometheus 지표를 붙이려면 코드를 어떻게 바꾸나(이미 있는 Gauge 5개, HTTP 지표로 이미 구분되는 결과, 비어 있는 입장 스케줄러 Timer·실패 카운터 예시 코드, 테스트, 문법, Gauge 실수) | [qna/2026-11-14-queue-metrics-how-to-extend.md](qna/2026-11-14-queue-metrics-how-to-extend.md) |
 | 2026-11-14 | Spring Boot Actuator는 무엇인가(Micrometer와 역할 구분, 엔드포인트, 관리 포트 9080 분리와 노출 제한 이유, Docker healthcheck·Prometheus가 부르는 경로, liveness·readiness) | [qna/2026-11-14-spring-boot-actuator.md](qna/2026-11-14-spring-boot-actuator.md) |
 | 2026-11-14 | 좌석 선점 Prometheus 지표가 코드에서 어떻게 만들어지고 수집되나(pull 방식, Counter·Timer 등록, 라벨 카디널리티, SLO 버킷 설정, `_total`·`_bucket` 이름 변환, Grafana PromQL) | [qna/2026-11-14-micrometer-prometheus-seathold-metrics.md](qna/2026-11-14-micrometer-prometheus-seathold-metrics.md) |
 | 2026-11-14 | JVM 프로파일러가 5%로 본 요청 로그 비용이 왜 서버 CPU 12%p였나(JFR은 JVM 밖을 못 봄, 서버 전체 → 컨테이너 → 프로세스 순서), 같은 날 번갈아 재는 대조군으로 운영 설정 효과 확인 | [qna/2026-11-14-profiler-blind-spot-and-same-day-control.md](qna/2026-11-14-profiler-blind-spot-and-same-day-control.md) |
