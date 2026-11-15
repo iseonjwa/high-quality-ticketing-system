@@ -1,0 +1,43 @@
+# 같은 장비의 배경 CPU(측정 대상이 아닌 일)를 배포 서버 측정 모드에서만 줄이는 덮어쓰기다(ISE-264 실험 X2).
+# 운영 설정(compose.yml, config-repo)은 바꾸지 않는다. 값을 안 주면 운영과 같다.
+#   KAFKA_HEALTH_INTERVAL=60s REQUEST_LOG_ENABLED=false MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.background-cpu.yml
+# 다른 덮어쓰기와 함께 쓸 때는 파일을 같이 준다(measure-mode.sh on은 인자로 준 파일을 모두 얹는다).
+#   RES_POOL_MAX=10 KAFKA_HEALTH_INTERVAL=60s MEASURER=<영문 이름> script/loadtest/measure-mode.sh on \
+#     loadtest/deploy/compose.reservation-pool.yml loadtest/deploy/compose.background-cpu.yml
+# 괄호 안이 기본값(= 운영)이다. 운영 값을 바꾸면 아래 기본값도 같이 바꾼다.
+#   KAFKA_HEALTH_INTERVAL(10s, compose.yml kafka healthcheck) REQUEST_LOG_ENABLED(true, config-repo/application.yml)
+# 기본값이면 동작은 운영과 같지만, reservation·payment에는 환경변수가 하나 늘어 이 파일을 얹는 것만으로 두 서비스가 다시 만들어진다.
+#
+# 왜: 배포 서버는 4 vCPU 한 대에 모든 컨테이너가 있어, 측정 대상이 아닌 일도 같은 CPU를 쓴다.
+# - kafka healthcheck는 10초마다 kafka-broker-api-versions.sh를 실행하고, 이 스크립트는 실행할 때마다 JVM을 새로 띄운다.
+# - reservation-service·payment-service는 정상 요청까지 요청마다 로그 한 줄을 남긴다. Gateway는 ADR 0052 1단계로
+#   문제 요청만 남기지만, 서비스 쪽 공통 필터(2단계)는 아직 적용 전이다.
+# 이 둘을 줄였을 때 측정값이 얼마나 바뀌는지 본다.
+#
+# Note: kafka healthcheck는 interval만 바꾼다. compose는 healthcheck를 키별로 합치므로 test·timeout·retries는 compose.yml 값이 남는다.
+# interval을 바꾸면 kafka 컨테이너가 다시 만들어진다(Kafka 재시작). on·off 때마다 Kafka가 다시 뜨고, 소비자들이 다시 붙는다.
+# 재시작 직후의 몇 분은 측정에서 뺀다.
+# Note: interval을 늘리면 재시작 뒤 첫 healthy 판정도 그만큼 늦다. Docker는 첫 검사를 interval 뒤에 하므로 60s면 Kafka가 healthy가
+# 되기까지 최소 약 60초다. measure-mode.sh on은 up -d --wait --wait-timeout 420이라 kafka가 healthy가 될 때까지 기다리고,
+# 420초 안이면 실패하지 않는다(interval을 수 분 이상으로 두지 않는다). depends_on: condition: service_healthy로 kafka를 기다리는
+# 서비스(reservation·payment·kafka-ui 등)는 새로 만들어질 때 이 조건을 본다. 설정이 같아 다시 만들어지지 않는 서비스는
+# 떠 있는 채로 Kafka에 다시 연결할 것으로 본다(추정, 배포 서버에서 확인 못 함).
+# Note: REQUEST_LOG_ENABLED=false는 요청 로그 필터를 아예 등록하지 않는다(CommonWebConfiguration, @ConditionalOnProperty).
+# "문제 요청만 남기기"(iseonjwa.request-log.mode=problems)는 서비스 쪽 필터(RequestLogFilter)가 mode를 읽지 않아 코드 변경이 필요하다.
+# 변수 이름 ISEONJWA_REQUESTLOG_ENABLED는 Spring Boot 환경변수 규칙(점은 _, 하이픈은 지움)을 따른다.
+# 환경변수는 config 서버에서 받은 설정보다 우선이다(compose.reservation-pool.yml 머리말과 같다).
+#
+# 적용 확인
+# - healthcheck: docker inspect --format '{{.Config.Healthcheck.Interval}}' <kafka 컨테이너>가 준 값인지 본다(나노초로 나온다. 60s = 60000000000).
+# - 요청 로그: 켜기 전후로 같은 시간(예: 1분) 동안 docker logs --since 1m <reservation-service 컨테이너> | grep -c '요청 '를 비교한다.
+#   false면 "요청 GET /api/..." 줄이 0이어야 한다.
+services:
+  kafka:
+    healthcheck:
+      interval: ${KAFKA_HEALTH_INTERVAL:-10s}
+  reservation-service:
+    environment:
+      ISEONJWA_REQUESTLOG_ENABLED: ${REQUEST_LOG_ENABLED:-true}
+  payment-service:
+    environment:
+      ISEONJWA_REQUESTLOG_ENABLED: ${REQUEST_LOG_ENABLED:-true}
