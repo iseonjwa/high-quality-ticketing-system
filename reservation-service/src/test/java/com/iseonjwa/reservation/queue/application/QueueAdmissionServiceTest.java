@@ -22,9 +22,9 @@ class QueueAdmissionServiceTest {
 
     static final Instant STARTS_AT = Instant.parse("2026-11-20T19:00:00Z");
 
-    // 순서: admitPerSecond, entryTokenTtl, pollMin, pollMax, pollJitterRatio, cleanupLimit, keyRetentionAfterStart
+    // 순서: admitPerSecond, entryTokenTtl, pollMin, pollMax, pollJitterRatio, cleanupLimit, keyRetentionAfterStart, turnTtl
     final QueueProperties properties = new QueueProperties(
-            50, Duration.ofMinutes(10), Duration.ofSeconds(3), Duration.ofSeconds(10), 0.2, 500, Duration.ofHours(1));
+            50, Duration.ofMinutes(10), Duration.ofSeconds(3), Duration.ofSeconds(10), 0.2, 500, Duration.ofHours(1), Duration.ofMinutes(1));
 
     final RecordingQueueRepository repository = new RecordingQueueRepository();
     final SimpleMeterRegistry registry = new SimpleMeterRegistry();
@@ -174,17 +174,17 @@ class QueueAdmissionServiceTest {
         }
 
         @Override
-        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+        public EnterOutcome enter(long scheduleId, long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis) {
+        public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis, long turnTtlMillis) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+        public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
             throw new UnsupportedOperationException();
         }
 

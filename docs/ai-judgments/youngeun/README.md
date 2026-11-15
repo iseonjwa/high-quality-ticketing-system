@@ -8,6 +8,8 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | Claude (Cowork) | 수용 | 예 | 아님 | [기록](2026-11-15-entry-token-ttl-single-source.md) |
+| 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | Claude (Cowork) | **거부** | 예 | 후보 | [기록](2026-11-15-queue-ready-decided-in-lua.md) |
 | 2026-11-14 | 대기열 지표를 입장 처리 Lua에 얹자는 AI 첫 설계를 되물어 읽기 전용 Lua·회차 합계 게이지로 바꾸고, 이름은 admittedUnissued로 함 | Claude | 부분 수용 | 예 | 후보 | [기록](2026-11-14-queue-metrics-design.md) |
 | 2026-11-13 | **입장 토큰 소모 뒤 issued 정리를 이벤트 리스너로 유지하자는 AI 추천을 거부하고, 선점 쪽이 트랜잭션 밖에서 대기열 메서드를 jti와 함께 부르게 함** | Claude | **거부** | 예 | 후보 | [기록](2026-11-13-entry-token-discard-method-call.md) |
 | 2026-11-12 | 대기열 Redis 차단기 값을 Gateway와 같게 두되 느린 호출을 50ms 대신 100ms로, 공통 Redis 시한을 200ms로 올림 | Claude | 부분 수용 | 예 | 후보 | [기록](2026-11-12-queue-redis-circuit-breaker-values.md) |
@@ -24,6 +26,7 @@ youngeun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judg
 
 ## 일지
 
+- [2026-11-15](daily/2026-11-15.md)
 - [2026-11-11](daily/2026-11-11.md)
 - [2026-11-10](daily/2026-11-10.md)
 - [2026-11-09](daily/2026-11-09.md)

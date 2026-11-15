@@ -32,7 +32,7 @@ class RedisQueueRepositoryFailureTest {
         failWith(new QueryTimeoutException("Redis command timed out"));
 
         var e = assertThrows(QueueStorageUnavailableException.class,
-                () -> repository.position(1L, 42L, 600_000L));
+                () -> repository.position(1L, 42L, 600_000L, 60_000L));
         assertInstanceOf(QueryTimeoutException.class, e.getCause());
     }
 
@@ -41,7 +41,7 @@ class RedisQueueRepositoryFailureTest {
         failWith(new RedisConnectionFailureException("Unable to connect to Redis"));
 
         var e = assertThrows(QueueStorageUnavailableException.class,
-                () -> repository.position(1L, 42L, 600_000L));
+                () -> repository.position(1L, 42L, 600_000L, 60_000L));
         assertInstanceOf(RedisConnectionFailureException.class, e.getCause());
     }
 
@@ -49,7 +49,7 @@ class RedisQueueRepositoryFailureTest {
     void 그_밖의_예외는_그대로_나간다() {
         failWith(new IllegalStateException("bug"));
 
-        assertThrows(IllegalStateException.class, () -> repository.position(1L, 42L, 600_000L));
+        assertThrows(IllegalStateException.class, () -> repository.position(1L, 42L, 600_000L, 60_000L));
     }
 
     @Test
@@ -57,13 +57,13 @@ class RedisQueueRepositoryFailureTest {
         failWith(new QueryTimeoutException("Redis command timed out"));
 
         assertThrows(QueueStorageUnavailableException.class,
-                () -> repository.enter(1L, 42L, 0L, 0L, 600_000L, 0L));
+                () -> repository.enter(1L, 42L, 0L, 0L, 600_000L, 0L, 60_000L));
         assertThrows(QueueStorageUnavailableException.class,
-                () -> repository.position(1L, 42L, 600_000L));
+                () -> repository.position(1L, 42L, 600_000L, 60_000L));
         assertThrows(QueueStorageUnavailableException.class,
                 () -> repository.admit(1L, 50, 600_000L, 500, 0L));
         assertThrows(QueueStorageUnavailableException.class,
-                () -> repository.issueToken(1L, 42L, 600_000L, 0L));
+                () -> repository.issueToken(1L, 42L, 600_000L, 0L, 60_000L));
         assertThrows(QueueStorageUnavailableException.class,
                 () -> repository.discardToken(1L, 42L, 1_000L));
         assertThrows(QueueStorageUnavailableException.class,

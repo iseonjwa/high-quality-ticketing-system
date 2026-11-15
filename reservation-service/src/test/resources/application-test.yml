@@ -48,6 +48,7 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  turn-ttl: 1m
   redis:
     # config-repo/reservation-service.yml과 같은 값이다. 테스트 호출 수가 최소 호출 수(500)보다 훨씬 적어 열리지 않는다
     circuit-breaker:

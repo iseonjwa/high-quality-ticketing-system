@@ -81,9 +81,9 @@ class RedisQueueRepositoryCircuitBreakerTest {
 
     @Test
     void 닫혀_있으면_결과를_그대로_돌려준다() {
-        succeedWith(List.of("IN_QUEUE", 7L, 3L));
+        succeedWith(List.of("WAITING", 7L, 3L));
 
-        assertEquals(new PositionOutcome(PositionOutcome.Type.IN_QUEUE, 7L, 3L), position());
+        assertEquals(new PositionOutcome(PositionOutcome.Type.WAITING, 7L, 3L), position());
         assertEquals(CircuitBreaker.State.CLOSED, circuitBreaker.getState());
     }
 
@@ -134,7 +134,7 @@ class RedisQueueRepositoryCircuitBreakerTest {
 
 
     private PositionOutcome position() {
-        return repository.position(1L, 42L, 600_000L);
+        return repository.position(1L, 42L, 600_000L, 60_000L);
     }
 
     // execute(스크립트, 키 목록, 가변 인자)를 인자 개수와 상관없이 실패시킨다

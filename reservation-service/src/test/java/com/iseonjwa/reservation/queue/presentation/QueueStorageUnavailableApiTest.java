@@ -61,7 +61,7 @@ class QueueStorageUnavailableApiTest {
 
     @Test
     void 진입은_503과_Retry_After() throws Exception {
-        when(queueRepository.enter(anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong()))
+        when(queueRepository.enter(anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong()))
                 .thenThrow(UNAVAILABLE);
 
         assertUnavailable(send("POST", queuePath()));
@@ -69,21 +69,21 @@ class QueueStorageUnavailableApiTest {
 
     @Test
     void 순번_조회는_503과_Retry_After() throws Exception {
-        when(queueRepository.position(anyLong(), anyLong(), anyLong())).thenThrow(UNAVAILABLE);
+        when(queueRepository.position(anyLong(), anyLong(), anyLong(), anyLong())).thenThrow(UNAVAILABLE);
 
         assertUnavailable(send("GET", queuePath() + "/me"));
     }
 
     @Test
     void 토큰_발급은_503과_Retry_After() throws Exception {
-        when(queueRepository.issueToken(anyLong(), anyLong(), anyLong(), anyLong())).thenThrow(UNAVAILABLE);
+        when(queueRepository.issueToken(anyLong(), anyLong(), anyLong(), anyLong(), anyLong())).thenThrow(UNAVAILABLE);
 
         assertUnavailable(send("POST", queuePath() + "/token"));
     }
 
     @Test
     void 다른_예외는_지금처럼_500이고_Retry_After가_없다() throws Exception {
-        when(queueRepository.position(anyLong(), anyLong(), anyLong())).thenThrow(new IllegalStateException("bug"));
+        when(queueRepository.position(anyLong(), anyLong(), anyLong(), anyLong())).thenThrow(new IllegalStateException("bug"));
 
         var response = send("GET", queuePath() + "/me");
 
@@ -95,7 +95,7 @@ class QueueStorageUnavailableApiTest {
 
     @Test
     void 차단기가_열려_있으면_Retry_After는_열림_시간이다() throws Exception {
-        when(queueRepository.position(anyLong(), anyLong(), anyLong())).thenThrow(
+        when(queueRepository.position(anyLong(), anyLong(), anyLong(), anyLong())).thenThrow(
                 new QueueStorageUnavailableException(Duration.ofSeconds(5), new RuntimeException("circuit open")));
 
         var response = send("GET", queuePath() + "/me");

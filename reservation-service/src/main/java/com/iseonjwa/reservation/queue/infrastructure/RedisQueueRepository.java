@@ -44,10 +44,10 @@ public class RedisQueueRepository implements QueueRepository {
 
     @Override
     public EnterOutcome enter(long scheduleId,
-                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
                 String.valueOf(userId), String.valueOf(openAtEpochMilli), String.valueOf(startsAtEpochMilli),
-                String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond)));
+                String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond), String.valueOf(turnTtlMillis)));
         EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) r.get(0));
         if(r.size() == 1) {
             return new EnterOutcome(type, null, null);
@@ -56,9 +56,9 @@ public class RedisQueueRepository implements QueueRepository {
     }
 
     @Override
-    public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis) {
+    public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(POSITION, QueueKeys.of(scheduleId).positionKeys(),
-                String.valueOf(userId), String.valueOf(tokenTtlMillis)));
+                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(turnTtlMillis)));
         PositionOutcome.Type type = PositionOutcome.Type.valueOf((String) r.get(0));
         if (r.size() == 1) {
             return new PositionOutcome(type, null, null);
@@ -74,9 +74,9 @@ public class RedisQueueRepository implements QueueRepository {
     }
 
     @Override
-    public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+    public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(ISSUE_TOKEN, QueueKeys.of(scheduleId).issueTokenKeys(),
-                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond)));
+                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond), String.valueOf(turnTtlMillis)));
         IssueTokenOutcome.Type type = IssueTokenOutcome.Type.valueOf((String) r.get(0));
         if (r.size() == 1) {
             return new IssueTokenOutcome(type, null);

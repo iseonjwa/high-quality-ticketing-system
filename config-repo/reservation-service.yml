@@ -58,6 +58,7 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  turn-ttl: 1m
   redis:
     # 대기열 Redis 차단기 설정
     circuit-breaker:

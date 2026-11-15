@@ -129,6 +129,7 @@
 | 10 | 대기열 응답의 다음 조회 시각을 `nextPollAfterMillis`(ms)로 준다. 서버가 순번 기반 간격에 0~+20% jitter를 ms로 더한다. 최소 간격 3초는 그대로 | 9-4, 11-5 | ADR 0031 |
 | 11 | 입장 토큰 claim 확정: 회차 ID는 `scheduleId`(JSON 정수), `iat` 추가, `exp`·`jti`는 발급 시각 ms에서 계산 | 7-3 | 계약 ① (`docs/design/queue/contracts.md`, ISE-20), 10/30 확정 |
 | 12 | 좌석 선점 경로를 POST `/api/v1/schedules/{scheduleId}/reservations`로 바꾸고 본문에서 `scheduleId`를 뺀다. Gateway가 입장 토큰의 `scheduleId`를 경로와 비교하고 본문은 읽지 않는다 | 6-4, 7-3, 8-1, 11-4, 11-5 | 계약 ①, 좌석 선점 계약, 10/29 확정 |
+| 13 | 차례 유효 시간 1분(`queue.turn-ttl`) 추가. 차례가 온 뒤 1분이 지나면 진입은 새 번호로 줄 맨 뒤, 토큰 API·순번 조회는 404다. 키 `queue:{scheduleId}:admitLog` 추가. READY/WAITING 판정은 대기열 Lua가 한다 (11/15) | 11-5, 12-8 | ADR 0031 결정 3·5·8·11, ISE-282 |
 
 ### 10/26 바뀐 점
 
@@ -2016,6 +2017,7 @@ UPDATE schedule_seats SET status = 'HELD', updated_at = now()
 | `queue:{scheduleId}:admitted` | 문자열 (카운터) | 같음 | 지금까지 입장시킨 순번 (전역 카운터, 초당 N씩 증가) | 권영은 |
 | 🆕 `queue:{scheduleId}:lastTick` | 문자열 | 회차 판매 종료까지 | 마지막으로 `admitted`를 올린 초(Redis `TIME` 기준). 인스턴스가 여러 개여도 1초에 한 번만 증가 (제안, ADR 0015) | 권영은 |
 | 🆕 `queue:{scheduleId}:issued` | ZSET (점수 = 입장 토큰 발급 시각) | 회차 판매 종료까지, 항목은 토큰 유효 시간 T가 지나면 입장 처리 Lua가 정리 | 입장 토큰을 받은 사용자. 토큰 API를 다시 부르면 같은 발급 시각으로 다시 서명 (제안, ADR 0015·0031) | 권영은 |
+| 🆕 `queue:{scheduleId}:admitLog` | ZSET (점수 = admitted 값, 값 = 시각 ms) | 회차 판매 종료까지 | `admitted`가 커질 때마다 그 시각을 기록. 점수가 seq 이상인 첫 항목으로 차례가 온 시각을 찾아 차례 유효 시간(1분)을 판단 (ADR 0031 결정 11, ISE-282) | 권영은 |
 | `auth:refresh:{userId}` | 문자열 | 14일 | Refresh 토큰 | 공통 |
 | `auth:blacklist:{jti}` | 문자열 | Access 남은 시간 | 로그아웃된 Access | 공통 |
 | `ratelimit:{userId}` | 문자열 (카운터) | 1초 | 사용자 단위 요청 제한 | 공통 |

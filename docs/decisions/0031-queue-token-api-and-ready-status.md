@@ -3,8 +3,8 @@
 - 상태: 제안
 - 날짜: 2026-10-29
 - 결정자: 권영은 (대기열 담당, 팀 합의 전)
-- 관련 AI 판단: [대기열 토큰 API 분리와 READY 상태](../ai-judgments/youngeun/2026-10-29-queue-token-api-ready.md), [대기열 설계 설명 중 AI 근거 두 가지를 바로잡음](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md)
-- 관련 이슈: ISE-68
+- 관련 AI 판단: [대기열 토큰 API 분리와 READY 상태](../ai-judgments/youngeun/2026-10-29-queue-token-api-ready.md), [대기열 설계 설명 중 AI 근거 두 가지를 바로잡음](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), [READY 판정을 Lua로 옮김](../ai-judgments/youngeun/2026-11-15-queue-ready-decided-in-lua.md)
+- 관련 이슈: ISE-68, ISE-282(결정 3·5·8 수정, 결정 11 추가, 2026-11-15)
 
 ## 맥락
 
@@ -23,9 +23,9 @@ SA MASTER v3.3과 [ADR 0015](0015-queue-admission-guards.md)에서 입장 토큰
    - `WAITING`: 아직 차례가 아님 (`position`, `estimatedWaitSeconds`, `nextPollAfterMillis`)
    - `READY`: 토큰 API를 부르면 토큰을 받을 수 있음 (차례가 됐거나 이미 발급됨)
    - `ADMITTED`: 토큰을 받음 (토큰 API 응답에서만, `entryToken`, `entryTokenExpiresAt`)
-3. **진입과 순번 조회는 같은 상태를 응답한다**: 둘 다 `WAITING` 또는 `READY`를 같은 모양으로 준다. 판단(`issued` 유효 → `READY`, `seq <= admitted` → `READY`, 그 밖 → `WAITING`)과 순번 계산은 앱의 도메인 메서드 한 곳에서 하고 두 API가 같이 쓴다. 진입은 새로 섰으면 201(`Location: /queue/me`), 이미 있으면 200이다.
+3. **진입과 순번 조회는 같은 상태를 응답한다**: 둘 다 `WAITING` 또는 `READY`를 같은 모양으로 준다. 판정은 진입·순번 조회 Lua가 한다. `issued`가 유효하거나, `seq <= admitted`이고 차례 유효 시간 안이면 `READY`, `seq > admitted`이면 `WAITING`이다(결정 11). 앱은 `WAITING`일 때 순번 계산(`AdmissionRule.position`)만 한다. 진입은 새로 섰으면 201(`Location: /queue/me`), 이미 있으면 200이다. (2026-11-15 ISE-282에서 수정. 이전에는 판정도 앱의 도메인 메서드가 했다)
 4. **순번 조회는 읽기 전용이다**: Redis에 쓰지 않는다.
-5. **Lua와 앱의 역할**: Lua는 Redis 값을 원자적으로 읽고 쓴 결과(발급 시각, seq, admitted)만 돌려준다. 상태 판단, 순번 계산, 토큰 서명, HTTP 응답은 앱이 한다. 상태 변경을 모두 Lua 안에서 끝내므로, Lua 이후에 앱이 끊기거나 응답이 유실돼도 같은 요청을 다시 하면 같은 결과가 나온다.
+5. **Lua와 앱의 역할**: Lua는 Redis 값을 원자적으로 읽고 쓰며, 입장 판정(토큰 유효, 차례 도착, 차례 유효 시간)까지 한다. 판정 결과에 따라 쓰기(자리 삭제·새 번호)가 일어나므로 쓰기와 같은 스크립트 안에 둔다. 결과 이름은 진입·순번 조회 `READY | WAITING`(진입은 `JOINED` 추가), 토큰 `ADMITTED | WAITING | NOT_JOINED`로 응답 상태와 맞춘다. 앱은 순번·예상 대기 시간 계산, 토큰 서명, HTTP 응답을 한다. 상태 변경을 모두 Lua 안에서 끝내므로, Lua 이후에 앱이 끊기거나 응답이 유실돼도 같은 요청을 다시 하면 같은 결과가 나온다. (2026-11-15 ISE-282에서 수정. 이전에는 Lua가 값만 돌려주고 상태 판단도 앱이 했다)
 6. **토큰 발급 쓰기 순서**: `issued`에 현재 시각을 기록한 뒤 `waiting`에서 뺀다.
 7. **`issued` 기록의 유효·만료 판단과 정리**:
    - 모든 대기열 Lua는 현재 시각을 Redis `TIME`으로 정한다. T와 오픈 시각은 인자로 넘긴다.
@@ -33,9 +33,16 @@ SA MASTER v3.3과 [ADR 0015](0015-queue-admission-guards.md)에서 입장 토큰
    - 토큰 API: T 안의 기록이면 `waiting` 잔여를 지우고 같은 발급 시각으로 재발급. T가 지난 기록이면 둘 다 지우고 `QUEUE_NOT_JOINED`.
    - 순번 조회: T가 지난 기록이 있으면 `waiting`을 보지 않고 `QUEUE_NOT_JOINED`. 다시 진입한 사용자는 진입 Lua가 기록을 지웠으므로 이 경우는 만료 뒤 다시 진입하지 않은 사용자뿐이다.
    - 입장 처리 Lua(1초마다)가 T가 지난 항목을 최대 500개 꺼내 `issued`·`waiting`에서 함께 지운다.
-8. **에러 코드**: 차례 전 토큰 요청은 409 `QUEUE_NOT_READY`(신규). 줄에 없거나 만료됐으면 404 `QUEUE_NOT_JOINED`(기존). `READY` 뒤 토큰 API는 `ADMITTED` 또는 404만 준다. 404는 이미 발급된 기록이 그 사이 만료된 경우이고, 차례가 돼서 받은 `READY`는 `admitted`가 줄지 않으므로 그대로 유효하다. 409는 `READY` 없이 부를 때만 나오므로 정상 흐름에 없다.
+8. **에러 코드**: 차례 전 토큰 요청은 409 `QUEUE_NOT_READY`(신규). 줄에 없거나 만료됐으면 404 `QUEUE_NOT_JOINED`(기존). `READY` 뒤 토큰 API는 `ADMITTED` 또는 404만 준다. 404는 이미 발급된 기록이 그 사이 만료됐거나, 차례가 돼서 받은 `READY` 뒤 차례 유효 시간(결정 11)이 지난 경우다(2026-11-15 수정). 409는 `READY` 없이 부를 때만 나오므로 정상 흐름에 없다.
 9. **입장 토큰 `jti`**: `entry:{회차 ID}:{userId}:{발급 시각}`의 SHA-256 앞 16바이트(hex). 같은 발급 시각으로 다시 서명하면 글자까지 같은 토큰이 나온다. 검증에는 쓰지 않는다(7-3 "추적·로그용" 유지).
 10. **다음 조회 시각**: 대기열 응답은 `nextPollAfterMillis`(정수 ms)를 준다. 서버가 순번 기반 간격(3~10초)에 0~+20%를 ms 단위로 무작위로 더한다. 빼지 않으므로 최소 간격은 SA 9-4의 3초 그대로다. jitter 비율은 Config로 바꿀 수 있게 해 부하 테스트에서 켜고 끈다. 503 `Retry-After`는 HTTP 규칙상 정수 초라서 프론트가 0~+20%를 ms로 더해 재시도한다.
+11. **차례 유효 시간 (2026-11-15, ISE-282)**: 차례가 온 뒤 `queue.turn-ttl`(1분) 안에 진입·토큰 요청을 하지 않으면 자리를 잃는다.
+    - 기록: 입장 처리 Lua가 `admitted`를 올릴 때 `queue:{회차}:admitLog`(ZSET, 점수 = admitted 값, 값 = 시각 ms)에 기록한다. 값이 커질 때만 기록하고, `admitted`를 올린 뒤에 기록한다. 중간에 실패하면 차례가 온 시각이 실제보다 늦게 잡혀 사용자에게 유리한 쪽으로 틀린다.
+    - 차례가 온 시각: 점수가 `seq` 이상인 첫 항목의 시각이다.
+    - 지났을 때: 진입은 `waiting`에서 지우고 새 번호로 줄 맨 뒤(201), 토큰 API는 `waiting`에서 지우고 404 `QUEUE_NOT_JOINED`, 순번 조회는 지우지 않고 404(결정 4).
+    - 기록이 없으면 유효로 본다. 배포 전부터 있던 키와 기록 누락에 대비해서다.
+    - 차례가 오기 전(`seq > admitted`)에는 기록을 보지 않으므로 나갔다 와도 번호를 유지한다.
+    - 대기 취소 API는 만들지 않는다(ISE-60).
 
 ## 검토한 대안
 
@@ -47,12 +54,14 @@ SA MASTER v3.3과 [ADR 0015](0015-queue-admission-guards.md)에서 입장 토큰
 - **정수 초 `nextPollAfterSeconds`에 ±20% jitter (이 ADR 첫 안)**: 3초 근처에서는 정수 반올림으로 jitter가 사라지고, −20%를 허용하면 최소 간격이 2.4초가 돼 9-4 부하 상한보다 최대 요청률이 25% 높아진다(PR 리뷰 지적).
 - **서버는 정수 초 그대로, 프론트가 ms로 0~+20%를 더함 (PR 리뷰 제안)**: 계약 변경이 없다. 다만 jitter 비율을 바꾸려면 프론트를 다시 배포해야 한다.
 - **`nextPollAfterSeconds`에 소수 허용**: 필드 이름은 그대로지만 정수 초를 쓰는 다른 API와 같은 이름에 다른 값 형식이 섞인다.
+- **READY 판정은 앱에 두고 만료 판단만 Lua에 넣음 (ISE-282 첫 안)**: 반환 형식이 그대로라 바꿀 곳이 적다. 다만 `seq <= admitted`를 Lua와 앱이 두 번 비교하고 판정 규칙이 두 곳으로 갈라진다. 만료 판단이 쓰기와 묶여 Lua로 들어오면서 "판단은 앱에서"가 이미 깨져, 판정을 Lua 한 곳에 모았다.
+- **진입 Lua에서 `seq <= admitted` 비교를 빼고 만료 검사만 둠**: "`admitLog` 최대 점수 ≤ `admitted`"가 지켜지면 결과가 같다. 이 불변식이 깨지면 차례 전 사용자가 밀리고, 오픈 직후 대부분인 차례 전 사용자에게 `ZRANGEBYSCORE`가 한 번씩 더 든다.
 - **`jti`를 빼거나 무작위로 둠**: 빼면 SA 7-3을 고쳐야 하고, 무작위면 재발급마다 토큰 문자열이 달라져 "같은 토큰"이라는 설명과 테스트가 어긋난다. 계산 비용은 해시 한 번이다.
 
 ## 결과
 
 - 얻는 것: 폴링 읽기 전용(복제본 분산 가능), 진입·폴링·발급을 API별로 세고 제한 가능, 토큰 발급 규칙 한 곳, 상태마다 프론트 행동 하나, 중간 실패 뒤 만료 시 재입장 차단, 진입 응답부터 폴링 시각 통제, 재발급 토큰 동일성 테스트 가능.
-- 감수하는 것: API 1개·상태 1개·에러 코드 1개 추가로 SA 계약 변경, 대기열의 `nextPollAfterMillis`가 202 응답 규칙(11-2)의 `nextPollAfterSeconds`와 단위가 다름, 차례가 된 사람의 요청 1번 추가(초당 N명 수준), 만료 판단 코드가 진입·토큰 Lua 두 곳에 같은 조각으로 들어감(두 API 모두 테스트).
+- 감수하는 것: API 1개·상태 1개·에러 코드 1개 추가로 SA 계약 변경, 대기열의 `nextPollAfterMillis`가 202 응답 규칙(11-2)의 `nextPollAfterSeconds`와 단위가 다름, 차례가 된 사람의 요청 1번 추가(초당 N명 수준), 입장 판정·만료 판단 코드가 진입·순번 조회·토큰 Lua 세 곳에 같은 조각으로 들어감(세 API 모두 테스트), Redis 장애가 차례 유효 시간(1분)을 넘으면 직전에 차례가 온 사용자는 복구 뒤 줄 맨 뒤로 감.
 - 확인이 필요한 사람: Gateway(입장 토큰 필터는 그대로), 프론트(`READY` 처리, 토큰 API 호출, `sessionStorage`), 좌석 선점(입장 토큰 형식 그대로).
 - 후속 작업: 팀 확인 후 상태를 채택으로 바꾸고 SA MASTER의 🆕 표시를 지운다. 구현 완료 기준은 ISE-52(진입 Lua), ISE-53(진입 API), ISE-54(입장 처리·정리), ISE-55(순번 조회), ISE-57(토큰 API), ISE-20(`jti`)에 넣는다. jitter 적용 전후 초당 폴링 요청 최댓값을 부하 테스트에서 비교한다.
 - [ADR 0015](0015-queue-admission-guards.md) 결정 4번 중 "진입·순번 조회가 같은 토큰을 다시 응답"하는 부분과 쓰기 순서를 이 결정으로 바꾼다. `issued` 키와 나머지 결정은 그대로다.
