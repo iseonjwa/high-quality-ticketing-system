@@ -4,7 +4,6 @@ import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldInventoryRepository;
-import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldQuickCheckReader;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationStatus;
 import com.iseonjwa.reservation.reservation.domain.repository.ReservationRepository;
@@ -46,7 +45,6 @@ public class SyncSeatHoldService {
     private final SeatHoldRequestRepository seatHoldRequests;
     private final HeldReservationResults results;
     private final ConsumedEntryTokens consumedEntryTokens;
-    private final SeatHoldQuickCheckReader quickCheck;
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
@@ -54,7 +52,7 @@ public class SyncSeatHoldService {
     public SyncSeatHoldService(SeatHoldInventoryRepository inventory, ReservationRepository reservations,
             SeatHolding seatHolding,
             SeatHoldRequestRepository seatHoldRequests, HeldReservationResults results,
-            ConsumedEntryTokens consumedEntryTokens, SeatHoldQuickCheckReader quickCheck,
+            ConsumedEntryTokens consumedEntryTokens,
             @Qualifier("commonAuditingClock") Clock clock, PlatformTransactionManager transactionManager) {
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -65,7 +63,6 @@ public class SyncSeatHoldService {
         this.seatHoldRequests = seatHoldRequests;
         this.results = results;
         this.consumedEntryTokens = consumedEntryTokens;
-        this.quickCheck = quickCheck;
         this.clock = clock;
     }
 
@@ -97,7 +94,6 @@ public class SyncSeatHoldService {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
         Decision decision;
         try {
-            rejectQuickly(command, seatIds);
             decision = writeTransaction.execute(status -> holdInTransaction(command, seatIds));
         } catch (ConcurrentSameKeyException lost) {
             decision = readTransaction.execute(status -> seatHoldRequests.findById(command.requestId())
@@ -114,34 +110,6 @@ public class SyncSeatHoldService {
             throw rejected;
         }
         return decision;
-    }
-
-    /**
-     * 쓰기 트랜잭션을 열기 전에 자동 커밋 한 문장으로 거절할 요청을 걸러 낸다(DB 왕복 1번, 롤백 없음).
-     *
-     * <p>Note: 정상 피크 응답 대부분이 409라, 거절할 요청이 트랜잭션을 열고 롤백하는 비용을 없앤다(seathold-perf-loop.md
-     * 반복 5). 판정 순서는 트랜잭션 경로와 같다(contracts.md 1절). 같은 멱등키 재요청과 통과한 요청은 아무것도 정하지 않고
-     * 트랜잭션 경로로 넘긴다. 그 안의 판정·PK·jti 유니크·조건부 UPDATE가 최종 판정이라, 이 단계는 거절만 앞당긴다
-     */
-    private void rejectQuickly(HoldSeatsCommand command, List<Long> seatIds) {
-        var check = quickCheck.read(command.requestId(), command.entryTokenJti(), command.scheduleId(), seatIds);
-        if (check.requestExists()) {
-            return;
-        }
-        if (check.tokenActive()) {
-            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
-        }
-        if (!check.scheduleExists()) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        }
-        SeatHoldRules.requireWithinPerUserLimit(check.maxPerUser(), seatIds);
-        SeatHoldRules.requireOnSale(check.openAt(), check.startsAt(), clock.instant());
-        if (check.seatsFound() != seatIds.size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
-        }
-        if (check.seatsHoldable() != seatIds.size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
-        }
     }
 
     /**
