@@ -13,6 +13,20 @@
 // 빈 좌석을 사용자마다 겹치지 않게 나눠 두고, 측정 중에는 좌석 조회 없이 바로 선점한다. 서버가 좌석을 고르는 비용은 빠진다.
 // partitioned에서는 등급(zone)을 보지 않고 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. 예:
 //   SEAT_MODE=partitioned SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+//
+// ARRIVAL_MODE(기본 profile)는 도착·진입 시각을 정하는 방법이다. profile은 지금 동작 그대로 균일 규칙 또는 CSV 행을 쓴다.
+// realistic은 실제 티켓 오픈처럼 대부분이 오픈 전에 상세를 보고 기다리다 오픈 0~1초에 진입을 누르는 모습을 흉내 낸다.
+// 바꾸는 것은 도착 시각, 오픈 전 새로고침 간격, 진입 시각, 진입 연타(균일만), 확정 조회 간격이다. 대기·토큰·좌석·선점·결제는 균일 또는 CSV 규칙 그대로다.
+//   - 도착: 95%가 오픈 10분~1분 전에 고르게(측정 창이 짧으면 창 안에서), 5%가 오픈 +2~60초. Synthetic CSV는 83%가 오픈 전, 중앙값 5분 전이다
+//   - 새로고침: 오픈까지 5분 넘게 20~40초, 1~5분 10~20초, 마지막 1분 2~5초(추정). CSV refresh_s는 3~48초, 중앙값 16초이고
+//     refresh_spammer가 3~6초다. 프론트 상세 화면은 카운트다운만 돌고 자동으로 다시 부르지 않으므로(ConcertDetailPage.tsx) 이 요청은 사람이 누른 새로고침이다
+//   - 진입: 오픈 전 도착자의 88%가 오픈 +0.05·+0.5·+0.9초 근처(표준편차 0.07초, 추정 반응 시간)에, 12%가 +1~30초에 누른다.
+//     전체로는 약 82%가 오픈 1초 안이다(tools/arrival-preview.mjs로 계산). CSV는 오픈 1초 안 1,423명(47%)이다
+//   - 연타: 균일 사용자는 55%가 한 번, 45%가 2~5번을 http.batch로 거의 동시에. CSV 사용자는 행의 enter_clicks(페르소나) 그대로
+//   - 확정 조회: 프론트(paymentFlow.ts CONFIRM_INTERVAL_MILLIS·CONFIRM_LIMIT_MILLIS)와 같게 승인 직후 바로, 1초마다, 30초까지(최대 31번).
+//     profile은 0.5초 뒤부터 0.5초마다 10번이라 프론트보다 2배 자주 묻는다
+// Note: 한 VU의 사용자는 차례로 요청하므로 오픈 1초 안 몰림을 살리려면 VU당 사용자를 적게 둔다. action_lateness{state:enter}로 밀린 정도를 본다. 예:
+//   ARRIVAL_MODE=realistic SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 import http from 'k6/http';
 import { sleep } from 'k6';
 import exec from 'k6/execution';
@@ -25,6 +39,7 @@ import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { enterPath, positionPath } from '../lib/queue.js';
 import { availableSeatIds, isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus, userOf } from '../lib/booking.js';
 import { setApproveDelay } from '../lib/mockpg.js';
+import { realisticArrival, realisticClicks, realisticRefreshMillis } from '../lib/arrival.js';
 
 const USERS = numberEnv('USERS', 30000);
 const VUS = numberEnv('VUS', 1000);
@@ -41,6 +56,15 @@ const SEAT_MODE = __ENV.SEAT_MODE || 'map';
 if (SEAT_MODE !== 'map' && SEAT_MODE !== 'partitioned') {
   throw new Error(`SEAT_MODE(${SEAT_MODE})는 map 또는 partitioned여야 합니다`);
 }
+const ARRIVAL_MODE = __ENV.ARRIVAL_MODE || 'profile';
+if (ARRIVAL_MODE !== 'profile' && ARRIVAL_MODE !== 'realistic') {
+  throw new Error(`ARRIVAL_MODE(${ARRIVAL_MODE})는 profile 또는 realistic이어야 합니다`);
+}
+const REALISTIC = ARRIVAL_MODE === 'realistic';
+// 결제 승인 뒤 확정 조회. profile은 0.5초 뒤부터 0.5초마다 10번, realistic은 프론트와 같게 바로부터 1초마다 31번(30초)
+const CONFIRM_FIRST_DELAY_MS = REALISTIC ? 0 : 500;
+const CONFIRM_INTERVAL_MS = REALISTIC ? 1000 : 500;
+const CONFIRM_MAX_POLLS = REALISTIC ? 31 : 10;
 // 오픈 전 상세 새로고침을 하지 않는 사용자(진입 0번)가 오픈 뒤에도 새로고침하는 시간
 const NO_ENTER_BROWSE_MS = 60000;
 // 대기열 회차 캐시 갱신 주기(30초). 오픈이 이보다 가까우면 진입이 캐시를 타지 않는다
@@ -93,7 +117,7 @@ export function setup() {
   const schedule = SCHEDULE_ID ? scheduleFromEnv() : createSchedule(adminLogin(), { title: 'k6 O1', openInSeconds: PRE_OPEN_SECONDS });
   setApproveDelay(PG_DELAY_MS);
   console.log(`O1 회차 ${schedule.scheduleId}(공연 ${schedule.concertId}), 사용자 ${USERS}명(${csvRows === null ? '균일' : 'Synthetic ' + __ENV.USERS_CSV}), `
-    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}`);
+    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}, 도착 ${ARRIVAL_MODE}`);
   const data = { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
   if (SEAT_MODE === 'partitioned') {
     Object.assign(data, partitionSeats(schedule.scheduleId));
@@ -159,6 +183,9 @@ function usersOfThisVu(data) {
   for (let i = 0; i < perVu; i++) {
     const userId = userIdOf(first + i);
     const profile = csvRows === null ? uniformProfile(data) : csvProfile(csvRows[first + i], data);
+    if (REALISTIC) {
+      applyRealisticArrival(profile, data);
+    }
     list.push({
       index: first + i,
       userId,
@@ -237,6 +264,24 @@ function csvProfile(row, data) {
   };
 }
 
+// realistic: 도착·진입·새로고침만 바꾸고 좌석·고민·재시도·대기 인내·이탈·결제 지연은 균일 또는 CSV 값을 둔다.
+// CSV 사용자의 연타 수(enter_clicks)는 페르소나가 정한 값이라 그대로 두고, 진입 0번(browse_only)은 오픈 뒤 NO_ENTER_BROWSE_MS까지 보다 떠난다
+function applyRealisticArrival(profile, data) {
+  const arrival = realisticArrival(data.openAt, Date.now(), Math.random);
+  profile.firstAt = arrival.firstAt;
+  profile.enterAt = arrival.enterAt;
+  profile.viewFirst = true;
+  // 오픈 뒤 도착자는 상세를 한 번 보고 진입한다. 오픈 전 도착자는 남은 시간에 따라 간격이 줄어든다(browse 단계)
+  profile.refreshMs = arrival.late ? 0 : null;
+  profile.refreshRamp = !arrival.late;
+  if (csvRows === null) {
+    profile.enterClicks = realisticClicks(Math.random);
+  }
+  if (profile.enterClicks === 0) {
+    profile.enterAt = Math.max(arrival.firstAt, data.openAt + NO_ENTER_BROWSE_MS);
+  }
+}
+
 function axisTagsOf(row) {
   const axes = {};
   for (const name of CSV_AXIS_COLUMNS) {
@@ -307,7 +352,8 @@ const STEPS = {
     const res = http.get(url(`/api/v1/concerts/${data.concertId}`), { tags: { api: 'concert_detail' } });
     record(user, 'browse', res);
     user.viewed = true;
-    const interval = profile.refreshMs === null ? (10 + Math.random() * 20) * 1000 : profile.refreshMs;
+    const interval = profile.refreshRamp ? realisticRefreshMillis(data.openAt - Date.now(), Math.random)
+      : profile.refreshMs === null ? (10 + Math.random() * 20) * 1000 : profile.refreshMs;
     user.nextAt = interval > 0 ? Math.min(Date.now() + interval, user.enterAt) : user.enterAt;
   },
   // 2. 대기열 진입. 연타(enterClicks ≥ 2)는 http.batch로 한꺼번에 보내고, 마지막 성공 응답으로 순번을 읽는다.
@@ -441,19 +487,19 @@ const STEPS = {
     user.approvedAt = Date.now();
     user.polls = 0;
     user.state = 'confirm';
-    user.nextAt = Date.now() + 500;
+    user.nextAt = Date.now() + CONFIRM_FIRST_DELAY_MS;
   },
-  // 8. 확정 확인(0.5초 간격, 최대 10번)
+  // 8. 확정 확인(profile 0.5초 간격 최대 10번, realistic 1초 간격 최대 31번)
   confirm(user) {
     const status = reservationStatus(user, user.held.reservationId);
     if (status === 'CONFIRMED') {
       confirmLatency.add(Date.now() - user.approvedAt);
       return finish(user, 'confirmed');
     }
-    if (++user.polls >= 10) {
+    if (++user.polls >= CONFIRM_MAX_POLLS) {
       return finish(user, 'confirm_timeout');
     }
-    user.nextAt = Date.now() + 500;
+    user.nextAt = Date.now() + CONFIRM_INTERVAL_MS;
   },
 };
 
