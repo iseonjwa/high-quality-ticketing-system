@@ -29,14 +29,23 @@ final class SeatHoldRules {
     }
 
     static void requireWithinPerUserLimit(Schedule schedule, List<Long> seatIds) {
-        if (seatIds.size() > schedule.getMaxPerUser()) {
+        requireWithinPerUserLimit(schedule.getMaxPerUser(), seatIds);
+    }
+
+    // 트랜잭션 밖 빠른 거절(엔티티 없이 읽은 값)도 같은 기준을 쓴다
+    static void requireWithinPerUserLimit(int maxPerUser, List<Long> seatIds) {
+        if (seatIds.size() > maxPerUser) {
             throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
         }
     }
 
     // 판매 기간은 오픈 시각부터 공연 시작 전까지다. 시각은 클라이언트 값이 아니라 서버 시계로 판단한다(E4)
     static void requireOnSale(Schedule schedule, Instant now) {
-        if (now.isBefore(schedule.getOpenAt()) || !now.isBefore(schedule.getStartsAt())) {
+        requireOnSale(schedule.getOpenAt(), schedule.getStartsAt(), now);
+    }
+
+    static void requireOnSale(Instant openAt, Instant startsAt, Instant now) {
+        if (now.isBefore(openAt) || !now.isBefore(startsAt)) {
             throw new BusinessException(SeatHoldErrorCode.SALE_NOT_OPEN);
         }
     }
