@@ -6,7 +6,8 @@ import lombok.Getter;
 
 import java.util.List;
 
-// 회차 좌석 조회 결과. 캐시한 배치와, 이번 요청에서 읽은 선점 가능 여부(배치와 같은 순서)를 함께 준다
+// 회차 좌석 조회 결과. 캐시한 배치와, 1초 캐시에서 읽은 선점 가능 여부(배치와 같은 순서)를 함께 준다.
+// 같은 1초 안의 요청은 같은 객체를 나눠 쓰므로 받은 쪽이 배열을 고치지 않는다(ISE-264)
 @Getter
 @AllArgsConstructor
 public class ScheduleSeatsResult {

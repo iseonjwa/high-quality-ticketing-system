@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 회차 좌석 조회(SA 6-5, 11장). 로그인과 입장 토큰은 Gateway가 검증하므로 여기서 다시 보지 않는다.
@@ -29,6 +30,10 @@ public class ScheduleSeatQueryService {
     private final SharedLoadCache<Long, HoldableSeatIds> holdableCache =
             new SharedLoadCache<>(HOLDABLE_TTL, ids -> true);
 
+    // 회차마다 마지막으로 만든 결과. 배치와 1초 캐시 값이 그대로면 같은 결과 객체를 돌려준다(ISE-264).
+    // Note: 화면 계층이 결과 객체가 같은지로 직렬화한 좌석 배열을 다시 쓸지 정한다. 그래서 결과의 수명은 1초 캐시와 같다
+    private final ConcurrentHashMap<Long, SeatsSnapshot> lastResults = new ConcurrentHashMap<>();
+
     // 회차 좌석 배치(구역 → 열 → 번호 순)와 좌석마다 선점 가능 여부. 배치는 만료 없는 캐시에서, 선점 가능 여부는 1초 캐시에서 읽는다
     public ScheduleSeatsResult getSeats(Long scheduleId) {
         List<SeatLayoutRow> seats = layoutCache.get(scheduleId);
@@ -39,11 +44,17 @@ public class ScheduleSeatQueryService {
         }
         HoldableSeatIds holdable = holdableCache.get(scheduleId,
                 () -> HoldableSeatIds.of(scheduleSeatReader.readHoldableSeatIds(scheduleId)));
+        SeatsSnapshot last = lastResults.get(scheduleId);
+        if (last != null && last.seats() == seats && last.holdable() == holdable) {
+            return last.result();
+        }
         boolean[] available = new boolean[seats.size()];
         for (int i = 0; i < available.length; i++) {
             available[i] = holdable.contains(seats.get(i).seatId());
         }
-        return new ScheduleSeatsResult(seats, available);
+        ScheduleSeatsResult result = new ScheduleSeatsResult(seats, available);
+        lastResults.put(scheduleId, new SeatsSnapshot(seats, holdable, result));
+        return result;
     }
 
     /**
@@ -64,5 +75,9 @@ public class ScheduleSeatQueryService {
             }
         }
         return false;
+    }
+
+    // 결과를 만든 배치와 선점 가능 여부. 둘 다 캐시가 준 객체라 같은지는 참조로 본다
+    private record SeatsSnapshot(List<SeatLayoutRow> seats, HoldableSeatIds holdable, ScheduleSeatsResult result) {
     }
 }
