@@ -154,8 +154,9 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 파일 | 하는 일 |
 |---|---|
 | `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 9개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
-| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → 관측 도구 설정 해시를 라벨 값으로 넘김(설정이 바뀐 도구만 다시 만들어짐, 4절 아래 "관측 도구 설정 반영") → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
+| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → 관측 도구 설정 해시를 라벨 값으로 넘김(설정이 바뀐 도구만 다시 만들어짐, 4절 아래 "관측 도구 설정 반영") → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크 → 성공하면 JIT 예열(실패해도 배포는 성공, 아래 "배포 뒤 JIT 예열"). 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
+| `script/deploy/warmup.sh [주소]` | 예열 전용 공연 `[예열 전용] 배포 JIT 예열`의 회차로 오픈 피크 경로(공연 상세 → 대기열 진입·순번 → 좌석 조회 일부 → 선점 → 결제 `pgProvider: MOCK` → 확정 확인 → 취소)를 k6(`loadtest/k6/scenarios/w1-warmup.js`)로 기본 초당 25번 × 120초 돈다. `deploy.sh`가 배포 성공 뒤 부르고, 측정 모드에서는 사람이 부른다(측정 전용 키를 알아서 쓴다). 상한 `WARMUP_TIMEOUT_SECONDS`(기본 420초) |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
 | `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
 | `script/deploy/seed-lottery-entrants.sh` | 추첨 시연 응모자를 공개 API로 적재한다. `prepare`는 가입·로그인·카드 등록, `enter <추첨 id>`는 응모다. 다시 돌려도 안전하고, loopback이 아닌 주소는 `LOTTERY_SEED_ALLOW_REMOTE=yes`가 있어야 보낸다(ISE-199) |
@@ -191,6 +192,25 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - 스모크의 재확인(`SMOKE_WAIT_SECONDS` 120초, TS-34)은 그대로 둔다. 발견 지연이 줄어도 "컨테이너 healthy"와 "Gateway가 찾을 수 있음"은 다른 사실이다.
 - 확인 방법(배포 뒤): 서비스 하나를 다시 만들고 Gateway를 1초 간격으로 불러 503이 끝나는 시각을 잰다. 배포 값은 측정 전이다.
 - 고르지 않은 대안: (1) Gateway가 Eureka 대신 compose 서비스 이름(`http://payment-service:8083`)으로 바로 라우팅한다. Docker DNS는 컨테이너가 바뀌면 바로 따라오므로 발견 지연이 없다. 다만 발제의 Spring Cloud 구성(Eureka)과 여러 인스턴스 분산을 버리게 된다. (2) 주기를 1초로 더 줄인다. 얻는 것이 몇 초이고 Eureka 조회만 늘어난다.
+
+### 배포 뒤 JIT 예열 (ISE-264)
+
+새로 뜬 JVM은 처음 받는 요청을 인터프리터로 돌리다가 자주 부르는 메서드를 JIT(C1 → C2)로 컴파일한다. 배포나 측정 모드 전환 직후 오픈이 오면 좌석 선점·결제·확정 경로가 그 순간 처음 뜨거워져 컴파일이 피크와 겹친다. 11/15 균일 122 오픈 피크 30초에 `jvm_compilation_time_ms_total` 기준 컴파일이 reservation CPU의 약 30%(0.31\~0.43코어 상당), payment는 CPU와 비슷했다(0.34\~0.61, 측정. 이 지표는 컴파일러 스레드의 경과 시간이라 실제 CPU 몫의 상한이다). 오픈 전 10분 동안 공연 상세만 받아 데워진 Gateway는 0.03\~0.06이었다. 그래서 배포가 성공하면 같은 경로를 예열 전용 공연으로 미리 돈다.
+
+| 선택지 | 하는 일 | 데이터 오염 | readiness와의 관계 | 대가 |
+|---|---|---|---|---|
+| (a) 배포 뒤 HTTP 예열(고름) | `deploy.sh`가 스모크 뒤 `warmup.sh`를 부르고, k6가 nginx → Gateway → 서비스 실제 경로를 돈다 | 예열 전용 공연·회차와 전용 사용자 ID(9억~)만 쓰고 반복마다 취소한다. 남는 것은 그 회차의 취소된 예매·환불된 Mock 결제 기록뿐이다 | readiness 뒤에 돈다. 그 2분 동안 들어온 실제 요청은 아직 덜 데워진 서버를 만난다 | 배포가 약 2.5분 길어진다. 예열 공연이 공개 공연 목록에 보인다. 서버에 k6 이미지가 하나 더 받힌다 |
+| (b) 앱 안 `ApplicationReadyEvent` 예열 | 각 서비스가 기동할 때 자기 서비스 메서드를 예열 데이터로 반복 부르고 정리한다 | 서비스 메서드를 직접 부르므로 정리 코드를 서비스마다 따로 짜야 하고, 서비스 사이(Kafka 결제 결과·환불)는 한 서비스 안에서 돌릴 수 없다 | readiness 전에 끝낼 수 있다(동기 리스너가 끝나야 `ACCEPTING_TRAFFIC`, 일반 지식) | Gateway·필터·직렬화·Kafka 소비 경로는 데워지지 않는다. 운영 코드에 예열 전용 경로가 서비스 수만큼 생긴다 |
+| (c) JVM 옵션 | CDS/AppCDS, `-XX:TieredStopAtLevel`, `-XX:CICompilerCount` 등 | 없다 | 없다 | CDS/AppCDS는 클래스 적재를 줄여 기동 시간만 줄이고 JIT 예열은 아니다. 프로파일을 저장해 다음 기동에 쓰는 AOT 메서드 프로파일(JEP 515)은 JDK 25부터라 JDK 21에는 없다. 컴파일러 스레드를 늘리면 피크의 컴파일 CPU가 오히려 늘 수 있다(모두 일반 지식) |
+
+- 고른 이유: 실제 요청과 같은 경로(Gateway 인증·입장 토큰 필터, Jackson 직렬화, JPA, Kafka 결제 결과·환불 소비)를 한 번에 데우고, 예열 코드가 운영 앱에 들어가지 않는다. 측정 모드에서도 같은 명령으로 돌릴 수 있다. k6 시나리오와 `run.sh`를 이미 측정에 쓰고 있어 새 도구가 없다.
+- 데이터: 공연 제목으로 예열 공연을 찾아 다시 쓰고 없을 때만 만든다. 회차는 이미 판매 중이고 공연 시작까지 2일 넘게 남은 것을 다시 쓰고, 빈 좌석이 반복 수보다 적거나 없으면 30일 뒤 시작하는 회차(15,000석)를 새로 만든다. 반복마다 확정된 예매를 취소해 좌석·매수를 돌려주고 결제 서비스가 Mock PG로 환불한다. 결제는 `pgProvider: MOCK`만 보낸다(토스 모드 서버는 `PAYMENT_PG_MOCK_BYPASS=true`가 필요하고, 없으면 결제가 400이라 예열 결과가 실패로 남는다). 결제가 승인되지 않은 선점은 좌석 하나가 묶여 남는다(배포 메모리 덮어쓰기는 선점 만료 스케줄러를 끈다).
+- 서명 키: 서버 안에서 돌아 `.env`의 키로 토큰을 서명한다. 키는 서버 밖으로 나가지 않는다(발생기에 운영 키를 두지 않는 ADR 0046 규칙과 어긋나지 않는다). 측정 모드(`.deploy/measure-mode`)이면 `.env.measure`의 측정 전용 키를 쓴다. `deploy.sh`는 측정 모드를 풀고 다시 띄우므로 늘 `.env` 키를 쓴다.
+- 실패: 예열은 준비 작업이라 실패해도 `deploy.sh`의 결과를 바꾸지 않고 경고만 출력한다. 되돌림 배포 뒤에는 돌리지 않는다. 끄려면 `DEPLOY_WARMUP=0`. 출력은 `.deploy/warmup-last.txt`, 요약은 `loadtest/k6/results/w1-warmup-*`(최근 5번)에 남는다.
+- 처음 반영: Jenkins는 서버에 이미 checkout된 `deploy.sh`를 부르고 그 안에서 새 커밋으로 바꾼다. 그래서 예열은 이 변경이 든 다음 배포부터 돈다.
+- 측정 모드에서 쓰기: `MEASURER=<이름> script/loadtest/measure-mode.sh on` 뒤에 `script/deploy/warmup.sh`. 예열한 측정은 "데워진 서버" 조건이므로 결과에 적는다.
+- 확인: `bash -n`, `DRY_RUN=1`로 키 선택 분기(운영·측정 모드·배포에서 부름), `k6 inspect`로 시나리오 옵션을 확인했다(2026-11-16). 서버 실행과 예열 효과(피크 컴파일 지표)는 확인 못 함. v2 배포 뒤 같은 오픈 시나리오에서 `rate(jvm_compilation_time_ms_total[20s])`를 예열 전후로 비교한다.
+- 바꿀 조건: 예열 뒤에도 피크 컴파일이 크게 남으면 반복 수(`WARMUP_RATE`·`WARMUP_SECONDS`)를 늘리거나 빠진 경로(추첨 등)를 더한다. 예열이 배포 시간을 문제로 만들면 백그라운드 실행으로 바꾼다.
 
 ### 내부 AI 상담 배포 (ISE-126)
 

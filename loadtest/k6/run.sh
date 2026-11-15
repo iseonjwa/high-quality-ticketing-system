@@ -29,7 +29,7 @@ PASS_ENV=(BASE_URL TOKEN_MODE USER_ID_BASE JWT_ACCESS_SECRET ENTRY_TOKEN_SECRET 
   CONCERTS SCHEDULES_PER_CONCERT DETAIL_RATIO ENTER_RATE PG_DELAY_MS MOCK_PG_URL CONFIRM_POLL_SECONDS CONFIRM_MAX_POLLS
   EXPIRING RATE ENTRANTS SEAT_COUNT WAITLIST_COUNT PAY_RATE PG_MODE DECLINE_RATE START_IN_SECONDS
   DRAW_AFTER_SECONDS DRAW_WINDOW_SECONDS WITH_BILLING PRE_OPEN_SECONDS AFTER_OPEN_SECONDS ENTER_SPREAD_SECONDS
-  ABANDON_RATIO MAX_RETRY CONCERT_ID USERS_CSV OPEN_AT ITERATIONS SEAT_MODE ARRIVAL_MODE)
+  ABANDON_RATIO MAX_RETRY CONCERT_ID USERS_CSV OPEN_AT ITERATIONS SEAT_MODE ARRIVAL_MODE VENUE_ID SEAT_QUERY_RATIO)
 ARGS=()
 for key in "${PASS_ENV[@]}"; do
   ARGS+=(-e "$key")
@@ -61,15 +61,29 @@ if [ "$(uname -s)" = Linux ]; then
   USER_ARGS=(--user "$(id -u):$(id -g)")
 fi
 
+# K6_DOCKER_NETWORK를 주면 k6 컨테이너를 그 Docker 네트워크에 붙인다. 배포 서버 안에서 nginx(127.0.0.1:80)를 부를 때 host를 준다
+# (script/deploy/warmup.sh). 리눅스 Docker에는 host.docker.internal이 기본으로 없다
+NETWORK_ARGS=()
+if [ -n "${K6_DOCKER_NETWORK:-}" ]; then
+  NETWORK_ARGS=(--network "$K6_DOCKER_NETWORK")
+fi
+
+# 요청별 원자료 CSV는 기본으로 남긴다. 배포마다 도는 예열처럼 분석하지 않는 실행은 K6_RAW_CSV=0으로 끈다(서버 디스크를 아낀다)
+CSV_ARGS=(--out "csv=/scripts/results/${NAME}-raw.csv.gz")
+if [ "${K6_RAW_CSV:-1}" = 0 ]; then
+  CSV_ARGS=()
+fi
+
 # Note: Git Bash는 /scripts 같은 인자를 Windows 경로로 바꿔 버린다. MSYS_NO_PATHCONV로 막는다
 # Note: 컨테이너 안에서 localhost는 컨테이너 자신이다. 호스트의 Gateway는 host.docker.internal로 부른다
 MSYS_NO_PATHCONV=1 docker run --rm \
   ${USER_ARGS[@]+"${USER_ARGS[@]}"} \
+  ${NETWORK_ARGS[@]+"${NETWORK_ARGS[@]}"} \
   -v "$K6_DIR:/scripts" \
   "${ARGS[@]}" ${RW_ENV[@]+"${RW_ENV[@]}"} \
   "$K6_IMAGE" run \
   ${QUIET_ARGS[@]+"${QUIET_ARGS[@]}"} \
   --summary-export "/scripts/results/${NAME}-summary.json" \
-  --out "csv=/scripts/results/${NAME}-raw.csv.gz" \
+  ${CSV_ARGS[@]+"${CSV_ARGS[@]}"} \
   ${RW_ARGS[@]+"${RW_ARGS[@]}"} \
   "/scripts/${SCRIPT}" | tee "$K6_DIR/results/${NAME}-stdout.txt"

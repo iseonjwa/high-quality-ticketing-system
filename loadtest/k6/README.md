@@ -48,6 +48,7 @@
 | `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
 | `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
 | `scenarios/r1d-confirm.js` | R1-d. R1을 배포 서버에서 돌리는 판. 관리자 로그인 없이 서버에서 만든 회차(`SCHEDULE_ID`)를 받는다. 좌석을 팔므로 실행마다 새 회차를 쓴다 |
+| `scenarios/w1-warmup.js` | W1 JIT 예열(ISE-264). 측정이 아니라 준비다. 예열 전용 공연 회차로 공연 상세 → 대기열 진입·순번 → 좌석 조회(`SEAT_QUERY_RATIO`, 기본 0.2) → 선점 → 결제(Mock) → 확정 → 취소를 초당 `RATE`(기본 25)번, `DURATION_SECONDS`(기본 120초) 동안 돈다. 관리자 계정으로 예열 공연을 찾거나 만들고, `SCHEDULE_ID`·`CONCERT_ID`를 주면 그것을 쓴다. 배포 서버에서는 `script/deploy/warmup.sh`가 부른다([deployment.md](../../docs/design/infra/deployment.md) 5절) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력. 커밋하지 않는다 |
 
 시나리오 상태:
@@ -72,6 +73,7 @@
 | S1 | `scenarios/s1-seat-query.js` | 있음(ISE-189). 로컬(노트북 1대)에서 같은 방식으로 잰 단계별 결과는 ISE-189에 있다. 2026-11-11 배포: 1차 초당 40건까지 실패 0(p95 약 370ms), 상한 약 47건/초. 개선 전은 초당 10건에서 서비스 재시작. 결과는 [open-peak-scenarios.md](../../docs/design/infra/open-peak-scenarios.md) 3절 |
 | B1-d | `scenarios/b1d-concert-detail.js` | 있음. 2026-11-06 local(같은 방식, 공연 상세 하나)에서 초당 10~400건으로 잰 결과는 개인 기록에 있다. 2026-11-11 배포: 초당 400건까지 실패 0, p95 4ms 안팎(같은 문서) |
 | R1-d | `scenarios/r1d-confirm.js` | 있음(ISE-189). R1과 같은 흐름·판정 기준. 배포 서버 측정 전 |
+| W1 | `scenarios/w1-warmup.js` | 있음(ISE-264). 2026-11-16 `k6 inspect`로 옵션만 확인했다. 서버 실행은 확인 못 함 |
 
 ## 2. 실행
 
@@ -88,6 +90,7 @@ bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 USERS=100 ENTER_SPREAD_SECONDS=1 USER_ID_BASE=6000000 bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 ```
 
+- `run.sh` 선택 변수: `K6_DOCKER_NETWORK`(예: `host`, 배포 서버 안에서 `127.0.0.1`의 nginx를 부를 때), `K6_RAW_CSV=0`(요청별 원자료 CSV를 남기지 않음).
 - `run.sh`는 k6 진행 표시줄을 기본으로 끈다(`--quiet`). 터미널이 아닌 곳에서는 진행 표시줄이 1초마다 새 줄로 찍혀 출력의 9할을 넘기기 때문이다(ISE-219). 화면에는 `setup()` 로그와 마지막 요약만 나온다. 진행 상황을 보려면 앞에 `K6_PROGRESS=1`을 붙인다.
 - 에이전트에게 결과를 읽힐 때는 stdout 전체가 아니라 `results/<이름>-summary.json`이나 stdout 끝부분(`tail -n 60`)만 읽게 한다.
 
