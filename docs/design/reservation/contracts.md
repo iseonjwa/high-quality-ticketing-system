@@ -42,6 +42,26 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 - 대기열 정리: 선점이 성공하면(동기형은 응답 전, 접수형은 소비자가 `HELD`를 커밋한 뒤) 선점 트랜잭션이 끝나 커넥션을 돌려준 다음 `QueueService.discardEntryToken(scheduleId, userId, jti)`를 부른다. 대기열 `issued`의 기록이 같은 `jti`일 때만 지우므로, 옛 토큰의 늦은 요청이 새로 받은 입장을 지우지 않는다. `ENTRY_TOKEN_USED`로 거절할 때도 한 번 더 부른다(앞선 정리가 실패한 경우). 정리에 실패해도 응답은 바뀌지 않고 경고 로그만 남는다.
 - 거절 상태 코드 403은 ADR 0053(채택)을 따른다. 프론트 반영이 남아 있다(ISE-207 11-14 댓글).
 
+### 1-2. 자동 배정 선점 (`POST /api/v1/schedules/{scheduleId}/reservations/auto`, ISE-264, [ADR 0059](../../decisions/0059-seat-auto-assign-skip-locked.md))
+
+좌석 대신 고를 범위와 매수를 받고 서버가 좌석을 골라 선점한다. 헤더(`Authorization`·`X-Entry-Token`·`X-Entry-Token-Id`·`Idempotency-Key`)와 경로 규칙, 입장 토큰 소모(1-1절), 성공 응답(2-1절 `201` 본문 10개 필드)은 위 선점 API와 같다. Gateway는 이 경로에도 입장 토큰을 요구한다(`EntryTokenPolicy`).
+
+| 구분 | 이름 | 타입 / 형식 | 필수 | 검증 규칙 |
+|---|---|---|---|---|
+| 본문 | `grade` | 문자열 `VIP`·`R`·`S` | 아니오 | 이 등급 안에서 고른다. `LOTTERY`·없는 등급은 `400 VALIDATION_FAILED` |
+| 본문 | `section` | 문자열 1~10자 (예: `A`) | 아니오 | 이 구역 안에서 고른다. `grade`와 함께 주면 `400 VALIDATION_FAILED`. 둘 다 없으면 회차 전체 |
+| 본문 | `quantity` | 정수 | 예 | 1 이상(아니면 `400 VALIDATION_FAILED`), 회차 `max_per_user` 이하(넘으면 `400 SEAT_COUNT_MISMATCH`) |
+
+```json
+// POST /api/v1/schedules/31/reservations/auto
+{ "section": "A", "quantity": 2 }
+```
+
+- 고르는 규칙: 범위 안의 선점 가능한 좌석(`AVAILABLE`, 추첨석 제외)을 좌석 ID 오름차순으로 `quantity`개 잠근다(`FOR UPDATE SKIP LOCKED`). 다른 요청이 잠근 좌석은 기다리지 않고 건너뛴다. 좌석 ID가 구역·열·번호 순이라 2매는 대개 같은 열의 붙은 자리지만 **연석은 보장하지 않는다**.
+- 처리 순서: 같은 멱등키 재요청 판정 → 토큰 사용 여부 → 회차·매수 상한·판매 기간 → 멱등키 행 저장(좌석은 빈 배열) → 매수 행 조건부 UPDATE → 좌석 잠금·HELD → 예매 저장 → 멱등키 행에 고른 좌석 기록. 한 트랜잭션이라 커밋된 `seat_hold_requests` 행에는 늘 좌석이 있다.
+- 범위 안에 남은 좌석이 `quantity`보다 적으면 `409 ZONE_SOLD_OUT`이다. 다른 구역·등급으로 넘기지 않는다(클라이언트가 고른다). 실패는 롤백돼 행이 남지 않고 입장 토큰도 소모하지 않는다.
+- 좌석 조회 1초 캐시 사전 거절(1-1절)은 하지 않는다. `seat-hold.mode=async`여도 이 API는 동기형으로 답한다.
+
 ---
 
 ## 2. 성공 응답 계약
@@ -167,6 +187,8 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 2. `seat_hold_requests.schedule_id == 경로 scheduleId`
 3. `seat_hold_requests.seat_ids == sort(request.seatIds)` (오름차순 정렬된 좌석 ID 배열 일치)
 
+자동 배정(1-2절)은 3번 대신 `seat_hold_requests.auto_criteria`(범위·매수, 예: `section=A;quantity=2`)가 같아야 한다. 같으면 처음 고른 좌석·예매로 ②~④처럼 답한다. 자동 배정으로 쓴 키를 좌석 직접 선택 API로 다시 쓰면(같은 좌석이어도) 반대 경우와 마찬가지로 `409 IDEMPOTENCY_KEY_REUSED`다.
+
 ### 3-2. 상황별 재요청 응답 (동기형·접수형)
 
 | 상황 | 동기형 (`seat-hold.mode=sync`) | 접수형 (`seat-hold.mode=async`) |
@@ -196,6 +218,7 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | `409` | `SALE_NOT_OPEN` | 서버 시각(`now`)이 회차의 `open_at` 이전이거나 이미 판매 종료된 회차 (E4) |
 | `409` | `PURCHASE_LIMIT_EXCEEDED` | `user_schedule_quotas` 조건부 UPDATE 결과 0행 (`held_count + 요청 매수 > max_per_user`) (E3, D1) |
 | `409` | `SEAT_ALREADY_HELD` | `schedule_seats` 조건부 UPDATE 결과 갱신 행 수 < 요청 좌석 수, DB `lock_timeout(500ms)` 초과, 또는 `reservation_seats` 부분 유니크 인덱스 충돌 (E1, D2). 접수형은 접수 단계에서 요청 좌석이 `AVAILABLE`이 아니거나 추첨석으로 보일 때도 즉시 반환한다(ADR 0057) |
+| `409` | `ZONE_SOLD_OUT` | 자동 배정(1-2절)에서 고른 구역·등급(또는 회차 전체)에 남은 선점 가능 좌석이 요청 매수보다 적은 경우. 다른 범위로 넘기지 않는다(ISE-264) |
 | `409` | `IDEMPOTENCY_KEY_REUSED` | 이미 사용된 `Idempotency-Key`로 다른 `scheduleId`·다른 `seatIds`·다른 사용자의 요청이 들어온 경우 (E2) |
 | `409` | `RESERVATION_NOT_PAYABLE` | 같은 `Idempotency-Key`로 재요청했으나 기존 선점 예매가 이미 만료(`EXPIRED`)·해제(`RELEASED`)·취소(`CANCELED`)되었거나 결제 토큰 발급 가능 시각(`holdExpiresAt - 10초`)이 지난 경우 |
 | `503` | `SERVICE_UNAVAILABLE` | DB 연결 실패 등 일시적 인프라 장애 |
