@@ -2,7 +2,7 @@ import { Armchair, ListOrdered, Ticket } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, type LinkProps } from 'react-router'
 import { Logo } from '@/components/layout/Logo'
-import { concertArt, POSTER_SIZE } from '@/components/ticketing/concertArt'
+import { FEATURED_ART, POSTER_SIZE } from '@/components/ticketing/concertArt'
 
 interface AuthCardProps {
   title: string
@@ -22,7 +22,7 @@ const FEATURES = [
 // 오른쪽에 입력 폼을 둔다. 입력 칸이 길게 늘어나지 않도록 폼 폭은 400px로 묶는다.
 // Note: 그림 패널은 좁은 화면에서 숨긴다. loading="lazy"라 숨긴 동안에는 그림을 받지 않는다.
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
-  const art = concertArt(1)
+  const art = FEATURED_ART
   return (
     <main className="mx-auto grid w-full max-w-[960px] overflow-hidden rounded-[18px] @min-[40rem]:my-6 @min-[56rem]:grid-cols-[1fr_1fr] @min-[56rem]:border @min-[56rem]:border-gray-100 @min-[56rem]:bg-gray-0 @min-[56rem]:shadow-md">
       {/* 폼을 먼저 둬 화면 낭독기가 제목 h1부터 읽는다. 그림 패널은 넓은 화면에서 order로 왼쪽에 둔다 */}

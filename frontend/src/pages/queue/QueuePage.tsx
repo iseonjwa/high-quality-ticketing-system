@@ -83,7 +83,11 @@ function QueueScreen({ scheduleId }: { scheduleId: number }) {
 function ConcertLine({ concert }: { concert: QueueConcert }) {
   return (
     <div className="flex items-center gap-3 px-1">
-      <ConcertPoster concertId={concert.concertId} className="h-[52px] w-10" />
+      <ConcertPoster
+        concertId={concert.concertId}
+        concertTitle={concert.title}
+        className="h-[52px] w-10"
+      />
       <div className="min-w-0">
         <p className="type-heading text-gray-900">{concert.title}</p>
         <p className="mt-0.5 type-body-sm text-gray-500 tabular-nums">

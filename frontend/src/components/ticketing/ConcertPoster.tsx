@@ -1,21 +1,24 @@
 import { concertArt, POSTER_SIZE } from '@/components/ticketing/concertArt'
 import { cn } from '@/lib/utils'
 
-// 공연 포스터. 그림은 공연 번호로 고른다(concertArt). 꾸밈이라 읽지 않는다. 공연 제목은 화면이 따로 읽힌다.
+// 공연 포스터. 그림은 공연 번호와 제목으로 고른다(concertArt). 꾸밈이라 읽지 않는다. 공연 제목은 화면이 따로 읽힌다.
 // title을 주면 실제 포스터처럼 그림 아래쪽에 제목을 얹는다. 글자 크기는 포스터 폭(cqw)에 맞춘다.
 // 폭은 className으로 정하고 높이는 2:3 비율로 따라간다. 화면 위쪽에 바로 보이는 포스터만 loading="eager"로 둔다.
 export function ConcertPoster({
   concertId,
   title,
+  concertTitle,
   className,
   loading = 'lazy',
 }: {
   concertId: number
   title?: string
+  // 그림만 고를 때 쓰는 공연 제목. 그림 위에 글자를 얹지 않는다(얹으려면 title)
+  concertTitle?: string
   className?: string
   loading?: 'lazy' | 'eager'
 }) {
-  const art = concertArt(concertId)
+  const art = concertArt(concertId, title ?? concertTitle)
   const light = art.tone === 'light'
   return (
     <div

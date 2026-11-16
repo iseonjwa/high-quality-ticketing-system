@@ -23,7 +23,12 @@
 # 종료 코드: 0 성공, 1 실패(API 응답 등), 2 사용법·입력 오류
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-title="이선좌 시연 공연"
+command -v jq > /dev/null || { echo "실패: jq가 없다. script/deploy/install-docker.sh로 설치하거나 apt install jq를 실행한다" >&2; exit 1; }
+# 시연 공연은 배포 공연 정의(ISE-302)의 대표 공연(demo: true)이다. seed-showcase.sh가 먼저 만들었으면 그 공연에 회차를 더한다
+showcase=frontend/src/data/showcase.json
+title=$(jq -r '[.concerts[] | select(.demo)][0].title // empty' "$showcase")
+demo_description=$(jq -r '[.concerts[] | select(.demo)][0].description // empty' "$showcase")
+[[ -n "$title" ]] || { echo "실패: ${showcase}에 demo 공연이 없다" >&2; exit 1; }
 iso_format='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
 usage() {
@@ -220,7 +225,7 @@ if [[ "$mode" == lottery ]]; then
   call POST "/api/v1/admin/schedules/$schedule_id/lotteries" 201     "$(jq -n --arg g "$lottery_source_grade" --argjson c "$lottery_seat_count" --argjson w "$lottery_waitlist_count"       --argjson m "$lottery_max_per_entry" --arg s "$entry_start_input" --arg e "$entry_end_input" --arg d "$draw_input"       '{sourceGrade: $g, seatCount: $c, waitlistCount: $w, maxPerEntry: $m, entryStartAt: $s, entryEndAt: $e, drawAt: $d}')"
   lottery_id=$(jq -r '.data.lotteryId // empty' <<< "$response")
   [[ -n "$lottery_id" ]] || fail "추첨 설정 응답에 lotteryId가 없다"
-  echo "  추첨 만듦: $lottery_id, 추첨석 $lottery_seat_count($lottery_source_grade), 예비 $lottery_waitlist_count, 1인 $lottery_max_per_entry매"
+  echo "  추첨 만듦: $lottery_id, 추첨석 $lottery_seat_count($lottery_source_grade), 예비 $lottery_waitlist_count, 1인 ${lottery_max_per_entry}매"
   echo "  응모 $entry_start_input ~ $entry_end_input, 추첨 $draw_input"
   echo "== 추첨 측정 데이터 시드 완료(k6에 넣을 값)"
   echo "SCHEDULE_ID=$schedule_id"
@@ -255,7 +260,7 @@ fi
 if (( schedule_count == 0 )); then
   resolve_venue
   if [[ -z "$concert_id" ]]; then
-    call POST /api/v1/admin/concerts 201 "$(jq -n --arg t "$title" '{title: $t, description: "리허설과 발표용 시연 공연이다"}')"
+    call POST /api/v1/admin/concerts 201 "$(jq -n --arg t "$title" --arg d "$demo_description" '{title: $t, description: $d}')"
     concert_id=$(jq -r '.data.concertId' <<< "$response")
     echo "  공연 만듦: $concert_id"
   fi
