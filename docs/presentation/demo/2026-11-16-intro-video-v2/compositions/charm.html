@@ -2,9 +2,12 @@
   <style>
     @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
     #root { position: absolute; inset: 0; background: #FF2D78; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #FFF8EE; }
-    #ch-phone { position: absolute; left: 760px; top: 70px; width: 400px; height: 860px; border-radius: 58px; background: #14101A; padding: 13px; box-shadow: 14px 16px 0 #14101A; transform-origin: 50% 100%; }
-    #ch-screen { position: relative; width: 374px; height: 834px; border-radius: 46px; overflow: hidden; background: #fff; }
-    #ch-vid { position: absolute; left: 0; top: 0; width: 374px; height: 810px; object-fit: cover; }
+    #ch-br { position: absolute; left: 410px; top: 90px; width: 1100px; border: 4px solid #14101A; border-radius: 22px; background: #14101A; box-shadow: 14px 16px 0 #14101A; overflow: hidden; transform-origin: 50% 100%; }
+    #ch-bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+    #ch-bar i { display: block; width: 14px; height: 14px; border-radius: 50%; }
+    #ch-bar span { margin-left: 16px; flex: 1; height: 28px; border-radius: 14px; background: #2A2433; color: #D9D2E6; font-size: 17px; font-weight: 600; line-height: 28px; padding-left: 16px; }
+    #ch-screen { position: relative; width: 1092px; height: 648px; overflow: hidden; background: #fff; }
+    #ch-vid, #ch-end { position: absolute; left: 0; top: 0; width: 1092px; height: 648px; object-fit: cover; }
     .ch-card { position: absolute; left: 960px; top: 470px; width: 300px; margin-left: -150px; margin-top: -267px; border-radius: 22px; box-shadow: 10px 12px 0 #14101A; transform-origin: 50% 50%; opacity: 0; }
     .ch-card img { width: 300px; height: 533px; display: block; border-radius: 22px; }
     #ch-rare { width: 380px; margin-left: -190px; margin-top: -338px; }
@@ -18,8 +21,9 @@
     #ch-sub span { display: inline-block; background: #14101A; color: #FFD23F; font-size: 54px; font-weight: 900; letter-spacing: -1.5px; padding: 14px 40px 18px; border-radius: 18px; }
   </style>
   <div id="root" data-composition-id="charm" data-width="1920" data-height="1080">
-    <div id="ch-phone"><div id="ch-screen">
-      <video id="ch-vid" class="clip" src="assets/video/charm.mp4" data-start="0" data-duration="8" data-media-start="3.9" muted playsinline data-track-index="1"></video>
+    <div id="ch-br"><div id="ch-bar"><i style="background:#FF2D78"></i><i style="background:#FFD23F"></i><i style="background:#7EE0D4"></i><span data-layout-ignore>이선좌 · 예매 완료</span></div><div id="ch-screen">
+      <img id="ch-end" src="assets/img/charm-end-web.webp" alt="" />
+      <video id="ch-vid" class="clip" src="assets/video/charm.mp4" data-start="0" data-duration="5.3" data-media-start="3.45" muted playsinline data-track-index="1"></video>
     </div></div>
     <div id="ch-pl"><svg class="ch-pop" viewBox="0 0 260 300" aria-hidden="true">
         <g stroke="#14101A" stroke-width="7" stroke-linejoin="round">
@@ -50,7 +54,7 @@
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo('#ch-phone', { y: 300, rotation: -6 }, { y: 0, rotation: 0, duration: 0.5, ease: 'back.out(1.4)' }, 0);
+    tl.fromTo('#ch-br', { y: 300, rotation: -6 }, { y: 0, rotation: 0, duration: 0.5, ease: 'back.out(1.4)' }, 0);
     // 원뿔 폭죽이 양쪽 아래에서 들어와 입구를 가운데로 겨눈다(오른쪽 것은 좌우를 뒤집는다)
     tl.set('#ch-pr', { scaleX: -1 }, 0);
     tl.fromTo('#ch-pl', { y: 360, rotation: -20 }, { y: 0, rotation: 0, duration: 0.45, ease: 'back.out(1.6)' }, 0.4);
@@ -59,13 +63,13 @@
     tl.to('.ch-pop', { scaleY: 0.86, duration: 0.18, ease: 'power2.in' }, 2.20);
     tl.to('.ch-pop', { scaleY: 1.14, duration: 0.1, ease: 'power3.out' }, 2.38);
     tl.to('.ch-pop', { scaleY: 1, duration: 0.5, ease: 'elastic.out(1, 0.45)' }, 2.48);
-    // QR이 보이면 폰이 숨을 들이켰다가(찌그러짐) 부적을 뱉어 낸다
-    tl.to('#ch-phone', { scaleY: 0.9, scaleX: 1.06, duration: 0.25, ease: 'power2.in' }, 2.10);
-    tl.to('#ch-phone', { scaleY: 1.05, scaleX: 0.97, duration: 0.12, ease: 'power2.out' }, 2.35);
-    tl.to('#ch-phone', { scaleY: 0.86, scaleX: 0.86, y: 560, duration: 0.6, ease: 'elastic.out(1, 0.5)' }, 2.47);
+    // QR이 보이면 브라우저 창이 숨을 들이켰다가(찌그러짐) 부적을 뱉어 낸다
+    tl.to('#ch-br', { scaleY: 0.9, scaleX: 1.06, duration: 0.25, ease: 'power2.in' }, 2.10);
+    tl.to('#ch-br', { scaleY: 1.05, scaleX: 0.97, duration: 0.12, ease: 'power2.out' }, 2.35);
+    tl.to('#ch-br', { scaleY: 0.86, scaleX: 0.86, y: 560, duration: 0.6, ease: 'elastic.out(1, 0.5)' }, 2.47);
     const fly = [['#ch-a', -640, 40, -14, 2.40], ['#ch-b', -330, -40, -7, 2.50], ['#ch-c', 330, -40, 7, 2.55], ['#ch-d', 640, 40, 14, 2.45], ['#ch-rare', 0, -90, 0, 2.75]];
     fly.forEach(([id, x, y, r, at]) => {
-      tl.fromTo(id, { x: 0, y: 260, scale: 0.2, rotation: 0, opacity: 1 }, { x, y, scale: 1.08, rotation: r, duration: 0.42, ease: 'power3.out' }, at);
+      tl.fromTo(id, { x: 0, y: 260, scale: 0.2, rotation: 0, opacity: 1 }, { immediateRender: false, x, y, scale: 1.08, rotation: r, duration: 0.42, ease: 'power3.out' }, at);
       tl.to(id, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' }, at + 0.42);
       tl.to(id, { y: y - 14, duration: 1.0, ease: 'sine.inOut', yoyo: true, repeat: 2 }, at + 1.0);
     });

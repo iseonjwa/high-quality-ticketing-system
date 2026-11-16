@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
 const BASE = 'http://localhost:5199'
-const OUT = new URL('./clips/', import.meta.url).pathname
+const OUT = new URL('./clips-mobile/', import.meta.url).pathname
 fs.mkdirSync(OUT, { recursive: true })
 
 const CURSOR = `
@@ -12,11 +12,11 @@ const CURSOR = `
   const add = () => {
     if (document.getElementById('__cur')) return
     const c = document.createElement('div'); c.id = '__cur'
-    c.style.cssText = 'position:fixed;left:0;top:0;width:34px;height:34px;z-index:2147483647;pointer-events:none;transform:translate(-200px,-200px);transition:none'
+    c.style.cssText = 'display:none;position:fixed;left:0;top:0;width:34px;height:34px;z-index:2147483647;pointer-events:none;transform:translate(-200px,-200px);transition:none'
     c.innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24"><path d="M4 2l15 9-6.5 1.6L16 20l-2.6 1.3-3.4-7.3L5 18z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>'
     document.documentElement.appendChild(c)
     const r = document.createElement('div'); r.id = '__ring'
-    r.style.cssText = 'position:fixed;left:0;top:0;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid #3B40D8;z-index:2147483646;pointer-events:none;opacity:0'
+    r.style.cssText = 'position:fixed;left:0;top:0;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(59,64,216,.25);border:3px solid #3B40D8;z-index:2147483646;pointer-events:none;opacity:0'
     document.documentElement.appendChild(r)
     addEventListener('mousemove', e => { c.style.transform = 'translate(' + (e.clientX - 4) + 'px,' + (e.clientY - 2) + 'px)' }, true)
     addEventListener('mousedown', e => { r.style.transition = 'none'; r.style.left = e.clientX + 'px'; r.style.top = e.clientY + 'px'; r.style.opacity = '1'; r.style.transform = 'scale(.6)'; requestAnimationFrame(() => { r.style.transition = 'transform .35s ease-out, opacity .35s ease-out'; r.style.transform = 'scale(1.4)'; r.style.opacity = '0' }) }, true)
@@ -26,7 +26,7 @@ const CURSOR = `
 
 async function session(name, scenario, body) {
   const browser = await chromium.launch()
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 1.5, locale: 'ko-KR', colorScheme: 'light' })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: false, locale: 'ko-KR', colorScheme: 'light' })
   await ctx.addInitScript(CURSOR)
   const page = await ctx.newPage()
   // 로그인은 녹화 밖에서 한다
@@ -50,8 +50,8 @@ async function session(name, scenario, body) {
   const marks = []
   const t0 = Date.now() / 1000
   const mark = (label) => marks.push({ label, t: Date.now() / 1000 - t0 })
-  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1140, everyNthFrame: 1 })
-  await page.mouse.move(900, 700)
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1170, maxHeight: 2532, everyNthFrame: 1 })
+  await page.mouse.move(380, 820)
   const click = async (loc, pause = 500) => {
     await loc.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
     await page.waitForTimeout(350)
@@ -73,7 +73,7 @@ async function session(name, scenario, body) {
   }
   list += `file '${frames[frames.length - 1].file}'\n`
   fs.writeFileSync(dir + 'list.txt', list)
-  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', dir + 'list.txt', '-vf', 'fps=30,scale=1920:-2:flags=lanczos,format=yuv420p', '-c:v', 'libx264', '-crf', '16', '-preset', 'slow', OUT + name + '.mp4'])
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', dir + 'list.txt', '-vf', 'fps=30,scale=780:-2:flags=lanczos,format=yuv420p', '-c:v', 'libx264', '-crf', '16', '-preset', 'slow', OUT + name + '.mp4'])
   fs.writeFileSync(OUT + name + '.marks.json', JSON.stringify({ firstFrame: frames[0].t - t0, marks }, null, 1))
   console.log(name, frames.length, 'frames', marks.map(m => m.label + '@' + m.t.toFixed(2)).join(' '))
   await browser.close()
