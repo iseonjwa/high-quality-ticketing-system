@@ -1,0 +1,9 @@
+# 재배포 조건 때문에 저장소에 넣지 않는다. README의 명령으로 다시 받는다
+assets/fonts/
+assets/sfx/
+.media/
+.hyperframes/
+renders/
+.thumbnails/
+.transcode-cache/
+.waveform-cache/

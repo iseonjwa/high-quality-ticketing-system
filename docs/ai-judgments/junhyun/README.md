@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | 소개 영상 v2에서 하린을 웹툰풍으로 화면에 세우고 VoiceStudio 목소리 H2·N1을 고르고, AI가 짚은 대로 실제 동작과 다른 장면 6을 결제사 연결 불안정으로 바꿈 | Claude Code, codex | 부분 수용 | 예 | 아님 | [기록](2026-11-16-intro-video-v2-character-voice.md) |
 | 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-server-address-in-one-env-key.md) |
 | 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-grafana-public-over-https-path.md) |
 | 2026-11-14 | 발표 자료 세 가지(2분 영상, Notion 브로셔, 10분 발표)의 축과 형식을 AI 선택지에서 고르고, 브로셔 형식·영상 소리·AI 축 줄기·발표자·디자인은 직접 정함 | Claude Code | 부분 수용 | 예 | 아님 | [기록](2026-11-14-presentation-materials-plan.md) |

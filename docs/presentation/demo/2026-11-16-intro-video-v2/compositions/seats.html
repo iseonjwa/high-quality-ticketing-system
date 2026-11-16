@@ -1,0 +1,44 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #14101A; }
+    #se-kick { position: absolute; left: 110px; top: 150px; }
+    #se-kick .c { display: inline-block; background: #FF2D78; color: #FFF8EE; font-size: 32px; font-weight: 800; padding: 10px 22px 12px; border-radius: 12px; }
+    #se-kick .t { font-size: 66px; font-weight: 900; letter-spacing: -2.5px; line-height: 1.12; margin-top: 26px; }
+    #se-phone { position: absolute; left: 560px; top: 70px; width: 440px; height: 940px; border-radius: 62px; background: #14101A; padding: 14px; box-shadow: 16px 18px 0 #FF2D78; }
+    #se-screen { position: relative; width: 412px; height: 912px; border-radius: 48px; overflow: hidden; background: #fff; }
+    #se-zoom { position: absolute; inset: 0; }
+    #se-vid { position: absolute; left: 0; top: 0; width: 412px; height: 892px; object-fit: cover; }
+    #se-disc { position: absolute; left: 1150px; top: 210px; width: 700px; height: 700px; border-radius: 50%; background: #FF2D78; }
+    #se-bust { position: absolute; left: 1210px; bottom: -40px; width: 600px; height: 760px; transform-origin: 50% 100%; }
+    #se-bust img { position: absolute; left: 0; bottom: 0; width: 600px; height: auto; }
+  </style>
+  <div id="root" data-composition-id="seats" data-width="1920" data-height="1080">
+    <div id="se-kick"><p class="c">좌석 선택</p><p class="t">고른 좌석은<br />결제까지 내 것</p></div>
+    <div id="se-disc"></div>
+    <div id="se-bust">
+      <img id="se-b1" src="assets/img/harin-bust-tense.webp" alt="" />
+      <img id="se-b2" src="assets/img/harin-bust-joy.webp" alt="" style="opacity:0" />
+    </div>
+    <div id="se-phone"><div id="se-screen"><div id="se-zoom">
+      <video id="se-vid" class="clip" src="assets/video/booking.mp4" data-start="0" data-duration="3.6" data-media-start="6.24" data-playback-rate="2" muted playsinline data-track-index="1"></video>
+    </div></div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // 대기열 장면과 같은 자리라 폰은 그대로 두고 둘레만 바꾼다
+    tl.fromTo('#se-kick', { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'power4.out' }, 0.05);
+    tl.fromTo('#se-disc', { scale: 0.85 }, { scale: 1, duration: 0.45, ease: 'back.out(1.6)' }, 0);
+    tl.to('#se-bust', { scaleY: 1.012, duration: 0.6, ease: 'sine.inOut', yoyo: true, repeat: 3 }, 0.2);
+    // 좌석 고르는 순간 화면에 다가간다
+    tl.to('#se-zoom', { scale: 1.45, transformOrigin: '50% 72%', duration: 0.4, ease: 'power2.inOut' }, 0.9);
+    tl.to('#se-zoom', { scale: 1, duration: 0.4, ease: 'power2.inOut' }, 2.8);
+    // "좌석 선택이 완료되었습니다"가 뜨면 기쁨으로 바뀐다
+    tl.to('#se-bust', { scaleY: 0.86, scaleX: 1.08, duration: 0.1, ease: 'power2.in' }, 3.2);
+    tl.set('#se-b1', { opacity: 0 }, 3.3);
+    tl.set('#se-b2', { opacity: 1 }, 3.3);
+    tl.to('#se-bust', { scaleY: 1.12, scaleX: 0.94, duration: 0.12, ease: 'power2.out' }, 3.3);
+    tl.to('#se-bust', { scaleY: 1, scaleX: 1, duration: 0.25, ease: 'power2.out' }, 3.42);
+    window.__timelines['seats'] = tl;
+  </script>
+</template>

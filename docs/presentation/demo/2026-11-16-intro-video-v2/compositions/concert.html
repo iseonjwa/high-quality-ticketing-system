@@ -1,0 +1,34 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #2B3BE5; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #FFF8EE; }
+    #co-cam { position: absolute; left: 0; top: -100px; width: 1920px; height: 1280px; }
+    #co-bg { position: absolute; inset: 0; width: 1920px; height: 1280px; }
+    #co-ticket { position: absolute; inset: 0; background: #FF2D78; opacity: 0; }
+    #co-phone { position: absolute; left: 740px; top: 60px; width: 440px; height: 960px; border-radius: 62px; background: #14101A; padding: 14px; box-shadow: 16px 18px 0 #14101A; }
+    #co-phone img { width: 412px; height: 932px; object-fit: cover; object-position: 50% 0; border-radius: 48px; display: block; }
+    #co-title { position: absolute; left: 0; right: 0; top: 120px; text-align: center; }
+    #co-title .s { font-size: 64px; font-weight: 800; color: #FFD23F; letter-spacing: -1.5px; }
+    #co-title .b { font-size: 170px; font-weight: 900; letter-spacing: -7px; line-height: 1.05; margin-top: 10px; }
+  </style>
+  <div id="root" data-composition-id="concert" data-width="1920" data-height="1080">
+    <div id="co-cam"><img id="co-bg" src="assets/img/key-04-concert-day-crown.webp" alt="" /></div>
+    <div id="co-ticket"><div id="co-phone"><img src="assets/img/confirmed.png" alt="" /></div></div>
+    <div id="co-title"><p class="s">공정하고 정확한 예매.</p><p class="b">이선좌</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // 뒷모습에 다가간다(왕관 응원봉이 화면 가운데로)
+    tl.fromTo('#co-cam', { scale: 1.05 }, { scale: 1.6, transformOrigin: '52% 50%', duration: 2.2, ease: 'power1.inOut' }, 0);
+    // 폰 속 확정 티켓: 아래에서 튀어 올라 흔들리며 안착
+    tl.set('#co-ticket', { opacity: 1 }, 2.2);
+    tl.fromTo('#co-phone', { y: 700, rotation: 8, scaleY: 0.85 }, { y: -20, rotation: -2, scaleY: 1.06, duration: 0.32, ease: 'power3.out' }, 2.2);
+    tl.to('#co-phone', { y: 0, rotation: 0, scaleY: 1, duration: 0.6, ease: 'elastic.out(1, 0.45)' }, 2.52);
+    // 다시 뒷모습, 크게 물러나며 끝 문장
+    tl.set('#co-ticket', { opacity: 0 }, 3.9);
+    tl.to('#co-cam', { scale: 1, transformOrigin: '52% 60%', duration: 1.2, ease: 'power3.out' }, 3.9);
+    tl.fromTo('#co-title .s', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power3.out' }, 4.05);
+    tl.fromTo('#co-title .b', { scale: 1.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(1.8)' }, 5.3);
+    window.__timelines['concert'] = tl;
+  </script>
+</template>

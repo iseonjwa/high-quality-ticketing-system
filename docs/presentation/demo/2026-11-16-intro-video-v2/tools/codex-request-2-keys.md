@@ -1,0 +1,20 @@
+# Task: key visuals for an animated motion-graphics ad (stage 2 of 2)
+
+Use your built-in image generation tool. Do not draw with code. The attached images are the approved character sheet for HARIN (turnaround, expression sheet, jump pose). Every image below must show exactly this same character: same face, bob hair with bangs, hot-pink #FF2D78 oversized hoodie, light-blue jeans, white sneakers. Use the attached images as the reference for every generation.
+
+Copy each generated image into this working directory with the exact file name below (PNG). Then write `prompts.md` here with the exact final prompt and size for each file (append to it if it exists). Print the file list with pixel sizes at the end.
+
+## Style (same as the character sheet, most important)
+- Clean, modern 2D vector-like illustration for a motion-graphics explainer: smooth dark-ink (#14101A) outlines, flat cel shading with at most one shadow tone per color, crisp anti-aliased edges. Backgrounds are simple flat shapes, not detailed paintings.
+- ABSOLUTELY NO grain, noise, film grain, paper texture, halftone dots, crosshatching, sketchy lines, jagged or pixelated edges, watercolor, speckles. Every color area perfectly flat, as if it were an SVG.
+- Palette: hot pink #FF2D78, sunflower yellow #FFD23F, cobalt blue #2B3BE5, warm paper #FFF8EE, ink #14101A (plus her skin, hair and jeans colors).
+- No text, letters, numbers, logos, watermarks or UI anywhere. Any phone screen is a plain flat empty light rectangle (#FFF8EE) so real screen recordings can be composited later.
+- All files are 1536x1024, but the video is 16:9: keep every important element inside the central band y=80..944 (top and bottom 80px will be cropped).
+- Nothing refers to any real idol group, real person or real brand.
+
+## Files
+1. `key-01-before-open.png` — Night, Harin's small bedroom, flat cobalt-blue night tones with a warm desk-lamp glow. She sits cross-legged on her bed holding her phone with both hands, tense and focused (expression sheet: top-left). On the wall behind her, a concert poster of a fictional idol group shown only as flat abstract stage-light shapes and five tiny faceless silhouettes, no text. Leave the upper-left third calm and empty for a large countdown overlay.
+2. `key-02-last-year.png` — Flashback, desaturated: the whole image in grayish cobalt and paper tones only (no pink). Harin hunched over her phone, tapping repeatedly, frustrated and slumping (expression sheet: dejected / panicked). Around her, four or five empty phone-screen-shaped rectangles pop up and overlap like error pop-ups (empty, no text), to be filled later with "seat already taken" messages.
+3. `key-03-got-it.png` — The "got it!" moment. Flat sunflower-yellow (#FFD23F) background with simple radiating burst shapes in a slightly darker yellow. Harin mid-jump with arms up holding her phone (like the jump pose), overjoyed. Strong squash-and-stretch energy: hair and hoodie flying, a few clean motion lines.
+4. `key-04-concert-day.png` — Concert day, night, in front of a big arena entrance drawn as simple flat shapes with warm lights. Harin seen from behind (back view from the turnaround), standing still, holding up a glowing hot-pink lightstick in one hand and her phone in the other. A flat, faceless crowd silhouette in cobalt tones on both sides. Composition leaves room above her head for an end title.
+5. `key-05-charm-burst.png` — Product moment. A large smartphone in the center, its screen an empty flat light rectangle with a simple QR-code-like square pattern (abstract, not scannable). From the phone, four vertical ticket-shaped "charm cards" burst outward in an arc, each card a flat paper card with a cute simple pet (rabbit, cat, dog, penguin) and no text. The center card is bigger and "rare": gold and holographic rainbow edge, sparkles. Two cone-shaped party poppers at the bottom corners shoot clean flat confetti and streamers. Background flat hot pink (#FF2D78). Harin's hands can hold the phone from below (optional).

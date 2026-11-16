@@ -1,0 +1,27 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #2B3BE5; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #FFF8EE; }
+    #en-logo { position: absolute; left: 560px; top: 330px; width: 300px; height: 300px; border-radius: 68px; }
+    #en-name { position: absolute; left: 920px; top: 350px; font-size: 230px; font-weight: 900; letter-spacing: -9px; line-height: 1; }
+    #en-line { position: absolute; left: 930px; top: 600px; font-size: 48px; font-weight: 800; color: #FFD23F; }
+    #en-credit { position: absolute; left: 0; right: 0; bottom: 48px; text-align: center; font-size: 28px; font-weight: 600; color: #A9AEEE; }
+    #en-team { position: absolute; left: 0; right: 0; bottom: 100px; text-align: center; font-size: 30px; font-weight: 700; color: #C9CCF7; }
+  </style>
+  <div id="root" data-composition-id="endcard" data-width="1920" data-height="1080">
+    <img id="en-logo" src="assets/img/logo.png" alt="" />
+    <p id="en-name">이선좌</p>
+    <p id="en-line">공정하고 정확한 예매</p>
+    <p id="en-team">5조 이선좌 · 콘서트 티켓팅 MSA 최종 프로젝트</p>
+    <p id="en-credit">음악: "Life of Riley" Kevin MacLeod (incompetech.com) · CC BY 4.0</p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#en-logo', { scale: 0.3, rotation: -12 }, { scale: 1, rotation: 0, duration: 0.55, ease: 'back.out(1.8)' }, 0.1);
+    tl.fromTo('#en-name', { x: 80, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'power4.out' }, 0.3);
+    tl.fromTo('#en-line', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power3.out' }, 0.6);
+    tl.fromTo('#en-team', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.6);
+    tl.fromTo('#en-credit', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.7);
+    window.__timelines['endcard'] = tl;
+  </script>
+</template>
