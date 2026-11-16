@@ -18,7 +18,7 @@
 #                형식과 "공연 시작(8일 뒤)보다 앞선다"를 API를 부르기 전에 검사하고, 틀리면 아무것도 만들지 않고 2로 끝난다
 #   VENUE_ID     공연장 id. 없으면 예약 DB에서 KSPO DOME의 id를 찾는다(공연장 조회 API가 없다)
 #   COMPOSE_PROJECT_NAME  예약 DB 컨테이너를 찾을 compose 프로젝트(같은 서버에 스택이 둘일 때만)
-#   LOTTERY_SEAT_COUNT(기본 3000), LOTTERY_WAITLIST_COUNT(기본 1000), LOTTERY_MAX_PER_ENTRY(기본 2)  lottery의 추첨석·예비 수·1인 매수
+#   LOTTERY_SEAT_COUNT(기본 300), LOTTERY_WAITLIST_COUNT(기본 1000), LOTTERY_MAX_PER_ENTRY(기본 2)  lottery의 추첨석·예비 수·1인 매수
 # 읽는 .env 키: ADMIN_EMAIL, ADMIN_PASSWORD, SAMPLE_USER_EMAIL, SAMPLE_USER_PASSWORD, SAMPLE_USER_NICKNAME, DB_USER
 # 종료 코드: 0 성공, 1 실패(API 응답 등), 2 사용법·입력 오류
 set -euo pipefail
@@ -101,15 +101,15 @@ if [[ "$mode" == lottery ]]; then
   # 공연 시작은 추첨 다음 날이다. 서버 조건 "추첨 + 60분 <= 공연 시작"과 "오픈 < 공연 시작"을 함께 만족한다.
   starts_lottery_epoch=$(( draw_epoch + day ))
 
-  lottery_seat_count="${LOTTERY_SEAT_COUNT:-3000}"
+  lottery_seat_count="${LOTTERY_SEAT_COUNT:-300}"
   lottery_waitlist_count="${LOTTERY_WAITLIST_COUNT:-1000}"
   lottery_max_per_entry="${LOTTERY_MAX_PER_ENTRY:-2}"
   [[ "$lottery_seat_count" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_SEAT_COUNT는 정수여야 한다: $lottery_seat_count"
   [[ "$lottery_waitlist_count" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_WAITLIST_COUNT는 정수여야 한다: $lottery_waitlist_count"
   [[ "$lottery_max_per_entry" =~ ^[0-9]+$ ]] || bad_input "LOTTERY_MAX_PER_ENTRY는 정수여야 한다: $lottery_max_per_entry"
-  # 추첨석은 R 등급에서 바꾼다. KSPO DOME 시드(V20261030_2)의 R은 6,000석이다.
+  # 추첨석은 R 등급에서 바꾼다. KSPO DOME 시드의 R은 600석이다(V20261116_7로 15,000석 → 1,500석, ADR 0060).
   lottery_source_grade=R
-  lottery_source_seats=6000
+  lottery_source_seats=600
   (( lottery_seat_count >= 1 && lottery_seat_count <= lottery_source_seats ))     || bad_input "LOTTERY_SEAT_COUNT($lottery_seat_count)는 1 이상, $lottery_source_grade 등급 좌석 수($lottery_source_seats) 이하여야 한다"
   (( lottery_max_per_entry >= 1 && lottery_max_per_entry <= 2 )) || bad_input "LOTTERY_MAX_PER_ENTRY($lottery_max_per_entry)는 1~2여야 한다(서버 조건)"
 fi

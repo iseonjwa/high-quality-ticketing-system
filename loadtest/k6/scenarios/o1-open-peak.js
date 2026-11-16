@@ -8,7 +8,7 @@
 // VU 하나가 사용자 여러 명을 상태 기계로 들고, 다음 행동 시각이 가장 이른 사용자부터 한 걸음씩 진행한다.
 // 한 VU 안의 요청은 순서대로 나가므로 좌석 조회처럼 느린 요청이 있으면 같은 VU의 다른 사용자가 늦어진다. 그 정도를 action_lateness로 남긴다
 //
-// SEAT_MODE(기본 map)는 좌석을 정하는 방법이다. map은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다.
+// SEAT_MODE(기본 map)는 좌석을 정하는 방법이다. map은 지금 동작 그대로 사용자가 좌석 조회(15,000석 당시 약 830KB)를 받아 고른다.
 // partitioned는 서버가 좌석을 골라 주는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다. setup에서 좌석 조회를 한 번만 해
 // 빈 좌석을 사용자마다 겹치지 않게 나눠 두고, 측정 중에는 좌석 조회 없이 바로 선점한다. 서버가 좌석을 고르는 비용은 빠진다.
 // partitioned에서는 등급(zone)을 보지 않고 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. 예:
@@ -521,9 +521,9 @@ function takePartitionedSeats(user, data) {
 }
 
 // auto의 5단계. 좌석 조회 없이 본문(구역·등급, 매수)만 정하고, 고민 시간은 map과 같다.
-// Note: 비교 공정성. map 균일 규칙은 70%가 좌석 조회 본문 앞 10%(약 1,500석 = 구역 A·B와 C 절반, 구역당 600석)에서,
+// Note: 비교 공정성. map 균일 규칙은 70%가 좌석 조회 본문 앞 10%(구역 A·B와 C 절반. 1,500석 시드면 약 150석, 구역당 60석)에서,
 // 30%가 전체에서 고른다. auto 균일은 같은 비율로 70%가 구역 A~C 중 하나, 30%가 구역 A~Y 중 하나를 무작위로 고른다(앞 구역 쏠림 유지,
-// 인기 범위는 1,800석으로 map보다 조금 넓다). Synthetic은 CSV zone(VIP·R·S)을 등급으로 보내고, ANY는 회차 전체(본문에 범위 없음)다.
+// 인기 범위는 구역 3개라 map보다 조금 넓다. 1,500석 시드면 180석). Synthetic은 CSV zone(VIP·R·S)을 등급으로 보내고, ANY는 회차 전체(본문에 범위 없음)다.
 // 409 뒤에는 map처럼 다시 고른다. 균일은 같은 규칙으로 새 구역을, any_zone 사용자는 ANY(회차 전체)로 바꿔 보낸다
 function chooseAutoCriteria(user) {
   const count = seatCountOf(user.profile);
@@ -539,7 +539,7 @@ function chooseAutoCriteria(user) {
   user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
 }
 
-// 공연장 시드(V20261030_2__venue_seed.sql)는 구역 A~Y 25개, 구역당 600석이다
+// 공연장 시드(V20261030_2, V20261116_7)는 구역 A~Y 25개, 구역당 60석이다(ADR 0060)
 const AUTO_SECTIONS = 25;
 const AUTO_HOT_SECTIONS = 3;
 

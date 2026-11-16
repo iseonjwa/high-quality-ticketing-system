@@ -12,7 +12,8 @@ import { availableSeatIds, hold, pay, reservationStatus, userOf } from '../lib/b
 import { setApproveDelay } from '../lib/mockpg.js';
 
 const STAGES = (__ENV.STAGES || '25,50,100,200').split(',').map(Number);
-// 기본값이면 좌석 약 11,600석을 쓴다
+// 기본값이면 좌석 약 12,650석을 쓴다(좌석이 떨어진 뒤 반복은 no_seat만 센다)
+// Note: 시드 공연장이 1,500석이 된 뒤(ADR 0060)에는 STAGES를 낮춰야 한다(예: STAGES=10,25 STAGE_SECONDS=20이면 약 840석)
 const STAGE_SECONDS = numberEnv('STAGE_SECONDS', 30);
 const PG_DELAY_MS = numberEnv('PG_DELAY_MS', 0);
 const CONFIRM_POLL_SECONDS = numberEnv('CONFIRM_POLL_SECONDS', 0.5);

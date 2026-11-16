@@ -13,7 +13,7 @@ export function userOf(userId, scheduleId) {
 }
 
 // setup에서 좌석 조회 한 번으로 선택 가능한 좌석 ID를 응답 순서대로 모은다.
-// Note: 15,000석 응답(약 830KB)을 JSON.parse하지 않고 문자열 검색으로 seatId만 꺼낸다(k1-seathold.js와 같은 이유)
+// Note: 좌석 응답(15,000석 당시 약 830KB)을 JSON.parse하지 않고 문자열 검색으로 seatId만 꺼낸다(k1-seathold.js와 같은 이유)
 export function availableSeatIds(scheduleId, user) {
   const res = http.get(url(`/api/v1/schedules/${scheduleId}/seats`),
     { headers: seatHeaders(user), tags: { api: 'setup' }, timeout: '60s' });

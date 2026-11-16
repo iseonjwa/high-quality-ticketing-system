@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 측정용 새 회차(판매 중, 시드 공연장 15,000석)를 만들고 회차 ID만 출력한다. 절차는 BookingFlowSystemTest와 같다.
+# 측정용 새 회차(판매 중, 시드 공연장 1,500석, ADR 0060)를 만들고 회차 ID만 출력한다. 절차는 BookingFlowSystemTest와 같다.
 # 관리자 계정은 저장소 루트 .env의 ADMIN_EMAIL·ADMIN_PASSWORD를 읽는다. 값과 토큰은 출력하지 않는다.
 # 사용: SCHEDULE_ID=$(bash reservation-service/k6/tools/create-schedule.sh "k6 B8")
 set -euo pipefail
