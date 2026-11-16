@@ -53,6 +53,10 @@
 | 공연 목록·상세 상태 코드별 초당 응답 | 같은 식 |
 | 접수형 결과 폴링 서버 지연 p50·p95·p99 | 같은 식, `uri="/api/v1/reservations/requests/{requestId}"` |
 | 접수형 결과 폴링 상태 코드별 초당 응답 | 같은 식. 선점 결과의 `accepted`와 함께 보면 접수 한 건에 폴링이 몇 번 오는지 보인다 |
+| 상한 자리 사용 중과 DB 커넥션 (11/16, ISE-261) | `seathold_concurrency_in_use`(상한을 켰을 때만), `hikaricp_connections_active`·`pending`·`max` |
+| 선점 거절(상한·사전 거절) 초당 | `sum by (reason) (rate(seathold_concurrency_rejected_total[1m]))`(`queue_full`·`wait_timeout`, 503), `rate(seathold_pre_rejected_total[1m])`(409) |
+| 상한 자리 대기와 자리 쥐는 시간 | `seathold_concurrency_held_seconds`·`wait_seconds`의 합계÷건수(평균), held의 p95(SLO 버킷 1·5·10·50·100ms 사이 어림). 처리 한계 ≈ 상한 ÷ 자리 쥐는 시간 |
+| 좌석 잠금(UPDATE) 시간 | `seathold_seat_lock_seconds` 평균과 25ms 넘는 비율(`1 - le="0.025"` 버킷 / 전체). 50ms 근처가 많으면 잠긴 좌석 쏠림(ADR 0060) |
 
 히스토그램은 reservation-service의 모든 HTTP API에 걸린다. 패널이 없는 API(내 예매, 대기열 상태, 추첨 조회 등)도 Grafana Explore에서 `uri` 라벨만 바꿔 같은 식으로 본다.
 

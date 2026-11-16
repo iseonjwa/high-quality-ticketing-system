@@ -632,6 +632,266 @@
           "mode": "multi"
         }
       }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "선점 내부: 동시 처리 상한·좌석 잠금·사전 거절 (ISE-261, ADR 0060·0061)",
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "상한 자리 사용 중과 DB 커넥션",
+      "description": "상한 자리 사용 중(seathold.concurrency.in_use)은 seat-hold.max-concurrent를 켰을 때만 생긴다. 커넥션 사용 중이 풀 크기에 붙고 대기가 생기면 풀이 병목이다(ISE-237)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(seathold_concurrency_in_use{application=\"reservation-service\"})",
+          "legendFormat": "상한 자리 사용 중",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(hikaricp_connections_active{application=\"reservation-service\"})",
+          "legendFormat": "커넥션 사용 중",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(hikaricp_connections_pending{application=\"reservation-service\"})",
+          "legendFormat": "커넥션 대기",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(hikaricp_connections_max{application=\"reservation-service\"})",
+          "legendFormat": "풀 크기",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "선점 거절(상한·사전 거절) 초당",
+      "description": "queue_full: 대기 인원 상한을 넘어 바로 503. wait_timeout: 자리를 200ms 안에 못 얻어 503. 사전 거절: 좌석 조회 1초 캐시로 트랜잭션 없이 409(ISE-281)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 45,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (reason) (rate(seathold_concurrency_rejected_total{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "503 {{reason}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(seathold_pre_rejected_total{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "사전 거절 409",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "상한 자리 대기와 자리 쥐는 시간",
+      "description": "평균은 합계÷건수라 정확하다. 처리 한계 ≈ 상한 ÷ 자리 쥐는 시간(seathold-pool-limit-sweep.md 4절). p95는 SLO 버킷(1·5·10·50·100ms) 사이를 선형으로 어림한 값이다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(seathold_concurrency_held_seconds_sum{application=\"reservation-service\"}[1m])) / sum(rate(seathold_concurrency_held_seconds_count{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "자리 쥐는 시간 평균",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(seathold_concurrency_held_seconds_bucket{application=\"reservation-service\"}[1m])))",
+          "legendFormat": "자리 쥐는 시간 p95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(seathold_concurrency_wait_seconds_sum{application=\"reservation-service\"}[1m])) / sum(rate(seathold_concurrency_wait_seconds_count{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "자리 대기 평균",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "좌석 잠금(UPDATE) 시간",
+      "description": "좌석 조건부 UPDATE가 잠금을 얻고 끝날 때까지(seathold.seat_lock). 기다리지 않으면 1ms 안쪽, 잠긴 좌석을 노리면 잠금 대기 시한(50ms, ADR 0060)까지 늘어난다. 50ms 근처가 많으면 잠금 장애 쏠림이다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 53,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(seathold_seat_lock_seconds_sum{application=\"reservation-service\"}[1m])) / sum(rate(seathold_seat_lock_seconds_count{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "평균",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - sum(rate(seathold_seat_lock_seconds_bucket{application=\"reservation-service\",le=\"0.025\"}[1m])) / sum(rate(seathold_seat_lock_seconds_count{application=\"reservation-service\"}[1m]))",
+          "legendFormat": "25ms 넘는 비율",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     }
   ]
 }
