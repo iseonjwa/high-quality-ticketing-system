@@ -8,6 +8,8 @@
 | `http_server_requests_seconds_bucket` | Spring 기본 HTTP 타이머의 히스토그램 | `method`, `uri`, `status`, `outcome`, `exception`, `le` | `config-repo/reservation-service.yml`의 `management.metrics.distribution.slo` |
 | `seathold_result_total` | 카운터 | `outcome` | `seathold/observability/SeatHoldMetrics`, 선점 컨트롤러에서 센다 |
 | `seathold_pre_rejected_total` | 카운터 | 없음 | 같은 클래스, `SyncSeatHoldService`가 사전 거절할 때 센다(ISE-281) |
+| `seathold_direct_publish_total` | 카운터 | `result`(`sent`·`failed`) | `seathold/infrastructure/messaging/KafkaSeatHoldDirectPublisher`. 측정 전용 직접 발행(ISE-18)을 켰을 때만 늘어난다 |
+| `seathold_direct_publish_ack_seconds` | 타이머(히스토그램) | 없음 | 같은 클래스. 커밋 뒤 브로커 확인(acks=all)까지 걸린 시간. 실패·시한 초과도 기록한다 |
 
 ### 1-1. HTTP 히스토그램 버킷
 - 경계: 25ms, 50ms, 100ms, 200ms, 300ms, 500ms, 1s, 3s. 3s는 Gateway 응답 시한이다.
@@ -39,6 +41,11 @@
 - 응답은 같은 409 `SEAT_ALREADY_HELD`라 `seathold_result_total{outcome="seat_conflict"}`에도 함께 들어간다. `outcome`에 새 값을 두지 않은 것은 `seat_conflict`를 둘로 나누면 기존 패널의 좌석 충돌 비율이 바뀌기 때문이다.
 - 사전 거절 비율: `rate(seathold_pre_rejected_total[1m]) / rate(seathold_result_total{outcome="seat_conflict"}[1m])`. 측정 브랜치에서는 73~84%였다.
 - 끄기: `seat-hold.pre-reject.enabled=false`(기본 켬). 같은 버전에서 켠 회와 끈 회를 비교할 때 쓴다.
+
+### 1-4. 직접 발행 지표 (ISE-18)
+- `seat-hold.async.publish=direct`(측정 덮어쓰기 `loadtest/k6/compose.seat-hold-direct.yml`)일 때만 값이 생긴다. 기본(Outbox)에서는 0이다.
+- `failed`가 0이 아니면 그만큼의 요청은 메시지 없이 남아 30초 시한 정리가 `TIMEOUT`으로 닫는다. 접수 응답은 그래도 202다.
+- 브로커 확인 대기 시한은 `seat-hold.async.direct-publish-timeout`(기본 1초)이다. 이 대기는 접수 응답 시간에 들어간다. Outbox 경로와 접수 응답 시간을 비교할 때 이 차이를 함께 본다.
 
 ## 2. 대시보드 패널
 | 패널 | 식(요약) |

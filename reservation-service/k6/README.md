@@ -125,6 +125,10 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `users_finished` | 사용자 결과(`held`, `soldout`, `gave_up`, `error`) |
 | `requests_per_user` | 사용자당 요청 수. 409 재시도가 요청을 얼마나 불렸는지 |
 | `dropped_iterations` | 부하 생성기가 도착률을 못 맞춘 횟수. 0이 아니면 서버가 아니라 생성기 한계일 수 있다 |
+| `hold_duration{result:accepted}` | 접수형 서버의 202 접수 응답 지연(ISE-18) |
+| `async_completion{final,reason}` | 접수형: 202를 받은 시각부터 최종 상태(`HELD`·`REJECTED`)를 본 폴링까지. 폴링 간격만큼 오차가 있다(서버 간격은 1초 단위). 정밀한 값은 서버 지표 `seathold.consumer.delay`로 본다. `POLL_INTERVAL_SECONDS`로 간격을 줄일 수 있지만 폴링 요청이 그만큼 부하에 더해진다 |
+| `async_final{final,reason}` | 접수형 최종 결과 건수. `POLL_TIMEOUT`은 `POLL_LIMIT_SECONDS`(기본 40초) 안에 결과를 못 본 요청이다 |
+| `poll_requests`, `http_req_duration{api:poll}` | 결과 조회 요청 수와 지연. 결과 조회도 커넥션 풀을 나눠 쓰므로 부하에 들어간다 |
 | `{stage:<초당 명>}` | `MODEL=ramp`에서 그 단계에 도착한 사용자의 요청. 단계별 `http_req_failed`·`http_req_duration{api:seats}`·`{api:hold}`가 요약에 따로 나온다 |
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.

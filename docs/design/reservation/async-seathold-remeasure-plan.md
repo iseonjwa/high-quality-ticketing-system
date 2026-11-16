@@ -1,9 +1,9 @@
 # ISE-18 동기형 대비 접수형 좌석 선점 재측정 계획
 
-- 상태: 계획. 구현과 측정 전(2026-11-15 작성)
+- 상태: 구현 끝, 측정 전(2026-11-15 작성, 2026-11-16 직접 발행 경로·k6 접수형 분기·측정 덮어쓰기 구현)
 - 관련 이슈: ISE-18(이 문서), ISE-17(소비자, 이월 측정), ISE-16(접수), ISE-262(Synthetic Data), ISE-265(Kafka-UI 캡처, 마감 11-16), ISE-266(접수형 A0, 마감 11-17), ISE-255(비상 동기형 전환 범위)
 - 근거: SA MASTER 3장·3-1절(포화점 비교), 10-1절 비고(동기형·직접 발행·Outbox 세 경우 비교), [ADR 0057](../../decisions/0057-async-seat-hold-intake-and-mode.md) 결정 5와 후속 작업
-- 작업 브랜치: `test/ISE-18-async-seathold-remeasure`(dev `6468f257`에서 시작). 구현과 측정은 다른 기기에서 이 브랜치를 받아 이어 한다
+- 작업 브랜치: `test/ISE-18-async-seathold-remeasure`(dev `6468f257`에서 시작). 11/16에 최신 dev와 ISE-261(`fix/ISE-261-seat-hold-lock-timeout`)을 병합했다. ISE-261이 먼저 머지돼야 이 브랜치의 PR이 깔끔해진다(쌓인 PR). 측정 기준 코드를 최신 선점 구조로 맞추려는 것이다(사용자 결정)
 
 같은 환경에서 동기형, 접수형(직접 발행), 접수형(Outbox) 세 방식의 응답 시간·처리량·포화점을 재고 병목 구간을 찾는다. 결과는 발표 근거와 `docs/troubleshooting.md`에 남긴다. ISE-17 PR #609에서 "오픈 피크 측정으로 미룬다"고 한 소비자 지표도 이 측정에서 함께 잰다(2026-11-15 사용자 결정).
 
@@ -17,8 +17,8 @@ dev `6468f257` 기준으로 확인했다.
 | 접수형 Outbox 접수 | 있음 | `AsyncSeatHoldService`(ISE-16) |
 | 접수형 소비자·DLQ·30초 시한 | 있음 | `SeatHoldRequestProcessor`, `SeatHoldRequestTimeoutScheduler`(ISE-17) |
 | 소비자 지표 | 있음 | `seathold.consumer.result{outcome}`, `seathold.consumer.delay`([seathold-metrics.md](seathold-metrics.md)) |
-| 접수형 직접 발행 경로 | **없음** | ADR 0057 결정 5가 ISE-18로 미뤘다 |
-| k6 접수형 시나리오(202 뒤 결과 폴링) | **없음** | `reservation-service/k6/k1-seathold.js`는 201·409만 다룬다. `loadtest/k6/scenarios/a0-assignment-baseline.js`는 202를 성공으로 셀 뿐 폴링하지 않는다 |
+| 접수형 직접 발행 경로 | 있음(11/16, 측정 전용) | `seat-hold.async.publish=direct`, `KafkaSeatHoldDirectPublisher`. 3-1절 |
+| k6 접수형 시나리오(202 뒤 결과 폴링) | 있음(11/16) | `reservation-service/k6/k1-seathold.js`가 202를 받으면 Location을 폴링한다. 3-2절 |
 | 구역별 Outbox PENDING 적체 지표 | **없음** | reservation-service에는 Outbox DB 집계 Gauge가 없다. 측정 중 SQL로 표본을 뜬다(4-3절) |
 
 ## 2. 비교 대상
@@ -36,10 +36,17 @@ dev `6468f257` 기준으로 확인했다.
 ### 3-1. 직접 발행 경로(측정 전용)
 - 접수 트랜잭션에서 Outbox 행 대신 `seat-hold.request`로 바로 보낸다. 키(`{scheduleId}:{section}`, ADR 0056)와 봉투(`SeatHoldRequested` v1)는 Outbox 경로와 같아야 소비자를 바꾸지 않는다.
 - 설정 하나로 켜고 끈다. 기본값은 끔(Outbox)이고, 운영 설정(`config-repo`)은 바꾸지 않는다. 측정용 덮어쓰기에서만 켠다.
-- 정해야 할 것(구현 전에 사용자 확인)
-  - 보내는 시점: 커밋 전 동기 전송인지 커밋 뒤 전송인지. 커밋 전이면 DB 롤백과 메시지가 어긋날 수 있고, 커밋 뒤면 전송 실패 때 `REQUESTED` 행만 남아 30초 시한 정리가 닫는다.
-  - 전송 실패 응답: SA 10-1절의 `lottery.entry`처럼 `acks=all`, 실패 시 503으로 맞출지.
-- 측정 전용 분기라 ADR은 새로 쓰지 않는 것으로 본다. 위 두 가지를 정하면 ADR 0057의 후속 작업 줄에 결과를 덧붙인다. 범위가 커지면 그때 ADR로 올린다.
+- 정한 것(2026-11-16 사용자 결정, [판단 기록](../../ai-judgments/kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md))
+  - 보내는 시점: **커밋 뒤**. 커밋 전 전송은 롤백된 접수의 메시지가 남거나, 소비자가 아직 커밋되지 않은 행을 못 찾는 경우를 소비자에서 따로 다뤄야 한다.
+  - 전송 실패 응답: **브로커 확인(acks=all)을 최대 1초 기다리고, 실패해도 202**. 요청 행이 이미 커밋돼 있어 같은 키 재요청도 202 재응답이 되므로 503을 줘도 사용자가 얻는 것이 없다. 실패는 `seathold_direct_publish_total{result="failed"}`로 세고, 그 요청은 30초 시한 정리가 `TIMEOUT`으로 닫는다.
+- 구현
+  - 설정 `seat-hold.async.publish`(`outbox` 기본, `direct`)와 `seat-hold.async.direct-publish-timeout`(기본 1s). 다른 값이면 기동이 실패한다.
+  - `AsyncSeatHoldService`가 직접 발행이면 Outbox 행을 쓰지 않고, 트랜잭션이 끝난 뒤 `SeatHoldDirectPublisher`로 보낸다. 같은 키 재요청과 접수 거절은 보내지 않는다.
+  - `KafkaSeatHoldDirectPublisher`는 봉투를 `OutboxWriter`와 같게 만들고 Outbox 릴레이와 같은 `OutboxEventSender`로 보낸다. 소비자는 두 경로를 구분하지 않는다.
+  - 동시 처리 상한(ADR 0061 결정 3)의 자리는 접수 트랜잭션에서만 쥐고, 브로커 확인 대기는 자리를 돌려준 뒤에 한다. 상한은 커넥션을 지키는 장치라, 확인 대기를 안에 두면 직접 발행만 처리량이 깎여 비교가 틀어진다.
+  - 측정 덮어쓰기: `loadtest/k6/compose.seat-hold-async.yml`(O), 그 뒤에 `compose.seat-hold-direct.yml`을 더하면 D다.
+  - 확인: `AsyncSeatHoldDirectPublishApiTest`(커밋 뒤 전송, Outbox 행 없음, 재요청·거절은 안 보냄), `KafkaSeatHoldDirectPublisherTest`(봉투, 실패·시한 초과에도 예외 없음), `SeatHoldDirectPublishKafkaFlowTest`(실제 Kafka, 릴레이를 끄고 HELD와 예매 좌석까지)
+- 측정 전용 분기라 ADR은 새로 쓰지 않았다. ADR 0057 후속 작업 줄에 결과를 덧붙였다.
 
 ### 3-2. k6 접수형 시나리오
 - `k1-seathold.js`에 접수형 분기(예: `HOLD_MODE=async`)를 더하거나 같은 폴더에 새 파일을 둔다. 대기열 입장 → 좌석 조회 → 선점 흐름과 사용자·토큰 준비는 K1을 그대로 쓴다.
@@ -50,6 +57,11 @@ dev `6468f257` 기준으로 확인했다.
   - 최종 결과별 건수: `HELD`, `REJECTED(SEAT_ALREADY_HELD | PURCHASE_LIMIT_EXCEEDED | PROCESSING_FAILED | TIMEOUT)`
   - 폴링 요청 수(결과 조회 API가 커넥션 풀을 나눠 쓰므로 부하에 포함된다)
 - 409는 실패가 아니라 정상 거절로 분리해 센다. 동기형 409와 접수 단계 409(ADR 0057 결정 1)를 같은 기준으로 비교한다.
+- 구현(11/16): 새 파일 대신 `k1-seathold.js`가 202를 받으면 자동으로 폴링한다. 서버 모드만 바꾸면 같은 스크립트로 S·O·D를 잰다.
+  - 지표: `hold_duration{result:accepted}`, `async_completion{final,reason}`, `async_final{final,reason}`, `poll_requests`, `http_req_duration{api:poll}`
+  - `REJECTED(SEAT_ALREADY_HELD)`는 동기형 409처럼 다른 좌석을 골라 다시 시도한다. 그 밖의 `REJECTED`와 폴링 시한 초과는 오류로 끝낸다.
+  - 한계: 서버의 `nextPollAfterSeconds`가 초 단위라 `async_completion`은 1초 단위로만 보인다. 정밀한 값은 서버 `seathold.consumer.delay`로 본다. `POLL_INTERVAL_SECONDS`로 간격을 줄일 수 있지만 폴링 요청이 부하에 더해진다.
+  - 확인: 모의 서버(202 → REQUESTED → HELD 또는 REJECTED)로 k6 1.0.0을 짧게 돌려 폴링·재시도·집계를 봤다. 실제 서버로는 아직 돌리지 않았다.
 
 ## 4. 측정
 

@@ -122,7 +122,7 @@ public class SeatHoldController {
         var command = new HoldSeatsCommand(currentUserId, RequestIds.parse(idempotencyKey), scheduleId,
                 request.seatIds(), entryTokenJti);
         if (mode == SeatHoldMode.ASYNC) {
-            return accepted(concurrencyLimit.run(() -> asyncService.accept(command)));
+            return accepted(asyncService.accept(command, concurrencyLimit::run));
         }
         // 동기형은 자리를 트랜잭션 단계에서만 쥐고, 커밋 뒤 정리·서명은 자리를 돌려준 뒤에 한다(SyncSeatHoldService)
         return respond(syncService.hold(command, concurrencyLimit::run));
