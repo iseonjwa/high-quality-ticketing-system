@@ -14,3 +14,7 @@
 
 | 날짜 | 파일 | 내용 | TS |
 |---|---|---|---|
+| 2026-11-16 | [2026-11-16-seat-query-entity-connection-hold.md](2026-11-16-seat-query-entity-connection-hold.md) | 좌석 조회가 초당 수십 건에 무너진 원인이 느린 쿼리가 아니라 트랜잭션 안 객체 3만 개 생성과 커넥션 점유였음(효승) | TS-75 |
+| 2026-11-16 | [2026-11-16-stale-statistics-nested-loop.md](2026-11-16-stale-statistics-nested-loop.md) | 같은 코드인데 새 회차에서만 4배 느림: 낡은 통계로 Nested Loop, 좌석 생성 직후 ANALYZE로 해결(효승, ISE-284) | TS-76 |
+| 2026-11-16 | [2026-11-16-large-response-gateway-limit.md](2026-11-16-large-response-gateway-limit.md) | 서비스는 17ms인데 Gateway 503: 큰 응답이 동시 처리 자리를 잡음, 상한 64 유지 근거(효승) | TS-77 |
+| 2026-11-16 | [2026-11-16-breaker-blamed-for-seat-query.md](2026-11-16-breaker-blamed-for-seat-query.md) | 좌석 조회 실패를 인증 차단기 탓으로 볼 뻔했는데, 차단기가 재는 구간을 소스로 확인해 원인(서비스 504)과 결과(차단기 OPEN)를 가름(효승) | TS-78 |
