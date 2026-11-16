@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 118건, 일지 20일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 33건, 일지 10일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 33건, 일지 11일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단

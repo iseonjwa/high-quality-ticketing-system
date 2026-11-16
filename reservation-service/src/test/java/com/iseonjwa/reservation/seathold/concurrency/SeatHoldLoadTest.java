@@ -69,7 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
                 "spring.datasource.hikari.connection-timeout=${SEATHOLD_LOAD_CONNECTION_TIMEOUT:3000}",
                 "seat-hold.max-concurrent=${SEATHOLD_LOAD_MAX_CONCURRENT:0}",
                 "seat-hold.max-concurrent-queue=${SEATHOLD_LOAD_MAX_QUEUE:64}",
-                "spring.threads.virtual.enabled=${SEATHOLD_LOAD_VIRTUAL_THREADS:false}"})
+                "spring.threads.virtual.enabled=${SEATHOLD_LOAD_VIRTUAL_THREADS:false}",
+                // 좌석 조회 1초 캐시로 이미 잡힌 좌석 선점을 트랜잭션 전에 거절(ISE-281). 켠 회와 끈 회를 비교한다
+                "seat-hold.pre-reject.enabled=${SEATHOLD_LOAD_PRE_REJECT:true}"})
 @ActiveProfiles("test")
 class SeatHoldLoadTest {
     // Gateway 전체 타임아웃(SA 9-4)과 같게 둔다. 넘으면 타임아웃 오류로 센다
@@ -119,6 +121,10 @@ class SeatHoldLoadTest {
     }
     private static final int PROBE_RATE = Integer.parseInt(
             System.getenv().getOrDefault("SEATHOLD_LOAD_PROBE_RATE", "0"));
+    // 선점 대상 회차의 좌석 조회를 초당 이만큼 보낸다(열린 모델). 사용자가 좌석을 보고 고르는 흐름을 흉내 내고, 사전 거절이 읽는
+    // 1초 캐시를 채운다. 0이면 보내지 않아 캐시가 비고 사전 거절도 일어나지 않는다(ISE-281)
+    private static final int SEAT_VIEW_RATE = Integer.parseInt(
+            System.getenv().getOrDefault("SEATHOLD_LOAD_SEAT_VIEW_RATE", "0"));
     // 503을 받은 사용자가 다시 누르기까지의 시간. 0이면 바로 다시 보낸다. 쉬지 않으면 503 폭주가 같은 JVM의 CPU를 먹어
     // 서버 처리량까지 낮추므로, 동시 처리 상한을 켠 측정은 이 값을 둔다(ADR 0061)
     private static final Duration OVERLOAD_BACKOFF = Duration.ofMillis(
@@ -333,6 +339,15 @@ class SeatHoldLoadTest {
         }
     }
 
+    private long preRejected() {
+        var counter = meterRegistry.find("seathold.pre_rejected").counter();
+        return counter == null ? 0 : (long) counter.count();
+    }
+
+    // 측정 하나 동안의 선점 대상 회차 좌석 조회와 사전 거절 수. 결과 기록 형식(RunResult)을 바꾸지 않으려고 필드에 둔다
+    private final ConcurrentLinkedQueue<Sample> seatViews = new ConcurrentLinkedQueue<>();
+    private long preRejectedInRun;
+
     private long rejected(String reason) {
         var counter = meterRegistry.find("seathold.concurrency.rejected").tag("reason", reason).counter();
         return counter == null ? 0 : (long) counter.count();
@@ -478,6 +493,8 @@ class SeatHoldLoadTest {
         var queueFullBefore = rejected("queue_full");
         var waitTimeoutBefore = rejected("wait_timeout");
         var locker = lockedSeats == null ? null : startLocker(lockedSeats, running);
+        seatViews.clear();
+        var preRejectedBefore = preRejected();
         var sampler = Thread.ofPlatform().start(() -> sample(running, maxPending, maxLockWaiters, maxLimitInUse));
         var probeExecutor = Executors.newVirtualThreadPerTaskExecutor();
         if (probeScheduleId != null && PROBE_RATE > 0) {
@@ -493,7 +510,21 @@ class SeatHoldLoadTest {
                 }
                 return null;
             });
-        } else if (probeScheduleId != null) {
+        }
+        if (SEAT_VIEW_RATE > 0) {
+            probeExecutor.submit(() -> {
+                var start = System.nanoTime();
+                for (var i = 0L; running.get(); i++) {
+                    var wait = start + i * 1_000_000_000L / SEAT_VIEW_RATE - System.nanoTime();
+                    if (wait > 0) {
+                        TimeUnit.NANOSECONDS.sleep(wait);
+                    }
+                    probeExecutor.submit(() -> seatViews.add(get("/api/v1/schedules/" + scheduleId + "/seats", false)));
+                }
+                return null;
+            });
+        }
+        if (probeScheduleId != null && PROBE_RATE <= 0) {
             for (var probe = 0; probe < PROBE_VUS; probe++) {
                 probeExecutor.submit(() -> {
                     while (running.get()) {
@@ -542,6 +573,7 @@ class SeatHoldLoadTest {
             running.set(false);
             sampler.join();
             probeExecutor.close();
+            preRejectedInRun = preRejected() - preRejectedBefore;
             if (locker != null) {
                 locker.join();
             }
@@ -580,6 +612,11 @@ class SeatHoldLoadTest {
     private Sample probe(Long scheduleId) {
         var path = PROBE_REQUESTS ? "/api/v1/reservations/requests/" + UUID.randomUUID()
                 : "/api/v1/schedules/" + scheduleId + "/seats";
+        return get(path, PROBE_REQUESTS);
+    }
+
+    // notFoundIsOk: 접수 결과 조회 탐침은 없는 요청 ID라 404가 정상 응답이다
+    private Sample get(String path, boolean notFoundIsOk) {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("X-User-Id", "1")
@@ -589,8 +626,7 @@ class SeatHoldLoadTest {
         var start = System.nanoTime();
         try {
             var response = http.send(request, HttpResponse.BodyHandlers.discarding());
-            // 접수 결과 조회 탐침은 없는 요청 ID라 404가 정상 응답이다
-            var status = PROBE_REQUESTS && response.statusCode() == 404 ? 200 : response.statusCode();
+            var status = notFoundIsOk && response.statusCode() == 404 ? 200 : response.statusCode();
             return new Sample(String.valueOf(status), start, System.nanoTime());
         } catch (HttpTimeoutException timeout) {
             return new Sample("TIMEOUT", start, System.nanoTime());
@@ -751,6 +787,18 @@ class SeatHoldLoadTest {
             metrics.put("intentP95Ms", percentileMs(intentMicros, 95));
             metrics.put("intentStatus", intentCounts);
         }
+        if (!seatViews.isEmpty()) {
+            var views = new ArrayList<>(seatViews);
+            var viewMicros = views.stream().mapToLong(Sample::micros).sorted().toArray();
+            var viewOk = views.stream().filter(view -> view.status().equals("200")).count();
+            metrics.put("seatViews", views.size());
+            metrics.put("seatViewOkRate", Math.round(1000.0 * viewOk / views.size()) / 10.0);
+            metrics.put("seatViewP95Ms", percentileMs(viewMicros, 95));
+        }
+        // 사전 거절(캐시) 수와 409 중 비율. 끈 회는 0이다
+        var conflicts = samples.stream().filter(sample -> sample.status().startsWith("409")).count();
+        metrics.put("preRejected", preRejectedInRun);
+        metrics.put("preRejectedOf409", conflicts == 0 ? 0 : Math.round(1000.0 * preRejectedInRun / conflicts) / 10.0);
         metrics.put("maxLimitInUse", result.maxLimitInUse());
         metrics.put("rejectedQueueFull", result.rejectedQueueFull());
         metrics.put("rejectedWaitTimeout", result.rejectedWaitTimeout());
