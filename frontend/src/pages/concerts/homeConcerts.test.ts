@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConcertSummary } from '@/api/concerts'
-import { FEATURED_LIMIT, groupHomeConcerts } from '@/pages/concerts/homeConcerts'
+import { FEATURED_LIMIT, groupHomeConcerts, isListedConcert } from '@/pages/concerts/homeConcerts'
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -145,5 +145,23 @@ describe('groupHomeConcerts 대표 배너', () => {
     const sections = groupHomeConcerts([concert(1, null)], NOW)
 
     expect(sections.featured).toEqual([])
+  })
+})
+
+describe('홈 목록에서 빼는 공연', () => {
+  it('배포 서버의 JIT 예열·k6 측정 공연은 어느 묶음에도 넣지 않는다', () => {
+    const warmup = { ...onSale(1, 3), title: '[예열 전용] 배포 JIT 예열' }
+    const measured = { ...onSale(2, 3), title: 'k6 측정 추첨 2026-11-16T06:18:51Z' }
+    const sections = groupHomeConcerts([warmup, measured, onSale(3, 3)], NOW)
+
+    expect(sections.onSale.map((item) => item.concert.concertId)).toEqual([3])
+    expect([...sections.featured, ...sections.openingSoon, ...sections.others]).toHaveLength(1)
+  })
+
+  it('제목 앞부분이 같을 때만 뺀다', () => {
+    expect(isListedConcert({ title: '[예열 전용] 배포 JIT 예열' })).toBe(false)
+    expect(isListedConcert({ title: 'k6 O1' })).toBe(false)
+    expect(isListedConcert({ title: 'E2E 예매 공연 e6d426cf' })).toBe(false)
+    expect(isListedConcert({ title: '새벽세시 단독공연 〈k6 측정〉' })).toBe(true)
   })
 })
