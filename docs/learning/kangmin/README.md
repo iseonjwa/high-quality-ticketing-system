@@ -8,6 +8,17 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-15 | 대기열 입장 속도를 뒤쪽 여유에 따라 동적으로 조절하면 어떨까, 입구 몰림 7.9배는 어떻게 나왔나(뒤쪽 포화는 줄지만 입구 503은 못 줄임, 동시 입장 인원 상한이 가장 단순) | [노트](qna/2026-11-15-adaptive-queue-admission.md) |
+| 2026-11-15 | 오픈 직후 더 몰리는 Synthetic O1이 왜 균일보다 지표가 좋았나(입구는 8배 몰림, 대기열 뒤는 좌석 충돌률 48% 대 12%가 갈랐다) | [노트](qna/2026-11-15-why-synthetic-o1-looks-better.md) |
+| 2026-11-15 | 배포 서버 측정 중에는 왜 main 머지를 막아야 하나(main 머지 = 배포, 두 O1 같은 환경 V3, main·dev 코드 차이) | [노트](qna/2026-11-15-why-no-main-merge-during-measurement.md) |
+| 2026-11-14 | 대기열 폴링 중 이탈했다가 재진입·주소창 호출·탭 복원하면 순번은 어떻게 되나(서버는 이탈을 모름, 번호표는 userId 기준, 로그인·입장 토큰은 탭 단위 sessionStorage) | [노트](qna/2026-11-14-queue-leave-and-reenter.md) |
+| 2026-11-14 | 대기열에 Prometheus 지표를 붙이려면 코드를 어떻게 바꾸나(이미 있는 Gauge 5개, HTTP 지표로 이미 구분되는 결과, 비어 있는 입장 스케줄러 Timer·실패 카운터 예시 코드, 테스트, 문법, Gauge 실수) | [qna/2026-11-14-queue-metrics-how-to-extend.md](qna/2026-11-14-queue-metrics-how-to-extend.md) |
+| 2026-11-14 | Spring Boot Actuator는 무엇인가(Micrometer와 역할 구분, 엔드포인트, 관리 포트 9080 분리와 노출 제한 이유, Docker healthcheck·Prometheus가 부르는 경로, liveness·readiness) | [qna/2026-11-14-spring-boot-actuator.md](qna/2026-11-14-spring-boot-actuator.md) |
+| 2026-11-14 | 좌석 선점 Prometheus 지표가 코드에서 어떻게 만들어지고 수집되나(pull 방식, Counter·Timer 등록, 라벨 카디널리티, SLO 버킷 설정, `_total`·`_bucket` 이름 변환, Grafana PromQL) | [qna/2026-11-14-micrometer-prometheus-seathold-metrics.md](qna/2026-11-14-micrometer-prometheus-seathold-metrics.md) |
+| 2026-11-14 | JVM 프로파일러가 5%로 본 요청 로그 비용이 왜 서버 CPU 12%p였나(JFR은 JVM 밖을 못 봄, 서버 전체 → 컨테이너 → 프로세스 순서), 같은 날 번갈아 재는 대조군으로 운영 설정 효과 확인 | [qna/2026-11-14-profiler-blind-spot-and-same-day-control.md](qna/2026-11-14-profiler-blind-spot-and-same-day-control.md) |
+| 2026-11-14 | 이미 쓴 입장 토큰으로 선점하면 403과 409 중 무엇을 돌려줘야 하나(HTTP 뜻, 이 API에서 403·409가 쓰이는 대응, 프런트는 코드 이름으로 분기, 409로 바꾸는 비용) | [qna/2026-11-14-entry-token-used-403-vs-409.md](qna/2026-11-14-entry-token-used-403-vs-409.md) |
+| 2026-11-14 | ISE-271: 남은 기간 PR마다 AI 리뷰를 남길지, 계약 경계 PR을 상대 담당이 볼지(1번 최소형 전부·위험 PR만 코멘트, 3번 상대 확인·반나절 뒤 사후 확인, 대안 비교와 바꿀 조건) | [qna/2026-11-14-ise271-ai-review-policy-options.md](qna/2026-11-14-ise271-ai-review-policy-options.md) |
+| 2026-11-13 | 공연 상세 조회 한 건은 왜 CPU 약 3ms를 쓰고 어떻게 줄이나(세 컨테이너 몫 나누기, 쿼리는 0.2ms로 싸고 회차 91개·응답 13.5KB, 로컬 캐시와 판매 상태 요청마다 계산 추천, B1-d 측정 계획) | [qna/2026-11-13-concert-detail-cost.md](qna/2026-11-13-concert-detail-cost.md) |
 | 2026-11-13 | 대기열 입장 속도를 예매 서비스 감당량에 맞추는 방법(고정값 측정·AIMD 적응형·동시 입장 슬롯 비교, 한 명당 CPU로 본 감당량 추정, Hikari 고갈이 CPU 포화의 증상인 이유, 30·40·50 측정 계획, 대기열 담당 질문 9개) | [qna/2026-11-13-queue-admission-rate-capacity-matching.md](qna/2026-11-13-queue-admission-rate-capacity-matching.md) |
 | 2026-11-13 | 좌석 선점·대기열·공연에는 Prometheus 지표가 없어서 합성 부하로 재도 제대로 된 지표를 못 보는가(자동 HTTP·풀·JVM 지표는 있음, 도메인 지표·히스토그램·exporter 없음, 질문별 답 가능 여부, k6·사후 집계로 메우는 범위, 선택지 A~D) | [qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md](qna/2026-11-13-domain-metrics-gap-seathold-queue-concert.md) |
 | 2026-11-13 | k6, Prometheus, Grafana는 각각 무슨 일을 하고 이 저장소에서는 어떻게 이어져 있나(부하 발생·수집 저장·화면 분담, 서버 지표 pull 대 k6 remote write push, 한 화면에서 원인 맞추기, Alertmanager·Loki·Alloy·Zipkin, 감수한 점, remote write 카디널리티 OOM 사례, remote write를 끄면 잃는 것) | [qna/2026-11-13-k6-prometheus-grafana-roles.md](qna/2026-11-13-k6-prometheus-grafana-roles.md) |

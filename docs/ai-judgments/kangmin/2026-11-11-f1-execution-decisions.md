@@ -1,7 +1,7 @@
 ---
 title: F1 장애 주입의 실행 주체·정지 방법·NOT_SENT 대체·경보 범위·선점 만료 앞당기기를 AI 추천안대로 정함
 date: 2026-11-11
-updated: 2026-11-11
+updated: 2026-11-14
 judge: kangmin
 ai: Claude Code (F1 준비 세션이 절차서·코드를 확인하고 선택지 5개를 냄, 메인 세션에서 하나씩 다시 설명)
 verdict: 수용
@@ -41,10 +41,17 @@ shared: 예
 - 서버 F1은 실행 전.
 - `NOT_SENT` 대체 테스트 4개: 2026-11-11 15:15 KST 로컬에서 4개 모두 통과, 실패 0(명령과 결과는 절차서 9절)
 
+11/14 보강: 서버 F1은 2026-11-11 16:25~16:57 KST에 실행을 마쳤다. 숫자는 모두 [`docs/design/lottery/f1-fault-injection.md`](../../design/lottery/f1-fault-injection.md) 7절 "시각 기록표"에서 옮겼다.
+- F1-a(결제 서버 `docker kill`, 16:25:05.282): 자동 재기동은 안 됐고(`Exited (137)`) 16:25:35.085에 `docker start`, 16:25:50.668 healthy. 결제 `APPROVED` 17, `DECLINED(BILLING_KEY_MISSING)` 2, `NOT_SENT` 0, `REQUESTED`·`UNKNOWN`·`NEEDS_MANUAL_CHECK` 0. 원장 승인 34 = 결제 DB `APPROVED` 34(추첨 23·24 합), 중복 주문 0, `dead_letters` 0/0. 결정 3대로 `NOT_SENT`는 서버에서 나오지 않았고 위 대체 테스트로 갈음한다.
+- F1-b(Kafka 정지, 16:32:47.307, 강민 직접 실행): 결정 5대로 선점 만료를 1분 뒤로 앞당기는 `UPDATE 4` 뒤 4건 모두 1회 연장(`HELD` 유지, 응모 `WON` 유지). 결정 4대로 reservation outbox 경보는 울리지 않았고 `LotterySettlementSlow`(warning)가 16:45:49.894에 울렸다(`WON` 생성 + 10분 45초). 슬랙 수신 시각은 확인 못 함.
+- F1-c(Kafka 재기동, 16:46:14.034): 밀린 outbox 4건 발행, 결제 `APPROVED` 4, `DECLINED(BILLING_KEY_MISSING)` 2, 예매당 결제 1건. 원장 승인 38 = 결제 DB `APPROVED` 38(추첨 23·24·25 합), 중복 주문 0, `dead_letters` 0/0.
+- 결정 1은 그대로 쓰이지 않았다. F1-b의 `docker stop`은 에이전트 실행을 권한 분류기가 막아 강민이 직접 쳤다(같은 표 F1-b 칸).
+
 ## 판단 이력
 - 2026-11-11 보류: 결정 5개를 한꺼번에 받아 판단 맥락이 흐려졌다며 메인 세션으로 되돌림
 - 2026-11-11 수용: 메인 세션에서 하나씩 설명을 듣고 다섯 개 모두 추천안으로 정함
 - 2026-11-11 결정 전달: 계정 담당(junhyun)이 음성 통화에서 결정 1(이번 F1 에이전트 서버 실행 예외)과 결정 5(DB 선점 만료 앞당기기)에 모두 동의함(전달: kangmin). 팀 공지 시각은 강민이 통화 중에 직접 알림
+- 2026-11-14 검증 보강: 11/11 서버 F1 실행 결과(`f1-fault-injection.md` 7절)를 검증 칸에 더함
 
 ## 발표·면접 포인트
 - 장애 주입에서 보이고 싶은 경로(`NOT_SENT`)가 구조상 거의 재현되지 않는다는 것을 코드로 먼저 확인하고(소비자 1개, 매우 짧은 간격), 서버에서는 수렴과 이중 결제 0을, 그 경로는 통합 테스트로 나눠 증명하기로 했다.

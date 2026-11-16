@@ -12,7 +12,9 @@ describe('MyInfoPage', () => {
     await renderRoutesReady(routes, '/me')
 
     // 불러오는 동안은 화면 낭독기가 읽는 상태 문구를 둔다
-    expect(screen.getByText('내 정보를 불러오고 있어요').closest('[role="status"]')).not.toBeNull()
+    expect(
+      screen.getByText('내 정보를 불러오는 중입니다').closest('[role="status"]'),
+    ).not.toBeNull()
     // 프로필 카드에도 같은 이메일이 있어 내 정보 화면(main) 안에서 찾는다
     const main = within(screen.getByRole('main'))
     expect(await main.findByText(DEMO_USER.email)).toBeInTheDocument()
@@ -25,7 +27,7 @@ describe('MyInfoPage', () => {
     await renderRoutesReady(routes, '/me')
 
     expect(await screen.findByRole('heading', { name: '자동결제 카드' })).toBeInTheDocument()
-    expect(screen.getByText('이 브라우저에서 등록한 카드가 없어요')).toBeInTheDocument()
+    expect(screen.getByText('이 브라우저에 등록된 카드가 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
   })
 
@@ -44,7 +46,9 @@ describe('MyInfoPage', () => {
     mockDb.refreshTokens.set(42, 'mock-refresh.42.999')
     const { router } = await renderRoutesReady(routes, '/me')
 
-    expect(await screen.findByText('로그인이 끝났어요. 다시 로그인해 주세요')).toBeInTheDocument()
+    expect(
+      await screen.findByText('로그인이 만료되었습니다. 다시 로그인해주세요.'),
+    ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
     expect(router.state.location.state).toEqual({ from: '/me' })
     expect(sessionStore.getState().refreshToken).toBeNull()

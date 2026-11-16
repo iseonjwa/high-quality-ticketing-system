@@ -17,8 +17,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// 운영자 회차 좌석 생성 API(SA 11-5). 성공은 시드 공연장(KSPO DOME, 15,000석)으로,
+// 운영자 회차 좌석 생성 API(SA 11-5). 성공은 시드 공연장(KSPO DOME, 1,500석, ADR 0060)으로,
 // 입력 검증은 VIP·R 좌석만 있는 작은 테스트 공연장으로 확인한다.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
@@ -46,10 +47,8 @@ class AdminScheduleSeatApiTest {
     void setUp() {
         Long concertId = jdbc.queryForObject("INSERT INTO concerts (title, version, created_at, updated_at)"
                 + " VALUES (?, 0, now(), now()) RETURNING id", Long.class, MARK);
-        // 다른 테스트도 같은 이름의 공연장을 만들 수 있어, 좌석 15,000석이 있는 Flyway 시드 공연장을 고른다
-        Long seedVenueId = jdbc.queryForObject("SELECT v.id FROM venues v JOIN venue_seats vs ON vs.venue_id = v.id"
-                + " WHERE v.name = 'KSPO DOME' GROUP BY v.id HAVING count(*) = 15000 ORDER BY v.id LIMIT 1",
-                Long.class);
+        // 다른 테스트도 같은 이름의 공연장을 만들 수 있어, 시드가 먼저 넣은 가장 작은 id의 공연장을 고른다
+        Long seedVenueId = jdbc.queryForObject("SELECT min(id) FROM venues WHERE name = 'KSPO DOME'", Long.class);
         Long smallVenueId = jdbc.queryForObject("INSERT INTO venues (name, created_at, updated_at)"
                 + " VALUES (?, now(), now()) RETURNING id", Long.class, MARK);
         jdbc.update("INSERT INTO venue_seats (venue_id, section, row_no, seat_no, grade, created_at, updated_at)"
@@ -70,20 +69,31 @@ class AdminScheduleSeatApiTest {
     }
 
     @Test
-    void 공연장_좌석_15000석을_등급별_가격으로_만든다() throws Exception {
+    void 공연장_좌석_1500석을_등급별_가격으로_만든다() throws Exception {
         var response = post(seedScheduleId, ADMIN_ID, "ADMIN", ALL_GRADES);
 
         assertEquals(201, response.status());
         var data = response.json().get("data");
         assertEquals(seedScheduleId, data.get("scheduleId").asLong());
-        assertEquals(15_000, data.get("createdSeats").asInt());
+        assertEquals(1_500, data.get("createdSeats").asInt());
 
-        assertEquals(3_000, countSeats(seedScheduleId, "VIP", 165_000));
-        assertEquals(6_000, countSeats(seedScheduleId, "R", 143_000));
-        assertEquals(6_000, countSeats(seedScheduleId, "S", 121_000));
-        assertEquals(15_000, jdbc.queryForObject("SELECT count(*) FROM schedule_seats"
+        assertEquals(300, countSeats(seedScheduleId, "VIP", 165_000));
+        assertEquals(600, countSeats(seedScheduleId, "R", 143_000));
+        assertEquals(600, countSeats(seedScheduleId, "S", 121_000));
+        assertEquals(1_500, jdbc.queryForObject("SELECT count(*) FROM schedule_seats"
                 + " WHERE schedule_id = ? AND status = 'AVAILABLE' AND created_by = ?",
                 Integer.class, seedScheduleId, ADMIN_ID));
+    }
+
+    // ISE-284: 통계에 없는 새 회차는 DB가 좌석을 1행으로 짐작해 Nested Loop를 고른다.
+    // 좌석을 만든 응답이 왔을 때 이미 통계가 갱신돼 실제(1,500)에 가깝게 짐작해야 한다
+    @Test
+    void 좌석을_만든_직후_DB가_새_회차의_좌석_수를_실제에_가깝게_짐작한다() throws Exception {
+        assertEquals(201, post(seedScheduleId, ADMIN_ID, "ADMIN", ALL_GRADES).status());
+
+        double estimatedRows = estimatedRows(seedScheduleId);
+
+        assertTrue(estimatedRows >= 750 && estimatedRows <= 3_000, "추정 행 수: " + estimatedRows);
     }
 
     @Test
@@ -181,6 +191,13 @@ class AdminScheduleSeatApiTest {
     private int countAll(Long scheduleId) {
         return jdbc.queryForObject("SELECT count(*) FROM schedule_seats WHERE schedule_id = ?", Integer.class,
                 scheduleId);
+    }
+
+    // 회차 좌석 조회 조건으로 실행 계획만 세워(EXPLAIN, 실행은 안 함) DB가 짐작한 행 수를 읽는다
+    private double estimatedRows(Long scheduleId) {
+        String plan = jdbc.queryForObject("EXPLAIN (FORMAT JSON) SELECT id FROM schedule_seats WHERE schedule_id = ?",
+                String.class, scheduleId);
+        return JsonMapper.builder().build().readTree(plan).get(0).get("Plan").get("Plan Rows").asDouble();
     }
 
     private Response post(Long scheduleId, Long userId, String role, String body) throws Exception {

@@ -34,7 +34,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 8. 슬랙 #이선좌-배포상태알림에 단계마다 알린다: 배포 준비, 배포 중, 결과 순이다(ISE-175).
 9. 헬스나 스모크가 실패하면 직전 성공 태그로 되돌린다.
 
-스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 15,000석을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
+스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 1,500석(ADR 0060 전에는 15,000석)을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
 
 수동 재배포는 Jenkins에서 태그를 골라 다시 실행한다.
 
@@ -103,7 +103,7 @@ TAG=local docker buildx bake -f docker-bake.hcl gateway \
 
 ### 외부 노출 (SA 9-2)
 
-공개 진입점은 프론트 nginx의 80이다. 8080(Gateway 직접)은 전체에 열지 않고, 부하 측정 때 발생기 보안그룹에만 연다(부하 도구는 nginx를 거치지 않고 Gateway를 부른다, [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절). 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 내부 서비스는 `ports` 없이 `expose`만 쓴다.
+공개 진입점은 프론트 nginx의 443(https)이다. 80은 https로 넘기고 인증서 발급 확인 경로만 http로 둔다(2026-11-16, ISE-278, 아래 "HTTPS 인증서"). 8080(Gateway 직접)은 전체에 열지 않고, 부하 측정 때 발생기 보안그룹에만 연다(부하 도구는 nginx를 거치지 않고 Gateway를 부른다, [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절). 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 다만 Grafana는 시연·외부 심사 때 심사위원이 직접 보도록 nginx가 443의 `/grafana/`로 중계하고 누구나 보기만 된다(2026-11-16 사용자 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-16-grafana-public-over-https-path.md)). 내부 서비스는 `ports` 없이 `expose`만 쓴다.
 
 ## 3. 보안그룹 규칙
 
@@ -112,9 +112,10 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 대상 | 포트 | 인바운드 허용 | 비고 |
 |---|---|---|---|
 | 배포 EC2 | 22 | 팀원 IP, Jenkins EC2 보안그룹 | 키 인증만. Jenkins EC2는 SSH만 허용 |
-| 배포 EC2 | 80 | 전체(0.0.0.0/0) | 화면과 `/api/` 중계(프론트 nginx). 유일한 공개 진입점 |
+| 배포 EC2 | 443 | 전체(0.0.0.0/0) | 화면, `/api/` 중계, Grafana `/grafana/`(익명 보기). 공개 진입점(2026-11-16, ISE-278) |
+| 배포 EC2 | 80 | 전체(0.0.0.0/0) | https로 넘긴다. 인증서 발급·갱신 확인 경로(`/.well-known/acme-challenge/`)만 http로 둔다 |
 | 배포 EC2 | 8080 | 허용 없음. 부하 측정 중에만 발생기 보안그룹 | Gateway 직접 접근. 부하 도구용 |
-| 배포 EC2 | 3000 | 팀원 IP `/32` | Grafana만. 익명 Viewer(보기만)이고 시연 모드 링크가 이 주소로 온다 |
+| 배포 EC2 | 3000 | 허용 없음(2026-11-16부터. 팀원 IP 규칙은 지워도 된다) | Grafana는 443의 `/grafana/`로 본다. 컨테이너는 `127.0.0.1:3000`에만 열려 SSH 터널로도 볼 수 있다(`/grafana/`) |
 | 배포 EC2 | 8085, 9090, 9093, 9411, 8761 | 허용 없음 | SSH 터널로만 |
 | 배포 EC2 | 8081~8083, 8090, 8888, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 | Jenkins EC2 | 22 | 팀원 IP | Jenkins UI(8080)는 열지 않고 SSH 터널로만 접근 |
@@ -125,7 +126,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 배포 서버만 쓰는 `PUBLIC_URL`(서비스 공개 주소 `https://<서버 IP>`, 필수, 2026-11-16 ISE-278)이 있다. 서버 주소는 이 값 한 곳에만 둔다([판단 기록](../../ai-judgments/junhyun/2026-11-16-server-address-in-one-env-key.md)). 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다). 서버의 저장소는 지금 배포된 커밋에 머물러 있어 그 안의 스크립트는 새 키를 모른다. 새 스크립트를 받아 서버 저장소 위치에서 실행한다: `cd ~/iseonjwa && git fetch -q origin main && git show FETCH_HEAD:script/deploy/init-env.sh | sed "s|^cd .*dirname.*|cd $HOME/iseonjwa|" | bash`(main에 나가기 전이면 `main` 자리에 `dev`). 스크립트는 빠진 키만 더하고 값은 출력하지 않는다. 미리 더한 키는 지금 배포된 버전이 읽지 않으므로 먼저 돌려 두어도 된다. 결제 토큰 개인키는 OpenSSL 버전과 무관하게 PKCS#8로 만든다(3.0의 `genpkey -outform DER`는 예매 서비스가 읽지 못하는 SEC1을 낸다, [troubleshooting.md](../../troubleshooting.md) TS-61). 이미 있는 개인키가 PKCS#8이 아니면 같은 키를 PKCS#8로 바꿔 적고, 끝에 `결제 토큰 키 확인: 개인키 PKCS#8, 공개키와 짝이 맞음`을 출력한다. 이 줄이 나오지 않고 실패로 끝나면 배포하지 않는다.
@@ -154,10 +155,11 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 파일 | 하는 일 |
 |---|---|
 | `compose.deploy.yml` | `compose.yml` 위에 덮는다. 앱 9개를 `ghcr.io/iseonjwa/<서비스>:${IMAGE_TAG}`로 받고 `build`를 지운다(`!reset`). SA 9-3 상한·힙, 관측 추가분 상한, `restart: unless-stopped`, 로그 파일 크기 제한(20MB×5), 앱 프로필 `prod`(Mock PG만 `loadtest`, 장애 주입 API용, ISE-71), 트레이스 샘플링 1.0, `STACK_ENV=deploy`, Kafka-UI 읽기 전용(ISE-72). 공개는 frontend `80:80`, gateway는 `8080:8080`(보안 그룹이 외부를 막는다) |
-| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → 관측 도구 설정 해시를 라벨 값으로 넘김(설정이 바뀐 도구만 다시 만들어짐, 4절 아래 "관측 도구 설정 반영") → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크. 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
+| `script/deploy/deploy.sh <SHA>` | 옛 버전 이미지 정리(최근 3개 버전과 이번·직전 성공·그 앞 성공 커밋만 남김, [troubleshooting.md](../../troubleshooting.md) TS-60) → 저장소를 그 커밋으로 checkout(compose·config-repo·관측 설정을 이미지와 맞춘다) → 관측 도구 설정 해시를 라벨 값으로 넘김(설정이 바뀐 도구만 다시 만들어짐, 4절 아래 "관측 도구 설정 반영") → `pull` → `up -d --remove-orphans --wait`(헬스까지 최대 7분) → 스모크 → 성공하면 JIT 예열(실패해도 배포는 성공, 아래 "배포 뒤 JIT 예열"). 실패하면 `.deploy/current`의 직전 성공 커밋으로 되돌린다. 종료 코드 0 성공, 1 실패(되돌림 성공), 2 사용법, 3 되돌림도 실패 |
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
+| `script/deploy/warmup.sh [주소]` | 예열 전용 공연 `[예열 전용] 배포 JIT 예열`의 회차로 오픈 피크 경로(공연 상세 → 대기열 진입·순번 → 좌석 조회 일부 → 선점 → 결제 `pgProvider: MOCK` → 확정 확인 → 취소)를 k6(`loadtest/k6/scenarios/w1-warmup.js`)로 기본 초당 25번 × 120초 돈다. `deploy.sh`가 배포 성공 뒤 부르고, 측정 모드에서는 사람이 부른다(측정 전용 키를 알아서 쓴다). 상한 `WARMUP_TIMEOUT_SECONDS`(기본 420초) |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
-| `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
+| `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 1,500석씩, ADR 0060), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
 | `script/deploy/seed-lottery-entrants.sh` | 추첨 시연 응모자를 공개 API로 적재한다. `prepare`는 가입·로그인·카드 등록, `enter <추첨 id>`는 응모다. 다시 돌려도 안전하고, loopback이 아닌 주소는 `LOTTERY_SEED_ALLOW_REMOTE=yes`가 있어야 보낸다(ISE-199) |
 | `script/deploy/install-docker.sh` | Ubuntu에 Docker 공식 apt 저장소로 Docker와 compose 플러그인을 설치한다 |
 | `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
@@ -170,6 +172,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - `seed-lottery-entrants.sh`(ISE-199)는 2026-11-05 로컬 nginx(8000)에서 확인했다. `prepare`는 120명 73초였고 계정 120개, 활성 빌링키 108개다. 다시 실행하면 27초에 새 가입·카드 등록 없이 끝났다. `enter`는 120건 75초였고 `ENTERED`가 1매 90건, 2매 30건이다. 다시 실행해도 건수가 같았다. 응모 기간 전은 409로 멈추고 0건이다. 틀린 비밀번호는 첫 계정의 401에서 멈춘다. 추첨(30석, 예비 15) 90초 뒤 `PAID` 22건(30석), `FAILED`·`BILLING_KEY_MISSING` 2건, `dead_letters` 0건이었다. 스크립트는 `bash -n`을 통과했고, shellcheck는 이 PC에 없어 실행하지 못했다. 배포 서버 실행은 미확인이다.
 - 건별 알림(ISE-183)을 처음 올리는 배포는 `docker compose up -d --force-recreate --no-deps loki alertmanager`가 필요하다. `deploy.sh`의 `up -d`는 설정 파일 내용만 바뀐 컨테이너를 다시 만들지 않는다. Loki는 규칙 폴더 마운트가 더해져 다시 만들어질 수 있지만, `loki.yml`의 ruler 설정과 `alertmanager.yml`·`slack.tmpl`은 파일 내용이라 그대로는 반영되지 않는다. 다시 만든 뒤 Loki `/ready`(compose 내부 주소)와 Alertmanager UI에서 수신자 `slack-monitoring-event`를 확인한다. 10분 안에 남은 건별 줄은 다시 만들 때 한 번 더 알림이 될 수 있다. 서버의 `.env`에 `SLACK_WEBHOOK_MONITORING`이 있으면 이때 팀 채널로 실제 전송이 된다.
 - 관측 도구 설정 반영(2026-11-12, ISE-256): 위 수동 단계는 실제로 하지 않아 11/12에 Alertmanager·Alloy·Loki가 11/9 설정으로 돌고 있었다([troubleshooting.md](../../troubleshooting.md) TS-64). 이제 `deploy.sh`가 그 커밋의 설정 파일 해시(`git ls-tree` → `git hash-object`, 앞 12자)를 `CONFIG_HASH_PROMETHEUS`·`_ALERTMANAGER`·`_LOKI`·`_ALLOY`·`_GRAFANA`로 넘기고, `compose.deploy.yml`이 그 값을 각 도구의 라벨 `iseonjwa.config-hash`로 단다. 라벨이 바뀐 도구만 `up -d`가 다시 만들므로 수동 단계는 더 필요 없다. 대상 경로는 Prometheus `infra/prometheus.yml`·`infra/prometheus/`, Alertmanager `infra/alertmanager/`, Loki `infra/loki/`, Alloy `infra/alloy/`, Grafana `infra/grafana/provisioning/`이다(대시보드 JSON은 Grafana가 스스로 다시 읽으므로 뺐다). 볼륨(알림 무음, 지표, 로그)은 남는다. 라벨이 아직 없는 지금의 컨테이너는 이 변경이 든 첫 배포에서 다섯 개 모두 한 번 다시 만들어진다(각각 몇 초, Loki 재시작으로 건별 알림이 한 번 더 갈 수 있다). 직접 `docker compose up`을 부르면 라벨이 빈 값이라 그 도구들이 다시 만들어질 수 있다.
+- Kafka 헬스체크(2026-11-16, ISE-264): `kafka-broker-api-versions.sh`(실행마다 JVM 기동)를 bash `/dev/tcp`로 ApiVersions 요청을 직접 보내고 응답을 받는지 보는 검사로 바꿨다. 간격은 10초에서 30초로 늘리고, 기동 중 120초(`start_period`)는 2초(`start_interval`)마다 검사해 Kafka를 기다리는 서비스의 기동이 늦어지지 않게 했다. 11/15 배포 서버에서 헬스체크마다 Kafka CPU가 45~224%로 튀었기 때문이다([troubleshooting.md](../../troubleshooting.md) TS-70).
 
 ### 다시 띄운 뒤 서비스 발견 지연 (ISE-244)
 
@@ -191,6 +194,25 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - 확인 방법(배포 뒤): 서비스 하나를 다시 만들고 Gateway를 1초 간격으로 불러 503이 끝나는 시각을 잰다. 배포 값은 측정 전이다.
 - 고르지 않은 대안: (1) Gateway가 Eureka 대신 compose 서비스 이름(`http://payment-service:8083`)으로 바로 라우팅한다. Docker DNS는 컨테이너가 바뀌면 바로 따라오므로 발견 지연이 없다. 다만 발제의 Spring Cloud 구성(Eureka)과 여러 인스턴스 분산을 버리게 된다. (2) 주기를 1초로 더 줄인다. 얻는 것이 몇 초이고 Eureka 조회만 늘어난다.
 
+### 배포 뒤 JIT 예열 (ISE-264)
+
+새로 뜬 JVM은 처음 받는 요청을 인터프리터로 돌리다가 자주 부르는 메서드를 JIT(C1 → C2)로 컴파일한다. 배포나 측정 모드 전환 직후 오픈이 오면 좌석 선점·결제·확정 경로가 그 순간 처음 뜨거워져 컴파일이 피크와 겹친다. 11/15 균일 122 오픈 피크 30초에 `jvm_compilation_time_ms_total` 기준 컴파일이 reservation CPU의 약 30%(0.31\~0.43코어 상당), payment는 CPU와 비슷했다(0.34\~0.61, 측정. 이 지표는 컴파일러 스레드의 경과 시간이라 실제 CPU 몫의 상한이다). 오픈 전 10분 동안 공연 상세만 받아 데워진 Gateway는 0.03\~0.06이었다. 그래서 배포가 성공하면 같은 경로를 예열 전용 공연으로 미리 돈다.
+
+| 선택지 | 하는 일 | 데이터 오염 | readiness와의 관계 | 대가 |
+|---|---|---|---|---|
+| (a) 배포 뒤 HTTP 예열(고름) | `deploy.sh`가 스모크 뒤 `warmup.sh`를 부르고, k6가 nginx → Gateway → 서비스 실제 경로를 돈다 | 예열 전용 공연·회차와 전용 사용자 ID(9억~)만 쓰고 반복마다 취소한다. 남는 것은 그 회차의 취소된 예매·환불된 Mock 결제 기록뿐이다 | readiness 뒤에 돈다. 그 2분 동안 들어온 실제 요청은 아직 덜 데워진 서버를 만난다 | 배포가 약 2.5분 길어진다. 예열 공연이 공개 공연 목록에 보인다. 서버에 k6 이미지가 하나 더 받힌다 |
+| (b) 앱 안 `ApplicationReadyEvent` 예열 | 각 서비스가 기동할 때 자기 서비스 메서드를 예열 데이터로 반복 부르고 정리한다 | 서비스 메서드를 직접 부르므로 정리 코드를 서비스마다 따로 짜야 하고, 서비스 사이(Kafka 결제 결과·환불)는 한 서비스 안에서 돌릴 수 없다 | readiness 전에 끝낼 수 있다(동기 리스너가 끝나야 `ACCEPTING_TRAFFIC`, 일반 지식) | Gateway·필터·직렬화·Kafka 소비 경로는 데워지지 않는다. 운영 코드에 예열 전용 경로가 서비스 수만큼 생긴다 |
+| (c) JVM 옵션 | CDS/AppCDS, `-XX:TieredStopAtLevel`, `-XX:CICompilerCount` 등 | 없다 | 없다 | CDS/AppCDS는 클래스 적재를 줄여 기동 시간만 줄이고 JIT 예열은 아니다. 프로파일을 저장해 다음 기동에 쓰는 AOT 메서드 프로파일(JEP 515)은 JDK 25부터라 JDK 21에는 없다. 컴파일러 스레드를 늘리면 피크의 컴파일 CPU가 오히려 늘 수 있다(모두 일반 지식) |
+
+- 고른 이유: 실제 요청과 같은 경로(Gateway 인증·입장 토큰 필터, Jackson 직렬화, JPA, Kafka 결제 결과·환불 소비)를 한 번에 데우고, 예열 코드가 운영 앱에 들어가지 않는다. 측정 모드에서도 같은 명령으로 돌릴 수 있다. k6 시나리오와 `run.sh`를 이미 측정에 쓰고 있어 새 도구가 없다.
+- 데이터: 공연 제목으로 예열 공연을 찾아 다시 쓰고 없을 때만 만든다. 회차는 이미 판매 중이고 공연 시작까지 2일 넘게 남은 것을 다시 쓰고, 빈 좌석이 750석(초당 반복 수 × 30초)보다 적거나 없으면 30일 뒤 시작하는 회차(1,500석)를 새로 만든다. 반복은 취소로 돌아온 좌석을 돌려 가며 다시 쓴다(ADR 0060). 반복마다 확정된 예매를 취소해 좌석·매수를 돌려주고 결제 서비스가 Mock PG로 환불한다. 결제는 `pgProvider: MOCK`만 보낸다(토스 모드 서버는 `PAYMENT_PG_MOCK_BYPASS=true`가 필요하고, 없으면 결제가 400이라 예열 결과가 실패로 남는다). 결제가 승인되지 않은 선점은 좌석 하나가 묶여 남는다(배포 메모리 덮어쓰기는 선점 만료 스케줄러를 끈다).
+- 서명 키: 서버 안에서 돌아 `.env`의 키로 토큰을 서명한다. 키는 서버 밖으로 나가지 않는다(발생기에 운영 키를 두지 않는 ADR 0046 규칙과 어긋나지 않는다). 측정 모드(`.deploy/measure-mode`)이면 `.env.measure`의 측정 전용 키를 쓴다. `deploy.sh`는 측정 모드를 풀고 다시 띄우므로 늘 `.env` 키를 쓴다.
+- 실패: 예열은 준비 작업이라 실패해도 `deploy.sh`의 결과를 바꾸지 않고 경고만 출력한다. 되돌림 배포 뒤에는 돌리지 않는다. 끄려면 `DEPLOY_WARMUP=0`. 출력은 `.deploy/warmup-last.txt`, 요약은 `loadtest/k6/results/w1-warmup-*`(최근 5번)에 남는다.
+- 처음 반영: Jenkins는 서버에 이미 checkout된 `deploy.sh`를 부르고 그 안에서 새 커밋으로 바꾼다. 그래서 예열은 이 변경이 든 다음 배포부터 돈다.
+- 측정 모드에서 쓰기: `MEASURER=<이름> script/loadtest/measure-mode.sh on` 뒤에 `script/deploy/warmup.sh`. 예열한 측정은 "데워진 서버" 조건이므로 결과에 적는다.
+- 확인: `bash -n`, `DRY_RUN=1`로 키 선택 분기(운영·측정 모드·배포에서 부름), `k6 inspect`로 시나리오 옵션을 확인했다(2026-11-16). 서버 실행과 예열 효과(피크 컴파일 지표)는 확인 못 함. v2 배포 뒤 같은 오픈 시나리오에서 `rate(jvm_compilation_time_ms_total[20s])`를 예열 전후로 비교한다.
+- 바꿀 조건: 예열 뒤에도 피크 컴파일이 크게 남으면 반복 수(`WARMUP_RATE`·`WARMUP_SECONDS`)를 늘리거나 빠진 경로(추첨 등)를 더한다. 예열이 배포 시간을 문제로 만들면 백그라운드 실행으로 바꾼다.
+
 ### 내부 AI 상담 배포 (ISE-126)
 
 설계는 [`design/assistant/README.md`](../assistant/README.md), 결정은 [ADR 0049](../../decisions/0049-assistant-service-claude-api.md)다.
@@ -209,20 +231,84 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ### 서버 준비 순서 (배포 EC2, 처음 한 번)
 
-1. EC2: Ubuntu 24.04 LTS(x86), 16GB급, gp3 40GB, 키 페어 `iseonjwa-deploy`, 보안 그룹 `iseonjwa-deploy-sg`(80 전체, 22 팀원 IP·Jenkins 보안 그룹, 8080은 열지 않음). 주소가 바뀌지 않게 Elastic IP를 붙인다.
+1. EC2: Ubuntu 24.04 LTS(x86), 16GB급, gp3 40GB, 키 페어 `iseonjwa-deploy`, 보안 그룹 `iseonjwa-deploy-sg`(80·443 전체, 22 팀원 IP·Jenkins 보안 그룹, 8080은 열지 않음). 주소가 바뀌지 않게 Elastic IP를 붙인다.
 2. 접속: `ssh -i ~/.ssh/iseonjwa-deploy.pem ubuntu@<주소>`
 3. `git clone https://github.com/iseonjwa/high-quality-ticketing-system.git ~/iseonjwa && cd ~/iseonjwa`
 4. `bash script/deploy/install-docker.sh` 뒤 다시 접속한다.
-5. `script/deploy/init-env.sh`. 슬랙 알림을 받으려면 `.env`의 `SLACK_WEBHOOK_MONITORING`을 서버에서 직접 채운다.
-6. 첫 배포: `script/deploy/deploy.sh <main의 40자 커밋 SHA>`(그 커밋의 이미지가 GHCR에 있어야 한다).
+5. `script/deploy/init-env.sh`. `.env`의 `PUBLIC_URL`(예: `https://<서버 IP>`)을 채운다. 비어 있으면 배포가 멈춘다. 슬랙 알림을 받으려면 `SLACK_WEBHOOK_MONITORING`을 서버에서 직접 채운다.
+6. HTTPS 인증서를 받는다(아래 "HTTPS 인증서" 1~4). 인증서가 없으면 nginx가 뜨지 않아 첫 배포가 실패한다.
+7. 첫 배포: `script/deploy/deploy.sh <main의 40자 커밋 SHA>`(그 커밋의 이미지가 GHCR에 있어야 한다).
    - 시연 데이터: `script/deploy/seed-demo.sh`(ISE-177). 회차 둘을 만든다. "지금 예매"는 오픈 시각이 이미 지난 회차(공연 7일 뒤)이고, "오픈 시연"은 `OPEN_AT`(ISO-8601 UTC)으로 정한 시각에 열리는 회차(공연 8일 뒤)다. `OPEN_AT`이 없으면 지금부터 30분 뒤다. 예: `OPEN_AT=2026-11-06T05:00:00Z script/deploy/seed-demo.sh`. 회차를 고치는 API가 없으므로 오픈 시각은 바꿀 수 없다. 대신 리허설·시연 직전에 `script/deploy/seed-demo.sh open <OPEN_AT> [주소]`로 시연 공연에 "오픈 시연" 회차를 하나 더 만든다(좌석 포함, 공연 시작은 OPEN_AT 다음 날). 예: `script/deploy/seed-demo.sh open $(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)`. 끝에 새 회차 id와 오픈 시각이 나온다.
    - `OPEN_AT`은 API를 부르기 전에 형식과 "공연 시작(8일 뒤)보다 앞선다"를 검사하고, 틀리면 아무것도 만들지 않고 종료 코드 2로 끝난다. 공연만 있고 회차가 0개면(이전 실행이 중간에 실패) 기본 실행이 회차·좌석을 이어서 만든다.
    - 공연장 id는 조회 API가 없어 예약 DB 컨테이너에서 이름이 `KSPO DOME`인 공연장을 찾는다(없으면 `VENUE_ID`로 넘긴다). 오픈 시각 검증은 회차 등록이 `openAt`이 `startsAt`보다 앞서는지만 본다(`Schedule.create`). 지난 오픈 시각도 받는다. 샘플 사용자 비밀번호는 서버에서 `grep SAMPLE_USER_PASSWORD .env`로 본다.
-7. Grafana는 `http://52.63.10.174:3000`으로 바로 연다(등록된 IP만, 로그인 없이 보기). 나머지 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:9090`.
-8. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
+8. Grafana는 `https://<서버 IP>/grafana/`로 연다(누구나, 로그인 없이 보기). 나머지 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:9090`.
+9. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
 
 - DB 스키마(Flyway) 변경이 있는 릴리스는 이미지만 되돌려서는 풀리지 않을 수 있다. 되돌림 가능한 마이그레이션 규칙은 정하지 않았다(미정).
 - 되돌림 자체가 실패하면 슬랙에 알리고 사람이 접속한다. 자동 재시도 횟수는 미정이다.
+
+### HTTPS 인증서 (ISE-278)
+
+2026-11-16부터 배포 화면은 `https://<서버 IP>/`다(지금 서버는 `52.63.10.174`). 도메인 없이 Let's Encrypt IP 주소 인증서를 쓴다. IP 인증서는 2026-01-15부터 일반 제공되고 유효 기간은 160시간(약 6일)짜리 shortlived 프로필만 된다. Certbot은 5.4부터 webroot 방식으로 IP 인증서를 받는다(설치는 해 주지 않는다). 근거는 [학습 노트](../../learning/junhyun/qna/2026-11-13-server-access-security-as-strength.md) "이어진 질문" 절이다.
+
+구성:
+- 프론트 nginx 배포 설정은 `frontend/nginx/deploy.conf`이고 `compose.deploy.yml`이 이미지의 `default.conf` 자리에 마운트한다. 로컬과 이미지는 지금처럼 80(http)만 쓴다(`default.conf`). 화면·`/api/` 경로는 둘이 같은 `app.conf`를 include한다.
+- 바깥에서 온 80은 `https://$host$request_uri`로 넘긴다. `/.well-known/acme-challenge/`만 서버의 `/var/www/certbot`에서 내보낸다(발급·갱신 확인).
+- Host가 `127.0.0.1`·`localhost`인 80 요청은 http 그대로 화면과 `/api/`를 준다. 서버 안의 스크립트(compose 헬스체크, `smoke.sh`, `warmup.sh`, `seed-demo.sh`)가 `http://127.0.0.1`로 부르기 때문이다. 인증서는 공인 IP용이라 이 주소로는 https 확인이 되지 않는다.
+- 443은 `/etc/letsencrypt/live/iseonjwa/`의 인증서를 쓴다. 인증서 이름을 `--cert-name iseonjwa`로 붙여 nginx 설정에 주소를 적지 않는다. `/etc/letsencrypt`의 `live/`와 `archive/`만 같은 경로에 읽기 전용으로 마운트한다(`live/`의 파일은 갱신 때마다 `archive/`의 새 파일을 가리키는 상대 링크다. ACME 계정 키가 든 `accounts/` 등은 넣지 않는다). TLS 1.2·1.3, HTTP/2.
+- 80의 넘김은 302(임시)다. 301은 브라우저가 오래 기억해, https를 되돌려 443을 닫았을 때 한 번 들른 브라우저가 http 주소로도 열지 못한다.
+- Grafana는 443의 `/grafana/`로 중계하고(Grafana Live WebSocket 포함), Grafana가 하위 경로에서 스스로 서빙한다(`GF_SERVER_SERVE_FROM_SUB_PATH`, `GF_SERVER_ROOT_URL=${PUBLIC_URL}/grafana/`). 3000은 `127.0.0.1`에만 연다. 로그인 쿠키는 https에서만 보낸다(`GF_SECURITY_COOKIE_SECURE`). 그래서 SSH 터널(http)로는 관리자 로그인이 되지 않고, 로그인은 https 주소에서 한다. 시연 모드 traceId 링크는 https 화면에서 같은 주소의 `/grafana`로 간다(`frontend/src/demo/grafana.ts`).
+- 서버 주소는 서버 `.env`의 `PUBLIC_URL` 한 곳에만 둔다. Grafana `root_url`과 슬랙 알림의 Grafana 바로 가기(`slack.tmpl`의 `iseonjwa.grafana_url`)가 이 값에서 나온다. Alertmanager 템플릿은 환경 변수를 읽지 못해 compose `configs`(`grafana-url-template`)가 값을 넣은 템플릿 파일을 만들어 준다. configs 내용만 바뀌면 compose가 컨테이너를 다시 만들지 않으므로 Alertmanager에 같은 주소를 라벨(`iseonjwa.grafana-url`)로 달아 값이 바뀌면 다시 만들게 했다. Jenkins EC2의 `/opt/jenkins/jenkins.env`에 있는 `PUBLIC_URL`(배포 결과 슬랙의 바로 가기)은 다른 기계의 별개 값이다. https로 바꿔 두면 된다(그대로여도 http가 https로 넘어간다).
+- `deploy.sh`는 이미지를 받기 전에 compose 설정을 읽어 보고(`config --quiet`), `PUBLIC_URL`이 비어 있으면 compose 오류를 그대로 보이고 실패한다. `smoke.sh`는 `http://127.0.0.1`(서버 안 스크립트용 블록)에 더해 `https://127.0.0.1`의 화면·공개 API·`/grafana/api/health`를 본다. 바깥 사용자가 지나는 443을 확인하고, `PUBLIC_URL`을 잘못 적어 Grafana 하위 경로가 어긋나면 배포가 되돌려진다. 로컬에서 돌릴 때는 `SMOKE_HTTPS_BASE=""`로 끈다.
+- HSTS는 켜지 않는다. 인증서가 6일짜리라 갱신이 한 번 실패하면 HSTS를 기억한 브라우저는 http로도 열 수 없다.
+
+처음 한 번(서버 명령은 사람이 실행한다. 에이전트 세션은 배포 서버 SSH가 막혀 있다):
+1. 인증서 확인 경로가 든 배포(PR 1, `deploy.conf`의 80에 `/.well-known/acme-challenge/`)가 서버에 떠 있어야 한다. 서버에서 `sudo mkdir -p /var/www/certbot`.
+2. Certbot 설치(snap, 5.4 이상):
+   ```bash
+   sudo snap install --classic certbot
+   sudo ln -sf /snap/bin/certbot /usr/local/bin/certbot
+   certbot --version
+   ```
+3. 시험 발급(staging, 신뢰되지 않는 인증서. 확인 경로가 바깥에서 열리는지만 본다). 처음 실행하면 이메일과 약관 동의를 묻는다. 성공하면 지운다.
+   ```bash
+   sudo certbot certonly --staging --preferred-profile shortlived --webroot --webroot-path /var/www/certbot \
+     --ip-address <서버 IP> --cert-name iseonjwa
+   sudo certbot delete --cert-name iseonjwa
+   ```
+4. 실제 발급. 갱신 훅은 여기서 걸지 않는다. 이 시점의 서버 저장소(PR 663)에는 훅 스크립트가 아직 없어 certbot이 훅 경로 검사에서 멈춘다. 훅은 7단계에서 설치한다.
+   ```bash
+   sudo certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/certbot \
+     --ip-address <서버 IP> --cert-name iseonjwa
+   sudo ls /etc/letsencrypt/live/iseonjwa/   # fullchain.pem, privkey.pem
+   ```
+5. `.env`에 공개 주소: `sed -i '/^PUBLIC_URL=/d' .env && echo 'PUBLIC_URL=https://<서버 IP>' >> .env`(끝 슬래시 없이).
+6. 보안 그룹 `iseonjwa-deploy-sg`에 443(0.0.0.0/0)을 연다(계정 주인이 콘솔에서).
+7. 443이 든 배포(PR 2)를 main에 반영해 Jenkins로 배포한다. 진행 중인 결제가 없을 때 한다. 토스 결제창은 http 주소로 돌아오게 열렸던 결제를 https 주소에서 이어 받지 못할 수 있다. 로그인 토큰은 주소(origin)마다 따로 저장되므로 http에서 로그인한 사람은 https에서 다시 로그인한다. `https://<서버 IP>/`가 경고 없이 열리고 `http://`가 https로 넘어가는지, `https://<서버 IP>/grafana/`가 열리는지 본다. 그 뒤 갱신 훅을 설치한다(이 파일을 고치는 배포가 있으면 다시 설치한다).
+   ```bash
+   cd ~/iseonjwa && sudo install -m 755 script/deploy/cert-renewed.sh /etc/letsencrypt/renewal-hooks/deploy/iseonjwa-nginx.sh
+   sudo /etc/letsencrypt/renewal-hooks/deploy/iseonjwa-nginx.sh   # "nginx가 새 인증서를 다시 읽었다"
+   ```
+8. 갱신 시험과 만료 알림 등록:
+   ```bash
+   systemctl list-timers | grep -i certbot          # snap.certbot.renew.timer가 있는지
+   sudo certbot renew --dry-run                      # staging으로 갱신을 흉내 낸다(갱신 훅은 돌지 않는다. 훅은 7단계에서 직접 돌려 봤다)
+   crontab -e                                        # 아래 한 줄을 더한다(6시간마다)
+   0 */6 * * * /home/ubuntu/iseonjwa/script/deploy/cert-check.sh >> /home/ubuntu/cert-check.log 2>&1
+   ```
+
+갱신과 알림:
+- Certbot 4.0부터 유효 기간이 10일 이하인 인증서는 수명의 절반(약 80시간)이 남으면 갱신 대상이 된다. snap 패키지의 타이머가 `certbot renew`를 주기적으로 돌린다.
+- `script/deploy/cert-check.sh`는 파일이 아니라 443이 실제로 내보내는 인증서를 보고, 48시간(`CERT_MIN_HOURS`) 안에 만료되면 `SLACK_WEBHOOK_MONITORING`으로 알린다. 갱신 실패와 "갱신은 됐는데 nginx가 다시 읽지 못함"을 함께 잡는다. 인증서를 읽지 못해도(nginx가 내려감) 알린다. 읽기는 10초로 끊고, 읽지 못하면 30초 뒤 한 번 더 읽는다(배포가 frontend를 다시 만드는 몇 초와 겹쳐 잘못 알리지 않게).
+- 알림을 받으면 서버에서 `sudo certbot renew`와 `/var/log/letsencrypt/letsencrypt.log`를 본다. 인증서가 이미 만료됐어도 nginx는 뜨지만 브라우저가 경고를 띄운다.
+- 시연 직전에 https를 고칠 수 없으면 Jenkins 매개변수 `TAG`에 PR 2 직전 main 커밋을 넣어 다시 배포한다. 80이 다시 http로 화면을 주고(HSTS를 켜지 않아 브라우저가 http를 막지 않는다), `.env`의 `PUBLIC_URL`은 남아 있어도 된다.
+- `cert-check.sh`는 PR 2 이후 커밋에만 있다. 그보다 앞선 커밋으로 되돌리면 cron이 실패한다(되돌림을 풀면 다시 돈다).
+
+알려진 한계:
+- Grafana 익명 보기는 대시보드뿐 아니라 데이터 소스 조회 API(`/grafana/api/ds/query`)도 연다. 로컬 재현에서 익명 요청이 Prometheus 조회까지 넘어가는 것을 확인했다. 그래서 누구나 Prometheus·Loki·Zipkin을 직접 조회할 수 있다. Loki에는 앱 컨테이너 8개의 로그만 들어가고, 요청 로그는 메서드·경로(쿼리 문자열 없음)·상태·처리 시간·traceId·사용자 번호다. 이메일·비밀번호·토큰은 남기지 않는다(2026-11-16 코드 검색 기준). 익명은 관리 화면과 Explore에서 밀려나고 대시보드를 만들 수 없다(403). 심사가 끝나면 `GF_AUTH_ANONYMOUS_ENABLED`를 끄거나 `/grafana/` 중계를 뺀다.
+- 같은 이유로 누구나 무거운 PromQL·LogQL을 보내 Prometheus(768m)·Loki(512m)에 부하를 줄 수 있다. nginx 요청 제한(`limit_req`)은 두지 않았다. 심사위원이 같은 공유기(같은 공인 IP)에서 대시보드를 열면 패널 요청이 한꺼번에 몰려 시연 중 화면이 막힐 수 있어서다. 시연 때 Grafana 지표가 이상하면 이 경로를 먼저 의심한다.
+- Grafana 로그인 화면도 바깥에 열린다. 관리자 비밀번호는 서버 `.env`의 무작위 값이고 Grafana 기본 로그인 시도 제한이 있다.
+- 발생기 → Gateway 사설 IP(8080)는 http 그대로다. 측정 전용 키로 만든 토큰만 오간다.
 
 ### Jenkins (ISE-175)
 
@@ -251,7 +337,7 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 
 옵션은 동시 실행 금지, 타임스탬프, 전체 40분 제한이다. 되돌리기·재배포는 Jenkins에서 `TAG`에 이전 커밋 SHA를 넣고 실행한다. `BookingFlowSystemTest`를 고르는 매개변수는 이번에 넣지 않았다(후속).
 
-**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`, 선택 `PUBLIC_URL`=슬랙 바로 가기 주소, 서버는 `http://52.63.10.174`)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
+**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`, 선택 `PUBLIC_URL`=슬랙 바로 가기 주소, 서버는 `http://52.63.10.174`. 2026-11-16 https 전환 뒤에는 `https://`로 바꾼다)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
 
 **`DEPLOY_HOST`는 배포 EC2의 사설 IP다.** 배포 서버 보안 그룹은 "Jenkins 보안 그룹에서 오는 22"만 허용하는데, 이 규칙은 VPC 안 사설 IP로 온 연결에만 맞는다. 공인 IP(Elastic IP)로 붙으면 출발지가 Jenkins 보안 그룹이 아닌 공인 주소로 보여 막힌다. 두 EC2는 같은 VPC에 둔다.
 
@@ -296,6 +382,22 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 - Jenkins: Jenkins 서버에서 만든 배포 전용 키(`/opt/jenkins/deploy_ssh_key`, ed25519)를 배포 서버 `authorized_keys`에 더하고, Jenkins 서버에서 배포 서버 사설 IP로 SSH가 되는 것(보안 그룹 참조 규칙)을 확인했다. `/opt/jenkins/jenkins.env`(관리자 비밀번호 무작위, 배포 웹훅은 로컬 `.env`에서 출력 없이)로 띄우자 폴링이 첫 빌드를 시작했다. 빌드 #1은 커밋 확인 → 이미지 8개 확인 → SSH 배포 → 스모크 4개 통과로 23초 만에 SUCCESS였다.
 - 유휴 메모리(배포 직후, `docker stats`): 사용 약 4.7GB / 15.7GB. 큰 것부터 reservation 505MiB(상한 1,152m의 44%), kafka 429MiB, payment 404MiB, user 384MiB(60%), gateway 347MiB, grafana 278MiB(384m의 72%), eureka 273MiB. 부하 중 측정은 ISE-176·181에서 한다. Loki에 앱 7개 라벨이 모두 들어왔다.
 
+### 앱 컨테이너 메모리 예산 (ISE-264)
+
+컨테이너 상한은 힙 최대 + 비힙 committed(Metaspace·코드 캐시) + 직접 버퍼 + JVM 지표 밖(스레드 스택·GC 자료구조·malloc)으로 잡는다. 지표 밖 메모리는 cgroup 사용량에서 힙·비힙 committed를 빼서 잰다. 아래 실측은 2026-11-15 17:48(UTC) 배포 서버 값이다(Prometheus `jvm_memory_committed_bytes`, 컨테이너 `memory.current`). payment는 재시작 7분 뒤다.
+
+| 서비스 | 상한 | 힙 최대 | 힙 committed | 비힙 committed | 지표 밖(계산) | 힙 최대일 때(계산) | 판단 |
+|---|---|---|---|---|---|---|---|
+| payment-service | 768m → **1024m** | 512 | 375 | 193(최대 216) | 약 144 | 약 870 | 11/15 cgroup OOM 5회(TS-71). 상한을 올리고 힙 밖 상한을 둠 |
+| gateway | 1024m | 512 | 256 | 170 | 약 104 | 약 786 + 직접 128 상한 | ISE-264 이전에 고침 |
+| reservation-service | 1152m | 768 | 384 | 272 | 약 140 | 약 1,180 | 계산상 넘을 수 있음. 죽은 기록 없음 |
+| user-service | 640m | 384 | 192 | 193 | 약 96 | 약 673 | 계산상 넘을 수 있음. 죽은 기록 없음 |
+| assistant-service | 384m | 192 | 96 | 124 | 약 75 | 약 391 | 계산상 경계. 죽은 기록 없음 |
+
+- payment 옵션: `-Xms256m -Xmx512m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC`. 힙 밖 상한은 실측의 약 2~3배라 평소에는 닿지 않고, 누수가 생기면 컨테이너 강제 종료(exit 137) 대신 JVM 오류로 보인다.
+- 컨테이너 상한 합: 12,992 → 13,248MiB(22개 서비스, `docker compose -f compose.yml -f compose.deploy.yml config` 계산). 장비 15,701MiB의 84%다. 11/15 17:48 `free -m`의 실제 사용은 7,217MiB였다.
+- reservation·user·assistant는 힙이 최대까지 커진 적이 아직 없다. 각각 128·128·64MiB 늘리면 합이 13,568MiB(장비의 86%)가 되어 남은 여유가 줄므로, 부하 중 cgroup 사용량이 상한의 90%를 넘으면 같은 방식으로 다시 정한다.
+
 ## 6. 인스턴스 크기 결정 방법 (SA U10)
 
 결정(2026-11-04, 사용자): 16GB급. 금요일(11/6) 리허설에 맞추려고 측정을 기다리지 않고 SA 9-3 합계(관측 추가분 포함 약 12GB)로 정했다. Free plan은 8GB급까지라 Paid plan으로 바꿨다. 측정(ISE-176)은 배포 서버의 실제 사용량으로 대신하고, 아래 근거는 결정 전 기록이다.
@@ -323,8 +425,8 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | 프론트 nginx 공개 포트와 8080의 관계 | 정함(ISE-109): 80 공개, 8080은 발생기 보안그룹만 |
 | 서버 `.env` 키 갱신 절차 | 정함(ISE-174): `script/deploy/init-env.sh`가 빠진 키만 더한다. 키가 바뀌는 릴리스는 배포 전에 서버에서 한 번 돌린다 |
 | DB·캐시·브로커를 매니지드 서비스(RDS 등)로 분리 | 검토 예정: 11/7~11/12 서버 중지 기간([ADR 0047](../../decisions/0047-single-ec2-first-managed-split-review.md)). 그전까지는 단일 EC2 |
-| 관리 화면 접근 | 정함(2026-11-05, 사용자): Grafana만 3000을 팀원 IP로 열고 익명 보기, 나머지는 SSH 터널 |
-| HTTPS | 리허설 뒤 Let's Encrypt IP 인증서(무료, 약 6일 자동 갱신, certbot)로 붙인다. 지금은 HTTP만 연다 |
+| 관리 화면 접근 | 바뀜(2026-11-16, 사용자): Grafana만 `https://<서버 IP>/grafana/`로 누구나 보기(익명 Viewer), 나머지는 SSH 터널. 2026-11-05 결정(Grafana 3000을 팀원 IP로)을 대체한다([판단 기록](../../ai-judgments/junhyun/2026-11-16-grafana-public-over-https-path.md)) |
+| HTTPS | 정함(2026-11-16, ISE-278): Let's Encrypt IP 인증서(shortlived 약 6일, certbot webroot, 자동 갱신 + 만료 알림), HSTS 끔. 위 "HTTPS 인증서" |
 | 서버 운영 일정 | 정함(ADR 0047): 11/6까지 켜 둠, 11/7~11/12 중지, 11/13~11/19 다시 켬, 그 뒤 삭제 |
 | DB 마이그레이션이 있는 릴리스의 되돌림 규칙 | 미정 |
 | 배포 DB 시드(시연용 관리자·샘플 계정, 공연 데이터) | 정함(ISE-177): `seed-demo.sh`. 관리자는 `.env`의 `ADMIN_EMAIL`로 기동 때 만들어진다 |

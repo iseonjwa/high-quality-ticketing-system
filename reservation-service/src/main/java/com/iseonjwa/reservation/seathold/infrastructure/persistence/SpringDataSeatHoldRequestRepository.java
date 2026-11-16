@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 interface SpringDataSeatHoldRequestRepository extends JpaRepository<SeatHoldRequest, UUID> {
@@ -20,6 +21,72 @@ interface SpringDataSeatHoldRequestRepository extends JpaRepository<SeatHoldRequ
             """)
     int markHeld(@Param("requestId") UUID requestId, @Param("reservationId") Long reservationId,
             @Param("now") Instant now, @Param("actorId") Long actorId);
+
+    // 자동 배정은 고른 좌석도 함께 쓴다. 배열은 PostgreSQL 배열 리터럴("{1,2}")을 bigint[]로 바꿔 넣는다.
+    // Note: 값은 Long 목록에서만 만들어 SQL 조각이 섞이지 않는다. 드라이버별 배열 바인딩 차이를 피하려고 문자열로 넘긴다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE seat_hold_requests
+               SET status = 'HELD', reservation_id = :reservationId, seat_ids = CAST(:seatIds AS bigint[]),
+                   updated_at = :now, updated_by = :actorId
+             WHERE request_id = :requestId
+               AND status = 'REQUESTED'
+               AND auto_criteria IS NOT NULL
+            """)
+    int markAutoHeld(@Param("requestId") UUID requestId, @Param("reservationId") Long reservationId,
+            @Param("seatIds") String seatIds, @Param("now") Instant now, @Param("actorId") Long actorId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT created_at FROM seat_hold_requests
+             WHERE request_id = :requestId
+               AND status = 'REQUESTED'
+               FOR UPDATE
+            """)
+    Optional<Instant> lockRequestedCreatedAt(@Param("requestId") UUID requestId);
+
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE seat_hold_requests
+               SET status = 'REJECTED', reason_code = :reasonCode, updated_at = :now
+             WHERE request_id = :requestId
+               AND status = 'REQUESTED'
+            """)
+    int markRejected(@Param("requestId") UUID requestId, @Param("reasonCode") String reasonCode,
+            @Param("now") Instant now);
+
+    // Note: SKIP LOCKED로 소비자가 잠근 행을 기다리지 않는다. 소비자가 그 행의 결과를 쓰고, 못 쓰면 다음 주기에 닫힌다.
+    // (status, created_at) 인덱스로 오래된 순으로 고른다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            UPDATE seat_hold_requests
+               SET status = 'REJECTED', reason_code = 'TIMEOUT', updated_at = :now
+             WHERE request_id IN (
+                   SELECT request_id FROM seat_hold_requests
+                    WHERE status = 'REQUESTED'
+                      AND created_at <= :createdBefore
+                    ORDER BY created_at
+                    LIMIT :limit
+                      FOR UPDATE SKIP LOCKED)
+            """)
+    int rejectTimedOut(@Param("createdBefore") Instant createdBefore, @Param("now") Instant now,
+            @Param("limit") int limit);
+
+    // 멱등키 조회와 토큰 사용 조회를 한 문장으로 합친다(PK, 부분 유니크 인덱스를 각각 탄다).
+    // 별칭을 따옴표로 감싸야 PostgreSQL이 소문자로 바꾸지 않아 프로젝션 이름과 맞는다
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (SELECT 1 FROM seat_hold_requests WHERE request_id = :requestId) AS "requestExists",
+                   (CAST(:jti AS VARCHAR) IS NOT NULL
+                    AND EXISTS (SELECT 1 FROM seat_hold_requests
+                                 WHERE entry_token_jti = CAST(:jti AS VARCHAR)
+                                   AND status <> 'REJECTED')) AS "tokenActive"
+            """)
+    KeyStateView findKeyState(@Param("requestId") UUID requestId, @Param("jti") String entryTokenJti);
+
+    interface KeyStateView {
+        boolean getRequestExists();
+
+        boolean getTokenActive();
+    }
 
     // 부분 유니크 인덱스(uq_seat_hold_requests_entry_token_jti)와 같은 조건이라 그 인덱스로 찾는다
     @Query(nativeQuery = true, value = """

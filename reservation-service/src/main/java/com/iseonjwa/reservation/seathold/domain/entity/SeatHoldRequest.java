@@ -60,6 +60,10 @@ public class SeatHoldRequest extends BaseEntity implements Persistable<UUID> {
     @Column(name = "entry_token_jti", updatable = false, length = 64)
     private String entryTokenJti;
 
+    // 자동 배정 선점의 조건(구역·등급·매수). 같은 멱등키 재요청을 이 값으로 비교한다. 좌석을 직접 고른 요청은 null이다(ISE-264)
+    @Column(name = "auto_criteria", updatable = false, length = 40)
+    private String autoCriteria;
+
     // Note: ID를 직접 정하는 엔티티는 Spring Data가 새 엔티티로 보지 않고 merge로 저장한다. merge는 같은 PK가 있으면
     // 위반 없이 넘어가 "같은 멱등키 재요청은 PK 충돌로 감지한다"는 계약이 깨진다. 저장 전까지 새 엔티티로 표시해 persist로 보낸다.
     @Getter(AccessLevel.NONE)
@@ -85,6 +89,15 @@ public class SeatHoldRequest extends BaseEntity implements Persistable<UUID> {
             throw new IllegalArgumentException("선점할 좌석이 없습니다");
         }
         return new SeatHoldRequest(requestId, userId, scheduleId, seatIds, entryTokenJti);
+    }
+
+    // Note: 자동 배정은 좌석을 잠그기 전에 이 행을 먼저 써서 같은 멱등키 연타를 PK로 줄 세운다. 그때는 좌석을 모르므로
+    // 빈 배열로 쓰고, 같은 트랜잭션에서 좌석을 고른 뒤 markAutoHeld가 채운다. 커밋된 행에는 늘 좌석이 있다(seat_ids NOT NULL 유지)
+    public static SeatHoldRequest autoAssign(UUID requestId, Long userId, Long scheduleId, String autoCriteria,
+            String entryTokenJti) {
+        var request = new SeatHoldRequest(requestId, userId, scheduleId, List.of(), entryTokenJti);
+        request.autoCriteria = autoCriteria;
+        return request;
     }
 
     // 동기형은 선점과 같은 트랜잭션에서 결과까지 정해지므로 REQUESTED를 거치지 않고 HELD로 저장한다(ADR 0032)

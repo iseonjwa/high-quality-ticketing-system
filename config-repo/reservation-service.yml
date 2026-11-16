@@ -38,6 +38,19 @@ messaging:
 seat-hold:
   # sync(동기형 선점 201, 기본) 또는 async(접수형 202). 기동할 때 한 번 읽으므로 바꾸려면 재시작한다(ADR 0057)
   mode: sync
+  # 접수형 소비자(ISE-17). 모드와 상관없이 늘 켠다
+  consumer:
+    # 토픽 파티션은 늘리기만 된다. 동시성보다 넉넉히 둔다
+    partitions: 6
+    # 동시성 하나가 처리 중에 커넥션 하나를 쥔다. 풀(maximum-pool-size)을 HTTP와 나눠 쓴다
+    concurrency: 2
+    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 멈춰 동기형(50ms, ADR 0061)보다 길게 두지 않는다
+    lock-timeout: 50ms
+seathold:
+  expiry:
+    # 만료 스케줄러 주기. 코드 기본값 5초에서는 한 주기 100건 뒤 5초를 쉬어 회수가 초당 약 17건에 묶였다.
+    # 1초면 쉬는 시간이 줄어 같은 커넥션 하나로 더 빨리 회수한다(측정: docs/design/reservation/seathold-pre-deploy-measurements.md)
+    interval: 1s
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m
@@ -50,6 +63,7 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  turn-ttl: 1m
   redis:
     # 대기열 Redis 차단기 설정
     circuit-breaker:

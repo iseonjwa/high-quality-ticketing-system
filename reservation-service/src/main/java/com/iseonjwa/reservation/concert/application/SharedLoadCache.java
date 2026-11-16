@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -11,24 +12,32 @@ import java.util.function.Supplier;
  * 키마다 값을 한 번만 읽고, 읽는 동안 들어온 요청은 같은 결과를 기다리게 하는 캐시(P4b·P4c).
  *
  * Note: 오픈 직후처럼 캐시가 빈 순간에 요청이 몰려도 DB 조회는 키마다 하나만 나간다.
- * 그냥 get → 없으면 읽기 → put이면 동시에 온 요청 수만큼 15,000석을 읽어 캐시가 없을 때와 같아진다.
+ * 그냥 get → 없으면 읽기 → put이면 동시에 온 요청 수만큼 회차 좌석 전체를 읽어 캐시가 없을 때와 같아진다.
  */
 final class SharedLoadCache<K, V> {
 
     private final ConcurrentHashMap<K, Entry<V>> entries = new ConcurrentHashMap<>();
     private final long ttlNanos;
     private final Predicate<V> keepable;
+    private final LongSupplier nanoTime;
 
     // ttl이 null이면 지우지 않는다. keepable이 false인 값(예: 아직 좌석을 만들지 않은 회차의 빈 목록)은 남기지 않는다
     SharedLoadCache(Duration ttl, Predicate<V> keepable) {
+        this(ttl, keepable, System::nanoTime);
+    }
+
+    // 테스트가 시간을 옮길 때 쓴다. 운영은 벽시계(Clock)가 아니라 단조 시계(System.nanoTime)로 TTL을 세서
+    // 서버 시각 보정(NTP)으로 시계가 뒤로 가도 항목이 만료되지 않고 남는 일이 없다
+    SharedLoadCache(Duration ttl, Predicate<V> keepable, LongSupplier nanoTime) {
         this.ttlNanos = ttl == null ? Long.MAX_VALUE : ttl.toNanos();
         this.keepable = keepable;
+        this.nanoTime = nanoTime;
     }
 
     V get(K key, Supplier<V> loader) {
         while (true) {
             Entry<V> current = entries.get(key);
-            long now = System.nanoTime();
+            long now = nanoTime.getAsLong();
             if (current != null && !current.expired(now, ttlNanos)) {
                 return join(current.value());
             }
@@ -46,7 +55,7 @@ final class SharedLoadCache<K, V> {
     V peekFresh(K key) {
         Entry<V> current = entries.get(key);
         if (current == null || !current.value().isDone() || current.value().isCompletedExceptionally()
-                || current.expired(System.nanoTime(), ttlNanos)) {
+                || current.expired(nanoTime.getAsLong(), ttlNanos)) {
             return null;
         }
         return current.value().getNow(null);

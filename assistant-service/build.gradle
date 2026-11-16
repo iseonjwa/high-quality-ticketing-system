@@ -5,6 +5,8 @@ dependencies {
     implementation 'org.springframework:spring-aspects'
     implementation project(':common')
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // API 문서(/v3/api-docs)만 낸다. 화면(Swagger UI)은 Gateway가 한 곳에서 띄운다(ADR 0063)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'com.anthropic:anthropic-java:3.3.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'

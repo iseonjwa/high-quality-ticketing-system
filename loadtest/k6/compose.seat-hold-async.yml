@@ -1,0 +1,9 @@
+# ISE-18 측정 전용 덮어쓰기다. 좌석 선점을 접수형 Outbox 경로(O)로 띄운다(SA 10-1, ADR 0057).
+#   MEASURER=<이름> script/loadtest/measure-mode.sh on loadtest/k6/compose.seat-hold-async.yml
+# 직접 발행(D)은 이 파일 뒤에 compose.seat-hold-direct.yml을 함께 준다.
+# Note: seat-hold.mode를 환경변수로 줄 때는 하이픈을 빼 SEATHOLD_MODE로 쓴다(Spring 완화 바인딩).
+# 모드는 기동할 때 한 번 읽으므로 방식을 바꿀 때마다 reservation-service가 다시 뜬다. 측정이 끝나면 이 파일 없이 다시 띄운다.
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_MODE: async

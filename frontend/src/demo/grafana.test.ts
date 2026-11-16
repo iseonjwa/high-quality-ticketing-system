@@ -31,18 +31,26 @@ describe('requestLogDashboardUrl', () => {
     expect(requestLogDashboardUrl(TRACE_ID, STARTED_AT)).toMatch(/^http:\/\/localhost:3000\/d\//)
   })
 
-  it('기본 주소는 화면을 연 호스트와 scheme을 따른다', () => {
-    expect(defaultGrafanaUrl({ protocol: 'http:', hostname: '52.63.10.174' })).toBe(
-      'http://52.63.10.174:3000',
+  // 주소는 문서용 예시 IP(203.0.113.0/24)다
+  it('http 화면은 화면을 연 호스트의 3000번을 쓴다', () => {
+    const location = { protocol: 'http:', hostname: '203.0.113.10', origin: 'http://203.0.113.10' }
+
+    expect(defaultGrafanaUrl(location)).toBe('http://203.0.113.10:3000')
+    expect(requestLogDashboardUrl(TRACE_ID, STARTED_AT, defaultGrafanaUrl(location))).toBe(
+      `http://203.0.113.10:3000/d/iseonjwa-request-logs?orgId=1&var-traceId=${TRACE_ID}&from=${FROM}&to=${TO}`,
     )
-    expect(
-      requestLogDashboardUrl(
-        TRACE_ID,
-        STARTED_AT,
-        defaultGrafanaUrl({ protocol: 'http:', hostname: '52.63.10.174' }),
-      ),
-    ).toBe(
-      `http://52.63.10.174:3000/d/iseonjwa-request-logs?orgId=1&var-traceId=${TRACE_ID}&from=${FROM}&to=${TO}`,
+  })
+
+  it('https 화면(배포 서버)은 같은 주소의 /grafana를 쓴다', () => {
+    const location = {
+      protocol: 'https:',
+      hostname: '203.0.113.10',
+      origin: 'https://203.0.113.10',
+    }
+
+    expect(defaultGrafanaUrl(location)).toBe('https://203.0.113.10/grafana')
+    expect(requestLogDashboardUrl(TRACE_ID, STARTED_AT, defaultGrafanaUrl(location))).toBe(
+      `https://203.0.113.10/grafana/d/iseonjwa-request-logs?orgId=1&var-traceId=${TRACE_ID}&from=${FROM}&to=${TO}`,
     )
   })
 

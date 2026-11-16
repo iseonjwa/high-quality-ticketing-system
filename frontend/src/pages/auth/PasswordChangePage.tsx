@@ -60,7 +60,7 @@ export function PasswordChangePage() {
         setFailedOnce(true)
         form.setError(
           'currentPassword',
-          { type: 'server', message: `이메일 또는 ${currentLabel}를 확인해 주세요` },
+          { type: 'server', message: `이메일 또는 ${currentLabel}를 확인해주세요.` },
           { shouldFocus: true },
         )
         return
@@ -82,10 +82,10 @@ export function PasswordChangePage() {
     queryClient.clear()
     try {
       await login({ email: values.email, password: values.newPassword })
-      toast('비밀번호를 바꿨어요')
+      toast('비밀번호가 변경되었습니다')
       await navigate(returnPathOf(authState), { replace: true })
     } catch {
-      toast('비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요')
+      toast('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.')
       const state: AuthNavigationState = { from: authState.from, email: values.email }
       await navigate(paths.login, { replace: true, state })
     }
@@ -96,7 +96,7 @@ export function PasswordChangePage() {
   return (
     <AuthCard
       title="비밀번호 변경"
-      description={temporary ? undefined : '현재 비밀번호를 확인한 뒤 새 비밀번호로 바꿔요'}
+      description={temporary ? undefined : '현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다.'}
       footer={
         isSignedIn ? (
           <AuthFooterLine>
@@ -115,8 +115,8 @@ export function PasswordChangePage() {
       <form noValidate onSubmit={form.handleSubmit(handlePasswordChange)} className="grid gap-5">
         {temporary && formError === null ? (
           <Alert variant="warning">
-            <p>임시 비밀번호로는 로그인할 수 없어요</p>
-            <p className="mt-1 type-caption">새 비밀번호로 바꾸면 바로 로그인돼요</p>
+            <p>임시 비밀번호로는 로그인할 수 없습니다</p>
+            <p className="mt-1 type-caption">새 비밀번호로 변경하면 바로 로그인됩니다.</p>
           </Alert>
         ) : null}
         {formError === null ? null : <AuthErrorNotice error={formError} />}
@@ -134,7 +134,7 @@ export function PasswordChangePage() {
           autoComplete="current-password"
           error={errors.currentPassword?.message}
           description={
-            failedOnce ? `비밀번호를 ${MAX_LOGIN_FAILURES}번 틀리면 계정이 잠겨요` : undefined
+            failedOnce ? `비밀번호를 ${MAX_LOGIN_FAILURES}번 틀리면 계정이 잠깁니다.` : undefined
           }
           // 칸을 넘는 오류(현재와 같음, 확인과 다름)는 상대 칸을 고쳐도 다시 검사해야 지워진다
           {...form.register('currentPassword', { deps: ['newPassword'] })}

@@ -8,6 +8,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.30.6-alpine@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
-COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# deploy.conf는 이미지에 넣지 않는다. 배포 서버에서만 compose.deploy.yml이 default.conf 자리에 마운트한다(ISE-278).
+COPY nginx/security-headers.conf nginx/app.conf /etc/nginx/
+COPY nginx/gateway-upstream.conf nginx/default.conf /etc/nginx/conf.d/
 COPY --from=builder /app/dist /usr/share/nginx/html

@@ -39,7 +39,7 @@
 | 0033 | [공연장 좌석의 열 번호(row_no)는 정수로 둔다](0033-venue-seat-row-no-int.md) | 제안 (좌석 응답 `row` 형식 변경, 좌석 선점 담당 확인 필요) | 2026-10-30 |
 | 0034 | [트래픽 집중 지점 격리와 스케일업을 위해 좌석 선점(seathold)을 별도 모듈로 분리하고 단방향 의존 규칙을 둔다](0034-seathold-unidirectional-module-boundary.md) | 제안 (반효승 확인 필요, ISE-10) | 2026-10-30 |
 | 0035 | [포트폴리오 트러블슈팅 검증을 위해 좌석 선점 동시성·데드락 방어와 대사 쿼리를 M4 고도화 단계로 분리한다](0035-defer-seathold-concurrency-and-reconciliation-to-m4.md) | 채택 | 2026-10-30 |
-| 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 팀 공유 전) | 2026-10-29 |
+| 0036 | [추첨 배분을 유지하고 측정 시나리오 3종을 설계에 먼저 넣는다](0036-lottery-direction-measurement.md) | 제안 (추첨 담당 결정, 11/15 결과 갱신. 팀 확인 전 선조치 후보고, ISE-269) | 2026-10-29 |
 | 0037 | [추첨석은 한 등급에서 떼어 좌석 등급 LOTTERY로 표시하고 일반 선점에서 제외한다](0037-lottery-seat-grade-split.md) | 제안 (좌석 담당·팀 확인 대기, ISE-82) | 2026-10-31 |
 | 0038 | [추첨 자동결제 실패는 사유별로 나눠 NOT_SENT만 새 예매로 재시도한다](0038-lottery-payment-failure-by-reason.md) | 제안 (결제 담당 확인 대기, ISE-89) | 2026-10-31 |
 | 0039 | [추첨 자동결제는 처음에 일반 결제 PG 그룹을 함께 쓰고, 겹침 문제를 측정한 뒤 나눈다](0039-lottery-billing-shared-approve-group.md) | 대체됨 (0051) | 2026-10-31 |
@@ -55,10 +55,15 @@
 | 0049 | [내부 AI 상담은 별도 모듈 assistant-service로 두고, 벡터 DB 없이 키워드 검색 + Claude citations로 답하며, 키가 없거나 장애면 검색 모드로 강등한다](0049-assistant-service-claude-api.md) | 채택 | 2026-11-09 |
 | 0050 | [Gateway auth-redis 차단기는 Redis 장애만 세고, 자기 과부하는 bulkhead가 거절하며 거절 비율은 경보로 따로 본다](0050-gateway-auth-redis-breaker-bulkhead-split.md) | 채택 (2026-11-13 선조치 후보고, 대기열 담당 사후 확인. SA 9-4·9-5의 Gateway 블랙리스트 Redis 값 대체) | 2026-11-11 |
 | 0051 | [추첨 자동결제는 결제 명령 소비자를 파티션 수만큼 늘리고, 자동결제 전용 PG 허가(pg-billing)로 일반 결제와 나눈다](0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) | 채택 (11/12 결제 담당 합의·구현 `#521`. 일반 결제 허가는 24–30(지금 30, ISE-246 뒤 확정). 0039 대체. D10 선점 30분 근거 정정 포함) | 2026-11-11 |
-| 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 채택 (2026-11-13 선조치 후보고, 결제 담당 사후 확인. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway) | 2026-11-12 |
+| 0052 | [운영 요청 로그는 5xx·끊긴 요청·200ms 이상만 남기고, 정상 요청은 트레이스와 지표로 본다](0052-request-log-problems-only-in-operation.md) | 채택 (2026-11-13 선조치 후보고, 결제 담당 사후 확인. 0045 결정 2의 운영 기본값 대체, 1단계 Gateway, 2단계 서비스 11/16 ISE-286) | 2026-11-12 |
 | 0053 | [입장 토큰은 좌석 선점이 성공한 순간 소모하고, 소모 여부는 선점 트랜잭션의 DB 고유 제약으로 확인한다](0053-entry-token-consume-on-hold.md) | 채택 (2026-11-14, ISE-207 contract. 대기열 정리는 트랜잭션 밖 메서드 호출, 거절은 403. 프런트 구현 남음. SA 7-3 "1회용이 될 수 없다" 중 선점 API 부분 대체) | 2026-11-12 |
 | 0054 | [회차 좌석 배치 캐시(P4b)는 Redis가 아니라 reservation-service 메모리에 둔다](0054-seat-layout-local-cache.md) | 제안 (최권우 측정 코드와 비교 측정 뒤 결정) | 2026-11-08 |
 | 0055 | [결제 토큰은 비대칭 서명(ES256)으로 하고, 개인키는 예매 서비스에만 공개키는 결제 서비스에만 준다](0055-payment-token-asymmetric-signature.md) | 제안 (ISE-245 contract. 발급기 담당 확인 뒤 채택. SA 7-3 HMAC·0025의 키 부분 대체) | 2026-11-12 |
 | 0056 | [접수형 선점 요청의 좌석이 여러 구역에 걸치면 가장 작은 구역을 메시지 키로 쓴다](0056-async-seat-hold-key-for-mixed-sections.md) | 채택 (ISE-16, SA 10-1 키 형식 유지) | 2026-11-12 |
 | 0057 | [접수형 선점은 접수에서 이미 잡힌 좌석을 즉시 거절하고, 모드는 기동 시 정하며, 결과 조회는 모드와 상관없이 연다](0057-async-seat-hold-intake-and-mode.md) | 채택 (ISE-16. 접수형 POST 즉시 409는 ISE-120 담당 확인 뒤 확정) | 2026-11-12 |
 | 0058 | [접수형으로 시작한 선점 요청은 동기형 서버가 같은 키로 다시 받아도 202로 답한다](0058-sync-replay-of-async-requests.md) | 채택 (ISE-16, 계약 3-2 ⑦) | 2026-11-12 |
+| 0059 | [구역·매수만 받아 서버가 좌석을 고르는 자동 배정 선점을 FOR UPDATE SKIP LOCKED로 더하고, 멱등은 조건 문자열로 비교한다](0059-seat-auto-assign-skip-locked.md) | 제안 (ISE-264, 강민 위임 야간 작업 선조치 후보고, 좌석 선점 담당 사후 확인) | 2026-11-16 |
+| 0060 | [측정·시연용 시드 공연장을 15,000석에서 1,500석으로 줄이고, 기존 시드 좌석을 숨기는 새 마이그레이션으로 바꾼다](0060-seed-venue-1500-seats.md) | 제안 (ISE-291 contract, 11/16 팀 합의, PR 리뷰로 확정. SA 3-3·6-5·12-9의 15,000석 기준 대체) | 2026-11-16 |
+| 0061 | [동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다](0061-seat-hold-lock-timeout-50ms.md) | 채택 (ISE-261, SA 9-4의 500ms 대체) | 2026-11-13 |
+| 0062 | [동기형 선점은 읽은 좌석 상태로 먼저 거절하고, 좌석 UPDATE를 트랜잭션 끝으로 옮기고, 동시 처리 상한을 둔다](0062-seat-hold-structure-precheck-reorder-limit.md) | 채택 (ISE-261. 동시 처리 상한은 기본 끔, 배포 측정 뒤 켬) | 2026-11-13 |
+| 0063 | [API 문서는 springdoc으로 서비스마다 만들고, Swagger UI는 Gateway의 /api/docs 한 곳에서 띄운다](0063-swagger-ui-at-gateway.md) | 채택 (ISE-295) | 2026-11-16 |

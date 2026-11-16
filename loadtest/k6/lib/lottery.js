@@ -9,7 +9,7 @@ import { dataOf, jsonHeaders, url } from './http.js';
 export function createLottery(adminToken, scheduleId, options = {}) {
   const {
     sourceGrade = 'R',
-    seatCount = 3000,
+    seatCount = 300, // 시드 R 600석의 절반(ADR 0060). 15,000석 당시 3,000석과 같은 비율이다
     waitlistCount = 1000,
     maxPerEntry = 2,
     entryStartAt,

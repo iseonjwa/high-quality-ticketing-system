@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -27,9 +28,9 @@ public class JwtEntryTokenIssuer implements EntryTokenIssuer {
     }
 
     @Override
-    public EntryToken issue(long userId, long scheduleId, long issuedAtEpochMillis) {
+    public EntryToken issue(long userId, long scheduleId, long issuedAtEpochMillis, Duration ttl) {
         Instant issuedAt = Instant.ofEpochSecond(issuedAtEpochMillis/1000);
-        Instant expiresAt = issuedAt.plus(EntryTokenClaims.TTL);
+        Instant expiresAt = issuedAt.plus(ttl);
         String jti = EntryTokenJti.of(scheduleId, userId, issuedAtEpochMillis);
 
         JwtClaimsSet claims = JwtClaimsSet.builder()

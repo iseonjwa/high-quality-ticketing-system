@@ -61,24 +61,24 @@ describe('추첨 설정 입력: 칸별 규칙', () => {
     const result = create({ sourceGrade: '', seatCount: '', waitlistCount: '' })
 
     expect(messagesOf(result)).toMatchObject({
-      sourceGrade: '추첨석으로 뗄 등급을 골라 주세요',
-      seatCount: '추첨석 수를 입력해 주세요',
-      waitlistCount: '예비 순번 수를 입력해 주세요',
+      sourceGrade: '추첨석으로 배정할 등급을 선택해주세요.',
+      seatCount: '추첨석 수를 입력해주세요.',
+      waitlistCount: '예비 순번 수를 입력해주세요.',
     })
   })
 
   it('추첨석 수는 1 이상의 정수이고 INT 범위 안이다', () => {
     expect(messagesOf(create({ seatCount: '0' })).seatCount).toBe(
-      '추첨석 수는 1 이상으로 입력해 주세요',
+      '추첨석 수는 1 이상으로 입력해주세요.',
     )
     expect(messagesOf(create({ seatCount: '1.5' })).seatCount).toBe(
-      '추첨석 수는 숫자로 입력해 주세요',
+      '추첨석 수는 숫자로 입력해주세요.',
     )
     expect(messagesOf(create({ seatCount: 'abc' })).seatCount).toBe(
-      '추첨석 수는 숫자로 입력해 주세요',
+      '추첨석 수는 숫자로 입력해주세요.',
     )
     expect(messagesOf(create({ seatCount: '2147483648' })).seatCount).toBe(
-      '추첨석 수는 1 이상으로 입력해 주세요',
+      '추첨석 수는 1 이상으로 입력해주세요.',
     )
     expect(create({ seatCount: '1' }).success).toBe(true)
     expect(create({ seatCount: '2147483647' }).success).toBe(true)
@@ -87,7 +87,7 @@ describe('추첨 설정 입력: 칸별 규칙', () => {
   it('예비 순번 수는 0도 된다', () => {
     expect(create({ waitlistCount: '0' }).success).toBe(true)
     expect(messagesOf(create({ waitlistCount: '-1' })).waitlistCount).toBe(
-      '예비 순번 수는 숫자로 입력해 주세요',
+      '예비 순번 수는 숫자로 입력해주세요.',
     )
   })
 
@@ -103,12 +103,12 @@ describe('추첨 설정 입력: 칸별 규칙', () => {
   it('시각 칸이 비면 칸마다 안내하고, 달력에 없는 시각은 형식 안내를 한다', () => {
     const empty = create({ entryStartAt: '', entryEndAt: '', drawAt: '' })
     expect(messagesOf(empty)).toMatchObject({
-      entryStartAt: '응모 시작 시각을 입력해 주세요',
-      entryEndAt: '응모 마감 시각을 입력해 주세요',
-      drawAt: '추첨 시각을 입력해 주세요',
+      entryStartAt: '응모 시작 시각을 입력해주세요.',
+      entryEndAt: '응모 마감 시각을 입력해주세요.',
+      drawAt: '추첨 시각을 입력해주세요.',
     })
     expect(messagesOf(create({ drawAt: '2026-02-30T10:00' })).drawAt).toBe(
-      '시각 형식을 확인해 주세요',
+      '시각 형식을 확인해주세요.',
     )
   })
 })
@@ -118,7 +118,7 @@ describe('추첨 설정 입력: 값 사이 규칙', () => {
     const now = Date.now()
 
     expect(messagesOf(create({ entryStartAt: kstLocal(now - HOUR) })).entryStartAt).toMatch(
-      /응모 시작은 지금보다 뒤여야 해요/,
+      /응모 시작은 지금보다 뒤여야 합니다/,
     )
     expect(create({ entryStartAt: kstLocal(now + 5 * MINUTE) }).success).toBe(true)
   })
@@ -128,12 +128,12 @@ describe('추첨 설정 입력: 값 사이 규칙', () => {
     const start = kstLocal(now + DAY)
 
     expect(messagesOf(create({ entryStartAt: start, entryEndAt: start })).entryEndAt).toBe(
-      '응모 마감은 응모 시작보다 뒤여야 해요',
+      '응모 마감은 응모 시작보다 뒤여야 합니다.',
     )
     expect(
       messagesOf(create({ entryStartAt: start, entryEndAt: kstLocal(now + DAY - HOUR) }))
         .entryEndAt,
-    ).toBe('응모 마감은 응모 시작보다 뒤여야 해요')
+    ).toBe('응모 마감은 응모 시작보다 뒤여야 합니다.')
   })
 
   it('추첨은 응모 마감과 같거나 뒤여야 한다', () => {
@@ -143,7 +143,7 @@ describe('추첨 설정 입력: 값 사이 규칙', () => {
     expect(create({ entryEndAt: end, drawAt: end }).success).toBe(true)
     expect(
       messagesOf(create({ entryEndAt: end, drawAt: kstLocal(now + 2 * DAY - 10 * MINUTE) })).drawAt,
-    ).toBe('추첨은 응모 마감과 같거나 뒤여야 해요')
+    ).toBe('추첨은 응모 마감과 같거나 뒤여야 합니다.')
   })
 
   it('추첨 + 60분이 회차 시작 이전이어야 한다(같으면 된다)', () => {
@@ -153,7 +153,7 @@ describe('추첨 설정 입력: 값 사이 규칙', () => {
     expect(create({ drawAt: kstLocal(startsAtMillis - HOUR) }, startsAt).success).toBe(true)
     expect(
       messagesOf(create({ drawAt: kstLocal(startsAtMillis - HOUR + MINUTE) }, startsAt)).drawAt,
-    ).toBe('추첨은 공연 시작 1시간 전까지여야 해요(배정·자동결제 시간)')
+    ).toBe('추첨은 공연 시작 1시간 전까지여야 합니다(배정·자동결제 시간).')
   })
 
   it('수정 화면은 회차 시각을 모르므로 공연 시작 규칙은 보지 않는다', () => {
@@ -167,12 +167,12 @@ describe('설정과 수정의 차이', () => {
   })
 
   it('수정도 추첨석 수는 비울 수 없다', () => {
-    expect(messagesOf(edit({ seatCount: '' })).seatCount).toBe('추첨석 수를 입력해 주세요')
+    expect(messagesOf(edit({ seatCount: '' })).seatCount).toBe('추첨석 수를 입력해주세요.')
   })
 
   it('수정도 비우지 않은 예비 순번 수는 형식을 본다', () => {
     expect(messagesOf(edit({ waitlistCount: 'x' })).waitlistCount).toBe(
-      '예비 순번 수는 숫자로 입력해 주세요',
+      '예비 순번 수는 숫자로 입력해주세요.',
     )
   })
 })
@@ -204,7 +204,7 @@ describe('수정 화면: 바꾸지 않은 시각은 저장된 값(초 포함)으
   it('추첨을 마감과 같은 분(23:17)으로 고치면 마감(23:17:27)보다 앞이라 막는다', () => {
     const result = run({ drawAt: '2099-12-02T23:17' })
 
-    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 해요')
+    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 합니다.')
   })
 
   it('저장된 값을 모르면(savedTimes 없음) 같은 분이라 통과한다 — 서버에서만 400이 된다', () => {
@@ -214,7 +214,7 @@ describe('수정 화면: 바꾸지 않은 시각은 저장된 값(초 포함)으
   it('마감을 저장된 추첨(00:17:40)보다 뒤인 분으로 고치면 막는다', () => {
     const result = run({ entryEndAt: '2099-12-03T00:18' })
 
-    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 해요')
+    expect(messagesOf(result).drawAt).toBe('추첨은 응모 마감과 같거나 뒤여야 합니다.')
   })
 
   it('마감과 추첨이 같은 분이어도 저장된 값에서 추첨이 뒤(23:17:27 ≤ 23:17:40)면 바꾸지 않은 칸은 통과한다', () => {

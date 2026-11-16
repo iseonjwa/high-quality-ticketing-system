@@ -33,7 +33,7 @@ describe('SignupPage', () => {
 
     await fillSignup({ email: '  New@Iseonjwa.dev ' })
 
-    expect(await screen.findByText('가입을 마쳤어요')).toBeInTheDocument()
+    expect(await screen.findByText('회원가입이 완료되었습니다')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument()
     expect(sessionStore.getState().refreshToken).not.toBeNull()
@@ -50,10 +50,10 @@ describe('SignupPage', () => {
     })
 
     expect(
-      await screen.findByText('너무 길어요. 영문은 72자, 한글은 24자까지 쓸 수 있어요'),
+      await screen.findByText('너무 깁니다. 영문은 72자, 한글은 24자까지 입력할 수 있습니다.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('비밀번호가 서로 달라요')).toBeInTheDocument()
-    expect(screen.getByText('닉네임은 30자까지 쓸 수 있어요')).toBeInTheDocument()
+    expect(screen.getByText('입력된 값이 일치하지 않습니다.')).toBeInTheDocument()
+    expect(screen.getByText('닉네임은 30자까지 입력할 수 있습니다.')).toBeInTheDocument()
     // 오류와 겹치는 도움말("8자 이상", "30자까지")은 오류가 있는 동안 숨긴다
     expect(screen.queryByText('8자 이상')).not.toBeInTheDocument()
     expect(signupRequests).toHaveLength(0)
@@ -64,7 +64,7 @@ describe('SignupPage', () => {
 
     await fillSignup({ email: DEMO_USER.email })
 
-    expect(await screen.findByText('이미 가입한 이메일이에요. 로그인해 주세요')).toBeInTheDocument()
+    expect(await screen.findByText('이미 가입된 이메일입니다. 로그인해주세요.')).toBeInTheDocument()
     expect(screen.getByLabelText('이메일')).toHaveFocus()
 
     await userEvent.click(screen.getByRole('link', { name: '이 이메일로 로그인하기' }))
@@ -85,8 +85,8 @@ describe('SignupPage', () => {
 
     await fillSignup({})
 
-    expect(await screen.findByText('입력한 값을 확인해 주세요')).toBeInTheDocument()
-    expect(screen.getByLabelText('닉네임')).toHaveAccessibleDescription('입력한 값을 확인해 주세요')
+    expect(await screen.findByText('입력한 값을 확인해주세요.')).toBeInTheDocument()
+    expect(screen.getByLabelText('닉네임')).toHaveAccessibleDescription('입력한 값을 확인해주세요.')
     expect(screen.queryByText('must not be blank')).not.toBeInTheDocument()
   })
 
@@ -100,7 +100,9 @@ describe('SignupPage', () => {
 
     await fillSignup({ email: 'new@iseonjwa.dev' })
 
-    expect(await screen.findByText('가입을 마쳤어요. 로그인해 주세요')).toBeInTheDocument()
+    expect(
+      await screen.findByText('회원가입이 완료되었습니다. 로그인해주세요.'),
+    ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
     expect(screen.getByLabelText('이메일')).toHaveValue('new@iseonjwa.dev')
   })
@@ -108,11 +110,11 @@ describe('SignupPage', () => {
   it('비밀번호 칸을 확인 칸과 같게 고치면 "서로 달라요"가 지워진다', async () => {
     await renderRoutesReady(routes, '/signup')
     await fillSignup({ password: 'password1234', passwordConfirm: 'password12345' })
-    expect(await screen.findByText('비밀번호가 서로 달라요')).toBeInTheDocument()
+    expect(await screen.findByText('입력된 값이 일치하지 않습니다.')).toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText('비밀번호'), '5')
 
-    expect(screen.queryByText('비밀번호가 서로 달라요')).not.toBeInTheDocument()
+    expect(screen.queryByText('입력된 값이 일치하지 않습니다.')).not.toBeInTheDocument()
   })
 
   it('예상하지 못한 오류는 폼 위에 문의 번호와 함께 알린다', async () => {
@@ -123,7 +125,7 @@ describe('SignupPage', () => {
 
     await fillSignup({})
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('문의할 때 아래 번호를 알려 주세요')
+    expect(await screen.findByRole('alert')).toHaveTextContent('문의 시 아래 번호를 알려주세요')
     expect(screen.getByText(/^문의 번호/)).toBeInTheDocument()
   })
 })

@@ -161,7 +161,7 @@ function ConfirmedResult({
       {/* 공연 제목·일시는 티켓이 가진다. 머리에는 예매 번호를 둔다(시안) */}
       <ResultHead
         tone="success"
-        title="예매가 확정됐어요"
+        title="예매가 확정되었습니다"
         description={`예매 번호 ${detail.reservationNo}`}
       />
       <TicketsCard detail={detail} heading={heading} showStatus />
@@ -202,8 +202,8 @@ function ConfirmedDetail({
 
 // 다시 보내도 결과가 바뀌지 않는 거절. 받으면 버튼을 거두고 이유를 남긴다
 const LASTING_REFUSALS: Record<string, string> = {
-  CANCEL_PERIOD_ENDED: '공연이 시작돼 취소할 수 없어요.',
-  LOTTERY_RESERVATION_NOT_CANCELABLE: '추첨으로 배정된 예매는 취소할 수 없어요.',
+  CANCEL_PERIOD_ENDED: '공연이 시작되어 취소할 수 없습니다.',
+  LOTTERY_RESERVATION_NOT_CANCELABLE: '추첨으로 배정된 예매는 취소할 수 없습니다.',
 }
 
 // 예매 취소(ISE-119, 서버 contracts.md 6절). 확정된 일반 예매를 공연 시작 전까지 취소한다.
@@ -243,7 +243,7 @@ function CancelSection({
           },
       )
       void queryClient.invalidateQueries({ queryKey: reservationQueryKeys.mine })
-      toast('예매를 취소했어요')
+      toast('예매가 취소되었습니다')
     },
     onError: (error) => {
       if (isApiError(error, 'RESERVATION_NOT_CANCELABLE')) {
@@ -292,7 +292,8 @@ function CancelSection({
         ) : (
           <>
             <p className="type-body-sm text-gray-600">
-              공연 시작 전까지 취소할 수 있어요. 취소하면 좌석이 풀리고 결제한 금액은 모두 환불돼요.
+              공연 시작 전까지 취소할 수 있습니다. 취소하면 좌석이 반환되고 결제하신 금액은 모두
+              환불됩니다.
             </p>
             <div>
               <Button
@@ -333,14 +334,14 @@ function CancelSection({
         >
           <DialogTitle className="type-heading text-gray-900">예매를 취소할까요?</DialogTitle>
           <DialogDescription className="type-body-sm text-gray-500">
-            좌석 {detail.seats.length}석을 돌려놓고 결제한 {formatWon(detail.totalAmount)}을
-            환불해요. 취소한 예매는 되돌릴 수 없어요.
+            좌석 {detail.seats.length}석이 반환되고 결제하신 {formatWon(detail.totalAmount)}이
+            환불됩니다. 취소한 예매는 되돌릴 수 없습니다.
           </DialogDescription>
           {cancel.isError ? (
             isOutcomeUnknown(cancel.error) ? (
               <Alert variant="warning">
-                <p className="font-semibold">취소됐는지 확인하지 못했어요</p>
-                <p>다시 누르면 결과를 확인해요.</p>
+                <p className="font-semibold">취소 여부를 확인하지 못했습니다</p>
+                <p>다시 누르면 결과를 확인합니다.</p>
               </Alert>
             ) : (
               <ErrorNotice error={cancel.error} />
@@ -395,8 +396,8 @@ function HeldDetail({
             </Button>
           }
         >
-          <p className="font-semibold">결제를 확인하고 있어요</p>
-          <p>확정되면 이 화면이 바뀌어요.</p>
+          <p className="font-semibold">결제를 확인하는 중입니다</p>
+          <p>확정되면 이 화면이 바뀝니다.</p>
         </Alert>
       ) : detail.paymentToken !== null && payableUntil !== null ? (
         // Note: "아직 결제하지 않았어요"라고 하지 않는다. 결제가 승인됐는데 확정이 늦거나 운영자 확인을 기다리는 예매도
@@ -414,19 +415,19 @@ function HeldDetail({
             </Button>
           }
         >
-          <p className="font-semibold">결제가 아직 확정되지 않았어요</p>
+          <p className="font-semibold">결제가 아직 확정되지 않았습니다</p>
           <p>
-            {formatClock(payableUntil)}까지 확정되지 않으면 좌석이 풀려요. 이미 결제했다면 확정까지
-            잠시 걸릴 수 있어요.
+            {formatClock(payableUntil)}까지 확정되지 않으면 좌석 선택이 해제됩니다. 이미
+            결제하셨다면 확정까지 잠시 걸릴 수 있습니다.
           </p>
         </Alert>
       ) : (
         <Alert variant="warning">
-          <p className="font-semibold">결제 가능 시간이 지났어요</p>
-          <p>잡아 둔 좌석은 곧 풀려요.</p>
+          <p className="font-semibold">결제 가능 시간이 지났습니다</p>
+          <p>선택한 좌석은 곧 해제됩니다.</p>
         </Alert>
       )}
-      <SeatsCard detail={detail} title="잡아 둔 좌석" showStatus={false} />
+      <SeatsCard detail={detail} title="선택한 좌석" showStatus={false} />
       <Actions>
         <Button asChild variant="outline" size="lg">
           <Link to={paths.myReservations}>내 예매 목록</Link>
@@ -438,16 +439,17 @@ function HeldDetail({
 
 const ENDED_COPY = {
   EXPIRED: {
-    title: '예매가 확정되지 않았어요',
-    description: '결제 가능 시간이 지나 잡아 둔 좌석이 풀렸어요. 결제한 금액이 있으면 환불돼요.',
+    title: '예매가 확정되지 않았습니다',
+    description:
+      '결제 가능 시간이 지나 좌석 선택이 해제되었습니다. 결제하신 금액이 있으면 환불됩니다.',
   },
   RELEASED: {
-    title: '좌석이 풀렸어요',
-    description: '결제가 거절돼 잡아 둔 좌석을 돌려놓았어요.',
+    title: '좌석 선택이 해제되었습니다',
+    description: '결제가 거절되어 선택한 좌석이 반환되었습니다.',
   },
   CANCELED: {
-    title: '취소된 예매예요',
-    description: '예매를 취소해 좌석을 돌려놓았어요.',
+    title: '취소된 예매입니다',
+    description: '예매가 취소되어 좌석이 반환되었습니다.',
   },
 } as const
 
@@ -473,7 +475,7 @@ function EndedDetail({
       {canceled && detail.paymentId !== null ? (
         <RefundProgress paymentId={detail.paymentId} reservationNo={detail.reservationNo} />
       ) : null}
-      <SeatsCard detail={detail} title={canceled ? '취소한 좌석' : '풀린 좌석'} showStatus />
+      <SeatsCard detail={detail} title={canceled ? '취소한 좌석' : '해제된 좌석'} showStatus />
       <Actions>
         <Button asChild variant="outline" size="lg">
           <Link to={paths.myReservations}>내 예매 목록</Link>
@@ -568,28 +570,28 @@ function RefundProgress({
         <div aria-live="polite" className="grid gap-1 rounded-md bg-gray-50 px-4 py-3">
           {refunded ? (
             <>
-              <p className="type-body-sm font-semibold text-gray-900">환불이 끝났어요</p>
+              <p className="type-body-sm font-semibold text-gray-900">환불이 완료되었습니다</p>
               <p className="type-body-sm text-gray-600 tabular-nums">
                 {formatWon(payment.data.amount)}
                 {payment.data.refundedAt
-                  ? ` · ${formatDateTime(payment.data.refundedAt)}에 결제한 수단으로 돌려드렸어요`
-                  : ' · 결제한 수단으로 돌려드렸어요'}
+                  ? ` · ${formatDateTime(payment.data.refundedAt)}에 결제하신 수단으로 환불되었습니다`
+                  : ' · 결제하신 수단으로 환불되었습니다'}
               </p>
             </>
           ) : slow ? (
             <>
-              <p className="type-body-sm font-semibold text-gray-900">환불이 늦어지고 있어요</p>
+              <p className="type-body-sm font-semibold text-gray-900">환불이 지연되고 있습니다</p>
               <p className="type-body-sm text-gray-600 tabular-nums">
-                확인한 뒤 결제한 수단으로 돌려드려요. 문의할 때 예매 번호 {reservationNo}를 알려
-                주세요.
+                확인한 뒤 결제하신 수단으로 환불됩니다. 문의 시 예매 번호 {reservationNo}를
+                알려주세요.
               </p>
             </>
           ) : (
             <>
-              <p className="type-body-sm font-semibold text-gray-900">환불하고 있어요</p>
+              <p className="type-body-sm font-semibold text-gray-900">환불을 진행하는 중입니다</p>
               <p className="type-body-sm text-gray-600 tabular-nums">
-                {formatWon(payment.data.amount)}을 결제한 수단으로 돌려드려요. 끝나면 이 화면이
-                바뀌어요.
+                {formatWon(payment.data.amount)}이 결제하신 수단으로 환불됩니다. 완료되면 이 화면이
+                바뀝니다.
               </p>
             </>
           )}
@@ -914,7 +916,7 @@ function MissingReservation() {
           </Button>
         }
       >
-        찾는 예매가 없어요. 내 예매에서 다시 골라 주세요
+        찾는 예매가 없습니다. 내 예매에서 다시 선택해주세요.
       </Alert>
     </main>
   )
@@ -924,7 +926,7 @@ function ReservationSkeleton() {
   return (
     <main className="mx-auto w-full max-w-[720px]">
       <div role="status" className="grid gap-5">
-        <span className="sr-only">예매를 불러오고 있어요</span>
+        <span className="sr-only">예매를 불러오는 중입니다</span>
         <Skeleton className="h-36 w-full" />
         <Skeleton className="h-56 w-full" />
       </div>

@@ -14,22 +14,26 @@ public record QueueKeys(String prefix) {
     }
 
     List<String> enterKeys() {
-        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued");
+        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "admitLog");
     }
 
     List<String> positionKeys() {
-        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued");
+        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "admitLog");
     }
 
     List<String> admitKeys() {
-        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "lastTick");
+        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "lastTick", prefix + "admitLog");
     }
 
     List<String> issueTokenKeys() {
-        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued");
+        return List.of(prefix + "waiting", prefix + "admitted", prefix + "issued", prefix + "admitLog");
     }
 
     List<String> discardEntryTokenKeys() {
         return List.of(issuedKey());
+    }
+
+    List<String> statsKeys() {
+        return List.of(prefix + "seq", prefix + "waiting", prefix + "admitted", prefix + "issued");
     }
 }

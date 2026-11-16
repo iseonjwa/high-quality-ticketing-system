@@ -8,8 +8,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Repository
 public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
@@ -39,6 +41,27 @@ public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
     }
 
     @Override
+    public int markAutoHeld(UUID requestId, Long reservationId, List<Long> seatIds, Instant now, Long actorId) {
+        var literal = seatIds.stream().map(String::valueOf).collect(Collectors.joining(",", "{", "}"));
+        return repository.markAutoHeld(requestId, reservationId, literal, now, actorId);
+    }
+
+    @Override
+    public Optional<Instant> lockRequestedCreatedAt(UUID requestId) {
+        return repository.lockRequestedCreatedAt(requestId);
+    }
+
+    @Override
+    public int markRejected(UUID requestId, String reasonCode, Instant now) {
+        return repository.markRejected(requestId, reasonCode, now);
+    }
+
+    @Override
+    public int rejectTimedOut(Instant createdBefore, Instant now, int limit) {
+        return repository.rejectTimedOut(createdBefore, now, limit);
+    }
+
+    @Override
     public Optional<SeatHoldRequest> findById(UUID requestId) {
         return repository.findById(requestId);
     }
@@ -46,6 +69,12 @@ public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
     @Override
     public boolean existsActiveByEntryTokenJti(String entryTokenJti) {
         return repository.existsActiveByEntryTokenJti(entryTokenJti);
+    }
+
+    @Override
+    public RequestKeyState findKeyState(UUID requestId, String entryTokenJti) {
+        var view = repository.findKeyState(requestId, entryTokenJti);
+        return new RequestKeyState(view.getRequestExists(), view.getTokenActive());
     }
 
     private static boolean violates(Throwable exception, String constraintName) {

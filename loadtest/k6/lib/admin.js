@@ -22,7 +22,7 @@ export function adminLogin() {
   return data.accessToken;
 }
 
-// 회차를 만든다. openInSeconds가 음수면 이미 판매 중이다. 시드 공연장(venueId 1, 15,000석)을 쓴다
+// 회차를 만든다. openInSeconds가 음수면 이미 판매 중이다. 시드 공연장(venueId 1, 1,500석, ADR 0060)을 쓴다
 export function createSchedule(adminToken, options = {}) {
   const {
     title = 'k6 loadtest',
@@ -59,7 +59,7 @@ export function addSchedule(adminToken, concertId, options = {}) {
   return { scheduleId: schedule.scheduleId, openAt: now + openInSeconds * 1000 };
 }
 
-// 15,000석을 한 번에 만든다. 수 초 걸리므로 시나리오의 setupTimeout을 넉넉히 둔다
+// 회차 좌석(시드 1,500석)을 한 번에 만든다. 15,000석이던 때 수 초 걸려 시나리오의 setupTimeout을 넉넉히 뒀다
 export function addSeats(adminToken, scheduleId, prices = DEFAULT_PRICES) {
   post(`/api/v1/admin/schedules/${scheduleId}/seats`, { prices }, jsonHeaders(adminToken), 60);
 }

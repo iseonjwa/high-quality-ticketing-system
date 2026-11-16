@@ -11,7 +11,7 @@ export function AuthErrorNotice({ error }: { error: unknown }) {
       <Alert variant="danger">
         <p>{describeError(error).message}</p>
         <p className="mt-1 type-caption">
-          임시 비밀번호를 받으면 로그인할 때 새 비밀번호로 바꿀 수 있어요
+          임시 비밀번호를 받으면 로그인할 때 새 비밀번호로 변경할 수 있습니다.
         </p>
       </Alert>
     )

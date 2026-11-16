@@ -59,7 +59,7 @@ export function BillingKeyCard({
         cardLast4: key.cardLast4,
         registeredAt: new Date().toISOString(),
       })
-      toast('자동결제 카드를 등록했어요')
+      toast('자동결제 카드가 등록되었습니다')
     },
   })
   const revoke = useMutation({
@@ -69,7 +69,7 @@ export function BillingKeyCard({
       // 앞서 실패한 등록 안내("다시 등록하면 새 카드로 바뀌어요" 등)는 해지 뒤에 맞지 않는다
       register.reset()
       setConfirmOpen(false)
-      toast(revoked ? '자동결제 카드를 해지했어요' : '등록된 카드가 없었어요')
+      toast(revoked ? '자동결제 카드가 해지되었습니다' : '등록된 카드가 없습니다')
     },
   })
   const busy = register.isPending || revoke.isPending
@@ -136,7 +136,8 @@ export function BillingKeyCard({
             </div>
             <div className="grid content-center gap-3">
               <p className="type-body-sm text-gray-500">
-                쓰지 않으려면 해지해 주세요. 해지하면 당첨돼도 결제되지 않아 다음 순번으로 넘어가요.
+                쓰지 않으려면 해지해주세요. 해지하면 당첨되어도 결제되지 않아 다음 순번으로
+                넘어갑니다.
               </p>
               <Button variant="outline" className="w-fit" disabled={busy} onClick={openRevoke}>
                 해지
@@ -145,7 +146,7 @@ export function BillingKeyCard({
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-gray-200 px-4 py-5 text-center">
-            <p className="type-body-sm text-gray-500">이 브라우저에서 등록한 카드가 없어요</p>
+            <p className="type-body-sm text-gray-500">이 브라우저에 등록된 카드가 없습니다</p>
           </div>
         )}
         <Button
@@ -159,8 +160,8 @@ export function BillingKeyCard({
           {record ? '다른 카드로 바꾸기' : '카드 등록'}
         </Button>
         <p className="type-caption text-gray-500">
-          추첨에 당첨되면 이 카드로 자동결제돼요. 다시 등록하면 앞 카드는 해지되고 새 카드로
-          바뀌어요. 시연용 결제라 카드 정보를 받지 않아요.
+          추첨에 당첨되면 이 카드로 자동결제됩니다. 다시 등록하면 앞 카드는 해지되고 새 카드로
+          변경됩니다. 시연용 결제라 카드 정보를 받지 않습니다.
         </p>
       </Card>
       <Dialog
@@ -188,7 +189,7 @@ export function BillingKeyCard({
             자동결제 카드를 해지할까요?
           </DialogTitle>
           <DialogDescription className="type-body-sm text-gray-500">
-            응모한 추첨에 당첨되면 결제되지 않아 당첨이 다음 순번으로 넘어가요.
+            응모한 추첨에 당첨되면 결제되지 않아 당첨이 다음 순번으로 넘어갑니다.
           </DialogDescription>
           {/* 실패하면 대화상자가 열린 채 남는다. 카드에 두면 모달 뒤에 가려져 읽히지 않는다 */}
           {revoke.isError ? <ErrorNotice error={revoke.error} /> : null}
@@ -226,8 +227,8 @@ function RegisterError({
   if (isApiError(error, 'BILLING_KEY_REJECTED')) {
     return (
       <Alert variant="danger">
-        <p className="font-semibold">카드사가 등록을 거절했어요</p>
-        <p>다른 카드로 다시 등록해 주세요.</p>
+        <p className="font-semibold">카드사가 등록을 거절했습니다</p>
+        <p>다른 카드로 다시 등록해주세요.</p>
       </Alert>
     )
   }
@@ -235,8 +236,8 @@ function RegisterError({
     // 서버는 결제사 결과를 모르면 저장하지 않고 앞 카드도 그대로 둔다(BillingKeyService). 그래서 "등록 안 됨"이 맞다
     return (
       <Alert variant="warning">
-        <p className="font-semibold">카드사 연결이 원활하지 않아요</p>
-        <p>잠시 뒤 다시 등록해 주세요.</p>
+        <p className="font-semibold">카드사 연결이 원활하지 않습니다</p>
+        <p>잠시 후 다시 등록해주세요.</p>
       </Alert>
     )
   }
@@ -252,8 +253,8 @@ function RegisterError({
           </Button>
         }
       >
-        <p className="font-semibold">등록됐는지 확인하지 못했어요</p>
-        <p>다시 등록하면 새 카드로 바뀌어요. 쓰지 않으려면 해지해 주세요.</p>
+        <p className="font-semibold">등록 여부를 확인하지 못했습니다</p>
+        <p>다시 등록하면 새 카드로 변경됩니다. 쓰지 않으려면 해지해주세요.</p>
       </Alert>
     )
   }

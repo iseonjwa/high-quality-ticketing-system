@@ -47,7 +47,7 @@ export function ZonePicker({ sections, current, pickedBySection, onSelect }: Zon
           const name = [
             `${section.section}구역 ${section.grade}`,
             left > 0 ? `남은 ${count.format(left)}석` : '매진',
-            ...(picked > 0 ? [`${picked}석 고름`] : []),
+            ...(picked > 0 ? [`${picked}석 선택함`] : []),
           ].join(', ')
           return (
             <ToggleGroup.Item

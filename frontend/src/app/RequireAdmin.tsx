@@ -16,7 +16,7 @@ export function RequireAdmin() {
     return (
       <main className="mx-auto w-full max-w-[880px]">
         <div className="grid gap-4" role="status">
-          <span className="sr-only">권한을 확인하고 있어요</span>
+          <span className="sr-only">권한을 확인하는 중입니다</span>
           <Skeleton className="h-8 w-40" />
           <Skeleton className="h-32 w-full" />
         </div>
@@ -43,7 +43,7 @@ export function RequireAdmin() {
             </Button>
           }
         >
-          운영자만 볼 수 있는 화면이에요
+          운영자만 볼 수 있는 화면입니다
         </Alert>
       </main>
     )

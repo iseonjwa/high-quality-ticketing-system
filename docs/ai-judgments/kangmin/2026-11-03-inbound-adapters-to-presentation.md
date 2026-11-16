@@ -1,7 +1,7 @@
 ---
 title: Kafka 소비자·스케줄러를 infrastructure에 두자는 추천을 거부하고 presentation으로 모두 옮기기로 팀이 정했다
 date: 2026-11-03
-updated: 2026-11-03
+updated: 2026-11-14
 judge: 팀 회의 (전달: 이강민)
 ai: Claude Code(이강민 세션) + Claude(대기열 담당 세션) 교차 의견
 verdict: 거부
@@ -33,9 +33,15 @@ shared: 예
 ## 검증
 구현 전
 
+11/14 보강: ISE-166 구현은 [PR `#272`](https://github.com/iseonjwa/high-quality-ticketing-system/pull/272)로 2026-11-03 15:36 KST에 머지됐다. 아래 숫자는 모두 PR `#272` 본문 "결과" 표에서 옮겼다.
+- `./gradlew test --continue`: 이동 전(dev `5dd9f26`) 1355개 실패 0, 이동 후 1355개 실패 1. 실패 1건은 이동과 무관한 `RefundWorkerQueryTest.임대는_pg_requested_at을_처음만_채우고_이후에는_유지한다`의 1ms 차이이고, 단독으로 3번 다시 돌려 모두 통과했다(PR 본문은 `Instant.now()` 나노초가 PostgreSQL 마이크로초로 반올림돼 생기는 간헐 실패로 봤다).
+- 바뀐 줄은 `package`·`import` 선언과 주석의 패키지 이름뿐이다(파일 내용 diff 22줄).
+- `@KafkaListener`·`@Scheduled`가 infrastructure에 남은 클래스는 범위 밖 3개(`BackgroundJobScheduler`, `LocalMessagingProbe`, `CachedScheduleReader`)뿐이다.
+
 ## 판단 이력
 - 2026-11-03 거부: Claude Code의 위치 유지안 대신 입구 어댑터를 presentation으로 모두 옮기는 안을 지지하고 팀에 물음
 - 2026-11-03 확정: 팀 회의에서 B안(presentation 이동)으로 결정
+- 2026-11-14 검증 보강: PR `#272`(ISE-166) 머지와 이동 전후 테스트 1355개 결과를 검증 칸에 더함
 
 ## 발표·면접 포인트
 - "무슨 일을 하나"와 "어느 폴더에 두나"를 나눠 보니, 소비자가 application을 부르는 역할은 그대로 두고 위치만 바꿔 의존 방향 규칙을 지킬 수 있었다.

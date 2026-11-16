@@ -59,14 +59,12 @@ export function HeldDialog({
           </span>
         )}
         <DialogTitle className="text-center type-title text-gray-900">
-          {expired ? '결제 가능 시간이 지났어요' : '좌석을 잡았어요'}
+          {expired ? '결제 가능 시간이 지났습니다' : '좌석 선택이 완료되었습니다'}
         </DialogTitle>
         <DialogDescription className="-mt-2 text-center type-body-sm text-gray-500">
-          {expired
-            ? '잡아 둔 좌석이 곧 풀려요. 좌석을 다시 골라 주세요.'
-            : '아래 시간 안에 결제하면 예매가 확정돼요.'}
+          {expired ? '좌석을 다시 선택해주세요.' : '주어진 시간 안에 결제해주세요.'}
         </DialogDescription>
-        <ul className="grid gap-2" aria-label="잡은 좌석">
+        <ul className="grid gap-2" aria-label="선택한 좌석">
           {seats.map((seat) => (
             <li
               key={seat.seatId}
@@ -100,7 +98,7 @@ export function HeldDialog({
           </Button>
         )}
         <p className="text-center type-caption text-gray-500">
-          결제하지 않으면 좌석은 자동으로 풀려요.
+          결제하지 않으면 좌석 선택이 자동으로 해제됩니다.
         </p>
       </DialogContent>
     </Dialog>

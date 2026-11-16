@@ -253,11 +253,17 @@ services:
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes: ["kafka:/var/lib/kafka/data"]
+    # Note: kafka-broker-api-versions.sh는 실행마다 JVM을 띄워 한 번에 1~4초, CPU 45~224%를 썼다(ISE-264, TS-70).
+    # bash의 /dev/tcp로 ApiVersions 요청(API 키 18, 버전 0) 15바이트를 직접 보내고 응답 길이 4바이트가 오는지만 본다.
+    # 포트만 여는 검사와 달리 브로커가 요청을 처리하지 못하면(멈춤·기동 중) 3초 뒤 실패한다.
+    # 기동 중(start_period)에는 2초마다 검사해 healthy를 빨리 알리고, 그 뒤에는 30초마다 검사한다.
     healthcheck:
-      test: [CMD-SHELL, "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 20
+      test: [CMD, bash, -c, 'exec 3<>/dev/tcp/localhost/9092 && printf "\x00\x00\x00\x0b\x00\x12\x00\x00\x00\x00\x00\x01\x00\x01h" >&3 && timeout 3 head -c 4 <&3 | wc -c | grep -qx 4']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+      start_interval: 2s
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
     mem_limit: 384m
@@ -285,6 +291,8 @@ services:
     configs:
       - source: slack-monitoring-url
         target: /etc/alertmanager/slack-monitoring-url
+      - source: grafana-url-template
+        target: /etc/alertmanager/generated/grafana-url.tmpl
     ports: ["127.0.0.1:9093:9093"]
   grafana:
     image: grafana/grafana:latest@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
@@ -341,3 +349,8 @@ configs:
   # Note: secrets의 environment 방식은 변수가 없으면 compose 전체가 실패하고, 빈 content는 파일 대신 디렉터리가 된다.
   slack-monitoring-url:
     content: ${SLACK_WEBHOOK_MONITORING:-http://127.0.0.1:9/slack-webhook-not-set}
+  # 슬랙 알림의 Grafana 바로 가기 주소(templates/slack.tmpl이 iseonjwa.grafana_url로 읽는다). Alertmanager 템플릿은
+  # 환경 변수를 읽지 못해 compose가 값을 넣은 템플릿 파일을 만들어 준다. 로컬은 localhost:3000이고,
+  # 배포 서버는 compose.deploy.yml이 서버 .env의 PUBLIC_URL로 바꾼다(ISE-278).
+  grafana-url-template:
+    content: '{{ define "iseonjwa.grafana_url" }}http://localhost:3000{{ end }}'

@@ -31,7 +31,7 @@ describe('PasswordChangePage', () => {
     expect(await screen.findByLabelText('이메일')).toHaveValue(DEMO_USER.email)
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678')
 
-    expect(await screen.findByText('비밀번호를 바꿨어요')).toBeInTheDocument()
+    expect(await screen.findByText('비밀번호가 변경되었습니다')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/me')
     // 서버는 바꾸면서 이전 Refresh 토큰을 폐기한다. 새로 로그인해 받은 토큰으로 이어 간다
     expect(sessionStore.getState().refreshToken).not.toBe(oldRefreshToken)
@@ -53,7 +53,7 @@ describe('PasswordChangePage', () => {
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678')
 
     expect(
-      await screen.findByText('비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요'),
+      await screen.findByText('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.'),
     ).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
     expect(screen.getByLabelText('이메일')).toHaveValue(DEMO_USER.email)
@@ -64,13 +64,13 @@ describe('PasswordChangePage', () => {
     await renderRoutesReady(routes, '/password-change')
     await fillPasswordChange(DEMO_USER.password, DEMO_USER.password, DEMO_USER.email)
     expect(
-      await screen.findByText('현재 비밀번호와 다른 비밀번호를 입력해 주세요'),
+      await screen.findByText('현재 비밀번호와 다른 비밀번호를 입력해주세요.'),
     ).toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText('현재 비밀번호'), '0')
 
     expect(
-      screen.queryByText('현재 비밀번호와 다른 비밀번호를 입력해 주세요'),
+      screen.queryByText('현재 비밀번호와 다른 비밀번호를 입력해주세요.'),
     ).not.toBeInTheDocument()
   })
 
@@ -81,7 +81,7 @@ describe('PasswordChangePage', () => {
     await fillPasswordChange(DEMO_USER.password, DEMO_USER.password, DEMO_USER.email)
 
     expect(
-      await screen.findByText('현재 비밀번호와 다른 비밀번호를 입력해 주세요'),
+      await screen.findByText('현재 비밀번호와 다른 비밀번호를 입력해주세요.'),
     ).toBeInTheDocument()
     expect(changeRequests).toHaveLength(0)
   })
@@ -92,9 +92,9 @@ describe('PasswordChangePage', () => {
     await fillPasswordChange('wrong-password', 'new-password-5678', DEMO_USER.email)
 
     const current = screen.getByLabelText('현재 비밀번호')
-    expect(await screen.findByText('이메일 또는 현재 비밀번호를 확인해 주세요')).toBeInTheDocument()
+    expect(await screen.findByText('이메일 또는 현재 비밀번호를 확인해주세요.')).toBeInTheDocument()
     expect(current).toHaveFocus()
-    expect(screen.getByText('비밀번호를 5번 틀리면 계정이 잠겨요')).toBeInTheDocument()
+    expect(screen.getByText('비밀번호를 5번 틀리면 계정이 잠깁니다.')).toBeInTheDocument()
   })
 
   it('잠긴 계정은 폼 위에 잠금을 알린다', async () => {
@@ -106,7 +106,7 @@ describe('PasswordChangePage', () => {
 
     await fillPasswordChange(DEMO_USER.password, 'new-password-5678', DEMO_USER.email)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('계정이 잠겼어요')
+    expect(await screen.findByRole('alert')).toHaveTextContent('계정이 잠겼습니다')
   })
 
   it('로그인 전이면 로그인 링크를 보인다', async () => {

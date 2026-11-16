@@ -22,94 +22,101 @@ interface NoticeTemplate {
 
 const UNEXPECTED: NoticeTemplate = {
   tone: 'danger',
-  message: '문제가 생겼어요. 문의할 때 아래 번호를 알려 주세요',
+  message: '문제가 발생했습니다. 문의 시 아래 번호를 알려주세요.',
   showTraceId: true,
 }
 
 // 문의 번호가 없는 예상하지 못한 오류(중계 서버의 HTML 응답, ApiError가 아닌 오류)
-const UNEXPECTED_WITHOUT_TRACE = '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'
+const UNEXPECTED_WITHOUT_TRACE = '문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
 
 // 응답을 받지 못했거나(상태 0) Gateway 응답 시한을 넘겼다(504). 선점·결제 화면은 이 안내 대신
 // isOutcomeUnknown으로 가려 "확인 중"을 보인다(design-system.md 6절 "결제 결과 모름")
 const NO_RESPONSE: ErrorNotice = {
   tone: 'warning',
-  message: '연결이 끊겼어요. 네트워크를 확인하고 다시 시도해 주세요',
+  message: '연결이 끊겼습니다. 네트워크를 확인하고 다시 시도해주세요.',
   traceId: null,
 }
 const GATEWAY_TIMEOUT: ErrorNotice = {
   tone: 'warning',
-  message: '응답이 늦어지고 있어요. 잠시 뒤 다시 시도해 주세요',
+  message: '응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.',
   traceId: null,
 }
 
 const PAYMENT_TIME_OVER: NoticeTemplate = {
   tone: 'danger',
-  message: '결제 가능 시간이 지났어요. 좌석을 다시 골라 주세요',
+  message: '결제 가능 시간이 지났습니다. 좌석을 다시 선택해주세요.',
 }
 
 const SIGN_IN_AGAIN: NoticeTemplate = {
   tone: 'warning',
-  message: '로그인이 끝났어요. 다시 로그인해 주세요',
+  message: '로그인이 만료되었습니다. 다시 로그인해주세요.',
 }
 
 export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
   // 공통
-  VALIDATION_FAILED: { tone: 'field', message: '입력한 값을 확인해 주세요' },
+  VALIDATION_FAILED: { tone: 'field', message: '입력한 값을 확인해주세요.' },
   // 401은 보통 보이지 않는다. 재발급 뒤 재시도하고, 재발급도 실패했을 때만 이 문구로 로그인 화면에 보낸다
   UNAUTHORIZED: SIGN_IN_AGAIN,
   TOKEN_EXPIRED: SIGN_IN_AGAIN,
   TOKEN_REVOKED: SIGN_IN_AGAIN,
-  FORBIDDEN: { tone: 'danger', message: '이 화면을 볼 수 있는 권한이 없어요' },
-  NOT_FOUND: { tone: 'warning', message: '찾는 정보가 없어요. 목록에서 다시 골라 주세요' },
+  FORBIDDEN: { tone: 'danger', message: '이 화면에 접근할 권한이 없습니다.' },
+  NOT_FOUND: { tone: 'warning', message: '찾는 정보가 없습니다. 목록에서 다시 선택해주세요.' },
   // 같은 키에 다른 본문은 화면이 키를 잘못 다룬 것이다. 원인을 찾을 수 있게 번호를 보인다
   IDEMPOTENCY_KEY_REUSED: UNEXPECTED,
-  RATE_LIMITED: { tone: 'warning', message: '요청이 많아요. 잠시 뒤 다시 시도해 주세요' },
-  SERVICE_UNAVAILABLE: { tone: 'warning', message: '연결이 잠시 불안정해요. 곧 다시 시도할게요' },
+  RATE_LIMITED: { tone: 'warning', message: '요청이 많습니다. 잠시 후 다시 시도해주세요.' },
+  SERVICE_UNAVAILABLE: {
+    tone: 'warning',
+    message: '연결이 일시적으로 불안정합니다. 잠시 후 자동으로 다시 시도합니다.',
+  },
   // Gateway 동시 처리 수 상한 거절(503). 원인은 지표로 나누고 사용자에게는 일시 불안정과 같게 보인다
-  GATEWAY_OVERLOADED: { tone: 'warning', message: '연결이 잠시 불안정해요. 곧 다시 시도할게요' },
+  GATEWAY_OVERLOADED: {
+    tone: 'warning',
+    message: '연결이 일시적으로 불안정합니다. 잠시 후 자동으로 다시 시도합니다.',
+  },
 
   // 회원
-  EMAIL_DUPLICATED: { tone: 'field', message: '이미 가입한 이메일이에요. 로그인해 주세요' },
-  INVALID_CREDENTIALS: { tone: 'field', message: '이메일 또는 비밀번호를 확인해 주세요' },
+  EMAIL_DUPLICATED: { tone: 'field', message: '이미 가입된 이메일입니다. 로그인해주세요.' },
+  INVALID_CREDENTIALS: { tone: 'field', message: '이메일 또는 비밀번호를 확인해주세요.' },
   ACCOUNT_LOCKED: {
     tone: 'danger',
-    message: '로그인을 여러 번 실패해 계정이 잠겼어요. 운영자에게 비밀번호 초기화를 요청해 주세요',
+    message:
+      '로그인을 여러 번 실패하여 계정이 잠겼습니다. 운영자에게 비밀번호 초기화를 요청해주세요.',
   },
   PASSWORD_CHANGE_REQUIRED: {
     tone: 'warning',
-    message: '임시 비밀번호예요. 비밀번호를 바꾼 뒤 로그인해 주세요',
+    message: '임시 비밀번호입니다. 비밀번호를 변경한 뒤 로그인해주세요.',
   },
 
   // 대기열·입장
-  SALE_NOT_OPEN: { tone: 'info', message: '아직 오픈 전이에요' },
+  SALE_NOT_OPEN: { tone: 'info', message: '아직 오픈 전입니다.' },
   QUEUE_NOT_JOINED: {
     tone: 'warning',
-    message: '입장 시간이 지나 줄에서 빠졌어요. 다시 줄을 서 주세요',
+    message: '입장 시간이 지나 대기열에서 제외되었습니다. 대기열에 다시 입장해주세요.',
   },
-  QUEUE_NOT_READY: { tone: 'info', message: '아직 차례가 아니에요. 잠시만 기다려 주세요' },
+  QUEUE_NOT_READY: { tone: 'info', message: '아직 차례가 아닙니다. 잠시만 기다려주세요.' },
   ENTRY_TOKEN_INVALID: {
     tone: 'danger',
-    message: '입장 시간이 끝났어요. 대기열로 돌아가 주세요',
+    message: '입장 시간이 만료되었습니다. 대기열로 돌아가주세요.',
   },
 
   // 좌석 선점·예매
-  SEAT_COUNT_MISMATCH: { tone: 'warning', message: '좌석은 1~4석을 겹치지 않게 골라 주세요' },
+  SEAT_COUNT_MISMATCH: { tone: 'warning', message: '좌석은 1~4석을 겹치지 않게 선택해주세요.' },
   // 서비스 이름과 같은 문장이라 발표에서 설계 의도가 보인다(design-system.md 9절 1번)
   SEAT_ALREADY_HELD: {
     tone: 'warning',
-    message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 두었어요',
+    message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.',
   },
   PURCHASE_LIMIT_EXCEEDED: {
     tone: 'warning',
-    message: '이 회차에서 살 수 있는 매수를 넘었어요. 내 예매를 확인해 주세요',
+    message: '이 회차의 구매 가능 매수를 초과했습니다. 내 예매를 확인해주세요.',
   },
   RESERVATION_NOT_PAYABLE: PAYMENT_TIME_OVER,
-  RESERVATION_NOT_CANCELABLE: { tone: 'warning', message: '지금은 취소할 수 없는 예매예요' },
+  RESERVATION_NOT_CANCELABLE: { tone: 'warning', message: '지금은 취소할 수 없는 예매입니다.' },
   LOTTERY_RESERVATION_NOT_CANCELABLE: {
     tone: 'warning',
-    message: '추첨으로 배정된 예매는 취소할 수 없어요',
+    message: '추첨으로 배정된 예매는 취소할 수 없습니다.',
   },
-  CANCEL_PERIOD_ENDED: { tone: 'warning', message: '공연이 시작돼 취소할 수 없어요' },
+  CANCEL_PERIOD_ENDED: { tone: 'warning', message: '공연이 시작되어 취소할 수 없습니다.' },
 
   // 결제
   PAYMENT_TOKEN_INVALID: PAYMENT_TIME_OVER,
@@ -117,39 +124,42 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
   PAYMENT_AMOUNT_MISMATCH: UNEXPECTED,
   PAYMENT_ALREADY_EXISTS: {
     tone: 'warning',
-    message: '이미 처리 중인 결제가 있어요. 내 예매에서 결과를 확인해 주세요',
+    message: '이미 처리 중인 결제가 있습니다. 내 예매에서 결과를 확인해주세요.',
   },
   PAYMENT_ALREADY_CLOSED: {
     tone: 'danger',
-    message: '이 예매의 결제는 끝났어요. 좌석을 새로 골라 주세요',
+    message: '이 예매의 결제가 종료되었습니다. 좌석을 새로 선택해주세요.',
   },
   PG_UNAVAILABLE: {
     tone: 'warning',
-    message: '결제사 연결이 원활하지 않아요. 좌석은 남은 시간 동안 유지돼요',
+    message: '결제사 연결이 원활하지 않습니다. 좌석은 남은 시간 동안 유지됩니다.',
   },
 
   // 추첨
-  LOTTERY_NOT_OPEN: { tone: 'info', message: '지금은 응모 기간이 아니에요' },
-  LOTTERY_ALREADY_ENTERED: { tone: 'info', message: '이미 응모했어요. 결과 발표를 기다려 주세요' },
+  LOTTERY_NOT_OPEN: { tone: 'info', message: '지금은 응모 기간이 아닙니다.' },
+  LOTTERY_ALREADY_ENTERED: {
+    tone: 'info',
+    message: '이미 응모하셨습니다. 결과 발표를 기다려주세요.',
+  },
   BILLING_KEY_RATE_LIMITED: {
     tone: 'warning',
-    message: '카드 등록을 너무 자주 시도했어요. 잠시 뒤 다시 시도해 주세요',
+    message: '카드 등록을 너무 자주 시도했습니다. 잠시 후 다시 시도해주세요.',
   },
-  BILLING_KEY_REQUIRED: { tone: 'warning', message: '자동결제 카드를 먼저 등록해 주세요' },
+  BILLING_KEY_REQUIRED: { tone: 'warning', message: '자동결제 카드를 먼저 등록해주세요.' },
 
   // 운영자
-  SCHEDULE_SEATS_ALREADY_CREATED: { tone: 'warning', message: '이미 좌석을 만든 회차예요' },
+  SCHEDULE_SEATS_ALREADY_CREATED: { tone: 'warning', message: '이미 좌석이 생성된 회차입니다.' },
   LOTTERY_ALREADY_EXISTS: {
     tone: 'warning',
-    message: '이 회차에는 이미 추첨이 있어요. 회차마다 추첨은 하나예요',
+    message: '이 회차에는 이미 추첨이 있습니다. 회차마다 추첨은 하나만 설정할 수 있습니다.',
   },
   LOTTERY_SETUP_CLOSED: {
     tone: 'warning',
-    message: '예매 오픈이나 응모 시작이 지나 추첨 설정을 바꿀 수 없어요',
+    message: '예매 오픈이나 응모 시작이 지나 추첨 설정을 변경할 수 없습니다.',
   },
   LOTTERY_SEATS_NOT_ENOUGH: {
     tone: 'warning',
-    message: '추첨석으로 뗄 좌석이 모자라요. 좌석을 만들었는지, 추첨석 수를 확인해 주세요',
+    message: '추첨석으로 배정할 좌석이 부족합니다. 좌석 생성 여부와 추첨석 수를 확인해주세요.',
   },
 }
 

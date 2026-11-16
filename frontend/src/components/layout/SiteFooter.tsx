@@ -14,8 +14,8 @@ export function SiteFooter() {
         <div className="grid content-start gap-3">
           <Logo />
           <p className="type-body-sm max-w-[320px] text-gray-500">
-            티켓 오픈의 폭주 트래픽을 견디는 콘서트 예매 서비스예요. 대기열, 좌석 선점, 추첨
-            자동결제로 공정하게 예매해요.
+            티켓 오픈의 폭주 트래픽을 견디는 콘서트 예매 서비스입니다. 대기열, 좌석 선점, 추첨
+            자동결제로 공정하게 예매할 수 있습니다.
           </p>
         </div>
         <nav aria-label="바로가기" className="grid content-start gap-3">
@@ -36,9 +36,9 @@ export function SiteFooter() {
         <div className="grid content-start gap-3">
           <h2 className="type-body-sm font-semibold text-gray-900">예매 안내</h2>
           <ul className="grid gap-2 type-body-sm">
-            <li>예매는 대기열 → 좌석 선택 → 결제 순서예요.</li>
-            <li>일부 좌석은 추첨으로 응모를 받아요.</li>
-            <li>시연용 결제라 실제로 돈이 나가지 않아요.</li>
+            <li>예매는 대기열 → 좌석 선택 → 결제 순서로 진행됩니다.</li>
+            <li>일부 좌석은 추첨으로 응모를 받습니다.</li>
+            <li>시연용 결제이므로 실제 결제는 이루어지지 않습니다.</li>
           </ul>
         </div>
       </div>

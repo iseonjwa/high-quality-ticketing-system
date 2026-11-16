@@ -79,7 +79,7 @@ export function AdminLotteryPage() {
               </Button>
             }
           >
-            찾는 추첨이 없어요. 추첨 번호를 다시 확인해 주세요
+            찾는 추첨이 없습니다. 추첨 번호를 다시 확인해주세요.
           </Alert>
         </>
       ) : lottery.data === undefined ? (
@@ -90,7 +90,7 @@ export function AdminLotteryPage() {
           </>
         ) : (
           <div className="grid gap-3" role="status">
-            <span className="sr-only">추첨을 불러오고 있어요</span>
+            <span className="sr-only">추첨을 불러오는 중입니다</span>
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="h-64 w-full" />
           </div>
@@ -128,7 +128,8 @@ function LotteryDetail({ lottery }: { lottery: Lottery }) {
       {closed ? (
         <Card className="gap-3 px-5 @min-[40rem]:px-6">
           <Alert variant="info">
-            응모가 시작돼 설정을 바꿀 수 없어요. 응모 조건이 응모 중에 바뀌지 않게 막아 둬요
+            응모가 시작되어 설정을 변경할 수 없습니다. 응모 조건이 응모 중에 변경되지 않도록
+            제한됩니다.
           </Alert>
           <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 type-body-sm">
             <dt className="text-gray-500">추첨석</dt>
@@ -210,7 +211,7 @@ function LotteryEditForm({ lottery }: { lottery: Lottery }) {
       void queryClient.invalidateQueries({
         queryKey: lotteryQueryKeys.ofSchedule(lottery.scheduleId),
       })
-      toast('추첨 설정을 고쳤어요')
+      toast('추첨 설정이 수정되었습니다')
     } catch (error) {
       if (isOutcomeUnknown(error)) {
         // 같은 값을 다시 보내도 결과가 같다(보낸 필드를 그 값으로 바꿀 뿐이다)
@@ -220,7 +221,7 @@ function LotteryEditForm({ lottery }: { lottery: Lottery }) {
       if (isApiError(error, 'LOTTERY_SEATS_NOT_ENOUGH')) {
         form.setError(
           'seatCount',
-          { message: '추첨석으로 뗄 좌석이 모자라요. 추첨석 수나 등급을 확인해 주세요' },
+          { message: '추첨석으로 배정할 좌석이 부족합니다. 추첨석 수나 등급을 확인해주세요.' },
           { shouldFocus: true },
         )
         return
@@ -238,10 +239,10 @@ function LotteryEditForm({ lottery }: { lottery: Lottery }) {
         {saved ? <LotteryWarnings warnings={saved.warnings} /> : null}
         {outcomeUnknown ? (
           <Alert variant="warning">
-            저장됐는지 확인하지 못했어요. 같은 값으로 다시 저장해도 괜찮아요
+            저장 여부를 확인하지 못했습니다. 같은 값으로 다시 저장해도 됩니다.
           </Alert>
         ) : null}
-        {noChange ? <Alert variant="info">바꾼 칸이 없어요</Alert> : null}
+        {noChange ? <Alert variant="info">변경된 칸이 없습니다</Alert> : null}
         {formError === null ? null : <LotteryFormError error={formError} />}
         <LotteryFields form={form} mode="edit" />
         <Button type="submit" className="w-full @min-[40rem]:w-fit" loading={isSubmitting}>

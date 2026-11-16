@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-15 | 대기열 Lua의 결과 이름(WAITING·READY·ADMITTED)은 무엇을 기준으로 붙이고, 토큰 API의 TOKEN_ISSUED는 왜 READY가 아닌가 | [qna/2026-11-15-queue-lua-outcome-names.md](qna/2026-11-15-queue-lua-outcome-names.md) |
+| 2026-11-14 | Git의 작업 트리는 무엇이고, 변경이 없는데 git status에 수정으로 나오는 이유는 무엇인가 | [qna/2026-11-14-git-working-tree-and-crlf.md](qna/2026-11-14-git-working-tree-and-crlf.md) |
 | 2026-11-10 | 대기열 폴링 수는 왜 계산값보다 많이 나오고, 폴링 간격은 어떻게 확인하는가 | [qna/2026-11-10-queue-poll-rate-and-interval.md](qna/2026-11-10-queue-poll-rate-and-interval.md) |
 | 2026-11-09 | AI 에이전트로 부하 테스트를 돌릴 때 토큰은 어디에 얼마나 드는가 | [qna/2026-11-09-agent-token-usage-in-load-test.md](qna/2026-11-09-agent-token-usage-in-load-test.md) |
 | 2026-11-09 | k6에서 요청량 기준과 VU 기준은 무엇이 다르고, 오픈 순간 몰림은 어떻게 재현하는가 | [qna/2026-11-09-k6-arrival-rate-and-burst.md](qna/2026-11-09-k6-arrival-rate-and-burst.md) |

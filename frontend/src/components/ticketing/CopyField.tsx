@@ -35,7 +35,7 @@ export function CopyField({
       await navigator.clipboard.writeText(value)
       setCopied(true)
     } catch {
-      toast.error('복사하지 못했어요. 칸을 눌러 직접 복사해 주세요')
+      toast.error('복사하지 못했습니다. 칸을 눌러 직접 복사해주세요.')
     }
   }
 

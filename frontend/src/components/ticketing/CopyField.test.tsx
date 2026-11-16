@@ -63,7 +63,7 @@ describe('CopyField', () => {
     await userEvent.click(screen.getByRole('button', { name: '복사' }))
 
     expect(
-      await screen.findByText('복사하지 못했어요. 칸을 눌러 직접 복사해 주세요'),
+      await screen.findByText('복사하지 못했습니다. 칸을 눌러 직접 복사해주세요.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '복사' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '복사함' })).not.toBeInTheDocument()

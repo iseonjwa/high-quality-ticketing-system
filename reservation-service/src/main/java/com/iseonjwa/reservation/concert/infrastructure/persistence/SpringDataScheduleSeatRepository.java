@@ -33,7 +33,7 @@ interface SpringDataScheduleSeatRepository extends JpaRepository<ScheduleSeat, L
                                                  @Param("status") ScheduleSeatStatus status,
                                                  @Param("excludedGrade") SeatGrade excludedGrade);
 
-    // Note: 15,000석을 엔티티로 하나씩 save하면 INSERT가 15,000번 나간다.
+    // Note: 좌석을 엔티티로 하나씩 save하면 좌석 수만큼 INSERT가 나간다(시드 공연장 1,500석이면 1,500번).
     // DB 안에서 venue_seats를 읽어 바로 넣는 INSERT ... SELECT 한 문장으로 만든다.
     // JPA 감사 리스너를 거치지 않으므로 created_at·created_by를 직접 채운다.
     @Modifying

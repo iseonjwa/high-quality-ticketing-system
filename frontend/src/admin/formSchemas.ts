@@ -17,8 +17,8 @@ export const concertFormSchema = z.object({
   title: z
     .string()
     .trim()
-    .min(1, '공연 제목을 입력해 주세요')
-    .max(MAX_TITLE_LENGTH, `제목은 ${MAX_TITLE_LENGTH}자까지 쓸 수 있어요`),
+    .min(1, '공연 제목을 입력해주세요.')
+    .max(MAX_TITLE_LENGTH, `제목은 ${MAX_TITLE_LENGTH}자까지 입력할 수 있습니다.`),
   description: z.string(),
 })
 export type ConcertFormInput = z.input<typeof concertFormSchema>
@@ -32,26 +32,26 @@ const optionalSmallInt = (topic: string) =>
   z
     .string()
     .trim()
-    .refine((value) => value === '' || /^\d+$/.test(value), `${topic} 숫자로 입력해 주세요`)
+    .refine((value) => value === '' || /^\d+$/.test(value), `${topic} 숫자로 입력해주세요.`)
     .refine(
       (value) => value === '' || (Number(value) >= 1 && Number(value) <= MAX_SMALLINT),
-      `${topic} 1~${MAX_SMALLINT} 사이로 입력해 주세요`,
+      `${topic} 1~${MAX_SMALLINT} 사이로 입력해주세요.`,
     )
 
 export const scheduleFormSchema = z
   .object({
-    venueId: requiredInteger('공연장 번호를 입력해 주세요', '공연장 번호는 숫자로 입력해 주세요')
-      .refine((value) => value > 0, '공연장 번호는 1 이상이어야 해요')
+    venueId: requiredInteger('공연장 번호를 입력해주세요.', '공연장 번호는 숫자로 입력해주세요.')
+      .refine((value) => value > 0, '공연장 번호는 1 이상이어야 합니다.')
       // 안전 범위를 넘으면 JSON 숫자가 반올림되거나(2^53 이상) 서버 Long으로 읽히지 않는다
-      .refine((value) => Number.isSafeInteger(value), '공연장 번호를 확인해 주세요'),
+      .refine((value) => Number.isSafeInteger(value), '공연장 번호를 확인해주세요.'),
     startsAt: z
       .string()
-      .min(1, '공연 시작 시각을 입력해 주세요')
-      .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해 주세요'),
+      .min(1, '공연 시작 시각을 입력해주세요.')
+      .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해주세요.'),
     openAt: z
       .string()
-      .min(1, '오픈 시각을 입력해 주세요')
-      .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해 주세요'),
+      .min(1, '오픈 시각을 입력해주세요.')
+      .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해주세요.'),
     maxPerUser: optionalSmallInt('1인 최대 매수는'),
     holdMinutes: optionalSmallInt('선점 시간은'),
   })
@@ -62,7 +62,7 @@ export const scheduleFormSchema = z
       // 형식이 틀린 칸은 위에서 이미 안내한다
       return startsAt === null || openAt === null || Date.parse(openAt) < Date.parse(startsAt)
     },
-    { path: ['openAt'], message: '오픈 시각은 공연 시작보다 앞서야 해요' },
+    { path: ['openAt'], message: '오픈 시각은 공연 시작보다 앞서야 합니다.' },
   )
 export type ScheduleFormInput = z.input<typeof scheduleFormSchema>
 export type ScheduleFormValues = z.output<typeof scheduleFormSchema>
@@ -70,11 +70,11 @@ export type ScheduleFormValues = z.output<typeof scheduleFormSchema>
 const optionalPrice = z
   .string()
   .trim()
-  .refine((value) => value === '' || /^\d+$/.test(value), '가격은 숫자로 입력해 주세요')
-  .refine((value) => value === '' || Number(value) >= 1, '가격은 1원 이상으로 입력해 주세요')
+  .refine((value) => value === '' || /^\d+$/.test(value), '가격은 숫자로 입력해주세요.')
+  .refine((value) => value === '' || Number(value) >= 1, '가격은 1원 이상으로 입력해주세요.')
   .refine(
     (value) => value === '' || Number(value) <= MAX_PRICE,
-    '가격이 너무 커요. 다시 확인해 주세요',
+    '가격이 너무 큽니다. 다시 확인해주세요.',
   )
 
 export const seatPriceFormSchema = z
@@ -82,7 +82,7 @@ export const seatPriceFormSchema = z
   // 특정 칸이 아니라 폼 전체의 규칙이라 root 오류로 둔다. VIP 칸에 붙이면 VIP가 없는 공연장에서 틀린 칸을 가리킨다
   .refine((values) => SEAT_GRADES.some((grade) => values[grade] !== ''), {
     path: ['root'],
-    message: '적어도 한 등급의 가격을 입력해 주세요',
+    message: '적어도 한 등급의 가격을 입력해주세요.',
   })
 export type SeatPriceFormInput = z.input<typeof seatPriceFormSchema>
 export type SeatPriceFormValues = z.output<typeof seatPriceFormSchema>

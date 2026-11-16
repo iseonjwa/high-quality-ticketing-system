@@ -47,8 +47,8 @@ const EXAMPLE_QUESTIONS = [
 ]
 
 const FALLBACK_NOTICE = {
-  LLM_DISABLED: 'AI 답변이 꺼져 있어 관련 안내만 보여 드려요.',
-  LLM_UNAVAILABLE: 'AI 답변이 잠시 어려워 관련 안내만 보여 드려요.',
+  LLM_DISABLED: 'AI 답변이 꺼져 있어 관련 안내만 제공합니다.',
+  LLM_UNAVAILABLE: 'AI 답변을 일시적으로 사용할 수 없어 관련 안내만 제공합니다.',
 } as const
 
 // 시연 모드 요청 로그 패널(오른쪽 고정)만큼 비켜 둔다
@@ -262,7 +262,7 @@ function AssistantPanel({
           <h2 id={titleId} className="type-body font-semibold text-gray-900">
             예매 문의
           </h2>
-          <p className="truncate type-caption text-gray-500">예매 규정을 바탕으로 답해요</p>
+          <p className="truncate type-caption text-gray-500">예매 규정을 바탕으로 답변합니다</p>
         </div>
         <Button
           ref={closeRef}
@@ -382,7 +382,7 @@ function SignInPrompt() {
   return (
     <div className="grid gap-4 py-6 text-center">
       <p className="type-body-sm text-gray-700">
-        로그인하면 오픈 시각, 매수 제한, 결제·환불, 대기열 같은 예매 규정을 물어볼 수 있어요.
+        로그인하면 오픈 시각, 매수 제한, 결제·환불, 대기열 같은 예매 규정을 문의할 수 있습니다.
       </p>
       <Button asChild size="lg" className="w-full">
         <Link to={paths.login} state={state}>
@@ -397,11 +397,11 @@ function Intro({ onPick }: { onPick: (question: string) => void }) {
   return (
     <div className="grid gap-4">
       <p className="type-body-sm text-gray-700">
-        오픈 시각, 매수 제한, 결제·환불, 대기열처럼 예매 규정을 바탕으로 답해요. 답에는 근거가 된
-        안내를 함께 보여 드려요.
+        오픈 시각, 매수 제한, 결제·환불, 대기열처럼 예매 규정을 바탕으로 답변합니다. 답변에는 근거가
+        된 안내를 함께 제공합니다.
       </p>
       <div className="grid gap-2">
-        <p className="type-caption font-semibold text-gray-500">이런 걸 물어볼 수 있어요</p>
+        <p className="type-caption font-semibold text-gray-500">이런 내용을 문의할 수 있습니다</p>
         <ul className="flex flex-wrap gap-2">
           {EXAMPLE_QUESTIONS.map((example) => (
             <li key={example}>
@@ -460,7 +460,7 @@ function AnswerBubble({
         <TypingDots />
       ) : null}
       {turn.status === 'stopped' ? (
-        <p className="type-caption text-gray-500">답변을 멈췄어요</p>
+        <p className="type-caption text-gray-500">답변이 중단되었습니다</p>
       ) : null}
       {turn.status === 'failed' ? (
         <FailureNote
@@ -487,7 +487,7 @@ function TypingDots() {
           />
         ))}
       </span>
-      답변을 만들고 있어요
+      답변을 생성하는 중입니다
     </p>
   )
 }
@@ -525,11 +525,11 @@ function FailureNote({
   const title = failureTitle(error, streamOpened)
   const body = limited
     ? wait !== null
-      ? `${wait}초 뒤 다시 물어봐 주세요.`
-      : '잠시 뒤 다시 물어봐 주세요.'
-    : title === '지금 상담을 쓸 수 없어요'
-      ? '공연 상세의 "알아 두세요"에서 예매 안내를 볼 수 있어요.'
-      : '다시 물어봐 주세요.'
+      ? `${wait}초 후 다시 질문해주세요.`
+      : '잠시 후 다시 질문해주세요.'
+    : title === '지금 상담을 이용할 수 없습니다'
+      ? '공연 상세의 "알아두세요"에서 예매 안내를 볼 수 있습니다.'
+      : '다시 질문해주세요.'
   return (
     <div className="grid gap-1 rounded-[12px] bg-warning-50 px-3 py-2.5 type-caption text-warning-700">
       <p className="font-semibold">{title}</p>
@@ -640,7 +640,7 @@ function Composer({
         </p>
       ) : null}
       <p id={hintId} className="flex justify-between gap-3 type-caption text-gray-500">
-        <span>AI 답변은 참고용이에요. 개인정보는 쓰지 마세요.</span>
+        <span>AI 답변은 참고용입니다. 개인정보는 입력하지 말아주세요.</span>
         <span className="shrink-0 tabular-nums">
           {question.length}/{QUESTION_MAX_LENGTH}
         </span>

@@ -38,15 +38,15 @@ describe('AuthCard', () => {
     renderCard()
 
     const heading = screen.getByRole('heading', { level: 1 })
-    const intro = screen.getByText('대기열로 들어온 순서를 지켜요')
+    const intro = screen.getByText('대기열 입장 순서가 보장됩니다')
     expect(heading.compareDocumentPosition(intro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('그림 패널에 서비스 소개 세 줄이 있다', () => {
     renderCard()
 
-    expect(screen.getByText('대기열로 들어온 순서를 지켜요')).toBeInTheDocument()
-    expect(screen.getByText('고른 좌석은 결제하는 동안 잡아 둬요')).toBeInTheDocument()
-    expect(screen.getByText('일부 좌석은 추첨으로 공정하게 나눠요')).toBeInTheDocument()
+    expect(screen.getByText('대기열 입장 순서가 보장됩니다')).toBeInTheDocument()
+    expect(screen.getByText('선택한 좌석은 결제하는 동안 유지됩니다')).toBeInTheDocument()
+    expect(screen.getByText('일부 좌석은 추첨으로 공정하게 배정됩니다')).toBeInTheDocument()
   })
 })

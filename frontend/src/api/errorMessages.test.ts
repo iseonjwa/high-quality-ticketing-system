@@ -6,7 +6,7 @@ function apiError(code: string, status = 409) {
   return new ApiError({ status, code, message: code, traceId: '4bf92f3577b34da6a3ce929d0e0e4736' })
 }
 
-const UNEXPECTED_MESSAGE = '문제가 생겼어요. 문의할 때 아래 번호를 알려 주세요'
+const UNEXPECTED_MESSAGE = '문제가 발생했습니다. 문의 시 아래 번호를 알려주세요.'
 
 describe('describeError', () => {
   it('SA 11-3의 모든 코드에 안내가 있다', () => {
@@ -52,7 +52,7 @@ describe('describeError', () => {
   it('정해진 안내가 있는 코드는 문의 번호를 보이지 않는다', () => {
     expect(describeError(apiError('SEAT_ALREADY_HELD'))).toEqual({
       tone: 'warning',
-      message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 두었어요',
+      message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.',
       traceId: null,
     })
   })
@@ -74,7 +74,7 @@ describe('describeError', () => {
   it('문의 번호가 없는 예상하지 못한 오류는 번호 안내 없이 다시 시도를 권한다', () => {
     const withoutTrace = {
       tone: 'danger',
-      message: '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요',
+      message: '문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
       traceId: null,
     }
 
@@ -90,10 +90,10 @@ describe('describeError', () => {
     expect(
       describeError(new ApiError({ status: 0, code: CLIENT_ERROR_CODES.networkError, message: '' }))
         .message,
-    ).toBe('연결이 끊겼어요. 네트워크를 확인하고 다시 시도해 주세요')
+    ).toBe('연결이 끊겼습니다. 네트워크를 확인하고 다시 시도해주세요.')
     // Gateway의 504는 코드가 INTERNAL_SERVER_ERROR다
     expect(describeError(apiError('INTERNAL_SERVER_ERROR', 504)).message).toBe(
-      '응답이 늦어지고 있어요. 잠시 뒤 다시 시도해 주세요',
+      '응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.',
     )
   })
 })

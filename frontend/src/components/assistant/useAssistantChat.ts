@@ -122,7 +122,7 @@ export function useAssistantChat(): AssistantChat {
             // 질문을 고쳐 다시 보내게 대화에서 빼고 입력 칸 아래에 알린다
             setTurns((current) => current.filter((turn) => turn.id !== id))
             setFieldError({
-              reason: error.fieldErrors?.[0]?.reason ?? '질문을 확인해 주세요',
+              reason: error.fieldErrors?.[0]?.reason ?? '질문을 확인해주세요',
               question,
             })
             return
@@ -170,13 +170,13 @@ export function useAssistantChat(): AssistantChat {
 // 실패한 답의 제목. 화면과 알림 영역이 같은 문장을 쓴다. streamOpened: 스트림이 열린 뒤(meta를 받은 뒤) 실패했는지
 export function failureTitle(error: unknown, streamOpened: boolean): string {
   if (isApiError(error) && error.status === 429) {
-    return '질문이 많아요'
+    return '질문이 많습니다'
   }
   if (isApiError(error, CLIENT_ERROR_CODES.networkError) && streamOpened) {
-    return '답변이 중간에 끊겼어요'
+    return '답변이 중간에 끊겼습니다'
   }
   if (isApiError(error) && (error.status === 0 || error.status >= 500)) {
-    return '지금 상담을 쓸 수 없어요'
+    return '지금 상담을 이용할 수 없습니다'
   }
-  return '답변을 받지 못했어요'
+  return '답변을 받지 못했습니다'
 }

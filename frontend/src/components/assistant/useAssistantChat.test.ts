@@ -153,27 +153,27 @@ describe('failureTitle', () => {
   const apiError = (status: number, code: string) => new ApiError({ status, code, message: '실패' })
 
   it.each([
-    ['429', apiError(429, 'RATE_LIMITED'), false, '질문이 많아요'],
+    ['429', apiError(429, 'RATE_LIMITED'), false, '질문이 많습니다'],
     [
       '네트워크 오류, 스트림이 열린 뒤',
       apiError(0, CLIENT_ERROR_CODES.networkError),
       true,
-      '답변이 중간에 끊겼어요',
+      '답변이 중간에 끊겼습니다',
     ],
     [
       '네트워크 오류, 스트림이 열리기 전',
       apiError(0, CLIENT_ERROR_CODES.networkError),
       false,
-      '지금 상담을 쓸 수 없어요',
+      '지금 상담을 이용할 수 없습니다',
     ],
-    ['503', apiError(503, 'SERVICE_UNAVAILABLE'), false, '지금 상담을 쓸 수 없어요'],
+    ['503', apiError(503, 'SERVICE_UNAVAILABLE'), false, '지금 상담을 이용할 수 없습니다'],
     [
       '응답 스키마 불일치',
       apiError(200, CLIENT_ERROR_CODES.responseSchemaMismatch),
       true,
-      '답변을 받지 못했어요',
+      '답변을 받지 못했습니다',
     ],
-    ['ApiError가 아닌 오류', new Error('boom'), false, '답변을 받지 못했어요'],
+    ['ApiError가 아닌 오류', new Error('boom'), false, '답변을 받지 못했습니다'],
   ])('%s → "%s" 문장', (_name, error, opened, expected) => {
     expect(failureTitle(error, opened)).toBe(expected)
   })

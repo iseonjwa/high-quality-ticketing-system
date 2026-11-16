@@ -83,13 +83,13 @@ export function LoginPage() {
       title="로그인"
       description={
         returnPath === paths.home
-          ? '예매하려면 로그인해 주세요'
-          : '로그인하면 보던 화면으로 돌아가요'
+          ? '예매하려면 로그인해주세요.'
+          : '로그인하면 보던 화면으로 돌아갑니다.'
       }
       footer={
         <>
           <AuthFooterLine>
-            아직 회원이 아니에요?
+            아직 회원이 아니신가요?
             <AuthFooterLink to={paths.signup} state={nextState}>
               회원가입
             </AuthFooterLink>
@@ -122,7 +122,7 @@ export function LoginPage() {
           autoComplete="current-password"
           error={errors.password?.message}
           description={
-            failedOnce ? `비밀번호를 ${MAX_LOGIN_FAILURES}번 틀리면 계정이 잠겨요` : undefined
+            failedOnce ? `비밀번호를 ${MAX_LOGIN_FAILURES}번 틀리면 계정이 잠깁니다.` : undefined
           }
           {...form.register('password')}
         />

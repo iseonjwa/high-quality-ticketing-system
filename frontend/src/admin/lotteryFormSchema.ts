@@ -26,17 +26,17 @@ const wholeNumber = (topic: string, min: number) =>
   z
     .string()
     .trim()
-    .refine((value) => value === '' || /^\d+$/.test(value), `${topic} 숫자로 입력해 주세요`)
+    .refine((value) => value === '' || /^\d+$/.test(value), `${topic} 숫자로 입력해주세요.`)
     .refine(
       (value) => value === '' || (Number(value) >= min && Number(value) <= MAX_INT),
-      min === 0 ? `${topic} 0 이상으로 입력해 주세요` : `${topic} ${min} 이상으로 입력해 주세요`,
+      min === 0 ? `${topic} 0 이상으로 입력해주세요.` : `${topic} ${min} 이상으로 입력해주세요.`,
     )
 
 const localDateTime = (requiredMessage: string) =>
   z
     .string()
     .min(1, requiredMessage)
-    .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해 주세요')
+    .refine((value) => kstLocalToIso(value) !== null, '시각 형식을 확인해주세요.')
 
 const millisOf = (local: string) => {
   const iso = kstLocalToIso(local)
@@ -62,19 +62,19 @@ export function lotteryFormSchema({ mode, scheduleStartsAt, savedTimes }: Lotter
     .object({
       sourceGrade: z
         .enum(['', ...SEAT_GRADES])
-        .refine((value) => !required || value !== '', '추첨석으로 뗄 등급을 골라 주세요'),
+        .refine((value) => !required || value !== '', '추첨석으로 배정할 등급을 선택해주세요.'),
       seatCount: wholeNumber('추첨석 수는', 1).refine(
         (value) => value !== '',
-        '추첨석 수를 입력해 주세요',
+        '추첨석 수를 입력해주세요.',
       ),
       waitlistCount: wholeNumber('예비 순번 수는', 0).refine(
         (value) => !required || value !== '',
-        '예비 순번 수를 입력해 주세요',
+        '예비 순번 수를 입력해주세요.',
       ),
       maxPerEntry: z.enum(['1', '2']),
-      entryStartAt: localDateTime('응모 시작 시각을 입력해 주세요'),
-      entryEndAt: localDateTime('응모 마감 시각을 입력해 주세요'),
-      drawAt: localDateTime('추첨 시각을 입력해 주세요'),
+      entryStartAt: localDateTime('응모 시작 시각을 입력해주세요.'),
+      entryEndAt: localDateTime('응모 마감 시각을 입력해주세요.'),
+      drawAt: localDateTime('추첨 시각을 입력해주세요.'),
     })
     .superRefine((values, context) => {
       const saved = savedTimes ?? null
@@ -90,21 +90,21 @@ export function lotteryFormSchema({ mode, scheduleStartsAt, savedTimes }: Lotter
         context.addIssue({
           code: 'custom',
           path: ['entryStartAt'],
-          message: '응모 시작은 지금보다 뒤여야 해요. 응모가 시작되면 설정을 바꿀 수 없어요',
+          message: '응모 시작은 지금보다 뒤여야 합니다. 응모가 시작되면 설정을 변경할 수 없습니다.',
         })
       }
       if (start !== null && end !== null && end <= start) {
         context.addIssue({
           code: 'custom',
           path: ['entryEndAt'],
-          message: '응모 마감은 응모 시작보다 뒤여야 해요',
+          message: '응모 마감은 응모 시작보다 뒤여야 합니다.',
         })
       }
       if (end !== null && draw !== null && draw < end) {
         context.addIssue({
           code: 'custom',
           path: ['drawAt'],
-          message: '추첨은 응모 마감과 같거나 뒤여야 해요',
+          message: '추첨은 응모 마감과 같거나 뒤여야 합니다.',
         })
       }
       const startsAt = scheduleStartsAt === null ? null : Date.parse(scheduleStartsAt)
@@ -112,7 +112,7 @@ export function lotteryFormSchema({ mode, scheduleStartsAt, savedTimes }: Lotter
         context.addIssue({
           code: 'custom',
           path: ['drawAt'],
-          message: '추첨은 공연 시작 1시간 전까지여야 해요(배정·자동결제 시간)',
+          message: '추첨은 공연 시작 1시간 전까지여야 합니다(배정·자동결제 시간).',
         })
       }
     })

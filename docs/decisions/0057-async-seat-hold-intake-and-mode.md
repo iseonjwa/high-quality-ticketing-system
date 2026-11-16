@@ -49,3 +49,4 @@ ISE-16은 접수형 선점(`seat-hold.mode=async`)의 접수 API와 결과 조�
   - ISE-120 담당에게 contract 이슈로 결정 1·3·4를 알린다.
   - ISE-17: 소비자, DLQ, 30초 타임아웃, Outbox 지연 측정.
   - ISE-18: 직접 발행 경로, 접수 단계 409 비율, 섞인 구역 요청 비율.
+    - 2026-11-16 직접 발행 경로를 측정 전용으로 만들었다(`seat-hold.async.publish=direct`, 기본 `outbox`). 요청 행을 커밋한 뒤 Outbox와 같은 봉투·키로 보내고 브로커 확인을 최대 1초 기다린다. 전송이 실패해도 202로 답하고 지표(`seathold_direct_publish_total{result="failed"}`)로 센다. 메시지가 가지 않은 요청은 30초 시한 정리가 닫는다. 커밋 전 전송은 롤백된 접수의 메시지가 남거나 소비자가 커밋 전 행을 못 찾는 경우가 생겨 고르지 않았다. 운영 설정(config-repo)은 바꾸지 않았다. 판단 기록: [직접 발행 방식](../ai-judgments/kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md)

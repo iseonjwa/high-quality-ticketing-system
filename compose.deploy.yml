@@ -5,9 +5,10 @@
 # compose.yml과 달라지는 것
 # - 앱 9개는 빌드하지 않고 GHCR의 그 커밋 이미지를 받는다(ISE-173). build를 지워 서버에서 실수로 빌드하지 않게 한다.
 # - 컨테이너 상한과 힙은 SA 9-3 표(16GB급 EC2)를 따른다. 관측 추가분(loki·alloy·alertmanager)은 observability.md 4절 값이다.
-# - 공개 진입점은 frontend(nginx) 80이다. gateway 8080은 호스트 모든 주소에 열지만 보안 그룹이 외부를 막고,
-#   부하 측정 때만 발생기 보안 그룹에 연다(ADR 0046). Grafana만 3000으로 열고(보안 그룹이 팀원 IP만 허용, 익명 보기),
-#   나머지 관리 UI는 127.0.0.1이라 SSH 터널로 본다.
+# - 공개 진입점은 frontend(nginx) 443(https)이고 80은 https로 넘긴다(ISE-278, frontend/nginx/deploy.conf). gateway 8080은 호스트 모든
+#   주소에 열지만 보안 그룹이 외부를 막고, 부하 측정 때만 발생기 보안 그룹에 연다(ADR 0046). Grafana는 nginx가 443의 /grafana/로
+#   중계하고(누구나 보기), 관리 UI는 모두 127.0.0.1이라 SSH 터널로 본다.
+# - 서버 주소는 서버 .env의 PUBLIC_URL 한 곳에만 둔다(Grafana root_url, 알림 템플릿).
 # - 앱 8개의 JAVA_TOOL_OPTIONS에 -XX:+UseG1GC를 명시한다(ISE-193). 컨테이너 메모리가 약 1,792MB보다 작으면 JVM이 Serial GC를 고르는데,
 #   팀원 측정(K1 등)은 모두 "배포 메모리 + G1" 조건이라 같게 맞춘다(reservation-service/k6/compose.g1.yml).
 # - 앱 프로필은 prod다. 시연에서 traceId로 Zipkin 트레이스를 보려고 샘플링은 1.0으로 둔다(TRACING_SAMPLE_RATE).
@@ -57,12 +58,21 @@ services:
       <<: *deploy-app-env
       JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:MaxDirectMemorySize=128m -XX:+UseG1GC
     ports: !override ["8080:8080"]
+  # nginx 설정은 배포용(frontend/nginx/deploy.conf)으로 바꿔 끼운다(ISE-278). 바깥 요청은 443(https)으로 받고 80은 https로 넘긴다.
+  # /var/www/certbot은 서버의 certbot이 인증서 확인 파일을 쓰는 폴더다. 인증서는 /etc/letsencrypt의 live/와 archive/만 넣는다
+  # (live/의 상대 링크가 archive/를 가리킨다. ACME 계정 키가 든 accounts/ 등은 nginx 컨테이너에 넣지 않는다).
+  # 이미지 태그가 커밋마다 바뀌어 배포 때마다 컨테이너를 다시 만들므로, 마운트한 설정도 그때 새 파일로 읽힌다.
   frontend:
     image: ghcr.io/iseonjwa/frontend:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
     restart: unless-stopped
     logging: *deploy-logging
-    ports: !override ["80:80"]
+    ports: !override ["80:80", "443:443"]
+    volumes:
+      - ./frontend/nginx/deploy.conf:/etc/nginx/conf.d/default.conf:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - /etc/letsencrypt/live:/etc/letsencrypt/live:ro
+      - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
   user-service:
     image: ghcr.io/iseonjwa/user-service:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
@@ -84,12 +94,17 @@ services:
   payment-service:
     image: ghcr.io/iseonjwa/payment-service:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
-    mem_limit: 768m
+    # 768MiB에서 2026-11-15 UTC 하루에 cgroup OOM(exit 137)으로 다섯 번 죽었다(ISE-264, TS-71). 실측은 비힙 committed 약 193~216MB
+    # (Metaspace 134MB, 코드 캐시 41MB) + JVM 지표 밖 약 144MB(스레드 스택, GC 자료구조, malloc)라 힙이 512MB까지 커지면 약 870MB다.
+    # 대사 회차(5분마다 housekeeping-1)가 힙을 키우는 순간 상한을 넘었다. 힙은 그대로 두고 상한을 1,024MiB로 올린다(gateway와 같은 방식).
+    # 힙 밖 상한(Metaspace 256MB, 코드 캐시 128MB, 직접 메모리 64MB)은 실측의 약 2~3배로, 누수가 생기면 컨테이너 강제 종료 대신 JVM 오류로 보이게 한다.
+    # 컨테이너 상한 합은 12,992 → 13,248MiB(frontend 포함, compose config 계산)로 장비(약 15.7GiB, 15,701MiB)의 84%다
+    mem_limit: 1024m
     restart: unless-stopped
     logging: *deploy-logging
     environment:
       <<: *deploy-app-env
-      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:+UseG1GC
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC
   mock-pg:
     image: ghcr.io/iseonjwa/mock-pg:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
@@ -161,13 +176,22 @@ services:
     logging: *deploy-logging
     labels:
       iseonjwa.config-hash: "${CONFIG_HASH_ALERTMANAGER:-}"
-  # Grafana만 호스트 모든 주소의 3000에 연다. 보안 그룹이 팀원 IP만 허용한다(deployment.md 3절).
-  # 익명은 보기(Viewer)만 된다. 시연 모드(?demo=on)의 traceId 링크가 이 주소(<서버 IP>:3000)로 온다.
+      # 알림 템플릿의 Grafana 주소가 바뀌면 다시 만든다. configs(grafana-url-template)의 내용만 바뀌면 compose가 컨테이너를
+      # 다시 만들지 않아 옛 주소 템플릿을 계속 읽는다(2026-11-16 로컬에서 확인). 아래 configs의 주소 식을 고치면 이 값도 같이 고친다.
+      iseonjwa.grafana-url: "${PUBLIC_URL:-}/grafana"
+  # Grafana는 프론트 nginx가 https://<공개 주소>/grafana/로 중계하고, 누구나 보기(익명 Viewer)만 된다(ISE-278).
+  # 시연·외부 심사 때 심사위원이 직접 보게 하려는 것이다(판단 기록 2026-11-16-grafana-public-over-https-path.md).
+  # 3000은 로컬처럼 127.0.0.1에만 연다(SSH 터널이면 http://localhost:3000/grafana/). 시연 모드(?demo=on)의 traceId 링크도 /grafana/로 온다.
+  # 공개 주소는 서버 .env의 PUBLIC_URL 한 곳에만 둔다. Grafana가 넘김·링크를 만들 때 쓰는 root_url이 이 값에서 나온다.
   grafana:
-    ports: !override ["3000:3000"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SERVER_ROOT_URL: "${PUBLIC_URL:?서버 .env에 공개 주소를 PUBLIC_URL로 둔다(예 https://서버IP)}/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # 로그인 쿠키를 https에서만 보낸다. HSTS가 없어 http 주소로 한 번 들어오면 넘기기 전에 쿠키가 평문으로 갈 수 있어서다.
+      # 그래서 SSH 터널(http://localhost:3000/grafana/)로는 관리자 로그인이 되지 않는다. 로그인은 https 주소에서 한다.
+      GF_SECURITY_COOKIE_SECURE: "true"
     mem_limit: 384m
     restart: unless-stopped
     logging: *deploy-logging
@@ -196,3 +220,9 @@ services:
       # Note: 메모리 저장은 기본 50만 건까지 쌓는다. 샘플링 1.0과 측정 몰림 뒤 힙(384m)이 차서 unhealthy가 되면
       # 배포의 compose --wait가 실패해 되돌림까지 막는다(TS-54). 10만 건으로 줄여 힙 안에 머물게 한다(건당 크기는 추정).
       MEM_MAX_SPANS: 100000
+
+configs:
+  # 슬랙 알림의 Grafana 바로 가기(compose.yml grafana-url-template). 배포 서버는 공개 주소의 /grafana다.
+  # 주소 식을 고치면 alertmanager의 iseonjwa.grafana-url 라벨도 같이 고친다(그래야 컨테이너가 다시 만들어진다).
+  grafana-url-template:
+    content: '{{ define "iseonjwa.grafana_url" }}${PUBLIC_URL:?서버 .env에 공개 주소를 PUBLIC_URL로 둔다(예 https://서버IP)}/grafana{{ end }}'

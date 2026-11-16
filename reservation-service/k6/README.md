@@ -16,7 +16,7 @@
 | `compose.b8-r1.yml` / `compose.b8-r123.yml` | B8 대응 R1(커넥션 대기 1초), R2·R3(요청 스레드 50, 연결 상한 200, OS 대기열 50) 측정용 |
 | `compose.b8-r13.yml` | R3 재측정용(연결 상한 30, OS 대기열 10, 스레드 기본값). `compose.b8-r1.yml` 위에 얹는다 |
 | `tools/b8-run.sh` | B8 한 회: reservation-service를 덮어쓰기로 새로 띄우고 새 회차에 K1 + 회복 탐침(`RECOVERY_SECONDS`)을 건 뒤 지표를 모은다 |
-| `tools/create-schedule.sh` | 측정용 새 회차(판매 중, 15,000석)를 만들고 회차 ID만 출력한다. 관리자 계정은 `.env`에서 읽고 출력하지 않는다 |
+| `tools/create-schedule.sh` | 측정용 새 회차(판매 중, 1,500석)를 만들고 회차 ID만 출력한다. 관리자 계정은 `.env`에서 읽고 출력하지 않는다 |
 | `tools/b8_metrics.py` | Prometheus에서 Tomcat·Hikari·좌석 조회 지표를 10초 간격 CSV와 판정용 요약으로 꺼낸다 |
 | `tools/b8_k6.py` | k6 원자료에서 사용자 쪽 좌석 조회·선점 상태별 건수와 오류 응답 p50·p95를 센다 |
 | `data/users.csv` | 사용자 토큰(직접 준비, 커밋 금지) |
@@ -33,7 +33,7 @@ eyJ...,eyJ...
 
 - `accessToken`: `POST /api/v1/auth/login` 응답의 `data.accessToken`. 유효 30분이다.
 - `entryToken`: 대상 회차에서 `POST /api/v1/schedules/{id}/queue` → READY → `POST /api/v1/schedules/{id}/queue/token` 응답의 `data.entryToken`. 유효 10분이다.
-- 대상 회차는 판매 중이어야 한다(오픈 시각이 지났고 공연 시작 전). 좌석은 시드 공연장(15,000석, 구역 A~Y)으로 만든다.
+- 대상 회차는 판매 중이어야 한다(오픈 시각이 지났고 공연 시작 전). 좌석은 시드 공연장(1,500석, 구역 A~Y, 구역당 60석, ADR 0060)으로 만든다.
 
 ### local 스택에서 CSV 없이 돌리기 (`TOKEN_MODE=sign`)
 
@@ -125,13 +125,17 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | `users_finished` | 사용자 결과(`held`, `soldout`, `gave_up`, `error`) |
 | `requests_per_user` | 사용자당 요청 수. 409 재시도가 요청을 얼마나 불렸는지 |
 | `dropped_iterations` | 부하 생성기가 도착률을 못 맞춘 횟수. 0이 아니면 서버가 아니라 생성기 한계일 수 있다 |
+| `hold_duration{result:accepted}` | 접수형 서버의 202 접수 응답 지연(ISE-18) |
+| `async_completion{final,reason}` | 접수형: 202를 받은 시각부터 최종 상태(`HELD`·`REJECTED`)를 본 폴링까지. 폴링 간격만큼 오차가 있다(서버 간격은 1초 단위). 정밀한 값은 서버 지표 `seathold.consumer.delay`로 본다. `POLL_INTERVAL_SECONDS`로 간격을 줄일 수 있지만 폴링 요청이 그만큼 부하에 더해진다 |
+| `async_final{final,reason}` | 접수형 최종 결과 건수. `POLL_TIMEOUT`은 `POLL_LIMIT_SECONDS`(기본 40초) 안에 결과를 못 본 요청이다 |
+| `poll_requests`, `http_req_duration{api:poll}` | 결과 조회 요청 수와 지연. 결과 조회도 커넥션 풀을 나눠 쓰므로 부하에 들어간다 |
 | `{stage:<초당 명>}` | `MODEL=ramp`에서 그 단계에 도착한 사용자의 요청. 단계별 `http_req_failed`·`http_req_duration{api:seats}`·`{api:hold}`가 요약에 따로 나온다 |
 
 임계값은 `[가정]`이라 넘어도 측정은 끝까지 돈다. 결과는 설계 문서 5절 표에 옮긴다. 매진 시각은 측정 뒤 DB에서 마지막 선점 성공 시각으로 정한다.
 
 - local Docker Desktop의 k6 컨테이너는 약 32초마다 3초씩 멈춘다(2026-11-05 확인, [loadtest/k6/README.md](../../loadtest/k6/README.md) 4절). local 결과의 3초 근처 최대값은 발생기 탓일 수 있다.
 - Gateway의 503 중 지연이 수 ms인 것은 인증 Redis 차단기(`auth-redis`)가 열린 것일 수 있다. Prometheus `resilience4j_circuitbreaker_state{name="auth-redis",state="open"}`과 Gateway 로그 `No servers available`(Eureka 이탈)로 출처를 나눈다.
-- 좌석 조회 응답(15,000석, 약 1MB로 추정)을 `JSON.parse`하지 않고 문자열 검색으로 좌석을 고른다. 파싱하면 부하 생성기 CPU가 먼저 포화돼 서버 병목과 섞인다. 측정 중 `docker stats`로 k6 컨테이너 CPU도 같이 본다.
+- 좌석 조회 응답(15,000석 당시 약 830KB)을 `JSON.parse`하지 않고 문자열 검색으로 좌석을 고른다. 파싱하면 부하 생성기 CPU가 먼저 포화돼 서버 병목과 섞인다. 측정 중 `docker stats`로 k6 컨테이너 CPU도 같이 본다.
 
 ## 5. 준비 상태 (2026-11-04 확인)
 
@@ -141,7 +145,7 @@ bash reservation-service/k6/tools/b8-run.sh r123 reservation-service/k6/compose.
 | 사용자 3만 명 일괄 생성·토큰 CSV 도구 | 없음 | `system-tests`의 `WorkspaceClient`가 한 명씩 만드는 코드만 있다. ADR 0046 공통 기반(안준현) 범위 |
 | 입장 토큰 발급 API | 있음 | `POST /api/v1/schedules/{id}/queue/token`(ISE-69) |
 | 입장 토큰 3만 개 사전 발급 | 현재 설정으로 불가 | 입장 속도 `queue.admit-per-second` 50이면 3만 명 입장에 600초가 걸린다. 입장 토큰 유효 시간 `queue.entry-token-ttl`이 10분이라 마지막 토큰을 받을 때쯤 첫 토큰이 만료된다. 측정용으로 입장 속도·유효 시간을 올리는 loadtest 설정이 필요하다. 측정용 서명은 운영 키 노출 위험이 있어 ADR 0046에서 미정이다. local에서는 `TOKEN_MODE=sign`으로 우회한다(2026-11-04 P0 측정에 사용) |
-| 공연장·좌석 | 있음 | 마이그레이션 시드 `V20261030_2__venue_seed.sql`(15,000석). 회차·좌석은 관리자 API로 만든다(`BookingFlowSystemTest`와 같은 절차) |
+| 공연장·좌석 | 있음 | 마이그레이션 시드 `V20261030_2__venue_seed.sql`(15,000석)을 `V20261116_7`이 1,500석으로 줄인다(ADR 0060). 회차·좌석은 관리자 API로 만든다(`BookingFlowSystemTest`와 같은 절차) |
 | 측정마다 회차·좌석 초기화 스크립트 | 없음 | 새 회차를 만들면 대신할 수 있다. 공통 기반 범위 |
 | `loadtest` 프로필 | 일부 | `config-repo/application-loadtest.yml`에 추적 샘플링 0.01만 있다. 입장 속도·토큰 유효 시간·풀 크기 덮어쓰기는 없다 |
 | Gateway 요청 제한 | 없음 | `gateway`와 `config-repo`에서 rate limiter 설정을 찾지 못했다. 측정을 막지 않는다 |

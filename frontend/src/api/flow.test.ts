@@ -120,7 +120,7 @@ describe('일반 예매 흐름', () => {
     const error = await rejectionOf(joinQueue(BEFORE_OPEN_SCHEDULE_ID))
 
     expect(error.code).toBe('SALE_NOT_OPEN')
-    expect(describeError(error).message).toBe('아직 오픈 전이에요')
+    expect(describeError(error).message).toBe('아직 오픈 전입니다.')
   })
 
   it('READY 전에 토큰을 요청하면 409 QUEUE_NOT_READY, 줄에 없으면 404 QUEUE_NOT_JOINED다', async () => {
@@ -194,7 +194,7 @@ describe('실패 재현 스위치', () => {
     expect(conflict.code).toBe('SEAT_ALREADY_HELD')
     expect(describeError(conflict)).toEqual({
       tone: 'warning',
-      message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 두었어요',
+      message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.',
       traceId: null,
     })
 
@@ -297,7 +297,7 @@ describe('실패 재현 스위치', () => {
     expect(error.status).toBe(503)
     expect(error.code).toBe('PG_UNAVAILABLE')
     expect(describeError(error).message).toBe(
-      '결제사 연결이 원활하지 않아요. 좌석은 남은 시간 동안 유지돼요',
+      '결제사 연결이 원활하지 않습니다. 좌석은 남은 시간 동안 유지됩니다.',
     )
 
     // 기록이 남지 않으므로 결제사가 회복되면 같은 키로 다시 보내 새로 승인받는다

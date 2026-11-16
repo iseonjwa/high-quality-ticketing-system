@@ -3,11 +3,15 @@ export const REQUEST_LOG_TRACE_VARIABLE = 'traceId'
 
 const GRAFANA_PORT = 3000
 
-// 기본 주소는 화면을 연 호스트의 3000번이다. 로컬 compose는 Grafana를 127.0.0.1:3000에 열어 `http://localhost:3000`이 되고,
-// 배포 서버는 3000을 팀원 IP에만 열어 `http://<서버 IP>:3000`이 된다. 다른 주소는 VITE_GRAFANA_URL로 정한다.
+// 기본 주소는 화면을 연 곳에 따라 정한다. 다른 주소는 VITE_GRAFANA_URL로 정한다.
+// - https 화면(배포 서버): 같은 주소의 /grafana. 배포 nginx가 Grafana를 이 경로로 중계한다(ISE-278, frontend/nginx/deploy.conf).
+// - http 화면(로컬 compose): 화면을 연 호스트의 3000번. 로컬은 Grafana를 127.0.0.1:3000에 열어 `http://localhost:3000`이 된다.
 export function defaultGrafanaUrl(
-  location: Pick<Location, 'protocol' | 'hostname'> = window.location,
+  location: Pick<Location, 'protocol' | 'hostname' | 'origin'> = window.location,
 ): string {
+  if (location.protocol === 'https:') {
+    return `${location.origin}/grafana`
+  }
   return `${location.protocol}//${location.hostname}:${GRAFANA_PORT}`
 }
 

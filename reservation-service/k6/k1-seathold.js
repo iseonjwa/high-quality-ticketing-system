@@ -1,6 +1,8 @@
 // 시나리오 K1: 대기열이 초당 RATE명씩 입장시킨 사용자가 좌석을 조회하고 선점한다.
 // SEAT_MAP=once면 K1-H: 좌석 목록을 setup에서 한 번만 받고, 반복은 그 목록에서 골라 선점만 보낸다.
 // MODEL=ramp면 스트레스: STAGES의 도착률을 STAGE_SECONDS씩 차례로 올리고 요청에 stage 태그를 붙인다.
+// 서버가 접수형(seat-hold.mode=async)이면 선점이 202다. Location을 폴링해 HELD·REJECTED가 될 때까지 기다리고, 접수 응답 시간과
+// 접수 → 처리 완료 시간을 나눠 기록한다(ISE-18, docs/design/reservation/async-seathold-remeasure-plan.md 3-2절).
 // 설계: docs/design/reservation/k6-seathold-bottleneck-plan.md 1절(K1)·1-5절(K1-H)·1-6절(측정 종류). 실행 방법: 같은 폴더 README.md
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
@@ -42,6 +44,11 @@ const WARMUP_RATE = Number(__ENV.WARMUP_RATE || 10);
 const WARMUP_SCHEDULE_ID = __ENV.WARMUP_SCHEDULE_ID;
 const WARMUP_USER_OFFSET = 800000;
 const LOAD_SECONDS = MODEL === 'ramp' ? STAGES.length * STAGE_SECONDS : DURATION_SECONDS;
+// 접수형 결과 폴링 상한. 서버 시한 정리(접수 뒤 30초, 정리 주기 포함 최대 약 35초)보다 길게 둔다
+const POLL_LIMIT_SECONDS = Number(__ENV.POLL_LIMIT_SECONDS || 40);
+// 0보다 크면 서버가 준 nextPollAfterSeconds(초 단위) 대신 이 간격으로 폴링한다. async_completion은 폴링 간격만큼의
+// 오차가 있어 1초 간격이면 1초 단위로만 보인다. 간격을 줄이면 폴링 요청이 늘어 그 자체가 부하에 섞인다
+const POLL_INTERVAL_SECONDS = Number(__ENV.POLL_INTERVAL_SECONDS || 0);
 
 if (!SCHEDULE_ID) {
   throw new Error('SCHEDULE_ID 환경변수가 필요합니다');
@@ -67,6 +74,10 @@ const holdResults = new Counter('hold_results');
 const usersFinished = new Counter('users_finished');
 const requestsPerUser = new Trend('requests_per_user');
 const probeDuration = new Trend('probe_duration', true);
+// 접수형: 202를 받은 시각부터 최종 상태(HELD·REJECTED)를 본 폴링까지. final·reason 태그로 나눈다
+const asyncCompletion = new Trend('async_completion', true);
+const asyncFinal = new Counter('async_final');
+const pollRequests = new Counter('poll_requests');
 
 const vuPool = { preAllocatedVUs: Number(__ENV.PRE_VUS || 600), maxVUs: Number(__ENV.MAX_VUS || 2000) };
 const scenario = MODEL === 'ramp'
@@ -123,6 +134,9 @@ const thresholds = {
   'seat_map_duration{phase:soldout}': ['p(95)<500', 'p(99)<1000'],
   'hold_duration{result:created}': ['p(95)<1000', 'p(99)<2000'],
   'hold_duration{result:conflict}': ['p(95)<1000', 'p(99)<2000'],
+  'hold_duration{result:accepted}': ['p(95)<1000', 'p(99)<2000'],
+  // SA 9-4: 접수 → 처리 2초 이내. 동기형에서는 표본이 없어 판정하지 않는다
+  'async_completion{final:HELD}': ['p(95)<2000'],
   'hold_results{result:error}': ['count<1'],
   'dropped_iterations': ['count<1'],
 };
@@ -143,8 +157,8 @@ export const options = {
   thresholds,
 };
 
-// 201·409는 정상 응답이다. 409를 실패로 세면 인기 좌석 거절이 오류율에 섞인다
-http.setResponseCallback(http.expectedStatuses(200, 201, 409));
+// 201·202·409는 정상 응답이다. 409를 실패로 세면 인기 좌석 거절이 오류율에 섞인다
+http.setResponseCallback(http.expectedStatuses(200, 201, 202, 409));
 
 export function setup() {
   const needed = MODEL === 'closed' ? 1
@@ -201,21 +215,82 @@ export default function (data) {
     });
     requests++;
 
-    const result = hold.status === 201 ? 'created' : hold.status === 409 ? 'conflict' : 'error';
+    const accepted = hold.status === 202 ? 'accepted' : null;
+    const result = hold.status === 201 ? 'created' : accepted || (hold.status === 409 ? 'conflict' : 'error');
     holdDuration.add(hold.timings.duration, { result });
     holdResults.add(1, { result, code: result === 'conflict' ? errorCode(hold.body) : String(hold.status) });
-    check(hold, { 'hold 201 또는 409': (r) => r.status === 201 || r.status === 409 });
+    check(hold, { 'hold 201·202·409': (r) => r.status === 201 || r.status === 202 || r.status === 409 });
 
-    if (result === 'created') {
+    // 접수형: 최종 결과를 받아 동기형의 201·409와 같은 갈래로 바꾼다. 폴링 요청도 사용자 요청 수에 넣는다
+    let final = result;
+    if (accepted) {
+      const polled = pollUntilFinal(hold, headers);
+      requests += polled.polls;
+      final = polled.final;
+    }
+
+    if (final === 'created') {
       usersFinished.add(1, { outcome: 'held' });
       break;
     }
-    if (result === 'error' || attempt === MAX_RETRY) {
-      usersFinished.add(1, { outcome: result === 'error' ? 'error' : 'gave_up' });
+    if (final === 'error' || attempt === MAX_RETRY) {
+      usersFinished.add(1, { outcome: final === 'error' ? 'error' : 'gave_up' });
       break;
     }
   }
   requestsPerUser.add(requests);
+}
+
+// 접수형 결과를 Location으로 폴링한다. 간격은 서버가 준 nextPollAfterSeconds를 따른다(contracts.md 2-2).
+// HELD는 created, REJECTED(SEAT_ALREADY_HELD)는 다른 좌석을 다시 고르는 conflict, 그 밖의 REJECTED와 시한 초과는 error다
+function pollUntilFinal(hold, headers) {
+  const acceptedAt = Date.now();
+  const location = hold.headers.Location || hold.headers.location;
+  if (!location) {
+    asyncFinal.add(1, { final: 'NO_LOCATION' });
+    return { final: 'error', polls: 0 };
+  }
+  const url = location.startsWith('http') ? location : `${BASE_URL}${location}`;
+  let wait = pollWait(hold.body);
+  let polls = 0;
+  while ((Date.now() - acceptedAt) / 1000 < POLL_LIMIT_SECONDS) {
+    sleep(wait);
+    const res = http.get(url, { headers, tags: { api: 'poll' } });
+    polls++;
+    pollRequests.add(1, { status: String(res.status) });
+    if (res.status !== 200) {
+      continue;
+    }
+    const status = jsonString(res.body, 'status');
+    if (status === 'HELD' || status === 'REJECTED') {
+      const reason = status === 'REJECTED' ? jsonString(res.body, 'reasonCode') || 'UNKNOWN' : 'NONE';
+      asyncCompletion.add(Date.now() - acceptedAt, { final: status, reason });
+      asyncFinal.add(1, { final: status, reason });
+      if (status === 'HELD') {
+        return { final: 'created', polls };
+      }
+      return { final: reason === 'SEAT_ALREADY_HELD' ? 'conflict' : 'error', polls };
+    }
+    wait = pollWait(res.body);
+  }
+  asyncFinal.add(1, { final: 'POLL_TIMEOUT', reason: 'NONE' });
+  return { final: 'error', polls };
+}
+
+function pollWait(body) {
+  return POLL_INTERVAL_SECONDS > 0 ? POLL_INTERVAL_SECONDS : jsonNumber(body, 'nextPollAfterSeconds', 1);
+}
+
+// 응답이 작아 문자열 검색으로 꺼낸다(좌석 응답과 같은 이유로 JSON.parse를 피한다)
+function jsonString(body, field) {
+  const match = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`).exec(body || '');
+  return match ? match[1] : null;
+}
+
+function jsonNumber(body, field, fallback) {
+  // Note: 템플릿 문자열 안에서는 역슬래시를 두 번 써야 정규식에 \d·\s가 남는다
+  const match = new RegExp(`"${field}"\\s*:\\s*(\\d+)`).exec(body || '');
+  return match ? Number(match[1]) : fallback;
 }
 
 // 워밍업: 다른 회차로 좌석 조회와 선점을 한 번씩 보내 JIT·커넥션을 데운다. 측정 회차의 좌석은 쓰지 않는다

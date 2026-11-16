@@ -21,7 +21,7 @@ export function MyInfoPage() {
       <div className="grid gap-1">
         <h1 className="type-title text-gray-900">내 정보</h1>
         <p className="type-body-sm text-gray-500">
-          회원 정보와 추첨 자동결제에 쓰는 카드를 관리해요
+          회원 정보와 추첨 자동결제에 사용하는 카드를 관리합니다.
         </p>
       </div>
       {me.isError ? (
@@ -34,7 +34,7 @@ export function MyInfoPage() {
             </h2>
             {me.isPending ? (
               <div className="grid gap-4" role="status">
-                <span className="sr-only">내 정보를 불러오고 있어요</span>
+                <span className="sr-only">내 정보를 불러오는 중입니다</span>
                 <Skeleton className="h-5 w-3/4" />
                 <Skeleton className="h-5 w-1/2" />
                 <Skeleton className="h-5 w-1/3" />
@@ -53,7 +53,7 @@ export function MyInfoPage() {
                   <span className="grid gap-0.5">
                     <span className="tabular-nums">{me.data.userId}</span>
                     <span className="type-caption text-gray-500">
-                      운영자에게 비밀번호 초기화를 부탁할 때 알려 주세요
+                      운영자에게 비밀번호 초기화를 요청할 때 알려주세요.
                     </span>
                   </span>
                 </InfoItem>

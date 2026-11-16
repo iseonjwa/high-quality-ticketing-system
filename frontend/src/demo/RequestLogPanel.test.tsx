@@ -61,7 +61,7 @@ describe('RequestLogPanel 목록', () => {
   it('기록이 없으면 안내와 0건을 보이고 비우기 버튼은 비활성이다', () => {
     render(<RequestLogPanel />)
 
-    expect(screen.getByText('아직 보낸 요청이 없어요')).toBeInTheDocument()
+    expect(screen.getByText('아직 보낸 요청이 없습니다')).toBeInTheDocument()
     expect(screen.getByText('0건')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '기록 비우기' })).toBeDisabled()
   })
@@ -122,7 +122,7 @@ describe('RequestLogPanel 목록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '기록 비우기' }))
 
-    expect(screen.getByText('아직 보낸 요청이 없어요')).toBeInTheDocument()
+    expect(screen.getByText('아직 보낸 요청이 없습니다')).toBeInTheDocument()
     expect(screen.getByText('0건')).toBeInTheDocument()
   })
 })

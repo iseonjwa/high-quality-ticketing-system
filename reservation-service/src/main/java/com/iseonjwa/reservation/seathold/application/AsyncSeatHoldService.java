@@ -9,6 +9,7 @@ import com.iseonjwa.reservation.seathold.domain.repository.EntryTokenAlreadyUsed
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldInventoryRepository;
 import com.iseonjwa.reservation.seathold.domain.repository.SeatHoldRequestRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -25,6 +26,10 @@ import java.util.UUID;
  *
  * <p>접수에서 거르는 것은 동기형과 같은 입력 검증과, 이미 잡힌 좌석이다(ADR 0057). 매수 한도는 앞선 접수 요청까지
  * 반영해야 해서 소비자가 판단한다.
+ *
+ * <p>측정 전용 직접 발행({@code seat-hold.async.publish=direct}, ISE-18): Outbox 행을 쓰지 않고, 요청 행을 커밋한 뒤
+ * {@link SeatHoldDirectPublisher}로 바로 보낸다. 키·봉투는 Outbox 경로와 같다. 같은 키 재요청은 다시 보내지 않는다.
+ * 운영 기본값은 Outbox다(ADR 0057 결정 5).
  */
 @Service
 public class AsyncSeatHoldService {
@@ -37,18 +42,53 @@ public class AsyncSeatHoldService {
     private final OutboxWriter outbox;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final SeatHoldDirectPublisher directPublisher;
+    private final boolean directPublish;
 
     public AsyncSeatHoldService(SeatHoldInventoryRepository inventory, SeatHoldRequestRepository seatHoldRequests,
-            OutboxWriter outbox, TransactionTemplate transaction, @Qualifier("commonAuditingClock") Clock clock) {
+            OutboxWriter outbox, TransactionTemplate transaction, @Qualifier("commonAuditingClock") Clock clock,
+            SeatHoldDirectPublisher directPublisher, @Value("${seat-hold.async.publish:outbox}") String publish) {
         this.inventory = inventory;
         this.seatHoldRequests = seatHoldRequests;
         this.outbox = outbox;
         this.transaction = transaction;
         this.clock = clock;
+        this.directPublisher = directPublisher;
+        this.directPublish = switch (publish) {
+            case "outbox" -> false;
+            case "direct" -> true;
+            default -> throw new IllegalArgumentException("seat-hold.async.publish는 outbox 또는 direct여야 합니다: " + publish);
+        };
     }
 
     /** 접수한 요청의 ID(= 멱등키)를 돌려준다. 같은 키 재요청이면 기존 요청의 상태와 상관없이 같은 ID다(contracts.md 3-2). */
     public UUID accept(HoldSeatsCommand command) {
+        return accept(command, SeatHoldGate.OPEN);
+    }
+
+    /**
+     * Note: 동시 처리 상한(gate)의 자리는 커넥션을 쓰는 접수 트랜잭션에서만 쥔다. 직접 발행의 브로커 확인 대기는 커넥션을
+     * 쓰지 않으므로 자리를 돌려준 뒤에 한다(동기형과 같은 원칙, {@link SyncSeatHoldService#hold(HoldSeatsCommand, SeatHoldGate)})
+     */
+    public UUID accept(HoldSeatsCommand command, SeatHoldGate gate) {
+        var accepted = gate.run(() -> acceptInTransaction(command));
+        if (accepted.message() != null) {
+            var message = accepted.message();
+            directPublisher.publish(TOPIC, message.key(), EVENT_TYPE, VERSION, message.payload());
+        }
+        return accepted.requestId();
+    }
+
+    // 접수 결과. 직접 발행이고 새로 접수한 요청일 때만 커밋 뒤 보낼 메시지가 있다(Outbox 경로와 같은 키 재요청은 없음)
+    private record Accepted(UUID requestId, Message message) {
+        static Accepted withoutMessage(UUID requestId) {
+            return new Accepted(requestId, null);
+        }
+    }
+
+    private record Message(String key, SeatHoldRequested payload) {}
+
+    private Accepted acceptInTransaction(HoldSeatsCommand command) {
         var seatIds = SeatHoldRules.sortedDistinctSeatIds(command.seatIds());
         try {
             return transaction.execute(status -> acceptOnce(command, seatIds));
@@ -57,53 +97,52 @@ public class AsyncSeatHoldService {
             var committed = seatHoldRequests.findById(command.requestId())
                     .orElseThrow(() -> new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED));
             SeatHoldRules.requireSameRequest(committed, command, seatIds);
-            return committed.getRequestId();
+            return Accepted.withoutMessage(committed.getRequestId());
         } catch (DataIntegrityViolationException exception) {
             // Note: 같은 키가 거의 동시에 두 번 오면 둘 다 사전 조회를 통과하고 늦은 쪽이 PK 위반을 만난다(contracts.md 3-2 ⑥).
             // 실패한 트랜잭션은 되돌려졌으므로 새로 읽어 먼저 커밋된 요청과 같은 요청인지 본다. 행이 없으면 다른 제약 위반이다
             var committed = seatHoldRequests.findById(command.requestId()).orElseThrow(() -> exception);
             SeatHoldRules.requireSameRequest(committed, command, seatIds);
-            return committed.getRequestId();
+            return Accepted.withoutMessage(committed.getRequestId());
         }
     }
 
-    private UUID acceptOnce(HoldSeatsCommand command, List<Long> seatIds) {
-        var previous = seatHoldRequests.findById(command.requestId());
-        if (previous.isPresent()) {
-            SeatHoldRules.requireSameRequest(previous.get(), command, seatIds);
-            return previous.get().getRequestId();
+    private Accepted acceptOnce(HoldSeatsCommand command, List<Long> seatIds) {
+        // 판정 재료(멱등키, 토큰, 회차, 좌석)를 한 문장으로 읽는다. 판정 순서는 그대로다
+        var check = SeatHoldRules.precheck(inventory, seatHoldRequests, command.scheduleId(), seatIds,
+                command.requestId(), command.entryTokenJti());
+        if (check.requestExists()) {
+            var previous = seatHoldRequests.findById(command.requestId())
+                    .orElseThrow(() -> new IllegalStateException("선점 요청 행이 사라졌습니다: " + command.requestId()));
+            SeatHoldRules.requireSameRequest(previous, command, seatIds);
+            return Accepted.withoutMessage(previous.getRequestId());
         }
         // Note: 앞선 요청이 아직 처리 중(REQUESTED)이어도 거절한다. 같은 토큰으로 여러 요청을 줄에 넣어 두는 것을 막는다.
         // 앞선 요청이 소비자에서 거절(REJECTED)되면 토큰은 다시 쓸 수 있다. 대기열 issued 정리는 HELD를 커밋한 소비자가 한다(ISE-17)
-        SeatHoldRules.requireUnusedEntryToken(seatHoldRequests, command);
-        var schedule = inventory.findSchedule(command.scheduleId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (check.tokenActive()) {
+            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+        }
+        var seats = check.seats();
+        var schedule = SeatHoldRules.scheduleOf(inventory, command.scheduleId(), seats);
         SeatHoldRules.requireWithinPerUserLimit(schedule, seatIds);
         var now = clock.instant();
         SeatHoldRules.requireOnSale(schedule, now);
-        var seats = inventory.findSeats(schedule.getId(), seatIds);
-        if (seats.size() != seatIds.size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
+        SeatHoldRules.requireAllSeatsOfSchedule(seats, seatIds);
+        if (!SeatHoldRules.allHoldable(seats)) {
+            throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
         }
-        requireAllHoldable(seats);
 
         seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), schedule.getId(),
                 seatIds, command.entryTokenJti()));
         var section = representativeSection(seats);
-        outbox.write(TOPIC, schedule.getId() + ":" + section, EVENT_TYPE, VERSION,
-                new SeatHoldRequested(command.requestId(), command.userId(), schedule.getId(), section, seatIds,
-                        command.entryTokenJti(), now));
-        return command.requestId();
-    }
-
-    // Note: 잠그지 않고 읽은 상태라 그사이 바뀔 수 있다. 여기서 AVAILABLE이어도 소비자의 조건부 UPDATE가 최종 판단이고,
-    // 여기서 잡혀 보인 좌석은 같은 순간 동기형도 409를 준다. 오픈 피크 요청 대부분이 이 경우라 줄에 넣기 전에 거른다(ADR 0057)
-    private static void requireAllHoldable(List<ScheduleSeat> seats) {
-        for (var seat : seats) {
-            if (!seat.isHoldable()) {
-                throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
-            }
+        var key = schedule.getId() + ":" + section;
+        var event = new SeatHoldRequested(command.requestId(), command.userId(), schedule.getId(), section, seatIds,
+                command.entryTokenJti(), now);
+        if (directPublish) {
+            return new Accepted(command.requestId(), new Message(key, event));
         }
+        outbox.write(TOPIC, key, EVENT_TYPE, VERSION, event);
+        return Accepted.withoutMessage(command.requestId());
     }
 
     // 구역이 여럿이면 사전순으로 가장 작은 구역을 키로 쓴다. 같은 요청은 늘 같은 키를 얻는다(ADR 0056)

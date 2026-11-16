@@ -63,7 +63,7 @@ describe('ZonePicker', () => {
   it('고른 좌석이 있는 구역은 이름에 몇 석 골랐는지 덧붙인다', () => {
     render(<Harness picked={new Map([['C', 2]])} />)
 
-    expect(screen.getByRole('radio', { name: 'C구역 R, 남은 1석, 2석 고름' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'C구역 R, 남은 1석, 2석 선택함' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'A구역 VIP, 남은 2석' })).toBeInTheDocument()
   })
 
