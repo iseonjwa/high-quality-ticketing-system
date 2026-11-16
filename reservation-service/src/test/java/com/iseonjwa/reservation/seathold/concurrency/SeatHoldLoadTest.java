@@ -123,6 +123,10 @@ class SeatHoldLoadTest {
             System.getenv().getOrDefault("SEATHOLD_LOAD_PROBE_RATE", "0"));
     // 선점 대상 회차의 좌석 조회를 초당 이만큼 보낸다(열린 모델). 사용자가 좌석을 보고 고르는 흐름을 흉내 내고, 사전 거절이 읽는
     // 1초 캐시를 채운다. 0이면 보내지 않아 캐시가 비고 사전 거절도 일어나지 않는다(ISE-281)
+    // true면 선점 대신 자동 배정 API(구역 A, 매수 = 좌석 고르기가 고른 좌석 수)를 보낸다(ISE-264·ISE-287 기준값).
+    // 재시도 모사·의도 지표·정합성 검사는 그대로 쓴다. 자동 배정은 잠긴 좌석을 건너뛰므로(SKIP LOCKED) 잠금 장애 없이 잰다
+    private static final boolean AUTO_ASSIGN = Boolean.parseBoolean(
+            System.getenv().getOrDefault("SEATHOLD_LOAD_AUTO", "false"));
     private static final int SEAT_VIEW_RATE = Integer.parseInt(
             System.getenv().getOrDefault("SEATHOLD_LOAD_SEAT_VIEW_RATE", "0"));
     // 503을 받은 사용자가 다시 누르기까지의 시간. 0이면 바로 다시 보낸다. 쉬지 않으면 503 폭주가 같은 JVM의 CPU를 먹어
@@ -668,9 +672,10 @@ class SeatHoldLoadTest {
     }
 
     private Sample send(Long scheduleId, List<Long> seatIds, long userId, String idempotencyKey, String jti) {
-        var body = "{\"seatIds\":" + seatIds + "}";
-        var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/schedules/" + scheduleId
-                        + "/reservations"))
+        var body = AUTO_ASSIGN ? "{\"section\":\"A\",\"quantity\":" + seatIds.size() + "}"
+                : "{\"seatIds\":" + seatIds + "}";
+        var path = "/api/v1/schedules/" + scheduleId + (AUTO_ASSIGN ? "/reservations/auto" : "/reservations");
+        var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .header("X-User-Id", String.valueOf(userId))
