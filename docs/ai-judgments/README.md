@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | 추첨 배정 워커 속도 상한으로 A안(주기당 성공 배정 상한 10, 시도 상한 100 유지)을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-16-lottery-assign-per-cycle-cap.md) |
 | 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | kwonwoo | Claude Code 두 세션 | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-16-verify-other-agent-precheck-analysis.md) |
 | 2026-11-16 | ISE-18 직접 발행을 커밋 뒤 전송·실패해도 202로 정하고, 측정 기준 코드에 ISE-261을 병합하기로 함(AI 추천 3개 모두 수용) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md) |
 | 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-16-pool-and-limit-together.md) |
