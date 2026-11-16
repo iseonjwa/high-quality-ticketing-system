@@ -8,6 +8,9 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | **공개 Grafana를 "로그인 없이 볼 수 있다"고 쓴 AI의 브로셔 문장이 실제와 다르다고 지적함(원인은 메모리 상한 재시작)** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-grafana-unauthorized-memory-not-viewer-account.md) |
+| 2026-11-16 | **Swagger PR(#685)에 contract 이슈와 다른 담당 리뷰어를 두자는 제안을 거부하고 바로 머지하기로 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-swagger-pr-no-contract-no-reviewer.md) |
+| 2026-11-16 | **AI가 쓴 브로셔 문장 중 번역체·어색한 표현을 한국어 원문처럼 고치게 함** | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-16-brochure-natural-korean-not-translationese.md) |
 | 2026-11-16 | 소개 영상 v2에서 하린을 웹툰풍으로 화면에 세우고 VoiceStudio 목소리 H2·N1을 고르고, AI가 짚은 대로 실제 동작과 다른 장면 6을 결제사 연결 불안정으로 바꿈 | Claude Code, codex | 부분 수용 | 예 | 아님 | [기록](2026-11-16-intro-video-v2-character-voice.md) |
 | 2026-11-16 | 최종 발표의 중심을 AI 활용에서 백엔드 설계·구현과 그 지표로 바꾸고, AI 검증 방법은 1분 내외로 줄임 | Claude Code | 거부 | 예 | 아님 | [기록](2026-11-16-final-talk-center-backend-metrics.md) |
 | 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-server-address-in-one-env-key.md) |

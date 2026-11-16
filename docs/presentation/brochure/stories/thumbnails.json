@@ -1,0 +1,66 @@
+[
+ {
+  "file": "1-gateway",
+  "no": "01",
+  "tag": "Gateway",
+  "title": "입구가 먼저 무너졌다",
+  "line": "넘친 요청을 맨 앞에서 싸게 거절하기",
+  "before": "1,304",
+  "after": "1,696/s",
+  "metric": "초당 2,000건 굿풋 · 상한 64",
+  "accent": "#F59F00",
+  "icon": "gateway"
+ },
+ {
+  "file": "2-queue",
+  "no": "02",
+  "tag": "대기열",
+  "title": "줄은 공정하게",
+  "line": "번호표 하나로 순서를 정하기",
+  "before": "",
+  "after": "3,000명 정확",
+  "metric": "번호표 = 대기 인원 = 성공 응답",
+  "accent": "#74C0FC",
+  "icon": "queue"
+ },
+ {
+  "file": "3-seat",
+  "no": "03",
+  "tag": "좌석 선점",
+  "title": "같은 좌석은 한 명",
+  "line": "병목을 하나씩 옮기며 찾기",
+  "before": "219ms",
+  "after": "38ms",
+  "metric": "선점 p95 · 3,000명 각 2회 평균",
+  "accent": "#FF8787",
+  "icon": "seat"
+ },
+ {
+  "file": "4-payment",
+  "no": "04",
+  "tag": "결제",
+  "title": "결과를 모를 때",
+  "line": "거절되면 좌석을 바로 돌려주기",
+  "before": "",
+  "after": "약 0.14초",
+  "metric": "결제 거절 → 좌석 반환(배포 서버 시연 1건)",
+  "accent": "#63E6BE",
+  "icon": "payment"
+ },
+ {
+  "file": "5-lottery",
+  "no": "05",
+  "tag": "추첨 · 자동결제",
+  "title": "빠른 손 아니어도",
+  "line": "당첨되면 결제까지 알아서",
+  "before": "35%",
+  "after": "100%",
+  "metric": "추첨 뒤 약 3분 50초 시점 결제 완료율",
+  "accent": "#FFD43B",
+  "icon": "lottery",
+  "extra": [
+   "10분 기준 93 → 100% · p95 613 → 208초",
+   "처리 속도 초당 3.2 → 9.4건(약 2.9배)"
+  ]
+ }
+]

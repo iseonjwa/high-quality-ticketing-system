@@ -67,3 +67,4 @@
 | 0061 | [동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다](0061-seat-hold-lock-timeout-50ms.md) | 채택 (ISE-261, SA 9-4의 500ms 대체) | 2026-11-13 |
 | 0062 | [동기형 선점은 읽은 좌석 상태로 먼저 거절하고, 좌석 UPDATE를 트랜잭션 끝으로 옮기고, 동시 처리 상한을 둔다](0062-seat-hold-structure-precheck-reorder-limit.md) | 채택 (ISE-261. 동시 처리 상한은 기본 끔, 배포 측정 뒤 켬) | 2026-11-13 |
 | 0063 | [API 문서는 springdoc으로 서비스마다 만들고, Swagger UI는 Gateway의 /api/docs 한 곳에서 띄운다](0063-swagger-ui-at-gateway.md) | 채택 (ISE-295) | 2026-11-16 |
+| 0064 | [reservation-service DB 커넥션 풀은 5를 유지하고, 풀 크기 재측정은 커넥션 대기가 다시 주 병목일 때 한다](0064-reservation-db-pool-keep-5.md) | 채택 (ISE-237) | 2026-11-16 |

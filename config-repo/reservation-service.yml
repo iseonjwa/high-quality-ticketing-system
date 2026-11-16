@@ -6,6 +6,7 @@ spring:
     username: ${DB_USER:iseonjwa}
     password: ${DB_PASSWORD}
     hikari:
+      # Note: 5를 유지한다(ADR 0064, ISE-237). 개선 뒤 배포 O1에서 커넥션 대기 0, 풀 10은 CPU 포화로 오히려 느렸다
       maximum-pool-size: 5
       # Note: 커넥션을 1초 안에 못 받으면 실패시킨다(ISE-196). 기본값 30초는 Gateway 응답 시한(3초)보다 길어,
       # Gateway가 이미 포기한 요청을 서버가 끝까지 기다리다 처리해 부하가 끝난 뒤에도 회복하지 못했다(k6-overload-recovery.md R1)
