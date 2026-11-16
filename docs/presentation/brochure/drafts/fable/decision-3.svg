@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="688" viewBox="0 0 1500 688" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<!-- 결정 카드 3. 근거: LEDGER.md 3-4 타임라인 11/14(거절 → Outbox → Kafka → 예매 RELEASED 0.14초, 시연 1건, 계산 0.139초)·보조 1, 10절(SAGA 코레오그래피), brochure-notion ③(대가 문구) -->
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient>
+<linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+</defs>
+<rect width="1500" height="688" fill="url(#bg)"/>
+<polygon points="1074,0 1086,0 1120,688 900,688" fill="url(#beam)"/>
+<polygon points="1224,0 1236,0 1500,688 1260,688" fill="url(#beam)"/>
+<circle cx="158" cy="130" r="38" fill="#FFFFFF"/>
+<text x="158.0" y="150.0" font-size="56" font-weight="900" text-anchor="middle" fill="#3B3BD4">3</text>
+<text x="216.0" y="143.0" font-size="34" font-weight="700" text-anchor="start" fill="#FFFFFF" fill-opacity="0.82">기술적 의사결정 · 예매 ↔ 결제 SAGA</text>
+<text x="117.0" y="258.0" font-size="78" font-weight="900" text-anchor="start" fill="#FFFFFF" letter-spacing="-2">조정자 없이</text>
+<text x="117.0" y="346.0" font-size="78" font-weight="900" text-anchor="start" fill="#FFFFFF" letter-spacing="-2"><tspan fill="#F59F00">이벤트</tspan>로 보상</text>
+<rect x="120" y="388" width="260" height="62" rx="31" fill="#FFFFFF" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="1.5"/>
+<text x="250.2" y="430.0" font-size="32" font-weight="700" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.75">오케스트레이션</text>
+<path d="M142 420 H358" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="3" stroke-linecap="round"/>
+<text x="396.3" y="430.0" font-size="32" font-weight="800" text-anchor="start" fill="#FFFFFF">대신</text>
+<rect x="472" y="388" width="235" height="62" rx="31" fill="#FFFFFF"/>
+<text x="589.1" y="430.0" font-size="32" font-weight="800" text-anchor="middle" fill="#3B3BD4">코레오그래피</text>
+<text x="120.0" y="504.0" font-size="25" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.92">결제 거절 뒤 약 0.14초에 좌석 반환 · 배포 서버 시연 1건</text>
+<text x="120" y="548" font-size="25" font-weight="600" fill="#FFFFFF" fill-opacity="0.7"><tspan font-weight="800" fill-opacity="0.92">대가</tspan><tspan dx="12">보상이 결제 추적에 이어 보이지 않아 예매 상태 이력으로 보완</tspan></text>
+<circle cx="1180" cy="214" r="50" fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="4" stroke-dasharray="9 9"/>
+<text x="1180.0" y="224.0" font-size="26" font-weight="800" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.6">조정자</text>
+<path d="M1118 252 L1242 176" stroke="#FF8787" stroke-width="7" stroke-linecap="round"/>
+<circle cx="1050" cy="414" r="70" fill="#FFFFFF"/>
+<text x="1050.0" y="430.0" font-size="44" font-weight="900" text-anchor="middle" fill="#3B3BD4">예매</text>
+<circle cx="1310" cy="414" r="70" fill="#FFFFFF"/>
+<text x="1310.0" y="430.0" font-size="44" font-weight="900" text-anchor="middle" fill="#3B3BD4">결제</text>
+<path d="M1228 414 H1140" stroke="#63E6BE" stroke-width="8" stroke-linecap="round"/>
+<path d="M1154 398 L1136 414 L1154 430" fill="none" stroke="#63E6BE" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1118" y="510" width="124" height="50" rx="25" fill="#63E6BE"/>
+<text x="1180.0" y="545.0" font-size="28" font-weight="800" text-anchor="middle" fill="#24248F">이벤트</text>
+<path d="M1180 506 V428" stroke="#63E6BE" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round"/>
+</svg>

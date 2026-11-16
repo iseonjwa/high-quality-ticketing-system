@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<rect width="1600" height="900" fill="#FBFBFD"/>
+<text x="40" y="60" font-size="34" font-weight="700" fill="#14161E">개선 전(v1) 대 개선 후(v2)</text>
+<text x="40" y="98" font-size="20" fill="#373B4A">같은 3,000명 현실 도착 시나리오에서 개선 묶음 뒤 선점 지연이 1/5 이하로 줄고 확정이 늘었다</text>
+<rect x="1180" y="40" width="22" height="22" rx="4" fill="#C9CDD6"/><text x="1212" y="58" font-size="18" fill="#373B4A">v1 개선 전</text>
+<rect x="1350" y="40" width="22" height="22" rx="4" fill="#3B3BD4"/><text x="1382" y="58" font-size="18" fill="#373B4A">v2 개선 후</text>
+<rect x="40" y="150" width="360" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="64" y="194" font-size="24" font-weight="700" fill="#14161E">확정 건수</text>
+<text x="64" y="228" font-size="20" font-weight="700" fill="#2F2FAE">평균 +10.7%</text>
+<rect x="90" y="414.01991189775396" width="110" height="295.98008810224604" rx="6" fill="#C9CDD6"/>
+<text x="145.0" y="378.01991189775396" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">1,972</text>
+<text x="145.0" y="402.01991189775396" font-size="15" text-anchor="middle" fill="#676C7E">1,922 / 2,021</text>
+<text x="145.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v1</text>
+<rect x="240" y="382.49274045394384" width="110" height="327.50725954605616" rx="6" fill="#3B3BD4"/>
+<text x="295.0" y="346.49274045394384" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">2,182</text>
+<text x="295.0" y="370.49274045394384" font-size="15" text-anchor="middle" fill="#676C7E">2,201 / 2,162</text>
+<text x="295.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v2</text>
+<line x1="70" y1="710" x2="370" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<rect x="420" y="150" width="360" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="444" y="194" font-size="24" font-weight="700" fill="#14161E">선점 p95</text>
+<text x="444" y="228" font-size="20" font-weight="700" fill="#2F2FAE">−77~87%</text>
+<rect x="470" y="411.356120456459" width="110" height="298.643879543541" rx="6" fill="#C9CDD6"/>
+<text x="525.0" y="375.356120456459" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">219.3ms</text>
+<text x="525.0" y="399.356120456459" font-size="15" text-anchor="middle" fill="#676C7E">242.7 / 196</text>
+<text x="525.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v1</text>
+<rect x="620" y="658.3312731767614" width="110" height="51.66872682323858" rx="6" fill="#3B3BD4"/>
+<text x="675.0" y="622.3312731767614" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">38ms</text>
+<text x="675.0" y="646.3312731767614" font-size="15" text-anchor="middle" fill="#676C7E">44.5 / 31.4</text>
+<text x="675.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v2</text>
+<line x1="450" y1="710" x2="750" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<rect x="800" y="150" width="360" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="824" y="194" font-size="24" font-weight="700" fill="#14161E">확정 대기 p95</text>
+<text x="824" y="228" font-size="20" font-weight="700" fill="#2F2FAE">약 −54~67%</text>
+<rect x="850" y="426.4908669925392" width="110" height="283.5091330074608" rx="6" fill="#C9CDD6"/>
+<text x="905.0" y="390.4908669925392" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">2.9s</text>
+<text x="905.0" y="414.4908669925392" font-size="15" text-anchor="middle" fill="#676C7E">3.38 / 2.42</text>
+<text x="905.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v1</text>
+<rect x="1000" y="600.9956264471314" width="110" height="109.00437355286857" rx="6" fill="#3B3BD4"/>
+<text x="1055.0" y="564.9956264471314" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">1.1s</text>
+<text x="1055.0" y="588.9956264471314" font-size="15" text-anchor="middle" fill="#676C7E">1.12 / 1.11</text>
+<text x="1055.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v2</text>
+<line x1="830" y1="710" x2="1130" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<rect x="1180" y="150" width="360" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="1204" y="194" font-size="24" font-weight="700" fill="#14161E">reservation CPU(바쁜 30초)</text>
+<text x="1204" y="228" font-size="20" font-weight="700" fill="#2F2FAE">−33~49%</text>
+<rect x="1230" y="390.9935766531764" width="110" height="319.0064233468236" rx="6" fill="#C9CDD6"/>
+<text x="1285.0" y="354.9935766531764" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">113%</text>
+<text x="1285.0" y="378.9935766531764" font-size="15" text-anchor="middle" fill="#676C7E">117.1 / 109대</text>
+<text x="1285.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v1</text>
+<rect x="1380" y="521.5026176066535" width="110" height="188.4973823933465" rx="6" fill="#3B3BD4"/>
+<text x="1435.0" y="485.50261760665353" font-size="22" font-weight="700" text-anchor="middle" fill="#14161E">66.8%</text>
+<text x="1435.0" y="509.50261760665353" font-size="15" text-anchor="middle" fill="#676C7E">73.4 / 60.2</text>
+<text x="1435.0" y="740" font-size="18" text-anchor="middle" fill="#373B4A">v2</text>
+<line x1="1210" y1="710" x2="1510" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<text x="40" y="836" font-size="16" fill="#676C7E">막대 = 2회 평균, 막대 위 작은 글씨 = 1회 / 2회 값. v1 2회 CPU 109는 원문 어림값(109%대)</text>
+<text x="40" y="866" font-size="15" fill="#676C7E">기준 2026-11-16(KST) · v1 main 43aac775, v2 main 2fe3ed10 · 배포 EC2 m7i.xlarge 1대, 사용자 3,000명, 각 2회 · 근거: docs/presentation/performance/2026-11-15-bottleneck-improvement-study.md 7-3절</text>
+</svg>
