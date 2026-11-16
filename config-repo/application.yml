@@ -59,6 +59,12 @@ eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}:${random.uuid}
+# API 문서(ADR 0063). 외부에 여는 API(/api/v1/**)만 문서에 넣는다. 내부 API는 Gateway가 404로 막으므로 문서에서도 뺀다.
+# springdoc을 넣은 서비스(user·reservation·payment·assistant)와 Gateway가 읽는다. Gateway는 자기 API가 없어 자기 문서가 비어 있다.
+# 화면 경로는 gateway.yml에 있다
+springdoc:
+  paths-to-match: /api/v1/**
+  paths-to-exclude: /api/v1/internal/**
 iseonjwa:
   request-log:
     # 요청 한 줄(메서드·경로·상태·시간, ISE-182)을 남기는 필터. false면 등록하지 않는다(부하 측정 때 로그 양 조절).

@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.presentation;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.common.response.CommonErrorCode;
 import com.iseonjwa.common.response.SuccessResponse;
+import com.iseonjwa.reservation.global.apidocs.EntryTokenDocs;
 import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.seathold.application.AsyncSeatHoldService;
 import com.iseonjwa.reservation.seathold.application.AutoHoldSeatsCommand;
@@ -15,6 +16,8 @@ import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.AcceptedRespo
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.AutoHoldRequest;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldRequest;
 import com.iseonjwa.reservation.seathold.presentation.SeatHoldDtos.HoldResponse;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +40,8 @@ import java.util.UUID;
 @RestController
 public class SeatHoldController {
     // Gateway가 검증한 입장 토큰의 jti를 넣고, 클라이언트가 보낸 같은 헤더는 지운다(contracts.md 1절, ADR 0053).
-    // Note: 선택 헤더로 받는다. 배포 경로에서는 Gateway가 이 API 앞에서 입장 토큰을 요구해 늘 붙는다
+    // Note: 선택 헤더로 받는다. 배포 경로에서는 Gateway가 이 API 앞에서 입장 토큰을 요구해 늘 붙는다.
+    // 클라이언트가 넣을 값이 아니므로 API 문서에서는 숨긴다(ADR 0063)
     static final String ENTRY_TOKEN_ID_HEADER = "X-Entry-Token-Id";
 
     private final SyncSeatHoldService syncService;
@@ -57,9 +61,10 @@ public class SeatHoldController {
     }
 
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations")
+    @Parameter(name = EntryTokenDocs.HEADER, in = ParameterIn.HEADER, required = true, description = EntryTokenDocs.DESCRIPTION)
     public ResponseEntity<SuccessResponse<?>> hold(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
+            @Parameter(hidden = true) @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
             @PathVariable Long scheduleId, @Valid @RequestBody HoldRequest request) {
         try {
             var response = holdOnce(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);
@@ -76,9 +81,10 @@ public class SeatHoldController {
      * 인증·입장 토큰·멱등키 헤더와 201 응답 본문은 위 선점 API와 같다. 범위에 남은 좌석이 모자라면 409 ZONE_SOLD_OUT이다.
      */
     @PostMapping("/api/v1/schedules/{scheduleId}/reservations/auto")
+    @Parameter(name = EntryTokenDocs.HEADER, in = ParameterIn.HEADER, required = true, description = EntryTokenDocs.DESCRIPTION)
     public ResponseEntity<SuccessResponse<?>> holdAuto(@RequestAttribute Long currentUserId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
+            @Parameter(hidden = true) @RequestHeader(value = ENTRY_TOKEN_ID_HEADER, required = false) String entryTokenJti,
             @PathVariable Long scheduleId, @Valid @RequestBody AutoHoldRequest request) {
         try {
             var command = autoCommand(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);

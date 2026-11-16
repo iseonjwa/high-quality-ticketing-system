@@ -6,6 +6,8 @@ dependencies {
     implementation project(':common')
     implementation 'org.springframework.security:spring-security-oauth2-jose'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // API 문서(/v3/api-docs)만 낸다. 화면(Swagger UI)은 Gateway가 한 곳에서 띄운다(ADR 0063)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-flyway'

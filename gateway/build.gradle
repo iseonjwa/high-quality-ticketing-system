@@ -6,6 +6,8 @@ dependencies {
     implementation 'org.springframework.retry:spring-retry'
     implementation 'org.springframework:spring-aspects'
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
+    // 서비스별 API 문서를 고르는 Swagger UI 하나를 띄운다. Gateway는 자기 API가 없어 문서는 서비스에서 받는다(ADR 0063)
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'

@@ -11,7 +11,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration(proxyBeanMethods = false)
-@Import({CommonExceptionHandler.class, CommonRoutingExceptionHandler.class})
+@Import({CommonExceptionHandler.class, CommonRoutingExceptionHandler.class, CommonApiDocsConfiguration.class})
 @EnableConfigurationProperties(RequestLogProperties.class)
 public class CommonWebConfiguration implements WebMvcConfigurer {
     @Bean

@@ -63,6 +63,7 @@ ssh -N -L 8085:127.0.0.1:8085 -L 9090:127.0.0.1:9090 \
 | 화면 | 주소 |
 |---|---|
 | Grafana(터널 없이) | `https://52.63.10.174/grafana/` |
+| Swagger UI(터널 없이, ADR 0063) | `https://52.63.10.174/api/docs` |
 | Kafka-UI(읽기 전용) | `http://localhost:8085` |
 | Prometheus | `http://localhost:9090` |
 | Alertmanager | `http://localhost:9093` |

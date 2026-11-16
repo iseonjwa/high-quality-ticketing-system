@@ -123,6 +123,10 @@ Gateway는 준비 완료 전에 Redis PING으로 실제 연결을 예열한다. 
 
 입장·결제 토큰, 대기열·예약·결제 업무, Mock PG 승인·환불, Outbox·재시도·DLQ 처리 로직은 아직 없다. local 전용 진단 API는 identity와 bootstrap.integration 이벤트 송수신만 확인한다. loadtest·prod에서는 진단 컨트롤러가 생성되지 않는다.
 
+## API 문서(Swagger)
+
+[Swagger UI](http://localhost:8080/api/docs)는 Gateway가 띄운다. 위쪽 드롭다운에서 서비스(user·reservation·payment·assistant)를 고른다. 화면(nginx) 주소의 `/api/docs`로도 열린다. 로그인이 필요한 API는 `POST /api/v1/auth/login`으로 받은 accessToken을 Authorize에 넣고 부른다. 좌석 조회·선점은 대기열에서 받은 입장 토큰을 `X-Entry-Token` 칸에 넣는다. 요청은 Gateway를 거치므로 인증·역할 검사가 화면과 같다. 내부 API(`/api/v1/internal/**`)는 문서에 없다. 구조와 이유는 [ADR 0063](../decisions/0063-swagger-ui-at-gateway.md)다.
+
 ## 관측성
 
 - [Grafana](http://localhost:3000): admin 계정, 비밀번호는 개인 .env. 기본 대시보드 uid는 iseonjwa-bootstrap이다. traceId로 요청 하나의 로그와 트레이스를 보는 대시보드는 [요청 로그](http://localhost:3000/d/iseonjwa-request-logs)다.

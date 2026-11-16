@@ -4,6 +4,9 @@ import com.iseonjwa.common.response.SuccessResponse;
 import com.iseonjwa.reservation.concert.application.ScheduleSeatQueryService;
 import com.iseonjwa.reservation.concert.application.ScheduleSeatsResult;
 import com.iseonjwa.reservation.concert.presentation.dto.response.ScheduleSeatsResponse;
+import com.iseonjwa.reservation.global.apidocs.EntryTokenDocs;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,7 @@ public class ScheduleSeatController {
 
     // 회차 좌석 배치와 선택 가능 여부
     @GetMapping("/{scheduleId}/seats")
+    @Parameter(name = EntryTokenDocs.HEADER, in = ParameterIn.HEADER, required = true, description = EntryTokenDocs.DESCRIPTION)
     public ResponseEntity<SuccessResponse<ScheduleSeatsResponse>> getSeats(@PathVariable Long scheduleId) {
         ScheduleSeatsResult seats = scheduleSeatQueryService.getSeats(scheduleId);
         // 좌석 배열만 직렬화한 채로 다시 쓰고, serverTime·traceId는 요청마다 새로 쓴다(ISE-264)
