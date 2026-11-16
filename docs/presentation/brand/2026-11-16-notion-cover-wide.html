@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이선좌 Notion 와이드 커버</title>
+<!-- 페이지 상단 커버용 1500x600. 그림은 같은 폴더의 -art.png. PNG는 헤드리스 Chrome으로 창 크기 1500x600, 배율 1로 찍는다 -->
+<style>
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Black"), local("Pretendard-Black"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Black.woff2"); font-weight: 900; }
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Bold"), local("Pretendard-Bold"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2"); font-weight: 700; }
+  html, body { margin: 0; padding: 0; background: #14101A; }
+  /* 1500x600. 상단 커버는 가운데 가로 띠만 남기므로 글자와 얼굴을 y=150~450 안에 둔다 */
+  .cover {
+    position: relative; width: 1500px; height: 600px; overflow: hidden;
+    background: #11124A;
+    font-family: "PretendardLocal", sans-serif;
+  }
+  /* 원본 1536x1024를 폭 1500으로 줄이고, 얼굴~폰(원본 y 240~520)이 세로 가운데에 오게 올린다 */
+  .art { position: absolute; left: 60px; top: -96px; width: 1500px; height: auto; }
+  .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(14,18,92,.92) 0%, rgba(14,18,92,.78) 38%, rgba(14,18,92,0) 60%);
+  }
+  .copy { position: absolute; left: 104px; top: 50%; transform: translateY(-50%); color: #FFF8EE; }
+  .name { font-weight: 900; font-size: 150px; line-height: .95; letter-spacing: -.04em; margin: 0; }
+  .line { font-weight: 900; font-size: 64px; line-height: 1.1; letter-spacing: -.03em; margin: 22px 0 0 4px; }
+  .line em { font-style: normal; color: #FFD23F; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <img class="art" src="2026-11-16-notion-cover-art.png" alt="">
+    <div class="scrim"></div>
+    <div class="copy">
+      <h1 class="name">이선좌</h1>
+      <p class="line">몰려도 <em>정확한</em> 티켓팅</p>
+    </div>
+  </div>
+</body>
+</html>
