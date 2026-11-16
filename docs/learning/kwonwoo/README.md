@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-16 | 선점 동시 처리 상한은 왜 4인가, 더 크게 두면 병렬 처리가 늘어 지표가 좋아지지 않나 | [qna/2026-11-16-seathold-concurrency-limit-4.md](qna/2026-11-16-seathold-concurrency-limit-4.md) |
 | 2026-11-14 | 배포 단계 측정 전에 좌석 선점 구조에서 더 개선할 것은 무엇인가 (시니어 관점 검토와 개선안) | [qna/2026-11-14-seathold-pre-deploy-review.md](qna/2026-11-14-seathold-pre-deploy-review.md) |
 | 2026-11-14 | reservation-service 커넥션 풀은 왜 5개인가, HikariCP 기본값 10과 다른 근거가 있나 | [qna/2026-11-14-reservation-hikari-pool-5-origin.md](qna/2026-11-14-reservation-hikari-pool-5-origin.md) |
 | 2026-11-14 | 접수형 소비자(ISE-17) 머지 전 남은 확인 항목의 해결 방안과 트레이드오프 | [qna/2026-11-14-ise17-merge-verification-tradeoffs.md](qna/2026-11-14-ise17-merge-verification-tradeoffs.md) |

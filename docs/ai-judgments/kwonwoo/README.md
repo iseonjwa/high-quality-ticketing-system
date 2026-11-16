@@ -8,6 +8,7 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-pool-and-limit-together.md) |
 | 2026-11-15 | 자율 성능 개선 반복 절차를 AI 검토안대로 보완하되 판정은 종합 판단, 종료 5회, 커밋 자율, 검토는 별도 세션으로 정함 | Claude Code | 부분 수용 | 아니오 | 후보 | [기록](2026-11-15-autonomous-perf-loop-procedure.md) |
 | 2026-11-14 | 배포 측정 전 개선안 중 계측 보강·만료 주기·토큰 서명 이동을 차례로 넣어 재고, 풀 크기(ISE-237 있음)·캐시 읽기 메서드(ISE-281 등록)는 contract로 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-14-pre-deploy-improvements-2-5-6-and-contracts.md) |
 | 2026-11-14 | ISE-17을 먼저 최신화·머지하고, ISE-261의 사전 거절·순서 변경을 공용 선점 본체(`SeatHolding`) 위에서 다시 맞추기로 함 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-14-ise17-first-then-ise261-on-shared-body.md) |
