@@ -43,7 +43,7 @@ dev `6468f257` 기준으로 확인했다.
   - 설정 `seat-hold.async.publish`(`outbox` 기본, `direct`)와 `seat-hold.async.direct-publish-timeout`(기본 1s). 다른 값이면 기동이 실패한다.
   - `AsyncSeatHoldService`가 직접 발행이면 Outbox 행을 쓰지 않고, 트랜잭션이 끝난 뒤 `SeatHoldDirectPublisher`로 보낸다. 같은 키 재요청과 접수 거절은 보내지 않는다.
   - `KafkaSeatHoldDirectPublisher`는 봉투를 `OutboxWriter`와 같게 만들고 Outbox 릴레이와 같은 `OutboxEventSender`로 보낸다. 소비자는 두 경로를 구분하지 않는다.
-  - 동시 처리 상한(ADR 0061 결정 3)의 자리는 접수 트랜잭션에서만 쥐고, 브로커 확인 대기는 자리를 돌려준 뒤에 한다. 상한은 커넥션을 지키는 장치라, 확인 대기를 안에 두면 직접 발행만 처리량이 깎여 비교가 틀어진다.
+  - 동시 처리 상한(ADR 0062 결정 3)의 자리는 접수 트랜잭션에서만 쥐고, 브로커 확인 대기는 자리를 돌려준 뒤에 한다. 상한은 커넥션을 지키는 장치라, 확인 대기를 안에 두면 직접 발행만 처리량이 깎여 비교가 틀어진다.
   - 측정 덮어쓰기: `loadtest/k6/compose.seat-hold-async.yml`(O), 그 뒤에 `compose.seat-hold-direct.yml`을 더하면 D다.
   - 확인: `AsyncSeatHoldDirectPublishApiTest`(커밋 뒤 전송, Outbox 행 없음, 재요청·거절은 안 보냄), `KafkaSeatHoldDirectPublisherTest`(봉투, 실패·시한 초과에도 예외 없음), `SeatHoldDirectPublishKafkaFlowTest`(실제 Kafka, 릴레이를 끄고 HELD와 예매 좌석까지)
 - 측정 전용 분기라 ADR은 새로 쓰지 않았다. ADR 0057 후속 작업 줄에 결과를 덧붙였다.
