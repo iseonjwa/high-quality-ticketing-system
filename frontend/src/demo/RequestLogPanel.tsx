@@ -109,7 +109,9 @@ export function RequestLogPanel() {
 
   function turnOff() {
     disableDemoMode()
-    toast('시연 모드가 꺼졌습니다. 주소 끝에 ?demo=on을 붙이면 다시 켜집니다.')
+    toast(
+      '시연 모드가 꺼졌습니다. 화면 맨 아래 [시연 모드 켜기]나 주소 끝의 ?demo=on으로 다시 켤 수 있습니다.',
+    )
   }
 
   if (hidden) {
