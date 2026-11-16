@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.PgPermit;
 import com.iseonjwa.payment.pg.application.PgUnavailableException;
@@ -12,6 +13,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 // 일반 결제(pg-approve)와 자동결제(pg-billing)가 자리와 차단기를 나누는지 확인한다(ADR 0051, ISE-236)
@@ -46,11 +49,11 @@ class PgGroupSeparationTest {
     void 한쪽이_가득_차도_다른_쪽은_허가한다() {
         var billingHeld = new ArrayList<PgPermit>();
         for (var i = 0; i < 3; i++) billingHeld.add(billing.acquire());
-        approval.acquire().release();
+        approval.acquire(PgProvider.MOCK).release();
         billingHeld.forEach(PgPermit::release);
 
         var approvalHeld = new ArrayList<PgPermit>();
-        for (var i = 0; i < 10; i++) approvalHeld.add(approval.acquire());
+        for (var i = 0; i < 10; i++) approvalHeld.add(approval.acquire(PgProvider.MOCK));
         billing.acquire().release();
         approvalHeld.forEach(PgPermit::release);
     }
@@ -66,7 +69,7 @@ class PgGroupSeparationTest {
         assertEquals(CircuitBreaker.State.OPEN, billing.circuitBreaker().getState());
         assertEquals(CircuitBreaker.State.CLOSED, approval.circuitBreaker().getState());
         assertThrows(PgUnavailableException.class, billing::acquire);
-        approval.acquire().release();
+        approval.acquire(PgProvider.MOCK).release();
     }
 
     @Test
@@ -74,5 +77,44 @@ class PgGroupSeparationTest {
         assertEquals("pg-billing", billing.bulkhead().getName());
         assertEquals("pg-billing", billing.circuitBreaker().getName());
         assertEquals(3, billing.bulkhead().getBulkheadConfig().getMaxConcurrentCalls());
+    }
+
+    @Test
+    void 승인_허가는_PG별이라_토스_차단기가_열려도_Mock_허가는_얻는다() {
+        var toss = approval.circuitBreaker(PgProvider.TOSS);
+        toss.transitionToOpenState();
+
+        assertEquals(CircuitBreaker.State.OPEN, toss.getState());
+        assertThrows(PgUnavailableException.class, () -> approval.acquire(PgProvider.TOSS));
+        approval.acquire(PgProvider.MOCK).release();
+        assertEquals(CircuitBreaker.State.CLOSED, approval.circuitBreaker().getState());
+    }
+
+    @Test
+    void Mock_차단기가_열려도_토스_허가는_얻는다() {
+        approval.circuitBreaker(PgProvider.MOCK).transitionToOpenState();
+
+        assertThrows(PgUnavailableException.class, () -> approval.acquire(PgProvider.MOCK));
+        approval.acquire(PgProvider.TOSS).release();
+    }
+
+    @Test
+    void 승인_그룹_이름은_Mock이_pg_approve_토스가_pg_approve_toss다() {
+        assertEquals("pg-approve", approval.circuitBreaker().getName());
+        assertEquals("pg-approve-toss", approval.circuitBreaker(PgProvider.TOSS).getName());
+        assertEquals("pg-approve-toss", approval.bulkhead(PgProvider.TOSS).getName());
+    }
+
+    @Test
+    void accepting은_OPEN만_거절하고_HALF_OPEN은_받는다() {
+        var toss = approval.circuitBreaker(PgProvider.TOSS);
+        assertTrue(approval.accepting(PgProvider.TOSS));
+
+        toss.transitionToOpenState();
+        assertFalse(approval.accepting(PgProvider.TOSS));
+        assertTrue(approval.accepting(PgProvider.MOCK));
+
+        toss.transitionToHalfOpenState();
+        assertTrue(approval.accepting(PgProvider.TOSS));
     }
 }

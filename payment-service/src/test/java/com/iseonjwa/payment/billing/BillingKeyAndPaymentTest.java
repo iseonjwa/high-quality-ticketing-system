@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.billing;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.support.PgClientsTestConfig;
 import org.springframework.context.annotation.Import;
 import com.iseonjwa.payment.support.AppendOnlyCleanup;
@@ -226,8 +227,8 @@ class BillingKeyAndPaymentTest {
         long reservation = RESERVATIONS.incrementAndGet();
         var held = new java.util.ArrayList<PgPermit>();
         try {
-            for (var i = 0; i < 10; i++) held.add(approvalGate.acquire());
-            assertThrows(PgUnavailableException.class, approvalGate::acquire);
+            for (var i = 0; i < 10; i++) held.add(approvalGate.acquire(PgProvider.MOCK));
+            assertThrows(PgUnavailableException.class, () -> approvalGate.acquire(PgProvider.MOCK));
 
             var payment = billingPayments.approve(new BillingPaymentCommand(reservation, user, AMOUNT, "KRW"));
 

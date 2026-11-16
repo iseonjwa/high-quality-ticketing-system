@@ -1,5 +1,6 @@
 package com.iseonjwa.payment.pg.infrastructure;
 
+import com.iseonjwa.payment.payment.domain.PgProvider;
 import com.iseonjwa.payment.pg.application.PgClient;
 import com.iseonjwa.payment.pg.application.UnknownCause;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -207,7 +208,7 @@ class Resilience4jPgGroupTest {
     void 신규_승인_그룹이_포화되거나_열려도_복구_그룹은_영향을_받지_않는다() {
         var approve = new Resilience4jPgApprovalGate(group(1));
         var recovery = new Resilience4jPgRecoveryGate(group(2));
-        approve.acquire();
+        approve.acquire(PgProvider.MOCK);
         for (var i = 0; i < 4; i++) {
             approve.circuitBreaker().onError(1, java.util.concurrent.TimeUnit.MILLISECONDS, new RuntimeException());
         }

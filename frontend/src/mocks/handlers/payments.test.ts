@@ -118,6 +118,21 @@ describe('결제 목: 결제 준비(checkout)', () => {
       amount: held.totalAmount,
       orderName: `콘서트 예매 ${held.reservationId}`,
       mockBypass: false,
+      fallbackProvider: null,
+      primaryAvailable: true,
+    })
+  })
+
+  it('toss-unavailable 시나리오는 토스 모드에서 승인 차단기가 열려 Mock으로만 넘길 수 있다고 알린다', async () => {
+    setMockScenario({ checkoutPg: 'toss-unavailable' })
+    const held = await hold()
+
+    const result = await checkoutPayment(held.paymentToken)
+
+    expect(result).toMatchObject({
+      provider: 'TOSS',
+      fallbackProvider: 'MOCK',
+      primaryAvailable: false,
     })
   })
 

@@ -158,8 +158,9 @@ public class PaymentApprovalService {
         if (effective == PgProvider.TOSS && server != PgProvider.TOSS) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
-        // 토스 모드의 Mock 건너뛰기는 설정으로 끌 수 있다
-        if (command.pgProvider() == PgProvider.MOCK && server == PgProvider.TOSS && !pgProfile.mockBypassEnabled()) {
+        // 토스 모드의 MOCK 요청은 건너뛰기나 폴백 중 하나가 켜져 있을 때만 받는다. 둘 다 설정으로 끌 수 있다
+        if (command.pgProvider() == PgProvider.MOCK && server == PgProvider.TOSS
+                && !pgProfile.mockBypassEnabled() && !pgProfile.failoverToMockEnabled()) {
             throw new BusinessException(CommonErrorCode.VALIDATION_FAILED);
         }
         // 토스는 결제창에서 받은 paymentKey 없이 승인할 수 없다
@@ -173,7 +174,7 @@ public class PaymentApprovalService {
     private Optional<PaymentOutcome> tryNewApproval(ApprovePaymentCommand command, PaymentToken token,
             String requestHash, PgProvider provider, Recording recording) {
         // 6단계: 신규 승인 허가. 못 얻으면 행도 멱등 기록도 만들지 않고 503이다
-        try (var permit = acquirePermit()) {
+        try (var permit = acquirePermit(provider)) {
             // 7단계: TX1. 아래 try는 TX1만 감싼다. PG 호출·TX2의 예외가 여기로 들어오면 안 된다
             Payment payment;
             try {
@@ -193,9 +194,9 @@ public class PaymentApprovalService {
         }
     }
 
-    private PgPermit acquirePermit() {
+    private PgPermit acquirePermit(PgProvider provider) {
         try {
-            return approvalGate.acquire();
+            return approvalGate.acquire(provider);
         } catch (PgUnavailableException exception) {
             // CB가 OPEN인 동안 거절마다 남으면 장애 순간에 로그가 넘친다. 건수는 payment.approve{outcome=unavailable}가 본다
             log.debug("PG 승인 허가 거절: {}", exception.getMessage());

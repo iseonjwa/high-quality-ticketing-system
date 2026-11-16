@@ -29,11 +29,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-// 토스 모드에서 payment.pg.mock-bypass-enabled=false이면 Mock 건너뛰기를 받지 않는다(ISE-231).
+// 토스 모드에서 payment.pg.mock-bypass-enabled=false이고 폴백(failover-to-mock-enabled)도 꺼져 있으면 MOCK 승인을 받지 않는다(ISE-231, ISE-305).
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
                 "payment.pg.provider=toss", "payment.pg.toss.secret-key=test_sk_bypass_off_dummy",
-                "payment.pg.toss.client-key=test_ck_bypass_off_dummy", "payment.pg.mock-bypass-enabled=false"})
+                "payment.pg.toss.client-key=test_ck_bypass_off_dummy", "payment.pg.mock-bypass-enabled=false", "payment.pg.failover-to-mock-enabled=false"})
 @ActiveProfiles("test")
 @Import(PgClientsTestConfig.class)
 class PaymentTossModeBypassOffApiTest {

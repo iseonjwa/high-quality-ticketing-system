@@ -31,6 +31,8 @@ describe('checkoutPayment', () => {
       amount: 1000,
       orderName: '콘서트 예매 1',
       mockBypass: false,
+      fallbackProvider: null,
+      primaryAvailable: true,
     })
   })
 
@@ -42,10 +44,27 @@ describe('checkoutPayment', () => {
       amount: 1000,
       orderName: '콘서트 예매 1',
       mockBypass: true,
+      fallbackProvider: 'MOCK',
+      primaryAvailable: false,
     }
     respondCheckout(data)
 
     await expect(checkoutPayment('token')).resolves.toEqual(data)
+  })
+
+  it('fallbackProvider·primaryAvailable이 없던 서버 응답은 폴백 없음·사용 가능으로 읽는다', async () => {
+    respondCheckout({
+      provider: 'TOSS',
+      orderId: 'order-1-abcdef',
+      clientKey: 'test_ck_fake',
+      amount: 1000,
+      orderName: '콘서트 예매 1',
+    })
+
+    await expect(checkoutPayment('token')).resolves.toMatchObject({
+      fallbackProvider: null,
+      primaryAvailable: true,
+    })
   })
 
   it('mockBypass가 없던 서버 응답은 false로 읽는다', async () => {

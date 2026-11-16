@@ -76,6 +76,6 @@ class PaymentWarmupConfigurationTest {
         return new PaymentWarmupConfiguration().paymentWarmup(new WarmupProperties(true, 3, null),
                 new PaymentMetrics(new SimpleMeterRegistry()), mock(TransactionTemplate.class),
                 mock(IdempotencyRecordRepository.class), mock(PaymentRepository.class), mock(PaymentTokenVerifier.class),
-                new PgCheckoutProfile(provider, null, false), new UnmeteredMockPg(pg));
+                new PgCheckoutProfile(provider, null, false, true), new UnmeteredMockPg(pg));
     }
 }

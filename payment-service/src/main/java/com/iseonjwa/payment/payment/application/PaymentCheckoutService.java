@@ -1,6 +1,8 @@
 package com.iseonjwa.payment.payment.application;
 
 import com.iseonjwa.common.response.BusinessException;
+import com.iseonjwa.payment.payment.domain.PgProvider;
+import com.iseonjwa.payment.pg.application.PgApprovalGate;
 import com.iseonjwa.payment.pg.application.PgCheckoutProfile;
 import com.iseonjwa.payment.pg.application.PgOrderIds;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,12 +21,14 @@ import java.time.Clock;
 public class PaymentCheckoutService {
     private final PaymentTokenVerifier tokens;
     private final PgCheckoutProfile profile;
+    private final PgApprovalGate approvalGate;
     private final Clock clock;
 
     public PaymentCheckoutService(PaymentTokenVerifier tokens, PgCheckoutProfile profile,
-            @Qualifier("commonAuditingClock") Clock clock) {
+            PgApprovalGate approvalGate, @Qualifier("commonAuditingClock") Clock clock) {
         this.tokens = tokens;
         this.profile = profile;
+        this.approvalGate = approvalGate;
         this.clock = clock;
     }
 
@@ -38,12 +42,15 @@ public class PaymentCheckoutService {
             throw new BusinessException(PaymentErrorCode.PAYMENT_TOKEN_INVALID);
         }
         var orderName = "콘서트 예매 " + token.reservationId();
+        // primaryAvailable은 서버 기본 PG의 차단기다. 프런트는 토스 모드에서 false이고 폴백이 있으면 결제창을 열지 않는다
         // 건너뛰기는 토스 모드에서만 의미가 있다. Mock 모드는 결제 버튼이 이미 바로 승인한다
         return switch (profile.provider()) {
-            case MOCK -> new CheckoutView(profile.provider(), false, null, null, token.amount(), orderName);
+            case MOCK -> new CheckoutView(profile.provider(), false, null, null, token.amount(), orderName, null,
+                    approvalGate.accepting(PgProvider.MOCK));
             case TOSS -> new CheckoutView(profile.provider(), profile.mockBypassEnabled(),
                     PgOrderIds.of(token.reservationId(), token.expiresAt()).value().toString(), profile.clientKey(),
-                    token.amount(), orderName);
+                    token.amount(), orderName, profile.failoverToMockEnabled() ? PgProvider.MOCK : null,
+                    approvalGate.accepting(PgProvider.TOSS));
         };
     }
 }

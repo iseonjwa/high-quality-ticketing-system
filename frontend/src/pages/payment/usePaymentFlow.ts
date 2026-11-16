@@ -26,6 +26,9 @@ import {
 // 화면이 단계를 가를 때 쓰는 이름. 누르기 전의 ready를 포함한다
 export type { PaymentFlowViewState as PaymentFlowState }
 
+// 토스가 결제를 시작하지 못해 Mock으로 넘긴 사유. 화면이 안내를 보인다(ISE-305)
+export type PaymentFailover = 'tossUnavailable' | 'tossWindowFailed' | 'tossApproveUnavailable'
+
 export interface UsePaymentFlowOptions {
   reservationId: number
   paymentToken: string
@@ -58,13 +61,20 @@ const SETTLED_STEPS = new Set<PaymentFlowViewState['step']>([
 // 토스에서 돌아온 결과는 TossReturnPage가 시도로 저장하고, 이 화면을 다시 열 때 저장한 시도로 이어 보낸다.
 // Note: 토스 모드에서는 결제창을 열기 전에 승인 시도(멱등키)를 저장하지 않는다. 결제창을 닫고 다시 열면
 // paymentKey가 바뀌는데 같은 멱등키를 쓰면 409 IDEMPOTENCY_KEY_REUSED가 나므로, paymentKey가 정해진 뒤에만 키를 만든다.
+// 폴백(ISE-305): 돈이 움직이지 않은 것이 확실할 때만 새 키·pgProvider: 'MOCK'으로 다시 시작한다. 세 경우다.
+// 1) checkout이 토스 승인 차단기가 열려 있다고 알린 경우(결제창을 열지 않는다) 2) 결제창을 열다 오류가 난 경우(구매자 취소 제외)
+// 3) 결제창에서 돌아와 보낸 승인이 503 PG_UNAVAILABLE로 끝난 경우(허가 단계 거절이라 결제 행도 토스 승인도 없다).
+// 결과 모름(응답 없음·504·202)은 같은 PG에 같은 키로 다시 묻고, 카드사 거절·tossFailed·이미 Mock인 시도는 넘기지 않는다.
 // submitMockBypass는 토스 모드의 "토스연동 건너뛰고 결제하기"다. 결제창 없이 pgProvider: 'MOCK'으로 승인을 보낸다.
 export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePaymentFlowOptions): {
   state: PaymentFlowViewState
   submit: () => void
   submitMockBypass: () => void
+  failover: PaymentFailover | null
 } {
   const [state, setState] = useState<PaymentFlowViewState>({ step: 'ready' })
+  // 폴백 안내는 단계가 바뀌어도(확정 등) 결제 화면에 남긴다
+  const [failover, setFailover] = useState<PaymentFailover | null>(null)
   const keyRef = useRef<PaymentAttempt | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
   const runningRef = useRef(false)
@@ -92,6 +102,9 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
 
       function send(attempt: PaymentAttempt) {
         savePaymentAttempt(reservationId, attempt)
+        // 토스 승인 시도(paymentKey가 있고 pgProvider가 없다)의 503은 폴백할지 가리기 전에는 화면에 내보내지 않는다
+        const tossAttempt =
+          attempt.clientPaymentRef !== undefined && attempt.pgProvider === undefined
         void runPaymentFlow({
           reservationId,
           paymentToken: attempt.token,
@@ -100,13 +113,58 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
           clientPaymentRef: attempt.clientPaymentRef,
           pgProvider: attempt.pgProvider,
           signal: controller.signal,
-          onState: setState,
-        }).then((outcome: PaymentFlowOutcome) => {
+          onState: (next) => {
+            if (!(tossAttempt && next.step === 'pgUnavailable')) {
+              setState(next)
+            }
+          },
+        }).then(async (outcome: PaymentFlowOutcome) => {
+          if (tossAttempt && outcome.step === 'pgUnavailable') {
+            // 진행 중 표시는 이 과정이 끝날 때까지 풀지 않는다. 두 번 누르기를 막는다
+            await failoverAfterTossApproveUnavailable(attempt)
+            return outcome
+          }
           if (controllerRef.current === controller) {
             runningRef.current = false
           }
           return outcome
         })
+      }
+
+      // 새 시도로 Mock에 보낸다. 새로고침 뒤에도 같은 시도로 이어 보내는 것은 send가 저장한 시도가 맡는다
+      function failoverToMock(reason: PaymentFailover, token: string) {
+        const attempt: PaymentAttempt = {
+          token,
+          key: newIdempotencyKey(),
+          pgProvider: 'MOCK',
+        }
+        keyRef.current = attempt
+        setFailover(reason)
+        send(attempt)
+      }
+
+      // 경우 3. 토스 승인이 503으로 끝났다. 폴백이 있는지 checkout으로 다시 묻는다
+      async function failoverAfterTossApproveUnavailable(attempt: PaymentAttempt) {
+        try {
+          const checkout = await checkoutPayment(attempt.token, { signal: controller.signal })
+          if (controller.signal.aborted) {
+            return
+          }
+          if (checkout.fallbackProvider === 'MOCK') {
+            failoverToMock('tossApproveUnavailable', attempt.token)
+            return
+          }
+          stop({ step: 'pgUnavailable' })
+        } catch (error) {
+          if (controller.signal.aborted) {
+            return
+          }
+          stop(
+            isApiError(error, 'PAYMENT_TOKEN_INVALID') && error.status === 403
+              ? { step: 'tokenExpired' }
+              : { step: 'pgUnavailable' },
+          )
+        }
       }
 
       // 저장한 시도가 있으면 checkout을 부르지 않고 그 토큰·키(·paymentKey·건너뛰기 표시)로 다시 보낸다.
@@ -168,6 +226,11 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
           send(attempt)
           return
         }
+        // 경우 1. 토스 승인 차단기가 열려 있으면 결제창을 열지 않고 바로 Mock으로 넘긴다
+        if (!checkout.primaryAvailable && checkout.fallbackProvider === 'MOCK') {
+          failoverToMock('tossUnavailable', paymentToken)
+          return
+        }
         saveTossCheckout(reservationId, {
           token: paymentToken,
           orderId: checkout.orderId,
@@ -190,7 +253,14 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
           }
           removeTossCheckout(reservationId)
           const code = tossErrorCode(error)
-          stop(isTossBuyerCancel(code) ? { step: 'tossCanceled' } : { step: 'tossFailed', code })
+          if (isTossBuyerCancel(code)) {
+            stop({ step: 'tossCanceled' })
+          } else if (checkout.fallbackProvider === 'MOCK') {
+            // 경우 2. 결제창을 열지 못했으므로 돈이 움직이지 않았다
+            failoverToMock('tossWindowFailed', paymentToken)
+          } else {
+            stop({ step: 'tossFailed', code })
+          }
         }
       }
       void prepare()
@@ -235,5 +305,5 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [state.step])
 
-  return { state, submit, submitMockBypass }
+  return { state, submit, submitMockBypass, failover }
 }

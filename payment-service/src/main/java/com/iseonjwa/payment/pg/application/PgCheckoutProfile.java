@@ -11,14 +11,17 @@ import java.util.Objects;
  * @param provider 서버 기본 PG. 승인 요청이 PG를 고르지 않으면 이 PG로 처리한다.
  * @param clientKey 토스 결제창이 쓰는 클라이언트 키. Mock 모드이면 null이다.
  * @param mockBypassEnabled 토스 모드에서 승인 API의 Mock 건너뛰기를 받을지(시연용)
+ * @param failoverToMockEnabled 토스 모드에서 토스가 결제를 시작하지 못할 때 Mock 승인을 받을지
  */
-public record PgCheckoutProfile(PgProvider provider, String clientKey, boolean mockBypassEnabled) {
+public record PgCheckoutProfile(PgProvider provider, String clientKey, boolean mockBypassEnabled,
+        boolean failoverToMockEnabled) {
     public PgCheckoutProfile {
         Objects.requireNonNull(provider);
     }
 
     @Override
     public String toString() {
-        return "PgCheckoutProfile[provider=" + provider + ", mockBypassEnabled=" + mockBypassEnabled + "]";
+        return "PgCheckoutProfile[provider=" + provider + ", mockBypassEnabled=" + mockBypassEnabled
+                + ", failoverToMockEnabled=" + failoverToMockEnabled + "]";
     }
 }
