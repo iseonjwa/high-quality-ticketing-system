@@ -195,11 +195,17 @@ resolve_venue() {
   echo "  공연장 KSPO DOME id=$venue_id"
 }
 
-prices='{"prices": [{"grade": "VIP", "price": 165000}, {"grade": "R", "price": 143000}, {"grade": "S", "price": 112000}]}'
+# 등급 가격과 1인 매수는 대표 공연 정의(showcase.json)를 따른다. seed-showcase.sh가 만든 회차와 같은 값이 되게 한다.
+# 추첨 측정 회차(lottery)는 1인 매수를 보내지 않아 서버 기본값(4)을 쓴다. 추첨의 1인 매수는 추첨 설정이 따로 정한다
+prices=$(jq '[.concerts[] | select(.demo)][0] | {prices: (.prices | to_entries | map({grade: .key, price: .value}))}' "$showcase")
+demo_max_per_user=$(jq '[.concerts[] | select(.demo)][0].maxPerUser // 4' "$showcase")
 # create_schedule <이름> <오픈 시각> <공연 시작> : 회차와 그 좌석을 만든다. 새 회차 id는 schedule_id에 둔다.
 create_schedule() {
+  local max_per_user=null
+  [[ "$mode" == lottery ]] || max_per_user="$demo_max_per_user"
   call POST "/api/v1/admin/concerts/$concert_id/schedules" 201 \
-    "$(jq -n --argjson v "$venue_id" --arg s "$3" --arg o "$2" '{venueId: $v, startsAt: $s, openAt: $o}')"
+    "$(jq -n --argjson v "$venue_id" --arg s "$3" --arg o "$2" --argjson m "$max_per_user" \
+      '{venueId: $v, startsAt: $s, openAt: $o} + (if $m == null then {} else {maxPerUser: $m} end)')"
   schedule_id=$(jq -r '.data.scheduleId' <<< "$response")
   call POST "/api/v1/admin/schedules/$schedule_id/seats" 201 "$prices"
   echo "  회차 만듦($1): $schedule_id, 오픈 $2, 좌석 $(jq -r '.data.createdSeats // empty' <<< "$response")석"

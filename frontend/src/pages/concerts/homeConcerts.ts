@@ -25,7 +25,7 @@ export interface HomeSections {
 
 export const FEATURED_LIMIT = 4
 
-// 배포 서버의 JIT 예열·k6 측정 공연은 홈 목록에 보이지 않게 뺀다(data/showcase.json, ISE-302).
+// 배포 서버의 JIT 예열·k6 측정·E2E 공연은 홈 목록에 보이지 않게 뺀다(data/showcase.json, ISE-302).
 // Note: 예열 공연은 배포마다 같은 공연을 찾아 다시 쓰므로 서버에서 지울 수 없다. 화면 목록에서만 빼고 주소로는 열린다
 const EXCLUDED_TITLE_PREFIXES: readonly string[] = showcase.listExcludedTitlePrefixes
 

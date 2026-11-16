@@ -160,6 +160,8 @@ describe('홈 목록에서 빼는 공연', () => {
 
   it('제목 앞부분이 같을 때만 뺀다', () => {
     expect(isListedConcert({ title: '[예열 전용] 배포 JIT 예열' })).toBe(false)
+    expect(isListedConcert({ title: 'k6 O1' })).toBe(false)
+    expect(isListedConcert({ title: 'E2E 예매 공연 e6d426cf' })).toBe(false)
     expect(isListedConcert({ title: '새벽세시 단독공연 〈k6 측정〉' })).toBe(true)
   })
 })

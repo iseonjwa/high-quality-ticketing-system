@@ -4,18 +4,16 @@
 #   SHOWCASE_DRY_RUN=1 script/deploy/seed-showcase.sh   # 바꿀 것만 보여 주고 아무것도 바꾸지 않는다
 #
 # 정의는 frontend/src/data/showcase.json 한 곳에 있다. 화면은 같은 파일의 제목으로 공연 사진을 고른다.
-# 다시 돌려도 안전하다. 같은 이름의 공연장, 같은 제목의 공연은 다시 만들지 않는다. 공연만 있고 회차가 0개면
-# (이전 실행이 중간에 실패) 회차·좌석을 이어서 만든다.
+# 다시 돌려도 안전하다. 공연장은 이름, 공연은 제목, 회차는 (공연, 공연장, 시작 시각)으로 이미 있는지 보고 없는 것만 만든다.
+# 좌석이 없는 회차는 좌석만 만든다. 그래서 중간에 실패해도 다시 돌리면 빠진 것만 채운다.
 #
-# 하는 일
+# 하는 일(이 순서로 한다)
 #   1. 공연장: 조회·생성 API가 없어 예약 DB에 직접 넣는다(venues + venue_seats). KSPO DOME은 시드 마이그레이션에 있다.
-#   2. 숨김: hide.titles·hide.titlePrefixes에 맞는 공연을 지운 것으로 표시한다(deleted_at). 예매·결제 행은 그대로 두고,
-#      "내 예매"는 지운 공연도 보인다(SpringDataReservationRepository.findMineRows). 되돌리기는 아래 "되돌리기"를 본다.
+#   2. 공연·회차·좌석: 관리자 API로 만든다(공개 진입점 nginx를 거친다).
+#   3. 숨김: hide.titles·hide.titlePrefixes에 맞는 공연을 지운 것으로 표시한다(deleted_at). 새 공연을 다 만든 뒤에 해서,
+#      앞 단계가 실패하면 기존 공연은 그대로 보인다. 예매·결제 행은 그대로 두고 "내 예매"는 지운 공연도 보인다
+#      (SpringDataReservationRepository.findMineRows). 숨긴 공연 id와 되돌리는 SQL을 끝에 출력한다.
 #      JIT 예열 공연([예열 전용])은 배포마다 같은 공연을 찾아 다시 쓰므로 지우지 않는다. 화면 목록에서만 뺀다.
-#   3. 공연·회차·좌석: 관리자 API로 만든다(공개 진입점 nginx를 거친다).
-#
-# 되돌리기(숨긴 공연 다시 보이기): 예약 DB에서
-#   UPDATE concerts SET deleted_at = NULL WHERE deleted_at >= '<실행 시각>';
 #
 # 읽는 .env 키: ADMIN_EMAIL, ADMIN_PASSWORD, DB_USER
 # 환경 변수: COMPOSE_PROJECT_NAME(같은 서버에 스택이 둘일 때 예약 DB 컨테이너를 고른다), SHOWCASE_DRY_RUN
@@ -34,20 +32,28 @@ command -v jq > /dev/null || fail "jq가 없다. script/deploy/install-docker.sh
 [[ -f .env ]] || fail ".env가 없다. script/deploy/init-env.sh를 먼저 실행한다"
 [[ -f "$definition" ]] || fail "정의 파일이 없다: $definition"
 
-# 정의 파일의 값이 SQL에 들어가므로 먼저 모양을 확인한다. 구역은 대문자 한 글자, 등급은 VIP·R·S, 이름에는 작은따옴표가 없어야 한다
+# 정의 파일의 값이 SQL에 들어가므로 먼저 모양을 확인한다. 이름·제목에는 작은따옴표와 역슬래시가 없어야 하고,
+# 숨길 제목에는 LIKE 와일드카드(%, _)도 없어야 한다. 구역은 대문자 한 글자, 등급은 VIP·R·S다.
+# 회차의 공연장은 정의 파일의 공연장이나 KSPO DOME이어야 하고 오픈이 공연 시작보다 앞서야 한다(API를 부르기 전에 막는다)
 jq -e --arg q "'" '
-  (.venues | all(
-      (.name | test("^[^" + $q + "]+$"))
+  ("^[^" + $q + "\\\\]+$") as $safe
+  | ("^[^" + $q + "\\\\%_]+$") as $safe_like
+  | ([.venues[].name] + ["KSPO DOME"]) as $venue_names
+  | (.venues | all(
+      (.name | test($safe))
       and (.rows | type == "number" and . >= 1 and . <= 50)
       and (.seatsPerRow | type == "number" and . >= 1 and . <= 100)
       and (.sections | keys - ["R", "S", "VIP"] | length == 0)
       and ([.sections[][]] | all(test("^[A-Z]$")))))
   and (.concerts | all(
-      (.title | length >= 1 and length <= 200)
+      (.title | test($safe) and length <= 200)
       and (.prices | keys == ["R", "S", "VIP"])
       and (.schedules | length >= 1)
-      and ([.schedules[] | .openAt, .startsAt] | all(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$")))))
-  and ([.hide.titles[], .hide.titlePrefixes[]] | all(test("^[^" + $q + "%_]+$")))
+      and (.schedules | all(
+          (.venue | IN($venue_names[]))
+          and ([.openAt, .startsAt] | all(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$")))
+          and .openAt < .startsAt))))
+  and ([.hide.titles[], .hide.titlePrefixes[]] | all(test($safe_like)))
 ' "$definition" > /dev/null || fail "정의 파일 모양이 맞지 않다: $definition"
 
 # .env는 source하지 않고 키별로 꺼낸다(값에 공백이 있어도 셸이 해석하지 않는다)
@@ -72,7 +78,8 @@ while IFS= read -r id; do containers+=("$id"); done < <(docker ps -q "${filter[@
 (( ${#containers[@]} == 1 )) || fail "예약 DB 컨테이너를 하나로 정하지 못했다(${#containers[@]}개). COMPOSE_PROJECT_NAME을 정한다"
 db_container="${containers[0]}"
 
-# sql <SQL> : 결과를 구분자 없이 한 줄씩 돌려준다. SQL은 표준 입력으로 넘긴다
+# sql <SQL> : 결과를 구분자 없이 한 줄씩 돌려준다. SQL은 표준 입력으로 넘긴다.
+# 문자열 값은 정의 파일 검사로 작은따옴표·역슬래시가 없음을 확인한 것만 넣는다
 sql() {
   printf '%s\n' "$1" | docker exec -i "$db_container" psql -X -q -v ON_ERROR_STOP=1 -U "$db_user" -d reservation -tA
 }
@@ -107,6 +114,13 @@ kst_to_utc='(. + ":00Z" | fromdate) - 32400 | todate'
 
 echo "== 배포 공연 채우기: $base${dry_run:+ (확인만)}"
 
+# 관리자 로그인을 먼저 한다. 비밀번호가 틀리거나 API가 죽어 있으면 DB를 건드리기 전에 끝난다
+call POST /api/v1/auth/login 200 "$(jq -n --arg e "$admin_email" --arg p "$admin_password" '{email: $e, password: $p}')"
+token=$(jq -r '.data.accessToken // empty' <<< "$response")
+[[ -n "$token" ]] || fail "관리자 로그인 응답에 토큰이 없다"
+printf 'Authorization: Bearer %s\n' "$token" > "$tmp/auth"
+unset token
+
 # 1. 공연장
 venue_count=$(jq '.venues | length' "$definition")
 for (( i = 0; i < venue_count; i++ )); do
@@ -136,64 +150,79 @@ for (( i = 0; i < venue_count; i++ )); do
   echo "  공연장 만듦: $name (${seats}석)"
 done
 
-# 2. 측정·리허설 공연 숨기기
-hide_where=$(jq -r --arg q "'" '
-  ([.hide.titles[] | "title = \($q)\(.)\($q)"] + [.hide.titlePrefixes[] | "title LIKE \($q)\(.)%\($q)"]) | join(" OR ")
-' "$definition")
-to_hide=$(sql "SELECT count(*) FROM concerts WHERE deleted_at IS NULL AND ($hide_where)")
-if [[ -n "$dry_run" ]]; then
-  echo "  숨길 예정: 공연 ${to_hide}개"
-  sql "SELECT '    - ' || id || ' ' || title FROM concerts WHERE deleted_at IS NULL AND ($hide_where) ORDER BY id"
-else
-  sql "UPDATE concerts SET deleted_at = now() WHERE deleted_at IS NULL AND ($hide_where)" > /dev/null
-  echo "  숨김: 공연 ${to_hide}개(되돌리기는 이 파일 머리말)"
-fi
-
-# 3. 공연·회차·좌석
-call POST /api/v1/auth/login 200 "$(jq -n --arg e "$admin_email" --arg p "$admin_password" '{email: $e, password: $p}')"
-token=$(jq -r '.data.accessToken // empty' <<< "$response")
-[[ -n "$token" ]] || fail "관리자 로그인 응답에 토큰이 없다"
-printf 'Authorization: Bearer %s\n' "$token" > "$tmp/auth"
-unset token
-
+# 2. 공연·회차·좌석. 공연·회차·좌석을 각각 있는지 보고 없는 것만 만든다
 concert_count=$(jq '.concerts | length' "$definition")
-created=0
+made_concerts=0
+made_schedules=0
 for (( i = 0; i < concert_count; i++ )); do
   concert=$(jq -c ".concerts[$i]" "$definition")
   title=$(jq -r '.title' <<< "$concert")
-  # 제목은 정의 파일 검사를 거쳤지만 작은따옴표를 SQL 문자열 규칙대로 두 번 써서 넘긴다
-  concert_id=$(sql "SELECT id FROM concerts WHERE title = '${title//\'/\'\'}' AND deleted_at IS NULL ORDER BY id LIMIT 1")
   schedule_total=$(jq '.schedules | length' <<< "$concert")
-  if [[ -n "$concert_id" ]]; then
-    existing_schedules=$(sql "SELECT count(*) FROM schedules WHERE concert_id = $concert_id AND deleted_at IS NULL")
-    if (( existing_schedules > 0 )); then
-      echo "  공연 있음: $title (id=$concert_id, 회차 ${existing_schedules}개)"
+  concert_id=$(sql "SELECT id FROM concerts WHERE title = '$title' AND deleted_at IS NULL ORDER BY id LIMIT 1")
+  if [[ -z "$concert_id" ]]; then
+    if [[ -n "$dry_run" ]]; then
+      echo "  공연 만들 예정: $title (회차 ${schedule_total}개)"
       continue
     fi
-  fi
-  if [[ -n "$dry_run" ]]; then
-    echo "  공연 만들 예정: $title (회차 ${schedule_total}개)"
-    continue
-  fi
-  if [[ -z "$concert_id" ]]; then
     call POST /api/v1/admin/concerts 201 "$(jq '{title, description}' <<< "$concert")"
     concert_id=$(jq -r '.data.concertId' <<< "$response")
+    made_concerts=$(( made_concerts + 1 ))
+    echo "  공연 만듦: $title (id=$concert_id)"
   fi
   prices=$(jq '{prices: (.prices | to_entries | map({grade: .key, price: .value}))}' <<< "$concert")
   max_per_user=$(jq -r '.maxPerUser // 4' <<< "$concert")
   for (( j = 0; j < schedule_total; j++ )); do
-    schedule=$(jq -c ".schedules[$j]" <<< "$concert")
+    schedule=$(jq -c --argjson m "$max_per_user" \
+      ".schedules[$j] | {venue, maxPerUser: \$m, openAt: (.openAt | $kst_to_utc), startsAt: (.startsAt | $kst_to_utc)}" <<< "$concert")
     venue_name=$(jq -r '.venue' <<< "$schedule")
-    venue_id=$(sql "SELECT id FROM venues WHERE name = '${venue_name//\'/\'\'}' AND deleted_at IS NULL ORDER BY id LIMIT 1")
-    [[ "$venue_id" =~ ^[0-9]+$ ]] || fail "공연장을 찾지 못했다: $venue_name"
-    body=$(jq --argjson v "$venue_id" --argjson m "$max_per_user" \
-      "{venueId: \$v, maxPerUser: \$m, openAt: (.openAt | $kst_to_utc), startsAt: (.startsAt | $kst_to_utc)}" <<< "$schedule")
-    call POST "/api/v1/admin/concerts/$concert_id/schedules" 201 "$body"
-    schedule_id=$(jq -r '.data.scheduleId' <<< "$response")
-    call POST "/api/v1/admin/schedules/$schedule_id/seats" 201 "$prices"
+    starts_at=$(jq -r '.startsAt' <<< "$schedule")
+    venue_id=$(sql "SELECT id FROM venues WHERE name = '$venue_name' AND deleted_at IS NULL ORDER BY id LIMIT 1")
+    if [[ -z "$venue_id" ]]; then
+      [[ -n "$dry_run" ]] || fail "공연장을 찾지 못했다: $venue_name"
+      echo "    회차 만들 예정: $starts_at $venue_name"
+      continue
+    fi
+    schedule_id=$(sql "SELECT id FROM schedules WHERE concert_id = $concert_id AND venue_id = $venue_id
+                         AND starts_at = '$starts_at' AND deleted_at IS NULL ORDER BY id LIMIT 1")
+    if [[ -z "$schedule_id" ]]; then
+      if [[ -n "$dry_run" ]]; then
+        echo "    회차 만들 예정: $title $starts_at $venue_name"
+        continue
+      fi
+      call POST "/api/v1/admin/concerts/$concert_id/schedules" 201 \
+        "$(jq --argjson v "$venue_id" '{venueId: $v, maxPerUser, openAt, startsAt}' <<< "$schedule")"
+      schedule_id=$(jq -r '.data.scheduleId' <<< "$response")
+      made_schedules=$(( made_schedules + 1 ))
+    fi
+    seat_count=$(sql "SELECT count(*) FROM schedule_seats WHERE schedule_id = $schedule_id AND deleted_at IS NULL")
+    if (( seat_count == 0 )); then
+      if [[ -n "$dry_run" ]]; then
+        echo "    좌석 만들 예정: 회차 $schedule_id"
+        continue
+      fi
+      call POST "/api/v1/admin/schedules/$schedule_id/seats" 201 "$prices"
+      echo "    회차 좌석 만듦: $title $starts_at (회차 $schedule_id)"
+    fi
   done
-  created=$(( created + 1 ))
-  echo "  공연 만듦: $title (id=$concert_id, 회차 ${schedule_total}개)"
 done
 
-echo "== 끝: 새 공연 ${created}개${dry_run:+ (확인만, 바꾼 것 없음)}"
+# 3. 측정·리허설 공연 숨기기. 새 공연을 다 만든 뒤에 한다
+hide_where=$(jq -r --arg q "'" '
+  ([.hide.titles[] | "title = \($q)\(.)\($q)"] + [.hide.titlePrefixes[] | "title LIKE \($q)\(.)%\($q)"]) | join(" OR ")
+' "$definition")
+if [[ -n "$dry_run" ]]; then
+  echo "  숨길 예정:"
+  sql "SELECT '    - ' || id || ' ' || title FROM concerts WHERE deleted_at IS NULL AND ($hide_where) ORDER BY id"
+else
+  hidden=$(sql "UPDATE concerts SET deleted_at = now() WHERE deleted_at IS NULL AND ($hide_where) RETURNING id, title")
+  if [[ -n "$hidden" ]]; then
+    echo "  숨김: 공연 $(wc -l <<< "$hidden" | tr -d ' ')개"
+    sed 's/^/    - /; s/|/ /' <<< "$hidden"
+    ids=$(cut -d'|' -f1 <<< "$hidden" | paste -sd, -)
+    echo "  되돌리기(예약 DB): UPDATE concerts SET deleted_at = NULL WHERE id IN ($ids);"
+  else
+    echo "  숨길 공연 없음"
+  fi
+fi
+
+echo "== 끝: 새 공연 ${made_concerts}개, 새 회차 ${made_schedules}개${dry_run:+ (확인만, 바꾼 것 없음)}"

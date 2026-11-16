@@ -231,10 +231,10 @@
       ]
     }
   ],
-  "_hideComment": "hide는 seed-showcase.sh가 지운 것으로 표시하는 측정·리허설 공연이다(되돌릴 수 있음). 예열 공연은 배포마다 같은 공연을 다시 쓰므로 지우지 않고 화면 목록에서만 뺀다(listExcludedTitlePrefixes).",
+  "_hideComment": "hide는 seed-showcase.sh가 지운 것으로 표시하는 측정·리허설·E2E 공연이다(되돌릴 수 있음). k6 시나리오는 공연 제목을 'k6 O1', 'k6 측정 추첨 …'처럼 'k6 '로 시작한다. 예열 공연은 배포마다 같은 공연을 다시 쓰므로 지우지 않고 화면 목록에서만 뺀다(listExcludedTitlePrefixes).",
   "hide": {
     "titles": ["리허설 공연", "이선좌 시연 공연", "아무 노래나 일단 틀어"],
-    "titlePrefixes": ["k6 측정"]
+    "titlePrefixes": ["k6 ", "E2E "]
   },
-  "listExcludedTitlePrefixes": ["[예열 전용]", "k6 측정"]
+  "listExcludedTitlePrefixes": ["[예열 전용]", "k6 ", "E2E "]
 }
