@@ -8,21 +8,25 @@
   @font-face { font-family: "PretendardLocal"; src: local("Pretendard Black"), local("Pretendard-Black"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Black.woff2"); font-weight: 900; }
   @font-face { font-family: "PretendardLocal"; src: local("Pretendard Bold"), local("Pretendard-Bold"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2"); font-weight: 700; }
   html, body { margin: 0; padding: 0; background: #14101A; }
-  /* 1500x600. 상단 커버는 가운데 가로 띠만 남기므로 글자와 얼굴을 y=150~450 안에 둔다 */
+  /* 1500x600 한 장을 갤러리 카드와 페이지 상단 커버가 함께 쓴다. 둘이 다르게 자른다.
+     - 갤러리 카드: 약 1.85:1로 가로 가운데만 남는다(x 약 195~1305).
+     - 상단 커버: 화면 폭에 따라 약 5:1~7:1로 세로 가운데만 남는다(y 약 190~410).
+       페이지 아이콘이 왼쪽 3분의 1 지점 아래쪽(x 약 470~600, y 약 360 아래)을 가린다.
+     그래서 글자는 x 250~700, y 200~350 안에, 하린 얼굴은 x 940~1250, y 190~330 안에 둔다. */
   .cover {
     position: relative; width: 1500px; height: 600px; overflow: hidden;
     background: #11124A;
     font-family: "PretendardLocal", sans-serif;
   }
-  /* 원본 1536x1024를 폭 1500으로 줄이고, 얼굴~폰(원본 y 240~520)이 세로 가운데에 오게 올린다 */
-  .art { position: absolute; left: 60px; top: -96px; width: 1500px; height: auto; }
+  /* 원본 1536x1024를 폭 1500으로 줄이고, 하린이 카드 안에 들도록 왼쪽으로, 얼굴이 띠 안에 들도록 위로 옮긴다 */
+  .art { position: absolute; left: -20px; top: -70px; width: 1500px; height: auto; }
   .scrim {
     position: absolute; inset: 0;
-    background: linear-gradient(90deg, rgba(14,18,92,.92) 0%, rgba(14,18,92,.78) 38%, rgba(14,18,92,0) 60%);
+    background: linear-gradient(90deg, rgba(14,18,92,.94) 0%, rgba(14,18,92,.82) 40%, rgba(14,18,92,0) 56%);
   }
-  .copy { position: absolute; left: 104px; top: 50%; transform: translateY(-50%); color: #FFF8EE; }
-  .name { font-weight: 900; font-size: 150px; line-height: .95; letter-spacing: -.04em; margin: 0; }
-  .line { font-weight: 900; font-size: 64px; line-height: 1.1; letter-spacing: -.03em; margin: 22px 0 0 4px; }
+  .copy { position: absolute; left: 252px; top: 200px; color: #FFF8EE; }
+  .name { font-weight: 900; font-size: 98px; line-height: .95; letter-spacing: -.04em; margin: 0; }
+  .line { font-weight: 900; font-size: 44px; line-height: 1.1; letter-spacing: -.03em; margin: 14px 0 0 3px; }
   .line em { font-style: normal; color: #FFD23F; }
 </style>
 </head>
