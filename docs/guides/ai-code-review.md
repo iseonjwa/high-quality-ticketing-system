@@ -45,7 +45,7 @@
 | 강민 | 구현 세션의 하위 에이전트가 미커밋 변경을 리뷰하고, 다른 세션이 지적을 코드와 대조해 "이번 PR 수정·담당자 확인·담당자 알림·후속"으로 나눔. 담당 이슈 색인(11/3 기준 35개)과 코드 이슈별 엄격 리뷰를 담은 보고서. 팀원이 "없으면 기본값 아니냐"고 되묻자 AI 조사 결과를 라이브러리 바이트코드(`javap`)로 다시 확인해 "벌크헤드 없음"이라는 AI 결론을 거부함 | [ISE-150 지적 11건 분류](../ai-judgments/kangmin/2026-11-04-ise-150-review-triage.md), [추첨 MVP 코드 리뷰 보고서](../learning/kangmin/qna/2026-11-02-lottery-mvp-code-review-report.md), [기본 벌크헤드 확인](../ai-judgments/kangmin/2026-11-09-gateway-has-default-bulkhead.md) |
 | 권우 | AI에게 설계 허점 점검을 시키고, 결과를 동시성 테스트와 k6 측정으로 확인. 측정 도구의 한계는 사람이 막음 | [예약 설계 리뷰](../learning/kwonwoo/qna/2026-10-28-reservation-system-design-review.md), [JUnit 근사 대신 k6](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
 | 영은 | 코드는 직접 쓰고, AI(Cowork 채팅)에게 단계별 설명과 리뷰를 받는다. AI가 낸 근거를 되물어 틀린 것을 철회시키고(멱등성·자동 복구), 원칙에 어긋난 제안은 직접 짚어 고친다(재시도 시간을 infrastructure에 두는 안). AI가 추천한 값·방식도 근거를 들어 바꾸거나 거부한다(느린 호출 50ms → 100ms, 이벤트 리스너 → 트랜잭션 밖 메서드 호출). Claude Code가 낸 측정 보고서와 팀원 PR은 다른 세션(Cowork 채팅)에서 다시 검토한다 | [대기열 AI 근거 정정](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), [503 위치](../ai-judgments/youngeun/2026-11-11-queue-redis-timeout-503-layer.md), [차단기 값](../ai-judgments/youngeun/2026-11-12-queue-redis-circuit-breaker-values.md), [정리 메서드 호출](../ai-judgments/youngeun/2026-11-13-entry-token-discard-method-call.md), [PR #487 리뷰 반영](../ai-judgments/kangmin/2026-11-11-pr487-review-peak-alert.md) |
-| 효승 | 본인 기록은 저장소에 없다. 효승의 PR #282·#283은 준현이 AI로 리뷰했고 효승이 수정 커밋으로 반영했다 | PR #282·#283 |
+| 효승 | 구현은 Claude Code가 하고, 흐름 설명을 듣고 확인한 뒤에만 커밋·push한다. 다른 사람의 AI 리뷰(#282 준현 리뷰)는 지적마다 테스트를 더해 반영했다(`3987eb6`, 테스트 5개 → 9개). 같은 기능의 두 구현(본인 P4b와 권우 측정 브랜치)을 AI로 항목별 비교해 나은 쪽만 합치고, 전 모듈 테스트·응답 JSON 바이트 비교·로컬과 배포 측정으로 확인했다(#603·#605). AI의 성능 설명은 측정으로 다시 확인하고, 측정과 다르면 바로잡았다(합친 P4b가 평소 속도로는 이득이 없음) | PR #282·#603·#605, [DLQ 리뷰 반영](../ai-judgments/hyoseung/2026-11-03-dlq-review-fixes-all-accepted.md), [좌석 캐시 위치](../ai-judgments/hyoseung/2026-11-08-seat-layout-cache-memory-not-redis.md), [11/13 일지](../ai-judgments/hyoseung/daily/2026-11-13.md) |
 
 공통 원칙:
 - **작성과 검토를 나눈다.** 같은 세션이 쓴 코드를 같은 세션이 "리뷰"하면 2절 L1에 그친다.
@@ -121,7 +121,6 @@
 - **같은 계열 모델의 맹점.** Claude 계열끼리 리뷰하면 같은 곳을 놓칠 수 있다. codex가 나오는 판단 기록 16건은 10/23~11/2(SA 검토, 초기 구현 검토)에 몰려 있고, 11월 구현 리뷰는 대부분 Claude 계열끼리 했다.
 - **자동 구조 검사가 없다.** 4계층 의존 방향은 AI 점검([`sa-review/06`](../sa-review/06-layered-architecture-check.md))과 사람 판단으로 지켰고, ArchUnit 같은 자동 검사는 없다. ADR 0034 반대 방향 import 한 건도 사람이 찾아 고쳤다(ISE-273). 자동 검사 설계는 [`presentation/evidence-formats.md`](../presentation/evidence-formats.md) 4절, 일은 ISE-275다.
 - **테스트 인프라.** Testcontainers 대신 `compose.test.yml`의 격리된 PostgreSQL·Redis를 쓴다. 변이 테스트 도구(pitest 등)는 없고 변이 확인은 손으로 한다.
-- **팀원마다 기록의 양이 다르다.** 효승의 검토 방식은 저장소 기록으로 확인할 수 없다.
 
 ## 7. 남은 기간에 보탤 것 (제안, 팀 동의 전)
 
