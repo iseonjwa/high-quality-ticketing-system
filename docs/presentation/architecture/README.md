@@ -13,8 +13,11 @@
 | 2026-11-12 | [2026-11-12-user-flow-booking.png](2026-11-12-user-flow-booking.png), [원본 SVG](2026-11-12-user-flow-booking.svg) | 일반 예매 유저 플로우. 화면 6개를 위 줄 1~3(공연 목록·상세 → 대기열 → 좌석 선택), 아래 줄 4~6(결제 → 예매 완료 → 내 예매·상세)으로 꺾어 두고, 화면마다 갈래(이선좌 409, 입장 시간 끝, 선점 결과 모름, 토스 결제창 닫음·실패, 거절, 결제사 장애, 승인 뒤 만료 환불, 예매 취소·환불 등)를 화면이 보이는 알림 색과 가는 곳으로 적었다. 결제를 다시 해야 할 때와 입장 시간이 끝났을 때 대기열로 돌아가는 길은 점선이다. 왼쪽 아래에 모든 화면 공통 갈래를 둔다 |
 | 2026-11-12 | [2026-11-12-user-flow-lottery-account.png](2026-11-12-user-flow-lottery-account.png), [원본 SVG](2026-11-12-user-flow-lottery-account.svg) | 추첨·계정 유저 플로우. 추첨 응모(공연 상세 → 추첨 화면 → 응모 → 추첨 → 당첨·자동결제 → 결제 완료, 예비자 승계·미당첨·자동결제 실패), 로그인·가입(잠금, 임시 비밀번호, 세션 만료, 로그아웃), 자동결제 카드, 예매 문의 위젯의 갈래와 일반 예매 그림과 만나는 곳을 둔다. 두 장 모두 운영자 화면은 넣지 않았고, dev `e02980f8`의 `frontend/src` 화면 코드와 [프론트 설계](../../design/frontend/README.md)·[추첨 설계](../../design/lottery/README.md)로 확인했다. 표기는 [다이어그램 스타일](../brand/diagram-style.md) 9절이다 |
 | 2026-11-14 | [2026-11-14-saga-payment-declined.png](2026-11-14-saga-payment-declined.png), [원본 SVG](2026-11-14-saga-payment-declined.svg), [한 장 요약](2026-11-14-saga-payment-declined.md) | 결제 거절 뒤 보상(SAGA). 사용자 → Gateway → 결제 서비스 → Mock PG 거절, 결제 DECLINED와 Outbox `PaymentDeclined`(한 트랜잭션), Kafka `payment.result`, 예매 서비스 `onDeclined`(HELD → RELEASED, 좌석·보유 매수 반환)를 순서 ①~⑦로 둔다. 2026-11-14 배포 서버 시연 캡처 5장([`2026-11-14-saga-captures/`](2026-11-14-saga-captures/))과 거절 뒤 약 0.14초 보상 시각을 함께 둔다. main `e109c11` 코드로 확인했다(ISE-267) |
+| 2026-11-16 | [2026-11-16-system-architecture.png](2026-11-16-system-architecture.png), [원본 SVG](2026-11-16-system-architecture.svg) | 11/11 구조도에 HTTPS(:443, ISE-278)를 반영해 다시 내보낸 판. 브로셔에 쓴다 |
 
 ## 미리보기
+
+![시스템 구조도 11/16](2026-11-16-system-architecture.png)
 
 ### 시스템 구조도 (2026-11-11)
 
