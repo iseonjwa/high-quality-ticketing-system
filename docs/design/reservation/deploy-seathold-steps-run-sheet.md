@@ -1,6 +1,6 @@
 # 배포 서버 좌석 선점 단계 측정 실행표 (ISE-296)
 
-- 상태: 측정 전(2026-11-16 작성). 측정자: 최권우(`MEASURER=kwonwoo`)
+- 상태: 1차 측정 완료(2026-11-16). 결과: [deploy-seathold-steps-results.md](deploy-seathold-steps-results.md). 측정자: 최권우(`MEASURER=kwonwoo`)
 - 관련 이슈: ISE-296(세 방식 비교), ISE-265(Kafka-UI 캡처), ISE-266(A0), ISE-293(커넥션 대기 초과 503), ADR 0062 후속(동시 처리 상한 값), ADR 0064(풀 8은 조건부)
 - 계획과 지표 정의: [async-seathold-remeasure-plan.md](async-seathold-remeasure-plan.md) 4절. 이 문서는 그 계획을 배포 서버에서 한 번에 도는 순서와 명령만 적는다.
 - 공용 절차: [loadgen.md](../../guides/loadgen.md) 4·5절, [deploy-server-access.md](../../guides/deploy-server-access.md) 5-5절, [loadtest/k6/README.md](../../../loadtest/k6/README.md) "배포 서버 측정"
@@ -13,6 +13,9 @@
 - ISE-293(커넥션 대기 초과 → 503)이 main에 들어가 배포돼 있다. 안 들어갔으면 결과의 500과 503을 함께 세고, 기록표에 적는다.
 - 이 문서와 함께 만든 파일 세 개가 배포 서버 체크아웃(`~/iseonjwa`, 배포 커밋)에 있다. `measure-mode.sh on`은 서버 저장소의 덮어쓰기 파일을 읽기 때문이다. 이 PR이 main에 들어가기 전이면 S0·S2 단계를 돌릴 수 없다.
   - `loadtest/k6/compose.seat-hold-prereject-off.yml`, `loadtest/k6/compose.seat-hold-limit.yml`, `script/loadtest/watch-seathold-outbox.sh`
+- 1차 측정(2026-11-16)에서 알게 된 것 두 가지. 자세한 내용은 결과 문서 2절에 있다.
+  - A0(동시 100)는 게이트웨이 동시 처리 상한(운영값 64)에 걸려 절반이 503이 된다. 2절의 모든 단계 명령에 `loadtest/deploy/compose.gateway-inflight.yml`을 맨 뒤에 더하고 앞에 `INFLIGHT_ENABLED=false`를 붙인다.
+  - #704(ISE-302) 뒤 `seed-demo.sh open`은 `showcase.json`의 대표 공연을 찾는다. 서버에 그 공연이 없으면 "시연 공연이 없다"로 실패하므로 3-2절 전에 확인한다.
 
 시작 전 체크리스트
 - [ ] 팀 채널에 다른 사람이 측정 중이 아닌지 보고 시작 알림을 올렸다(문구: loadgen.md 4절, 예상 시간은 3절 합계). "main 머지 금지"를 넣었다
@@ -65,8 +68,8 @@ Actuator는 `health`·`prometheus`만 연다(ADR 0057 맥락). 설정 값을 직
 | 단계 | 확인 | 기대 |
 |---|---|---|
 | 모두 | `hikaricp_connections_max{application="reservation-service"}` | 5(P8만 8) |
-| S0 | K1-H 램프 중 `seathold_pre_rejected_total` | 늘지 않는다. A0는 409가 없어 이 지표로 확인할 수 없다 |
-| S1·S2 | K1-H 램프 중 `seathold_pre_rejected_total` | 매진 뒤 늘어난다 |
+| S0 | 좌석 조회 포함 K1 램프(`SEAT_MAP=each`) 중 `seathold_pre_rejected_total` | 늘지 않는다 |
+| S1·S2 | 같은 램프 중 같은 지표 | 매진 뒤 늘어난다. K1-H(`SEAT_MAP=once`)와 A0에서는 켜져 있어도 0이다. 사전 거절은 1초 안에 좌석 조회가 채운 캐시가 있을 때만 동작한다(`ScheduleSeatQueryService.anyNotHoldable`) |
 | S2·O·D | `seathold_concurrency_in_use{application="reservation-service"}` | 시계열이 있다. 상한이 꺼져 있으면 이 Gauge를 등록하지 않는다(`SeatHoldConcurrencyLimit`) |
 | S0·S1 | 같은 지표 | 시계열이 없다 |
 | O·D | A0 첫 회의 선점 응답 | 202. 201이면 모드가 바뀌지 않았다 |

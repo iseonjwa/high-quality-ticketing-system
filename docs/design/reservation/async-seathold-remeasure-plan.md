@@ -137,7 +137,7 @@ ISE-79 측정과 같은 기준을 쓴다.
 - 접수형 A0(ISE-266): 3-2절 시나리오를 발제 기준으로 돌린 결과를 쓴다
 
 ## 6. 결과
-측정 전이다.
+배포 서버 1차 측정(2026-11-16, ISE-296) 결과는 [deploy-seathold-steps-results.md](deploy-seathold-steps-results.md)에 있다. A0 성공 처리량은 동기형 S1 521건/초, 상한 4를 둔 S2 323건/초, O 499건/초, D 485건/초였다. 접수 뒤 처리 시작 지연 p95는 O 22.5초, D 2.75초였다. P8·D-P8과 Kafka-UI 캡처는 남았다.
 
 ## 7. 다른 기기에서 시작하는 순서
 1. `git fetch && git switch test/ISE-18-async-seathold-remeasure && git merge origin/dev`로 최신 dev를 반영한다.
