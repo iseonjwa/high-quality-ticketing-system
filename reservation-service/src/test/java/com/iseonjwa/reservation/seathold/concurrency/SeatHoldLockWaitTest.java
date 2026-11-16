@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 좌석 행 잠금을 짧게만 기다리는 선점(ADR 0060, lock_timeout 50ms)을 기본 빌드에서 확인한다. 여러 스레드를 겨루는 확인은
+ * 좌석 행 잠금을 짧게만 기다리는 선점(ADR 0061, lock_timeout 50ms)을 기본 빌드에서 확인한다. 여러 스레드를 겨루는 확인은
  * C3이 맡고, 여기서는 잠긴 좌석 한 건과 잠기지 않은 좌석 한 건만 본다.
  */
 @SpringBootTest(properties = {"spring.config.import=", "spring.cloud.config.enabled=false", "eureka.client.enabled=false"})
@@ -88,7 +88,7 @@ class SeatHoldLockWaitTest {
         assertThat(seatStatus(seats.get(0))).isEqualTo("AVAILABLE");
     }
 
-    // ADR 0061 1번. 이미 잡힌 좌석이 섞인 요청은 좌석 UPDATE까지 가지 않아, 다른 트랜잭션이 잠근 빈 좌석도 기다리지 않는다
+    // ADR 0062 1번. 이미 잡힌 좌석이 섞인 요청은 좌석 UPDATE까지 가지 않아, 다른 트랜잭션이 잠근 빈 좌석도 기다리지 않는다
     @Test
     void 이미_잡힌_좌석이_섞인_요청은_잠긴_빈_좌석을_기다리지_않고_409로_거절한다() throws Exception {
         var scheduleId = fixture.createOnSaleSchedule();

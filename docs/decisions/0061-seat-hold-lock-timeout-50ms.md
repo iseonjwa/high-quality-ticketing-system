@@ -1,4 +1,4 @@
-# 0060. 동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다
+# 0061. 동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다
 
 - 상태: 채택
 - 날짜: 2026-11-13
@@ -6,7 +6,7 @@
 - 관련 이슈: ISE-261 (ISE-79 후속)
 - 관련 AI 판단: [SKIP LOCKED를 먼저 하기로 함](../ai-judgments/kwonwoo/2026-11-13-seathold-skip-locked-first.md), [측정 뒤 SKIP LOCKED를 거부하고 50ms를 택함](../ai-judgments/kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md)
 - 관련 기록: [TS-73](../troubleshooting.md), [학습 노트](../learning/kwonwoo/qna/2026-11-13-seathold-senior-improvements.md)
-- 번호: 처음에 0059로 썼으나 dev에 먼저 들어간 [0059(자동 배정)](0059-seat-auto-assign-skip-locked.md)와 겹쳐 11/16 dev 병합 때 0060으로 옮겼다.
+- 번호: 처음에 0059로 썼으나 dev에 먼저 들어간 [0059(자동 배정)](0059-seat-auto-assign-skip-locked.md)와 겹쳐 0060으로, 다시 dev의 [0060(시드 1,500석)](0060-seed-venue-1500-seats.md)과 겹쳐 11/16 0061로 옮겼다.
 - 적용 범위: 사용자가 고른 좌석을 잡는 선점(동기형, 접수형 소비자)이다. 서버가 좌석을 고르는 자동 배정은 고른 좌석을 다른 좌석으로 바꿀 수 있어 SKIP LOCKED를 쓴다(ADR 0059). 이 기록의 "SKIP LOCKED는 쓰지 않는다"는 자동 배정에 해당하지 않는다.
 - SA와의 관계: SA 9-4 표의 "선점 DB `lock_timeout` 500ms"를 50ms로 바꾼다. "오래 기다리기보다 바로 이미 선택된 좌석 안내"라는 의도는 그대로 따른다. Notion 항목은 고치지 않았다. 이 기록이 SA 9-4의 값을 대체한다.
 

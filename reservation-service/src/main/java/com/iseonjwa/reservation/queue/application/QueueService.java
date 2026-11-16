@@ -93,7 +93,7 @@ public class QueueService {
             throw new BusinessException(QueueErrorCode.QUEUE_NOT_READY);
         }
 
-        EntryToken entryToken = entryTokenIssuer.issue(userId, scheduleId, issueTokenOutcome.issuedAt());
+        EntryToken entryToken = entryTokenIssuer.issue(userId, scheduleId, issueTokenOutcome.issuedAt(), queueProperties.entryTokenTtl());
         return new QueueTokenResult(AdmissionStatus.ADMITTED, entryToken.value(), entryToken.expiresAt());
     }
 

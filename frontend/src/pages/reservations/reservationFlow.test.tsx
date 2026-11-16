@@ -56,7 +56,7 @@ describe('예매 흐름(좌석 → 결제 → 결과)', () => {
     await userEvent.click(screen.getByRole('button', { name: /A구역 1열 1번,/ }))
     await userEvent.click(screen.getByRole('button', { name: /A구역 1열 2번,/ }))
     await userEvent.click(screen.getByRole('button', { name: '2매 선택 완료' }))
-    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    const dialog = await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     await userEvent.click(within(dialog).getByRole('button', { name: '결제하러 가기' }))
     await userEvent.click(await screen.findByRole('button', { name: /원 결제하기$/ }))
 
@@ -69,7 +69,7 @@ describe('예매 흐름(좌석 → 결제 → 결과)', () => {
     }
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
     ).toBeInTheDocument()
     const tickets = screen.getByRole('region', { name: '티켓 2매' })
     // 포스터 위 꾸밈 제목과 겹치지 않게 제목 줄(p)만 찾는다

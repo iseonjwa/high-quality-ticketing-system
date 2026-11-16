@@ -15,7 +15,7 @@ const UNKNOWN_OUTCOME_FAILURE = {
   traceId: '0'.repeat(32),
 }
 
-const NOT_ADMIN_NOTICE = '운영자만 볼 수 있는 화면이에요'
+const NOT_ADMIN_NOTICE = '운영자만 볼 수 있는 화면입니다'
 
 // 운영 API(POST /api/v1/admin/...)로 나간 요청을 모두 모은다
 function recordAdminPosts(): string[] {
@@ -96,7 +96,7 @@ describe('공연 등록', () => {
 
     await user.click(await screen.findByRole('button', { name: '등록하기' }))
 
-    expect(await screen.findByText('공연 제목을 입력해 주세요')).toBeInTheDocument()
+    expect(await screen.findByText('공연 제목을 입력해주세요.')).toBeInTheDocument()
     expect(adminPosts).toEqual([])
   })
 
@@ -110,7 +110,9 @@ describe('공연 등록', () => {
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
     await user.click(screen.getByRole('button', { name: '등록하기' }))
 
-    expect(await screen.findByText('공연을 등록했어요. 회차를 추가해 주세요')).toBeInTheDocument()
+    expect(
+      await screen.findByText('공연이 등록되었습니다. 회차를 추가해주세요.'),
+    ).toBeInTheDocument()
     const created = mockDb.concerts.find((concert) => concert.title === '새 공연')
     expect(created).toBeDefined()
     expect(router.state.location.pathname).toBe(`/admin/concerts/${created?.concertId}`)
@@ -137,7 +139,7 @@ describe('공연 등록: 결과를 모를 때', () => {
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
     await user.click(screen.getByRole('button', { name: '등록하기' }))
 
-    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/등록 여부를 확인하지 못했습니다/)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/admin/concerts/new')
     expect(screen.getByRole('link', { name: '운영 목록 보기' })).toHaveAttribute('href', '/admin')
     expect(screen.getByLabelText('공연 제목')).toHaveValue('새 공연')
@@ -152,7 +154,7 @@ describe('공연 등록: 결과를 모를 때', () => {
     await user.type(await screen.findByLabelText('공연 제목'), '새 공연')
     await user.click(screen.getByRole('button', { name: '등록하기' }))
 
-    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/등록 여부를 확인하지 못했습니다/)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/admin/concerts/new')
   })
 })
@@ -176,7 +178,7 @@ describe('회차 추가', () => {
       openAt: '2026-12-21T19:00',
     })
 
-    expect(await screen.findByText('오픈 시각은 공연 시작보다 앞서야 해요')).toBeInTheDocument()
+    expect(await screen.findByText('오픈 시각은 공연 시작보다 앞서야 합니다.')).toBeInTheDocument()
     expect(adminPosts).toEqual([])
   })
 
@@ -189,7 +191,7 @@ describe('회차 추가', () => {
       openAt: '2026-12-10T20:00',
     })
 
-    const message = await screen.findByText('이 번호의 공연장이 없어요')
+    const message = await screen.findByText('이 번호의 공연장이 없습니다.')
     expect(screen.getByLabelText('공연장 번호')).toHaveAccessibleDescription(
       expect.stringContaining(message.textContent ?? ''),
     )
@@ -206,7 +208,7 @@ describe('회차 추가', () => {
     })
 
     expect(
-      await screen.findByText('회차를 등록했어요. 좌석을 만들어야 예매할 수 있어요'),
+      await screen.findByText('회차가 등록되었습니다. 좌석을 생성해야 예매할 수 있습니다.'),
     ).toBeInTheDocument()
     expect(await screen.findByText('2026.12.20 (일) 19:00')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByLabelText('공연장 번호')).toHaveValue(''))
@@ -265,7 +267,7 @@ describe('회차 추가: 결과를 모를 때', () => {
       openAt: '2026-12-10T20:00',
     })
 
-    expect(await screen.findByText(/등록됐는지 확인하지 못했어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/등록 여부를 확인하지 못했습니다/)).toBeInTheDocument()
     await waitFor(() => expect(detailRequests.length).toBeGreaterThan(0))
     expect(screen.getByLabelText('공연장 번호')).toHaveValue('1')
     expect(screen.getByLabelText('공연 시작')).toHaveValue('2026-12-20T19:00')
@@ -311,7 +313,9 @@ describe('좌석 만들기', () => {
     await user.type(within(dialog).getByLabelText('VIP석 가격(원)'), '165000')
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
-    expect(await within(dialog).findByText(/등급이 공연장 좌석과 맞지 않아요/)).toBeInTheDocument()
+    expect(
+      await within(dialog).findByText(/등급이 공연장 좌석과 일치하지 않습니다/),
+    ).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
@@ -325,9 +329,9 @@ describe('좌석 만들기', () => {
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
     // 목은 등급마다 2열 × 10번이다
-    expect(await screen.findByText('좌석 60석을 만들었어요')).toBeInTheDocument()
+    expect(await screen.findByText('좌석 60석이 생성되었습니다')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(within(scheduleRow('2026.12.20 (일) 19:00')).getByText('좌석 60석 만듦')).toBeVisible()
+    expect(within(scheduleRow('2026.12.20 (일) 19:00')).getByText('좌석 60석 생성됨')).toBeVisible()
   })
 
   it('이미 좌석이 있는 회차면 안내하고 그 회차에 이미 있다고 보인다', async () => {
@@ -339,9 +343,9 @@ describe('좌석 만들기', () => {
     await user.type(within(dialog).getByLabelText('VIP석 가격(원)'), '165000')
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
-    expect(await screen.findByText('이미 좌석을 만든 회차예요')).toBeInTheDocument()
+    expect(await screen.findByText('이미 좌석이 생성된 회차입니다')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(within(scheduleRow('회차 #31')).getByText('좌석이 이미 있어요')).toBeVisible()
+    expect(within(scheduleRow('회차 #31')).getByText('좌석이 이미 있습니다')).toBeVisible()
   })
 
   it('가격을 하나도 넣지 않으면 안내하고 요청을 보내지 않는다', async () => {
@@ -353,7 +357,7 @@ describe('좌석 만들기', () => {
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
     expect(
-      await within(dialog).findByText('적어도 한 등급의 가격을 입력해 주세요'),
+      await within(dialog).findByText('적어도 한 등급의 가격을 입력해주세요.'),
     ).toBeInTheDocument()
     expect(adminPosts).toEqual([])
   })
@@ -366,7 +370,7 @@ describe('좌석 만들기', () => {
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
     expect(
-      await within(dialog).findByText('적어도 한 등급의 가격을 입력해 주세요'),
+      await within(dialog).findByText('적어도 한 등급의 가격을 입력해주세요.'),
     ).toBeInTheDocument()
     expect(within(dialog).getByLabelText('VIP석 가격(원)')).not.toHaveAttribute('aria-invalid')
   })
@@ -423,7 +427,7 @@ describe('좌석 만들기', () => {
     await user.type(within(dialog).getByLabelText('S석 가격(원)'), '99000')
     await user.click(within(dialog).getByRole('button', { name: '좌석 만들기' }))
 
-    const done = await within(scheduleRow('2026.12.20 (일) 19:00')).findByText('좌석 60석 만듦')
+    const done = await within(scheduleRow('2026.12.20 (일) 19:00')).findByText('좌석 60석 생성됨')
     await waitFor(() => expect(done).toHaveFocus())
   })
 })
@@ -435,7 +439,7 @@ describe('없는 공연', () => {
       await signInAsAdmin()
       await renderRoutesReady(routes, path)
 
-      expect(await screen.findByText(/찾는 공연이 없어요/)).toBeInTheDocument()
+      expect(await screen.findByText(/찾는 공연이 없습니다/)).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '회차 등록' })).not.toBeInTheDocument()
     },
   )

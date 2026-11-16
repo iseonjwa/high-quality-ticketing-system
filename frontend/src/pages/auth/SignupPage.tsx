@@ -62,9 +62,9 @@ export function SignupPage() {
     queryClient.clear()
     try {
       await login({ email: values.email, password: values.password })
-      toast('가입을 마쳤어요')
+      toast('회원가입이 완료되었습니다')
     } catch {
-      toast('가입을 마쳤어요. 로그인해 주세요')
+      toast('회원가입이 완료되었습니다. 로그인해주세요.')
       const state: AuthNavigationState = { from: authState.from, email: values.email }
       await navigate(paths.login, { replace: true, state })
     }
@@ -79,10 +79,10 @@ export function SignupPage() {
   return (
     <AuthCard
       title="회원가입"
-      description="이메일과 비밀번호만 있으면 바로 예매할 수 있어요"
+      description="서비스 이용을 위한 이메일과 비밀번호를 정해주세요."
       footer={
         <AuthFooterLine>
-          이미 회원이에요?
+          이미 회원이신가요?
           <AuthFooterLink to={paths.login} state={loginState}>
             로그인
           </AuthFooterLink>

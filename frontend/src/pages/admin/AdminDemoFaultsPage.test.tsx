@@ -39,7 +39,7 @@ describe('시연 장애 패널', () => {
     await signInAsDemo()
     renderRoutes(routes, PATH)
 
-    expect(await screen.findByText('운영자만 볼 수 있는 화면이에요')).toBeInTheDocument()
+    expect(await screen.findByText('운영자만 볼 수 있는 화면입니다')).toBeInTheDocument()
   })
 
   it('시나리오를 걸면 다음 결제 1건에만 걸고, 걸린 장애에 보인다', async () => {
@@ -49,7 +49,7 @@ describe('시연 장애 패널', () => {
     renderRoutes(routes, PATH)
 
     expect(
-      await screen.findByText('걸린 장애가 없어요. 결제가 정상으로 돌아요.'),
+      await screen.findByText('적용된 장애가 없습니다. 결제가 정상으로 동작합니다.'),
     ).toBeInTheDocument()
     const card = screen.getByRole('heading', { name: '결제 거절' }).closest('li')
     if (card === null) throw new Error('시나리오 카드가 없다')
@@ -73,7 +73,7 @@ describe('시연 장애 패널', () => {
     if (card === null) throw new Error('시나리오 카드가 없다')
     await user.click(within(card).getByRole('button', { name: '다음 결제 1건에 걸기' }))
 
-    expect(await screen.findByText(/4초 지연/)).toBeInTheDocument()
+    expect(await screen.findByText(/PG 응답 지연이 적용되었습니다/)).toBeInTheDocument()
     await waitFor(() =>
       expect(bodies).toContainEqual({
         target: 'APPROVE',
@@ -94,7 +94,7 @@ describe('시연 장애 패널', () => {
     await user.click(screen.getByRole('button', { name: '모두 해제' }))
 
     expect(
-      await screen.findByText('걸린 장애가 없어요. 결제가 정상으로 돌아요.'),
+      await screen.findByText('적용된 장애가 없습니다. 결제가 정상으로 동작합니다.'),
     ).toBeInTheDocument()
   })
 
@@ -110,7 +110,7 @@ describe('시연 장애 패널', () => {
     await signInAsAdmin()
     renderRoutes(routes, PATH)
 
-    expect(await screen.findByText('이 환경에서는 장애를 걸 수 없어요')).toBeInTheDocument()
+    expect(await screen.findByText('이 환경에서는 장애를 적용할 수 없습니다')).toBeInTheDocument()
     for (const button of screen.getAllByRole('button', { name: /걸기$/ })) {
       expect(button).toBeDisabled()
     }
@@ -147,6 +147,6 @@ describe('시연 장애 패널 경로 없음', () => {
     renderRoutes(routes, PATH)
 
     expect(await screen.findByRole('heading', { name: '지금 걸린 장애' })).toBeInTheDocument()
-    expect(screen.queryByText('이 환경에서는 장애를 걸 수 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('이 환경에서는 장애를 적용할 수 없습니다')).not.toBeInTheDocument()
   })
 })

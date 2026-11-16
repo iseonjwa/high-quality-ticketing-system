@@ -19,7 +19,7 @@ export function utf8Length(value: string): number {
   return encoder.encode(value).length
 }
 
-const PASSWORD_TOO_LONG = '너무 길어요. 영문은 72자, 한글은 24자까지 쓸 수 있어요'
+const PASSWORD_TOO_LONG = '너무 깁니다. 영문은 72자, 한글은 24자까지 입력할 수 있습니다.'
 
 // 서버는 저장할 때 앞뒤 공백을 지우고 소문자로 바꾸지만, 형식 검사(@Email)는 공백이 붙은 값 그대로 한다.
 // 그래서 앞뒤 공백은 보내기 전에 지운다. 비밀번호는 공백도 비밀번호의 일부라 지우지 않는다.
@@ -27,12 +27,12 @@ function emailWith(format: z.ZodType<string, string>) {
   return z
     .string()
     .trim()
-    .min(1, '이메일을 입력해 주세요')
-    .max(MAX_EMAIL_LENGTH, '이메일이 너무 길어요')
+    .min(1, '이메일을 입력해주세요.')
+    .max(MAX_EMAIL_LENGTH, '이메일이 너무 깁니다.')
     .pipe(format)
 }
 
-const EMAIL_FORMAT_MESSAGE = '이메일 형식을 확인해 주세요'
+const EMAIL_FORMAT_MESSAGE = '이메일 형식을 확인해주세요.'
 // 가입은 오타를 줄이려고 서버(@Email)보다 엄격하게 본다(도메인에 점이 있어야 한다)
 const newEmail = emailWith(z.email(EMAIL_FORMAT_MESSAGE))
 // Note: 로그인·비밀번호 변경은 서버만큼 느슨하게 본다. 서버는 `a!b@example.com`이나 `admin@localhost`도
@@ -50,30 +50,30 @@ function enteredPassword(requiredMessage: string) {
 function newPassword(requiredMessage: string) {
   return enteredPassword(requiredMessage).refine(
     (value) => value.length >= MIN_PASSWORD_LENGTH,
-    `${MIN_PASSWORD_LENGTH}자 이상 입력해 주세요`,
+    `${MIN_PASSWORD_LENGTH}자 이상 입력해주세요.`,
   )
 }
 
 export const loginSchema = z.object({
   email: existingEmail,
-  password: enteredPassword('비밀번호를 입력해 주세요'),
+  password: enteredPassword('비밀번호를 입력해주세요.'),
 })
 export type LoginValues = z.infer<typeof loginSchema>
 
 export const signupSchema = z
   .object({
     email: newEmail,
-    password: newPassword('비밀번호를 입력해 주세요'),
-    passwordConfirm: z.string().min(1, '비밀번호를 한 번 더 입력해 주세요'),
+    password: newPassword('비밀번호를 입력해주세요.'),
+    passwordConfirm: z.string().min(1, '비밀번호를 한 번 더 입력해주세요.'),
     nickname: z
       .string()
       .trim()
-      .min(1, '닉네임을 입력해 주세요')
-      .max(MAX_NICKNAME_LENGTH, `닉네임은 ${MAX_NICKNAME_LENGTH}자까지 쓸 수 있어요`),
+      .min(1, '닉네임을 입력해주세요.')
+      .max(MAX_NICKNAME_LENGTH, `닉네임은 ${MAX_NICKNAME_LENGTH}자까지 입력할 수 있습니다.`),
   })
   .refine((values) => values.password === values.passwordConfirm, {
     path: ['passwordConfirm'],
-    message: '비밀번호가 서로 달라요',
+    message: '입력된 값이 일치하지 않습니다.',
   })
 export type SignupInput = z.input<typeof signupSchema>
 export type SignupValues = z.output<typeof signupSchema>
@@ -81,18 +81,18 @@ export type SignupValues = z.output<typeof signupSchema>
 export const passwordChangeSchema = z
   .object({
     email: existingEmail,
-    currentPassword: enteredPassword('비밀번호를 입력해 주세요'),
-    newPassword: newPassword('새 비밀번호를 입력해 주세요'),
-    newPasswordConfirm: z.string().min(1, '새 비밀번호를 한 번 더 입력해 주세요'),
+    currentPassword: enteredPassword('비밀번호를 입력해주세요.'),
+    newPassword: newPassword('새 비밀번호를 입력해주세요.'),
+    newPasswordConfirm: z.string().min(1, '새 비밀번호를 한 번 더 입력해주세요.'),
   })
   // 서버는 같은 비밀번호로 바꾸는 요청을 칸 구분 없는 400으로 거절한다. 어느 칸 문제인지 여기서 알려 준다
   .refine((values) => values.newPassword !== values.currentPassword, {
     path: ['newPassword'],
-    message: '현재 비밀번호와 다른 비밀번호를 입력해 주세요',
+    message: '현재 비밀번호와 다른 비밀번호를 입력해주세요.',
   })
   .refine((values) => values.newPassword === values.newPasswordConfirm, {
     path: ['newPasswordConfirm'],
-    message: '새 비밀번호가 서로 달라요',
+    message: '입력된 값이 일치하지 않습니다.',
   })
 export type PasswordChangeInput = z.input<typeof passwordChangeSchema>
 export type PasswordChangeValues = z.output<typeof passwordChangeSchema>

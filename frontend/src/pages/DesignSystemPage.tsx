@@ -123,12 +123,12 @@ export function DesignSystemPage() {
               defaultValue="abc"
             />
             <p id="ds-error-text" className="type-caption text-danger-600">
-              이메일 형식을 확인해 주세요
+              이메일 형식을 확인해주세요.
             </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="ds-disabled">비활성</Label>
-            <Input id="ds-disabled" disabled defaultValue="바꿀 수 없어요" />
+            <Input id="ds-disabled" disabled defaultValue="변경할 수 없습니다" />
           </div>
           <Select defaultValue="vip">
             <SelectTrigger aria-label="등급">
@@ -169,7 +169,7 @@ export function DesignSystemPage() {
           <AlertTitle>정보</AlertTitle>
           <AlertDescription>처리 중이거나 확인 중일 때 쓴다.</AlertDescription>
         </Alert>
-        <Alert variant="success">좌석을 잡았어요.</Alert>
+        <Alert variant="success">좌석 선택이 완료되었습니다.</Alert>
         <Alert
           variant="warning"
           action={
@@ -178,11 +178,11 @@ export function DesignSystemPage() {
             </Button>
           }
         >
-          이미 선택된 좌석입니다. 남은 좌석은 그대로 두었어요
+          이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.
         </Alert>
         {showAlert ? (
           <Alert variant="danger" onClose={() => setShowAlert(false)}>
-            입장 시간이 끝났어요
+            입장 시간이 만료되었습니다
           </Alert>
         ) : (
           <Button variant="outline" onClick={() => setShowAlert(true)}>
@@ -190,7 +190,7 @@ export function DesignSystemPage() {
           </Button>
         )}
         <Row>
-          <Button variant="outline" onClick={() => toast('먼저 해제해 주세요')}>
+          <Button variant="outline" onClick={() => toast('먼저 해제해주세요')}>
             토스트 띄우기
           </Button>
           <Dialog>
@@ -199,8 +199,8 @@ export function DesignSystemPage() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>좌석을 잡았어요</DialogTitle>
-                <DialogDescription>결제 가능 시간 안에 결제를 마쳐 주세요.</DialogDescription>
+                <DialogTitle>좌석 선택이 완료되었습니다</DialogTitle>
+                <DialogDescription>결제 가능 시간 안에 결제를 완료해주세요.</DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <Button>결제하러 가기</Button>
@@ -224,14 +224,14 @@ export function DesignSystemPage() {
         <Countdown targetAt={iso(2 * 86_400_000 + 3_845_000)} clock={galleryClock} />
         <QueuePosition position={15234} estimatedWaitSeconds={300} initialPosition={20000} />
         <PendingStatus
-          title="결제를 확인하고 있어요"
-          description="창을 닫지 말고 잠시만 기다려 주세요."
+          title="결제를 확인하는 중입니다"
+          description="창을 닫지 말고 잠시만 기다려주세요."
         />
       </Section>
 
       <Section title="빈 상태·에러 안내">
         <EmptyState
-          title="아직 예매한 공연이 없어요"
+          title="아직 예매한 공연이 없습니다"
           description="공연 목록에서 마음에 드는 공연을 골라 보세요."
           action={<Button variant="outline">공연 보러 가기</Button>}
         />
@@ -257,7 +257,7 @@ export function DesignSystemPage() {
           selectedSeatIds={selectedSeatIds}
           maxSelectable={4}
           onChange={setSelectedSeatIds}
-          onLimitReached={() => toast('먼저 해제해 주세요')}
+          onLimitReached={() => toast('먼저 해제해주세요')}
           lotterySeatIds={LOTTERY_SEAT_IDS}
           justTakenSeatIds={JUST_TAKEN_SEAT_IDS}
         />

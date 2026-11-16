@@ -25,18 +25,18 @@ import java.util.UUID;
 
 /**
  * 동기형 좌석 일괄 선점(M2, SA 6-4). 좌석 상태 검사 → 선점 요청 저장 → 매수 반영 → 예매·이력 저장 → 선점 요청 HELD →
- * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 한 트랜잭션으로 묶는다(순서는 ADR 0061, 본체는 {@link SeatHolding}).
+ * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 한 트랜잭션으로 묶는다(순서는 ADR 0062, 본체는 {@link SeatHolding}).
  * 하나라도 실패하면 전체를 롤백해 실패한 seat_hold_requests 행을 남기지 않는다(ADR 0032).
  *
  * <p>TODO: 아래는 MVP 기준선이다(ADR 0035). M4 동시성 트러블슈팅 이슈에서 문제를 재현한 뒤 바꾼다.
- * 좌석 ID 오름차순 {@code FOR UPDATE}와 {@code lock_timeout} 50ms(TS-1, ADR 0060), 매수 한도의 조건부 UPDATE 직렬화(TS-2),
+ * 좌석 ID 오름차순 {@code FOR UPDATE}와 {@code lock_timeout} 50ms(TS-1, ADR 0061), 매수 한도의 조건부 UPDATE 직렬화(TS-2),
  * 같은 멱등키 동시 요청의 제약 위반 재조회(TS-3). 사전 조회는 첫 요청이 커밋된 뒤의 재요청만 잡는다. 첫 트랜잭션이
  * 끝나기 전에 같은 키가 또 오면 조회가 비어 선점 경로로 들어가고, 좌석 행 잠금을 기다린 뒤 갱신 0행이 되어
  * 자기 좌석인데도 409 SEAT_ALREADY_HELD를 받는다(contracts.md 3-2 ⑥).
  */
 @Service
 public class SyncSeatHoldService {
-    // SA 9-4. 핫 좌석에서 잠금을 오래 기다리며 커넥션을 쥐지 않게 한다. 500ms에서 50ms로 줄였다(ADR 0060).
+    // SA 9-4. 핫 좌석에서 잠금을 오래 기다리며 커넥션을 쥐지 않게 한다. 500ms에서 50ms로 줄였다(ADR 0061).
     // Note: 0으로 두지 않는다. 롤백할 요청이 잠깐 쥔 좌석은 수 ms 안에 풀리므로 그만큼은 기다려야 빈 좌석을 놓치지 않는다
     static final Duration LOCK_TIMEOUT = Duration.ofMillis(50);
 
@@ -204,7 +204,7 @@ public class SyncSeatHoldService {
         var now = clock.instant();
         SeatHoldRules.requireOnSale(schedule, now);
         SeatHoldRules.requireAllSeatsOfSchedule(seats, seatIds);
-        // 이미 잡힌 좌석이 섞이면 멱등키·매수·좌석을 건드리지 않고 409로 끝낸다(ADR 0061).
+        // 이미 잡힌 좌석이 섞이면 멱등키·매수·좌석을 건드리지 않고 409로 끝낸다(ADR 0062).
         // Note: 멱등키를 다시 읽지 않는다. 판정 재료가 한 시점의 데이터라, 같은 키 첫 요청이 커밋된 뒤라면 위에서 멱등키 행이
         // 보여 재응답했고, 커밋 전이라면 그 요청의 좌석도 아직 비어 보여 여기 오지 않는다(쓰기에서 PK 충돌 → 재응답, TS-3)
         if (!SeatHoldRules.allHoldable(seats)) {

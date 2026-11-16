@@ -58,7 +58,7 @@ export function QueuePosition({
       ) : null}
       {initialPosition !== undefined && initialPosition > position ? (
         <p className="-mt-2 type-caption text-gray-500 tabular-nums">
-          처음보다 {numberFormat.format(initialPosition - position)}번 앞으로 왔어요
+          처음보다 {numberFormat.format(initialPosition - position)}번 앞으로 이동했습니다
         </p>
       ) : null}
     </div>

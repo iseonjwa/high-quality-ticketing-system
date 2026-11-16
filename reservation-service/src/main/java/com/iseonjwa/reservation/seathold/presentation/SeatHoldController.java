@@ -82,7 +82,7 @@ public class SeatHoldController {
             @PathVariable Long scheduleId, @Valid @RequestBody AutoHoldRequest request) {
         try {
             var command = autoCommand(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);
-            // 자동 배정도 커넥션을 쓰므로 같은 동시 처리 상한을 거친다(ADR 0061 결정 3)
+            // 자동 배정도 커넥션을 쓰므로 같은 동시 처리 상한을 거친다(ADR 0062 결정 3)
             var response = respond(syncService.holdAuto(command, concurrencyLimit::run));
             metrics.record(response.getStatusCode().value() == 201 ? Outcome.HELD : Outcome.ACCEPTED);
             return response;

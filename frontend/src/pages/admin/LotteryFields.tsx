@@ -33,8 +33,8 @@ export function LotteryFields({
           error={errors.sourceGrade?.message}
           description={
             mode === 'create'
-              ? '이 등급 좌석 일부를 추첨석으로 바꿔요. 좌석을 먼저 만들어야 해요'
-              : '지금 등급은 조회할 수 없어요. 고르면 그 등급에서 다시 떼요'
+              ? '이 등급 좌석 일부를 추첨석으로 변경합니다. 좌석을 먼저 생성해야 합니다.'
+              : '현재 등급은 조회할 수 없습니다. 선택하면 해당 등급에서 다시 배정합니다.'
           }
           {...form.register('sourceGrade')}
         />
@@ -61,8 +61,8 @@ export function LotteryFields({
           error={errors.waitlistCount?.message}
           description={
             mode === 'create'
-              ? '당첨자 결제가 되지 않으면 이 순번까지 넘겨요. 추첨석의 절반 정도를 권해요'
-              : '비우면 바꾸지 않아요. 지금 값은 조회할 수 없어요'
+              ? '당첨자 결제가 되지 않으면 이 순번까지 승계됩니다. 추첨석의 절반 정도를 권장합니다.'
+              : '비우면 변경하지 않습니다. 현재 값은 조회할 수 없습니다.'
           }
           {...form.register('waitlistCount')}
         />
@@ -72,7 +72,7 @@ export function LotteryFields({
           label="응모 시작"
           type="datetime-local"
           error={errors.entryStartAt?.message}
-          description="한국 시각. 응모가 시작되면 설정을 바꿀 수 없어요"
+          description="한국 시각. 응모가 시작되면 설정을 변경할 수 없습니다."
           {...form.register('entryStartAt', { deps: ['entryEndAt'] })}
         />
         <TextField
@@ -92,8 +92,8 @@ export function LotteryFields({
       />
       {drawAt !== '' && !isLowTrafficDrawTime(drawAt) ? (
         <Alert variant="info">
-          추첨 시각이 새벽 3~5시 밖이에요. 추첨 직후 자동결제가 몰려 일반 결제와 결제사 자리를
-          다투므로 새벽을 권해요. 그대로 저장할 수 있어요.
+          추첨 시각이 새벽 3~5시 밖입니다. 추첨 직후 자동결제가 몰려 일반 결제와 결제사 자리를
+          다투므로 새벽을 권장합니다. 그대로 저장할 수 있습니다.
         </Alert>
       ) : null}
     </>

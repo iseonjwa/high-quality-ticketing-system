@@ -110,7 +110,7 @@ describe('예매 문의 위젯', () => {
     expect(requests).toHaveLength(1)
   })
 
-  it('받는 동안에는 보내기 대신 멈추기 버튼이 있고, 멈추면 받던 글을 두고 "답변을 멈췄어요"를 보인다', async () => {
+  it('받는 동안에는 보내기 대신 멈추기 버튼이 있고, 멈추면 받던 글을 두고 "답변이 중단되었습니다"를 보인다', async () => {
     const user = userEvent.setup()
     const { release } = holdStream()
     await signInAsDemo()
@@ -125,7 +125,7 @@ describe('예매 문의 위젯', () => {
     expect(within(panel()).queryByRole('button', { name: '보내기' })).not.toBeInTheDocument()
     await user.click(within(panel()).getByRole('button', { name: '답변 멈추기' }))
 
-    expect(await within(conversation()).findByText('답변을 멈췄어요')).toBeInTheDocument()
+    expect(await within(conversation()).findByText('답변이 중단되었습니다')).toBeInTheDocument()
     expect(within(conversation()).getByText('좌석을 잡아 둔')).toBeInTheDocument()
     expect(within(panel()).getByRole('button', { name: '보내기' })).toBeInTheDocument()
     release()
@@ -140,7 +140,7 @@ describe('예매 문의 위젯', () => {
     await ask(user, '대기 순번 검색')
 
     expect(
-      await within(conversation()).findByText('AI 답변이 꺼져 있어 관련 안내만 보여 드려요.'),
+      await within(conversation()).findByText('AI 답변이 꺼져 있어 관련 안내만 제공합니다.'),
     ).toBeInTheDocument()
     expect(within(conversation()).getByText('관련 안내')).toBeInTheDocument()
     expect(within(conversation()).getByText('대기열 > 순번과 입장')).toBeInTheDocument()
@@ -155,7 +155,9 @@ describe('예매 문의 위젯', () => {
     await ask(user, '대기 순번 끊김')
 
     expect(
-      await within(conversation()).findByText('AI 답변이 잠시 어려워 관련 안내만 보여 드려요.'),
+      await within(conversation()).findByText(
+        'AI 답변을 일시적으로 사용할 수 없어 관련 안내만 제공합니다.',
+      ),
     ).toBeInTheDocument()
     expect(within(conversation()).getByText('관련 안내')).toBeInTheDocument()
     expect(within(conversation()).queryByText('AI 답변')).not.toBeInTheDocument()
@@ -173,7 +175,7 @@ describe('예매 문의 위젯', () => {
 
     await ask(user, '환불 중단')
 
-    expect(await within(conversation()).findByText('답변이 중간에 끊겼어요')).toBeInTheDocument()
+    expect(await within(conversation()).findByText('답변이 중간에 끊겼습니다')).toBeInTheDocument()
     expect(requests).toHaveLength(1)
     await user.click(within(conversation()).getByRole('button', { name: '다시 묻기' }))
 
@@ -189,8 +191,8 @@ describe('예매 문의 위젯', () => {
 
     await ask(user, '질문을 많이 하면')
 
-    expect(await within(conversation()).findByText('질문이 많아요')).toBeInTheDocument()
-    expect(within(conversation()).getByText('30초 뒤 다시 물어봐 주세요.')).toBeInTheDocument()
+    expect(await within(conversation()).findByText('질문이 많습니다')).toBeInTheDocument()
+    expect(within(conversation()).getByText('30초 후 다시 질문해주세요.')).toBeInTheDocument()
     expect(
       within(conversation()).queryByRole('button', { name: '다시 묻기' }),
     ).not.toBeInTheDocument()
@@ -282,7 +284,7 @@ describe('예매 문의 위젯', () => {
     await waitFor(() => expect(wasCut()).toBe(true))
     await act(() => router.navigate('/'))
     await user.click(await screen.findByRole('button', { name: '예매 문의 열기' }))
-    expect(await within(conversation()).findByText('답변을 멈췄어요')).toBeInTheDocument()
+    expect(await within(conversation()).findByText('답변이 중단되었습니다')).toBeInTheDocument()
     expect(within(conversation()).getByText('좌석을 잡아 둔')).toBeInTheDocument()
   })
 
@@ -322,7 +324,7 @@ describe('예매 문의 위젯', () => {
     expect(input).toHaveValue('환불')
   })
 
-  it('상담 서비스가 꺼져 있으면(503) "지금 상담을 쓸 수 없어요"와 예매 안내 위치, [다시 묻기]를 보인다', async () => {
+  it('상담 서비스가 꺼져 있으면(503) "지금 상담을 이용할 수 없습니다"와 예매 안내 위치, [다시 묻기]를 보인다', async () => {
     const user = userEvent.setup()
     mockServer.use(
       http.post(STREAM_PATH, () =>
@@ -335,8 +337,10 @@ describe('예매 문의 위젯', () => {
 
     await ask(user, '환불은 언제 되나요?')
 
-    expect(await within(conversation()).findByText('지금 상담을 쓸 수 없어요')).toBeInTheDocument()
-    expect(within(conversation()).getByText(/알아 두세요/)).toBeInTheDocument()
+    expect(
+      await within(conversation()).findByText('지금 상담을 이용할 수 없습니다'),
+    ).toBeInTheDocument()
+    expect(within(conversation()).getByText(/알아두세요/)).toBeInTheDocument()
     expect(within(conversation()).getByRole('button', { name: '다시 묻기' })).toBeInTheDocument()
   })
 
@@ -379,7 +383,7 @@ describe('예매 문의 위젯', () => {
     expect(requests).toHaveLength(0)
   })
 
-  it('meta만 받고 done 없이 끊기면 받은 글이 없어도 "답변이 중간에 끊겼어요"를 보인다', async () => {
+  it('meta만 받고 done 없이 끊기면 받은 글이 없어도 "답변이 중간에 끊겼습니다"를 보인다', async () => {
     const user = userEvent.setup()
     metaOnlyStream()
     await signInAsDemo()
@@ -388,8 +392,10 @@ describe('예매 문의 위젯', () => {
 
     await ask(user, '환불은 언제 되나요?')
 
-    expect(await within(conversation()).findByText('답변이 중간에 끊겼어요')).toBeInTheDocument()
-    expect(within(conversation()).queryByText('지금 상담을 쓸 수 없어요')).not.toBeInTheDocument()
+    expect(await within(conversation()).findByText('답변이 중간에 끊겼습니다')).toBeInTheDocument()
+    expect(
+      within(conversation()).queryByText('지금 상담을 이용할 수 없습니다'),
+    ).not.toBeInTheDocument()
   })
 
   it('창이 열린 채 헤더의 [예매 문의]를 누르면 질문 칸으로 초점을 옮긴다', async () => {

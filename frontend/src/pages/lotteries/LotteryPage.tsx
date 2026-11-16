@@ -221,17 +221,17 @@ function LotteryDetails({ lottery, phase }: { lottery: Lottery; phase: LotteryPh
         </dl>
       </Card>
       <div className="grid gap-2.5 rounded-[18px] bg-gray-50 px-5 py-4">
-        <h2 className="type-body-sm font-semibold text-gray-900">알아 두세요</h2>
+        <h2 className="type-body-sm font-semibold text-gray-900">알아두세요</h2>
         {/* 자동결제 안내는 3단계와 응모 버튼 아래에 있어 여기에는 두지 않는다(같은 문장 반복, 셀프 리뷰) */}
         <ul className="grid gap-2 type-body-sm text-gray-700">
           {rules.reentryAllowed ? null : (
-            <Rule>응모는 한 번만 할 수 있고, 취소한 뒤에는 다시 응모할 수 없어요.</Rule>
+            <Rule>응모는 한 번만 할 수 있으며, 취소한 뒤에는 다시 응모할 수 없습니다.</Rule>
           )}
           <Rule>
-            앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에
-            끝나요.
+            앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 승계됩니다. 승계는 추첨 30분
+            후에 종료됩니다.
           </Rule>
-          {rules.adjacentSeatsGuaranteed ? null : <Rule>연석은 보장하지 않아요.</Rule>}
+          {rules.adjacentSeatsGuaranteed ? null : <Rule>연석은 보장하지 않습니다.</Rule>}
         </ul>
       </div>
     </div>
@@ -255,12 +255,12 @@ function LotteryFlow({
           ? 2
           : 3
   const steps = [
-    { title: '응모', body: '응모 기간에 한 번 응모해요' },
-    { title: '추첨', body: '마감 뒤 추첨 시각에 순위를 정해요' },
+    { title: '응모', body: '응모 기간에 한 번 응모합니다' },
+    { title: '추첨', body: '마감 후 추첨 시각에 순위가 결정됩니다' },
     billingKeyRequired
-      ? { title: '자동결제', body: '당첨되면 등록한 카드로 바로 결제해요' }
-      : { title: '결제', body: '당첨되면 좌석을 배정하고 결제해요' },
-    { title: '예매 확정', body: '내 예매에서 티켓을 확인해요' },
+      ? { title: '자동결제', body: '당첨되면 등록한 카드로 바로 결제됩니다' }
+      : { title: '결제', body: '당첨되면 좌석 배정 후 결제합니다' },
+    { title: '예매 확정', body: '내 예매에서 티켓을 확인합니다' },
   ]
   return (
     <ol aria-label="추첨 순서" className="grid grid-cols-2 gap-2.5 @min-[40rem]:grid-cols-4">
@@ -459,8 +459,8 @@ function EntryForm({
   // 응모가 있었으면 그 상태를 201로 준다. 응모가 없었으면 409(응모 기간 아님)가 와 "응모하지 않았어요"로 바뀐다
   if (phase !== 'beforeEntry' && phase !== 'entry' && !unknown) {
     return (
-      <EntryCard title="응모하지 않았어요">
-        <p className="type-body-sm text-gray-500">응모 기간이 끝났어요.</p>
+      <EntryCard title="응모하지 않았습니다">
+        <p className="type-body-sm text-gray-500">응모 기간이 종료되었습니다.</p>
       </EntryCard>
     )
   }
@@ -480,7 +480,7 @@ function EntryForm({
           </Button>
           {lottery.rules.billingKeyRequired ? (
             <p className="text-center type-caption text-gray-500">
-              당첨되면 등록한 자동결제 카드로 바로 결제돼요.
+              당첨되면 등록한 자동결제 카드로 바로 결제됩니다.
             </p>
           ) : null}
         </>
@@ -488,7 +488,7 @@ function EntryForm({
     >
       {enter.isError ? <EntryError error={enter.error} /> : null}
       {phase === 'beforeEntry' ? (
-        <Alert variant="info">{formatDateTime(lottery.entryStartAt)}부터 응모할 수 있어요.</Alert>
+        <Alert variant="info">{formatDateTime(lottery.entryStartAt)}부터 응모할 수 있습니다.</Alert>
       ) : null}
       {userId === undefined ? null : <BillingKeyReminder userId={userId} />}
       {maxPerEntry > minPerEntry ? (
@@ -526,8 +526,8 @@ function BillingKeyReminder({ userId }: { userId: number }) {
         </Button>
       }
     >
-      <p className="font-semibold">자동결제 카드를 확인해 주세요</p>
-      <p>당첨되면 등록한 카드로 결제돼요. 카드가 없으면 당첨이 다음 순번으로 넘어가요.</p>
+      <p className="font-semibold">자동결제 카드를 확인해주세요</p>
+      <p>당첨되면 등록한 카드로 결제됩니다. 카드가 없으면 당첨이 다음 순번으로 넘어갑니다.</p>
     </Alert>
   )
 }
@@ -536,8 +536,8 @@ function EntryError({ error }: { error: unknown }) {
   if (isOutcomeUnknown(error)) {
     return (
       <Alert variant="warning">
-        <p className="font-semibold">응모됐는지 확인하지 못했어요</p>
-        <p>다시 누르면 같은 응모로 결과를 확인해요.</p>
+        <p className="font-semibold">응모 여부를 확인하지 못했습니다</p>
+        <p>다시 누르면 같은 응모로 결과를 확인합니다.</p>
       </Alert>
     )
   }
@@ -550,35 +550,35 @@ function EntryError({ error }: { error: unknown }) {
 // 서버 failReason별 안내. 결제 거절 사유, 선점 만료, 배정 실패(NO_SEAT·ASSIGN_ERROR·배정 때 받은 오류 코드)가 온다
 const FAIL_REASONS: Record<string, { title: string; description: string }> = {
   BILLING_KEY_MISSING: {
-    title: '자동결제가 되지 않았어요',
-    description: '등록된 자동결제 카드가 없어 당첨이 다음 순번으로 넘어갔어요.',
+    title: '자동결제가 되지 않았습니다',
+    description: '등록된 자동결제 카드가 없어 당첨이 다음 순번으로 넘어갔습니다.',
   },
   CARD_DECLINED: {
-    title: '자동결제가 되지 않았어요',
-    description: '카드사가 결제를 거절해 당첨이 다음 순번으로 넘어갔어요.',
+    title: '자동결제가 되지 않았습니다',
+    description: '카드사가 결제를 거절해 당첨이 다음 순번으로 넘어갔습니다.',
   },
   INSUFFICIENT_LIMIT: {
-    title: '자동결제가 되지 않았어요',
-    description: '카드 한도가 부족해 당첨이 다음 순번으로 넘어갔어요.',
+    title: '자동결제가 되지 않았습니다',
+    description: '카드 한도가 부족해 당첨이 다음 순번으로 넘어갔습니다.',
   },
   HOLD_EXPIRED: {
-    title: '자동결제가 되지 않았어요',
+    title: '자동결제가 되지 않았습니다',
     description:
-      '결제 결과를 제때 받지 못해 당첨이 다음 순번으로 넘어갔어요. 결제된 금액이 있으면 환불돼요.',
+      '결제 결과를 제때 받지 못해 당첨이 다음 순번으로 넘어갔습니다. 결제된 금액이 있으면 환불됩니다.',
   },
   NO_SEAT: {
-    title: '좌석을 배정하지 못했어요',
-    description: '승계 마감까지 배정할 추첨석이 남지 않았어요.',
+    title: '좌석을 배정하지 못했습니다',
+    description: '승계 마감까지 배정할 추첨석이 남지 않았습니다.',
   },
   PURCHASE_LIMIT_EXCEEDED: {
-    title: '좌석을 배정하지 못했어요',
-    description: '이 회차에서 살 수 있는 매수를 이미 채워 당첨이 다음 순번으로 넘어갔어요.',
+    title: '좌석을 배정하지 못했습니다',
+    description: '이 회차의 구매 가능 매수를 이미 채워 당첨이 다음 순번으로 넘어갔습니다.',
   },
 }
 
 const DEFAULT_FAIL = {
-  title: '당첨이 다음 순번으로 넘어갔어요',
-  description: '좌석 배정이나 자동결제가 되지 않았어요.',
+  title: '당첨이 다음 순번으로 넘어갔습니다',
+  description: '좌석 배정이나 자동결제가 되지 않았습니다.',
 }
 
 function EntryResult({
@@ -595,8 +595,8 @@ function EntryResult({
       return <EnteredCard lottery={lottery} entry={entry} phase={phase} />
     case 'CANCELED':
       return (
-        <EntryCard title="응모를 취소했어요" badge={<Badge variant="soldOut">응모 취소</Badge>}>
-          <p className="type-body-sm text-gray-500">취소한 추첨에는 다시 응모할 수 없어요.</p>
+        <EntryCard title="응모가 취소되었습니다" badge={<Badge variant="soldOut">응모 취소</Badge>}>
+          <p className="type-body-sm text-gray-500">취소한 추첨에는 다시 응모할 수 없습니다.</p>
         </EntryCard>
       )
     // Note: 당첨 예매는 자동결제가 끝날 때까지 결제 대기(HELD)이고 예매 화면에 [결제하기]가 보인다. 직접 결제하면
@@ -605,16 +605,16 @@ function EntryResult({
       return (
         <ResultCard
           tone="success"
-          title="당첨됐어요"
-          description="등록한 카드로 자동결제하고 있어요. 결제가 끝나면 이 화면에서 예매를 볼 수 있어요."
+          title="당첨되었습니다"
+          description="등록한 카드로 자동결제를 진행하는 중입니다. 결제가 완료되면 이 화면에서 예매를 확인할 수 있습니다."
         />
       )
     case 'PAID':
       return (
         <ResultCard
           tone="success"
-          title="당첨되고 결제까지 끝났어요"
-          description="예매에서 좌석별 티켓 번호를 확인해 주세요."
+          title="당첨 및 결제가 완료되었습니다"
+          description="예매에서 좌석별 티켓 번호를 확인해주세요."
           action={
             <Button asChild>
               <Link
@@ -634,16 +634,16 @@ function EntryResult({
       return (
         <ResultCard
           tone="warning"
-          title="예비자예요"
+          title="예비자입니다"
           rank={entry.drawRank}
-          description="앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 넘어와요. 승계는 추첨 30분 뒤에 끝나요."
+          description="앞 순위 당첨자의 결제가 되지 않으면 추첨 순위대로 당첨이 승계됩니다. 승계는 추첨 30분 후에 종료됩니다."
         />
       )
     case 'LOST':
       return (
         <ResultCard
           tone="neutral"
-          title="아쉽게도 당첨되지 않았어요"
+          title="아쉽게도 당첨되지 않았습니다"
           description="일반 예매 오픈 때 다시 도전해 보세요."
         />
       )
@@ -695,7 +695,7 @@ function EnteredCard({
   const waitingResult = phase === 'drawing' || phase === 'drawn'
 
   return (
-    <EntryCard title="응모했어요" badge={<Badge variant="onSale">응모 완료</Badge>}>
+    <EntryCard title="응모가 완료되었습니다" badge={<Badge variant="onSale">응모 완료</Badge>}>
       <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 type-body-sm">
         <dt className="text-gray-500">응모 매수</dt>
         <dd className="text-gray-900">{entry.quantity}매</dd>
@@ -703,12 +703,12 @@ function EnteredCard({
         <dd className="text-gray-900 tabular-nums">{formatDateTime(lottery.drawAt)} 이후</dd>
       </dl>
       {waitingResult ? (
-        <Alert variant="info">추첨하고 있어요. 결과가 나오면 이 화면이 바뀌어요.</Alert>
+        <Alert variant="info">추첨이 진행 중입니다. 결과가 나오면 이 화면이 바뀝니다.</Alert>
       ) : null}
       {phase === 'entry' ? (
         <>
           <p className="type-caption text-gray-500">
-            응모 마감 전까지 취소할 수 있어요. 취소하면 다시 응모할 수 없어요.
+            응모 마감 전까지 취소할 수 있습니다. 취소하면 다시 응모할 수 없습니다.
           </p>
           <div>
             <Button ref={cancelTriggerRef} variant="outline" onClick={() => setConfirmOpen(true)}>
@@ -742,16 +742,16 @@ function EnteredCard({
         >
           <DialogTitle className="type-heading text-gray-900">응모를 취소할까요?</DialogTitle>
           <DialogDescription className="type-body-sm text-gray-500">
-            취소하면 이 추첨에 다시 응모할 수 없어요.
+            취소하면 이 추첨에 다시 응모할 수 없습니다.
           </DialogDescription>
           {cancel.isError ? (
             isOutcomeUnknown(cancel.error) ? (
               <Alert variant="warning">
-                <p className="font-semibold">취소됐는지 확인하지 못했어요</p>
-                <p>다시 누르면 결과를 확인해요.</p>
+                <p className="font-semibold">취소 여부를 확인하지 못했습니다</p>
+                <p>다시 누르면 결과를 확인합니다.</p>
               </Alert>
             ) : isApiError(cancel.error, 'LOTTERY_NOT_OPEN') ? (
-              <Alert variant="info">응모 마감이 지나 취소할 수 없어요.</Alert>
+              <Alert variant="info">응모 마감이 지나 취소할 수 없습니다.</Alert>
             ) : (
               <ErrorNotice error={cancel.error} />
             )
@@ -896,8 +896,8 @@ function SignInPrompt({ phase }: { phase: LotteryPhase }) {
     >
       <p className="type-body-sm text-gray-500">
         {canEnter
-          ? '로그인하면 응모하고 결과를 볼 수 있어요.'
-          : '로그인하면 내 응모 결과를 볼 수 있어요.'}
+          ? '로그인하면 응모하고 결과를 확인할 수 있습니다.'
+          : '로그인하면 내 응모 결과를 확인할 수 있습니다.'}
       </p>
     </EntryCard>
   )
@@ -915,7 +915,7 @@ function MissingLottery() {
           </Button>
         }
       >
-        찾는 추첨이 없어요. 받은 링크를 다시 확인해 주세요
+        찾는 추첨이 없습니다. 받은 링크를 다시 확인해주세요.
       </Alert>
     </main>
   )
@@ -929,7 +929,7 @@ function LotterySkeleton() {
         role="status"
         className="grid gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_380px] @min-[60rem]:gap-x-7"
       >
-        <span className="sr-only">추첨 정보를 불러오고 있어요</span>
+        <span className="sr-only">추첨 정보를 불러오는 중입니다</span>
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>

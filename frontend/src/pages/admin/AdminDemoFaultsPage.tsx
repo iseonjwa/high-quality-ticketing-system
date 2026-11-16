@@ -39,28 +39,29 @@ const SCENARIOS: Scenario[] = [
   {
     id: 'decline',
     title: '결제 거절',
-    description: '다음 결제 1건을 카드사가 거절해요. 거절 안내가 뜨고 잡았던 좌석이 풀려요.',
+    description:
+      '다음 결제 1건을 카드사가 거절합니다. 거절 안내가 표시되고 선택한 좌석이 해제됩니다.',
     rule: { target: 'APPROVE', mode: 'DECLINE', count: 1 },
   },
   {
     id: 'delay',
     title: 'PG 응답 지연',
     description:
-      '다음 승인 응답이 4초 늦어요. 결제 서비스가 2초에 기다림을 멈춰 "확인 중"이 뜨고, 10~20초 뒤 재확인이 승인을 찾아 확정해요.',
+      '다음 승인 응답이 4초 지연됩니다. 결제 서비스가 2초에 대기를 중단하여 "확인 중"이 표시되고, 10~20초 후 재확인이 승인을 찾아 확정합니다.',
     rule: { target: 'APPROVE', mode: 'DELAY', delayMs: APPROVE_DELAY_MS, count: 1 },
   },
   {
     id: 'drop',
     title: '승인 응답 유실',
     description:
-      'PG는 승인했는데 응답이 끊겨요. "확인 중"이 뜨고, 재조회로 승인을 확인해 확정해요. 돈은 한 번만 나가요.',
+      'PG는 승인했으나 응답이 끊깁니다. "확인 중"이 표시되고, 재조회로 승인을 확인해 확정합니다. 결제는 한 번만 이루어집니다.',
     rule: { target: 'APPROVE', mode: 'DROP_RESPONSE', count: 1 },
   },
   {
     id: 'server-error',
     title: 'PG 서버 오류 계속',
     description:
-      '해제할 때까지 승인마다 500을 줘요. 결제는 "확인 중" 뒤 실패로 끝나요. 실패가 쌓이면 서킷 브레이커가 열려 PG를 부르지 않고 바로 실패해요.',
+      '해제할 때까지 승인마다 500을 반환합니다. 결제는 "확인 중" 후 실패로 종료됩니다. 실패가 누적되면 서킷 브레이커가 열려 PG를 호출하지 않고 바로 실패합니다.',
     rule: { target: 'APPROVE', mode: 'SERVER_ERROR' },
   },
 ]
@@ -137,14 +138,14 @@ export function AdminDemoFaultsPage() {
   function applyScenario(scenario: Scenario) {
     apply.mutate([scenario.rule], {
       onSuccess: () =>
-        toast.success(`${scenario.title}을 걸었어요. 이제 다른 탭에서 결제해 보세요`),
+        toast.success(`${scenario.title}이 적용되었습니다. 이제 다른 탭에서 결제해 보세요.`),
     })
   }
 
   // 화면이 아는 규칙만이 아니라 모든 호출 종류를 푼다(다른 곳에서 건 규칙도 남기지 않는다)
   function clearAll() {
     const inputs = FAULT_TARGETS.map((target): FaultRuleInput => ({ target, mode: 'NONE' }))
-    apply.mutate(inputs, { onSuccess: () => toast.success('장애를 모두 풀었어요') })
+    apply.mutate(inputs, { onSuccess: () => toast.success('장애가 모두 해제되었습니다') })
   }
 
   function refresh() {
@@ -164,7 +165,7 @@ export function AdminDemoFaultsPage() {
         <div className="grid gap-1">
           <h1 className="type-title text-gray-900">시연 장애 패널</h1>
           <p className="type-body-sm text-gray-500">
-            시연용 Mock PG에 장애를 걸어 결제가 실패하거나 늦어지는 흐름을 보여 줘요
+            시연용 Mock PG에 장애를 적용하여 결제가 실패하거나 지연되는 흐름을 보여줍니다
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={refresh}>
@@ -175,18 +176,18 @@ export function AdminDemoFaultsPage() {
 
       {closed ? (
         <Alert variant="danger">
-          <p className="font-semibold">이 환경에서는 장애를 걸 수 없어요</p>
+          <p className="font-semibold">이 환경에서는 장애를 적용할 수 없습니다</p>
           <p>
-            Mock PG가 장애 주입을 열지 않은 프로필(local)로 떠 있어요. 배포 서버나 loadtest 프로필로
-            띄운 Mock PG에서 써 주세요.
+            Mock PG가 장애 주입을 열지 않은 프로필(local)로 실행 중입니다. 배포 서버나 loadtest
+            프로필로 실행한 Mock PG에서 사용해주세요.
           </p>
         </Alert>
       ) : (
         <Alert variant="warning">
-          <p className="font-semibold">이 서버의 모든 결제에 걸려요</p>
+          <p className="font-semibold">이 서버의 모든 결제에 적용됩니다</p>
           <p>
-            다른 사람이 먼저 결제하면 그 결제가 장애를 가져가요. 시연이 끝나면 [모두 해제]를 눌러
-            주세요.
+            다른 결제가 먼저 진행되면 그 결제에 장애가 적용됩니다. 시연이 끝나면 [모두 해제]를
+            눌러주세요.
           </p>
         </Alert>
       )}
@@ -255,7 +256,7 @@ export function AdminDemoFaultsPage() {
         </h2>
         {summary.isPending ? (
           <Card className="px-5" role="status">
-            <span className="sr-only">원장 요약을 불러오고 있어요</span>
+            <span className="sr-only">원장 요약을 불러오는 중입니다</span>
             <Skeleton className="h-16 w-full" />
           </Card>
         ) : summary.isError ? (
@@ -303,7 +304,7 @@ function ActiveRules({
   if (isPending) {
     return (
       <Card className="px-5" role="status">
-        <span className="sr-only">걸린 장애를 불러오고 있어요</span>
+        <span className="sr-only">적용된 장애를 불러오는 중입니다</span>
         <Skeleton className="h-10 w-full" />
       </Card>
     )
@@ -314,7 +315,9 @@ function ActiveRules({
   if (rules.length === 0) {
     return (
       <Card className="px-5 py-4">
-        <p className="type-body-sm text-gray-500">걸린 장애가 없어요. 결제가 정상으로 돌아요.</p>
+        <p className="type-body-sm text-gray-500">
+          적용된 장애가 없습니다. 결제가 정상으로 동작합니다.
+        </p>
       </Card>
     )
   }

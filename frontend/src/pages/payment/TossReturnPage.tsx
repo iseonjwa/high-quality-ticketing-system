@@ -57,5 +57,5 @@ function TossReturn({
     void navigate(paymentPath(reservationId), { replace: true, state })
   }, [navigate, reservationId, result, searchParams])
 
-  return <PaymentSkeleton label="결제 결과를 확인하고 있어요" />
+  return <PaymentSkeleton label="결제 결과를 확인하는 중입니다" />
 }

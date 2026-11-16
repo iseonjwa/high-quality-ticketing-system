@@ -62,7 +62,7 @@ export function AppLayout() {
       await navigate(paths.home)
       await logout()
       void resetUserQueries(queryClient)
-      toast('로그아웃했어요')
+      toast('로그아웃되었습니다')
     } finally {
       setLoggingOut(false)
     }

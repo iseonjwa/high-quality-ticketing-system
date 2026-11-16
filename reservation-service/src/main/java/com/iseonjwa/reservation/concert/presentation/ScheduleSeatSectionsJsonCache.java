@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 회차 좌석 응답의 좌석 배열(sections)을 JSON으로 직렬화해 둔 캐시(ISE-264).
  *
- * <p>Note: 15,000석이면 sections가 약 830KB라 요청마다 객체를 만들고 직렬화하는 데 CPU를 많이 쓴다(P4c JFR: Jackson 약 32%).
+ * <p>Note: 좌석이 많으면 sections가 커서(측정 당시 15,000석에 약 830KB) 요청마다 객체를 만들고 직렬화하는 데 CPU를 많이 쓴다(P4c JFR: Jackson 약 32%).
  * 서비스는 같은 배치·같은 1초 캐시 값이면 같은 결과 객체를 돌려주므로, 결과 객체가 같으면 직렬화한 바이트를 그대로 쓴다.
  * 그래서 낡을 수 있는 정도는 선점 가능 여부 1초 캐시(ISE-205)와 같고 따로 TTL을 두지 않는다.
  * traceId와 serverTime은 요청마다 바깥 봉투에 새로 쓴다.

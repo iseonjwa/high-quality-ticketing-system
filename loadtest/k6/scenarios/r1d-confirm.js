@@ -26,7 +26,8 @@ for (const rate of STAGES) {
   stages.push({ target: rate, duration: '5s' }, { target: rate, duration: `${STAGE_SECONDS}s` });
 }
 
-// 단계마다 올라가는 5초 동안은 평균 속도로 어림한다. 기본값이면 약 11,600석이다
+// 단계마다 올라가는 5초 동안은 평균 속도로 어림한다. 기본값이면 약 12,650석이다
+// Note: 시드 공연장이 1,500석이 된 뒤(ADR 0060)에는 기본값으로 setup에서 멈춘다. STAGES를 낮춰 준다(예: STAGES=10,25 STAGE_SECONDS=20이면 약 840석)
 let seatsNeeded = 0;
 let previousRate = Math.min(10, STAGES[0]);
 for (const rate of STAGES) {

@@ -14,7 +14,7 @@ import { createLottery, enterAll, preparedLottery, registerBillingKeys } from '.
 import { setFault, setApproveDelay } from '../lib/mockpg.js';
 
 const ENTRANTS = numberEnv('ENTRANTS', 30000);
-const SEAT_COUNT = numberEnv('SEAT_COUNT', 3000);
+const SEAT_COUNT = numberEnv('SEAT_COUNT', 300); // 시드 R 600석 안(ADR 0060)
 const WAITLIST_COUNT = numberEnv('WAITLIST_COUNT', 1000);
 const DURATION_SECONDS = numberEnv('DURATION_SECONDS', 660);
 // 0이면 일반 결제를 걸지 않는다(L2-a)

@@ -8,6 +8,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-15 | 대기열 입장 속도를 뒤쪽 여유에 따라 동적으로 조절하면 어떨까, 입구 몰림 7.9배는 어떻게 나왔나(뒤쪽 포화는 줄지만 입구 503은 못 줄임, 동시 입장 인원 상한이 가장 단순) | [노트](qna/2026-11-15-adaptive-queue-admission.md) |
+| 2026-11-15 | 오픈 직후 더 몰리는 Synthetic O1이 왜 균일보다 지표가 좋았나(입구는 8배 몰림, 대기열 뒤는 좌석 충돌률 48% 대 12%가 갈랐다) | [노트](qna/2026-11-15-why-synthetic-o1-looks-better.md) |
 | 2026-11-15 | 배포 서버 측정 중에는 왜 main 머지를 막아야 하나(main 머지 = 배포, 두 O1 같은 환경 V3, main·dev 코드 차이) | [노트](qna/2026-11-15-why-no-main-merge-during-measurement.md) |
 | 2026-11-14 | 대기열 폴링 중 이탈했다가 재진입·주소창 호출·탭 복원하면 순번은 어떻게 되나(서버는 이탈을 모름, 번호표는 userId 기준, 로그인·입장 토큰은 탭 단위 sessionStorage) | [노트](qna/2026-11-14-queue-leave-and-reenter.md) |
 | 2026-11-14 | 대기열에 Prometheus 지표를 붙이려면 코드를 어떻게 바꾸나(이미 있는 Gauge 5개, HTTP 지표로 이미 구분되는 결과, 비어 있는 입장 스케줄러 Timer·실패 카운터 예시 코드, 테스트, 문법, Gauge 실수) | [qna/2026-11-14-queue-metrics-how-to-extend.md](qna/2026-11-14-queue-metrics-how-to-extend.md) |

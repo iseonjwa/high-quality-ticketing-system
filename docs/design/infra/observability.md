@@ -131,7 +131,7 @@ flowchart LR
 - 메시지 모양:
   - 제목 예: `[발생] 결제 심각(즉시 확인) 2건 · 로컬`, 해결은 `[해결] 결제 경고(지연 감시) 1건 모두 해결 · 로컬`. 라벨 값은 한국어로 바꾼다(env: local→로컬, deploy→배포 서버 / service: payment→결제 / severity: critical→심각, warning→경고 / urgency: immediate→즉시 확인, threshold→지연 감시).
   - 왼쪽 색 띠: 해결 초록 `#1E7F4F`, 심각 빨강 `#D12B3A`, 경고 주황 `#F59F00`(프론트 토큰 success-600·danger-600·warning-500).
-  - 필드: 환경, 긴급도, 발생 중 N건, 해결 N건, 바로 가기(결제 대시보드·Prometheus 알림·Alertmanager 링크). 주소는 `env` 라벨로 고른다(`slack.tmpl`의 `iseonjwa.links`, 2026-11-12 ISE-256). 배포 서버(`deploy`)의 결제 대시보드는 Grafana 공인 주소 `http://52.63.10.174:3000`(등록된 IP만)이고, Prometheus·Alertmanager는 서버 밖에 열지 않아 "SSH 터널을 켜면"을 붙인 `localhost` 링크다. 그 밖의 환경은 모두 `localhost`다. 처음에는 모두 `localhost`라 배포 서버 알림의 대시보드 링크가 열리지 않았다.
+  - 필드: 환경, 긴급도, 발생 중 N건, 해결 N건, 바로 가기(결제 대시보드·Prometheus 알림·Alertmanager 링크). 주소는 `env` 라벨로 고른다(`slack.tmpl`의 `iseonjwa.links`, 2026-11-12 ISE-256). 배포 서버(`deploy`)의 결제 대시보드는 Grafana 공개 주소 `<PUBLIC_URL>/grafana`(서버 `.env`의 `PUBLIC_URL`, compose `configs`가 `iseonjwa.grafana_url` 템플릿으로 넣는다. 2026-11-16 ISE-278 전에는 `http://<서버 IP>:3000`)이고, Prometheus·Alertmanager는 서버 밖에 열지 않아 "SSH 터널을 켜면"을 붙인 `localhost` 링크다. 그 밖의 환경은 모두 `localhost`다. 처음에는 모두 `localhost`라 배포 서버 알림의 대시보드 링크가 열리지 않았다.
   - 본문: 발생 알림마다 summary를 굵게 쓰고, 다음 줄에 알림 이름, 같은 이름을 가르는 라벨(rule, topic, operation, pool, task 등), 시작 시각(KST), 대응 문서(runbook 주석을 GitHub dev 브랜치 문서 링크로)를 둔다. 해결된 알림은 이름, 라벨, 시작~끝 시각, 지속 시간을 쓴다. 한 메시지에 발생과 해결이 섞이면 "이번에 해결된 알림" 아래에 모은다.
   - fallback(휴대폰 푸시·미리보기 한 줄)은 제목과 첫 알림의 summary다. 꼬리말에는 다시 알리는 간격(즉시 확인 1시간, 그 밖 4시간)을 쓴다.
 - 웹훅 주소를 파일로 넘기는 이유: Alertmanager 설정 파일은 환경 변수를 풀지 않는다. compose `secrets`의 `environment` 방식은 변수가 없으면 compose 전체가 실패해 웹훅이 없는 팀원 스택이 뜨지 않는다(2026-11-04 Compose v5.6.0으로 확인). `configs`의 `content`가 빈 값이면 파일 대신 디렉터리가 생긴다(같은 날 확인). 그래서 최상위 `configs.slack-monitoring-url`의 `content`에 `${SLACK_WEBHOOK_MONITORING:-http://127.0.0.1:9/slack-webhook-not-set}`를 두어, 값이 없으면 보내지 않는 자리표시 주소를 넣는다. 이때 Alertmanager는 그대로 뜨고 알림을 보낼 때 실패만 로그에 남는다.
@@ -196,7 +196,7 @@ SA 9-3 합계 11,392m에 더하면 약 12,288m(12.0GB)다. 75% 규칙이면 필�
 
 ## 5. 시연 방식
 
-M3(사용자 결정): 나란히 띄우기. Grafana를 열고(로컬은 compose의 `localhost:3000`, 배포 서버는 `http://52.63.10.174:3000`으로 바로), 프론트 화면과 나란히 둔다. 프론트가 요청마다 traceId를 보여 주면 Grafana 대시보드가 그 traceId로 서비스별 로그를 거른다.
+M3(사용자 결정): 나란히 띄우기. Grafana를 열고(로컬은 compose의 `localhost:3000`, 배포 서버는 `https://<서버 IP>/grafana/`로 바로. 2026-11-16 ISE-278 전에는 3000번), 프론트 화면과 나란히 둔다. 프론트가 요청마다 traceId를 보여 주면 Grafana 대시보드가 그 traceId로 서비스별 로그를 거른다.
 
 - 프론트가 traceId를 읽는 곳은 응답 본문의 `traceId` 필드다. 성공은 `{status, message, data, traceId}`, 실패는 `{status, code, message, errors, traceId}`이고 모든 응답 본문에 있다. 2026-11-03에 로컬 Gateway로 보낸 실패 응답(401)에서 `traceId`가 본문에 있는 것을 확인했다. 같은 응답의 헤더에는 `traceId` 헤더가 없었다(확인한 헤더: `Content-Type`, `transfer-encoding`, `Date`). 그래서 본문 필드를 쓴다.
 - 요청 중 서비스가 응답을 만들지 못하는 경우(예: 게이트웨이 시간 초과)의 본문에도 `traceId`가 있는지는 미확인이다.
@@ -211,7 +211,7 @@ M4 후보: 프론트 안 로그 패널. 관리자 전용 API가 traceId로 Loki�
 <Grafana 주소>/d/iseonjwa-request-logs?orgId=1&var-traceId=<traceId>&from=<요청 시각-15분>&to=<요청 시각+15분>
 ```
 
-`<Grafana 주소>`는 화면을 연 호스트의 3000번이다(로컬 `http://localhost:3000`, 배포 `http://52.63.10.174:3000`, 2026-11-05 사용자 결정). 배포 서버는 3000을 보안 그룹에서 팀원 IP에만 열고 익명 보기(Viewer)를 켠다. 로컬 compose는 그대로다.
+`<Grafana 주소>`는 http 화면이면 화면을 연 호스트의 3000번(로컬 `http://localhost:3000`), https 화면(배포 서버)이면 같은 주소의 `/grafana`다(`frontend/src/demo/grafana.ts`). 배포 서버는 2026-11-05에 3000을 팀원 IP에만 열었고, 2026-11-16(ISE-278)부터 nginx가 443의 `/grafana/`로 중계해 누구나 보기(익명 Viewer)만 된다. 로컬 compose는 그대로다.
 
 ISE-178의 "요청 로그" 대시보드가 이 주소에 맞춘다.
 - UID는 `iseonjwa-request-logs`다(기존 `iseonjwa-payment`, `iseonjwa-bootstrap`과 같은 규칙).

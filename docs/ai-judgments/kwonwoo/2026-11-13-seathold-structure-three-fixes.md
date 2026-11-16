@@ -13,7 +13,7 @@ shared: 예
 # 좌석 선점 구조 개선 세 가지(먼저 거절, 잠금 뒤로, 동시 처리 상한)를 AI 추천 순서대로 하나씩 넣고 부하로 재기로 함
 
 ## 맥락
-- 해결하려던 작업: 잠금 대기를 50ms로 줄인 뒤(ADR 0060), 다음 개선안(캐시 사전 거절, 409 본문의 실패 좌석 ID)이 다른 일에 막혀 있었다. 시니어 시점에서 선점 구조 자체에 문제가 없는지 물었다.
+- 해결하려던 작업: 잠금 대기를 50ms로 줄인 뒤(ADR 0061), 다음 개선안(캐시 사전 거절, 409 본문의 실패 좌석 ID)이 다른 일에 막혀 있었다. 시니어 시점에서 선점 구조 자체에 문제가 없는지 물었다.
 - AI 활용 방식: AI가 `SyncSeatHoldService`의 트랜잭션 순서를 읽고 구조를 평가했다([학습 노트](../../learning/kwonwoo/qna/2026-11-13-seathold-structure-review.md)).
 
 ## AI 제안
@@ -30,7 +30,7 @@ shared: 예
 - 검토한 대안: 캐시 사전 거절(P4c 대기), 409 실패 좌석 ID(contract 필요), 지표 정리만 하기
 
 ## 반영
-- [ADR 0061](../../decisions/0061-seat-hold-structure-precheck-reorder-limit.md), [측정 문서](../../design/reservation/seathold-structure-improvements.md), [TS-74](../../troubleshooting.md)
+- [ADR 0062](../../decisions/0062-seat-hold-structure-precheck-reorder-limit.md), [측정 문서](../../design/reservation/seathold-structure-improvements.md), [TS-74](../../troubleshooting.md)
 - `SyncSeatHoldService`(상태 검사, 순서), `SeatHoldRules.allHoldable`, `SeatHoldConcurrencyLimit`, `SeatHoldController`, `SeatHoldLoadTest` L7·L8·L9
 
 ## 검증

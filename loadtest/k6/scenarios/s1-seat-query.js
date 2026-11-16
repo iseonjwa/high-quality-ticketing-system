@@ -1,4 +1,4 @@
-// S1: 회차 좌석 조회(15,000석, 응답 약 830KB) 단독. 사용자 한 명이 초당 RATE건을 DURATION_SECONDS 동안 보낸다.
+// S1: 회차 좌석 조회(시드 1,500석. 15,000석 당시 응답 약 830KB) 단독. 사용자 한 명이 초당 RATE건을 DURATION_SECONDS 동안 보낸다.
 // 좌석 조회 경량화(ISE-189) 단계별 비교용이다. 로컬 측정(같은 방식, 30초)과 비교하려고 대기열·선점 없이 좌석 조회만 부른다.
 // 배포 서버에서 개선 전은 measure-mode.sh on loadtest/deploy/compose.seat-before.yml 로 띄운 뒤 같은 명령으로 잰다.
 // 실행: SCHEDULE_ID=<회차 id> RATE=50 bash loadtest/k6/run.sh scenarios/s1-seat-query.js (loadtest/k6/README.md)

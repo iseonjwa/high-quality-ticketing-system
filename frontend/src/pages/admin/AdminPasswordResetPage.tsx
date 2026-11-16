@@ -27,10 +27,10 @@ const userIdSchema = z.object({
   userId: z
     .string()
     .trim()
-    .min(1, '회원 번호를 입력해 주세요')
-    .regex(/^\d+$/, '회원 번호는 숫자로 입력해 주세요')
+    .min(1, '회원 번호를 입력해주세요.')
+    .regex(/^\d+$/, '회원 번호는 숫자로 입력해주세요.')
     .transform(Number)
-    .refine((value) => value > 0 && Number.isSafeInteger(value), '회원 번호를 확인해 주세요'),
+    .refine((value) => value > 0 && Number.isSafeInteger(value), '회원 번호를 확인해주세요.'),
 })
 type UserIdInput = z.input<typeof userIdSchema>
 type UserIdValues = z.output<typeof userIdSchema>
@@ -63,7 +63,7 @@ export function AdminPasswordResetPage() {
     onError: (error) => {
       if (isApiError(error, 'NOT_FOUND')) {
         setDialogOpen(false)
-        form.setError('userId', { message: '이 번호의 회원이 없어요' }, { shouldFocus: true })
+        form.setError('userId', { message: '이 번호의 회원이 없습니다.' }, { shouldFocus: true })
       }
     },
   })
@@ -87,8 +87,8 @@ export function AdminPasswordResetPage() {
       <div className="grid gap-1">
         <h1 className="type-title text-gray-900">비밀번호 초기화</h1>
         <p className="type-body-sm text-gray-500">
-          임시 비밀번호를 만들어 회원에게 전해요. 회원은 그 비밀번호로 로그인한 뒤 새 비밀번호로
-          바꿔야 해요.
+          임시 비밀번호를 생성하여 회원에게 전달합니다. 회원은 그 비밀번호로 로그인한 뒤 새
+          비밀번호로 변경해야 합니다.
         </p>
       </div>
 
@@ -102,13 +102,13 @@ export function AdminPasswordResetPage() {
             회원 #{result.userId}의 임시 비밀번호
           </h2>
           <Alert variant="warning">
-            이 화면을 떠나면 다시 볼 수 없어요. 회원에게 안전한 방법으로 전해 주세요
+            이 화면을 떠나면 다시 확인할 수 없습니다. 회원에게 안전한 방법으로 전달해주세요.
           </Alert>
           <CopyField label="임시 비밀번호" value={result.temporaryPassword} monospace />
           <ul className="grid list-disc gap-1 pl-5 type-body-sm text-gray-700">
-            <li>이전 비밀번호로는 더 로그인할 수 없어요.</li>
-            <li>이미 로그인한 기기는 30분 안에 로그아웃돼요.</li>
-            <li>로그인 잠금도 풀렸어요.</li>
+            <li>이전 비밀번호로는 더 이상 로그인할 수 없습니다.</li>
+            <li>이미 로그인한 기기는 30분 안에 로그아웃됩니다.</li>
+            <li>로그인 잠금도 해제되었습니다.</li>
           </ul>
           <Button
             variant="outline"
@@ -134,7 +134,8 @@ export function AdminPasswordResetPage() {
                 form.setError(
                   'userId',
                   {
-                    message: '내 계정이에요. 내 비밀번호는 내 정보의 비밀번호 변경에서 바꿔 주세요',
+                    message:
+                      '내 계정입니다. 내 비밀번호는 내 정보의 비밀번호 변경에서 변경해주세요.',
                   },
                   { shouldFocus: true },
                 )
@@ -150,7 +151,7 @@ export function AdminPasswordResetPage() {
               label="회원 번호"
               inputMode="numeric"
               error={form.formState.errors.userId?.message}
-              description="회원이 내 정보에서 본 번호예요. 이메일로 찾는 기능은 아직 없어요"
+              description="회원이 내 정보에서 확인한 번호입니다. 이메일로 찾는 기능은 아직 없습니다."
               {...form.register('userId')}
             />
             <Button ref={submitRef} type="submit" className="w-full @min-[40rem]:w-fit">
@@ -187,13 +188,14 @@ export function AdminPasswordResetPage() {
             회원 #{target}의 비밀번호를 초기화할까요?
           </DialogTitle>
           <DialogDescription className="type-body-sm text-gray-500">
-            지금 비밀번호로는 로그인할 수 없게 되고, 임시 비밀번호로 로그인한 뒤 새로 정해야 해요.
+            현재 비밀번호로는 로그인할 수 없게 되며, 임시 비밀번호로 로그인한 뒤 새로 설정해야
+            합니다.
           </DialogDescription>
           {/* 실패는 대화상자 안에 둔다. 폼에 두면 모달 뒤에 가려져 읽히지 않는다. 없는 회원(404)은 닫고 칸에 알린다 */}
           {reset.isError && !isApiError(reset.error, 'NOT_FOUND') ? (
             isOutcomeUnknown(reset.error) ? (
               <Alert variant="warning">
-                초기화됐는지 확인하지 못했어요. 다시 초기화하면 새 임시 비밀번호가 나와요
+                초기화 여부를 확인하지 못했습니다. 다시 초기화하면 새 임시 비밀번호가 발급됩니다.
               </Alert>
             ) : (
               <ErrorNotice error={reset.error} />

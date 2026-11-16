@@ -374,7 +374,7 @@ describe('HomeHero 남은 시간', () => {
 
     expect(visibleSlide().querySelector('[data-slot="hero-countdown"]')).toBeNull()
     expect(
-      within(visibleSlide()).getByText('티켓이 열렸어요. 공연 보기에서 예매해 주세요'),
+      within(visibleSlide()).getByText('티켓이 오픈되었습니다. 공연 보기에서 예매해주세요.'),
     ).toBeInTheDocument()
   })
 })

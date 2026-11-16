@@ -313,10 +313,10 @@ describe('PaymentPage 결제 대상', () => {
       const payments = recordRequests(PAYMENTS_API)
       const { visited } = renderPayment({ navigation: { held } })
 
-      expect(await screen.findByText('결제할 수 없는 예매예요')).toBeInTheDocument()
+      expect(await screen.findByText('결제할 수 없는 예매입니다')).toBeInTheDocument()
       expect(await payButton()).toBeDisabled()
       expect(screen.queryAllByRole('timer')).toHaveLength(0)
-      expect(screen.queryByText('결제 가능 시간이 지났어요')).not.toBeInTheDocument()
+      expect(screen.queryByText('결제 가능 시간이 지났습니다')).not.toBeInTheDocument()
 
       await userEvent.click(screen.getByRole('button', { name: '좌석 다시 고르기' }))
 
@@ -333,7 +333,7 @@ describe('PaymentPage 결제 대상', () => {
     reservationOf(held.hold.reservationId).status = 'EXPIRED'
     const { visited } = renderPayment({ reservationId: held.hold.reservationId })
 
-    expect(await screen.findByText('결제할 수 없는 예매예요')).toBeInTheDocument()
+    expect(await screen.findByText('결제할 수 없는 예매입니다')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '좌석 다시 고르기' }))
 
@@ -347,14 +347,14 @@ describe('PaymentPage 결제 대상', () => {
     reservationOf(held.hold.reservationId).holdExpiresAtMillis = Date.now() + 5_000
     renderPayment({ reservationId: held.hold.reservationId })
 
-    expect(await screen.findByText('결제할 수 없는 예매예요')).toBeInTheDocument()
+    expect(await screen.findByText('결제할 수 없는 예매입니다')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
   })
 
   it('없는 예매면 찾는 예매가 없다고 알리고 내 예매 보기를 준다', async () => {
     renderPayment({ reservationId: 987654 })
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toHaveAttribute(
       'href',
       '/me/reservations',
@@ -365,7 +365,7 @@ describe('PaymentPage 결제 대상', () => {
     const reads = recordRequests('/api/v1/reservations/abc')
     renderPayment({ reservationId: 'abc' })
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(reads).toHaveLength(0)
   })
 })
@@ -377,13 +377,11 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
     // 서버 시각이 브라우저보다 10분 빠르다. 서버 기준으로 결제 가능 시간이 이미 지났다
     renderPayment({ navigation: { held, clockOffsetMillis: 10 * 60_000 } })
 
-    expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
     expect(await payButton()).toBeDisabled()
     // 서버 시계로 시간이 지나 버튼이 막히면 초점을 알림으로 옮긴다
-    expect(alertSlotOf('결제 가능 시간이 지났어요')).toHaveFocus()
-    expect(
-      screen.getByText('잡아 둔 좌석은 곧 풀려요. 좌석을 다시 골라 주세요.'),
-    ).toBeInTheDocument()
+    expect(alertSlotOf('결제 가능 시간이 지났습니다')).toHaveFocus()
+    expect(screen.getByText('좌석을 다시 선택해주세요.')).toBeInTheDocument()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     screen.getAllByRole('timer').forEach((timer) => expect(timer).toHaveTextContent('00:00'))
     await userEvent.click(screen.getByRole('button', { name: /결제하기$/ }))
@@ -400,7 +398,7 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
     renderPayment({ navigation: { held: browserExpired, clockOffsetMillis: -5 * 60_000 } })
 
     expect(await payButton()).toBeEnabled()
-    expect(screen.queryByText('결제 가능 시간이 지났어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제 가능 시간이 지났습니다')).not.toBeInTheDocument()
     screen.getAllByRole('timer').forEach((timer) => expect(timer).toHaveTextContent(/0[34]:\d\d/))
   })
 
@@ -414,13 +412,13 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
 
     const button = await payButton()
     expect(button).toBeEnabled()
-    expect(screen.queryByText('결제 가능 시간이 지났어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제 가능 시간이 지났습니다')).not.toBeInTheDocument()
     screen.getAllByRole('timer').forEach((timer) => expect(timer).toHaveTextContent('00:00'))
 
     mockServer.use(http.post(PAYMENTS_API, () => fail(403, 'PAYMENT_TOKEN_INVALID', '토큰')))
     await userEvent.click(button)
 
-    expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /원 결제하기$/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: '좌석 다시 고르기' })).toBeInTheDocument()
   })
@@ -451,7 +449,7 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
 
     await clickPay()
 
-    expect(await findPendingTitle('결제 요청을 보내고 있어요')).toBeInTheDocument()
+    expect(await findPendingTitle('결제 요청을 전송하는 중입니다')).toBeInTheDocument()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
   })
 
@@ -462,10 +460,10 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await findPendingTitle('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(await findPendingTitle('결제를 확인하는 중입니다')).toBeInTheDocument()
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
 
-    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    await advanceUntil(() => screen.queryByText('결제가 승인되었습니다') !== null)
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
   })
 
@@ -476,7 +474,7 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
 
     await clickPay()
 
-    expect(await screen.findByText('결제가 거절됐어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 거절되었습니다')).toBeInTheDocument()
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
   })
 })
@@ -521,7 +519,7 @@ describe('PaymentPage 결제하기', () => {
     const { router, queryClient } = renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await screen.findByText('결제가 승인됐어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 승인되었습니다')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
 
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
@@ -585,14 +583,14 @@ describe('PaymentPage 결제하기', () => {
 
     await clickPay()
 
-    const title = await findPendingTitle('결제를 확인하고 있어요')
+    const title = await findPendingTitle('결제를 확인하는 중입니다')
     // 확인 중 상자에는 role이 없다. 알림은 늘 있는 sr-only 영역이 글자를 바꿔 맡는다
     expect(title.closest('[role]')).toBeNull()
-    expect(statusText()).toBe('결제를 확인하고 있어요')
+    expect(statusText()).toBe('결제를 확인하는 중입니다')
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 결제하기' })).not.toBeInTheDocument()
 
-    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    await advanceUntil(() => screen.queryByText('결제가 승인되었습니다') !== null)
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
     expect(router.state.location.pathname).toBe(resultPath(held))
   })
@@ -607,24 +605,24 @@ describe('PaymentPage 결제하기', () => {
 
     await clickPay()
 
-    const title = await findPendingTitle('결제 요청을 보내고 있어요')
+    const title = await findPendingTitle('결제 요청을 전송하는 중입니다')
     expect(title.parentElement).toHaveTextContent(
-      '연결이 잠시 불안정해요. 화면을 닫지 말고 기다려 주세요.',
+      '연결이 일시적으로 불안정합니다. 화면을 닫지 말고 기다려주세요.',
     )
     expect(title.parentElement).not.toHaveTextContent('화면을 닫아도')
-    expect(statusText()).toBe('결제 요청을 보내고 있어요')
+    expect(statusText()).toBe('결제 요청을 전송하는 중입니다')
 
     // 재전송이 처음 결과(202, 결제 ID)를 받으면 문구가 바뀐다
-    const confirmed = await findPendingTitle('결제를 확인하고 있어요').catch(() => null)
+    const confirmed = await findPendingTitle('결제를 확인하는 중입니다').catch(() => null)
     expect(confirmed).toBeNull()
     await advanceUntil(
-      () => screen.queryAllByText('결제를 확인하고 있어요').length > 0,
+      () => screen.queryAllByText('결제를 확인하는 중입니다').length > 0,
       500,
       20_000,
     )
-    const checking = await findPendingTitle('결제를 확인하고 있어요')
+    const checking = await findPendingTitle('결제를 확인하는 중입니다')
     expect(checking.parentElement).toHaveTextContent('화면을 닫아도')
-    expect(statusText()).toBe('결제를 확인하고 있어요')
+    expect(statusText()).toBe('결제를 확인하는 중입니다')
   })
 
   it('서버에 결제가 생기면(결제 ID를 받은 확인 중) 저장한 선점을 지우고, 결제 결과를 모르는 동안에는 남긴다', async () => {
@@ -636,11 +634,11 @@ describe('PaymentPage 결제하기', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await findPendingTitle('결제 요청을 보내고 있어요')
+    await findPendingTitle('결제 요청을 전송하는 중입니다')
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
 
     await advanceUntil(
-      () => screen.queryAllByText('결제를 확인하고 있어요').length > 0,
+      () => screen.queryAllByText('결제를 확인하는 중입니다').length > 0,
       500,
       20_000,
     )
@@ -656,9 +654,9 @@ describe('PaymentPage 결제하기', () => {
 
     await clickPay()
     // 503은 한 번 자동으로 다시 보낸 뒤에 안내한다(ISE-242)
-    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않습니다') !== null)
 
-    expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
+    expect(await screen.findByText('결제사 연결이 원활하지 않습니다')).toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
   })
 
@@ -680,14 +678,14 @@ describe('PaymentPage 결제하기', () => {
     expect(statusText()).toBe('')
     await clickPay()
     await screen.findByRole('button', { name: '결제하는 중' })
-    expect(statusText()).toBe('결제를 요청하고 있어요')
+    expect(statusText()).toBe('결제를 요청하는 중입니다')
 
     release()
-    await findPendingTitle('결제를 확인하고 있어요')
-    expect(statusText()).toBe('결제를 확인하고 있어요')
+    await findPendingTitle('결제를 확인하는 중입니다')
+    expect(statusText()).toBe('결제를 확인하는 중입니다')
 
-    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
-    expect(statusText()).toBe('결제가 승인됐어요. 예매를 확정하고 있어요')
+    await advanceUntil(() => screen.queryByText('결제가 승인되었습니다') !== null)
+    expect(statusText()).toBe('결제가 승인되었습니다. 예매를 확정하는 중입니다')
   })
 
   it('확인 중이 되면 초점을 결제 금액 제목으로 옮긴다', async () => {
@@ -697,11 +695,11 @@ describe('PaymentPage 결제하기', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await findPendingTitle('결제를 확인하고 있어요')
+    await findPendingTitle('결제를 확인하는 중입니다')
     expect(screen.getByRole('heading', { level: 2, name: '결제 금액' })).toHaveFocus()
 
     // 확정 확인으로 바뀌어도 제목에 있다
-    await advanceUntil(() => screen.queryByText('결제가 승인됐어요') !== null)
+    await advanceUntil(() => screen.queryByText('결제가 승인되었습니다') !== null)
     expect(screen.getByRole('heading', { level: 2, name: '결제 금액' })).toHaveFocus()
   })
 })
@@ -715,10 +713,10 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
 
-    const title = await screen.findByText('결제가 거절됐어요')
-    expect(title.closest('[role="alert"]')).toHaveTextContent('카드 한도가 부족해요.')
-    expect(title.closest('[role="alert"]')).toHaveTextContent('잡아 둔 좌석은 풀렸으니')
-    expect(alertSlotOf('결제가 거절됐어요')).toHaveFocus()
+    const title = await screen.findByText('결제가 거절되었습니다')
+    expect(title.closest('[role="alert"]')).toHaveTextContent('카드 한도가 부족합니다.')
+    expect(title.closest('[role="alert"]')).toHaveTextContent('선택한 좌석이 해제되었습니다')
+    expect(alertSlotOf('결제가 거절되었습니다')).toHaveFocus()
     // 거절되면 선점이 끝난다. 좌석 다시 고르기를 누르기 전에 이미 지웠다
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
@@ -733,9 +731,9 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
   })
 
   it.each([
-    ['CARD_DECLINED', '카드사가 결제를 거절했어요.'],
-    ['INSUFFICIENT_LIMIT', '카드 한도가 부족해요.'],
-    ['TOKEN_EXPIRED', '결제 가능 시간이 지나 결제하지 못했어요.'],
+    ['CARD_DECLINED', '카드사가 결제를 거절했습니다.'],
+    ['INSUFFICIENT_LIMIT', '카드 한도가 부족합니다.'],
+    ['TOKEN_EXPIRED', '결제 가능 시간이 지나 결제하지 못했습니다.'],
   ])('거절 사유 %s의 첫 문장을 보인다', async (reasonCode, sentence) => {
     const held = await hold()
     mockServer.use(declinedResponse(held.hold.reservationId, reasonCode))
@@ -743,7 +741,7 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
 
-    const alert = (await screen.findByText('결제가 거절됐어요')).closest('[role="alert"]')
+    const alert = (await screen.findByText('결제가 거절되었습니다')).closest('[role="alert"]')
     expect(alert).toHaveTextContent(sentence)
   })
 
@@ -754,8 +752,8 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
 
-    const alert = (await screen.findByText('결제가 거절됐어요')).closest('[role="alert"]')
-    expect(alert).toHaveTextContent(/^결제가 거절됐어요잡아 둔 좌석은 풀렸으니/)
+    const alert = (await screen.findByText('결제가 거절되었습니다')).closest('[role="alert"]')
+    expect(alert).toHaveTextContent(/^결제가 거절되었습니다선택한 좌석이 해제되었습니다/)
   })
 
   it('조회로 거절을 알게 되면(사유 없음) 첫 문장 없이 보인다', async () => {
@@ -777,10 +775,10 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await advanceUntil(() => screen.queryByText('결제가 거절됐어요') !== null)
+    await advanceUntil(() => screen.queryByText('결제가 거절되었습니다') !== null)
 
-    const alert = screen.getByText('결제가 거절됐어요').closest('[role="alert"]')
-    expect(alert).toHaveTextContent(/^결제가 거절됐어요잡아 둔 좌석은 풀렸으니/)
+    const alert = screen.getByText('결제가 거절되었습니다').closest('[role="alert"]')
+    expect(alert).toHaveTextContent(/^결제가 거절되었습니다선택한 좌석이 해제되었습니다/)
   })
 
   it('이미 끝난 결제(409 PAYMENT_ALREADY_CLOSED)면 안내와 좌석 다시 고르기를 보인다', async () => {
@@ -792,9 +790,9 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
 
-    expect(await screen.findByText('이 예매의 결제는 이미 끝났어요')).toBeInTheDocument()
+    expect(await screen.findByText('이 예매의 결제는 이미 종료되었습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '좌석 다시 고르기' })).toBeInTheDocument()
-    expect(alertSlotOf('이 예매의 결제는 이미 끝났어요')).toHaveFocus()
+    expect(alertSlotOf('이 예매의 결제는 이미 종료되었습니다')).toHaveFocus()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
   })
 
@@ -807,11 +805,11 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
     // 누름 한 번에 자동 재시도가 한 번 있어 요청은 둘이고, 그 뒤에 안내한다(ISE-242)
-    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않아요') !== null)
+    await advanceUntil(() => screen.queryByText('결제사 연결이 원활하지 않습니다') !== null)
     expect(payments).toHaveLength(2)
 
-    expect(await screen.findByText('결제사 연결이 원활하지 않아요')).toBeInTheDocument()
-    expect(alertSlotOf('결제사 연결이 원활하지 않아요')).toHaveFocus()
+    expect(await screen.findByText('결제사 연결이 원활하지 않습니다')).toBeInTheDocument()
+    expect(alertSlotOf('결제사 연결이 원활하지 않습니다')).toHaveFocus()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     await userEvent.click(screen.getByRole('button', { name: '다시 결제하기' }))
     await advanceUntil(() => payments.length >= 4)
@@ -831,7 +829,7 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     await clickPay()
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.queryByText('결제가 거절됐어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제가 거절되었습니다')).not.toBeInTheDocument()
     expect(screen.getAllByRole('timer').length).toBeGreaterThan(0)
     await userEvent.click(screen.getByRole('button', { name: '다시 결제하기' }))
     await waitFor(() => expect(payments).toHaveLength(2))
@@ -847,8 +845,8 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
 
     await clickPay()
 
-    expect(await screen.findByText('결제 확인이 늦어지고 있어요')).toBeInTheDocument()
-    expect(alertSlotOf('결제 확인이 늦어지고 있어요')).toHaveFocus()
+    expect(await screen.findByText('결제 확인이 지연되고 있습니다')).toBeInTheDocument()
+    expect(alertSlotOf('결제 확인이 지연되고 있습니다')).toHaveFocus()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toHaveAttribute(
       'href',
       '/me/reservations',
@@ -866,11 +864,11 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await advanceUntil(() => screen.queryByText('예매가 확정되지 않았어요') !== null)
+    await advanceUntil(() => screen.queryByText('예매가 확정되지 않았습니다') !== null)
 
-    expect(screen.getByText(/결제 금액은 환불돼요/)).toBeInTheDocument()
+    expect(screen.getByText(/결제 금액은 환불됩니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
-    expect(alertSlotOf('예매가 확정되지 않았어요')).toHaveFocus()
+    expect(alertSlotOf('예매가 확정되지 않았습니다')).toHaveFocus()
   })
 
   it('승인 뒤 예매가 풀리거나 취소되면 확정되지 않았다고 알리고 내 예매 보기를 보인다', async () => {
@@ -880,9 +878,9 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await advanceUntil(() => screen.queryByText('예매가 확정되지 않았어요') !== null)
+    await advanceUntil(() => screen.queryByText('예매가 확정되지 않았습니다') !== null)
 
-    expect(screen.getByText(/결제한 금액이 있으면 환불돼요/)).toBeInTheDocument()
+    expect(screen.getByText(/결제하신 금액이 있으면 환불됩니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
   })
 
@@ -893,12 +891,12 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await screen.findByText('결제가 승인됐어요')).toBeInTheDocument()
-    await advanceUntil(() => screen.queryByText('결제는 승인됐어요') !== null)
+    expect(await screen.findByText('결제가 승인되었습니다')).toBeInTheDocument()
+    await advanceUntil(() => screen.queryByText('결제는 승인되었습니다') !== null)
 
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
-    expect(screen.queryByText('결제 결과를 아직 확인하지 못했어요')).not.toBeInTheDocument()
-    expect(alertSlotOf('결제는 승인됐어요')).toHaveFocus()
+    expect(screen.queryByText('결제 결과를 아직 확인하지 못했습니다')).not.toBeInTheDocument()
+    expect(alertSlotOf('결제는 승인되었습니다')).toHaveFocus()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
   })
 
@@ -912,13 +910,13 @@ describe('PaymentPage 확정 확인 뒤 안내', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    expect(await findPendingTitle('결제 요청을 보내고 있어요')).toBeInTheDocument()
+    expect(await findPendingTitle('결제 요청을 전송하는 중입니다')).toBeInTheDocument()
     await advanceUntil(
-      () => screen.queryByText('결제 결과를 아직 확인하지 못했어요') !== null,
+      () => screen.queryByText('결제 결과를 아직 확인하지 못했습니다') !== null,
       2000,
     )
 
-    expect(screen.queryByText('결제는 승인됐어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제는 승인되었습니다')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '결제 결과 확인하기' })).toBeInTheDocument()
     // 처음 요청과 재전송 8번은 모두 같은 멱등키다
@@ -939,7 +937,7 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     const { router } = renderPayment({ navigation: { held } })
     await clickPay()
     await advanceUntil(
-      () => screen.queryByText('결제 결과를 아직 확인하지 못했어요') !== null,
+      () => screen.queryByText('결제 결과를 아직 확인하지 못했습니다') !== null,
       2000,
     )
     expect(payments).toHaveLength(9)
@@ -961,7 +959,7 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     renderPayment({ navigation: { held } })
 
     await clickPay()
-    await advanceUntil(() => screen.queryByText('결제는 승인됐어요') !== null)
+    await advanceUntil(() => screen.queryByText('결제는 승인되었습니다') !== null)
 
     expect(screen.queryByRole('button', { name: '결제 결과 확인하기' })).not.toBeInTheDocument()
   })
@@ -974,8 +972,8 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
 
     await clickPay()
 
-    expect(await screen.findByText('예매가 확정되지 않았어요')).toBeInTheDocument()
-    expect(screen.getByText(/환불돼요/)).toBeInTheDocument()
+    expect(await screen.findByText('예매가 확정되지 않았습니다')).toBeInTheDocument()
+    expect(screen.getByText(/환불됩니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '내 예매 보기' })).toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
   })
@@ -987,13 +985,13 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     const payments = recordRequests(PAYMENTS_API)
     const first = renderPayment({ navigation: { held } })
     await clickPay()
-    await findPendingTitle('결제를 확인하고 있어요')
+    await findPendingTitle('결제를 확인하는 중입니다')
     first.unmount()
 
     const { router } = renderPayment({ navigation: { held } })
 
     // 누르지 않아도 이어서 보내 지금 상태(확인 중)를 보인다
-    expect(await findPendingTitle('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(await findPendingTitle('결제를 확인하는 중입니다')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     await advanceUntil(() => router.state.location.pathname === resultPath(held))
 
@@ -1010,7 +1008,7 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     const payments = recordRequests(PAYMENTS_API)
     const { router } = renderPayment({ navigation: { held } })
     await clickPay()
-    await findPendingTitle('결제를 확인하고 있어요')
+    await findPendingTitle('결제를 확인하는 중입니다')
 
     // 결제 화면을 떠나 예매 상세로 간다. 결제 시도(토큰·키)는 남아 있다
     await act(() =>
@@ -1018,7 +1016,7 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
         state: reservationNavigationState(HEADING),
       }),
     )
-    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제를 확인하는 중입니다')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: '결제 결과 확인' }))
@@ -1031,7 +1029,7 @@ describe('PaymentPage 결과 확인과 이어 가기', () => {
     )
     expect(readReservationHeading(router.state.location.state)).toEqual(HEADING)
     expect(
-      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
     ).toBeInTheDocument()
   })
 })
@@ -1121,7 +1119,9 @@ describe('PaymentPage 토스 결제창', () => {
 
     await clickPay()
 
-    expect(await screen.findByText('결제를 취소했어요. 다시 결제할 수 있어요.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('결제가 취소되었습니다. 다시 결제할 수 있습니다.'),
+    ).toBeInTheDocument()
     expect(await payButton()).toBeEnabled()
   })
 
@@ -1143,19 +1143,23 @@ describe('PaymentPage 토스 결제창', () => {
 
     await clickPay()
 
-    const alert = await screen.findByText(/결제창에서 결제를 마치지 못했어요/)
-    expect(alert).toHaveTextContent('다시 시도해 주세요. (INVALID_CARD_COMPANY)')
+    const alert = await screen.findByText(/결제창에서 결제가 완료되지 않았습니다/)
+    expect(alert).toHaveTextContent('다시 시도해주세요. (INVALID_CARD_COMPANY)')
     expect(await payButton()).toBeEnabled()
   })
 
   it.each([
-    ['canceled', undefined, '결제를 취소했어요. 다시 결제할 수 있어요.'],
+    ['canceled', undefined, '결제가 취소되었습니다. 다시 결제할 수 있습니다.'],
     [
       'failed',
       'REJECT_CARD_COMPANY',
-      '결제창에서 결제를 마치지 못했어요. 다시 시도해 주세요. (REJECT_CARD_COMPANY)',
+      '결제창에서 결제가 완료되지 않았습니다. 다시 시도해주세요. (REJECT_CARD_COMPANY)',
     ],
-    ['mismatch', undefined, '결제 정보가 맞지 않아 결제를 진행하지 않았어요. 다시 결제해 주세요.'],
+    [
+      'mismatch',
+      undefined,
+      '결제 정보가 일치하지 않아 결제가 진행되지 않았습니다. 다시 결제해주세요.',
+    ],
   ])('돌아온 뒤 %s 안내를 결제 버튼 위에 보인다', async (kind, tossCode, text) => {
     const held = await hold()
     renderPayment({
@@ -1222,7 +1226,7 @@ describe('PaymentPage 토스연동 건너뛰기', () => {
     renderPayment({ navigation: { held } })
 
     expect(
-      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 선택합니다'),
     ).toBeInTheDocument()
     const bypass = await screen.findByRole('button', { name: '토스연동 건너뛰고 결제하기' })
     await userEvent.click(bypass)
@@ -1244,7 +1248,7 @@ describe('PaymentPage 토스연동 건너뛰기', () => {
     renderPayment({ navigation: { held } })
 
     expect(
-      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 골라요'),
+      await screen.findByText('토스페이먼츠 테스트 결제창에서 카드를 선택합니다'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
@@ -1255,7 +1259,7 @@ describe('PaymentPage 토스연동 건너뛰기', () => {
     const held = await hold()
     renderPayment({ navigation: { held } })
 
-    expect(await screen.findByText('시연용 결제라 카드 정보를 받지 않아요')).toBeInTheDocument()
+    expect(await screen.findByText('시연용 결제라 카드 정보를 받지 않습니다')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '토스연동 건너뛰고 결제하기' }),
     ).not.toBeInTheDocument()
@@ -1286,10 +1290,12 @@ describe('PaymentPage 결제창을 닫은 뒤 결제 가능 시간', () => {
     renderPayment({ navigation: { held: soon, clockOffsetMillis: 0 } })
 
     await clickPay()
-    expect(await screen.findByText('결제를 취소했어요. 다시 결제할 수 있어요.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('결제가 취소되었습니다. 다시 결제할 수 있습니다.'),
+    ).toBeInTheDocument()
 
     expect(
-      await screen.findByText('결제 가능 시간이 지났어요', {}, { timeout: 4_000 }),
+      await screen.findByText('결제 가능 시간이 지났습니다', {}, { timeout: 4_000 }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /원 결제하기$/ })).toBeDisabled()
     expect(

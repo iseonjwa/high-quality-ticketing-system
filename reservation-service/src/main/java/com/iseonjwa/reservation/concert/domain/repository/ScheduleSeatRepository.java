@@ -20,6 +20,10 @@ public interface ScheduleSeatRepository {
     // 가격은 좌석 등급으로 고르고 상태는 AVAILABLE이다.
     int createFromVenueSeats(Long scheduleId, Long venueId, Map<SeatGrade, Money> prices, Long actorId);
 
+    // 회차 좌석 표의 DB 통계(행 수·값 분포)를 다시 모은다. 좌석을 만든 트랜잭션이 커밋된 뒤에 부른다(ISE-284).
+    // 통계에 없는 새 회차는 DB가 좌석을 1행 안팎으로 짐작해 좌석 조회가 Nested Loop로 느려진다
+    void refreshStatistics();
+
     // 추첨 설정(D9). sourceGrade의 AVAILABLE 좌석을 ID 오름차순으로 최대 seatCount개 LOTTERY로 바꾸고, 바꾼 수를 돌려준다
     int convertToLottery(Long scheduleId, SeatGrade sourceGrade, int seatCount, Long actorId);
 

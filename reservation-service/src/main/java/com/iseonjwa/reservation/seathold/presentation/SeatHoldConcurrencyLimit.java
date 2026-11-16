@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * 선점 API가 동시에 처리하는 요청 수의 상한(ADR 0061 3번). 자리를 얻지 못한 요청은 DB 커넥션을 잡기 전에 503
+ * 선점 API가 동시에 처리하는 요청 수의 상한(ADR 0062 3번). 자리를 얻지 못한 요청은 DB 커넥션을 잡기 전에 503
  * {@code SERVICE_UNAVAILABLE}로 거절한다. 잠긴 좌석을 기다리는 선점이 커넥션 풀을 다 쥐어 좌석 조회처럼 상관없는
  * API까지 막히는 번짐과, 응답 시한(3초)이 지난 뒤 서버가 좌석을 잡는 유령 선점을 끊는다.
  *
@@ -72,7 +72,7 @@ public class SeatHoldConcurrencyLimit {
     }
 
     // Note: 대기를 짧게 둔다. 길면 그동안 톰캣 스레드를 쥐어 커넥션 대기(1초)를 앞으로 옮긴 것뿐이 된다.
-    // 0으로 두면 순간 몰림까지 잘라, 상한 없이도 다 처리하던 초당 300건에서 16~19%를 거절했다. 200ms는 0~1.4%였다(ADR 0061)
+    // 0으로 두면 순간 몰림까지 잘라, 상한 없이도 다 처리하던 초당 300건에서 16~19%를 거절했다. 200ms는 0~1.4%였다(ADR 0062)
     public <T> T run(Supplier<T> hold) {
         if (permits == null) {
             return hold.get();
