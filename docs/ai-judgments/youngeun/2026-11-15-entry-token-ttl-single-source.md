@@ -1,7 +1,7 @@
 ---
 title: 입장 토큰 유효 시간이 설정(queue.entry-token-ttl)과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를, 설정 하나로 모으고 ISE-282와 나눠 별도 이슈로 진행하자는 AI 추천을 받아들임
 date: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-16
 judge: youngeun
 ai: Claude (Cowork)
 verdict: 수용
@@ -40,13 +40,19 @@ shared: 예
 
 ## 반영
 - Linear ISE-283 생성(상위 ISE-50, 관련 ISE-282·ISE-69).
-- 코드·`contracts.md`는 미반영(ISE-283에서 한다).
+- 2026-11-16 브랜치 `refactor/ISE-283-entry-token-ttl-config`
+  - `EntryTokenIssuer.issue`에 `Duration ttl` 인자 추가, `JwtEntryTokenIssuer`가 `exp`를 그 값으로 계산
+  - `QueueService.issueToken`이 `queueProperties.entryTokenTtl()`을 넘김
+  - 상수 `EntryTokenClaims.TTL` 삭제
+  - `docs/design/queue/contracts.md`의 `exp` 칸을 설정값 기준으로 고침
 
 ## 검증
-- 구현 전.
+- `JwtEntryTokenIssuerTest`: 기존 테스트를 새 인자로 바꾸고, 유효 시간을 3분으로 넘기면 `exp`가 3분 뒤가 되는 테스트를 더함.
+- 상수 사용처가 남지 않았음을 검색으로 확인(`EntryTokenClaims.TTL` 0건).
 
 ## 판단 이력
 - 2026-11-15 수용: 설정 하나로 모으고 ISE-283으로 분리.
+- 2026-11-16 구현: 설정값을 발급기 인자로 넘기고 상수 삭제.
 
 ## 발표·면접 포인트
 - 같은 정책 값이 설정과 상수 두 곳에 있으면 지금은 같아도 한쪽만 바뀌는 순간 장애가 된다. 정책 값은 application이 한 곳에서 읽어 저장소(Lua)와 토큰 발급기에 함께 넘기도록 모았다.
