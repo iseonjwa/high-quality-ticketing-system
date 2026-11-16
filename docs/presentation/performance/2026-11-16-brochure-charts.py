@@ -148,11 +148,11 @@ if __name__ == '__main__':
     gateway(); seathold(); lottery(); synthetic(); payment_autoassign()
 
 
-# 6. AI 판단 기록(11/16 dev 486501b7 기준). 개별 기록은 머리말 verdict, 일지는 줄 수
+# 6. AI 판단 기록(11/16 dev ca16f764 기준). 개별 기록은 머리말 verdict, 일지는 줄 수
 def ai_judgments():
     people = [  # 이름, 수용, 부분, 거부, 보류, 일지 줄
-        ('강민', 41, 15, 59, 3, 260), ('준현', 32, 12, 21, 1, 132), ('효승', 2, 0, 5, 0, 100),
-        ('권우', 20, 9, 5, 1, 65), ('영은', 7, 4, 4, 0, 8)]
+        ('강민', 41, 15, 62, 3, 315), ('준현', 32, 12, 21, 1, 143), ('효승', 2, 0, 5, 0, 105),
+        ('권우', 20, 9, 5, 1, 68), ('영은', 7, 4, 4, 0, 13)]
     colors = [PRIMARY, '#8C8CE8', ORANGE, GRAY]
     body = panel(48, 140, 1000, 660, '사람별 판단 기록 · 개별 기록(판정별) + 일지')
     x0, y0, scale = 170, 230, 2.0
@@ -173,14 +173,14 @@ def ai_judgments():
     for lab, col in zip(('수용', '부분 수용', '거부', '보류', '일지(폭 ½)'), colors + ['#E4E6F0']):
         body += f'<rect x="{lx}" y="736" width="22" height="22" rx="4" fill="{col}"/>' + text(lx + 30, 754, lab, 18, BODY)
         lx += 150
-    body += panel(1072, 140, 480, 660, '11/16 기준 기록')
-    rows = [('806', 'AI 판단 기록(개별 241 + 일지 565)'), ('94', '개별 기록 중 거부(39%)'), ('351', '질문 학습 노트'),
-            ('63', '결정 기록(ADR)'), ('74', '트러블슈팅'), ('384', '머지된 PR')]
+    body += panel(1072, 140, 480, 660, '11/16 저녁 기준 기록')
+    rows = [('212', '팀 공통 판단 표(개별 244·일지 644)'), ('68', '공통 표 중 AI 제안 거부(32%)'), ('356', '질문 학습 노트'),
+            ('64', '결정 기록(ADR)'), ('78', '트러블슈팅'), ('390', '머지된 PR')]
     for i, (v, lab) in enumerate(rows):
         y = 250 + i * 90
         body += text(1100, y + 20, v, 46, PRIMARY if i < 2 else INK, 'start', 800)
         body += text(1250, y + 12, lab, 19, BODY)
-    src = '출처: docs/ai-judgments/(머리말 verdict, 일지 "- [" 줄), docs/learning/*/qna, docs/decisions, docs/troubleshooting.md, gh pr list · 기준 2026-11-16 dev 486501b7 · 판정은 records-check.sh가 허용하는 네 값'
+    src = '출처: docs/ai-judgments/README.md 공통 판단 표, 사람별 폴더(머리말 verdict, 일지 "- [" 줄), docs/learning/*/qna, docs/decisions, docs/troubleshooting.md, gh pr list · 기준 2026-11-16 dev ca16f764'
     save('2026-11-16-brochure-ai-judgments.svg', frame('AI가 쓰고, 사람이 판단하고, 기록이 남는다', '모든 AI 제안에 대한 수용·거부를 판단한 순간 저장소에 남겼다. 기록을 챙기는 일은 사람의 기억이 아니라 훅과 CI가 했다', src, body))
 
 
