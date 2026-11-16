@@ -44,6 +44,7 @@
 | `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
 | `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
 | `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다. 진입 연타는 `http.batch`로 한꺼번에 보내고, `multi_device`는 남은 기기만큼 그림자 폴러를 둔다. 503의 `Retry-After`를 따른다(2절 "O1 요청 동작"). v2 CSV면 확정 뒤 취소·추가 예매·매진 뒤 행동·두 세션 선점을 더 한다(2절 "O1 v2 행동") |
+| `scenarios/o1-exceptions.js` | O1 예외(ISE-289). 대기열·입장 토큰·선점·결제·취소의 예외 요청을 `ITERATIONS`번 보내고 기대 상태 코드·오류 코드 표와 맞는지 판정한다. 부하가 아니라 정합성 확인용이라 O1과 따로 돌린다(2절 "O1 예외 기대 코드") |
 | `scenarios/a0-assignment-baseline.js` | A0 발제 기준선. 동시 100명이 1초 안에 시작해 각 10번씩 좌석 선점을 요청한다(총 1,000회). 반복마다 사용자·좌석을 새로 써 409 없이 선점의 처리량을 잰다. 요청 수가 1,000건이 아니거나 409가 있거나 오류율이 1% 이상이면 임계값을 어겨 종료 코드 99로 끝난다(요약 JSON은 남는다) |
 | `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
 | `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
@@ -75,6 +76,7 @@
 | B1-d | `scenarios/b1d-concert-detail.js` | 있음. 2026-11-06 local(같은 방식, 공연 상세 하나)에서 초당 10~400건으로 잰 결과는 개인 기록에 있다. 2026-11-11 배포: 초당 400건까지 실패 0, p95 4ms 안팎(같은 문서) |
 | R1-d | `scenarios/r1d-confirm.js` | 있음(ISE-189). R1과 같은 흐름·판정 기준. 배포 서버 측정 전 |
 | W1 | `scenarios/w1-warmup.js` | 있음(ISE-264). 2026-11-16 `k6 inspect`로 옵션만 확인했다. 서버 실행은 확인 못 함 |
+| O1 예외 | `scenarios/o1-exceptions.js` | 있음(ISE-289). 2026-11-16 local(이 브랜치로 빌드한 스택) `ITERATIONS=2`: 50건 모두 기대 코드와 같음(사례 25개 × 2). E19 기대를 일부러 409로 바꾸면 24/25, 종료 코드 99로 실패를 잡았다 |
 
 ## 2. 실행
 
@@ -171,6 +173,40 @@ v2에서 `PURCHASE_LIMIT_EXCEEDED`와 `ENTRY_TOKEN_USED`는 좌석을 다시 골
 
 추가 예매를 대기열 없이(같은 입장 토큰으로) 다시 선점하는 안은 버렸다. 서버가 403 `ENTRY_TOKEN_USED`로 막으므로 실제 사용자 경로가 아니고, 대기열을 다시 타는 부하(가설 H1의 매진 뒤 폴링)도 빠진다. 같은 입장 토큰을 새로 받는 안(토큰 API만 다시 호출)도 대기열 `issued`가 지워져 `QUEUE_NOT_JOINED` 404가 나므로 버렸다.
 
+**O1 예외 기대 코드**(ISE-289, `scenarios/o1-exceptions.js`). 회차 두 개(1시간 뒤 오픈, 이미 판매 중)를 만들고 사례마다 새 사용자로 요청한다. 대기열 사례 말고는 입장 토큰을 서명해 쓴다. 실패 응답 본문은 `{ status, code, message, traceId }`(`FailureResponse`, Gateway는 `GatewayErrorWriter`가 같은 형식)이고 `code`로 판정한다. "(준비)"는 다음 사례를 만들기 위한 정상 요청이라 실패하면 뒤 사례를 건너뛴다.
+
+| 사례 | 요청 | 기대 | 근거(코드) |
+|---|---|---|---|
+| E01 | 오픈 전 회차에 대기열 진입 | 409 `SALE_NOT_OPEN` | `enter.lua` → `QueueService.enter` |
+| E02 | 진입하지 않고 입장 토큰 요청 | 404 `QUEUE_NOT_JOINED` | `issue-token.lua` `NOT_JOINED` |
+| E03 | 앞에 300명을 세운 뒤 진입하고 곧바로 토큰 요청 | 409 `QUEUE_NOT_READY` | `issue-token.lua` `WAITING`. 앞 300명이 다 들어가려면 초당 50명 기준 6초가 걸린다 |
+| E04 | 입장 토큰 없이 좌석 조회 | 403 `ENTRY_TOKEN_INVALID` | Gateway `EntryTokenFilter`(`EntryTokenPolicy`의 좌석 조회·선점 경로) |
+| E05 | 입장 토큰 없이 선점 | 403 `ENTRY_TOKEN_INVALID` | 같음 |
+| E06 | 오픈 전 회차에 선점 | 409 `SALE_NOT_OPEN` | `SeatHoldRules.requireOnSale` |
+| E07 | 같은 좌석을 두 번 담아 선점 | 400 `SEAT_COUNT_MISMATCH` | `SeatHoldRules.sortedDistinctSeatIds` |
+| E08 | 5석 선점(회차 한도 4) | 400 `SEAT_COUNT_MISMATCH` | `SeatHoldRules.requireWithinPerUserLimit`. 한 요청이 한도를 넘으면 409 `PURCHASE_LIMIT_EXCEEDED`가 아니라 400이다 |
+| E09 | 1석 선점(준비) | 201 | |
+| E10 | 같은 입장 토큰으로 다른 좌석 선점 | 403 `ENTRY_TOKEN_USED` | `SeatHoldRules.requireUnusedEntryToken`(ADR 0053) |
+| E11 | 결제 전(HELD) 예매 취소 | 409 `RESERVATION_NOT_CANCELABLE` | `ReservationCancelService.requireCancelable` |
+| E12 | 금액을 1,000원 올려 결제 | 400 `PAYMENT_AMOUNT_MISMATCH` | `PaymentApprovalService.verifyToken` |
+| E13 | 정상 결제(준비) | 200 | |
+| E14 | 같은 결제를 새 멱등키로 다시 보냄 | 200, 같은 `paymentId` | `PaymentApprovalService.respondToExisting`. 사용자·예매·금액·수단이 같으면 기존 결제에 연결한다. `PAYMENT_ALREADY_EXISTS`(409)는 같은 예매에 조건이 다른 결제가 있을 때·확인 필요(`NEEDS_MANUAL_CHECK`)일 때라 이 요청으로는 나지 않는다 |
+| E15 | 확정 대기(준비) | 20초 안에 `CONFIRMED` | |
+| E16 | `Idempotency-Key` 없이 취소 | 400 `VALIDATION_FAILED` | `ReservationController.cancelReservation` |
+| E17 | 다른 사용자의 예매 취소 | 404 `NOT_FOUND` | `ReservationCancelService.cancel`(없는 예매와 같게 답한다) |
+| E18 | 확정 예매 취소 | 202 | |
+| E19 | 같은 예매를 다시 취소 | 202 | 이미 `CANCELED`면 첫 응답과 같은 결과를 돌려준다. `RESERVATION_NOT_CANCELABLE`이 아니다 |
+| E20 | 4석 선점(준비) | 201 | |
+| E21 | 새 입장 토큰으로 1석 더 선점 | 409 `PURCHASE_LIMIT_EXCEEDED` | `SeatHolding.addHeldCount` |
+| E22~E24 | 4석 결제·확정·취소(준비) | 200 · `CONFIRMED` · 202 | |
+| E25 | 취소 뒤 새 입장 토큰으로 다시 4석 선점 | 201 | 취소가 보유 매수를 돌려준다(`ReservationCancelService.subtractQuota`) |
+
+지금 사례에 넣지 않은 것(확인 못 함): 입장 토큰 만료(10분을 기다려야 한다), 결제 토큰 만료 직후 결제(`PAYMENT_TOKEN_INVALID`, 4분 50초), 공연 시작 뒤 취소(`CANCEL_PERIOD_ENDED`), 추첨 예매 취소(`LOTTERY_RESERVATION_NOT_CANCELABLE`), 차례가 지나 줄 맨 뒤로 가는 경우, 카드 거절(Mock PG `DECLINE`이 서버 전체에 걸리는 장애 주입 모드라 따로 실행한다).
+
+```bash
+ITERATIONS=1 bash loadtest/k6/run.sh scenarios/o1-exceptions.js
+```
+
 X1은 만료 스케줄러를 켜고, **만료 시각이 지났는데 HELD로 남은 예매가 없는 DB**에서 잰다(4절).
 
 ```bash
@@ -224,7 +260,7 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `SEAT_MODE` | `map` | O1: 좌석을 정하는 방법. `map`은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다. `partitioned`는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다: setup에서 좌석 조회를 한 번 해 빈 좌석을 사용자마다 겹치지 않게 나누고(사용자당 균일 2석, Synthetic은 CSV `seats` 최댓값), 측정 중에는 좌석 조회 없이 바로 선점한다. 등급(`zone`)은 보지 않고 서버가 고르는 비용은 빠진다. 빈 좌석이 `USERS` × 사용자당 석 수보다 적으면 setup에서 실패하고, 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. `auto`는 자동 배정 API(`POST /api/v1/schedules/{id}/reservations/auto`, ISE-264)를 실제로 불러 좌석 조회 없이 구역·등급과 매수만 보낸다. 균일은 70%가 구역 A~C, 30%가 A~Y 중 하나(map의 앞 구역 쏠림과 맞춤), Synthetic은 CSV `zone`을 등급으로(ANY는 회차 전체) 보내고, 구역 매진(409 `ZONE_SOLD_OUT`)은 map의 409처럼 다시 고른다. `o1_outcomes`·태그는 세 모드가 같다 |
 | `ARRIVAL_MODE` | `profile` | O1: 도착·진입 시각을 정하는 방법. `profile`은 지금 동작 그대로 균일 규칙 또는 `USERS_CSV` 행을 쓴다. `realistic`은 실제 오픈처럼 95%가 오픈 10분~1분 전에 와서 상세를 새로고침하고(남은 시간 5분 초과 20~40초, 1~5분 10~20초, 마지막 1분 2~5초 간격), 오픈 +0.05·+0.5·+0.9초 근처에 진입을 누른다(사용자 3,000명 기준 오픈 1초 안 약 84%, `tools/arrival-preview.mjs`). 균일 사용자는 45%가 2~5번 연타하고, CSV 사용자는 행의 `enter_clicks`를 쓴다. 확정 조회는 프론트(`paymentFlow.ts`)와 같게 승인 직후부터 1초마다 30초까지다. 좌석·선점·결제 규칙은 그대로다. 값은 모두 추정이고 근거는 `scenarios/o1-open-peak.js` 머리말에 있다. 적용 여부는 실행 첫 줄 `도착 realistic`으로 본다 |
 | `OPEN_AT` | 없음 | O1: `SCHEDULE_ID`를 줄 때 그 회차의 오픈 시각(ISO-8601 UTC). 지금 + 30초 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 한다(setup이 검사). `PRE_OPEN_SECONDS`는 발생기에서 `$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) ))`로 맞춘다 |
-| `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다 |
+| `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다. O1 예외: `ITERATIONS`(기본 1)는 예외 사례 묶음을 도는 횟수다 |
 | `SOLDOUT_REFRESH_SECONDS` / `SOLDOUT_REFRESH_COUNT` | 30 / 10 | O1 v2: `after_soldout`이 `refresh`·`stay`인 사용자가 매진을 본 뒤 다시 부르는 간격(초)과 횟수. 값은 가정이다 |
 
 새 시나리오가 변수를 더하면 `run.sh`의 `PASS_ENV` 목록에도 더한다. Docker가 목록에 있는 변수만 컨테이너로 넘긴다.
