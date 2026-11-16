@@ -30,6 +30,16 @@
 //     profile은 0.5초 뒤부터 0.5초마다 10번이라 프론트보다 2배 자주 묻는다
 // Note: 한 VU의 사용자는 차례로 요청하므로 오픈 1초 안 몰림을 살리려면 VU당 사용자를 적게 둔다. action_lateness{state:enter}로 밀린 정도를 본다. 예:
 //   ARRIVAL_MODE=realistic SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+//
+// v2 CSV(loadtest/synthetic/persona_spec_v2.py, ISE-289)는 열 4개가 더 있다. 이 열이 있을 때만 아래 행동을 하고, 없으면 지금과 같다.
+//   - cancel_after_confirm_s > 0: 확정하고 그 초 뒤 처음 확정한 예매를 취소한다(o1_outcomes canceled·cancel_failed)
+//   - rebook_seats > 0: 확정 뒤 같은 회차에 대기열 진입부터 다시 서서 그 매수를 더 산다(rebook_confirmed, 한도 초과 rebook_limit 등)
+//   - after_soldout: 좌석 조회에서 매진을 본 뒤 leave 바로 나감(soldout), refresh 좌석 조회를 SOLDOUT_REFRESH_SECONDS(기본 30)초마다
+//     SOLDOUT_REFRESH_COUNT(기본 10)번 다시 불러 풀린 좌석을 찾음(soldout_refresh), stay 같은 간격·횟수로 공연 상세만 새로고침(soldout_stay)
+//   - sessions = 2: 첫 선점을 같은 계정의 두 번째 세션과 동시에 보낸다(session2_*)
+// 확정 뒤·매진 뒤 결과(soldout_seen·resale_found·canceled·rebook_*·session2_*)는 사용자 한 명의 최종 결과가 아니라 덧붙은 결과다.
+// compare.py가 이 값들을 3절 결과표에서 빼고 12절에 따로 센다. v2는 partitioned를 지원하지 않는다(나눠 둔 좌석 밖을 다시 사야 한다). 예:
+//   SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS_CSV=../data/o1-synthetic-v2-3000.csv USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 import http from 'k6/http';
 import { sleep } from 'k6';
 import exec from 'k6/execution';
@@ -40,7 +50,9 @@ import { accessToken, assertSigningKeys, userIdOf, uuid } from '../lib/tokens.js
 import { authHeaders, dataOf, errorCodeOf, jsonHeaders, retryDelayMillis, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { enterPath, positionPath } from '../lib/queue.js';
-import { availableSeatIds, isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus, userOf } from '../lib/booking.js';
+import {
+  availableSeatIds, cancelReservation, isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus, userOf,
+} from '../lib/booking.js';
 import { setApproveDelay } from '../lib/mockpg.js';
 import { realisticArrival, realisticClicks, realisticRefreshMillis } from '../lib/arrival.js';
 
@@ -79,9 +91,17 @@ const CSV_TEXT_COLUMNS = ['persona', 'zone', 'on_conflict'];
 // 행동 축 구간(0 낮음, 1 중간, 2 높음). 있으면 지표 태그로만 붙이고 행동에는 쓰지 않는다. 없는 CSV(예전 파일)도 그대로 돈다
 // Note: 열 이름과 계산 규칙의 정본은 loadtest/synthetic/persona_spec.py의 AXES다. 여기서는 값을 다시 계산하지 않는다
 const CSV_AXIS_COLUMNS = ['ax_arrival', 'ax_entry', 'ax_demand', 'ax_speed', 'ax_persistence', 'ax_intent'];
+// v2 열(정본 loadtest/synthetic/persona_spec_v2.py의 NEW_FIELDS). 넷 다 있거나 넷 다 없어야 한다
+const CSV_V2_NUMBER_COLUMNS = ['cancel_after_confirm_s', 'rebook_seats', 'sessions'];
+const CSV_V2_TEXT_COLUMNS = ['after_soldout'];
+// 매진 뒤 refresh·stay의 간격(초)과 횟수. 초안의 "매진 뒤에도 좌석 화면을 30초마다 새로고침"(가정)을 기본으로 둔다
+const SOLDOUT_REFRESH_SECONDS = numberEnv('SOLDOUT_REFRESH_SECONDS', 30);
+const SOLDOUT_REFRESH_COUNT = numberEnv('SOLDOUT_REFRESH_COUNT', 10);
 
 // Note: SharedArray는 VU마다 복사하지 않고 한 번 읽은 CSV를 모든 VU가 나눠 본다. 3,000행도 VU 1,000개가 따로 들면 메모리가 낭비된다
 const csvRows = __ENV.USERS_CSV ? new SharedArray('o1-users', () => parseUsersCsv(open(__ENV.USERS_CSV))) : null;
+// v2 열이 있는 CSV면 확정 뒤·매진 뒤 행동을 켠다. 균일 모드와 v1 CSV는 false라 새 분기를 하나도 타지 않는다
+const V2 = csvRows !== null && csvRows.length > 0 && csvRows[0].sessions !== undefined;
 
 const outcomes = new Counter('o1_outcomes');
 // 대기열 진입부터 입장 토큰을 받기까지(ms)
@@ -117,10 +137,14 @@ export function setup() {
   if (csvRows !== null && csvRows.length !== USERS) {
     throw new Error(`USERS(${USERS})는 ${__ENV.USERS_CSV}의 행 수(${csvRows.length})와 같아야 합니다`);
   }
+  if (V2 && SEAT_MODE === 'partitioned') {
+    throw new Error('v2 CSV(추가 예매·두 세션)는 SEAT_MODE=partitioned를 지원하지 않습니다. map 또는 auto로 실행합니다');
+  }
   const schedule = SCHEDULE_ID ? scheduleFromEnv() : createSchedule(adminLogin(), { title: 'k6 O1', openInSeconds: PRE_OPEN_SECONDS });
   setApproveDelay(PG_DELAY_MS);
   console.log(`O1 회차 ${schedule.scheduleId}(공연 ${schedule.concertId}), 사용자 ${USERS}명(${csvRows === null ? '균일' : 'Synthetic ' + __ENV.USERS_CSV}), `
-    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}, 도착 ${ARRIVAL_MODE}`);
+    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}, 도착 ${ARRIVAL_MODE}`
+    + (V2 ? `, v2 행동(매진 뒤 ${SOLDOUT_REFRESH_SECONDS}초 × ${SOLDOUT_REFRESH_COUNT}번)` : ''));
   const data = { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
   if (SEAT_MODE === 'partitioned') {
     Object.assign(data, partitionSeats(schedule.scheduleId));
@@ -209,7 +233,23 @@ function usersOfThisVu(data) {
 //   firstAt 첫 행동 시각, enterAt 진입(진입 0번이면 떠나는) 시각, viewFirst 진입 전에 상세를 한 번은 보는지,
 //   refreshMs 상세 새로고침 간격(0이면 새로고침 없음), enterClicks 진입 요청 횟수, seats 한 번에 잡을 좌석 수,
 //   zone 노리는 등급(null이면 좌석 전체에서 기존 규칙으로), thinkMs 첫 고민 시간, maxRetry 409 뒤 다시 고르는 횟수,
-//   onConflict 409 뒤 행동, patienceMs 대기열에서 참는 시간(0이면 끝까지), abandonRatio 선점 뒤 이탈 확률, payDelayMs 선점부터 결제까지
+//   onConflict 409 뒤 행동, patienceMs 대기열에서 참는 시간(0이면 끝까지), abandonRatio 선점 뒤 이탈 확률, payDelayMs 선점부터 결제까지.
+//   v2만 쓰는 칸(V2가 false면 읽지 않는다): cancelAfterMs 확정 뒤 취소까지(0 취소 안 함), rebookSeats 추가 예매 매수(0 안 함),
+//   afterSoldout 매진 뒤 행동(leave·refresh·stay), sessions 동시에 선점하는 세션 수
+const NO_V2_BEHAVIOR = { cancelAfterMs: 0, rebookSeats: 0, afterSoldout: 'leave', sessions: 1 };
+
+function v2BehaviorOf(row) {
+  if (!V2) {
+    return NO_V2_BEHAVIOR;
+  }
+  return {
+    cancelAfterMs: row.cancel_after_confirm_s * 1000,
+    rebookSeats: row.rebook_seats,
+    afterSoldout: row.after_soldout,
+    sessions: row.sessions,
+  };
+}
+
 function uniformProfile(data) {
   return {
     persona: 'uniform',
@@ -228,6 +268,7 @@ function uniformProfile(data) {
     patienceMs: 0,
     abandonRatio: ABANDON_RATIO,
     payDelayMs: null,
+    ...NO_V2_BEHAVIOR,
   };
 }
 
@@ -248,7 +289,7 @@ function csvProfile(row, data) {
     refreshMs = row.refresh_s * 1000;
     enterAt = refreshMs > 0 ? openAt + NO_ENTER_BROWSE_MS : firstAt;
   }
-  return {
+  return Object.assign({
     persona: row.persona,
     axes: axisTagsOf(row),
     firstAt,
@@ -264,7 +305,7 @@ function csvProfile(row, data) {
     patienceMs: row.queue_patience_s * 1000,
     abandonRatio: row.abandon_after_hold,
     payDelayMs: row.pay_delay_s * 1000,
-  };
+  }, v2BehaviorOf(row));
 }
 
 // realistic: 도착·진입·새로고침만 바꾸고 좌석·고민·재시도·대기 인내·이탈·결제 지연은 균일 또는 CSV 값을 둔다.
@@ -304,11 +345,17 @@ function parseUsersCsv(text) {
       throw new Error(`USERS_CSV 머리말에 ${name} 열이 없습니다(${lines[0]})`);
     }
   }
+  const v2Columns = CSV_V2_NUMBER_COLUMNS.concat(CSV_V2_TEXT_COLUMNS);
+  const v2Present = v2Columns.filter((name) => header.indexOf(name) >= 0);
+  if (v2Present.length > 0 && v2Present.length < v2Columns.length) {
+    throw new Error(`USERS_CSV의 v2 열은 ${v2Columns.join(', ')}가 모두 있어야 합니다(있는 열 ${v2Present.join(', ')})`);
+  }
+  const numberColumns = CSV_NUMBER_COLUMNS.concat(CSV_V2_NUMBER_COLUMNS);
   return lines.slice(1).map((line) => {
     const cells = line.split(',');
     const row = {};
     header.forEach((name, index) => {
-      row[name] = CSV_NUMBER_COLUMNS.indexOf(name) >= 0 ? Number(cells[index]) : cells[index];
+      row[name] = numberColumns.indexOf(name) >= 0 ? Number(cells[index]) : cells[index];
     });
     return row;
   });
@@ -325,8 +372,75 @@ function nextUser(list) {
 }
 
 function finish(user, outcome) {
+  if (user.rebookRound) {
+    return finishRebook(user, outcome);
+  }
   user.state = 'done';
   outcomes.add(1, Object.assign({ outcome, persona: user.profile.persona }, user.profile.axes));
+  if (V2 && outcome === 'confirmed') {
+    planAfterConfirm(user);
+  }
+}
+
+// v2의 덧붙은 결과. 사용자 한 명의 최종 결과(finish)와 같은 지표에 다른 outcome 이름으로 남긴다(compare.py FOLLOW_UP_OUTCOMES)
+function followUp(user, outcome) {
+  outcomes.add(1, Object.assign({ outcome, persona: user.profile.persona }, user.profile.axes));
+}
+
+// v2: 확정 뒤 할 일을 차례로 정한다. 추가 예매가 먼저, 취소가 다음이다. 할 일이 없으면 done이다.
+// Note: 취소 시각은 처음 확정한 시각부터 잰다. 추가 예매가 길어져 그 시각이 지났으면 추가 예매가 끝난 즉시 취소한다
+function planAfterConfirm(user) {
+  const profile = user.profile;
+  if (user.firstReservationId === undefined) {
+    user.firstReservationId = user.held.reservationId;
+    user.confirmedAt = Date.now();
+  }
+  if (profile.rebookSeats > 0 && !user.rebookDone) {
+    return startRebook(user);
+  }
+  if (profile.cancelAfterMs > 0 && !user.cancelDone) {
+    user.state = 'cancel';
+    user.nextAt = Math.max(Date.now(), user.confirmedAt + profile.cancelAfterMs);
+    return;
+  }
+  user.state = 'done';
+}
+
+// 추가 예매는 대기열 진입부터 다시 한다.
+// Note: 선점이 성공하면 입장 토큰을 소모하고 대기열 issued에서 지운다(ADR 0053 결정 3, ConsumedEntryTokens). 그래서 다시 진입하면
+// enter.lua가 새 순번을 줘 줄 맨 뒤에 선다. 같은 토큰으로 바로 선점하면 403 ENTRY_TOKEN_USED라 토큰도 새로 받는다.
+// 고민 시간은 첫 예매의 think_ms를 다시 쓴다
+function startRebook(user) {
+  user.rebookDone = true;
+  user.rebookRound = true;
+  user.attempt = 0;
+  user.zone = user.profile.zone;
+  user.state = 'enter';
+  user.nextAt = Date.now() + user.profile.thinkMs;
+}
+
+// 추가 예매의 끝. 결과 앞에 rebook_를 붙여 덧붙은 결과로 남긴다(confirmed → rebook_confirmed, limit → rebook_limit)
+function finishRebook(user, outcome) {
+  user.rebookRound = false;
+  followUp(user, `rebook_${outcome}`);
+  planAfterConfirm(user);
+}
+
+// 좌석 조회에서 매진을 봤다. 추가 예매 중이거나 leave면 지금처럼 끝낸다
+function afterSoldOut(user) {
+  const action = user.rebookRound ? 'leave' : user.profile.afterSoldout;
+  if (!V2 || action === 'leave') {
+    return finish(user, 'soldout');
+  }
+  followUp(user, 'soldout_seen');
+  user.soldoutChecks = 0;
+  user.state = action === 'refresh' ? 'soldoutRefresh' : 'soldoutStay';
+  user.nextAt = Date.now() + SOLDOUT_REFRESH_SECONDS * 1000;
+}
+
+// 같은 계정의 두 번째 세션이 같이 선점할지. 첫 예매의 첫 선점에서 한 번만 한다(재시도·추가 예매·매진 뒤 재조회는 한 세션)
+function wantsSecondSession(user) {
+  return V2 && user.profile.sessions === 2 && user.attempt === 0 && !user.rebookRound && !user.secondTried;
 }
 
 function record(user, step, res) {
@@ -440,11 +554,15 @@ const STEPS = {
       return finish(user, 'error');
     }
     if (isSoldOut(res.body)) {
-      return finish(user, 'soldout');
+      return afterSoldOut(user);
     }
     user.seatIds = pickSeats(user, res.body);
     if (user.seatIds.length === 0) {
       return finish(user, 'zone_soldout');
+    }
+    if (wantsSecondSession(user)) {
+      // 두 번째 세션도 같은 좌석 화면에서 따로 고른다. 겹치면 그대로 보낸다(실제로도 두 기기가 같은 좌석을 누를 수 있다)
+      user.secondBody = { seatIds: pickSeats(user, res.body) };
     }
     user.state = 'hold';
     const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
@@ -454,11 +572,24 @@ const STEPS = {
   hold(user, data) {
     const path = SEAT_MODE === 'auto' ? 'reservations/auto' : 'reservations';
     const body = SEAT_MODE === 'auto' ? user.autoBody : { seatIds: user.seatIds };
-    const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/${path}`), JSON.stringify(body), {
+    const params = {
       headers: Object.assign(jsonHeaders(user.access, { 'Idempotency-Key': uuid() }), { 'X-Entry-Token': user.entry }),
       tags: { api: 'hold' },
-    });
+    };
+    const res = user.secondBody
+      ? holdFromTwoSessions(user, data, path, body, params)
+      : http.post(url(`/api/v1/schedules/${data.scheduleId}/${path}`), JSON.stringify(body), params);
     record(user, 'hold', res);
+    if (V2 && res.status !== 201) {
+      // 재시도해도 같은 이유로 거절되는 두 가지는 좌석을 다시 고르지 않고 끝낸다(추가 예매에서는 rebook_limit·rebook_token_used)
+      const code = errorCodeOf(res);
+      if (code === 'PURCHASE_LIMIT_EXCEEDED') {
+        return finish(user, 'limit');
+      }
+      if (code === 'ENTRY_TOKEN_USED') {
+        return finish(user, 'token_used');
+      }
+    }
     if (res.status === 201) {
       user.held = dataOf(res);
       if (Math.random() < user.profile.abandonRatio) {
@@ -509,7 +640,87 @@ const STEPS = {
     }
     user.nextAt = Date.now() + CONFIRM_INTERVAL_MS;
   },
+  // 9. 확정 뒤 취소(v2 cancel_after_confirm_s). 처음 확정한 예매를 취소한다
+  cancel(user) {
+    const res = cancelReservation(user, user.firstReservationId);
+    record(user, 'cancel', res);
+    user.cancelDone = true;
+    followUp(user, res.status === 202 ? 'canceled' : 'cancel_failed');
+    planAfterConfirm(user);
+  },
+  // 10. 매진 뒤 좌석 조회 반복(v2 after_soldout=refresh, 취소표 노리기). 빈 좌석이 보이면 선점으로 간다
+  // Note: 입장 토큰은 선점이 성공해야 소모하므로 매진을 본 사람의 토큰은 만료(10분)까지 좌석 조회에 쓸 수 있다(ADR 0053 결과).
+  // 기본 30초 × 10번이면 300초라 그 안이다. 조회가 200이 아니면(만료 403 등) 더 하지 않고 끝낸다
+  soldoutRefresh(user, data) {
+    const res = http.get(url(`/api/v1/schedules/${data.scheduleId}/seats`), {
+      headers: authHeaders(user.access, { 'X-Entry-Token': user.entry }),
+      tags: { api: 'seats', after: 'soldout' },
+      timeout: '10s',
+    });
+    record(user, 'seats_refresh', res);
+    user.soldoutChecks++;
+    if (res.status === 200 && !isSoldOut(res.body)) {
+      const seatIds = pickSeats(user, res.body);
+      if (seatIds.length > 0) {
+        followUp(user, 'resale_found');
+        user.seatIds = seatIds;
+        user.state = 'hold';
+        user.nextAt = Date.now() + (0.5 + Math.random() * 0.5) * 1000;
+        return;
+      }
+    }
+    if (res.status !== 200 || user.soldoutChecks >= SOLDOUT_REFRESH_COUNT) {
+      return finish(user, 'soldout_refresh');
+    }
+    user.nextAt = Date.now() + SOLDOUT_REFRESH_SECONDS * 1000;
+  },
+  // 11. 매진 화면을 띄워 둔 채 공연 상세만 새로고침한다(v2 after_soldout=stay). 좌석 조회보다 가벼운 요청이라 refresh와 비교한다
+  soldoutStay(user, data) {
+    const res = http.get(url(`/api/v1/concerts/${data.concertId}`), { tags: { api: 'concert_detail', after: 'soldout' } });
+    record(user, 'browse_soldout', res);
+    if (++user.soldoutChecks >= SOLDOUT_REFRESH_COUNT) {
+      return finish(user, 'soldout_stay');
+    }
+    user.nextAt = Date.now() + SOLDOUT_REFRESH_SECONDS * 1000;
+  },
 };
+
+// v2 sessions=2: 같은 계정의 두 번째 세션이 같은 입장 토큰으로 첫 세션과 같은 순간 선점한다. 응답은 결제를 이어 갈 쪽 하나다.
+// Note: 두 기기는 같은 순번에서 같은 입장 토큰을 받는다(issue-token.lua가 유효한 issued를 그대로 돌려준다). 그래서 토큰 하나를 같이 쓴다.
+// 입장 토큰 1회 사용(ADR 0053)이 지켜지면 한쪽만 201이고, 다른 쪽은 403 ENTRY_TOKEN_USED나 좌석·매수 409다.
+// 둘 다 201이면 session2_double_held로 따로 세어 정합성 문제로 본다
+function holdFromTwoSessions(user, data, path, body, params) {
+  const secondBody = user.secondBody;
+  user.secondBody = null;
+  user.secondTried = true;
+  const target = url(`/api/v1/schedules/${data.scheduleId}/${path}`);
+  const secondParams = {
+    headers: Object.assign(jsonHeaders(accessToken(user.userId), { 'Idempotency-Key': uuid() }), { 'X-Entry-Token': user.entry }),
+    tags: { api: 'hold', session: 'second' },
+  };
+  const [first, second] = http.batch([
+    { method: 'POST', url: target, body: JSON.stringify(body), params },
+    { method: 'POST', url: target, body: JSON.stringify(secondBody), params: secondParams },
+  ]);
+  record(user, 'hold_second', second);
+  followUp(user, secondSessionOutcome(first, second));
+  // 첫 세션이 실패하고 두 번째가 성공했으면 두 번째로 결제를 이어 간다. 둘 다 실패면 첫 세션 응답으로 재시도·포기를 정한다
+  return first.status !== 201 && second.status === 201 ? second : first;
+}
+
+function secondSessionOutcome(first, second) {
+  if (second.status === 201) {
+    return first.status === 201 ? 'session2_double_held' : 'session2_held';
+  }
+  const code = errorCodeOf(second);
+  if (code === 'ENTRY_TOKEN_USED') {
+    return 'session2_token_used';
+  }
+  if (code === 'PURCHASE_LIMIT_EXCEEDED') {
+    return 'session2_limit';
+  }
+  return second.status === 409 ? 'session2_conflict' : 'session2_other';
+}
 
 // partitioned의 5단계. 좌석 조회 없이 setup에서 나눠 둔 좌석을 쓰고, 고민 시간은 map과 같다
 function takePartitionedSeats(user, data) {
@@ -526,13 +737,17 @@ function takePartitionedSeats(user, data) {
 // 인기 범위는 1,800석으로 map보다 조금 넓다). Synthetic은 CSV zone(VIP·R·S)을 등급으로 보내고, ANY는 회차 전체(본문에 범위 없음)다.
 // 409 뒤에는 map처럼 다시 고른다. 균일은 같은 규칙으로 새 구역을, any_zone 사용자는 ANY(회차 전체)로 바꿔 보낸다
 function chooseAutoCriteria(user) {
-  const count = seatCountOf(user.profile);
+  const count = seatCountFor(user);
   if (user.profile.zone === null) {
     const hot = Math.random() < 0.7;
     const index = Math.floor(Math.random() * (hot ? AUTO_HOT_SECTIONS : AUTO_SECTIONS));
     user.autoBody = { section: String.fromCharCode(65 + index), quantity: count };
   } else {
     user.autoBody = user.zone === 'ANY' ? { quantity: count } : { grade: user.zone, quantity: count };
+  }
+  if (wantsSecondSession(user)) {
+    // 자동 배정은 서버가 좌석을 고르므로 두 번째 세션도 같은 조건을 보낸다
+    user.secondBody = user.autoBody;
   }
   user.state = 'hold';
   const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
@@ -547,11 +762,16 @@ function seatCountOf(profile) {
   return profile.seats === null ? (Math.random() < 0.5 ? 1 : 2) : profile.seats;
 }
 
+// 추가 예매(v2) 중이면 rebook_seats, 아니면 첫 예매 매수다
+function seatCountFor(user) {
+  return user.rebookRound ? user.profile.rebookSeats : seatCountOf(user.profile);
+}
+
 // 균일(zone이 null)은 좌석 전체에서 기존 규칙으로 고른다. Synthetic은 노리는 등급 안에서 고르고,
 // 비었으면 any_zone 사용자만 아무 곳이나로 바꿔 바로 다시 고른다
 function pickSeats(user, body) {
   const profile = user.profile;
-  const count = seatCountOf(profile);
+  const count = seatCountFor(user);
   if (profile.zone === null) {
     return pickSeatsFromMap(body, count);
   }
