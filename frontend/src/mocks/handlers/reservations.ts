@@ -9,6 +9,7 @@ import {
   settleExpiredHolds,
   toKstIso,
   type MockReservation,
+  type MockSeat,
 } from '@/mocks/db'
 import { saleStatusOf } from '@/mocks/handlers/concerts'
 import {
@@ -88,6 +89,39 @@ function replayHold(
     return holdResponse(reservation)
   }
   return fail(409, 'RESERVATION_NOT_PAYABLE', '결제할 수 없는 예매입니다')
+}
+
+// 고른 좌석을 HELD로 바꾸고 예매·멱등키 기록을 남긴다. 좌석 직접 선택과 자동 배정이 같이 쓴다
+function createHold(request: {
+  key: string
+  userId: number
+  scheduleId: number
+  seats: MockSeat[]
+  seatKey: string
+}): Response {
+  const { key, userId, scheduleId, seats, seatKey } = request
+  seats.forEach((seat) => (seat.available = false))
+  const reservationId = nextMockId()
+  const reservation: MockReservation = {
+    reservationId,
+    reservationNo: `R20261102-${String(reservationId).padStart(6, '0')}`,
+    requestId: key,
+    userId,
+    scheduleId,
+    seatIds: seats.map((seat) => seat.seatId).sort((left, right) => left - right),
+    status: 'HELD',
+    holdExpiresAtMillis: Date.now() + HOLD_MILLIS,
+    totalAmount: seats.reduce((sum, seat) => sum + seat.price, 0),
+    confirmAfterChecks: null,
+  }
+  mockDb.reservations.set(reservationId, reservation)
+  mockDb.holdRequests.set(key, { userId, scheduleId, seatKey, reservationId })
+  if (mockScenario().seatHold === 'hold-unknown' && !mockDb.holdUnknownUsed) {
+    // 서버는 선점을 마쳤지만 Gateway가 응답 시한을 넘겨 504를 준 경우. 코드는 실제 Gateway처럼 INTERNAL_SERVER_ERROR다
+    mockDb.holdUnknownUsed = true
+    return fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+  }
+  return holdResponse(reservation)
 }
 
 function heldSeatCount(userId: number, scheduleId: number) {
@@ -171,33 +205,56 @@ export const reservationHandlers = [
       return fail(409, 'SEAT_ALREADY_HELD', '이미 선택된 좌석입니다')
     }
 
-    seats.forEach((seat) => (seat.available = false))
-    const reservationId = nextMockId()
-    const reservation: MockReservation = {
-      reservationId,
-      reservationNo: `R20261102-${String(reservationId).padStart(6, '0')}`,
-      requestId: key,
-      userId: user.userId,
-      scheduleId,
-      seatIds,
-      status: 'HELD',
-      holdExpiresAtMillis: Date.now() + HOLD_MILLIS,
-      totalAmount: seats.reduce((sum, seat) => sum + seat.price, 0),
-      confirmAfterChecks: null,
+    return createHold({ key, userId: user.userId, scheduleId, seats, seatKey: seatIds.join(',') })
+  }),
+
+  // 자동 배정 선점(contracts.md 1-2절, ADR 0059). 서버처럼 구역 안 선점 가능한 좌석을 좌석 ID 순으로 매수만큼 잡는다.
+  // 목은 구역 범위만 받는다(화면이 등급·회차 전체 범위를 보내지 않는다). 같은 키 재요청은 범위·매수 문자열로 비교한다
+  http.post('/api/v1/schedules/:scheduleId/reservations/auto', async ({ request, params }) => {
+    const scheduleId = Number(params.scheduleId)
+    const user = requireUser(request)
+    requireEntryToken(request, user.userId, scheduleId)
+    const key = requireIdempotencyKey(request)
+    const body = await readBody(request)
+    const section = body.section
+    const quantity = body.quantity
+    if (
+      typeof section !== 'string' ||
+      section.length < 1 ||
+      section.length > 10 ||
+      !Number.isInteger(quantity) ||
+      (quantity as number) < 1
+    ) {
+      return fail(400, 'VALIDATION_FAILED', '요청 값이 올바르지 않습니다')
     }
-    mockDb.reservations.set(reservationId, reservation)
-    mockDb.holdRequests.set(key, {
-      userId: user.userId,
-      scheduleId,
-      seatKey: seatIds.join(','),
-      reservationId,
-    })
-    if (mockScenario().seatHold === 'hold-unknown' && !mockDb.holdUnknownUsed) {
-      // 서버는 선점을 마쳤지만 Gateway가 응답 시한을 넘겨 504를 준 경우. 코드는 실제 Gateway처럼 INTERNAL_SERVER_ERROR다
-      mockDb.holdUnknownUsed = true
-      return fail(504, 'INTERNAL_SERVER_ERROR', '서버 내부 오류가 발생했습니다')
+    const count = quantity as number
+    settleExpiredHolds()
+    // 서버 AutoHoldSeatsCommand.criteriaKey와 같은 모양. 좌석 직접 선택의 키(좌석 ID 목록)와 겹치지 않는다
+    const seatKey = `section=${section};quantity=${count}`
+    const replayed = replayHold(key, { userId: user.userId, scheduleId, seatKey })
+    if (replayed !== null) {
+      return replayed
     }
-    return holdResponse(reservation)
+    const schedule = requireSchedule(scheduleId)
+    if (count > schedule.maxPerUser) {
+      return fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
+    }
+    if (saleStatusOf(schedule) !== 'ON_SALE') {
+      return fail(409, 'SALE_NOT_OPEN', '판매 중인 회차가 아닙니다')
+    }
+    if (heldSeatCount(user.userId, scheduleId) + count > schedule.maxPerUser) {
+      return fail(409, 'PURCHASE_LIMIT_EXCEEDED', '회차당 구매 가능 매수를 넘었습니다')
+    }
+    const seats = mockDb.seats
+      .filter(
+        (seat) => seat.scheduleId === scheduleId && seat.section === section && seat.available,
+      )
+      .sort((left, right) => left.seatId - right.seatId)
+      .slice(0, count)
+    if (seats.length < count) {
+      return fail(409, 'ZONE_SOLD_OUT', '선택한 구역에 남은 좌석이 부족합니다')
+    }
+    return createHold({ key, userId: user.userId, scheduleId, seats, seatKey })
   }),
 
   http.get('/api/v1/reservations/me', ({ request }) => {

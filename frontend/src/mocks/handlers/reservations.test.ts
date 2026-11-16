@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/apiError'
 import { getPayment } from '@/api/payments'
-import { cancelReservation, getMyReservations, getReservation } from '@/api/reservations'
+import {
+  autoHoldSeats,
+  cancelReservation,
+  getMyReservations,
+  getReservation,
+  holdSeats,
+} from '@/api/reservations'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { mockDb } from '@/mocks/db'
-import { SEAT_A1, SEAT_A2, signInAsDemo } from '@/test/api'
+import { admitTo, ON_SALE_SCHEDULE_ID, SEAT_A1, SEAT_A2, SEAT_A3, signInAsDemo } from '@/test/api'
 import { seedPayment, seedReservation } from '@/test/reservations'
 
 // 예매 조회 목이 서버(ReservationController·ReservationService)의 정렬·검사·응답 모양을 따르는지 본다.
@@ -164,5 +170,57 @@ describe('POST /reservations/{id}/cancel 목', () => {
     const badKey = await rejectionOf(cancelReservation(mine.reservationId, 'not-a-uuid'))
     expect([badKey.status, badKey.code]).toEqual([400, 'VALIDATION_FAILED'])
     expect(mockDb.reservations.get(mine.reservationId)?.status).toBe('CONFIRMED')
+  })
+})
+
+describe('POST /schedules/{id}/reservations/auto 목', () => {
+  it('구역 안 남은 좌석을 좌석 ID 순으로 매수만큼 잡고, 이미 잡힌 좌석은 건너뛴다', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    mockDb.seats.find((seat) => seat.seatId === SEAT_A1)!.available = false
+
+    const hold = await autoHoldSeats(
+      ON_SALE_SCHEDULE_ID,
+      { section: 'A', quantity: 2 },
+      newIdempotencyKey(),
+    )
+
+    expect(hold.status).toBe('HELD')
+    expect(hold.seatIds).toEqual([SEAT_A2, SEAT_A3])
+  })
+
+  it('같은 키·같은 조건이면 처음 고른 좌석을 다시 주고, 조건이 다르거나 직접 선택으로 쓰면 409 IDEMPOTENCY_KEY_REUSED다', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    const key = newIdempotencyKey()
+    const first = await autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 2 }, key)
+
+    const again = await autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 2 }, key)
+    expect(again.reservationId).toBe(first.reservationId)
+    expect(again.seatIds).toEqual(first.seatIds)
+
+    for (const reused of [
+      autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 1 }, key),
+      holdSeats(ON_SALE_SCHEDULE_ID, first.seatIds, key),
+    ]) {
+      const error = await rejectionOf(reused)
+      expect([error.status, error.code]).toEqual([409, 'IDEMPOTENCY_KEY_REUSED'])
+    }
+  })
+
+  it('남은 좌석이 매수보다 적으면 409 ZONE_SOLD_OUT이고 좌석을 잡지 않는다', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    const aSeats = mockDb.seats.filter(
+      (seat) => seat.scheduleId === ON_SALE_SCHEDULE_ID && seat.section === 'A',
+    )
+    aSeats.slice(1).forEach((seat) => (seat.available = false))
+
+    const error = await rejectionOf(
+      autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 2 }, newIdempotencyKey()),
+    )
+
+    expect([error.status, error.code]).toEqual([409, 'ZONE_SOLD_OUT'])
+    expect(aSeats[0].available).toBe(true)
   })
 })

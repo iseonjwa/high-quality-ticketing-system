@@ -244,3 +244,45 @@ describe('좌석 선점 요청', () => {
     expect(waits).toEqual([])
   })
 })
+
+describe('자동 배정 선점 요청', () => {
+  const AUTO_PATH = `${HOLD_PATH}/auto`
+
+  async function runAuto(section: string, quantity: number) {
+    const controller = new AbortController()
+    return submitHold({
+      scheduleId: ON_SALE_SCHEDULE_ID,
+      auto: { section, quantity },
+      idempotencyKey: newIdempotencyKey(),
+      signal: controller.signal,
+      sleep: () => Promise.resolve(),
+      random: () => 0.5,
+    })
+  }
+
+  it('자동 배정 경로로 구역·매수를 보내고, 서버가 고른 좌석을 held로 준다', async () => {
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    const requests = recordRequests(AUTO_PATH)
+
+    const outcome = await runAuto('A', 2)
+
+    expect(outcome.kind).toBe('held')
+    expect((outcome as Extract<HoldOutcome, { kind: 'held' }>).hold.seatIds).toEqual([
+      SEAT_A1,
+      SEAT_A2,
+    ])
+    expect(requests).toHaveLength(1)
+    expect(await requests[0].json()).toEqual({ section: 'A', quantity: 2 })
+  })
+
+  it('409 ZONE_SOLD_OUT은 zoneSoldOut이고 다시 보내지 않는다', async () => {
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    const requests = recordRequests(AUTO_PATH)
+
+    // C구역은 목 데이터에서 매진이다
+    const outcome = await runAuto('C', 1)
+
+    expect(outcome).toEqual({ kind: 'zoneSoldOut' })
+    expect(requests).toHaveLength(1)
+  })
+})

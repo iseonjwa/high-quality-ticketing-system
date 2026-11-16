@@ -136,7 +136,8 @@ export function SelectionSummary({
             <Button
               size="lg"
               className="w-full rounded-full"
-              disabled={need !== 0 || locked}
+              // 결과를 모르는 요청은 같은 요청으로 확인한다. 자동 배정이었으면 고른 좌석 수와 상관없다
+              disabled={(need !== 0 && !outstanding) || locked}
               loading={request === 'sending'}
               onClick={onSubmit}
             >
