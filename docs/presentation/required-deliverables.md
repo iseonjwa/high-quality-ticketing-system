@@ -22,7 +22,7 @@
 | | 동시 100명 · 1초 안 시작 · 각 10회 요약(평균 응답·처리량·성공률) | **없음**. 시나리오 A0는 준비됨(PR #583) | `loadtest/k6/scenarios/a0-assignment-baseline.js` | 동기형 ISE-264, 접수형 ISE-18 | 영은(ISE-264), 권우(ISE-18) |
 | | 최적화 전·후 2회 이상, 개선 내역 1~3줄 | 있음(Gateway 상한, 좌석 조회, 좌석 동시성) | 위 문서, `docs/design/reservation/` | `performance/`에 발표 한 장 | 강민(ISE-269), 권우(ISE-266) |
 | | API가 Kafka에 넣고 바로 응답, Consumer가 처리 | 구현 있음(접수형 선점, ADR 0057). 측정 없음 | `reservation-service` | ISE-18 | 권우(ISE-18) |
-| | Kafka-UI 토픽·컨슈머 그룹 캡처, 파티션 수·키 근거 한 줄 | **없음**. 선점 키 근거는 SA 14장 #5에 있다 | — | ISE-265 | 권우(ISE-265) |
+| | Kafka-UI 토픽·컨슈머 그룹 캡처, 파티션 수·키 근거 한 줄 | 근거 표 있음, 캡처는 배포 단계 측정의 접수형 단계에서 찍음 | [`performance/2026-11-16-kafka-topics-partitions.md`](performance/2026-11-16-kafka-topics-partitions.md) | ISE-265 | 권우(ISE-265) |
 | 모니터링 | Prometheus·Grafana 대시보드 | 있음(배포 Grafana) | `docs/design/infra/observability.md` | `deployment/`에 대시보드 캡처 | 준현(ISE-272) |
 | 최소 구현 | 실패 정의 문서와 구현, Kafka 실패·중복 대응, 유실 방지 패턴(Outbox), 부하 테스트 | 있음(Outbox, 처리 이력, DLQ, 멱등키, 대사) | `failure-scenarios.md`, ADR, TS | `considerations/`에 발표 한 장 | 영역별(발표 준비 11/16~) |
 | AI 설계 검증 로그 | 검증 항목 3개 이상, 거부 1개 이상, 4계층 검증 | 있음(SA 14장 10건, #7이 4계층) | SA 14장 | 발제 양식의 **"AI 프롬프트(요약)" 열이 없다**. 항목마다 판단자가 채운다 | 4·7번 강민(ISE-269), 5번 권우(ISE-266), 10번 영은(ISE-268), 나머지 준현(ISE-272) |
