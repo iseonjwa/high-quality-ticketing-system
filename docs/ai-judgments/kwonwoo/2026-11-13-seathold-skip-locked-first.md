@@ -30,10 +30,10 @@ shared: 예
 
 ## 반영
 - Linear ISE-261, 브랜치 `fix/ISE-261-seat-hold-lock-timeout`
-- 구현했다가 측정 뒤 되돌렸다. 최종 반영은 [ADR 0059](../../decisions/0059-seat-hold-lock-timeout-50ms.md)(잠금 대기 50ms)다.
+- 구현했다가 측정 뒤 되돌렸다. 최종 반영은 [ADR 0060](../../decisions/0060-seat-hold-lock-timeout-50ms.md)(잠금 대기 50ms)다.
 
 ## 검증
-동시성 테스트 C2에서 성공이 83건에서 56건으로 줄었다([TS-70](../../troubleshooting.md)).
+동시성 테스트 C2에서 성공이 83건에서 56건으로 줄었다([TS-73](../../troubleshooting.md)).
 
 ## 판단 이력
 - 2026-11-13 수용: 추천안대로 새 이슈를 만들고 새 브랜치에서 진행하기로 했다.

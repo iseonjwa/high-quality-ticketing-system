@@ -71,6 +71,8 @@ Gateway 쪽 고칠 곳: 입장 토큰 필터(ISE-58). 발급 쪽 고칠 곳: 토
 
 SA 11-5를 따른다. 입장 토큰은 `sessionStorage`에 두고, 만료(`entryTokenExpiresAt`) 전이면 대기열을 건너뛴다. 403 `ENTRY_TOKEN_INVALID`를 받으면 저장한 토큰을 지우고 대기열 진입부터 다시 한다. 선점이 성공(201)하면 저장한 입장 토큰을 지운다. `ENTRY_TOKEN_USED`를 받으면 `ENTRY_TOKEN_INVALID`처럼 토큰을 지우고 대기열 진입부터 다시 한다(ADR 0053 결정 5).
 
+`READY`를 받으면 곧바로 토큰 API를 부른다. 차례가 온 뒤 1분(`queue.turn-ttl`)이 지나면 토큰 API와 순번 조회가 404 `QUEUE_NOT_JOINED`를 주므로, 받으면 대기열 진입부터 다시 한다(새 번호로 줄 맨 뒤, ADR 0031 결정 11, ISE-282).
+
 ## 3. 바뀐 점
 
 | 항목 | 이전 (SA 7-3·11-5) | 이 계약 |

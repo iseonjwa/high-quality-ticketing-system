@@ -7,6 +7,7 @@
 |---|---|---|---|
 | `http_server_requests_seconds_bucket` | Spring 기본 HTTP 타이머의 히스토그램 | `method`, `uri`, `status`, `outcome`, `exception`, `le` | `config-repo/reservation-service.yml`의 `management.metrics.distribution.slo` |
 | `seathold_result_total` | 카운터 | `outcome` | `seathold/observability/SeatHoldMetrics`, 선점 컨트롤러에서 센다 |
+| `seathold_pre_rejected_total` | 카운터 | 없음 | 같은 클래스, `SyncSeatHoldService`가 사전 거절할 때 센다(ISE-281) |
 
 ### 1-1. HTTP 히스토그램 버킷
 - 경계: 25ms, 50ms, 100ms, 200ms, 300ms, 500ms, 1s, 3s. 3s는 Gateway 응답 시한이다.
@@ -32,6 +33,12 @@
 - 세지 않는 것
   - 컨트롤러 메서드 전에 끝난 400(본문 검증, 헤더 누락): HTTP 지표의 `status="400"`으로 본다.
   - 접수형 소비자가 정한 결과(`HELD`·`REJECTED`): 소비자(ISE-17)가 따로 센다.
+
+### 1-3. `seathold_pre_rejected_total`
+- 좌석 조회의 1초 캐시(P4c)가 "이미 잡힌 좌석이 섞였다"고 해서 쓰기 트랜잭션 없이 409를 준 선점 수다. 같은 멱등키의 앞선 요청이 있어 재응답한 경우는 세지 않는다.
+- 응답은 같은 409 `SEAT_ALREADY_HELD`라 `seathold_result_total{outcome="seat_conflict"}`에도 함께 들어간다. `outcome`에 새 값을 두지 않은 것은 `seat_conflict`를 둘로 나누면 기존 패널의 좌석 충돌 비율이 바뀌기 때문이다.
+- 사전 거절 비율: `rate(seathold_pre_rejected_total[1m]) / rate(seathold_result_total{outcome="seat_conflict"}[1m])`. 측정 브랜치에서는 73~84%였다.
+- 끄기: `seat-hold.pre-reject.enabled=false`(기본 켬). 같은 버전에서 켠 회와 끈 회를 비교할 때 쓴다.
 
 ## 2. 대시보드 패널
 | 패널 | 식(요약) |

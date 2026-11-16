@@ -691,17 +691,44 @@
 - 덧붙임: `GOMEMLIMIT=5.5GiB`처럼 소수를 쓰면 k6가 시작하지 못하고 `k6_exit` 2로 끝난다. 정수와 단위(`5632MiB`)로 쓴다.
 - 배운 점: 부하 생성기의 CPU·메모리를 서버 지표와 같이 본다. 생성기가 상한에 붙으면 요청 모양(몰림)이 바뀌어, 다른 구성 요소의 한계처럼 보이는 결과를 만든다. 기기를 바꾸면 측정 도구의 상한도 다시 정한다.
 
-### TS-70 잠금 대기를 없애려고 넣은 SKIP LOCKED가 여러 좌석 선점의 성공을 약 1/3 줄였다
+### TS-70 Kafka 헬스체크가 실행마다 JVM을 띄워 약 12초마다 CPU가 튀었다
+- 서비스·작성: infra(kafka) / kangmin / 2026-11-16
+- 문제: 11/15 배포 서버(4 vCPU 한 대)에서 부하가 없을 때 Kafka 컨테이너 CPU가 평소 1.2%인데 약 12초마다 45~224%로 1~2초씩 튀었다. 튀는 시각이 헬스체크 시작 시각과 겹쳤고, 헬스체크 한 번이 1.80~3.76초 걸렸다. 오픈 피크에도 kafka가 25~228%였다. 같은 장비의 앱과 CPU를 나눠 써 측정값에 잡음이 섞인다.
+- 원인: `compose.yml`의 kafka 헬스체크가 10초마다 `kafka-broker-api-versions.sh`를 실행했고, 이 스크립트는 실행할 때마다 JVM을 새로 띄워 클래스를 읽고 관리 클라이언트를 만든다. 약 12초 주기는 간격 10초에 실행 시간 1~4초가 더해진 값이다(Docker가 앞 검사가 끝난 뒤 간격을 세는 것으로 본다. 추정).
+- 해결: 검사를 JVM 없이 bash `/dev/tcp`로 ApiVersions 요청(API 키 18, 버전 0) 15바이트를 보내고 응답 앞 4바이트(길이)가 3초 안에 오는지 보는 방식으로 바꿨다. 간격은 30초, 기동 중 120초는 2초마다 검사한다(`start_period`·`start_interval`, Docker 25 이상. 배포 서버는 29.9). 관련 파일 `compose.yml`, `loadtest/deploy/compose.background-cpu.yml`(`KAFKA_HEALTH_INTERVAL` 기본값 30s).
+- 확인(로컬, Docker 29.8): 같은 이미지에서 새 검사는 4~6ms, 옛 스크립트는 1,348~1,604ms였다. `docker pause`로 브로커를 멈추면 새 검사는 3초 뒤 실패하고 포트만 여는 검사(`</dev/tcp/localhost/9092`)는 성공했다. 닫힌 포트와 엉뚱한 바이트도 실패한다. `docker compose up -d --wait kafka kafka-ui`는 7초에 끝났고 kafka는 기동 2초 뒤 두 번째 검사에서 healthy, `depends_on: condition: service_healthy`인 kafka-ui도 healthy였다. 그 뒤 약 50초 동안 kafka CPU 표본 25개의 최댓값은 4.21%였다. 배포 서버 재측정은 아직 하지 않았다.
+- 배운 점: 헬스체크는 장비의 상시 부하다. 무거운 CLI(JVM 도구)를 짧은 간격으로 돌리면 같은 장비의 측정에 주기적인 잡음이 생긴다. 프로토콜 요청을 가볍게 직접 보내면 포트 확인보다 강하면서 비용은 거의 없다.
+
+### TS-71 결제 서비스가 힙 밖 메모리로 컨테이너 상한(768MiB)을 넘어 cgroup OOM으로 하루 다섯 번 죽었는데 inspect는 exit 0이었다
+- 서비스·작성: payment-service·infra / kangmin / 2026-11-16
+- 문제: 11/15(UTC) 배포 서버에서 payment-service가 11:34, 14:34, 15:12, 16:45, 17:41에 다시 시작됐다(한국 시간 11/15 20:34, 23:34, 11/16 00:12, 01:45, 02:41). 커널 로그는 `Memory cgroup out of memory: Killed process ... (java) ... anon-rss:780020kB`, `memory: usage 786548kB, limit 786432kB`였고, dockerd 로그는 `restarting container ... exitCode=137`이었다. 그런데 `docker inspect`는 `RestartCount=1`, `ExitCode=0`, `OOMKilled=false`를 보여 처음에는 죽은 줄 몰랐다.
+- 원인: 힙 최대(512MB)와 힙 밖 메모리의 합이 상한을 넘는 구조였다. 재시작 7분 뒤 실측은 cgroup 사용 700MiB, 힙 committed 375MB, 비힙 committed 193MB(Metaspace 134MB, 코드 캐시 41MB, Compressed Class 18MB), 직접 버퍼 0.4MB, 스레드 78~94개였고 RSS에서 힙·비힙을 뺀 JVM 지표 밖 메모리(스레드 스택, GC 자료구조, malloc)가 약 144MB였다. 힙이 512MB까지 커지면 512 + 약 216 + 약 144 ≈ 870MB로 768MiB를 넘는다. 힙을 키운 계기는 5분마다 `housekeeping-1` 스레드에서 도는 대사 회차다. 7일 창의 결제·예매(약 19.5만 건)를 회차마다 메모리에 올린다(재시작 직후 회차 로그 `pages=1958 items=195793`). 다섯 건 중 세 건은 그 스레드가 메모리를 요청하다 OOM을 일으켰다. 힙 자체는 `-Xmx` 안이라 Java `OutOfMemoryError`는 없었다.
+- inspect 함정: `restart: unless-stopped` 컨테이너는 다시 시작되면 `State`(ExitCode, OOMKilled)가 새 실행 값으로 덮인다. 죽은 이력은 `RestartCount`, dockerd 로그의 `exitCode=137`, 커널 로그(`journalctl -k | grep -i "killed process"`)로 본다. 컨테이너 안의 `memory.events`도 새 cgroup이라 0으로 보인다.
+- 서비스 확정: 상한 786432kB(768MiB)이면서 java, UID 100인 컨테이너는 payment-service뿐이다(zipkin은 UID 1000, prometheus는 java가 아니다). 17:41 건의 cgroup(`docker-bcd0f670...`)은 지금의 `iseonjwa-payment-service-1` ID와 같고, 앞의 두 ID(`e290f7b7...`, `d9d84be5...`)는 15:35, 16:53에 payment를 다시 만들 때 지워진 컨테이너다. 같은 날 11:00 grafana(384MiB)도 cgroup OOM이 한 번 있었다(별건).
+- 해결: `compose.deploy.yml`의 payment-service 상한을 768m → 1024m로 올리고 힙은 그대로 두었다. 힙 밖 상한 `-XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:MaxDirectMemorySize=64m`을 더했다(실측의 약 2~3배, 누수 시 강제 종료 대신 JVM 오류로 보이게). 컨테이너 상한 합은 12,992 → 13,248MiB로 장비 15,701MiB의 84%다. 관련 이슈 ISE-264.
+- 남은 것: 대사 회차가 7일 창 전체를 회차마다 올리는 구조는 데이터가 쌓일수록 힙을 더 쓴다. 회차를 이어 읽게 하는 것은 결제 담당 결정으로 남긴다. user(640m, 힙 384m, 비힙 193MB)와 reservation(1152m, 힙 768m, 비힙 272MB)도 힙이 최대까지 크면 계산상 상한을 넘는다(죽은 기록은 없다).
+- 배운 점: 컨테이너 상한은 `-Xmx`가 아니라 힙 최대 + 비힙(Metaspace·코드 캐시) + 직접 버퍼 + 스레드·GC·malloc으로 잡는다. 실측 RSS에서 힙·비힙 committed를 빼면 지표 밖 메모리를 알 수 있다.
+
+### TS-72 자동 배정 쿼리가 다른 회차 좌석까지 pk 인덱스로 훑어 커넥션 풀이 바닥났다
+- 서비스·작성: reservation-service(seathold) / kangmin / 2026-11-16
+- 문제: 11/16 06:41 KST 배포 서버(v2 `2fe3ed10`)에서 사용자 3,000명 오픈 피크를 `SEAT_MODE=auto`로 돌리자 확정이 433명이었다(같은 버전 `map` 2,162\~2,201명). 선점 500 1,352건, 예매 조회 500 2,499건, 공연 상세 500 399건이었고 postgres-reservation CPU가 280%였다. Hikari(풀 5, connection-timeout 1초)는 사용 시간 평균 785ms, 대기 62였고 로그에 `Connection is not available ... (total=5, active=5, waiting=55~60)`가 찍혔다. 정합성은 맞았다(확정 433건 = 658석, 중복 0).
+- 원인: 자동 배정 쿼리 `WHERE schedule_id = ? AND status = 'AVAILABLE' ... ORDER BY id LIMIT ? FOR UPDATE SKIP LOCKED`에 맞는 인덱스가 없었다. `schedule_seats` 인덱스는 pk(id), unique(schedule_id, venue_seat_id), (schedule_id, section)뿐이고 배포 DB는 249만 행(회차 약 166개)이다. 등급·회차 전체 요청은 플래너가 LIMIT 때문에 pk(id) 순서 스캔을 골라 앞 회차 좌석 248만 행을 걸러 냈다. 구역 요청도 `(CAST(:section AS varchar) IS NULL OR section = ...)` 모양이라, pgjdbc가 같은 문장을 다섯 번 넘게 준비하면 쓰는 일반 계획(generic plan)에서는 구역 조건이 인덱스 조건이 되지 못해 같은 pk 스캔이 됐다. k6 auto는 70%가 구역 A\~C, 30%가 구역 A\~Y를 보내고, Synthetic 사용자는 등급이나 회차 전체를 보낸다.
+- 확인(로컬 PostgreSQL 17, 회차 166개 × 15,000석 = 249만 행, 마지막 회차가 오픈 중): 고치기 전 `EXPLAIN (ANALYZE, BUFFERS)`는 구역 A 맞춤 계획 0.31ms(버퍼 18), 등급 S 353ms(버퍼 35,153, 걸러 낸 행 2,484,000), 회차 전체 309ms(버퍼 35,024), 일반 계획 구역 A 382ms·회차 전체 376ms(버퍼 35,024)였다. 한 요청이 커넥션을 수백 ms 쥐고 CPU를 다투면 풀 5개가 금방 찬다.
+- 해결: 마이그레이션 `V20261116_6__schedule_seats_auto_assign_indexes.sql`로 `(schedule_id, id)`, `(schedule_id, section, id)`, `(schedule_id, grade, id)` 인덱스를 더했다. status는 넣지 않아 선점·만료의 status 갱신이 HOT 갱신으로 남는다. `JpaSeatHoldInventoryRepository.lockAvailableSeatIds`는 받은 조건만 SQL에 붙이게 바꿨다. 같은 데이터에서 일반 계획 기준 회차 전체 0.21ms(버퍼 14), 구역 A 0.13ms(14), 구역 Y 0.09ms(8), 등급 S 0.05ms(8), 등급+구역 0.04ms(8)였다.
+- 잠금 영향: `CREATE INDEX`는 만드는 동안 `schedule_seats` 쓰기를 막는다. 로컬 249만 행에서 세 개가 0.66초, 0.86초, 1.26초였다. Flyway가 reservation-service 기동 때 한 트랜잭션으로 돌리므로 `CONCURRENTLY`는 쓰지 않았다. 배포 장비 소요 시간은 확인 못 함.
+- 배운 점: 회차가 쌓이는 테이블에서 `ORDER BY id LIMIT n`은 회차 안 ID 순 인덱스가 없으면 pk 순서 스캔으로 빠지기 쉽다. 선택 조건을 `:p IS NULL OR col = :p`로 한 문장에 담으면 준비된 문장의 일반 계획에서 인덱스를 못 탄다. 테스트 DB는 회차 하나라 이 비용이 보이지 않았다.
+
+### TS-73 잠금 대기를 없애려고 넣은 SKIP LOCKED가 여러 좌석 선점의 성공을 약 1/3 줄였다
 - 서비스·작성: reservation / kwonwoo / 2026-11-13
 - 문제: 핫 좌석의 잠금 대기(최대 약 1초)가 커넥션을 쥐어 다른 API까지 막는 문제(TS-67 뒤에도 남은 번짐)를 없애려고, 좌석 선점 하위 쿼리를 `FOR UPDATE SKIP LOCKED`로 바꿨다. C3 최대 대기는 643ms에서 20~161ms로 줄었다. 그런데 C2(10명이 좌석 4개를 서로 겹치게 동시에 요청, 50라운드 500건)의 성공이 83건에서 56건으로 줄었다. 2회 모두 56건이었다. 중복 판매와 데드락은 0이었다.
 - 원인: 선점은 1~4매를 전부 아니면 전부로 잡는다. 여러 좌석 요청은 좌석 ID 순서로 잠그다가 다른 좌석이 이미 잡혀 있으면 롤백한다. 그 사이 잠깐 잠근 좌석은 곧 다시 비는데, `SKIP LOCKED`는 이 짧은 잠금도 "이미 잡힘"으로 보고 건너뛴다. 실패할 요청이 쥔 몇 ms의 잠금 때문에, 그 좌석을 노린 다른 사용자가 빈 좌석에 409를 받았다. 1석 요청만 있으면 잠금을 쥔 쪽이 롤백할 일이 드물어 이 손해가 거의 없다. 여러 좌석을 한 번에 잡는 규칙과 대기 0이 겹쳐서 생긴 문제다.
-- 해결: `SKIP LOCKED`를 되돌리고 `lock_timeout`을 500ms에서 50ms로 줄였다. 수 ms짜리 짧은 잠금은 기다리고, 오래 쥔 잠금만 끊는다. 50ms에서 C2 성공 78·87건(500ms와 같은 범위), C3 최대 221~225ms였다. 관련 파일은 `SyncSeatHoldService`, `JpaSeatHoldInventoryRepository`, `SeatHoldConcurrencyTest` C3, `SeatHoldLockWaitTest`다. 결정은 [ADR 0059](decisions/0059-seat-hold-lock-timeout-50ms.md)에 있다.
+- 해결: `SKIP LOCKED`를 되돌리고 `lock_timeout`을 500ms에서 50ms로 줄였다. 수 ms짜리 짧은 잠금은 기다리고, 오래 쥔 잠금만 끊는다. 50ms에서 C2 성공 78·87건(500ms와 같은 범위), C3 최대 221~225ms였다. 관련 파일은 `SyncSeatHoldService`, `JpaSeatHoldInventoryRepository`, `SeatHoldConcurrencyTest` C3, `SeatHoldLockWaitTest`다. 결정은 [ADR 0060](decisions/0060-seat-hold-lock-timeout-50ms.md)에 있다.
 - AI 활용: AI가 학습 노트에서 `SKIP LOCKED`를 먼저 하라고 추천하며 "잘못된 409는 드물 것"이라고 봤다. 구현 뒤 같은 테스트로 세 방식을 비교해 그 예상이 틀렸음을 확인했다. 사용자는 실패할 요청이 잠깐 잠근 행에 다른 사용자가 접근하지 못하는 것이 문제라고 보고 50ms를 골랐다([판단 기록](ai-judgments/kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md)).
 - 배운 점: 잠금을 건너뛰는 방식은 "잠금을 쥔 쪽이 거의 항상 커밋한다"는 가정이 맞을 때만 손해가 작다. 전부 아니면 전부로 여러 행을 잡는 작업은 롤백이 흔해 이 가정이 깨진다. 대기를 줄이는 개선은 지연뿐 아니라 성공 건수도 같이 재야 한다.
 
-### TS-71 동시 처리 상한을 닫힌 모델 부하로 재니 503 폭주와 탐침 쏠림 때문에 효과를 판단할 수 없었다
+### TS-74 동시 처리 상한을 닫힌 모델 부하로 재니 503 폭주와 탐침 쏠림 때문에 효과를 판단할 수 없었다
 - 서비스·작성: reservation / kwonwoo / 2026-11-13
-- 문제: 선점 동시 처리 상한(ADR 0060 3번)을 `SeatHoldLoadTest` L7·L8(VU가 응답을 받으면 바로 다음 요청을 보내는 닫힌 모델)로 쟀다. 상한 4를 켜자 20초에 503이 27만 건 넘게 나오고, 선점 처리 건수(201+409)가 약 3만 8천 건에서 5천 건대로 줄었다. 503을 받으면 1초 쉬게 바꾸니 이번에는 보내는 요청 자체가 줄어 비교할 수 없었다. 좌석 조회 탐침을 붙인 측정에서는 상한을 켜자 탐침 요청이 1.1만 건에서 2.2만 건으로 늘고 선점이 절반 가까이 503을 받았다.
+- 문제: 선점 동시 처리 상한(ADR 0061 3번)을 `SeatHoldLoadTest` L7·L8(VU가 응답을 받으면 바로 다음 요청을 보내는 닫힌 모델)로 쟀다. 상한 4를 켜자 20초에 503이 27만 건 넘게 나오고, 선점 처리 건수(201+409)가 약 3만 8천 건에서 5천 건대로 줄었다. 503을 받으면 1초 쉬게 바꾸니 이번에는 보내는 요청 자체가 줄어 비교할 수 없었다. 좌석 조회 탐침을 붙인 측정에서는 상한을 켜자 탐침 요청이 1.1만 건에서 2.2만 건으로 늘고 선점이 절반 가까이 503을 받았다.
 - 원인: 닫힌 모델은 서버가 빨리 거절할수록 요청을 더 많이 보낸다. 503은 1ms 안에 끝나므로 VU 200개가 초당 1만 건 넘게 다시 보냈고, 같은 JVM에 있는 부하 발생기가 CPU를 먹어 서버 처리량까지 낮췄다. 쉬게 하면 반대로 부하가 줄어든다. 탐침도 20개 VU의 닫힌 모델이라, 선점이 비운 커넥션을 탐침이 차지했다. 측정 도구가 측정 대상과 자원을 다투고 있었다.
 - 해결: 초당 도착 수를 고정하는 열린 모델 시나리오 L9를 더했다(k6 constant-arrival-rate와 같은 방식). 응답이 빠르든 늦든 같은 수의 요청이 들어온다. 탐침도 초당 20건 고정으로 바꿨다(`SEATHOLD_LOAD_PROBE_RATE`). 그 뒤 상한 없음과 상한 4를 같은 부하로 비교할 수 있었다. 결과는 [측정 문서](design/reservation/seathold-structure-improvements.md) 7절에 있다.
 - AI 활용: AI가 닫힌 모델로 먼저 재고, 결과가 이상하다고 보고 원인을 찾아 열린 모델로 바꿨다.

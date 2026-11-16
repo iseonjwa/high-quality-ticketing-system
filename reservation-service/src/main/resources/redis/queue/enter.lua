@@ -1,6 +1,9 @@
--- KEYS[1]=seq  KEYS[2]=waiting  KEYS[3]=admitted  KEYS[4]=issued
--- ARGV[1]=userId  ARGV[2]=오픈 시각(ms)  ARGV[3]=판매 종료 시각(ms)  ARGV[4]=토큰 유효 시간 T(ms)  ARGV[5]=키 만료 시각(초)
--- 반환: {종류, seq, admitted}  종류 = SALE_NOT_OPEN | SALE_CLOSED | TOKEN_ISSUED | ALREADY_IN_QUEUE | JOINED
+-- KEYS[1]=seq  KEYS[2]=waiting  KEYS[3]=admitted  KEYS[4]=issued  KEYS[5]=admitLog
+-- ARGV[1]=userId  ARGV[2]=오픈 시각(ms)  ARGV[3]=판매 종료 시각(ms)  ARGV[4]=토큰 유효 시간 T(ms)  ARGV[5]=키 만료 시각(초)  ARGV[6]=차례 유효 시간(ms)
+-- 반환: {종류, seq, admitted}  종류 = SALE_NOT_OPEN | SALE_CLOSED | READY | WAITING | JOINED
+--   READY   : 유효한 토큰이 있거나(=발급받은 상태이거나), 차례가 옴 + 차례 유예 시간 안에 있을 때
+--   WAITING : 차례 전. 앱이 seq, admitted로 순번을 계산함
+--   JOINED  : 새 번호를 받아서 줄 맨 뒤에 섬 (처음 진입 or 토큰 만료 or 차례 유효 시간 지남)
 
 local t = redis.call('TIME')
 local now = tonumber(t[1])*1000 + math.floor(tonumber(t[2])/1000)
@@ -18,16 +21,26 @@ local issuedAt = redis.call('ZSCORE', KEYS[4], userId)
 if issuedAt then
     if tonumber(issuedAt) > now - tonumber(ARGV[4]) then -- 아직 유효한 토큰
         redis.call('ZREM', KEYS[2], userId)
-        return {'TOKEN_ISSUED'}
+        return {'READY'} -- TOKEN_ISSUED -> READY
+    else
+        redis.call('ZREM', KEYS[4], userId)
+        redis.call('ZREM', KEYS[2], userId)
     end
-    redis.call('ZREM', KEYS[4], userId)
-    redis.call('ZREM', KEYS[2], userId)
 end
 
 local seq = redis.call('ZSCORE', KEYS[2], userId)
 local admitted = redis.call('GET', KEYS[3]) or '0' -- 아직 안 만들어졌을 수 있음
 if seq then
-    return {'ALREADY_IN_QUEUE', tonumber(seq), tonumber(admitted)}
+    if tonumber(seq) <= tonumber(admitted) then -- 차례가 됨
+        local admittedAt = redis.call('ZRANGEBYSCORE', KEYS[5], seq, '+inf', 'LIMIT', 0, 1)[1]
+        if not admittedAt or tonumber(admittedAt) + tonumber(ARGV[6]) >= now then -- 유예 시간이 남았을 경우
+            return {'READY'}
+        else
+            redis.call('ZREM', KEYS[2], userId)
+        end
+    else
+        return {'WAITING', tonumber(seq), tonumber(admitted)}
+    end
 end
 
 seq = redis.call('INCR', KEYS[1])

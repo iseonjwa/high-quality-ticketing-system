@@ -38,7 +38,7 @@ tags: [concurrency-limit, semaphore, hikaricp, seat-hold, capacity]
 | 끔 | 최대 5 | 전부 커넥션 풀 앞 | 초당 600건에서 성공 29~47% |
 
 - 커넥션 풀 앞에서 기다리는 요청은 Tomcat 스레드를 쥔 채 최대 1초를 기다린다. 1초를 넘기면 계약의 503이 아니라 500이 나간다(측정 문서 9절, 공통 예외 처리기 담당 확인 필요).
-- 잠긴 좌석을 노린 요청은 잠금 대기(50ms, ADR 0059) 동안 커넥션을 쥔다. 상한이 크면 이런 요청이 커넥션을 다 차지할 수 있다. 잠금 장애 600/s에서 지금도 실패가 21%인 이유다.
+- 잠긴 좌석을 노린 요청은 잠금 대기(50ms, ADR 0060) 동안 커넥션을 쥔다. 상한이 크면 이런 요청이 커넥션을 다 차지할 수 있다. 잠금 장애 600/s에서 지금도 실패가 21%인 이유다.
 
 ### 풀까지 함께 늘리면
 - 반복 2 참고 측정(풀 6·상한 5): 처리 한계가 상한 수에 비례해 약 25% 올랐다. 정상 1,800/s 의도 실패 22.5% → 9.4%. 잠금 장애 300/s에서는 503이 0이 됐다. 다만 배경 작업 부하가 없는 측정이고, 반복 3·4의 코드로는 다시 재야 한다.
@@ -51,4 +51,4 @@ tags: [concurrency-limit, semaphore, hikaricp, seat-hold, capacity]
 ## 근거
 - `docs/design/reservation/seathold-structure-improvements.md` 7절(상한 끔 대 상한 4, 초당 300·600건)
 - `docs/design/reservation/seathold-perf-loop.md` 반복 1·2·4(대기 인원 64, 풀 6·상한 5 참고 측정, 자리 쥐는 시간)
-- `docs/decisions/0060-seat-hold-structure-precheck-reorder-limit.md` 결정 3
+- `docs/decisions/0061-seat-hold-structure-precheck-reorder-limit.md` 결정 3

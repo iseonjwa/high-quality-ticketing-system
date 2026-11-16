@@ -84,12 +84,17 @@ services:
   payment-service:
     image: ghcr.io/iseonjwa/payment-service:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null
-    mem_limit: 768m
+    # 768MiB에서 2026-11-15 UTC 하루에 cgroup OOM(exit 137)으로 다섯 번 죽었다(ISE-264, TS-71). 실측은 비힙 committed 약 193~216MB
+    # (Metaspace 134MB, 코드 캐시 41MB) + JVM 지표 밖 약 144MB(스레드 스택, GC 자료구조, malloc)라 힙이 512MB까지 커지면 약 870MB다.
+    # 대사 회차(5분마다 housekeeping-1)가 힙을 키우는 순간 상한을 넘었다. 힙은 그대로 두고 상한을 1,024MiB로 올린다(gateway와 같은 방식).
+    # 힙 밖 상한(Metaspace 256MB, 코드 캐시 128MB, 직접 메모리 64MB)은 실측의 약 2~3배로, 누수가 생기면 컨테이너 강제 종료 대신 JVM 오류로 보이게 한다.
+    # 컨테이너 상한 합은 12,992 → 13,248MiB(frontend 포함, compose config 계산)로 장비(약 15.7GiB, 15,701MiB)의 84%다
+    mem_limit: 1024m
     restart: unless-stopped
     logging: *deploy-logging
     environment:
       <<: *deploy-app-env
-      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:+UseG1GC
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseG1GC
   mock-pg:
     image: ghcr.io/iseonjwa/mock-pg:${IMAGE_TAG:?배포할 40자 커밋 SHA를 IMAGE_TAG로 넘긴다}
     build: !reset null

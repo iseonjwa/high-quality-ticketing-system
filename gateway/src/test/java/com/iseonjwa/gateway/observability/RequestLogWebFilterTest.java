@@ -169,9 +169,12 @@ class RequestLogWebFilterTest {
 
     @Test
     void 운영_설정은_5xx와_200ms_이상만_남긴다() throws IOException {
+        // Config Server처럼 서비스 파일(gateway.yml)을 공통 파일(application.yml)보다 앞에 둔다. 값은 공통 파일에 있다(ADR 0052 2단계)
         var environment = new StandardEnvironment();
-        new YamlPropertySourceLoader().load("gateway", new FileSystemResource("../config-repo/gateway.yml"))
-                .forEach(source -> environment.getPropertySources().addLast(source));
+        for (var file : new String[] {"../config-repo/gateway.yml", "../config-repo/application.yml"}) {
+            new YamlPropertySourceLoader().load(file, new FileSystemResource(file))
+                    .forEach(source -> environment.getPropertySources().addLast(source));
+        }
 
         var properties = Binder.get(environment).bind("iseonjwa.request-log", RequestLogProperties.class).get();
 

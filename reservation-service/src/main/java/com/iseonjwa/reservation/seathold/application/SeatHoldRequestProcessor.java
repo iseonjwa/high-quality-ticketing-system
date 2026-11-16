@@ -53,7 +53,7 @@ public class SeatHoldRequestProcessor {
     private final Duration lockTimeout;
 
     /**
-     * @param lockTimeout 좌석·매수 행 잠금 대기 시한. 기본값은 동기형과 같은 50ms다(ADR 0059). 같은 구역 메시지는 한 줄로
+     * @param lockTimeout 좌석·매수 행 잠금 대기 시한. 기본값은 동기형과 같은 50ms다(ADR 0060). 같은 구역 메시지는 한 줄로
      *                    처리되므로 기다린다는 것은 줄 밖의 작업(만료, 취소, 다른 구역 키의 섞인 요청)과 부딪친 것이고,
      *                    기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 모두 멈춘다. 그래서 동기형보다 길게 두지 않는다
      */
@@ -138,7 +138,7 @@ public class SeatHoldRequestProcessor {
         if (!SeatHoldRules.allHoldable(seats)) {
             // Note: 같은 파티션의 앞 메시지는 커밋을 마쳤으므로 읽은 상태가 최신이다. 오픈 순간에는 같은 좌석 요청이 첫 처리 전에
             // 한꺼번에 접수되어 접수 검사를 모두 통과하므로, 진 요청 대부분이 여기서 걸린다. 아무것도 바꾸지 않았으니 롤백하지 않고
-            // 이 트랜잭션에서 바로 닫는다. 진 메시지가 싸질수록 같은 줄의 뒤 메시지가 빨리 처리된다(ADR 0060)
+            // 이 트랜잭션에서 바로 닫는다. 진 메시지가 싸질수록 같은 줄의 뒤 메시지가 빨리 처리된다(ADR 0061)
             requests.markRejected(event.requestId(), SEAT_ALREADY_HELD, now);
             return Outcome.SEAT_CONFLICT;
         }

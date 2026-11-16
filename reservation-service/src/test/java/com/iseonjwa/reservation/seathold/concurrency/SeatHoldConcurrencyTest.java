@@ -169,7 +169,7 @@ class SeatHoldConcurrencyTest {
 
         assertTrue(all.stream().noneMatch(Outcome::isError), () -> "5xx: " + countByResult(all));
         // Note: 목표는 400ms다. lock_timeout은 잠금 시도마다 걸려 같은 행을 여럿이 기다리면 몇 배까지 걸린다(concurrency-results.md
-        // 4-3절). 50ms에서 실측 최대는 221~225ms였고, 500ms였을 때는 최대 643~1,305ms라 이 목표를 넘는다(TS-70)
+        // 4-3절). 50ms에서 실측 최대는 221~225ms였고, 500ms였을 때는 최대 643~1,305ms라 이 목표를 넘는다(TS-73)
         assertTrue(ConcurrentRunner.percentileMillis(all, 100) < 400, "잠금을 0.4초 넘게 기다렸다");
         assertEquals((long) all.size(), countByResult(all).getOrDefault("SEAT_ALREADY_HELD", 0L));
     }

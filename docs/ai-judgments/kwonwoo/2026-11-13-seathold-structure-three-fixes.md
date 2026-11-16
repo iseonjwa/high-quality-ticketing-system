@@ -13,7 +13,7 @@ shared: 예
 # 좌석 선점 구조 개선 세 가지(먼저 거절, 잠금 뒤로, 동시 처리 상한)를 AI 추천 순서대로 하나씩 넣고 부하로 재기로 함
 
 ## 맥락
-- 해결하려던 작업: 잠금 대기를 50ms로 줄인 뒤(ADR 0059), 다음 개선안(캐시 사전 거절, 409 본문의 실패 좌석 ID)이 다른 일에 막혀 있었다. 시니어 시점에서 선점 구조 자체에 문제가 없는지 물었다.
+- 해결하려던 작업: 잠금 대기를 50ms로 줄인 뒤(ADR 0060), 다음 개선안(캐시 사전 거절, 409 본문의 실패 좌석 ID)이 다른 일에 막혀 있었다. 시니어 시점에서 선점 구조 자체에 문제가 없는지 물었다.
 - AI 활용 방식: AI가 `SyncSeatHoldService`의 트랜잭션 순서를 읽고 구조를 평가했다([학습 노트](../../learning/kwonwoo/qna/2026-11-13-seathold-structure-review.md)).
 
 ## AI 제안
@@ -30,7 +30,7 @@ shared: 예
 - 검토한 대안: 캐시 사전 거절(P4c 대기), 409 실패 좌석 ID(contract 필요), 지표 정리만 하기
 
 ## 반영
-- [ADR 0060](../../decisions/0060-seat-hold-structure-precheck-reorder-limit.md), [측정 문서](../../design/reservation/seathold-structure-improvements.md), [TS-71](../../troubleshooting.md)
+- [ADR 0061](../../decisions/0061-seat-hold-structure-precheck-reorder-limit.md), [측정 문서](../../design/reservation/seathold-structure-improvements.md), [TS-74](../../troubleshooting.md)
 - `SyncSeatHoldService`(상태 검사, 순서), `SeatHoldRules.allHoldable`, `SeatHoldConcurrencyLimit`, `SeatHoldController`, `SeatHoldLoadTest` L7·L8·L9
 
 ## 검증
@@ -44,4 +44,4 @@ shared: 예
 ## 발표·면접 포인트
 - 같은 판단을 하는 두 경로(동기형·접수형)가 다르게 걸러 한쪽에 헛일이 남아 있었다. 코드 한 줄짜리 검사로 처리량이 65% 늘었다.
 - 개선마다 효과가 나는 부하가 다르다. 2는 어느 측정에서도 오차를 넘지 못했다. 3회 측정에서 좋아 보인 수치가 다시 재니 사라져, 한 번의 비교로 효과를 말하지 않게 됐다.
-- 3은 닫힌 모델로 재면 결과가 왜곡돼 열린 모델을 새로 만들었다(TS-71).
+- 3은 닫힌 모델로 재면 결과가 왜곡돼 열린 모델을 새로 만들었다(TS-74).

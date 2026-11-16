@@ -93,8 +93,8 @@ class SeatHoldMetricsApiTest {
 
     @Test
     void 결과_카운터는_요청이_없어도_모든_결과가_0부터_보인다() {
-        for (var outcome : List.of("held", "accepted", "seat_conflict", "limit_exceeded", "not_open", "not_payable",
-                "entry_token_used", "invalid", "error")) {
+        for (var outcome : List.of("held", "accepted", "seat_conflict", "zone_sold_out", "limit_exceeded", "not_open",
+                "not_payable", "entry_token_used", "invalid", "error")) {
             assertTrue(meters.find("seathold.result").tag("outcome", outcome).counter() != null, outcome);
         }
     }

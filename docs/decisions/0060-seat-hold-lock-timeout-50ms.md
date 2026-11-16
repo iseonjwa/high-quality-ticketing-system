@@ -1,17 +1,19 @@
-# 0059. 동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다
+# 0060. 동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다
 
 - 상태: 채택
 - 날짜: 2026-11-13
 - 결정자: 최권우 (좌석 선점 담당)
 - 관련 이슈: ISE-261 (ISE-79 후속)
 - 관련 AI 판단: [SKIP LOCKED를 먼저 하기로 함](../ai-judgments/kwonwoo/2026-11-13-seathold-skip-locked-first.md), [측정 뒤 SKIP LOCKED를 거부하고 50ms를 택함](../ai-judgments/kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md)
-- 관련 기록: [TS-70](../troubleshooting.md), [학습 노트](../learning/kwonwoo/qna/2026-11-13-seathold-senior-improvements.md)
+- 관련 기록: [TS-73](../troubleshooting.md), [학습 노트](../learning/kwonwoo/qna/2026-11-13-seathold-senior-improvements.md)
+- 번호: 처음에 0059로 썼으나 dev에 먼저 들어간 [0059(자동 배정)](0059-seat-auto-assign-skip-locked.md)와 겹쳐 11/16 dev 병합 때 0060으로 옮겼다.
+- 적용 범위: 사용자가 고른 좌석을 잡는 선점(동기형, 접수형 소비자)이다. 서버가 좌석을 고르는 자동 배정은 고른 좌석을 다른 좌석으로 바꿀 수 있어 SKIP LOCKED를 쓴다(ADR 0059). 이 기록의 "SKIP LOCKED는 쓰지 않는다"는 자동 배정에 해당하지 않는다.
 - SA와의 관계: SA 9-4 표의 "선점 DB `lock_timeout` 500ms"를 50ms로 바꾼다. "오래 기다리기보다 바로 이미 선택된 좌석 안내"라는 의도는 그대로 따른다. Notion 항목은 고치지 않았다. 이 기록이 SA 9-4의 값을 대체한다.
 
 ## 맥락
 - 동기형 선점은 좌석 행을 `ORDER BY id FOR UPDATE`로 잠그고 조건부 UPDATE(`status = 'AVAILABLE'`)로 바꾼다. 다른 트랜잭션이 좌석을 쥐고 있으면 `lock_timeout`까지 기다린다. 이 상한은 잠금 시도마다 따로 걸려, 같은 행을 여럿이 기다리면 몇 배까지 늘어난다(`docs/design/reservation/concurrency-results.md` 4-3절).
 - 기다리는 동안 요청은 DB 커넥션을 쥔다. 500ms면 풀 10개 ÷ 0.5초, 곧 초당 약 20건보다 많은 선점이 잠긴 좌석으로 가면 풀이 찬다. 그러면 상관없는 좌석 조회까지 실패한다. ISE-79 잠금 장애 주입 측정에서 이 번짐이 남았다(`docs/design/reservation/k6-seathold-story.md` 5·11절).
-- 처음에는 대기를 0으로 만드는 `FOR UPDATE SKIP LOCKED`를 넣었다. 동시성 테스트에서 성공한 선점이 크게 줄어 되돌렸다(TS-70).
+- 처음에는 대기를 0으로 만드는 `FOR UPDATE SKIP LOCKED`를 넣었다. 동시성 테스트에서 성공한 선점이 크게 줄어 되돌렸다(TS-73).
 
 ## 결정
 - `SyncSeatHoldService.LOCK_TIMEOUT`을 500ms에서 50ms로 줄인다. 좌석 쿼리는 `FOR UPDATE`(기다림)를 그대로 둔다.

@@ -26,6 +26,8 @@ public class SeatHoldMetrics {
         // 접수형 202. 동기형 서버가 접수형으로 시작한 요청에 답한 202도 여기다(ADR 0058)
         ACCEPTED("accepted"),
         SEAT_CONFLICT("seat_conflict"),
+        // 자동 배정에서 고른 구역·등급에 남은 좌석이 모자람(ISE-264). 좌석 충돌과 나눠 본다
+        ZONE_SOLD_OUT("zone_sold_out"),
         LIMIT_EXCEEDED("limit_exceeded"),
         NOT_OPEN("not_open"),
         NOT_PAYABLE("not_payable"),
@@ -42,7 +44,10 @@ public class SeatHoldMetrics {
         }
     }
 
+    static final String PRE_REJECTED_NAME = "seathold.pre_rejected";
+
     private final Map<Outcome, Counter> counters = new EnumMap<>(Outcome.class);
+    private final Counter preRejected;
 
     // 기동할 때 모든 결과를 0으로 등록해 둔다. 요청마다 등록하지 않고, 아직 없는 결과도 rate()가 0으로 보인다
     public SeatHoldMetrics(MeterRegistry registry) {
@@ -52,10 +57,19 @@ public class SeatHoldMetrics {
                     .tag("outcome", outcome.label)
                     .register(registry));
         }
+        // Note: outcome 값을 늘리지 않고 따로 센다. 사전 거절도 응답은 같은 409라 seathold.result에는 seat_conflict로 들어가고,
+        // 이 카운터는 그중 트랜잭션 전에 끝난 수다. seat_conflict를 둘로 나누면 기존 대시보드의 좌석 충돌 비율이 바뀐다(ISE-281)
+        preRejected = Counter.builder(PRE_REJECTED_NAME)
+                .description("좌석 조회 1초 캐시로 트랜잭션 전에 거절한 선점 수(seat_conflict의 일부)")
+                .register(registry);
     }
 
     public void record(Outcome outcome) {
         counters.get(outcome).increment();
+    }
+
+    public void recordPreRejected() {
+        preRejected.increment();
     }
 
     public void recordFailure(RuntimeException exception) {
@@ -71,6 +85,7 @@ public class SeatHoldMetrics {
         }
         return switch (code) {
             case SEAT_ALREADY_HELD -> Outcome.SEAT_CONFLICT;
+            case ZONE_SOLD_OUT -> Outcome.ZONE_SOLD_OUT;
             case PURCHASE_LIMIT_EXCEEDED -> Outcome.LIMIT_EXCEEDED;
             case SALE_NOT_OPEN -> Outcome.NOT_OPEN;
             case RESERVATION_NOT_PAYABLE -> Outcome.NOT_PAYABLE;

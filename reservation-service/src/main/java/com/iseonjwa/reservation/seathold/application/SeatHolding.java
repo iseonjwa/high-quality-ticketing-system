@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
@@ -31,7 +32,7 @@ import java.util.UUID;
 
 /**
  * 동기형 선점과 접수형 소비자가 함께 쓰는 좌석 선점 본체(SA 6-4, ISE-17). 매수 반영 → 예매·이력 저장 → 선점 요청 HELD →
- * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 호출한 쪽의 트랜잭션 안에서 한다(순서는 ADR 0060). 실패하면
+ * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 호출한 쪽의 트랜잭션 안에서 한다(순서는 ADR 0061). 실패하면
  * {@link BusinessException}을 던지고, 호출한 쪽이 트랜잭션을 롤백해 먼저 바뀐 매수·예매·요청도 되돌린다.
  *
  * <p>Note: 잠금 대기 시한({@code lock_timeout})은 호출한 쪽이 이 메서드 전에 건다. 이미 잡힌 좌석이 섞인 요청은 호출한 쪽이
@@ -73,7 +74,7 @@ public class SeatHolding {
         try {
             addHeldCount(userId, schedule, seatIds.size(), now);
             // Note: 다른 요청과 다투지 않는 쓰기(예매·이력·요청 HELD)를 좌석 UPDATE보다 먼저 한다. 좌석 잠금은 커밋까지 가므로
-            // 잠근 뒤의 문장이 적을수록 같은 좌석을 노린 요청이 덜 기다린다(ADR 0060)
+            // 잠근 뒤의 문장이 적을수록 같은 좌석을 노린 요청이 덜 기다린다(ADR 0061)
             var reservation = saveReservation(requestId, userId, schedule, seats, now);
             if (requests.markHeld(requestId, reservation.getId(), now, userId) != 1) {
                 // 동기형은 이 트랜잭션에서 요청 행을 만들었고, 소비자는 요청 행을 잠그고 있으므로 일어나면 안 된다
@@ -87,6 +88,34 @@ public class SeatHolding {
             throw new SeatLockTimeoutException();
         }
     }
+
+    /**
+     * 자동 배정(ISE-264). 좌석을 서버가 고른다는 점만 다르고 잠금 순서와 상태 전이는 {@link #hold}와 같다.
+     * 매수 행 조건부 UPDATE → 좌석 ID 오름차순 잠금(SKIP LOCKED) → 같은 조건부 UPDATE로 HELD → 예매 저장(SA 8-4, ADR 0034 3항).
+     * 범위 안 남은 좌석이 quantity보다 적으면 {@link SeatHoldErrorCode#ZONE_SOLD_OUT}이다. 다른 범위로 넘기지 않는다.
+     */
+    public AutoHeldSeats holdAuto(UUID requestId, Long userId, Schedule schedule, SeatGrade grade, String section,
+            int quantity, Instant now) {
+        try {
+            addHeldCount(userId, schedule, quantity, now);
+            var seatIds = inventory.lockAvailableSeatIds(schedule.getId(), grade, section, quantity);
+            if (seatIds.size() < quantity) {
+                throw new BusinessException(SeatHoldErrorCode.ZONE_SOLD_OUT);
+            }
+            holdSeats(schedule.getId(), seatIds, userId, now);
+            var seats = inventory.findSeats(schedule.getId(), seatIds);
+            // Note: 예매와 예매 좌석 저장이 나뉘어 있다(hold의 순서 변경, ADR 0061). 여기서도 둘 다 불러야 좌석 원장이 남는다
+            var reservation = saveReservation(requestId, userId, schedule, seats, now);
+            saveReservationSeats(reservation, seats);
+            return new AutoHeldSeats(reservation, seatIds);
+        } catch (PessimisticLockingFailureException timeout) {
+            // 좌석은 건너뛰므로 기다리지 않는다. 같은 사용자의 다른 탭이 매수 행을 쥐고 있을 때만 여기로 온다
+            throw new SeatLockTimeoutException();
+        }
+    }
+
+    // seatIds는 ID 오름차순이다
+    public record AutoHeldSeats(Reservation reservation, List<Long> seatIds) {}
 
     // 검사와 증가를 조건부 UPDATE 한 문장으로 한다(TS-2). 읽고 검사한 뒤 더하면 같은 사용자의 탭들이 같은 값을 읽고 모두 통과했다
     private void addHeldCount(Long userId, Schedule schedule, int quantity, Instant now) {

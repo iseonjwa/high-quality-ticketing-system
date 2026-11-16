@@ -44,7 +44,7 @@ seat-hold:
     partitions: 6
     # 동시성 하나가 처리 중에 커넥션 하나를 쥔다. 풀(maximum-pool-size)을 HTTP와 나눠 쓴다
     concurrency: 2
-    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 멈춰 동기형(50ms, ADR 0059)보다 길게 두지 않는다
+    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 멈춰 동기형(50ms, ADR 0060)보다 길게 두지 않는다
     lock-timeout: 50ms
 seathold:
   expiry:
@@ -63,6 +63,7 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  turn-ttl: 1m
   redis:
     # 대기열 Redis 차단기 설정
     circuit-breaker:

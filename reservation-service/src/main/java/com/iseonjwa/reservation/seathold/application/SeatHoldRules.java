@@ -42,7 +42,7 @@ final class SeatHoldRules {
     }
 
     // Note: 잠그지 않고 읽은 상태라 그사이 바뀔 수 있다. 여기서 AVAILABLE이어도 좌석 조건부 UPDATE가 최종 판단이다.
-    // 여기서 잡혀 보인 좌석은 커밋된 선점이라 UPDATE까지 가도 409다. 오픈 피크 요청 대부분이 이 경우라 먼저 거른다(ADR 0057, 0060)
+    // 여기서 잡혀 보인 좌석은 커밋된 선점이라 UPDATE까지 가도 409다. 오픈 피크 요청 대부분이 이 경우라 먼저 거른다(ADR 0057, 0061)
     static boolean allHoldable(List<ScheduleSeat> seats) {
         return seats.stream().allMatch(ScheduleSeat::isHoldable);
     }
@@ -81,11 +81,39 @@ final class SeatHoldRules {
         }
     }
 
-    // 같은 멱등키는 같은 사용자·회차·좌석일 때만 재요청으로 인정한다(contracts.md 3-1)
+    // 입장 토큰은 선점이 성공한 순간 소모한다(ADR 0053). 거절되지 않은 요청(처리 중·성공)이 이미 쓴 토큰이면 거절한다.
+    // 이 조회는 빠른 거절용이고, 동시에 온 요청은 저장할 때 부분 유니크 인덱스가 막는다. 자동 배정만 쓴다
+    // (직접 고르는 선점은 사전 판정 한 문장에서 함께 읽는다)
+    static void requireUnusedEntryToken(SeatHoldRequestRepository requests, String entryTokenJti) {
+        if (entryTokenJti != null && requests.existsActiveByEntryTokenJti(entryTokenJti)) {
+            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+        }
+    }
+
+    // 자동 배정 매수도 직접 고를 때와 같은 한도를 쓴다. 0 이하는 본문 검증(@Positive)에서 먼저 막힌다
+    static void requireWithinPerUserLimit(Schedule schedule, int quantity) {
+        if (quantity < 1 || quantity > schedule.getMaxPerUser()) {
+            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
+        }
+    }
+
+    // 같은 멱등키는 같은 사용자·회차·좌석일 때만 재요청으로 인정한다(contracts.md 3-1).
+    // 자동 배정으로 쓴 키(auto_criteria 있음)는 우연히 같은 좌석을 보내도 다른 요청이다
     static void requireSameRequest(SeatHoldRequest previous, HoldSeatsCommand command, List<Long> seatIds) {
         if (!previous.getUserId().equals(command.userId())
                 || !previous.getScheduleId().equals(command.scheduleId())
+                || previous.getAutoCriteria() != null
                 || !previous.getSeatIds().equals(seatIds)) {
+            throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
+        }
+    }
+
+    // 자동 배정의 같은 멱등키 재요청은 좌석이 아니라 사용자·회차·조건(범위·매수)으로 비교한다(contracts.md 3-1, ISE-264).
+    // 좌석은 서버가 처음 고른 것을 그대로 돌려준다
+    static void requireSameAutoRequest(SeatHoldRequest previous, AutoHoldSeatsCommand command) {
+        if (!previous.getUserId().equals(command.userId())
+                || !previous.getScheduleId().equals(command.scheduleId())
+                || !command.criteriaKey().equals(previous.getAutoCriteria())) {
             throw new BusinessException(CommonErrorCode.IDEMPOTENCY_KEY_REUSED);
         }
     }

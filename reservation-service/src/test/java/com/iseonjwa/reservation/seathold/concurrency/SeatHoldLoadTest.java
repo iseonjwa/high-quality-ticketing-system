@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * 좌석 선점 부하 시나리오 L1·L2·L3·L6의 로컬 근사(docs/design/reservation/load-test-scenarios.md 3절)와,
- * 선점 구조 개선(ADR 0060)을 재는 L7·L8·L9(docs/design/reservation/seathold-structure-improvements.md 4절).
+ * 선점 구조 개선(ADR 0061)을 재는 L7·L8·L9(docs/design/reservation/seathold-structure-improvements.md 4절).
  *
  * <p>실제 Tomcat·Hikari·PostgreSQL에 HTTP로 부하를 준다. Gateway·인증·다른 기기의 부하 도구가 없고 부하 생성기와 대상이
  * 같은 JVM이라 SA 3-1의 공식 측정을 대신하지 않는다. 같은 장비에서 단계(S0~S4)와 커넥션 풀 크기의 전후를 비교하는 용도다.
@@ -120,7 +120,7 @@ class SeatHoldLoadTest {
     private static final int PROBE_RATE = Integer.parseInt(
             System.getenv().getOrDefault("SEATHOLD_LOAD_PROBE_RATE", "0"));
     // 503을 받은 사용자가 다시 누르기까지의 시간. 0이면 바로 다시 보낸다. 쉬지 않으면 503 폭주가 같은 JVM의 CPU를 먹어
-    // 서버 처리량까지 낮추므로, 동시 처리 상한을 켠 측정은 이 값을 둔다(ADR 0060)
+    // 서버 처리량까지 낮추므로, 동시 처리 상한을 켠 측정은 이 값을 둔다(ADR 0061)
     private static final Duration OVERLOAD_BACKOFF = Duration.ofMillis(
             Long.parseLong(System.getenv().getOrDefault("SEATHOLD_LOAD_503_BACKOFF_MS", "0")));
 

@@ -114,9 +114,10 @@ export function hold(scheduleId, user, seatIds, tags = {}) {
 }
 
 // 결제 승인. 본문 금액은 선점 응답의 totalAmount다(결제 서비스가 토큰의 금액과 비교한다)
+// Note: pgProvider MOCK이 없으면 배포 서버(기본 PG 토스)가 결제창 값을 요구해 400이 난다(o1-open-peak.js pay와 같은 이유).
 export function pay(user, held, tags = {}) {
   const res = http.post(url('/api/v1/payments'),
-    JSON.stringify({ paymentToken: held.paymentToken, method: 'CARD', amount: held.totalAmount }), {
+    JSON.stringify({ paymentToken: held.paymentToken, method: 'CARD', amount: held.totalAmount, pgProvider: 'MOCK' }), {
       headers: jsonHeaders(user.access, { 'Idempotency-Key': uuid() }),
       tags: Object.assign({ api: 'payment' }, tags),
       // Gateway 3초보다 길게 두어 504를 서버 응답으로 받는다

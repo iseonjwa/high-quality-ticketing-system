@@ -32,6 +32,7 @@ main() {
     [[ -n "$previous" && "$previous" != "$sha" ]] && echo "$previous" > "$state/previous"
     echo "$sha" > "$state/current"
     echo "== 배포 성공: $sha"
+    warm_up
     return 0
   fi
 
@@ -47,6 +48,19 @@ main() {
   fi
   echo "== 되돌림도 실패했다. 서버에 접속해 확인한다" >&2
   return 3
+}
+
+# Note: 새로 뜬 JVM은 좌석 선점·결제·확정 경로를 처음 받는 순간 JIT 컴파일을 몰아서 한다. 11/15 오픈 피크 30초에
+# 컴파일 경과 시간이 reservation CPU의 약 30%, payment CPU와 비슷했다(ISE-264, docs/design/infra/deployment.md 5절).
+# 그래서 배포가 성공하면 예열 전용 공연으로 그 경로를 미리 돈다. 예열은 준비 작업이라 실패해도 배포 결과를 바꾸지 않는다.
+# 되돌림 배포 뒤에는 돌리지 않는다(실패 원인을 보는 동안 부하를 더하지 않는다). 끄려면 DEPLOY_WARMUP=0.
+warm_up() {
+  if [[ "${DEPLOY_WARMUP:-1}" == 0 ]]; then
+    echo "== JIT 예열을 건너뛴다(DEPLOY_WARMUP=0)"
+    return 0
+  fi
+  WARMUP_FROM_DEPLOY=1 script/deploy/warmup.sh \
+    || echo "== 경고: JIT 예열이 실패했다. 배포는 성공이다. 출력: .deploy/warmup-last.txt" >&2
 }
 
 deploy_once() {

@@ -6,6 +6,11 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-15 | 좌석 조회 서비스에 트랜잭션이 없는 이유, 선점 사전 거절이 중복 판매를 만들지 않는 이유 | [qna/2026-11-15-seat-query-no-tx-and-precheck-safety.md](qna/2026-11-15-seat-query-no-tx-and-precheck-safety.md) |
+| 2026-11-15 | 좌석 조회 3차 뒤 남은 한계는 820KB 응답을 받는 쪽 대기인가, 응답 크기는 줄였나 | [qna/2026-11-15-seat-query-820kb-remaining-limit.md](qna/2026-11-15-seat-query-820kb-remaining-limit.md) |
+| 2026-11-14 | Gateway 동시 처리 상한(64)의 정확한 목적 | [qna/2026-11-14-gateway-inflight-limit-purpose.md](qna/2026-11-14-gateway-inflight-limit-purpose.md) |
+| 2026-11-14 | 2차의 커넥션 대기, 3차 뒤 커넥션 풀을 늘릴 필요, DB가 한가한데 CPU가 꽉 찬 이유 | [qna/2026-11-14-seat-query-bottleneck-cpu-connection.md](qna/2026-11-14-seat-query-bottleneck-cpu-connection.md) |
+| 2026-11-14 | 브랜치를 팠는데 왜 폴더가 생겼나(git worktree) | [qna/2026-11-14-git-worktree.md](qna/2026-11-14-git-worktree.md) |
 | 2026-11-14 | 결제 거절 뒤 보상(좌석 원복)은 어떤 흐름이고 ISE-267 캡처는 무엇을 보여 주는가 | [qna/2026-11-14-saga-payment-declined-compensation.md](qna/2026-11-14-saga-payment-declined-compensation.md) |
 | 2026-11-13 | 내 컴퓨터 IP는 왜 장소마다 바뀌고, 카페에서 배포 서버 SSH가 막히는가 | [qna/2026-11-13-public-private-ip-and-security-group.md](qna/2026-11-13-public-private-ip-and-security-group.md) |
 | 2026-11-13 | Prometheus와 Grafana는 무엇이고 부하 측정에서 어떻게 쓰는가 | [qna/2026-11-13-prometheus-grafana-role.md](qna/2026-11-13-prometheus-grafana-role.md) |

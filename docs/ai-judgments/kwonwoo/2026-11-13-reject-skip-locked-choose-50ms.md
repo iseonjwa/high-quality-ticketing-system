@@ -28,7 +28,7 @@ shared: 예
 - 검토한 대안: 500ms 유지, `SKIP LOCKED` 유지, 결정 전에 측정 브랜치에서 Z·K1 부하로 비교
 
 ## 반영
-- [ADR 0059](../../decisions/0059-seat-hold-lock-timeout-50ms.md), [TS-70](../../troubleshooting.md)
+- [ADR 0060](../../decisions/0060-seat-hold-lock-timeout-50ms.md), [TS-73](../../troubleshooting.md)
 - `SyncSeatHoldService.LOCK_TIMEOUT` 50ms, `JpaSeatHoldInventoryRepository`에 SKIP LOCKED를 쓰지 않는 이유, C3 목표 400ms, `SeatHoldLockWaitTest`
 - 학습 노트 1절 정정
 

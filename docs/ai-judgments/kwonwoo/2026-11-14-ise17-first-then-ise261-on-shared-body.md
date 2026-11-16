@@ -13,7 +13,7 @@ shared: 아니오
 # ISE-17(접수형 소비자)을 먼저 머지하고 ISE-261 변경을 공용 선점 본체 위에서 다시 맞추기로 함
 
 ## 맥락
-- 해결하려던 작업: ISE-17(PR #609)이 동기형 선점 본체를 `SeatHolding`으로 떼어 냈고, ISE-261(미커밋)은 같은 본체를 ADR 0059·0060에 따라 고쳤다. 두 작업이 `SyncSeatHoldService`에서 충돌한다.
+- 해결하려던 작업: ISE-17(PR #609)이 동기형 선점 본체를 `SeatHolding`으로 떼어 냈고, ISE-261(미커밋)은 같은 본체를 ADR 0060·0060에 따라 고쳤다. 두 작업이 `SyncSeatHoldService`에서 충돌한다.
 - AI 활용 방식: PR #609 머지 전에 더 검증할 부분이 있는지 묻고, 나온 확인 항목의 해결 방안을 트레이드오프와 함께 설명해 달라고 했다.
 
 ## AI 제안
@@ -34,12 +34,12 @@ shared: 아니오
   - `SeatHolding`: 매수 → 예매·이력 → 요청 HELD → 좌석 UPDATE → 예매 좌석 순서. 요청 HELD 표시를 본체 안으로 옮김
   - `SyncSeatHoldService`: 잠금 시한 50ms, 읽은 좌석 상태로 사전 거절
   - `SeatHoldRequestProcessor`: 사전 거절을 같은 트랜잭션에서 닫음, 잠금 시한 기본값 50ms
-  - `config-repo/reservation-service.yml`, `contracts.md` 2-2, ADR 0059·0060에 소비자 적용을 적음
+  - `config-repo/reservation-service.yml`, `contracts.md` 2-2, ADR 0060·0060에 소비자 적용을 적음
 
 ## 검증
 - PR #609 재병합 뒤: reservation-service 테스트 499건(건너뜀 14) 실패 0, `SeatHoldKafkaFlowTest` 3건 통과, CI `build`·`records-check` 통과
 - ISE-261 반영 뒤: reservation-service 테스트 507건(건너뜀 17) 실패 0. `SEATHOLD_CONCURRENCY=true`로 `SeatHoldConcurrencyTest` 7건, `SeatHoldLockWaitTest` 2건, `SeatHoldKafkaFlowTest` 3건 통과
-- C2 성공 82건(ADR 0059의 50ms 범위 78~92건 안), C3 최대 237ms(ADR 0059 기록 171~225ms보다 조금 길지만 테스트 목표 400ms 안). 1회 실행이다
+- C2 성공 82건(ADR 0059의 50ms 범위 78~92건 안), C3 최대 237ms(ADR 0060 기록 171~225ms보다 조금 길지만 테스트 목표 400ms 안). 1회 실행이다
 
 ## 판단 이력
 - 2026-11-14 수용: ISE-17 먼저 머지, ISE-261은 공용 본체 위에서 다시 맞춤

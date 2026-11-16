@@ -28,6 +28,8 @@ public class RedisQueueRepository implements QueueRepository {
             RedisScript.of(new ClassPathResource("/redis/queue/issue-token.lua"), List.class);
     private final RedisScript<Void> DISCARD_TOKEN =
             RedisScript.of(new ClassPathResource("/redis/queue/discard-token.lua"));
+    private final RedisScript<List> STATS =
+            RedisScript.of(new ClassPathResource("/redis/queue/stats.lua"), List.class);
 
     private final StringRedisTemplate stringRedisTemplate;
     private final CircuitBreaker circuitBreaker;
@@ -42,10 +44,10 @@ public class RedisQueueRepository implements QueueRepository {
 
     @Override
     public EnterOutcome enter(long scheduleId,
-                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+                              long userId, long openAtEpochMilli, long startsAtEpochMilli, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(ENTER, QueueKeys.of(scheduleId).enterKeys(),
                 String.valueOf(userId), String.valueOf(openAtEpochMilli), String.valueOf(startsAtEpochMilli),
-                String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond)));
+                String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond), String.valueOf(turnTtlMillis)));
         EnterOutcome.Type type = EnterOutcome.Type.valueOf((String) r.get(0));
         if(r.size() == 1) {
             return new EnterOutcome(type, null, null);
@@ -54,9 +56,9 @@ public class RedisQueueRepository implements QueueRepository {
     }
 
     @Override
-    public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis) {
+    public PositionOutcome position(long scheduleId, long userId, long tokenTtlMillis, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(POSITION, QueueKeys.of(scheduleId).positionKeys(),
-                String.valueOf(userId), String.valueOf(tokenTtlMillis)));
+                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(turnTtlMillis)));
         PositionOutcome.Type type = PositionOutcome.Type.valueOf((String) r.get(0));
         if (r.size() == 1) {
             return new PositionOutcome(type, null, null);
@@ -72,9 +74,9 @@ public class RedisQueueRepository implements QueueRepository {
     }
 
     @Override
-    public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond) {
+    public IssueTokenOutcome issueToken(long scheduleId, long userId, long tokenTtlMillis, long keyExpireAtEpochSecond, long turnTtlMillis) {
         List r = call(() -> stringRedisTemplate.execute(ISSUE_TOKEN, QueueKeys.of(scheduleId).issueTokenKeys(),
-                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond)));
+                String.valueOf(userId), String.valueOf(tokenTtlMillis), String.valueOf(keyExpireAtEpochSecond), String.valueOf(turnTtlMillis)));
         IssueTokenOutcome.Type type = IssueTokenOutcome.Type.valueOf((String) r.get(0));
         if (r.size() == 1) {
             return new IssueTokenOutcome(type, null);
@@ -94,6 +96,14 @@ public class RedisQueueRepository implements QueueRepository {
         call(() -> stringRedisTemplate.execute(DISCARD_TOKEN, QueueKeys.of(scheduleId).discardEntryTokenKeys(),
                 String.valueOf(userId), String.valueOf(issuedAtEpochMillis)));
     }
+
+    @Override
+    public QueueStats stats(long scheduleId, long tokenTtlMillis) {
+        List r = call(() -> stringRedisTemplate.execute(STATS, QueueKeys.of(scheduleId).statsKeys(),
+                String.valueOf(tokenTtlMillis)));
+        return new QueueStats((Long) r.get(0), (Long) r.get(1), (Long) r.get(2), (Long) r.get(3), (Long) r.get(4));
+    }
+
 
     // Redis 장애가 발생했을 때 따로 예외처리를 하기 위한 메서드
     private <T> T call(Supplier<T> supplier) {

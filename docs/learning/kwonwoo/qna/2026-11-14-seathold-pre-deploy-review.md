@@ -141,21 +141,21 @@ tags: [seathold, performance, outbox, kafka, postgresql, expiry, observability, 
 ### 7. 배포에서 DB 왕복이 길게 나올 때만: 쓰기 문장 묶기
 - 예매 좌석 다중 행 INSERT: 좌석 잠금 구간 안에 있는 예매 좌석 INSERT N번을 한 문장(`INSERT ... SELECT unnest(...)`)으로 바꾼다. 4석이면 잠금 구간 왕복이 6번에서 3번으로 준다. ID 전략(IDENTITY)은 바꾸지 않는다. 대가는 공용 저장소(`ReservationSeatRepository`, 효승·준현도 씀)를 건드리고, 부분 유니크 인덱스 위반을 `ActiveSeatConflictException`으로 바꾸는 처리를 다시 맞춰야 한다는 점이다.
 - 매수 반영 한 문장: 지금은 "행 만들기(없으면)" + "조건부 UPDATE" 2문장이다. `INSERT ... ON CONFLICT (user_id, schedule_id) DO UPDATE SET held_count = ... WHERE held_count + :q <= :max`로 합치면 1문장이다. 성공·매수 초과 경로 모두 왕복 1번이 준다.
-- 판단: local에서는 순서 변경(ADR 0060 2번)도 효과가 오차 안이었다. 왕복 하나가 컨테이너 네트워크에서 1ms보다 훨씬 짧으면 이 둘도 보이지 않을 것이다. 배포 측정에서 2번의 좌석 UPDATE Timer와 Zipkin 구간으로 왕복 시간이 길게 나오면 그때 넣는다.
+- 판단: local에서는 순서 변경(ADR 0061 2번)도 효과가 오차 안이었다. 왕복 하나가 컨테이너 네트워크에서 1ms보다 훨씬 짧으면 이 둘도 보이지 않을 것이다. 배포 측정에서 2번의 좌석 UPDATE Timer와 Zipkin 구간으로 왕복 시간이 길게 나오면 그때 넣는다.
 
 ### 하지 않을 것
 | 안 | 끌리는 이유 | 하지 않는 이유 |
 |---|---|---|
 | 입장 토큰 사전 조회 제거 | 토큰이 붙은 요청에서 왕복 1번이 준다. 같은 토큰의 동시 요청은 요청 행의 부분 유니크 인덱스(`uq_seat_hold_requests_entry_token_jti`)가 어차피 막는다 | 조회를 빼면 "쓴 토큰 + 잡힌 좌석" 요청이 403 대신 409를 받는다. 코드가 따르는 ADR 0053 결정 2("다른 요청이 쓴 토큰이면 좌석을 잠그기 전에 거절")의 응답 순서가 바뀐다 |
 | 회차 정보 캐시 | 모든 요청에서 왕복 1번이 준다 | 판매 기간·매수 한도가 바뀌어도 캐시 시간만큼 옛 값으로 판단한다. 얻는 왕복 하나에 비해 판단 오류의 비용이 크다 |
-| `SKIP LOCKED` | 대기 0 | C2 성공이 약 1/3 줄었다(ADR 0059) |
+| `SKIP LOCKED` | 대기 0 | C2 성공이 약 1/3 줄었다(ADR 0060) |
 | Redis 좌석 정본 | DB 잠금이 사라진다 | 이중 쓰기, 장애 때 정본이 흐려진다. 캐시 사전 거절이 같은 이점을 정본을 옮기지 않고 얻는다 |
 | 풀 크게(20·40) | 대기가 줄 것 같다 | K1-H에서 10과 같았다 |
 
 ## 이 프로젝트에서는
 - 추천 진행 순서: 2(계측)·5(만료 주기)·6(토큰 서명)은 담당 영역 안에서 작은 변경이라 ISE-261과 함께 넣을 수 있다. 1(직접 발행)은 ISE-18 범위로 이번 주에 한다. 3·4는 contract라 오늘 올려야 다음 주 전에 답을 받는다.
 - 관련 코드: `seathold/application/SyncSeatHoldService.java`, `SeatHolding.java`, `AsyncSeatHoldService.java`, `presentation/SeatHoldConcurrencyLimit.java`, `presentation/scheduling/SeatHoldExpiryScheduler.java`, `common/.../outbox/OutboxRepository.java`, `OutboxRelayScheduler.java`
-- 관련 기록: ADR 0056·0057·0059·0060, [시니어 개선안(11/13)](2026-11-13-seathold-senior-improvements.md), [구조 검토(11/13)](2026-11-13-seathold-structure-review.md), [ISE-17 확인 항목](2026-11-14-ise17-merge-verification-tradeoffs.md)
+- 관련 기록: ADR 0056·0057·0060·0061, [시니어 개선안(11/13)](2026-11-13-seathold-senior-improvements.md), [구조 검토(11/13)](2026-11-13-seathold-structure-review.md), [ISE-17 확인 항목](2026-11-14-ise17-merge-verification-tradeoffs.md)
 
 ## 면접 포인트
 - "Outbox를 썼는데 왜 직접 발행도 만들었나요?" → Outbox의 같은 키 순서 보장이 핫 구역에서 초당 약 2건 한계가 됐다. 선점 요청은 30초 시한이 남은 요청을 닫는 안전망이 있어 메시지 유실이 정합성 문제가 아니라 사용자 재시도 문제로 끝난다. 그래서 이 토픽만 전달 보장을 낮추고 처리량을 택했다. 결제 이벤트는 그대로 Outbox다.
