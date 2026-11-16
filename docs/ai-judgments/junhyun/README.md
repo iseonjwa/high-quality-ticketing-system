@@ -8,6 +8,9 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | **공개 Grafana를 "로그인 없이 볼 수 있다"고 쓴 AI의 브로셔 문장이 실제와 다르다고 지적함(원인은 메모리 상한 재시작)** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-grafana-unauthorized-memory-not-viewer-account.md) |
+| 2026-11-16 | **Swagger PR(#685)에 contract 이슈와 다른 담당 리뷰어를 두자는 제안을 거부하고 바로 머지하기로 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-swagger-pr-no-contract-no-reviewer.md) |
+| 2026-11-16 | **AI가 쓴 브로셔 문장 중 번역체·어색한 표현을 한국어 원문처럼 고치게 함** | Claude Code | **거부** | 아니오 | 아님 | [기록](2026-11-16-brochure-natural-korean-not-translationese.md) |
 | 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-server-address-in-one-env-key.md) |
 | 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-grafana-public-over-https-path.md) |
 | 2026-11-13 | 호출 한도가 있어 CodeRabbit을 넣지 않고, AI 코드 리뷰는 저장소 프롬프트와 스크립트로만 하기로 함 | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-13-no-coderabbit-prompt-review-only.md) |

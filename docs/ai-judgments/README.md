@@ -32,7 +32,7 @@
 |---|---|
 | [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
-| [kangmin](kangmin/README.md) | 개별 기록 118건, 일지 20일 |
+| [kangmin](kangmin/README.md) | 개별 기록 121건, 일지 21일 |
 | [kwonwoo](kwonwoo/README.md) | 개별 기록 35건, 일지 12일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
@@ -42,11 +42,15 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | 공개 Grafana를 "로그인 없이 볼 수 있다"고 쓴 AI의 브로셔 문장이 실제와 다르다고 지적함(원인은 권한이 아니라 메모리 상한 재시작, PR #700) | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-16-grafana-unauthorized-memory-not-viewer-account.md) |
+| 2026-11-16 | Swagger PR(#685)에 config-repo 변경 알림용 contract 이슈와 다른 담당 리뷰어를 두자는 제안을 거부하고 바로 머지하기로 함 | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-16-swagger-pr-no-contract-no-reviewer.md) |
 | 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | kwonwoo | Claude Code 두 세션 | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-16-verify-other-agent-precheck-analysis.md) |
 | 2026-11-16 | ISE-18 직접 발행을 커밋 뒤 전송·실패해도 202로 정하고, 측정 기준 코드에 ISE-261을 병합하기로 함(AI 추천 3개 모두 수용) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md) |
 | 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-16-pool-and-limit-together.md) |
 | 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-16-server-address-in-one-env-key.md) |
 | 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-16-grafana-public-over-https-path.md) |
+| 2026-11-16 | 사용자 3,000명·좌석 15,000석으로 매진이 나지 않는 AI의 O1 조건을 현실과 멀다고 보고 수요 ≫ 좌석 매진 시나리오로 다시 재기로 함 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-16-scarcity-scenario.md) |
+| 2026-11-16 | ISE-94 시나리오 3 미달을 정책으로 갈음하자는 AI 추천을 받지 않고 추첨 워커 속도 상한을 걸어 다시 재기로 함 | kangmin | Claude Code | **거부** | 후보 | [기록](kangmin/2026-11-16-lottery-scenario3-remeasure.md) |
 | 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-11-15-entry-token-ttl-single-source.md) |
 | 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-11-15-queue-ready-decided-in-lua.md) |
 | 2026-11-15 | 팀 답을 기다린 뒤 진행하자는 AI 계획을 받지 않고 ISE-269 4번 행 처리안과 ISE-230 안전망 상한을 선조치 후보고로 진행하기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-15-proceed-without-team-reply.md) |
