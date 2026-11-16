@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<!-- 화면 흐름. 측정 숫자를 쓰지 않는다. 화면 속 순번·금액·카드 번호는 디자인 시안(docs/design/frontend/samples/screens/)의 예시 문구다 -->
+<!-- 기능 근거: LEDGER.md 10절 차별성(추첨 자동결제), 3-2 대기열, 3-3 좌석 선점·자동배정, 3-4 결제, 3-5 추첨·자동결제 -->
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient>
+<linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<polygon points="1004,0 1016,0 1010,900 760,900" fill="url(#beam)"/>
+<polygon points="1144,0 1156,0 1330,900 1090,900" fill="url(#beam)"/>
+<polygon points="1284,0 1296,0 1640,900 1380,900" fill="url(#beam)"/>
+<polygon points="854,0 866,0 740,900 520,900" fill="url(#beam)"/>
+<text x="61" y="104" font-size="66" font-weight="900" fill="#FFFFFF" letter-spacing="-2">줄 서기부터 <tspan fill="#F59F00">결제</tspan>까지, 화면 네 장</text>
+<text x="64.0" y="142.0" font-size="22" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">선착순은 대기열 → 자동배정 → 결제, 추첨은 당첨되면 자동결제 · 디자인 시안을 단순화한 그림</text>
+<g transform="translate(78.6 248) scale(1.3)">
+<rect x="6" y="14" width="214" height="392" rx="34" fill="#000000" fill-opacity="0.25"/>
+<rect width="214" height="392" rx="34" fill="#14161E"/>
+<rect x="10" y="10" width="194" height="372" rx="24" fill="#FFFFFF"/>
+<rect x="24" y="30" width="16" height="16" rx="4" fill="#3B3BD4"/>
+<rect x="28" y="40" width="8" height="3" rx="1.5" fill="#FFFFFF"/>
+<text x="46.0" y="44.0" font-size="14" font-weight="800" text-anchor="start" fill="#14161E">이선좌</text>
+<rect x="24" y="62" width="166" height="24" rx="12" fill="#F4F5F8"/>
+<circle cx="38" cy="74" r="3.5" fill="#2B8A3E"/>
+<text x="48.0" y="78.0" font-size="10" font-weight="600" text-anchor="start" fill="#676C7E">순번을 자동으로 확인하고 있어요</text>
+<text x="107.0" y="132.0" font-size="13" font-weight="600" text-anchor="middle" fill="#676C7E">내 순번</text>
+<text x="107.0" y="186" text-anchor="middle" font-weight="900" fill="#14161E" letter-spacing="-1"><tspan font-size="46">1,234</tspan><tspan font-size="20" dx="3">번</tspan></text>
+<text x="107.0" y="218" text-anchor="middle" font-size="13" font-weight="600" fill="#676C7E">예상 대기 <tspan font-weight="800" fill="#14161E">약 1분</tspan></text>
+<rect x="24" y="238" width="166" height="8" rx="4" fill="#E1E4EA"/>
+<rect x="24" y="238" width="102.9" height="8" rx="4" fill="#3B3BD4"/>
+<rect x="24" y="268" width="166" height="96" rx="14" fill="#EEF0FF"/>
+<text x="107.0" y="300.0" font-size="12" font-weight="600" text-anchor="middle" fill="#676C7E">차례가 되면</text>
+<text x="107.0" y="322.0" font-size="12" font-weight="800" text-anchor="middle" fill="#14161E">좌석 선택으로 바로 넘어가요</text>
+<text x="107.0" y="346.0" font-size="10.5" font-weight="600" text-anchor="middle" fill="#676C7E">창을 닫아도 자리는 그대로</text>
+</g>
+<rect x="145.7" y="188" width="144" height="44" rx="22" fill="#FFFFFF"/>
+<circle cx="171.7" cy="210" r="14" fill="#3B3BD4"/>
+<text x="171.7" y="217.0" font-size="19" font-weight="900" text-anchor="middle" fill="#FFFFFF">1</text>
+<text x="193.7" y="218.5" font-size="24" font-weight="800" text-anchor="start" fill="#3B3BD4">대기열</text>
+<text x="217.7" y="815.6" font-size="25" font-weight="800" text-anchor="middle" fill="#FFFFFF">번호표로 공정하게 줄 서기</text>
+<path d="M382.8 502.8 H440.8" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+<path d="M424.8 485.8 L444.8 502.8 L424.8 519.8" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(466.8 248) scale(1.3)">
+<rect x="6" y="14" width="214" height="392" rx="34" fill="#000000" fill-opacity="0.25"/>
+<rect width="214" height="392" rx="34" fill="#14161E"/>
+<rect x="10" y="10" width="194" height="372" rx="24" fill="#FFFFFF"/>
+<rect x="24" y="30" width="16" height="16" rx="4" fill="#3B3BD4"/>
+<rect x="28" y="40" width="8" height="3" rx="1.5" fill="#FFFFFF"/>
+<text x="46.0" y="44.0" font-size="14" font-weight="800" text-anchor="start" fill="#14161E">이선좌</text>
+<text x="24.0" y="82.0" font-size="17" font-weight="800" text-anchor="start" fill="#14161E">좌석 선택</text>
+<rect x="24" y="94" width="166" height="28" rx="8" fill="#F4F5F8"/>
+<text x="44.8" y="113.0" font-size="11" font-weight="600" text-anchor="middle" fill="#676C7E">1매</text>
+<rect x="67.5" y="96" width="37.5" height="24" rx="6" fill="#FFFFFF"/>
+<text x="86.2" y="113.0" font-size="11" font-weight="800" text-anchor="middle" fill="#14161E">2매</text>
+<text x="127.8" y="113.0" font-size="11" font-weight="600" text-anchor="middle" fill="#676C7E">3매</text>
+<text x="169.2" y="113.0" font-size="11" font-weight="600" text-anchor="middle" fill="#676C7E">4매</text>
+<path d="M54 134 h106 a12 12 0 0 1 -12 12 h-82 a12 12 0 0 1 -12 -12 z" fill="#14161E"/>
+<text x="107.0" y="144.0" font-size="8" font-weight="700" text-anchor="middle" fill="#FFFFFF">무 대</text>
+<rect x="23.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="42.5" y="158" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="61.5" y="158" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="80.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="99.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="118.5" y="158" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="137.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="156.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="175.5" y="158" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="23.5" y="177" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="42.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="61.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="80.5" y="177" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="99.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="118.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="137.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="156.5" y="177" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="175.5" y="177" width="15" height="15" rx="3" fill="#C2255C"/>
+<rect x="23.5" y="196" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="42.5" y="196" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="61.5" y="196" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="80.5" y="196" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="98.5" y="195" width="17" height="17" rx="4" fill="#3B3BD4"/>
+<path d="M103.5 204 l3 3 l5 -6" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="117.5" y="195" width="17" height="17" rx="4" fill="#3B3BD4"/>
+<path d="M122.5 204 l3 3 l5 -6" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="137.5" y="196" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="156.5" y="196" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="175.5" y="196" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="23.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="42.5" y="215" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="61.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="80.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="99.5" y="215" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="118.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="137.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="156.5" y="215" width="15" height="15" rx="3" fill="#D9480F"/>
+<rect x="175.5" y="215" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="23.5" y="234" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="42.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="61.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="80.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="99.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="118.5" y="234" width="15" height="15" rx="3" fill="#E1E4EA"/>
+<rect x="137.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="156.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="175.5" y="234" width="15" height="15" rx="3" fill="#2B8A3E"/>
+<rect x="24" y="268" width="166" height="96" rx="14" fill="#EEF0FF"/>
+<circle cx="107.0" cy="294" r="15" fill="#3B3BD4"/>
+<path d="M100.25 294.375 L105.125 299.25 L114.125 289.5" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="107.0" y="328.0" font-size="12" font-weight="800" text-anchor="middle" fill="#3B3BD4">자동배정 완료</text>
+<text x="107.0" y="350.0" font-size="15" font-weight="800" text-anchor="middle" fill="#14161E">F구역 3열 12·13번</text>
+</g>
+<rect x="522.9" y="188" width="166" height="44" rx="22" fill="#FFFFFF"/>
+<circle cx="548.9" cy="210" r="14" fill="#3B3BD4"/>
+<text x="548.9" y="217.0" font-size="19" font-weight="900" text-anchor="middle" fill="#FFFFFF">2</text>
+<text x="570.9" y="218.5" font-size="24" font-weight="800" text-anchor="start" fill="#3B3BD4">자동배정</text>
+<text x="605.9" y="815.6" font-size="25" font-weight="800" text-anchor="middle" fill="#FFFFFF">구역만 고르면 자리는 자동으로</text>
+<path d="M771.0 502.8 H829.0" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+<path d="M813.0 485.8 L833.0 502.8 L813.0 519.8" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(855.0 248) scale(1.3)">
+<rect x="6" y="14" width="214" height="392" rx="34" fill="#000000" fill-opacity="0.25"/>
+<rect width="214" height="392" rx="34" fill="#14161E"/>
+<rect x="10" y="10" width="194" height="372" rx="24" fill="#FFFFFF"/>
+<rect x="24" y="30" width="16" height="16" rx="4" fill="#3B3BD4"/>
+<rect x="28" y="40" width="8" height="3" rx="1.5" fill="#FFFFFF"/>
+<text x="46.0" y="44.0" font-size="14" font-weight="800" text-anchor="start" fill="#14161E">이선좌</text>
+<text x="24.0" y="82.0" font-size="17" font-weight="800" text-anchor="start" fill="#14161E">결제</text>
+<rect x="24" y="96" width="166" height="24" rx="12" fill="#F4F5F8"/>
+<circle cx="38" cy="108" r="3.5" fill="#2B8A3E"/>
+<text x="48.0" y="112.0" font-size="10" font-weight="600" text-anchor="start" fill="#676C7E">결제 가능</text>
+<text x="178.0" y="112.5" font-size="11.5" font-weight="800" text-anchor="end" fill="#14161E">04:50</text>
+<rect x="24" y="132" width="166" height="34" rx="8" fill="#F4F5F8"/>
+<rect x="32" y="141" width="16" height="16" rx="4" fill="#D9480F"/>
+<text x="40.0" y="153.0" font-size="9.5" font-weight="800" text-anchor="middle" fill="#FFFFFF">R</text>
+<text x="54.0" y="153.5" font-size="11" font-weight="700" text-anchor="start" fill="#14161E">F구역 3열 12번</text>
+<text x="182.0" y="153.5" font-size="10.5" font-weight="600" text-anchor="end" fill="#676C7E">143,000원</text>
+<rect x="24" y="172" width="166" height="34" rx="8" fill="#F4F5F8"/>
+<rect x="32" y="181" width="16" height="16" rx="4" fill="#D9480F"/>
+<text x="40.0" y="193.0" font-size="9.5" font-weight="800" text-anchor="middle" fill="#FFFFFF">R</text>
+<text x="54.0" y="193.5" font-size="11" font-weight="700" text-anchor="start" fill="#14161E">F구역 3열 13번</text>
+<text x="182.0" y="193.5" font-size="10.5" font-weight="600" text-anchor="end" fill="#676C7E">143,000원</text>
+<rect x="24" y="222" width="166" height="1" fill="#E1E4EA"/>
+<text x="24.0" y="252.0" font-size="12" font-weight="600" text-anchor="start" fill="#676C7E">합계</text>
+<text x="190.0" y="254.0" font-size="20" font-weight="900" text-anchor="end" fill="#14161E">286,000원</text>
+<rect x="24" y="272" width="166" height="44" rx="10" fill="#3B3BD4"/>
+<text x="107.0" y="299.5" font-size="14" font-weight="800" text-anchor="middle" fill="#FFFFFF">286,000원 결제하기</text>
+<text x="107.0" y="338.0" font-size="10.5" font-weight="600" text-anchor="middle" fill="#676C7E">시간이 지나면</text>
+<text x="107.0" y="354.0" font-size="10.5" font-weight="600" text-anchor="middle" fill="#676C7E">잡아 둔 좌석이 풀려요</text>
+</g>
+<rect x="933.1" y="188" width="122" height="44" rx="22" fill="#FFFFFF"/>
+<circle cx="959.1" cy="210" r="14" fill="#3B3BD4"/>
+<text x="959.1" y="217.0" font-size="19" font-weight="900" text-anchor="middle" fill="#FFFFFF">3</text>
+<text x="981.1" y="218.5" font-size="24" font-weight="800" text-anchor="start" fill="#3B3BD4">결제</text>
+<text x="994.1" y="815.6" font-size="25" font-weight="800" text-anchor="middle" fill="#FFFFFF">잡아 둔 자리를 시간 안에 결제</text>
+<path d="M1191.2 288 V717.6" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="3 11" stroke-linecap="round"/>
+<rect x="1151.2" y="479.8" width="80" height="46" rx="23" fill="#24248F" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"/>
+<text x="1191.2" y="511.3" font-size="24" font-weight="800" text-anchor="middle" fill="#FFFFFF">또는</text>
+<g transform="translate(1243.2 248) scale(1.3)">
+<rect x="6" y="14" width="214" height="392" rx="34" fill="#000000" fill-opacity="0.25"/>
+<rect width="214" height="392" rx="34" fill="#14161E"/>
+<rect x="10" y="10" width="194" height="372" rx="24" fill="#FFFFFF"/>
+<rect x="24" y="30" width="16" height="16" rx="4" fill="#3B3BD4"/>
+<rect x="28" y="40" width="8" height="3" rx="1.5" fill="#FFFFFF"/>
+<text x="46.0" y="44.0" font-size="14" font-weight="800" text-anchor="start" fill="#14161E">이선좌</text>
+<text x="24.0" y="82.0" font-size="17" font-weight="800" text-anchor="start" fill="#14161E">추첨 결과</text>
+<circle cx="107.0" cy="142" r="40" fill="#EBFBEE"/>
+<circle cx="107.0" cy="142" r="25" fill="#2B8A3E"/>
+<path d="M95.75 142.625 L103.875 150.75 L118.875 134.5" fill="none" stroke="#FFFFFF" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="107.0" y="218.0" font-size="24" font-weight="900" text-anchor="middle" fill="#14161E">당첨됐어요!</text>
+<text x="107.0" y="242.0" font-size="13" font-weight="600" text-anchor="middle" fill="#676C7E">결제까지 끝났어요</text>
+<rect x="24" y="268" width="166" height="96" rx="14" fill="#F4F5F8"/>
+<text x="38.0" y="292.0" font-size="11.5" font-weight="800" text-anchor="start" fill="#14161E">자동결제 카드</text>
+<rect x="134" y="278" width="44" height="20" rx="10" fill="#EBFBEE"/>
+<text x="156.0" y="292.0" font-size="10" font-weight="800" text-anchor="middle" fill="#2B8A3E">등록됨</text>
+<rect x="38" y="312" width="44" height="30" rx="5" fill="#14161E"/>
+<rect x="44" y="320" width="9" height="7" rx="1.5" fill="#F59F00"/>
+<text x="92.0" y="324.0" font-size="12" font-weight="800" text-anchor="start" fill="#14161E">시연용 카드</text>
+<text x="92.0" y="341.0" font-size="10.5" font-weight="600" text-anchor="start" fill="#676C7E">•••• 4242</text>
+</g>
+<rect x="1283.8" y="188" width="197" height="44" rx="22" fill="#2B8A3E"/>
+<text x="1382.3" y="218.5" font-size="24" font-weight="800" text-anchor="middle" fill="#FFFFFF">추첨 · 자동결제</text>
+<text x="1382.3" y="815.6" font-size="25" font-weight="800" text-anchor="middle" fill="#FFFFFF">당첨되면 결제까지 자동으로</text>
+</svg>

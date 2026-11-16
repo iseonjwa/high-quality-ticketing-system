@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient><linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<polygon points="300,0 520,0 760,190 160,190" fill="url(#beam)"/><polygon points="1080,0 1300,0 1480,190 940,190" fill="url(#beam)"/>
+<text x="800.0" y="112" text-anchor="middle" font-size="68" font-weight="900" fill="#fff">숫자로 보는 <tspan fill="#F59F00">이선좌</tspan></text>
+<text x="800.0" y="158" text-anchor="middle" font-size="26" font-weight="600" fill="#fff" fill-opacity=".78">모든 숫자는 배포 EC2 한 대 + 별도 부하 발생기 EC2에서 쟀습니다</text>
+<rect x="64" y="190" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="92" y="220" width="8" height="30" rx="4" fill="#2B8A3E"/>
+<text x="112" y="245" font-size="28" font-weight="800" fill="#373B4A">같은 좌석, 두 번 팔지 않음</text>
+<text x="92" y="358" font-size="70" font-weight="900" fill="#2B8A3E" letter-spacing="-1">중복 판매 0건</text>
+<text x="92" y="404" font-size="21" font-weight="600" fill="#676C7E">확인한 실행(사용자 3,000명 오픈</text>
+<text x="92" y="432" font-size="21" font-weight="600" fill="#676C7E">측정 등)에서 0건</text>
+<text x="92" y="460" font-size="21" font-weight="600" fill="#676C7E">매진 시험 아님 · 장비 1대</text>
+<rect x="563" y="190" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="591" y="220" width="8" height="30" rx="4" fill="#3B3BD4"/>
+<text x="611" y="245" font-size="28" font-weight="800" fill="#373B4A">좌석 단계에서 실패한 사용자</text>
+<text x="591" y="358" font-size="70" font-weight="900" fill="#3B3BD4" letter-spacing="-1">약 20분의 1</text>
+<text x="591" y="404" font-size="21" font-weight="600" fill="#676C7E">403·310대 → 24·12명</text>
+<text x="591" y="432" font-size="21" font-weight="600" fill="#676C7E">(개선 전후 각 2회, 같은 날 묶음 비교)</text>
+<text x="591" y="460" font-size="21" font-weight="600" fill="#676C7E">대기열 통과 뒤 좌석·선점 단계 기준</text>
+<rect x="1062" y="190" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="1090" y="220" width="8" height="30" rx="4" fill="#3B3BD4"/>
+<text x="1110" y="245" font-size="28" font-weight="800" fill="#373B4A">같은 서버로 제때 끝낸 요청</text>
+<text x="1090" y="358" font-size="108" font-weight="900" fill="#3B3BD4" letter-spacing="-1">+30%</text>
+<text x="1090" y="404" font-size="21" font-weight="600" fill="#676C7E">200ms 안 성공 1,304 → 1,696건/초</text>
+<text x="1090" y="432" font-size="21" font-weight="600" fill="#676C7E">초당 2,000건 · 성공 응답 p95 571 → 87ms</text>
+<text x="1090" y="460" font-size="21" font-weight="600" fill="#676C7E">넘친 요청은 503</text>
+<rect x="64" y="525" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="92" y="555" width="8" height="30" rx="4" fill="#3B3BD4"/>
+<text x="112" y="580" font-size="28" font-weight="800" fill="#373B4A">추첨 자동결제</text>
+<text x="92" y="693" font-size="64" font-weight="900" fill="#3B3BD4" letter-spacing="-1">약 3배 빠르게</text>
+<text x="92" y="739" font-size="21" font-weight="600" fill="#676C7E">당첨 약 2,000건 약 11분 → 4분 안 100%</text>
+<polygon points="104,749 116,769 92,769" fill="#F59F00"/><rect x="103" y="756" width="2.4" height="7" fill="#fff"/><rect x="103" y="765" width="2.4" height="2.4" fill="#fff"/>
+<text x="126" y="767" font-size="21" font-weight="800" fill="#B36B00">측정일 다름(11/10 → 11/13)</text>
+<rect x="563" y="525" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="591" y="555" width="8" height="30" rx="4" fill="#3B3BD4"/>
+<text x="611" y="580" font-size="28" font-weight="800" fill="#373B4A">좌석 조회가 버티는 한계</text>
+<text x="591" y="693" font-size="108" font-weight="900" fill="#3B3BD4" letter-spacing="-1">40배</text>
+<text x="591" y="739" font-size="21" font-weight="600" fill="#676C7E">실패 0 최대 초당 5 → 200</text>
+<text x="591" y="767" font-size="21" font-weight="600" fill="#676C7E">상한 끔 조건</text>
+<polygon points="603,777 615,797 591,797" fill="#F59F00"/><rect x="602" y="784" width="2.4" height="7" fill="#fff"/><rect x="602" y="793" width="2.4" height="2.4" fill="#fff"/>
+<text x="625" y="795" font-size="21" font-weight="800" fill="#B36B00">측정일 다름</text>
+<rect x="1062" y="525" width="474" height="311" rx="24" fill="#fff"/>
+<rect x="1090" y="555" width="8" height="30" rx="4" fill="#2B8A3E"/>
+<text x="1110" y="580" font-size="28" font-weight="800" fill="#373B4A">응모 마감 직전 몰림</text>
+<text x="1090" y="693" font-size="96" font-weight="900" fill="#2B8A3E" letter-spacing="-1">503 0건</text>
+<text x="1090" y="739" font-size="21" font-weight="600" fill="#676C7E">초당 800건까지 · p95 10.58ms</text>
+<text x="1090" y="767" font-size="21" font-weight="600" fill="#676C7E">배포 서버 1회(11/10 구성)</text>
+</svg>

@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<!-- 숫자 출처: docs/presentation/brochure/census/LEDGER.md 7절(AI 활용 소재)과 3-7. 요소마다 원장 위치를 주석으로 적는다 -->
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient>
+<linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<clipPath id="head"><rect width="1600" height="156"/></clipPath><g clip-path="url(#head)">
+<polygon points="1144,0 1156,0 1330,900 1090,900" fill="url(#beam)"/>
+<polygon points="1284,0 1296,0 1640,900 1380,900" fill="url(#beam)"/>
+<polygon points="974,0 986,0 940,900 700,900" fill="url(#beam)"/>
+</g>
+<text x="61" y="104" font-size="66" font-weight="900" fill="#FFFFFF" letter-spacing="-2">AI 제안, <tspan fill="#F59F00">판단</tspan>은 사람이</text>
+<text x="64.0" y="142.0" font-size="22" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">제안을 받을 때마다 수용·거부를 기록하고, 갈리는 것은 측정으로 닫았습니다</text>
+<rect x="64" y="164" width="404" height="672" rx="24" fill="#FFFFFF"/>
+<text x="94.0" y="210.0" font-size="27" font-weight="800" text-anchor="start" fill="#373B4A">AI 판단 기록 · 팀 공통 표</text>
+<path d="M266.00 246.00 A128 128 0 0 1 285.26 500.54 L278.04 453.09 A80 80 0 0 0 266.00 294.00 Z" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="3"/>
+<path d="M285.26 500.54 A128 128 0 0 1 160.66 446.71 L200.16 419.45 A80 80 0 0 0 278.04 453.09 Z" fill="#9C9CF0" stroke="#FFFFFF" stroke-width="3"/>
+<path d="M160.66 446.71 A128 128 0 0 1 246.74 247.46 L253.96 294.91 A80 80 0 0 0 200.16 419.45 Z" fill="#F59F00" stroke="#FFFFFF" stroke-width="3"/>
+<path d="M246.74 247.46 A128 128 0 0 1 266.00 246.00 L266.00 294.00 A80 80 0 0 0 253.96 294.91 Z" fill="#C9CDD6" stroke="#FFFFFF" stroke-width="3"/>
+<text x="266.0" y="386" text-anchor="middle" font-weight="900" fill="#14161E" letter-spacing="-1"><tspan font-size="58">208</tspan><tspan font-size="28" dx="3">건</tspan></text>
+<text x="266.0" y="416.0" font-size="18" font-weight="600" text-anchor="middle" fill="#676C7E">판단 기록</text>
+<rect x="94" y="543" width="20" height="20" rx="5" fill="#3B3BD4"/>
+<text x="126.0" y="560.0" font-size="22" font-weight="600" text-anchor="start" fill="#373B4A">수용</text>
+<text x="438.0" y="560.0" font-size="22" font-weight="600" text-anchor="end" fill="#373B4A">99건 · 47.6%</text>
+<rect x="94" y="583" width="20" height="20" rx="5" fill="#9C9CF0"/>
+<text x="126.0" y="600.0" font-size="22" font-weight="600" text-anchor="start" fill="#373B4A">부분 수용</text>
+<text x="438.0" y="600.0" font-size="22" font-weight="600" text-anchor="end" fill="#373B4A">37건 · 17.8%</text>
+<rect x="94" y="623" width="20" height="20" rx="5" fill="#F59F00"/>
+<text x="126.0" y="640.0" font-size="22" font-weight="800" text-anchor="start" fill="#14161E">거부</text>
+<text x="438.0" y="640.0" font-size="22" font-weight="800" text-anchor="end" fill="#14161E">67건 · 32.2%</text>
+<rect x="94" y="663" width="20" height="20" rx="5" fill="#C9CDD6"/>
+<text x="126.0" y="680.0" font-size="22" font-weight="600" text-anchor="start" fill="#373B4A">보류</text>
+<text x="438.0" y="680.0" font-size="22" font-weight="600" text-anchor="end" fill="#373B4A">5건 · 2.4%</text>
+<rect x="94" y="698" width="344" height="1.5" fill="#E1E4EA"/>
+<text x="94.0" y="730.0" font-size="18" font-weight="600" text-anchor="start" fill="#676C7E">기준: origin/dev 공통 표(팀 공유 표시)</text>
+<text x="94.0" y="756.0" font-size="18" font-weight="600" text-anchor="start" fill="#676C7E">개별 기록 파일로 세면 241건 중</text>
+<text x="94.0" y="782.0" font-size="18" font-weight="600" text-anchor="start" fill="#676C7E">거부 94건(39.0%)</text>
+<text x="94.0" y="808.0" font-size="18" font-weight="600" text-anchor="start" fill="#676C7E">기록 없이 지나간 판단은 세지 못함</text>
+<rect x="492.0" y="164" width="332.0" height="60" rx="30" fill="#FFFFFF"/>
+<circle cx="524.0" cy="194" r="17" fill="#3B3BD4"/>
+<text x="524.0" y="202.5" font-size="23" font-weight="900" text-anchor="middle" fill="#FFFFFF">1</text>
+<text x="552.0" y="204.0" font-size="27" font-weight="800" text-anchor="start" fill="#3B3BD4">AI 제안</text>
+<path d="M829.0 183 L842.0 194 L829.0 205" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="848.0" y="164" width="332.0" height="60" rx="30" fill="#FFFFFF"/>
+<circle cx="880.0" cy="194" r="17" fill="#3B3BD4"/>
+<text x="880.0" y="202.5" font-size="23" font-weight="900" text-anchor="middle" fill="#FFFFFF">2</text>
+<text x="908.0" y="204.0" font-size="27" font-weight="800" text-anchor="start" fill="#3B3BD4">우리 판단</text>
+<path d="M1185.0 183 L1198.0 194 L1185.0 205" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1204.0" y="164" width="332.0" height="60" rx="30" fill="#FFFFFF"/>
+<circle cx="1236.0" cy="194" r="17" fill="#3B3BD4"/>
+<text x="1236.0" y="202.5" font-size="23" font-weight="900" text-anchor="middle" fill="#FFFFFF">3</text>
+<text x="1264.0" y="204.0" font-size="27" font-weight="800" text-anchor="start" fill="#3B3BD4">측정으로 닫음</text>
+<rect x="492" y="240" width="1044" height="128" rx="20" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<rect x="836.0" y="258" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<rect x="1192.0" y="258" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<text x="514.0" y="276.0" font-size="18" font-weight="800" text-anchor="start" fill="#63E6BE">11/11 · Gateway 동시 처리 상한</text>
+<text x="514.0" y="312.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">상한 64 → 128로 올리기</text>
+<text x="514.0" y="344.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">기준을 지키는 가장 큰 값</text>
+<rect x="856.0" y="258" width="61" height="30" rx="15" fill="#F59F00"/>
+<text x="886.7" y="279.5" font-size="18" font-weight="800" text-anchor="middle" fill="#14161E">거부</text>
+<text x="856.0" y="312.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">상한 64 유지</text>
+<text x="856.0" y="344.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">차이가 반복 변동보다 작음</text>
+<text x="1212.0" y="280.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">처리 차이 1.5% &lt; 변동 5%</text>
+<text x="1212.0" y="312.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.92">응답 p95 87ms 대 162ms</text>
+<text x="1212.0" y="344.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">초당 2,000건 · 배포 서버</text>
+<rect x="492" y="382" width="1044" height="128" rx="20" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<rect x="836.0" y="400" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<rect x="1192.0" y="400" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<text x="514.0" y="418.0" font-size="18" font-weight="800" text-anchor="start" fill="#63E6BE">11/13 · 좌석 선점 잠금</text>
+<text x="514.0" y="454.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">SKIP LOCKED 도입</text>
+<text x="514.0" y="486.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">잠긴 좌석은 기다리지 않기</text>
+<rect x="856.0" y="400" width="180" height="30" rx="15" fill="#F59F00"/>
+<text x="946.0" y="421.5" font-size="18" font-weight="800" text-anchor="middle" fill="#14161E">거부 → 새 추천 수용</text>
+<text x="856.0" y="454.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">잠금 대기 500 → 50ms</text>
+<text x="856.0" y="486.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">구현해서 재 본 뒤 판단</text>
+<text x="1212.0" y="422.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">선점 성공 83 → 56건</text>
+<text x="1212.0" y="454.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.92">50ms로는 78건·87건</text>
+<text x="1212.0" y="486.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">동시 요청 시험 C2(500건) · 로컬</text>
+<rect x="492" y="524" width="1044" height="128" rx="20" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<rect x="836.0" y="542" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<rect x="1192.0" y="542" width="1.5" height="92" fill="#FFFFFF" fill-opacity="0.22"/>
+<text x="514.0" y="560.0" font-size="18" font-weight="800" text-anchor="start" fill="#63E6BE">11/9 · 기록 검사 도구</text>
+<text x="514.0" y="596.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">검사를 한 번에 묶어 실행</text>
+<text x="514.0" y="628.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">파일마다 실행하던 방식 대신</text>
+<rect x="856.0" y="542" width="61" height="30" rx="15" fill="#63E6BE"/>
+<text x="886.7" y="563.5" font-size="18" font-weight="800" text-anchor="middle" fill="#24248F">수용</text>
+<text x="856.0" y="596.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">변이 비교 뒤 반영</text>
+<text x="856.0" y="628.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">바로 올리지 않고 확인</text>
+<text x="1212.0" y="564.0" font-size="23" font-weight="800" text-anchor="start" fill="#FFFFFF">92.8초 → 3.6초(25.8배)</text>
+<text x="1212.0" y="596.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.92">변이 31가지 중 30가지 동일</text>
+<text x="1212.0" y="628.0" font-size="20" font-weight="600" text-anchor="start" fill="#FFFFFF" fill-opacity="0.7">로컬 · 3회 중앙값</text>
+<rect x="492" y="668" width="1044" height="168" rx="20" fill="#FFFFFF"/>
+<rect x="492" y="668" width="10" height="168" fill="#F59F00"/>
+<rect x="492" y="668" width="30" height="168" rx="20" fill="#F59F00"/>
+<rect x="502" y="668" width="24" height="168" fill="#FFFFFF"/>
+<text x="530.0" y="728.0" font-size="30" font-weight="900" text-anchor="start" fill="#14161E">거부가 늘 옳지는 않았다</text>
+<text x="530" y="762" font-size="20" font-weight="600" fill="#373B4A">AI 추천(맨 앞에서 유입 제한)을 미루고 차단기를 예민하게 하는 실험부터 → <tspan font-weight="800" fill="#14161E">차단기 열림 0회</tspan>. 측정은 AI 편이었습니다</text>
+<text x="530.0" y="790.0" font-size="18" font-weight="600" text-anchor="start" fill="#676C7E">조건: 11/11 · 초당 2,500건 · 서버 CPU 99% · 기준을 20ms까지 낮춰도 느린 호출 최대 24% · 원문이 적은 사례 1건</text>
+</svg>
