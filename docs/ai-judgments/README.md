@@ -33,7 +33,7 @@
 | [hyoseung](hyoseung/README.md) | 개별 기록 7건, 일지 19일 |
 | [junhyun](junhyun/README.md) | 개별 기록 51건, 일지 5일 |
 | [kangmin](kangmin/README.md) | 개별 기록 118건, 일지 20일 |
-| [kwonwoo](kwonwoo/README.md) | 개별 기록 33건, 일지 11일 |
+| [kwonwoo](kwonwoo/README.md) | 개별 기록 34건, 일지 11일 |
 | [youngeun](youngeun/README.md) | 개별 기록 4건, 일지 0일 |
 
 ## 팀 공통 판단
@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | kwonwoo | Claude Code 두 세션 | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-16-verify-other-agent-precheck-analysis.md) |
 | 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-16-pool-and-limit-together.md) |
 | 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-11-15-entry-token-ttl-single-source.md) |
 | 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-11-15-queue-ready-decided-in-lua.md) |

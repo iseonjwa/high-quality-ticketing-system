@@ -6,6 +6,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-16 | 캐시 사전 거절과 한 문장 사전 판정, 측정으로 보면 무엇이 나은가 (다른 AI 분석 검증) | [qna/2026-11-16-pre-reject-cache-vs-one-statement.md](qna/2026-11-16-pre-reject-cache-vs-one-statement.md) |
 | 2026-11-16 | 선점 동시 처리 상한은 왜 4인가, 더 크게 두면 병렬 처리가 늘어 지표가 좋아지지 않나 | [qna/2026-11-16-seathold-concurrency-limit-4.md](qna/2026-11-16-seathold-concurrency-limit-4.md) |
 | 2026-11-14 | 배포 단계 측정 전에 좌석 선점 구조에서 더 개선할 것은 무엇인가 (시니어 관점 검토와 개선안) | [qna/2026-11-14-seathold-pre-deploy-review.md](qna/2026-11-14-seathold-pre-deploy-review.md) |
 | 2026-11-14 | reservation-service 커넥션 풀은 왜 5개인가, HikariCP 기본값 10과 다른 근거가 있나 | [qna/2026-11-14-reservation-hikari-pool-5-origin.md](qna/2026-11-14-reservation-hikari-pool-5-origin.md) |
