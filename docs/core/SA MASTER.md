@@ -10,6 +10,16 @@
 > - 표기: `[가정]` 측정·조사 후 바꿀 숫자 · `(팀 확인)` 담당자가 확인할 칸 · `⚠ 미해결` 아직 정하지 않은 것 · `#번호` 결정 기록 ID
 > - 결정 기록 54건: 결정 15 · 잠정 결정 37 · 보류 2 (10/26 기준). 10/27 회의에서 #30(기술 스택·Config 서버)을 결정으로 정했다. 잠정 결정은 Claude 추천을 기본안으로 채택한 것이고, 팀이 확인하면 결정으로 바꾼다. 내용이 크게 바뀌지 않으면 기존 항목 본문을 고치고 수정 내역을 남긴다.
 
+### 11/15 바뀐 점 (추첨 담당, ISE-269)
+
+응모 접수 방식을 지금 코드(동기 INSERT, 응답 201)에 맞췄다. 팀 확인 전에 먼저 반영했고(선조치 후보고), ISE-269에 알린다. 근거는 [판단 기록](../ai-judgments/kangmin/2026-11-14-sa14-row4-keep-history-add-row.md)과 ADR 0036이다. 동기 하나만 쟀고 기준 안이라 유지한 것이며, 다른 방식과 비교 측정하지 않았다.
+
+| # | 변경 | 위치 | 근거 |
+| --- | --- | --- | --- |
+| 1 | AI 검증 #4(10/26 거부)는 그대로 두고 근거 끝에 "10/29 재검토로 바뀜 → #11"을 붙임. #11 "응모 접수 재검토(10/29)" 수용 행 추가, 집계 수용 4 → 5 | 14장, 부록 A M6 | 11/10 L1 p95 10.58ms(`docs/design/lottery/numbers-and-measurement.md` 3-3) |
+| 2 | 응모 Kafka 접수(③, `lottery.entry`, `LotteryEntryRequested`)를 "쓰지 않음"으로 표시하고 동기 INSERT로 고침 | 4장 F6 H9, 4-2, 10-1, 10-3, U19 | 추첨 README D3 |
+| 3 | 응모 응답 202 → 201, 응모 상태에서 `REQUESTED`(202 응답 상태) 삭제 | 2장, 4장 F6, 6장 MVP 표, 8장 상태도, 11-4 | `LotteryController.enter`가 201 `CREATED`, `LotteryEntryStatus`에 `REQUESTED` 없음 |
+
 ### 11/9 바뀐 점 (결제 담당, SA 변경 요청 PR3)
 
 결제 운영·인프라·Mock PG 묶음(`docs/design/payment/sa-change-requests.md`의 PR3)을 반영했다. 내용은 해당 ADR과 변경 요청 목록, `mock-pg.md`에 있는 것만 옮겼다. 아래 표에서 `(사용자 확인 필요)`를 붙인 행은 ADR이 아직 결제 담당 확인을 기다리는 부분이라 팀 리뷰 전에 확인한다. 반효승이 소유한 계약(S-10·S-13·S-23)은 리뷰를 받는다. ERD 그림 4·5는 고치지 않고 12-6에 텍스트 메모만 남겼다.
@@ -216,7 +226,7 @@
               └ 이선좌·매수 초과 → 좌석 다시 선택 (대기열로 돌아가지 않음)
               └ 미결제 만료·결제 거절 → 좌석 반환 / 만료 뒤 승인 → 자동 환불
               └ PG 무응답 → UNKNOWN → 재조회로 확정 (끝내 모르면 수동 확인)
-추첨 예매  로그인 → 응모(202 접수) + 빌링키 등록 → 마감·추첨(시드 기록) → 좌석 자동 배정
+추첨 예매  로그인 → 응모(201) + 빌링키 등록 → 마감·추첨(시드 기록) → 좌석 자동 배정
   (Should) → 자동결제 요청 이벤트 → 결제 → 발권
               └ 결제 실패 → 같은 조건 예비자 승계 → 승계 마감 후 남은 좌석은 일반 예매로
 ```
@@ -340,7 +350,7 @@ flowchart TD
 | **F3 대기열** | F3-1 진입 · F3-2 내 순번·예상 시간(다음 조회 시각 안내) · F3-3 서명 입장 토큰 발급 · F3-4 Gateway 토큰 검증 | **H3** 전역 카운터로 일정 속도 입장, 계정당 1자리, 회차 단위 격리, 이탈 판정 |
 | **F4 예매·발권** | F4-1 매수 선택 → 좌석 선택 → 선택 완료 시 일괄 선점(5분 `[가정]`) · F4-2 선점 만료 → 반환 · F4-3 결제 결과로 확정 + 티켓 발급 · F4-4 내 예매 · F4-5 취소(좌석 반환 + 티켓 무효화 + 환불 요청) | **H4** 동기형 조건부 UPDATE + 부분 유니크 인덱스 → 접수형 Kafka 접수 + 회차·구역 파티션 순차 처리 · **H5** 예매↔결제 SAGA(Choreography)와 보상 |
 | **F5 결제** | F5-1 결제 승인(동기, 서명 결제 토큰) · F5-2 결제 결과 조회 · F5-3 환불 · F5-4 빌링키 등록 · F5-5 빌링키 자동결제 | **H6** 결제 멱등키·서버 금액 검증 · **H7** 타임아웃·Circuit Breaker·Bulkhead, UNKNOWN → 조회, 결제·환불 재확인 스케줄러 · **H8** Outbox·처리 이력·재시도·DLQ (공통 모듈) |
-| **F6 추첨 배분 (Should)** | F6-1 [운영자] 추첨 설정 · F6-2 응모(202 접수) · F6-3 추첨(시드 기록) · F6-4 자동 배정 → 자동결제 → 발권 · F6-5 예비 승계 · F6-6 미배정 좌석 반환 · F6-7 결과 조회 | **H9** 응모 Kafka 접수, 1인 1응모 유니크 제약, 자동결제 요청을 Kafka로 나눠 처리 |
+| **F6 추첨 배분 (Should)** | F6-1 [운영자] 추첨 설정 · F6-2 응모(201, 동기 INSERT) · F6-3 추첨(시드 기록) · F6-4 자동 배정 → 자동결제 → 발권 · F6-5 예비 승계 · F6-6 미배정 좌석 반환 · F6-7 결과 조회 | **H9** 응모 동기 INSERT(10/29 재검토, AI 검증 #11), 1인 1응모 유니크 제약, 자동결제 요청을 Kafka로 나눠 처리 |
 | **F7 알림 (Could)** | F7-1 알림함 조회 | 결제 결과·추첨 결과 이벤트 구독 → 알림함 저장 (알림 실패가 본 흐름을 막지 않음) |
 | **F8 내부 AI 상담 (Could)** | F8-1 공연·예매 문의 답변 (오픈 시각·매수 제한·취소·환불 규정·대기열 안내) | 문서 검색 기반 답변 + 출처 표시, 예매·결제와 분리된 읽기 전용 모듈 |
 
@@ -359,7 +369,7 @@ flowchart TD
 | --- | --- | --- |
 | ① | 결제 결과 → 예매 확정·좌석 반환·환불·알림 | 서비스 경계를 넘고, 한 사건을 여러 곳이 각자 처리하며, 실패하면 다시 읽어야 함 |
 | ② | 좌석 선점 접수 (접수형) | 오픈 정각 요청을 DB가 감당할 속도로 줄 세우고, 같은 구역 요청을 한 파티션에서 순서대로 처리해 락 경합을 줄임 |
-| ③ | 추첨 응모 접수 | 결과가 바로 필요 없고 마감 직전에 몰림 |
+| ③ | ~~추첨 응모 접수~~ (10/29부터 쓰지 않음) | 처음 이유는 "결과가 바로 필요 없고 마감 직전에 몰림"이었다. 10/29 동기 INSERT를 기준선으로 구현했고, 11/10 L1(마감 직전 몰림) p95 10.58ms로 기준 300ms 안이라 동기를 유지한다. p95가 300ms를 넘으면 다시 본다(U19, AI 검증 #11) |
 | ④ | 추첨 결과 → 자동결제 요청 | 당첨자 결제를 Payment가 감당할 속도로 나눠 처리하고 실패 건만 재시도 |
 | ⑤ | 알림 구독 (Could) | 알림이 실패해도 예매·결제가 막히지 않음 |
 | 쓰지 않음 | 결제 승인 요청 · 대기열 순번 · 조회 | 결제는 사용자가 결과를 기다림, 순번 표시·이탈 처리는 Redis가 맞음 |
@@ -522,7 +532,7 @@ flowchart TD
 | MVP | User·공통 모듈 개선: 계층 의존 방향 정리, 토큰 발급 규칙을 도메인으로 이동 (14장 #7 후속) | — |
 | MVP | 추첨 기획·설계: 방향 결정, 실패 유형별 승계(U9), 응모 접수 방식(U19), 결제 담당과 빌링키 경계 합의 | — |
 | MVP | [운영자] 추첨 설정 (등급·좌석 수·응모 기간·추첨 시각) | POST `/api/v1/admin/schedules/{id}/lotteries` |
-| MVP | 응모(Kafka 접수, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 202 · 토픽 `lottery.entry` |
+| MVP | 응모(동기 INSERT, 1인 1응모) + 빌링키 등록 확인 | POST `/api/v1/lotteries/{id}/entries` → 201 |
 | MVP | 추첨(시드 기록) → 자동 배정 → 자동결제 요청 → 실패 시 예비자 승계 → 남은 좌석 반환 | 발행 `payment.command`(BillingPaymentRequested) · 구독 `payment.result` |
 | MVP | 응모 결과 조회 | GET `/api/v1/lotteries/{id}/entries/me` |
 
@@ -714,7 +724,7 @@ sequenceDiagram
             UNKNOWN → 재조회 → REFUNDED | NEEDS_MANUAL_CHECK
             NEEDS_MANUAL_CHECK → REQUESTED (원인 해소 뒤 재시도) | REFUNDED | FAILED (운영자 확인)
 추첨        OPEN → CLOSED → DRAWN → DONE
-응모        (REQUESTED: 응답 상태) → ENTERED → WON | WAITLISTED | LOST
+응모        ENTERED → WON | WAITLISTED | LOST
             ENTERED → CANCELED (마감 전 취소, 재응모 불가)
             WAITLISTED → WON (승계) · WAITLISTED → LOST (승계 마감) · WON → PAID | FAILED
 ```
@@ -964,13 +974,13 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | `payment.result` | PaymentApproved · PaymentDeclined · PaymentRefunded | reservationId | Payment → `reservation.payment-result` | Outbox | MVP |
 | `payment.command` | RefundRequested · BillingPaymentRequested | reservationId | Reservation → `payment.command` | Outbox | RefundRequested는 MVP (E8), 자동결제는 이후 |
 | `seat-hold.request` | SeatHoldRequested | `{scheduleId}:{section}` | Reservation API → `reservation.seat-hold` | Outbox (`seat_hold_requests`와 한 트랜잭션) | 접수형 |
-| `lottery.entry` | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 이후 |
+| ~~`lottery.entry`~~ | LotteryEntryRequested | userId | Reservation API → `reservation.lottery-entry` | 직접 발행 (acks=all, 실패 시 503) | 쓰지 않음(10/29 동기 INSERT, U19) |
 | `{토픽}.dlq` | 처리 실패 이벤트 | 원본 키 | 재시도 3회 후 | — | MVP |
 - Outbox는 업무 변경과 이벤트가 함께 저장돼야 하는 곳에 쓴다: 결제 결과(①), 환불 요청·자동결제 요청(④), 접수형 선점(②).
 - 🆕 `payment.command.dlq`에는 DLQ 처리기(그룹 `payment.command-dlq`)가 있다. 한 트랜잭션에서 `dead_letters`를 저장하고(`event_key` UNIQUE로 멱등), `RefundRequested`를 소비자와 같은 규칙으로 검증한 뒤 환불 행(`REQUESTED`)이 없으면 만들어 환불 워커가 자동 환불로 이어받게 한다. 환불 행이 이미 있으면 변경하지 않고, 검증에 실패했거나 역직렬화할 수 없으면 `dead_letters`를 `OPEN`으로 두고 즉시 알린다. DB 기록이 실패하면 오프셋을 커밋하지 않고 지수 백오프(최대 60초)로 계속 다시 처리하며, `.dlq` 토픽은 7일 이상 보관한다`[가정]`. 일시적인 DB·네트워크 장애는 사람 없이 복구되고 사람은 영구 오류만 본다 (S-8, ADR 0020).
 - 🆕 Outbox 릴레이는 Kafka 전송 확인(`acks=all`)을 받았을 때만 `SENT`로 표시한다. 일시 오류는 횟수 제한 없이 지수 백오프(9-4)로 다시 보내고, 복구 불가능한 영구 오류만 `FAILED`로 두고 알린다. 같은 `message_key`(reservationId)의 앞선 미발행 행이 있으면 뒤 행은 집지 않는다. `SENT`는 Kafka 발행 성공만 뜻하므로 소비 쪽 복구는 소비자가 맡는다. 특히 Reservation의 `payment.result` DLQ 처리기가 필요하다(`PaymentApproved`가 DLQ로 가면 돈은 받았는데 예매를 확정하지 못한다). 예매 상태를 확인해 `RefundRequested`를 발행하거나 운영자 확인으로 넘기는 처리기이며 반효승에게 통보하는 계약 항목이다. 처리기가 없거나 실패해도 대사 RC-1·RC-2가 찾는다 (S-10, ADR 0022).
 - 접수형 선점을 Outbox로 바꾸면 접수 → 처리 완료 시간에 outbox 폴링(500ms)이 더해진다. 이전 안이 직접 발행을 고른 이유가 이 지연을 측정에 섞지 않기 위해서였다(AI 검증 #8). 재측정에서 동기형, 직접 발행, outbox 세 경우를 같은 환경에서 비교한다.
-- 응모(`lottery.entry`)는 아직 직접 발행이다. 접수형 선점과 같은 "실패 상태를 저장할 곳이 없다" 문제가 있으므로 추첨 시작 때 같은 방식으로 바꿀지 정한다 (U19).
+- 응모는 Kafka를 쓰지 않고 API가 `lottery_entries`에 바로 INSERT한다(10/29 기준선, 11/10 L1 p95 10.58ms로 유지). `lottery.entry` 토픽과 `LotteryEntryRequested`는 만들지 않았다. 처음 안(직접 발행)과 접수 요청 행 + outbox는 비교 측정하지 않았다 (U19, AI 검증 #11).
 - 자동결제도 추첨 모듈이 당첨자 예매(HELD)를 먼저 만들고 그 reservationId로 요청한다. 결제는 일반 예매와 같은 키·같은 중복 결제 방지(D3)를 쓴다.
 
 ### 10-2. 공통 봉투
@@ -997,7 +1007,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | RefundRequested | reservationId, paymentId, userId, amount, currency, reason (`EXPIRED_AFTER_APPROVAL` · `CANCELED` · `DUPLICATE_APPROVAL` · `NOT_CONFIRMABLE`) |
 | BillingPaymentRequested | reservationId, userId, amount, lotteryEntryId |
 | SeatHoldRequested | requestId, userId, scheduleId, section, seatIds, requestedAt |
-| LotteryEntryRequested | requestId, lotteryId, userId, quantity |
+| ~~LotteryEntryRequested~~ (쓰지 않음, U19) | requestId, lotteryId, userId, quantity |
 
 ### 10-4. 소비 규칙
 
@@ -1189,7 +1199,7 @@ Redis는 죽는 것보다 느려지는 것이 더 위험하다. 느려진 Redis�
 | 이후 | Reservation | DELETE `/api/v1/schedules/{scheduleId}/queue/me` | 인증 | 대기 취소 | 200 (`data: null`) | 권영은 |
 | MVP | Reservation | POST `/api/v1/admin/schedules/{scheduleId}/lotteries` | ADMIN | 추첨 설정(추첨석 `LOTTERY` 전환, 일반 오픈·응모 시작 전만). 응답 `warnings`에 권장 시간대 밖 추첨 경고 | 201 | 이강민 |
 | MVP | Reservation | PATCH `/api/v1/admin/lotteries/{lotteryId}` | ADMIN | 추첨 설정 수정(일반 오픈·응모 시작 전만) | 200 | 이강민 |
-| MVP | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모 | 202 | 이강민 |
+| MVP | Reservation | POST `/api/v1/lotteries/{lotteryId}/entries` | 인증 · 멱등 | 응모(동기 INSERT) | 201 | 이강민 |
 | MVP | Reservation | DELETE `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 취소(마감 전) | 200 | 이강민 |
 | MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}/entries/me` | 인증 | 응모 결과 | 200 | 이강민 |
 | MVP | Reservation | GET `/api/v1/lotteries/{lotteryId}` | 공개 | 추첨 정보·응모 규칙 | 200 | 이강민 |
@@ -2110,14 +2120,15 @@ high-quality-ticketing-system/
 | 1 | 서비스 경계 | (준현 작성) | Lottery는 Reservation에 병합(두 리뷰어 공통), Queue는 조건부 유지(4개 권고) | Lottery 병합 **수용** / Queue 분리 **거부** | 응모 → 추첨 → 일반 오픈 순서라 추첨과 실시간 선점이 겹치지 않음. Queue는 자기 데이터가 없고 Queue가 멈추면 예매도 멈춰 장애 격리가 성립하지 않음(피드백도 인정) → 모듈로 두고 "순번 조회가 선점 응답을 늘리면 분리"를 측정 조건으로 둠 |
 | 2 | PG 타임아웃 | (준현 작성) | 타임아웃은 실패가 아니라 "결과 모름", UNKNOWN + 조회로 확정, 만료 뒤 승인은 자동 환불 | **수용** | 확인 전에 좌석을 돌려주면 돈만 빠지는 고객이 생김 |
 | 3 | SAGA 방식 | (준현 작성) | Reservation 조정자(Orchestration) + `POST /reservations/{id}/payment` 경유 권고 | **거부** (Choreography) | 일반 예매 참여자가 2개라 결과 이벤트 구독으로 충분. 결제 진입 경합(결제 요청이 예매보다 먼저 도착)은 Reservation이 선점 후 발급한 서명 결제 토큰으로 막음. 흩어진 흐름은 Zipkin 추적과 이벤트 흐름도로 보완 |
-| 4 | 응모 처리 | 원문 없음 (10/23 1차 교차 검토에서 SA 전체를 codex·Claude에 따로 검토하게 한 결과만 있음: `docs/sa-review/01-sa-1st-review.md` M6, codex 원문 `docs/sa-review/raw/codex-review.md`) | 응모 Kafka 접수·자동결제 파티셔닝은 과하다, 1인 1응모는 유니크 제약으로 충분 | 유니크 제약 **수용** / 응모 동기 처리 **거부** | 응모는 결과가 바로 필요 없고 마감 직전에 몰림. 접수만 받고 나중에 처리하는 편이 안정적이고, 같은 패턴을 결제 결과와 공유함 |
+| 4 | 응모 처리 | 원문 없음 (10/23 1차 교차 검토에서 SA 전체를 codex·Claude에 따로 검토하게 한 결과만 있음: `docs/sa-review/01-sa-1st-review.md` M6, codex 원문 `docs/sa-review/raw/codex-review.md`) | 응모 Kafka 접수·자동결제 파티셔닝은 과하다, 1인 1응모는 유니크 제약으로 충분 | 유니크 제약 **수용** / 응모 동기 처리 **거부** | 응모는 결과가 바로 필요 없고 마감 직전에 몰림. 접수만 받고 나중에 처리하는 편이 안정적이고, 같은 패턴을 결제 결과와 공유함. 10/29 재검토로 바뀜 → #11 |
 | 5 | Kafka 파티션 키 | (권우 작성) | 파티션 순서를 정합성 수단으로 쓰지 말고 키는 userId/reservationId로 | 원칙 **수용** / 키 선택 **부분 거부** | 정합성은 DB 조건부 UPDATE가 지킴(수용). 다만 접수형 선점 키는 회차 + 구역: 같은 구역 요청을 한 줄로 처리해 락 경합을 줄이려는 목적이고, 인기 회차 하나가 파티션 하나에 몰리지 않게 구역까지 포함 |
 | 6 | Outbox·DLQ 범위 | (준현 작성) | Outbox·DLQ 전부를 필수로 볼 필요는 없다, 최소 경로부터 | **부분 거부** | 결제 결과가 사라지면 돈과 예매가 어긋나 고객 피해가 가장 큼. 수신 실패를 보관(DLQ)하지 않으면 원인 추적도 못 함 → 공통 모듈로 한 번 만들어 모든 토픽에 적용 |
 | 7 | [필수] 계층형 아키텍처 | 4계층 설계를 좌석 선점 규칙의 도메인 응집·의존 역전·DTO 분리·Fat Service 네 질문으로 점검하게 함 (원문: `docs/sa-review/06-layered-architecture-check.md`) | (10/27 실행, user-service 코드 기준) 규칙이 `AuthService`에 몰려 도메인이 빈약함, 인프라 → 응용 의존 1곳·응용의 영속 예외 의존 1곳, 토큰 응답이 도메인 레코드를 그대로 씀, `AuthService`는 Fat Service 경계선. Reservation은 클래스가 없어 패키지 구조만 확인 | **부분 수용** (의존 방향 2곳·재실행 수용, 규칙 이동 부분 수용, 응답 레코드 분리 **거부**, 서비스 분리 보류) | 인프라 → 응용 의존과 응용의 DB 예외 의존은 SA 13장 의존 방향을 직접 어겨 고친다. 토큰 발급 가능 여부·이메일 정규화는 `User`로 옮기고, 비밀번호 72바이트 제한은 BCrypt 기술 제약이라 서비스에 둔다. 토큰 응답 레코드 분리는 응답 형식과 포트 필드가 같고 바꿀 계획이 없어 클래스만 늘어나므로 거부. `AuthService`(239줄)는 회원 기능이 늘면 나눈다. 선점 규칙은 이번에 검증하지 못해 Reservation 선점 코드가 생기면 재실행. 상세는 저장소 `docs/sa-review/06-layered-architecture-check.md` |
 | 8 | 2차 설계 자체 검수 (10/25) | (준현 작성) | 동시 요청으로 매수 제한 우회(D1), 좌석 상태 기준 두 곳(D2), 다른 멱등키로 중복 결제(D3), 접수형 저장·발행 비원자(D4) | **수용** | 네 건 모두 중복 판매·이중 결제·유실로 이어지는 정합성 문제라 구현 전에 막음. D4는 당시 Outbox 대신 "행 없이 바로 발행"을 골라 측정에 폴링 지연이 섞이지 않게 했으나, 10/26 피드백으로 접수 요청 행 + outbox로 바꿈(#33, 10-1) |
 | 9 | API 응답 형식 (10/26) | (준현 작성) | 기존 형식 유지(성공 본문 그대로 + ProblemDetail) 추천 → 균일 형식 요청에 성공·실패 공통 6키 제안. 두 형태 래퍼 검토 시 실패 응답에 traceId·Gateway 처리기·HTTP 코드 유지 지적 | 유지·6키 **거부** / 검토 지적 **수용** | 한 형식이면 개발자가 실수로 잘못 감싼 응답을 받는 쪽이 판단하기 어려움 → 성공·실패 다른 형태 + 둘 다 traceId (#19) |
 | 10 | 대기열 순번 (10/26) | 대기열 담당의 지적을 그대로 물음: 진입 시각(ms)을 점수로 쓰면 같은 ms에 들어온 요청의 순서를 구분할 수 없지 않은가, seq로 큐처럼 순번을 매겨야 하지 않나 (원문: `docs/ai-judgments/kangmin/2026-10-26-queue-order-seq-counter.md`) | 팀원이 지적한 진입 시각 동점 문제를 검증: 동점은 멤버 사전순, 인스턴스 시계 차이 → seq 카운터 + Lua 추천 | **수용** | 같은 ms 요청이 정상인 오픈 정각에 순번 공정성을 지키려면 Redis 도착 순서 하나를 기준으로 (#27) |
-- 거부 사례 4건(#1 Queue, #3, #4, #9) · 부분 거부 2건(#5, #6) · 수용 4건 · 부분 수용 1건(#7, 그중 응답 레코드 분리 거부)
+| 11 | 응모 접수 재검토 (10/29) | 원문 없음 (#4의 10/23 피드백 "응모 Kafka 접수는 과하다"를 추첨 담당이 다시 봄: `docs/design/lottery/README.md` D3, `docs/ai-judgments/kangmin/2026-11-14-sa14-row4-keep-history-add-row.md`) | #4와 같음: 응모 Kafka 접수는 과하다 | **수용** (동기 INSERT) | 11/10 L1 p95 10.58ms, 바꿀 조건 p95 300ms 초과 미도달로 동기 유지. 접수 행 + outbox와의 비교 측정은 하지 않음. #4의 10/26 거부 판단은 이력으로 남김 |
+- 거부 사례 4건(#1 Queue, #3, #4, #9) · 부분 거부 2건(#5, #6) · 수용 5건 · 부분 수용 1건(#7, 그중 응답 레코드 분리 거부). #4의 거부는 10/29 재검토(#11 수용)로 바뀌었지만 10/26 판단 기록으로 남긴다
 - 발표용 대표 사례 후보: #1(교차 검토 → 원문 대조 → 종합 과정), #3(권고를 근거를 갖고 거부), #9(AI 제안 두 번을 받지 않고 검토 지적만 수용). 개인 판단 기록 원문은 저장소 `docs/ai-judgments/`
 - 이전 #0(작성 요청)은 검증이 아니라 작성 요청이어서 제외하고, 1차 AI SA 피드백을 검증 1회차로 재구성했다.
 - 10/26 멘토 피드백은 AI 검증이 아니라 사람 피드백이라 이 표에 넣지 않고 부록 B에 둔다.
@@ -2257,7 +2268,7 @@ high-quality-ticketing-system/
 | U16 | Mock PG 환불 조회·환불 멱등·망취소 구현 | M3 전 | 안준현 (10/28 역할 변경) |
 | U17 | Redis 지연 주입 도구(Toxiproxy, `DEBUG SLEEP` 등) | M3 | 권영은 |
 | U18 | 법률 조사(17-4) | 11/9 이전 | 미정 |
-| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 — 10/31: 동기 INSERT를 기준선으로 구현하고 측정 시나리오 1(마감 직전 초당 100건, p95 300ms)로 정한다. 4-2 ③·10-1·10-3·11장 202는 그 뒤에 고친다 | 측정 시나리오 1 뒤 (ISE-87) | 이강민 |
+| U19 | 응모(`lottery.entry`)도 접수 요청 행 + outbox로 바꿀지 — 10/31: 동기 INSERT를 기준선으로 구현하고 측정 시나리오 1(마감 직전 초당 100건, p95 300ms)로 정한다. 4-2 ③·10-1·10-3·11장 202는 그 뒤에 고친다. 11/15: 11/10 L1 p95 10.58ms 합격으로 동기 유지, 4-2 ③·10-1·10-3·11장(201)을 고침(AI 검증 #11). 비교 측정은 하지 않음 | 동기 INSERT 유지(11/15). p95 300ms 초과 시 다시 봄 | 이강민 |
 | U21 | 메모리 예산 실측 후 상한 조정 | 첫 부하 측정 후 | 권영은 |
 
 해소된 항목: U3(결제 토큰 −10초, #35) · U4(응답 형식, #19) · U5(컨슈머 그룹·이벤트 공통 필드 → 10-2·10-4) · U6(테이블 행 수·좌석 상태 위치 → 12-9, D2) · U7(Redis 기능별 정책, #48) · U8(Mock PG 조회·응답 유실·멱등 → 11-5) · U11(SA MASTER 본문 정정 → 이 문서) · U13(결정 기록 반영, 10/26 완료) · U14(claim 이름은 형식 소유 담당이 통보, #56) · U15(예매 REJECTED 제거, #13) · U20(NEEDS_MANUAL_CHECK를 D3에 포함, #58. v3.3에서 D3은 전체 UNIQUE라 의미 없음, ADR 0026) · U22(환불 상태 이력은 `payment_status_histories`의 `target_type = REFUND`에 둠 → 12-4, `V3__refunds.sql`)
@@ -2313,7 +2324,7 @@ high-quality-ticketing-system/
 | M5 | 걷는 뼈대 10/29 | ✅ | 5-2 |
 | M6 | 추첨 1차 단순화 (등급별·1–2매·연석 미보장·같은 조건 승계·승계 마감) | ✅ | 4-3 · 12-3 |
 | M6 | 결제 실패 유형별 재시도·승계, 응모 시 결제수단 확인 방법, 추첨 재실행 방지, 마감 직후 늦은 응모 처리 | 재실행 방지는 ✅ (lottery.status), 나머지는 `⚠ 미해결`. 같은 예매의 재결제는 없다(8-3, ADR 0026)이고 U9가 요구하면 다시 연다 | 12-3 · U9 |
-| M6 | 응모 Kafka 접수는 과함 | 🔀 Kafka 접수 유지 | AI 검증 #4 |
+| M6 | 응모 Kafka 접수는 과함 | 🔀 Kafka 접수 유지(10/26) → ✅ 10/29 재검토로 동기 INSERT(11/10 L1 p95 10.58ms로 유지) | AI 검증 #4 · #11 |
 | M7 | Outbox는 서비스별 트랜잭션 안, 소비 기록과 업무 변경 원자적, 재시도·DLQ 담당 | ✅ 공통 모듈은 결제 담당 | 10-4 · 12-5 · 6-6 |
 | M7 | Bulkhead | ✅ | 7-2 |
 | 누락 | Kafka-UI | ➕ | 9-1 |

@@ -37,4 +37,4 @@
 - 후속: 공통 요청 로그 필터(`contract` 이슈), Loki·Alloy·로그 대시보드, Alertmanager·슬랙 연결, 프론트의 traceId 표시(프론트 세션). SA 9-1·9-3에 세 구성 요소와 메모리를 더하는 SA 변경 요청.
 
 ## 변경 이력
-- 2026-11-12: 결정 2의 운영 기본값(요청마다 한 줄)은 [ADR 0052](0052-request-log-problems-only-in-operation.md)(제안)가 대체한다. 운영은 5xx·끊긴 요청·200ms 이상만 남기고 로컬은 그대로다.
+- 2026-11-12: 결정 2의 운영 기본값(요청마다 한 줄)은 [ADR 0052](0052-request-log-problems-only-in-operation.md)(제안)가 대체한다. 운영은 5xx·끊긴 요청·200ms 이상만 남기고 로컬은 그대로다. Gateway는 11/13, 서블릿 서비스는 11/16(ISE-286)에 적용했다.

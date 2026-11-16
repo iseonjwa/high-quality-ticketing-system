@@ -26,9 +26,12 @@ import java.util.UUID;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WarmupProperties.class)
 class PaymentWarmupConfiguration {
-    // 형식만 맞는 가짜 토큰이다. 서명이 맞지 않아 거절되고, 그 전에 디코더·서명 검증 클래스가 올라온다
-    private static final String FAKE_TOKEN =
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ3YXJtdXAifQ.c2lnbmF0dXJlLXdhcm11cC1ub3QtcmVhbA";
+    // 형식만 맞는 가짜 ES256 토큰이다. 서명은 r·s가 모두 0x01…01인 64바이트라 범위 검사를 지나 P-256 서명 검증 계산까지
+    // 돌고 거절된다.
+    // Note: 헤더가 ES256이 아니면 키 선택기가 서명 검증 전에 거절해 ECDSA 계산이 데워지지 않는다. 예전 HS256 헤더가 그랬고,
+    // 11/16 배포 측정(JFR)에서 첫 결제들이 식은 ECDSA 검증을 돌았다(ISE-264)
+    static final String FAKE_TOKEN = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ3YXJtdXAifQ."
+            + "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ";
 
     @Bean
     @ConditionalOnProperty(prefix = "payment.warmup", name = "enabled", matchIfMissing = true)

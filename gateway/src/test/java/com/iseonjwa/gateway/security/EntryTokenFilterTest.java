@@ -57,6 +57,18 @@ class EntryTokenFilterTest {
         assertNotNull(forwarded.get());
     }
 
+    // ISE-264: 자동 배정 선점도 같은 입장 토큰을 요구하고 jti를 넘긴다. 목록에서 빠지면 토큰 없이 선점할 수 있다
+    @Test
+    void 자동_배정_선점도_입장_토큰을_요구하고_jti를_넘긴다() {
+        assertRejected(exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations/auto", null, USER_ID));
+        var token = entryToken(SECRET, USER_ID, SCHEDULE_ID, 300, "entry", "gateway");
+
+        filter.filter(exchange(HttpMethod.POST, "/api/v1/schedules/31/reservations/auto", token, USER_ID), chain)
+                .block();
+
+        assertNotNull(forwarded.get().getRequest().getHeaders().getFirst("X-Entry-Token-Id"));
+    }
+
     // ISE-207: 선점 API가 소모 여부를 jti로 확인하도록 검증한 토큰의 jti를 넘긴다(ADR 0053)
     @Test
     void 검증을_통과하면_토큰의_jti를_X_Entry_Token_Id로_넘긴다() {

@@ -3,6 +3,7 @@ package com.iseonjwa.reservation.seathold.application;
 import com.iseonjwa.common.response.BusinessException;
 import com.iseonjwa.reservation.concert.domain.entity.Schedule;
 import com.iseonjwa.reservation.concert.domain.entity.ScheduleSeat;
+import com.iseonjwa.reservation.concert.domain.entity.SeatGrade;
 import com.iseonjwa.reservation.global.vo.Money;
 import com.iseonjwa.reservation.reservation.domain.entity.Reservation;
 import com.iseonjwa.reservation.reservation.domain.entity.ReservationSeat;
@@ -71,6 +72,31 @@ public class SeatHolding {
             throw new SeatLockTimeoutException();
         }
     }
+
+    /**
+     * 자동 배정(ISE-264). 좌석을 서버가 고른다는 점만 다르고 잠금 순서와 상태 전이는 {@link #hold}와 같다.
+     * 매수 행 조건부 UPDATE → 좌석 ID 오름차순 잠금(SKIP LOCKED) → 같은 조건부 UPDATE로 HELD → 예매 저장(SA 8-4, ADR 0034 3항).
+     * 범위 안 남은 좌석이 quantity보다 적으면 {@link SeatHoldErrorCode#ZONE_SOLD_OUT}이다. 다른 범위로 넘기지 않는다.
+     */
+    public AutoHeldSeats holdAuto(UUID requestId, Long userId, Schedule schedule, SeatGrade grade, String section,
+            int quantity, Instant now) {
+        try {
+            addHeldCount(userId, schedule, quantity, now);
+            var seatIds = inventory.lockAvailableSeatIds(schedule.getId(), grade, section, quantity);
+            if (seatIds.size() < quantity) {
+                throw new BusinessException(SeatHoldErrorCode.ZONE_SOLD_OUT);
+            }
+            holdSeats(schedule.getId(), seatIds, userId, now);
+            var seats = inventory.findSeats(schedule.getId(), seatIds);
+            return new AutoHeldSeats(saveReservation(requestId, userId, schedule, seats, now), seatIds);
+        } catch (PessimisticLockingFailureException timeout) {
+            // 좌석은 건너뛰므로 기다리지 않는다. 같은 사용자의 다른 탭이 매수 행을 쥐고 있을 때만 여기로 온다
+            throw new SeatLockTimeoutException();
+        }
+    }
+
+    // seatIds는 ID 오름차순이다
+    public record AutoHeldSeats(Reservation reservation, List<Long> seatIds) {}
 
     // 검사와 증가를 조건부 UPDATE 한 문장으로 한다(TS-2). 읽고 검사한 뒤 더하면 같은 사용자의 탭들이 같은 값을 읽고 모두 통과했다
     private void addHeldCount(Long userId, Schedule schedule, int quantity, Instant now) {

@@ -16,7 +16,9 @@ final class EntryTokenPolicy {
 
     private static final List<Target> TARGETS = List.of(
             new Target(HttpMethod.GET, pattern("/api/v1/schedules/{scheduleId}/seats")),
-            new Target(HttpMethod.POST, pattern("/api/v1/schedules/{scheduleId}/reservations")));
+            new Target(HttpMethod.POST, pattern("/api/v1/schedules/{scheduleId}/reservations")),
+            // 자동 배정 선점(ISE-264). 직접 고르는 선점과 같은 입장 토큰 규칙이다
+            new Target(HttpMethod.POST, pattern("/api/v1/schedules/{scheduleId}/reservations/auto")));
 
     private EntryTokenPolicy() {}
 

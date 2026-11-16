@@ -41,3 +41,7 @@
 1. 1·2·3안 중 무엇으로 할지(판단자: 최권우).
 2. 2·3안이면 반효승(ISE-189)에게 P4d 내용을 미리 알릴지. 본 구현이 그쪽이라 응답 경로가 바뀌는 것을 미리 아는 편이 낫다.
 3. 2안이면 배포 측정 계획([load-test.md](../infra/load-test.md))에 판단 조건을 적을지.
+
+## 6. 구현(2026-11-16, ISE-264)
+
+배포 환경(4 vCPU) 성능 개선을 이강민 위임 야간 작업으로 진행하면서 P4d를 넣었다. 좌석 조회 담당(반효승)의 사후 확인을 받는다. `ScheduleSeatQueryService`는 배치 객체와 1초 캐시(`holdableCache`) 값이 그대로면 같은 `ScheduleSeatsResult` 객체를 돌려주고, 화면 계층의 `ScheduleSeatSectionsJsonCache`는 회차별로 그 객체가 같으면 미리 직렬화해 둔 `sections` UTF-8 바이트(Jackson `RawValue` + `SerializedString`)를 그대로 쓴다. `SuccessResponse`의 `traceId`와 `scheduleId`·`serverTime`은 요청마다 새로 써서 응답 JSON 모양은 그대로다. 본문 전체 캐시(`traceId`·`serverTime`을 헤더로)나 gzip 바이트 캐시는 API 계약이 바뀌거나 지금 압축을 쓰지 않아 고르지 않았다. 따로 TTL을 두지 않고 결과 객체가 같은지로 판단하므로, 좌석 상태가 바뀐 뒤 최대 1초 낡은 값이 나가는 것은 ISE-205와 같다. 바이트 동등성·`traceId` 요청별·1초 뒤 재생성·회차 분리 테스트와 변이 확인은 PR에 있다. 로컬 참고값(Ryzen 5 7500F, JDK 21, 단일 스레드, 15,000석 약 811KB 본문 1,000번): 객체 생성+직렬화 1,210~1,495ms, 캐시한 좌석 배열 109~110ms다. 배포 서버 CPU 효과는 아직 재지 않았다.

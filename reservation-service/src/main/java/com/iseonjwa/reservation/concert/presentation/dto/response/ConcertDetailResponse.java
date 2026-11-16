@@ -1,7 +1,7 @@
 package com.iseonjwa.reservation.concert.presentation.dto.response;
 
+import com.iseonjwa.reservation.concert.application.ConcertDetail;
 import com.iseonjwa.reservation.concert.application.ConcertDetailResult;
-import com.iseonjwa.reservation.concert.domain.entity.Concert;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -24,11 +24,11 @@ public class ConcertDetailResponse {
     private List<ScheduleSummaryResponse> schedules;
 
     public static ConcertDetailResponse from(ConcertDetailResult result) {
-        Concert concert = result.getConcert();
-        List<ScheduleSummaryResponse> schedules = result.getSchedules().stream()
+        ConcertDetail detail = result.getDetail();
+        List<ScheduleSummaryResponse> schedules = detail.schedules().stream()
                 .map(schedule -> ScheduleSummaryResponse.of(schedule, result.getServerTime()))
                 .toList();
-        return new ConcertDetailResponse(concert.getId(), concert.getTitle(), concert.getDescription(),
+        return new ConcertDetailResponse(detail.concertId(), detail.title(), detail.description(),
                 result.getServerTime(), schedules);
     }
 }

@@ -1,0 +1,28 @@
+# reservation-service의 DB 커넥션 풀(Hikari) 크기를 배포 서버 측정 모드에서만 바꾸는 덮어쓰기다(ISE-237 비교용).
+# 운영 설정(config-repo/reservation-service.yml)은 바꾸지 않는다. 값을 안 주면 운영 설정(풀 5, 연결 시한 1000ms)과 같다.
+#   RES_POOL_MAX=10 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on loadtest/deploy/compose.reservation-pool.yml
+# Gateway 덮어쓰기와 함께 쓸 때는 파일을 같이 준다(measure-mode.sh on은 인자로 준 파일을 모두 얹는다).
+#   INFLIGHT_MAX=1000 RES_POOL_MAX=10 MEASURER=<영문 이름> script/loadtest/measure-mode.sh on \
+#     loadtest/deploy/compose.gateway-inflight.yml loadtest/deploy/compose.reservation-pool.yml
+# 괄호 안이 기본값(= config-repo/reservation-service.yml)이다. 운영 값을 바꾸면 아래 기본값도 같이 바꾼다.
+#   RES_POOL_MAX(5) RES_POOL_TIMEOUT(1000, ms)
+# measure-mode.sh on은 인자로 준 파일만 얹으므로, 이 파일 없이 on 하거나 off 하면 reservation-service가 운영 값으로 돌아온다.
+#
+# 왜: O1 측정(회차 122·132, 풀 5)에서 reservation DB 커넥션 대기가 10·22였다. 대기가 풀 크기 때문인지(풀을 늘리면 대기·p95가 준다)
+# CPU 때문인지(대기는 줄어도 p95는 그대로이거나 오른다)를 같은 조건에서 풀 크기만 바꿔 가린다.
+#
+# 적용 확인: 켠 뒤 hikaricp_connections_max{application="reservation-service"}가 준 값인지 본다.
+# 풀을 키우면 Postgres 연결이 는다. 켜기 전에 postgres-reservation의 max_connections와 지금 연결 수를 확인한다.
+#
+# Note: SPRING_APPLICATION_JSON 대신 개별 환경변수를 쓴다. 한 서비스에 SPRING_APPLICATION_JSON을 주는 덮어쓰기가 둘이면
+# 뒤 파일 값만 남는데, 개별 변수는 다른 덮어쓰기와 키가 겹치지 않는 한 함께 얹힌다.
+# Note: 이름은 Spring Boot 환경변수 완화 바인딩 규칙(점은 _, 하이픈은 지움, 대문자)을 따른다.
+# maximum-pool-size → MAXIMUMPOOLSIZE다. SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE로 쓰면 maximum.pool.size로 묶여 적용되지 않는다.
+# Note: OS 환경변수는 config 서버에서 받은 설정(spring.config.import)보다 우선이다. config client 5.0.6은 받은 설정을
+# 일반 config data로 넣고 따로 우선순위를 올리지 않는다(ConfigServerConfigDataLoader, 11/15 소스 확인). 배포 서버에서
+# 실제로 바뀌는지는 위 적용 확인 지표로 본다.
+services:
+  reservation-service:
+    environment:
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: ${RES_POOL_MAX:-5}
+      SPRING_DATASOURCE_HIKARI_CONNECTIONTIMEOUT: ${RES_POOL_TIMEOUT:-1000}
