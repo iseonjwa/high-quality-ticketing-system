@@ -34,7 +34,7 @@ dev → main 머지가 릴리스다. 단계는 다음과 같다.
 8. 슬랙 #이선좌-배포상태알림에 단계마다 알린다: 배포 준비, 배포 중, 결과 순이다(ISE-175).
 9. 헬스나 스모크가 실패하면 직전 성공 태그로 되돌린다.
 
-스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 15,000석을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
+스모크 테스트의 기본은 가볍게 한다: Gateway 경유 헬스, 가입·로그인, 공연 목록. `BookingFlowSystemTest`는 회차마다 좌석 1,500석(ADR 0060 전에는 15,000석)을 만들어 DB를 키우므로 Jenkins 파라미터로 고를 때만 돈다([testing.md](../../guides/testing.md) 전체 스택 검사).
 
 수동 재배포는 Jenkins에서 태그를 골라 다시 실행한다.
 
@@ -159,7 +159,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | `script/deploy/smoke.sh [주소]` | nginx 80을 거쳐 화면 200, 깊은 경로 200, 공연 목록 200, 내 정보 401. 항목마다 기대한 상태가 나올 때까지 `SMOKE_WAIT_SECONDS`(기본 120초) 동안 5초 간격으로 다시 확인한다(Eureka 발견 지연, TS-34). 데이터를 만들지 않는다 |
 | `script/deploy/warmup.sh [주소]` | 예열 전용 공연 `[예열 전용] 배포 JIT 예열`의 회차로 오픈 피크 경로(공연 상세 → 대기열 진입·순번 → 좌석 조회 일부 → 선점 → 결제 `pgProvider: MOCK` → 확정 확인 → 취소)를 k6(`loadtest/k6/scenarios/w1-warmup.js`)로 기본 초당 25번 × 120초 돈다. `deploy.sh`가 배포 성공 뒤 부르고, 측정 모드에서는 사람이 부른다(측정 전용 키를 알아서 쓴다). 상한 `WARMUP_TIMEOUT_SECONDS`(기본 420초) |
 | `script/deploy/init-env.sh` | 서버 `.env`를 처음 만들고 빠진 키를 더한다(4절). 시연 샘플 계정 키(`SAMPLE_USER_EMAIL`·`SAMPLE_USER_PASSWORD`·`SAMPLE_USER_NICKNAME`)도 만든다 |
-| `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 15,000석씩), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
+| `script/deploy/seed-demo.sh [주소]` | 시연 공연 `이선좌 시연 공연`과 회차 둘(좌석 1,500석씩, ADR 0060), 샘플 사용자를 관리자·가입 API로 넣는다. 다시 돌려도 안전하다(공연이 있으면 건너뛰고, 샘플 사용자가 있으면 가입을 건너뛴다) |
 | `script/deploy/seed-lottery-entrants.sh` | 추첨 시연 응모자를 공개 API로 적재한다. `prepare`는 가입·로그인·카드 등록, `enter <추첨 id>`는 응모다. 다시 돌려도 안전하고, loopback이 아닌 주소는 `LOTTERY_SEED_ALLOW_REMOTE=yes`가 있어야 보낸다(ISE-199) |
 | `script/deploy/install-docker.sh` | Ubuntu에 Docker 공식 apt 저장소로 Docker와 compose 플러그인을 설치한다 |
 | `script/deploy/slack-payload.sh` | Jenkins가 보낼 배포 결과 슬랙 메시지(JSON)를 만든다. 서버가 아니라 Jenkins 작업 공간에서 돈다(아래 Jenkins 4번) |
@@ -205,7 +205,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | (c) JVM 옵션 | CDS/AppCDS, `-XX:TieredStopAtLevel`, `-XX:CICompilerCount` 등 | 없다 | 없다 | CDS/AppCDS는 클래스 적재를 줄여 기동 시간만 줄이고 JIT 예열은 아니다. 프로파일을 저장해 다음 기동에 쓰는 AOT 메서드 프로파일(JEP 515)은 JDK 25부터라 JDK 21에는 없다. 컴파일러 스레드를 늘리면 피크의 컴파일 CPU가 오히려 늘 수 있다(모두 일반 지식) |
 
 - 고른 이유: 실제 요청과 같은 경로(Gateway 인증·입장 토큰 필터, Jackson 직렬화, JPA, Kafka 결제 결과·환불 소비)를 한 번에 데우고, 예열 코드가 운영 앱에 들어가지 않는다. 측정 모드에서도 같은 명령으로 돌릴 수 있다. k6 시나리오와 `run.sh`를 이미 측정에 쓰고 있어 새 도구가 없다.
-- 데이터: 공연 제목으로 예열 공연을 찾아 다시 쓰고 없을 때만 만든다. 회차는 이미 판매 중이고 공연 시작까지 2일 넘게 남은 것을 다시 쓰고, 빈 좌석이 반복 수보다 적거나 없으면 30일 뒤 시작하는 회차(15,000석)를 새로 만든다. 반복마다 확정된 예매를 취소해 좌석·매수를 돌려주고 결제 서비스가 Mock PG로 환불한다. 결제는 `pgProvider: MOCK`만 보낸다(토스 모드 서버는 `PAYMENT_PG_MOCK_BYPASS=true`가 필요하고, 없으면 결제가 400이라 예열 결과가 실패로 남는다). 결제가 승인되지 않은 선점은 좌석 하나가 묶여 남는다(배포 메모리 덮어쓰기는 선점 만료 스케줄러를 끈다).
+- 데이터: 공연 제목으로 예열 공연을 찾아 다시 쓰고 없을 때만 만든다. 회차는 이미 판매 중이고 공연 시작까지 2일 넘게 남은 것을 다시 쓰고, 빈 좌석이 750석(초당 반복 수 × 30초)보다 적거나 없으면 30일 뒤 시작하는 회차(1,500석)를 새로 만든다. 반복은 취소로 돌아온 좌석을 돌려 가며 다시 쓴다(ADR 0060). 반복마다 확정된 예매를 취소해 좌석·매수를 돌려주고 결제 서비스가 Mock PG로 환불한다. 결제는 `pgProvider: MOCK`만 보낸다(토스 모드 서버는 `PAYMENT_PG_MOCK_BYPASS=true`가 필요하고, 없으면 결제가 400이라 예열 결과가 실패로 남는다). 결제가 승인되지 않은 선점은 좌석 하나가 묶여 남는다(배포 메모리 덮어쓰기는 선점 만료 스케줄러를 끈다).
 - 서명 키: 서버 안에서 돌아 `.env`의 키로 토큰을 서명한다. 키는 서버 밖으로 나가지 않는다(발생기에 운영 키를 두지 않는 ADR 0046 규칙과 어긋나지 않는다). 측정 모드(`.deploy/measure-mode`)이면 `.env.measure`의 측정 전용 키를 쓴다. `deploy.sh`는 측정 모드를 풀고 다시 띄우므로 늘 `.env` 키를 쓴다.
 - 실패: 예열은 준비 작업이라 실패해도 `deploy.sh`의 결과를 바꾸지 않고 경고만 출력한다. 되돌림 배포 뒤에는 돌리지 않는다. 끄려면 `DEPLOY_WARMUP=0`. 출력은 `.deploy/warmup-last.txt`, 요약은 `loadtest/k6/results/w1-warmup-*`(최근 5번)에 남는다.
 - 처음 반영: Jenkins는 서버에 이미 checkout된 `deploy.sh`를 부르고 그 안에서 새 커밋으로 바꾼다. 그래서 예열은 이 변경이 든 다음 배포부터 돈다.

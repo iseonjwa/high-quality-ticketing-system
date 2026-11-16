@@ -14,7 +14,7 @@
 | CON-006 | 선점 좌석·추첨석은 선택 불가, 구역 등급은 원래 등급 (S8) | 경계값 | P1 | 해당 좌석 선택 불가 표시 | `reservation-service/ScheduleSeatApiTest` | 자동 테스트, 로컬, 서버 |
 | CON-007 | 좌석 미생성 회차는 빈 구역, 없거나 지운 회차는 404 | 경계값 | P2 | 빈 구역 또는 404 | `reservation-service/ScheduleSeatApiTest` | 자동 테스트 |
 | CON-008 | 판매 상태 경계: 오픈 정각부터 판매, 공연 시작 정각부터 마감 | 경계값 | P1 | 오픈 정각 판매 중, 시작 직전까지 판매, 시작 정각 마감 | `reservation-service/ScheduleTimesTest`, `reservation-service/ScheduleTest` | 자동 테스트 |
-| CON-009 | 공연장 시드: KSPO DOME 25구역 15000석, VIP 3000·R 6000·S 6000 | 정상 | P2 | 구역·등급 수가 일치 | `reservation-service/VenueSeedTest`, `reservation-service/VenueSeatTest` | 자동 테스트 |
+| CON-009 | 공연장 시드: KSPO DOME 25구역 1500석(구역마다 1~2열, ADR 0060), VIP 300·R 600·S 600 | 정상 | P2 | 구역·등급 수가 일치 | `reservation-service/VenueSeedTest`, `reservation-service/VenueSeatTest` | 자동 테스트 |
 | CON-010 | 다른 공연장 좌석으로 회차 좌석 생성 거절 | 실패 | P2 | 거절. 정상 좌석은 구역·등급 복사 후 AVAILABLE | `reservation-service/ScheduleTest` | 자동 테스트 |
 | CON-011 | 회차 조회 캐시: 메모 조회, DB 대체, refresh 실패 시 이전 값 유지 | 실패 | P2 | 오픈 시각이 되면 DB 없이 판매 중 진입, 실패 시 이전 메모 사용 | `reservation-service/CachedScheduleReaderTest` | 자동 테스트 |
 
