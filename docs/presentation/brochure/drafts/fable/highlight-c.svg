@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<!-- 숫자 출처: LEDGER.md 1절 히어로 ④, 3-5 추첨 / 곡선 점: numbers-and-measurement.md 3-3절·3-5절, remeasure-2026-11-13.md 2절 -->
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient>
+<linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<clipPath id="outside"><path clip-rule="evenodd" d="M0 0h1600v900h-1600zM580 64h956v772h-956z"/></clipPath>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<g clip-path="url(#outside)">
+<polygon points="1004,0 1016,0 1010,900 760,900" fill="url(#beam)"/>
+<polygon points="1144,0 1156,0 1330,900 1090,900" fill="url(#beam)"/>
+<polygon points="1284,0 1296,0 1640,900 1380,900" fill="url(#beam)"/>
+<polygon points="854,0 866,0 740,900 520,900" fill="url(#beam)"/>
+</g>
+<!-- LEDGER 1절 ④: 초당 약 3.2 → 9.4건(2.94배 → '약 3배'), 2,000건 약 10.7분 → 206~229초 버킷 안('4분 안'), 10분 안 완료율 93.1·92.4·93.4% → 100%(2회) -->
+<rect x="64" y="64" width="158" height="40" rx="20" fill="#FFFFFF"/>
+<text x="143.0" y="92.0" font-size="21" font-weight="800" fill="#3B3BD4" text-anchor="middle">추첨 자동결제</text>
+<text x="64.0" y="166.0" font-size="34" font-weight="900" fill="#FFFFFF" letter-spacing="-1">당첨 약 2,000건 자동결제</text>
+<text x="60.0" y="340.0" font-weight="900" letter-spacing="-2"><tspan font-size="60" fill="#FFFFFF" fill-opacity="0.92">약</tspan><tspan font-size="180" fill="#F59F00" dx="12">3</tspan><tspan font-size="92" fill="#F59F00" dx="6">배</tspan><tspan font-size="54" fill="#FFFFFF" dx="16">빠르게</tspan></text>
+<text x="64.0" y="396.0" font-size="32" font-weight="900" fill="#FFFFFF">약 11분 → 4분 안 100%</text>
+<text x="64.0" y="434.0" font-size="23" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">처리 속도 초당 약 3.2 → 9.4건</text>
+<path d="M74 463 L84.5 481.5 H63.5 Z" fill="#F59F00" stroke="#F59F00" stroke-width="2.4" stroke-linejoin="round"/>
+<rect x="72.8" y="469.5" width="2.4" height="6.5" rx="1.2" fill="#24248F"/>
+<circle cx="74" cy="478.8" r="1.45" fill="#24248F"/>
+<text x="93.0" y="480.0" font-size="21" font-weight="800" fill="#FFFFFF">측정일 다름(11/10 → 11/13)</text>
+<text x="64.0" y="524.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">조건: 응모 30,000명 · 추첨석 3,000</text>
+<text x="64.0" y="550.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">Mock PG 300ms · 배포 서버 1대</text>
+<text x="64.0" y="576.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">전: 결제 소비자 1개(11/10, 3회 측정)</text>
+<text x="64.0" y="602.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">후: 소비자 3개 + 자동결제 전용 허가 3</text>
+<text x="64.0" y="628.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">　　(11/13, 2회 측정)</text>
+<text x="64.0" y="654.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">10분 안 완료율 <tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">93.1·92.4·93.4% → 100%</tspan></text>
+<text x="64.0" y="724.0" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">곡선은 전 3회차·후 1회차. 점은 원문 값이고</text>
+<text x="64.0" y="748.0" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">점 사이 직선은 보간. 진행 조회의 경과 초는</text>
+<text x="64.0" y="772.0" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">기록 시각 − 추첨 시각(계산값)</text>
+<text x="64.0" y="796.0" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">후의 마지막 결제는 206~229초 버킷 안</text>
+<rect x="580" y="64" width="956" height="772" rx="24" fill="#FFFFFF"/>
+<text x="616.0" y="118.0" font-size="26" font-weight="800" fill="#14161E">추첨 뒤 자동결제 완료 누적(건)</text>
+<line x1="1132" y1="104" x2="1172" y2="104" stroke="#8E94A3" stroke-width="5" stroke-linecap="round"/>
+<text x="1184.0" y="110.0" font-size="18" font-weight="800" fill="#14161E">전 11/10 · 소비자 1개</text>
+<line x1="1132" y1="134" x2="1172" y2="134" stroke="#3B3BD4" stroke-width="5" stroke-linecap="round"/>
+<text x="1184.0" y="140.0" font-size="18" font-weight="800" fill="#14161E">후 11/13 · 소비자 3개</text>
+<circle cx="1396" cy="104" r="6" fill="#676C7E"/>
+<text x="1410.0" y="110.0" font-size="17" font-weight="600" fill="#676C7E">진행 조회</text>
+<rect x="1390" y="128" width="12" height="12" fill="#676C7E"/>
+<text x="1410.0" y="140.0" font-size="17" font-weight="600" fill="#676C7E">누적 버킷</text>
+<line x1="690" y1="724.0" x2="1490" y2="724.0" stroke="#E1E4EA" stroke-width="2"/>
+<text x="678.0" y="730.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="end">0</text>
+<line x1="690" y1="596.9" x2="1490" y2="596.9" stroke="#E1E4EA" stroke-width="1.2"/>
+<text x="678.0" y="602.9" font-size="18" font-weight="600" fill="#676C7E" text-anchor="end">500</text>
+<line x1="690" y1="469.7" x2="1490" y2="469.7" stroke="#E1E4EA" stroke-width="1.2"/>
+<text x="678.0" y="475.7" font-size="18" font-weight="600" fill="#676C7E" text-anchor="end">1,000</text>
+<line x1="690" y1="342.6" x2="1490" y2="342.6" stroke="#E1E4EA" stroke-width="1.2"/>
+<text x="678.0" y="348.6" font-size="18" font-weight="600" fill="#676C7E" text-anchor="end">1,500</text>
+<line x1="690" y1="215.4" x2="1490" y2="215.4" stroke="#E1E4EA" stroke-width="1.2"/>
+<text x="678.0" y="221.4" font-size="18" font-weight="600" fill="#676C7E" text-anchor="end">2,000</text>
+<line x1="690.0" y1="724" x2="690.0" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="690.0" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">0</text>
+<line x1="813.1" y1="724" x2="813.1" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="813.1" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">2분</text>
+<line x1="936.2" y1="724" x2="936.2" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="936.2" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">4분</text>
+<line x1="1059.2" y1="724" x2="1059.2" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="1059.2" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">6분</text>
+<line x1="1182.3" y1="724" x2="1182.3" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="1182.3" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">8분</text>
+<line x1="1305.4" y1="724" x2="1305.4" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="1305.4" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">10분</text>
+<line x1="1428.5" y1="724" x2="1428.5" y2="731" stroke="#676C7E" stroke-width="1.5"/>
+<text x="1428.5" y="754.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">12분</text>
+<text x="1090.0" y="790.0" font-size="18" font-weight="600" fill="#676C7E" text-anchor="middle">추첨 뒤 경과 시간</text>
+<line x1="1305.4" y1="182" x2="1305.4" y2="724" stroke="#E03131" stroke-width="2" stroke-dasharray="7 6"/>
+<text x="1315.4" y="686.0" font-size="18" font-weight="800" fill="#E03131">10분 기준선</text>
+<text x="1315.4" y="710.0" font-size="16" font-weight="600" fill="#E03131">(95% 완료가 합격)</text>
+<!-- 전: numbers-and-measurement.md 3-3절 L2-a 3회 상세(진행 조회 7점, 버킷 458.13·549.76·600·641.38·733.01초) -->
+<polyline points="690.0,724.0 740.3,692.0 801.8,642.9 864.4,593.3 926.9,544.2 988.5,494.9 1051.0,445.8 1113.6,396.0 1159.9,359.9 1253.9,285.4 1305.4,244.7 1347.8,210.9 1441.8,210.6" fill="none" stroke="#8E94A3" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="740.3" cy="692.0" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="801.8" cy="642.9" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="864.4" cy="593.3" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="926.9" cy="544.2" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="988.5" cy="494.9" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="1051.0" cy="445.8" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="1113.6" cy="396.0" r="7" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="1152.9" y="352.9" width="14" height="14" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="1246.9" y="278.4" width="14" height="14" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="1298.4" y="237.7" width="14" height="14" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="1340.8" y="203.9" width="14" height="14" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="1434.8" y="203.6" width="14" height="14" fill="#8E94A3" stroke="#FFFFFF" stroke-width="2.5"/>
+<!-- 후: 3-5절 + remeasure-2026-11-13.md 2절 1회 상세(진행 조회 7점, 버킷 206.16초 1,874 · 229.06초 1,992) -->
+<polyline points="690.0,724.0 702.3,710.0 734.1,637.0 764.9,565.1 796.7,492.6 827.4,420.6 858.2,347.7 889.0,274.7 901.4,247.5 924.9,217.5" fill="none" stroke="#3B3BD4" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="702.3" cy="710.0" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="734.1" cy="637.0" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="764.9" cy="565.1" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="796.7" cy="492.6" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="827.4" cy="420.6" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="858.2" cy="347.7" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<circle cx="889.0" cy="274.7" r="7" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="894.4" y="240.5" width="14" height="14" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<rect x="917.9" y="210.5" width="14" height="14" fill="#3B3BD4" stroke="#FFFFFF" stroke-width="2.5"/>
+<text x="944.9" y="215.5" font-size="30" font-weight="900" fill="#3B3BD4" letter-spacing="-1">4분 안 100%</text>
+<text x="944.9" y="243.5" font-size="18" font-weight="800" fill="#373B4A">1,992건 전부 결제 완료</text>
+<text x="851.4" y="442.6" font-size="22" font-weight="900" fill="#3B3BD4">초당 약 9.4건</text>
+<text x="1073.0" y="485.8" font-size="22" font-weight="900" fill="#676C7E">초당 약 3.2건</text>
+<text x="1287.4" y="214.7" font-size="22" font-weight="900" fill="#14161E" text-anchor="end">10분에 93.4%</text>
+<text x="1287.4" y="238.7" font-size="17" font-weight="600" fill="#676C7E" text-anchor="end">(1,885 / 2,019건)</text>
+<text x="1363.8" y="244.9" font-size="20" font-weight="900" fill="#373B4A">약 11분에</text>
+<text x="1363.8" y="268.9" font-size="20" font-weight="900" fill="#373B4A">모두 완료</text>
+</svg>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient></defs>
+<rect width="1200" height="600" fill="url(#bg)"/>
+<circle cx="950" cy="300" r="210" fill="#FFFFFF" fill-opacity="0.07"/>
+<rect x="820" y="200" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="874" y="200" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="928" y="200" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="982" y="200" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="1036" y="200" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="820" y="254" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="874" y="254" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="928" y="254" width="44" height="44" rx="10" fill="#FF8787" opacity="1"/>
+<path d="M940 277 l8 8 l13 -16" fill="none" stroke="#14161E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="982" y="254" width="44" height="44" rx="10" fill="#FF8787" opacity="1"/>
+<path d="M994 277 l8 8 l13 -16" fill="none" stroke="#14161E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1036" y="254" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="820" y="308" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="874" y="308" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="928" y="308" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="982" y="308" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="1036" y="308" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="820" y="362" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="874" y="362" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="928" y="362" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="982" y="362" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<rect x="1036" y="362" width="44" height="44" rx="10" fill="#FFFFFF" opacity="0.5"/>
+<text x="130" y="150" font-size="34" font-weight="800" fill="#FF8787">03 · 좌석 선점</text>
+<text x="127" y="236" font-size="70" font-weight="900" fill="#FFFFFF" letter-spacing="-2">같은 좌석은 한 명</text>
+<text x="130" y="296" font-size="34" font-weight="600" fill="#FFFFFF" fill-opacity="0.88">병목을 하나씩 옮기며 찾기</text>
+<rect x="130" y="346" width="600" height="140" rx="22" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="160" y="430" font-size="56" font-weight="900" fill="#FFFFFF">219ms <tspan fill="#FF8787">→ 38ms</tspan></text>
+<text x="160" y="468" font-size="26" font-weight="600" fill="#FFFFFF" fill-opacity="0.75">선점 p95 · 3,000명 각 2회 평균</text>
+</svg>
