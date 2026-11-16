@@ -42,13 +42,16 @@ public class SeatHoldController {
 
     private final SyncSeatHoldService syncService;
     private final AsyncSeatHoldService asyncService;
+    private final SeatHoldConcurrencyLimit concurrencyLimit;
     private final SeatHoldMode mode;
     private final SeatHoldMetrics metrics;
 
     public SeatHoldController(SyncSeatHoldService syncService, AsyncSeatHoldService asyncService,
-            @Value("${seat-hold.mode:sync}") String mode, SeatHoldMetrics metrics) {
+            SeatHoldConcurrencyLimit concurrencyLimit, @Value("${seat-hold.mode:sync}") String mode,
+            SeatHoldMetrics metrics) {
         this.syncService = syncService;
         this.asyncService = asyncService;
+        this.concurrencyLimit = concurrencyLimit;
         this.mode = SeatHoldMode.from(mode);
         this.metrics = metrics;
     }
@@ -79,7 +82,8 @@ public class SeatHoldController {
             @PathVariable Long scheduleId, @Valid @RequestBody AutoHoldRequest request) {
         try {
             var command = autoCommand(currentUserId, idempotencyKey, entryTokenJti, scheduleId, request);
-            var response = respond(syncService.holdAuto(command));
+            // 자동 배정도 커넥션을 쓰므로 같은 동시 처리 상한을 거친다(ADR 0061 결정 3)
+            var response = respond(syncService.holdAuto(command, concurrencyLimit::run));
             metrics.record(response.getStatusCode().value() == 201 ? Outcome.HELD : Outcome.ACCEPTED);
             return response;
         } catch (RuntimeException exception) {
@@ -118,9 +122,10 @@ public class SeatHoldController {
         var command = new HoldSeatsCommand(currentUserId, RequestIds.parse(idempotencyKey), scheduleId,
                 request.seatIds(), entryTokenJti);
         if (mode == SeatHoldMode.ASYNC) {
-            return accepted(asyncService.accept(command));
+            return accepted(concurrencyLimit.run(() -> asyncService.accept(command)));
         }
-        return respond(syncService.hold(command));
+        // 동기형은 자리를 트랜잭션 단계에서만 쥐고, 커밋 뒤 정리·서명은 자리를 돌려준 뒤에 한다(SyncSeatHoldService)
+        return respond(syncService.hold(command, concurrencyLimit::run));
     }
 
     private static ResponseEntity<SuccessResponse<?>> respond(SyncHoldOutcome outcome) {

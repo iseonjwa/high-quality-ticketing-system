@@ -71,6 +71,12 @@ public class JpaSeatHoldRequestRepository implements SeatHoldRequestRepository {
         return repository.existsActiveByEntryTokenJti(entryTokenJti);
     }
 
+    @Override
+    public RequestKeyState findKeyState(UUID requestId, String entryTokenJti) {
+        var view = repository.findKeyState(requestId, entryTokenJti);
+        return new RequestKeyState(view.getRequestExists(), view.getTokenActive());
+    }
+
     private static boolean violates(Throwable exception, String constraintName) {
         for (var cause = exception; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConstraintViolationException violation) {

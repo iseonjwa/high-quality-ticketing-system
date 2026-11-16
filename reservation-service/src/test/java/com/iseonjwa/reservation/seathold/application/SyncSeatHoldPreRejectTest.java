@@ -68,8 +68,7 @@ class SyncSeatHoldPreRejectTest {
     void 캐시가_모르거나_가능이라_하면_지금처럼_쓰기_트랜잭션으로_간다() {
         var command = command();
         when(preCheck.anyNotHoldable(SCHEDULE, SEATS)).thenReturn(false);
-        when(requests.findById(command.requestId())).thenReturn(Optional.empty());
-        when(inventory.findSchedule(SCHEDULE)).thenReturn(Optional.empty());
+        stubNoScheduleInTransaction(command);
 
         // 회차가 없어 404로 끝나게 해 트랜잭션 안으로 들어갔는지만 본다. 409(사전 거절)가 아니어야 한다
         var rejected = assertThrows(BusinessException.class, () -> service.hold(command));
@@ -100,12 +99,20 @@ class SyncSeatHoldPreRejectTest {
     void 사전_거절은_정렬한_좌석으로_묻는다() {
         var command = new HoldSeatsCommand(USER, UUID.randomUUID(), SCHEDULE, List.of(702L, 701L), null);
         when(preCheck.anyNotHoldable(any(), any())).thenReturn(false);
-        when(requests.findById(command.requestId())).thenReturn(Optional.empty());
-        when(inventory.findSchedule(SCHEDULE)).thenReturn(Optional.empty());
+        stubNoScheduleInTransaction(command);
 
         assertThrows(BusinessException.class, () -> service.hold(command));
 
         verify(preCheck).anyNotHoldable(SCHEDULE, SEATS);
+    }
+
+    // 트랜잭션 안 사전 판정(한 문장)이 좌석을 못 찾고, 멱등키·토큰도 없고, 회차도 없다 → 404
+    private void stubNoScheduleInTransaction(HoldSeatsCommand command) {
+        when(inventory.precheck(SCHEDULE, SEATS, command.requestId(), command.entryTokenJti()))
+                .thenReturn(new SeatHoldInventoryRepository.HoldPrecheck(List.of(), false, false));
+        when(requests.findKeyState(command.requestId(), command.entryTokenJti()))
+                .thenReturn(new SeatHoldRequestRepository.RequestKeyState(false, false));
+        when(inventory.findSchedule(SCHEDULE)).thenReturn(Optional.empty());
     }
 
     private HoldSeatsCommand command() {

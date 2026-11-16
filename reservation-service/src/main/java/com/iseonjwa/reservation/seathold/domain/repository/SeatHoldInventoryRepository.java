@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 선점에 필요한 회차·회차 좌석 조회와 좌석 상태 전이. concert 모듈 엔티티를 읽기만 하고 저장소는 선점 모듈이 가진다(ADR 0034).
@@ -19,6 +20,16 @@ public interface SeatHoldInventoryRepository {
 
     // 다른 회차의 좌석 ID는 결과에서 빠진다. 요청 개수와 비교해 회차 소속을 확인한다
     List<ScheduleSeat> findSeats(Long scheduleId, List<Long> seatIds);
+
+    // findSeats와 같되 회차를 함께 읽는다(DB 왕복 1번). 지운 회차의 좌석은 빠진다. 결과가 비면 회차가 없거나
+    // 좌석 ID가 모두 다른 회차의 것이므로, 호출한 쪽이 findSchedule로 둘을 가른다
+    List<ScheduleSeat> findSeatsWithSchedule(Long scheduleId, List<Long> seatIds);
+
+    // 선점 사전 판정에 필요한 것(좌석과 회차, 멱등키 행 존재, 입장 토큰 사용 여부)을 한 문장으로 읽는다(DB 왕복 1번).
+    // 한 문장이라 같은 시점의 데이터다. 좌석이 하나도 없으면 결과가 비어 멱등키·토큰 값도 없다(호출한 쪽이 따로 읽는다)
+    HoldPrecheck precheck(Long scheduleId, List<Long> seatIds, UUID requestId, String entryTokenJti);
+
+    record HoldPrecheck(List<ScheduleSeat> seats, boolean requestExists, boolean tokenActive) {}
 
     // 이 트랜잭션의 남은 문장이 행 잠금을 timeout보다 오래 기다리지 않게 한다(SET LOCAL lock_timeout, SA 9-4)
     void applyLockTimeout(Duration timeout);

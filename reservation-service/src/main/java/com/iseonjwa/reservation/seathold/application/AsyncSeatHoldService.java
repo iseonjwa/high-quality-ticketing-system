@@ -68,24 +68,29 @@ public class AsyncSeatHoldService {
     }
 
     private UUID acceptOnce(HoldSeatsCommand command, List<Long> seatIds) {
-        var previous = seatHoldRequests.findById(command.requestId());
-        if (previous.isPresent()) {
-            SeatHoldRules.requireSameRequest(previous.get(), command, seatIds);
-            return previous.get().getRequestId();
+        // 판정 재료(멱등키, 토큰, 회차, 좌석)를 한 문장으로 읽는다. 판정 순서는 그대로다
+        var check = SeatHoldRules.precheck(inventory, seatHoldRequests, command.scheduleId(), seatIds,
+                command.requestId(), command.entryTokenJti());
+        if (check.requestExists()) {
+            var previous = seatHoldRequests.findById(command.requestId())
+                    .orElseThrow(() -> new IllegalStateException("선점 요청 행이 사라졌습니다: " + command.requestId()));
+            SeatHoldRules.requireSameRequest(previous, command, seatIds);
+            return previous.getRequestId();
         }
         // Note: 앞선 요청이 아직 처리 중(REQUESTED)이어도 거절한다. 같은 토큰으로 여러 요청을 줄에 넣어 두는 것을 막는다.
         // 앞선 요청이 소비자에서 거절(REJECTED)되면 토큰은 다시 쓸 수 있다. 대기열 issued 정리는 HELD를 커밋한 소비자가 한다(ISE-17)
-        SeatHoldRules.requireUnusedEntryToken(seatHoldRequests, command);
-        var schedule = inventory.findSchedule(command.scheduleId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (check.tokenActive()) {
+            throw new BusinessException(SeatHoldErrorCode.ENTRY_TOKEN_USED);
+        }
+        var seats = check.seats();
+        var schedule = SeatHoldRules.scheduleOf(inventory, command.scheduleId(), seats);
         SeatHoldRules.requireWithinPerUserLimit(schedule, seatIds);
         var now = clock.instant();
         SeatHoldRules.requireOnSale(schedule, now);
-        var seats = inventory.findSeats(schedule.getId(), seatIds);
-        if (seats.size() != seatIds.size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
+        SeatHoldRules.requireAllSeatsOfSchedule(seats, seatIds);
+        if (!SeatHoldRules.allHoldable(seats)) {
+            throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
         }
-        requireAllHoldable(seats);
 
         seatHoldRequests.save(SeatHoldRequest.request(command.requestId(), command.userId(), schedule.getId(),
                 seatIds, command.entryTokenJti()));
@@ -94,16 +99,6 @@ public class AsyncSeatHoldService {
                 new SeatHoldRequested(command.requestId(), command.userId(), schedule.getId(), section, seatIds,
                         command.entryTokenJti(), now));
         return command.requestId();
-    }
-
-    // Note: 잠그지 않고 읽은 상태라 그사이 바뀔 수 있다. 여기서 AVAILABLE이어도 소비자의 조건부 UPDATE가 최종 판단이고,
-    // 여기서 잡혀 보인 좌석은 같은 순간 동기형도 409를 준다. 오픈 피크 요청 대부분이 이 경우라 줄에 넣기 전에 거른다(ADR 0057)
-    private static void requireAllHoldable(List<ScheduleSeat> seats) {
-        for (var seat : seats) {
-            if (!seat.isHoldable()) {
-                throw new BusinessException(SeatHoldErrorCode.SEAT_ALREADY_HELD);
-            }
-        }
     }
 
     // 구역이 여럿이면 사전순으로 가장 작은 구역을 키로 쓴다. 같은 요청은 늘 같은 키를 얻는다(ADR 0056)
