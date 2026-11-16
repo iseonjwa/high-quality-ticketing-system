@@ -3,8 +3,8 @@
 - 상태: 채택. 단, 결정 1(접수형 POST의 즉시 409)은 ISE-120 담당(안준현) 확인 뒤 확정한다.
 - 날짜: 2026-11-12
 - 결정자: 최권우 (좌석 선점 담당)
-- 관련 이슈: ISE-16, ISE-17, ISE-18, ISE-120
-- 관련 AI 판단: [ISE-16 남은 결정 다섯 가지를 추천안대로 정함](../ai-judgments/kwonwoo/2026-11-12-async-seat-hold-intake-decisions.md)
+- 관련 이슈: ISE-16, ISE-17, ISE-18, ISE-120, ISE-255(비상 전환 범위, 2026-11-16)
+- 관련 AI 판단: [ISE-16 남은 결정 다섯 가지를 추천안대로 정함](../ai-judgments/kwonwoo/2026-11-12-async-seat-hold-intake-decisions.md), [비상 동기형 전환을 범위 밖으로 둠](../ai-judgments/kwonwoo/2026-11-16-ise255-emergency-switch-out-of-scope.md)
 - 관련 학습 노트: [남은 결정의 트레이드오프](../learning/kwonwoo/qna/2026-11-12-ise16-remaining-decisions-tradeoffs.md)
 - 바꾸는 계약: `docs/design/reservation/contracts.md` 2-2, 3-2 ⑤의 접수형 칸, 4절. SA 10-1 D4의 "좌석 행을 잠그지 않고 접수한다"는 그대로 지킨다. Notion 항목은 대체하지 않는다.
 
@@ -22,6 +22,7 @@ ISE-16은 접수형 선점(`seat-hold.mode=async`)의 접수 API와 결과 조�
    - 매수 한도는 접수에서 보지 않고 소비자가 `REJECTED(PURCHASE_LIMIT_EXCEEDED)`로 알린다.
    - 통과하면 `seat_hold_requests(REQUESTED)`와 Outbox `SeatHoldRequested`를 한 트랜잭션에 쓰고 `202 Accepted`를 준다.
 2. **모드는 기동 시 정한다.** `seat-hold.mode`(`sync` 기본, `async`)를 기동할 때 한 번 읽는다. 바꾸려면 reservation-service를 재시작한다. `@RefreshScope`를 쓰지 않는다. 소비자(ISE-17)는 모드와 상관없이 항상 켠다.
+   - 모드 전환은 측정 도구로만 쓴다. 오픈 중 접수형 장애 때 동기형으로 급히 되돌리는 비상 전환은 범위 밖이다(2026-11-16, ISE-255. 아래 "변경" 절).
 3. **결과 조회는 모드와 상관없이 연다.** `GET /api/v1/reservations/requests/{requestId}`는 동기형 모드에서도 동작한다. 동기형은 성공한 선점만 행을 남기므로 `HELD`나 `404`만 나온다.
 4. **같은 키의 접수형 POST 재요청**은 기존 행의 상태와 상관없이 `202`와 같은 본문(`status: "REQUESTED"`, `nextPollAfterSeconds: 1`)을 준다. 202의 `status`는 "결과는 `Location`에서 확인하라"는 뜻이다. 실제 결과(`HELD`·`REJECTED`)는 조회 API로만 알린다. 202 본문에 `HELD`를 넣으면, 동기형 201처럼 즉시 완료로 분기하는 클라이언트가 `reservation` 블록 없이 결제로 넘어간다.
 5. **미룬 것**
@@ -50,3 +51,13 @@ ISE-16은 접수형 선점(`seat-hold.mode=async`)의 접수 API와 결과 조�
   - ISE-17: 소비자, DLQ, 30초 타임아웃, Outbox 지연 측정.
   - ISE-18: 직접 발행 경로, 접수 단계 409 비율, 섞인 구역 요청 비율.
     - 2026-11-16 직접 발행 경로를 측정 전용으로 만들었다(`seat-hold.async.publish=direct`, 기본 `outbox`). 요청 행을 커밋한 뒤 Outbox와 같은 봉투·키로 보내고 브로커 확인을 최대 1초 기다린다. 전송이 실패해도 202로 답하고 지표(`seathold_direct_publish_total{result="failed"}`)로 센다. 메시지가 가지 않은 요청은 30초 시한 정리가 닫는다. 커밋 전 전송은 롤백된 접수의 메시지가 남거나 소비자가 커밋 전 행을 못 찾는 경우가 생겨 고르지 않았다. 운영 설정(config-repo)은 바꾸지 않았다. 판단 기록: [직접 발행 방식](../ai-judgments/kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md)
+
+## 변경 (2026-11-16, ISE-255): 비상 동기형 전환은 범위 밖
+- 맥락: reservation-service는 한 대다(ADR 0047). 재시작하면 대기열 입장·좌석 조회·선점·예매 API가 모두 30초~1분 멈춘다(추정, [학습 노트](../learning/kwonwoo/qna/2026-11-12-mode-switch-replay-gap.md) 7절). 결정 2의 재시작 방식으로는 오픈 중 접수형(Kafka·Outbox·소비자) 장애 때 동기형으로 되돌리는 순간 전면 중단이 생긴다.
+- 결정: 비상 전환을 범위에 두지 않는다. 모드 전환은 측정 모드를 켜고 끌 때와 배포 때만 한다(학습 노트 8절). 운영 기본값은 `sync`다.
+- 이유
+  - SA에서 접수형의 목적은 동기형과의 비교 측정이다(3-1절, 10-1절). 비상 전환은 요구사항에 없다.
+  - 운영 기본값이 `sync`라 접수형으로 오픈을 운영하는 경우가 없다. 되돌릴 대상이 생기지 않는다.
+  - 재시작 없이 바꾸려면 공통 Actuator 노출(`config-repo/application.yml`)을 넓히거나(`@RefreshScope` + `/actuator/refresh`) 운영자용 전환 API를 새로 만들고, 전환 순간에 처리 중인 요청의 경계를 정해야 한다. 발표(11/18)까지 남은 시간에 비해 얻는 것이 없다.
+- 감수하는 것: 접수형으로 운영하다 장애가 나면 재시작 말고 되돌릴 방법이 없다. 접수형을 운영 기본값으로 바꾸려면 이 결정을 먼저 다시 연다.
+- 그대로 두는 것: [ADR 0058](0058-sync-replay-of-async-requests.md)(접수형으로 시작한 요청은 동기형 서버에서도 202)은 측정 중 전환에도 필요하므로 유지한다.

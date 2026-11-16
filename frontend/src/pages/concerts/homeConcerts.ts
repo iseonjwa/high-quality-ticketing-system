@@ -1,6 +1,7 @@
 import type { ConcertSummary, SaleStatus } from '@/api/concerts'
 import { instantMillis } from '@/lib/instant'
 import { saleStatusAt } from '@/lib/saleStatus'
+import showcase from '@/data/showcase.json'
 
 // 홈 화면의 공연 묶음. 목록 응답(공연 번호·제목·다음 회차 시각)만으로 나눈다.
 // Note: 목록 응답에는 서버 시각이 없어(ISE-99) 브라우저 시계로 나눈다. 예매 가능 여부는 서버 시각이 있는
@@ -24,8 +25,16 @@ export interface HomeSections {
 
 export const FEATURED_LIMIT = 4
 
+// 배포 서버의 JIT 예열·k6 측정·E2E 공연은 홈 목록에 보이지 않게 뺀다(data/showcase.json, ISE-302).
+// Note: 예열 공연은 배포마다 같은 공연을 찾아 다시 쓰므로 서버에서 지울 수 없다. 화면 목록에서만 빼고 주소로는 열린다
+const EXCLUDED_TITLE_PREFIXES: readonly string[] = showcase.listExcludedTitlePrefixes
+
+export function isListedConcert(concert: Pick<ConcertSummary, 'title'>): boolean {
+  return !EXCLUDED_TITLE_PREFIXES.some((prefix) => concert.title.startsWith(prefix))
+}
+
 export function groupHomeConcerts(concerts: ConcertSummary[], nowMillis: number): HomeSections {
-  const items = concerts.map((concert): HomeConcert => {
+  const items = concerts.filter(isListedConcert).map((concert): HomeConcert => {
     const next =
       concert.nextStartsAt !== null && concert.nextOpenAt !== null
         ? { startsAt: concert.nextStartsAt, openAt: concert.nextOpenAt }

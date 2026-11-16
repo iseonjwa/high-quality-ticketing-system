@@ -1,0 +1,13 @@
+# ISE-296 측정 전용 덮어쓰기다. 동기형 좌석 선점의 동시 처리 상한(ADR 0062 결정 3)을 4로 켠다. 단계 S2에 쓴다.
+#   MEASURER=<이름> script/loadtest/measure-mode.sh on loadtest/k6/compose.seat-hold-limit.yml
+# 4는 커넥션 풀 5(config-repo, ADR 0064) - 1이다. 짧은 요청(좌석 조회·결과 조회) 몫으로 커넥션 하나를 남긴다(seathold-pool-limit-sweep.md 5절).
+# 자리 대기 시한(seat-hold.max-concurrent-wait 200ms)과 대기 인원(seat-hold.max-concurrent-queue 64)은 코드 기본값을 쓴다.
+# Note: seat-hold.max-concurrent를 환경변수로 줄 때는 하이픈을 빼 SEATHOLD_MAXCONCURRENT로 쓴다(Spring 완화 바인딩).
+# 켜졌는지는 seathold_concurrency_in_use 지표가 생겼는지로 본다. 상한이 꺼져 있으면 이 Gauge를 등록하지 않는다.
+# 풀을 바꾸는 단계(선택)에서는 SEAT_HOLD_LIMIT로 새 풀 - 1을 함께 준다. 괄호 안이 기본값이다: SEAT_HOLD_LIMIT(4)
+#   RES_POOL_MAX=8 SEAT_HOLD_LIMIT=7 MEASURER=<이름> script/loadtest/measure-mode.sh on \n#     loadtest/deploy/compose.reservation-pool.yml loadtest/k6/compose.seat-hold-limit.yml
+# 측정이 끝나면 이 파일 없이 다시 띄운다.
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_MAXCONCURRENT: ${SEAT_HOLD_LIMIT:-4}

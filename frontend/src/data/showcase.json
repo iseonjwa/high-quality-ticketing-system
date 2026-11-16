@@ -1,0 +1,240 @@
+{
+  "_comment": "배포 서버를 실제 서비스처럼 채우는 공연 정의(ISE-302). script/deploy/seed-showcase.sh가 이 파일로 공연장·공연·회차를 만들고, 화면은 제목으로 사진(art)을 찾는다. 아티스트·단체는 모두 가상이다. 공연장 이름만 실제 장소를 빌렸다. 시각은 한국 시간이다.",
+  "venues": [
+    {
+      "name": "블루스퀘어 마스터카드홀",
+      "rows": 2,
+      "seatsPerRow": 24,
+      "sections": { "VIP": ["A", "B", "C"], "R": ["D", "E", "F"], "S": ["G", "H", "I", "J"] }
+    },
+    {
+      "name": "YES24 LIVE HALL",
+      "rows": 2,
+      "seatsPerRow": 20,
+      "sections": { "VIP": ["A", "B"], "R": ["C", "D"], "S": ["E", "F"] }
+    },
+    {
+      "name": "롯데콘서트홀",
+      "rows": 2,
+      "seatsPerRow": 25,
+      "sections": {
+        "VIP": ["A", "B", "C", "D"],
+        "R": ["E", "F", "G", "H"],
+        "S": ["I", "J", "K", "L"]
+      }
+    },
+    {
+      "name": "세종문화회관 대극장",
+      "rows": 2,
+      "seatsPerRow": 25,
+      "sections": {
+        "VIP": ["A", "B", "C", "D"],
+        "R": ["E", "F", "G", "H", "I", "J"],
+        "S": ["K", "L", "M", "N", "O", "P"]
+      }
+    },
+    {
+      "name": "노들섬 라이브하우스",
+      "rows": 2,
+      "seatsPerRow": 15,
+      "sections": { "VIP": ["A"], "R": ["B", "C"], "S": ["D", "E"] }
+    }
+  ],
+  "concerts": [
+    {
+      "art": "asteria",
+      "demo": true,
+      "title": "2026 ASTERIA WORLD TOUR [ORBIT] IN SEOUL",
+      "description": "다섯 개의 별이 하나의 궤도에 오릅니다.\n\n데뷔 4년 차 ASTERIA가 첫 월드투어 [ORBIT]의 출발점을 서울로 정했습니다. 정규 2집 타이틀곡 'Gravity'와 'Afterglow'를 포함한 24곡, 투어에서만 볼 수 있는 유닛 무대, 공연장 한가운데에서 도는 360도 무대까지 지금의 ASTERIA를 모두 담았습니다.\n\n· 공식 응원봉 ver.2가 무대 조명과 함께 움직입니다(블루투스 연동은 입장 후 안내).\n· 1인 2매까지 예매할 수 있습니다.\n· 공연 시간 약 150분, 인터미션 없음",
+      "maxPerUser": 2,
+      "prices": { "VIP": 165000, "R": 143000, "S": 112000 },
+      "schedules": [
+        { "venue": "KSPO DOME", "openAt": "2026-11-12T20:00", "startsAt": "2026-12-05T18:00" },
+        { "venue": "KSPO DOME", "openAt": "2026-11-12T20:00", "startsAt": "2026-12-06T17:00" }
+      ]
+    },
+    {
+      "art": "asteria-fancon",
+      "title": "ASTERIA 2026 FANCON [Spring Letter]",
+      "description": "봄에 부치는 편지, 잘 받으셨나요?\n\n데뷔 3주년을 맞아 STELLA(공식 팬클럽)와 함께한 이틀의 팬콘서트입니다. 멤버들이 직접 고른 수록곡 무대, 팬들이 보낸 사연으로 꾸민 토크, 마지막 날에만 공개한 미발표곡 'Letter'까지 객석과 무대가 함께 만든 시간이었습니다.\n\n이틀 동안 찾아 주신 모든 STELLA께 감사드립니다.",
+      "maxPerUser": 2,
+      "prices": { "VIP": 121000, "R": 99000, "S": 88000 },
+      "schedules": [
+        { "venue": "KSPO DOME", "openAt": "2026-03-26T20:00", "startsAt": "2026-04-18T18:00" },
+        { "venue": "KSPO DOME", "openAt": "2026-03-26T20:00", "startsAt": "2026-04-19T17:00" }
+      ]
+    },
+    {
+      "art": "ballad",
+      "title": "정은솔 콘서트 〈겨울이 오면 생각나는 것들〉",
+      "description": "첫눈이 오면 꼭 연락하자던 사람이 있었어요.\n\n올해도 겨울이 왔고, 저는 그 약속 대신 노래를 들고 무대에 섭니다. 피아노 한 대, 현악 사중주, 그리고 여러분. 그거면 충분한 밤이에요.\n\n'눈의 온도', '그 겨울의 버스 정류장'부터 이번 콘서트에서 처음 부르는 신곡까지, 천천히 한 곡씩 꺼내 볼게요. 따뜻하게 입고 오세요.\n\n— 정은솔",
+      "maxPerUser": 4,
+      "prices": { "VIP": 143000, "R": 132000, "S": 110000 },
+      "schedules": [
+        {
+          "venue": "블루스퀘어 마스터카드홀",
+          "openAt": "2026-11-05T20:00",
+          "startsAt": "2026-12-12T19:30"
+        },
+        {
+          "venue": "블루스퀘어 마스터카드홀",
+          "openAt": "2026-11-05T20:00",
+          "startsAt": "2026-12-13T18:00"
+        }
+      ]
+    },
+    {
+      "art": "indie",
+      "title": "새벽세시 단독공연 〈파란 불꽃〉",
+      "description": "합정 지하 연습실에서 시작한 네 명이 처음으로 YES24 LIVE HALL에 섭니다.\n\n2집 [파란 불꽃] 발매 기념 단독공연이에요. 앨범 열 곡 전곡에 '새벽 세 시의 편의점', '불면' 같은 오래된 곡도 다 합니다. 앵콜은 정해 두지 않았어요. 여러분이 부르는 만큼 하겠습니다.\n\n좌석이지만 일어나도 됩니다. 아마 저희가 먼저 일어날 거예요.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 77000, "R": 66000, "S": 55000 },
+      "schedules": [
+        { "venue": "YES24 LIVE HALL", "openAt": "2026-11-10T20:00", "startsAt": "2026-11-28T19:00" }
+      ]
+    },
+    {
+      "art": "jazz",
+      "title": "Seoul Jazz Night: 한빛 트리오 with 스트링 콰르텟",
+      "description": "피아노, 콘트라베이스, 드럼. 세 개의 악기가 서로의 숨을 듣는 밤에 현악 사중주가 더해집니다.\n\n한빛 트리오는 2019년 결성 이후 스탠더드를 자신들의 언어로 다시 써 온 팀입니다. 이번 무대에서는 'Autumn Leaves', 'My Funny Valentine' 같은 스탠더드와 함께, 현악 편곡으로 새로 다듬은 자작곡 「한강, 새벽 두 시」를 초연합니다.\n\n[PROGRAM]\nPart 1. Standards Revisited\nPart 2. Strings & Trio: 「한강, 새벽 두 시」 초연\n\n※ 만 8세 이상 입장 가능",
+      "maxPerUser": 4,
+      "prices": { "VIP": 99000, "R": 77000, "S": 55000 },
+      "schedules": [
+        { "venue": "롯데콘서트홀", "openAt": "2026-11-02T14:00", "startsAt": "2026-11-25T20:00" }
+      ]
+    },
+    {
+      "art": "orchestra",
+      "title": "노을 필하모닉 송년음악회: 베토벤 교향곡 제9번 〈합창〉",
+      "description": "한 해의 끝에서 모든 사람이 형제가 되는 노래를 부릅니다.\n\n노을 필하모닉 오케스트라가 2026년 송년음악회로 베토벤 교향곡 제9번 d단조 Op.125 〈합창〉을 연주합니다. 지휘 윤서한, 소프라노 백다인, 메조소프라노 오지원, 테너 강태오, 베이스 문성진, 노을 시민합창단 120명이 함께합니다.\n\n[PROGRAM]\nL. v. Beethoven, Symphony No. 9 in d minor, Op. 125 \"Choral\"\n\n※ 공연 시간 약 80분(인터미션 없음)\n※ 초등학생 이상 입장 가능\n※ 공연 시작 후에는 악장 사이에만 입장할 수 있습니다.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 120000, "R": 90000, "S": 60000 },
+      "schedules": [
+        {
+          "venue": "세종문화회관 대극장",
+          "openAt": "2026-11-19T14:00",
+          "startsAt": "2026-12-29T19:30"
+        }
+      ]
+    },
+    {
+      "art": "hiphop",
+      "title": "HYPE CITY 2026: 서울 힙합 플레이그라운드",
+      "description": "올해 서울에서 제일 시끄러운 이틀.\n\nHYPE CITY가 돌아왔다. 제이로(J.Ro), 블루문 크루, MC 단비, 하울(HOWL), 그리고 아직 공개 안 한 스페셜 게스트까지. 라인업 전체가 이틀 내내 무대 위에 있다.\n\nDAY 1 : 제이로 · 블루문 크루 · 노바(NOVA)\nDAY 2 : MC 단비 · 하울 · 스페셜 게스트\n\n볼륨은 최대로, 목은 미리 풀고 와.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 154000, "R": 132000, "S": 110000 },
+      "schedules": [
+        { "venue": "KSPO DOME", "openAt": "2026-11-18T20:00", "startsAt": "2026-12-19T18:00" },
+        { "venue": "KSPO DOME", "openAt": "2026-11-18T20:00", "startsAt": "2026-12-20T17:00" }
+      ]
+    },
+    {
+      "art": "trot",
+      "title": "임하늘 전국투어 〈청춘열차〉 - 서울",
+      "description": "어머님, 아버님! 청춘열차가 드디어 서울역에 도착합니다.\n\n부산, 대구, 광주를 거쳐 달려온 임하늘 전국투어의 서울 공연입니다. '달빛 정거장', '인생은 아직 오후'는 물론, 객석에서 신청곡을 받는 '청춘 라디오' 코너도 준비했습니다.\n\n손주 손 잡고, 친구 손 잡고 함께 오세요. 하루 두 번, 낮 공연과 저녁 공연이 있습니다.\n\n※ 객석 내 응원 도구(부채·현수막) 사용 가능",
+      "maxPerUser": 4,
+      "prices": { "VIP": 132000, "R": 121000, "S": 99000 },
+      "schedules": [
+        {
+          "venue": "세종문화회관 대극장",
+          "openAt": "2026-10-27T10:00",
+          "startsAt": "2026-11-22T15:00"
+        },
+        {
+          "venue": "세종문화회관 대극장",
+          "openAt": "2026-10-27T10:00",
+          "startsAt": "2026-11-22T19:00"
+        }
+      ]
+    },
+    {
+      "art": "christmas",
+      "title": "2026 크리스마스 팝스 콘서트 〈Silent Lights〉",
+      "description": "불이 꺼지고, 작은 불빛들이 하나씩 켜집니다.\n\n오케스트라와 합창단, 재즈 보컬이 함께 꾸미는 크리스마스 팝스 콘서트입니다. 'White Christmas', 'Have Yourself a Merry Little Christmas'부터 영화 〈나 홀로 집에〉 OST 메들리까지, 가족이 함께 들을 수 있는 캐럴로 채웠습니다.\n\n공연 마지막 곡에서는 객석 모두에게 나눠 드리는 LED 촛불로 공연장을 밝힙니다.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 110000, "R": 88000, "S": 66000 },
+      "schedules": [
+        { "venue": "롯데콘서트홀", "openAt": "2026-11-13T14:00", "startsAt": "2026-12-24T20:00" },
+        { "venue": "롯데콘서트홀", "openAt": "2026-11-13T14:00", "startsAt": "2026-12-25T17:00" }
+      ]
+    },
+    {
+      "art": "rock",
+      "title": "OVERDRIVE 15th Anniversary LIVE 〈소음의 미학〉",
+      "description": "15년. 앰프는 세 번 바뀌었고 볼륨은 한 번도 줄인 적 없다.\n\nOVERDRIVE가 데뷔 15주년 기념 공연을 연다. 1집부터 6집까지 매 앨범에서 고른 곡에 미발표 데모까지, 세 시간 가까이 쉬지 않고 간다.\n\n귀마개는 입구에서 나눠 준다. 쓸지 말지는 각자 알아서.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 99000, "R": 88000, "S": 77000 },
+      "schedules": [
+        { "venue": "YES24 LIVE HALL", "openAt": "2026-11-21T20:00", "startsAt": "2026-12-12T19:00" }
+      ]
+    },
+    {
+      "art": "fanmeet",
+      "title": "2026 서도윤 팬미팅 〈DEAR. DOYUN〉",
+      "description": "드라마 〈봄의 문장〉이 끝나고 처음으로 여러분을 만납니다.\n\n촬영장 비하인드, 여러분이 보내 주신 질문에 답하는 시간, 그리고 서툴지만 준비한 노래 두 곡까지. 오래 기다려 주신 만큼 천천히, 가까이에서 이야기하고 싶어요.\n\n· 공연이 끝난 뒤 전원 하이터치가 진행됩니다.\n· 1인 1매만 예매할 수 있습니다.\n· 예매자 본인만 입장할 수 있습니다(신분증 확인).",
+      "maxPerUser": 1,
+      "prices": { "VIP": 121000, "R": 110000, "S": 99000 },
+      "schedules": [
+        {
+          "venue": "블루스퀘어 마스터카드홀",
+          "openAt": "2026-11-09T20:00",
+          "startsAt": "2026-11-29T17:00"
+        }
+      ]
+    },
+    {
+      "art": "musical",
+      "title": "뮤지컬 갈라 콘서트 〈더 넘버스: 커튼콜〉",
+      "description": "막이 내린 뒤에도 귓가에 남는 노래가 있습니다.\n\n지난 10년 동안 한국 뮤지컬 무대를 빛낸 배우 열두 명이 대표 넘버를 다시 부릅니다. 〈레미제라블〉 'One Day More', 〈지킬 앤 하이드〉 'This Is the Moment', 〈오페라의 유령〉 'The Music of the Night' 등 스무 곡을 24인조 오케스트라 반주로 선보입니다.\n\n※ 공연 시간 약 140분(인터미션 15분 포함)\n※ 만 7세 이상 입장 가능",
+      "maxPerUser": 4,
+      "prices": { "VIP": 140000, "R": 120000, "S": 90000 },
+      "schedules": [
+        {
+          "venue": "세종문화회관 대극장",
+          "openAt": "2026-10-30T14:00",
+          "startsAt": "2026-12-05T19:30"
+        },
+        {
+          "venue": "세종문화회관 대극장",
+          "openAt": "2026-10-30T14:00",
+          "startsAt": "2026-12-06T14:00"
+        }
+      ]
+    },
+    {
+      "art": "acoustic",
+      "title": "봄날 어쿠스틱 소극장 콘서트 〈작은 방〉",
+      "description": "기타 두 대랑 의자 두 개, 그리고 150명.\n\n어쿠스틱 듀오 봄날이 일 년에 딱 한 번 여는 소극장 콘서트예요. 마이크를 거의 쓰지 않아서 숨소리까지 들리는 거리에서 노래합니다. 신청곡은 입장할 때 쪽지로 받을게요.\n\n작은 방이라 자리가 금방 차요. 늦지 않게 와 주세요.",
+      "maxPerUser": 2,
+      "prices": { "VIP": 55000, "R": 49000, "S": 44000 },
+      "schedules": [
+        {
+          "venue": "노들섬 라이브하우스",
+          "openAt": "2026-10-28T20:00",
+          "startsAt": "2026-11-20T19:30"
+        },
+        {
+          "venue": "노들섬 라이브하우스",
+          "openAt": "2026-10-28T20:00",
+          "startsAt": "2026-11-21T17:00"
+        }
+      ]
+    },
+    {
+      "art": "edm",
+      "title": "NEON TIDE 2026 Autumn EDM Festival",
+      "description": "NEON TIDE 2026 가을 시즌은 3만 명의 관객과 함께 성황리에 막을 내렸습니다.\n\n다섯 시간 동안 이어진 DJ 열두 팀의 무대, 레이저와 불꽃으로 채운 피날레를 함께해 주신 모든 분께 감사드립니다. 2027 여름 시즌 라인업은 공식 SNS로 가장 먼저 알려 드립니다.",
+      "maxPerUser": 4,
+      "prices": { "VIP": 176000, "R": 154000, "S": 132000 },
+      "schedules": [
+        { "venue": "KSPO DOME", "openAt": "2026-08-20T20:00", "startsAt": "2026-10-10T15:00" }
+      ]
+    }
+  ],
+  "_hideComment": "hide는 seed-showcase.sh가 지운 것으로 표시하는 측정·리허설·E2E 공연이다(되돌릴 수 있음). k6 시나리오는 공연 제목을 'k6 O1', 'k6 측정 추첨 …'처럼 'k6 '로 시작한다. 예열 공연은 배포마다 같은 공연을 다시 쓰므로 지우지 않고 화면 목록에서만 뺀다(listExcludedTitlePrefixes).",
+  "hide": {
+    "titles": ["리허설 공연", "이선좌 시연 공연", "아무 노래나 일단 틀어"],
+    "titlePrefixes": ["k6 ", "E2E "]
+  },
+  "listExcludedTitlePrefixes": ["[예열 전용]", "k6 ", "E2E "]
+}

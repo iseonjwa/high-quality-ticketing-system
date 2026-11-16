@@ -8,7 +8,11 @@ import type { QueueConcert } from '@/pages/queue/queueNavigation'
 export function ConcertHeader({ concert }: { concert: QueueConcert }) {
   return (
     <Card className="flex-row items-center gap-4 px-4 py-4 @min-[40rem]:gap-5 @min-[40rem]:px-5 @min-[40rem]:py-5">
-      <ConcertPoster concertId={concert.concertId} className="h-[72px] w-14" />
+      <ConcertPoster
+        concertId={concert.concertId}
+        concertTitle={concert.title}
+        className="h-[72px] w-14"
+      />
       <div className="min-w-0">
         <h1 className="type-title text-gray-900 @max-[40rem]:text-[20px] @max-[40rem]:leading-[28px]">
           {concert.title}
