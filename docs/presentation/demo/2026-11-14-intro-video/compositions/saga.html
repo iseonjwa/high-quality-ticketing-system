@@ -1,0 +1,44 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; color: #14101A; overflow: hidden; }
+    #sg-k { position: absolute; left: 120px; top: 130px; font-size: 40px; font-weight: 800; color: #FF2D78; }
+    #sg-t { position: absolute; left: 116px; top: 190px; font-size: 128px; font-weight: 900; letter-spacing: -5px; line-height: 1.05; }
+    #sg-t b { color: #2B3BE5; }
+    #sg-track { position: absolute; left: 150px; top: 640px; width: 1560px; height: 10px; background: #14101A; border-radius: 5px; }
+    .sg-node { position: absolute; top: 606px; width: 78px; height: 78px; border-radius: 50%; background: #FFF8EE; border: 10px solid #14101A; }
+    .sg-lab { position: absolute; top: 720px; width: 420px; font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+    .sg-sub { position: absolute; top: 784px; width: 460px; font-size: 32px; font-weight: 600; color: #5A5462; }
+    #sg-dot { position: absolute; left: 150px; top: 618px; width: 54px; height: 54px; border-radius: 50%; background: #FF2D78; }
+    #sg-foot { position: absolute; left: 120px; top: 930px; font-size: 32px; font-weight: 700; color: #5A5462; }
+  </style>
+  <div id="root" data-composition-id="saga" data-width="1920" data-height="1080">
+    <p id="sg-k">결제 실패 뒤</p>
+    <p id="sg-t">좌석은 <b>0.14초</b> 만에<br>제자리로</p>
+    <div id="sg-track"></div>
+    <div id="sg-n1" class="sg-node" style="left:120px"></div>
+    <div id="sg-n2" class="sg-node" style="left:890px"></div>
+    <div id="sg-n3" class="sg-node" style="left:1660px"></div>
+    <div id="sg-dot"></div>
+    <p id="sg-l1" class="sg-lab" style="left:120px">결제 거절</p>
+    <p id="sg-s1" class="sg-sub" style="left:120px">거절과 알림을 한 번에 저장</p>
+    <p id="sg-l2" class="sg-lab" style="left:850px">이벤트 전달</p>
+    <p id="sg-s2" class="sg-sub" style="left:850px">Kafka로, 잃지 않고 한 번만</p>
+    <p id="sg-l3" class="sg-lab" style="left:1450px;width:360px;text-align:right">좌석 반환</p>
+    <p id="sg-s3" class="sg-sub" style="left:1350px;width:460px;text-align:right">다음 사람이 바로 고를 수 있게</p>
+    <p id="sg-foot">11/14 배포 서버 캡처 · 결제 서버를 강제로 꺼도 결제사 승인 34건 = 우리 DB 승인 34건</p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#sg-k', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power3.out' }, 0.05);
+    tl.fromTo('#sg-t', { opacity: 0, y: 80 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power4.out' }, 0.15);
+    tl.fromTo('#sg-track', { scaleX: 0, transformOrigin: '0% 50%' }, { scaleX: 1, duration: 0.7, ease: 'power2.inOut' }, 0.8);
+    ['#sg-n1', '#sg-n2', '#sg-n3'].forEach((id, i) => tl.fromTo(id, { scale: 0 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' }, 0.9 + i * 0.3));
+    ['#sg-l1', '#sg-l2', '#sg-l3'].forEach((id, i) => tl.fromTo(id, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power3.out' }, 1.0 + i * 0.3));
+    ['#sg-s1', '#sg-s2', '#sg-s3'].forEach((id, i) => tl.fromTo(id, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: 'power2.out' }, 1.3 + i * 0.3));
+    tl.fromTo('#sg-dot', { x: 0, opacity: 0 }, { x: 1530, opacity: 1, duration: 2.2, ease: 'power1.inOut' }, 2.0);
+    tl.fromTo('#sg-n3', { backgroundColor: '#FFF8EE' }, { backgroundColor: '#FF2D78', duration: 0.2, ease: 'none' }, 4.15);
+    tl.fromTo('#sg-foot', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.6);
+    window.__timelines['saga'] = tl;
+  </script>
+</template>

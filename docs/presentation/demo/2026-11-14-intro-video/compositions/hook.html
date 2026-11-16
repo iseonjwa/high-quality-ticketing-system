@@ -1,0 +1,51 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FF2D78; font-family: 'Pretendard', sans-serif; color: #14101A; overflow: hidden; }
+    #hook-eyebrow { position: absolute; left: 120px; top: 130px; font-size: 44px; font-weight: 800; letter-spacing: -0.5px; }
+    .hook-line { position: absolute; left: 112px; font-size: 200px; font-weight: 900; line-height: 1; letter-spacing: -6px; color: #FFF8EE; }
+    #hook-l1 { top: 250px; }
+    #hook-l2 { top: 470px; }
+    #hook-sub { position: absolute; left: 120px; top: 730px; font-size: 56px; font-weight: 800; letter-spacing: -1px; }
+    #hook-ticket { position: absolute; left: 1180px; top: 250px; width: 600px; height: 560px; background: #FFF8EE; border-radius: 28px; padding: 48px 56px; }
+    #hook-ticket .k { font-size: 30px; font-weight: 800; letter-spacing: 6px; color: #FF2D78; }
+    #hook-ticket .big { font-size: 168px; font-weight: 900; letter-spacing: -6px; line-height: 1.05; margin-top: 18px; }
+    #hook-ticket .cut { position: absolute; left: 0; right: 0; top: 330px; border-top: 6px dashed #14101A; opacity: 0.25; }
+    #hook-ticket .left { position: absolute; left: 56px; top: 372px; font-size: 32px; font-weight: 700; color: #4A4452; }
+    .hook-sec { position: absolute; left: 56px; top: 418px; font-size: 96px; font-weight: 900; letter-spacing: -2px; opacity: 0; font-variant-numeric: tabular-nums; }
+  </style>
+  <div id="root" data-composition-id="hook" data-width="1920" data-height="1080">
+    <p id="hook-eyebrow">오늘 저녁, 놓칠 수 없는 그 공연</p>
+    <p id="hook-l1" class="hook-line">빅빵 2026</p>
+    <p id="hook-l2" class="hook-line">월드투어</p>
+    <p id="hook-sub">KSPO DOME · 티켓 오픈 20:00</p>
+    <div id="hook-ticket">
+      <p class="k">TICKET OPEN</p>
+      <p class="big">20:00</p>
+      <div class="cut"></div>
+      <p class="left">오픈까지</p>
+      <p id="hook-s7" class="hook-sec">00:07</p>
+      <p id="hook-s6" class="hook-sec">00:06</p>
+      <p id="hook-s5" class="hook-sec">00:05</p>
+      <p id="hook-s4" class="hook-sec">00:04</p>
+      <p id="hook-s3" class="hook-sec">00:03</p>
+      <p id="hook-s2" class="hook-sec">00:02</p>
+      <p id="hook-s1" class="hook-sec">00:01</p>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#hook-eyebrow', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.05);
+    tl.fromTo('#hook-l1', { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#hook-l2', { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power4.out' }, 0.36);
+    tl.fromTo('#hook-sub', { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out' }, 0.7);
+    tl.fromTo('#hook-ticket', { x: 520, rotation: 8 }, { x: 0, rotation: -3, duration: 0.6, ease: 'back.out(1.4)' }, 0.5);
+    const secs = ['#hook-s7', '#hook-s6', '#hook-s5', '#hook-s4', '#hook-s3', '#hook-s2', '#hook-s1'];
+    secs.forEach((id, i) => {
+      tl.set(id, { opacity: 1 }, 0.8 + i * 0.85);
+      if (i < secs.length - 1) tl.set(id, { opacity: 0 }, 0.8 + (i + 1) * 0.85);
+    });
+    tl.fromTo('#hook-ticket', { scale: 1 }, { scale: 1.04, duration: 0.25, ease: 'power2.out', yoyo: true, repeat: 1 }, 5.9);
+    window.__timelines['hook'] = tl;
+  </script>
+</template>

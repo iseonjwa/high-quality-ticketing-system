@@ -1,0 +1,144 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FF2D78; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #FFF8EE; }
+    #ch-br { position: absolute; left: 410px; top: 90px; width: 1100px; border: 4px solid #14101A; border-radius: 22px; background: #14101A; box-shadow: 14px 16px 0 #14101A; overflow: hidden; transform-origin: 50% 100%; }
+    #ch-bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+    #ch-bar i { display: block; width: 14px; height: 14px; border-radius: 50%; }
+    #ch-bar span { margin-left: 16px; flex: 1; height: 28px; border-radius: 14px; background: #2A2433; color: #D9D2E6; font-size: 17px; font-weight: 600; line-height: 28px; padding-left: 16px; }
+    #ch-screen { position: relative; width: 1092px; height: 648px; overflow: hidden; background: #fff; }
+    #ch-vid, #ch-end { position: absolute; left: 0; top: 0; width: 1092px; height: 648px; object-fit: cover; }
+    .ch-card { position: absolute; left: 960px; top: 470px; width: 300px; margin-left: -150px; margin-top: -267px; border-radius: 22px; box-shadow: 10px 12px 0 #14101A; transform-origin: 50% 50%; opacity: 0; }
+    .ch-card img { width: 300px; height: 533px; display: block; border-radius: 22px; }
+    #ch-rare { width: 380px; margin-left: -190px; margin-top: -338px; }
+    #ch-rare img { width: 380px; height: 676px; }
+    .ch-pop { position: absolute; left: 0; top: 0; width: 260px; height: 300px; }
+    #ch-pl, #ch-pr { position: absolute; width: 260px; height: 300px; }
+    #ch-pl { left: 150px; top: 720px; transform-origin: 15% 95%; }
+    #ch-pr { left: 1510px; top: 720px; transform-origin: 85% 95%; }
+    .ch-cf { position: absolute; left: 0; top: 0; opacity: 0; }
+    #ch-sub { position: absolute; left: 0; right: 0; top: 930px; text-align: center; }
+    #ch-sub span { display: inline-block; background: #14101A; color: #FFD23F; font-size: 54px; font-weight: 900; letter-spacing: -1.5px; padding: 14px 40px 18px; border-radius: 18px; }
+  </style>
+  <div id="root" data-composition-id="charm" data-width="1920" data-height="1080">
+    <div id="ch-br"><div id="ch-bar"><i style="background:#FF2D78"></i><i style="background:#FFD23F"></i><i style="background:#7EE0D4"></i><span data-layout-ignore>이선좌 · 예매 완료</span></div><div id="ch-screen">
+      <img id="ch-end" src="assets/img/charm-end-web.webp" alt="" />
+      <video id="ch-vid" class="clip" src="assets/video/charm.mp4" data-start="0" data-duration="5.3" data-media-start="3.45" muted playsinline data-track-index="1"></video>
+    </div></div>
+    <div id="ch-pl"><svg class="ch-pop" viewBox="0 0 260 300" aria-hidden="true">
+        <g stroke="#14101A" stroke-width="7" stroke-linejoin="round">
+          <polygon points="52,272 240,124 124,44" fill="#FFD23F" />
+          <polygon points="123,216 150,195 90,154 80,185" fill="#2B3BE5" stroke-width="0" />
+          <polygon points="180,171 206,150 111,85 101,117" fill="#2B3BE5" stroke-width="0" />
+          <polygon points="52,272 240,124 124,44" fill="none" />
+          <ellipse cx="182" cy="84" rx="70" ry="26" transform="rotate(34.7 182 84)" fill="#FF8AB3" />
+        </g>
+      </svg></div>
+    <div id="ch-pr"><svg class="ch-pop" viewBox="0 0 260 300" aria-hidden="true">
+        <g stroke="#14101A" stroke-width="7" stroke-linejoin="round">
+          <polygon points="52,272 240,124 124,44" fill="#FFD23F" />
+          <polygon points="123,216 150,195 90,154 80,185" fill="#2B3BE5" stroke-width="0" />
+          <polygon points="180,171 206,150 111,85 101,117" fill="#2B3BE5" stroke-width="0" />
+          <polygon points="52,272 240,124 124,44" fill="none" />
+          <ellipse cx="182" cy="84" rx="70" ry="26" transform="rotate(34.7 182 84)" fill="#FF8AB3" />
+        </g>
+      </svg></div>
+    
+    <div id="ch-a" class="ch-card"><img src="assets/img/charm-card-a.webp" alt="" /></div>
+    <div id="ch-b" class="ch-card"><img src="assets/img/charm-card-b.webp" alt="" /></div>
+    <div id="ch-c" class="ch-card"><img src="assets/img/charm-card-c.webp" alt="" /></div>
+    <div id="ch-d" class="ch-card"><img src="assets/img/charm-card-d.webp" alt="" /></div>
+    <div id="ch-rare" class="ch-card"><img src="assets/img/charm-card-rare.webp" alt="" /></div>
+    <i id="ch-cl0" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#2B3BE5"></i><i id="ch-cl1" class="ch-cf" style="width:27px;height:20px;border-radius:5px;background:#FFD23F"></i><i id="ch-cl2" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cl3" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#7EE0D4"></i><i id="ch-cl4" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cl5" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#2B3BE5"></i><i id="ch-cl6" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cl7" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#FFF8EE"></i><i id="ch-cl8" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#FFD23F"></i><i id="ch-cl9" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#FFF8EE"></i><i id="ch-cl10" class="ch-cf" style="width:34px;height:20px;border-radius:5px;background:#2B3BE5"></i><i id="ch-cl11" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#7EE0D4"></i><i id="ch-cl12" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#2B3BE5"></i><i id="ch-cl13" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#2B3BE5"></i><i id="ch-cl14" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#14101A"></i><i id="ch-cl15" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#FFD23F"></i><i id="ch-cr0" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cr1" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#14101A"></i><i id="ch-cr2" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cr3" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#FFF8EE"></i><i id="ch-cr4" class="ch-cf" style="width:34px;height:17px;border-radius:5px;background:#2B3BE5"></i><i id="ch-cr5" class="ch-cf" style="width:34px;height:20px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cr6" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#2B3BE5"></i><i id="ch-cr7" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#FFD23F"></i><i id="ch-cr8" class="ch-cf" style="width:27px;height:27px;border-radius:13px;background:#FFF8EE"></i><i id="ch-cr9" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#2B3BE5"></i><i id="ch-cr10" class="ch-cf" style="width:17px;height:78px;border-radius:8px;background:#2B3BE5"></i><i id="ch-cr11" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#14101A"></i><i id="ch-cr12" class="ch-cf" style="width:34px;height:20px;border-radius:5px;background:#FFD23F"></i><i id="ch-cr13" class="ch-cf" style="width:27px;height:20px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cr14" class="ch-cf" style="width:27px;height:20px;border-radius:5px;background:#7EE0D4"></i><i id="ch-cr15" class="ch-cf" style="width:27px;height:17px;border-radius:5px;background:#FFF8EE"></i>
+    <p id="ch-sub"><span>레어 부적을 뽑을 수도 있어요!</span></p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#ch-br', { y: 300, rotation: -6 }, { y: 0, rotation: 0, duration: 0.5, ease: 'back.out(1.4)' }, 0);
+    // 원뿔 폭죽이 양쪽 아래에서 들어와 입구를 가운데로 겨눈다(오른쪽 것은 좌우를 뒤집는다)
+    tl.set('#ch-pr', { scaleX: -1 }, 0);
+    tl.fromTo('#ch-pl', { y: 360, rotation: -20 }, { y: 0, rotation: 0, duration: 0.45, ease: 'back.out(1.6)' }, 0.4);
+    tl.fromTo('#ch-pr', { y: 360, rotation: 20 }, { y: 0, rotation: 0, duration: 0.45, ease: 'back.out(1.6)' }, 0.45);
+    // 터지기 직전 폭죽을 꽉 쥐어(찌그러짐) → 펑(늘어남) → 반동
+    tl.to('.ch-pop', { scaleY: 0.86, duration: 0.18, ease: 'power2.in' }, 2.20);
+    tl.to('.ch-pop', { scaleY: 1.14, duration: 0.1, ease: 'power3.out' }, 2.38);
+    tl.to('.ch-pop', { scaleY: 1, duration: 0.5, ease: 'elastic.out(1, 0.45)' }, 2.48);
+    // QR이 보이면 브라우저 창이 숨을 들이켰다가(찌그러짐) 부적을 뱉어 낸다
+    tl.to('#ch-br', { scaleY: 0.9, scaleX: 1.06, duration: 0.25, ease: 'power2.in' }, 2.10);
+    tl.to('#ch-br', { scaleY: 1.05, scaleX: 0.97, duration: 0.12, ease: 'power2.out' }, 2.35);
+    tl.to('#ch-br', { scaleY: 0.86, scaleX: 0.86, y: 560, duration: 0.6, ease: 'elastic.out(1, 0.5)' }, 2.47);
+    const fly = [['#ch-a', -640, 40, -14, 2.40], ['#ch-b', -330, -40, -7, 2.50], ['#ch-c', 330, -40, 7, 2.55], ['#ch-d', 640, 40, 14, 2.45], ['#ch-rare', 0, -90, 0, 2.75]];
+    fly.forEach(([id, x, y, r, at]) => {
+      tl.fromTo(id, { x: 0, y: 260, scale: 0.2, rotation: 0, opacity: 1 }, { immediateRender: false, x, y, scale: 1.08, rotation: r, duration: 0.42, ease: 'power3.out' }, at);
+      tl.to(id, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.5)' }, at + 0.42);
+      tl.to(id, { y: y - 14, duration: 1.0, ease: 'sine.inOut', yoyo: true, repeat: 2 }, at + 1.0);
+    });
+    tl.to('#ch-rare', { keyframes: [{ rotation: 6 }, { rotation: -4 }, { rotation: 0 }], duration: 0.5, ease: 'power2.out' }, 3.70);
+    tl.fromTo('#ch-cl0', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 557, y: 455, rotation: 347, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cl0', { y: 455, rotation: 347, opacity: 1 }, { y: 730, rotation: 380, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cl1', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 609, y: 388, rotation: 55, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cl1', { y: 388, rotation: 55, opacity: 1 }, { y: 658, rotation: 81, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cl2', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 664, y: 566, rotation: 387, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cl2', { y: 566, rotation: 387, opacity: 1 }, { y: 873, rotation: 245, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cl3', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 686, y: 495, rotation: 88, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cl3', { y: 495, rotation: 88, opacity: 1 }, { y: 857, rotation: 37, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cl4', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 708, y: 302, rotation: 299, duration: 0.65, ease: 'power3.out' }, 2.49);
+    tl.fromTo('#ch-cl4', { y: 302, rotation: 299, opacity: 1 }, { y: 636, rotation: 469, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.14);
+    tl.fromTo('#ch-cl5', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 732, y: 325, rotation: 405, duration: 0.65, ease: 'power3.out' }, 2.55);
+    tl.fromTo('#ch-cl5', { y: 325, rotation: 405, opacity: 1 }, { y: 702, rotation: 320, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.20);
+    tl.fromTo('#ch-cl6', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 664, y: 489, rotation: -12, duration: 0.65, ease: 'power3.out' }, 2.53);
+    tl.fromTo('#ch-cl6', { y: 489, rotation: -12, opacity: 1 }, { y: 755, rotation: 55, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.18);
+    tl.fromTo('#ch-cl7', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 792, y: 340, rotation: 86, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cl7', { y: 340, rotation: 86, opacity: 1 }, { y: 673, rotation: 222, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cl8', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 563, y: 143, rotation: 159, duration: 0.65, ease: 'power3.out' }, 2.48);
+    tl.fromTo('#ch-cl8', { y: 143, rotation: 159, opacity: 1 }, { y: 562, rotation: 288, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.13);
+    tl.fromTo('#ch-cl9', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 516, y: 239, rotation: -359, duration: 0.65, ease: 'power3.out' }, 2.53);
+    tl.fromTo('#ch-cl9', { y: 239, rotation: -359, opacity: 1 }, { y: 518, rotation: -535, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.18);
+    tl.fromTo('#ch-cl10', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 820, y: 443, rotation: -360, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cl10', { y: 443, rotation: -360, opacity: 1 }, { y: 767, rotation: -449, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cl11', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 604, y: 296, rotation: -153, duration: 0.65, ease: 'power3.out' }, 2.47);
+    tl.fromTo('#ch-cl11', { y: 296, rotation: -153, opacity: 1 }, { y: 698, rotation: 31, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.12);
+    tl.fromTo('#ch-cl12', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 556, y: 81, rotation: -343, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cl12', { y: 81, rotation: -343, opacity: 1 }, { y: 387, rotation: -485, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cl13', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 766, y: 363, rotation: 127, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cl13', { y: 363, rotation: 127, opacity: 1 }, { y: 731, rotation: -51, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cl14', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 571, y: 435, rotation: 145, duration: 0.65, ease: 'power3.out' }, 2.47);
+    tl.fromTo('#ch-cl14', { y: 435, rotation: 145, opacity: 1 }, { y: 705, rotation: -28, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.12);
+    tl.fromTo('#ch-cl15', { x: 332, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 563, y: 206, rotation: 40, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cl15', { y: 206, rotation: 40, opacity: 1 }, { y: 617, rotation: 85, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cr0', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1162, y: 110, rotation: 110, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cr0', { y: 110, rotation: 110, opacity: 1 }, { y: 446, rotation: -43, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cr1', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1327, y: 461, rotation: -430, duration: 0.65, ease: 'power3.out' }, 2.53);
+    tl.fromTo('#ch-cr1', { y: 461, rotation: -430, opacity: 1 }, { y: 776, rotation: -524, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.18);
+    tl.fromTo('#ch-cr2', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1385, y: 214, rotation: -382, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cr2', { y: 214, rotation: -382, opacity: 1 }, { y: 561, rotation: -571, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cr3', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1258, y: 441, rotation: 45, duration: 0.65, ease: 'power3.out' }, 2.51);
+    tl.fromTo('#ch-cr3', { y: 441, rotation: 45, opacity: 1 }, { y: 782, rotation: 99, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.16);
+    tl.fromTo('#ch-cr4', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1131, y: 404, rotation: 249, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cr4', { y: 404, rotation: 249, opacity: 1 }, { y: 823, rotation: 366, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cr5', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1292, y: 157, rotation: -163, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cr5', { y: 157, rotation: -163, opacity: 1 }, { y: 573, rotation: -330, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cr6', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1173, y: 364, rotation: 524, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cr6', { y: 364, rotation: 524, opacity: 1 }, { y: 722, rotation: 325, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cr7', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1406, y: 397, rotation: -120, duration: 0.65, ease: 'power3.out' }, 2.54);
+    tl.fromTo('#ch-cr7', { y: 397, rotation: -120, opacity: 1 }, { y: 771, rotation: -241, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.19);
+    tl.fromTo('#ch-cr8', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 937, y: 331, rotation: 240, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cr8', { y: 331, rotation: 240, opacity: 1 }, { y: 665, rotation: 337, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cr9', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 973, y: 312, rotation: 331, duration: 0.65, ease: 'power3.out' }, 2.55);
+    tl.fromTo('#ch-cr9', { y: 312, rotation: 331, opacity: 1 }, { y: 595, rotation: 462, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.20);
+    tl.fromTo('#ch-cr10', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1330, y: 434, rotation: -525, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cr10', { y: 434, rotation: -525, opacity: 1 }, { y: 849, rotation: -465, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cr11', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1194, y: 527, rotation: 1, duration: 0.65, ease: 'power3.out' }, 2.50);
+    tl.fromTo('#ch-cr11', { y: 527, rotation: 1, opacity: 1 }, { y: 910, rotation: -68, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.15);
+    tl.fromTo('#ch-cr12', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1207, y: 155, rotation: 18, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cr12', { y: 155, rotation: 18, opacity: 1 }, { y: 548, rotation: 169, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cr13', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1299, y: 210, rotation: 298, duration: 0.65, ease: 'power3.out' }, 2.51);
+    tl.fromTo('#ch-cr13', { y: 210, rotation: 298, opacity: 1 }, { y: 494, rotation: 155, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.16);
+    tl.fromTo('#ch-cr14', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1277, y: 259, rotation: -19, duration: 0.65, ease: 'power3.out' }, 2.46);
+    tl.fromTo('#ch-cr14', { y: 259, rotation: -19, opacity: 1 }, { y: 644, rotation: 134, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.11);
+    tl.fromTo('#ch-cr15', { x: 1588, y: 804, rotation: 0, opacity: 1 }, { immediateRender: false, x: 1205, y: 290, rotation: 281, duration: 0.65, ease: 'power3.out' }, 2.51);
+    tl.fromTo('#ch-cr15', { y: 290, rotation: 281, opacity: 1 }, { y: 696, rotation: 258, opacity: 0, duration: 2.2, ease: 'power1.in', immediateRender: false }, 3.16);
+    tl.fromTo('#ch-sub span', { scale: 1.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(2)' }, 4.60);
+    window.__timelines['charm'] = tl;
+  </script>
+</template>

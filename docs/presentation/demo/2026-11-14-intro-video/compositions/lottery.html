@@ -1,0 +1,27 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    #l-cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; }
+    .l-media { position: absolute; left: 0; top: 0; width: 1920px; height: 1140px; object-fit: cover; }
+    #l-band { position: absolute; left: 0; bottom: 96px; background: #14101A; color: #FFF8EE; padding: 26px 56px 30px 120px; }
+    #l-band .k { font-size: 30px; font-weight: 800; color: #FF2D78; }
+    #l-band .t { font-size: 58px; font-weight: 900; letter-spacing: -1.5px; margin-top: 4px; }
+  </style>
+  <div id="root" data-composition-id="lottery" data-width="1920" data-height="1080">
+    <div id="l-cam">
+      <video id="l-vid1" class="clip l-media" src="assets/video/lottery.mp4" data-start="0" data-duration="6.4" data-media-start="1.0" muted playsinline data-track-index="1"></video>
+      <video id="l-vid2" data-media-basis="local" class="clip l-media" src="assets/video/lottery.mp4" data-start="6.4" data-duration="4.8" data-media-start="9.7" muted playsinline data-track-index="2"></video>
+      <img id="l-still" class="clip l-media" src="assets/img/lottery-paid.png" alt="추첨 당첨과 결제 완료 화면" data-start="11.2" data-duration="1.0" data-track-index="3">
+    </div>
+    <div id="l-band"><p class="k">추첨 예매</p><p class="t">카드만 등록해 두면 끝</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#l-band', { xPercent: -105 }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#l-cam', { scale: 1 }, { scale: 1.45, transformOrigin: '88% 40%', duration: 0.6, ease: 'power2.inOut' }, 1.0);
+    tl.to('#l-cam', { scale: 1, duration: 0.4, ease: 'power2.inOut' }, 6.0);
+    tl.to('#l-cam', { scale: 1.5, transformOrigin: '88% 30%', duration: 0.6, ease: 'power2.inOut' }, 7.0);
+    window.__timelines['lottery'] = tl;
+  </script>
+</template>

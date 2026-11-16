@@ -1,0 +1,9 @@
+# ISE-296 측정 전용 덮어쓰기다. 좌석 선점의 1초 캐시 사전 거절(ISE-281)을 끈다. 단계 S0(사전 거절 없는 동기형)에 쓴다.
+#   MEASURER=<이름> script/loadtest/measure-mode.sh on loadtest/k6/compose.seat-hold-prereject-off.yml
+# Note: seat-hold.pre-reject.enabled를 환경변수로 줄 때는 하이픈을 빼 SEATHOLD_PREREJECT_ENABLED로 쓴다(Spring 완화 바인딩).
+# 운영 기본값은 켬이다(코드 기본값 true, config-repo에 값 없음). 꺼졌는지는 409가 많은 부하에서 seathold_pre_rejected_total이 늘지 않는 것으로 본다.
+# 측정이 끝나면 이 파일 없이 다시 띄운다.
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_PREREJECT_ENABLED: "false"

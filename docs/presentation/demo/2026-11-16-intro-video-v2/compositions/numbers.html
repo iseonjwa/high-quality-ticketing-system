@@ -1,0 +1,42 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFD23F; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #14101A; }
+    #nu-kick { position: absolute; left: 110px; top: 110px; display: inline-block; background: #14101A; color: #FFD23F; font-size: 34px; font-weight: 800; padding: 12px 24px 14px; border-radius: 12px; }
+    .nu-row { position: absolute; left: 110px; display: flex; align-items: baseline; gap: 26px; }
+    .nu-row .k { font-size: 40px; font-weight: 800; color: #5A4500; width: 220px; }
+    .nu-row .v { font-size: 136px; font-weight: 900; letter-spacing: -6px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .nu-row .v small { font-size: 72px; letter-spacing: -2px; margin-left: 6px; }
+    .nu-row .arrow { font-size: 96px; font-weight: 900; color: #D01F60; }
+    #nu-r1 { top: 250px; }
+    #nu-r2 { top: 520px; }
+    #nu-src { position: absolute; left: 110px; top: 950px; font-size: 28px; font-weight: 700; color: #6B5300; }
+    #nu-harin { position: absolute; left: 1520px; top: 600px; width: 390px; height: auto; transform-origin: 50% 100%; }
+  </style>
+  <div id="root" data-composition-id="numbers" data-width="1920" data-height="1080">
+    <p id="nu-kick">숫자로 확인했습니다</p>
+    <div id="nu-r1" class="nu-row"><p class="k">같은 좌석에</p><p class="v">100<small>명</small></p><p class="arrow">→</p><p class="v">1<small>명</small></p></div>
+    <div id="nu-r2" class="nu-row"><p class="k">초당 요청</p><p class="v">2,000<small>건</small></p><p class="arrow">→</p><p class="v">0.043<small>초</small></p></div>
+    <p id="nu-src">100명 → 1명: 좌석 선점 동시성 테스트 · 초당 2,000건: 배포 서버 대기열 진입 8차 측정의 p95 응답 시간</p>
+    <img id="nu-harin" src="assets/img/harin-thumbs.webp" alt="" />
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#nu-kick', { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'power4.out' }, 0.2);
+    // 숫자 줄은 왼쪽 값 → 화살표 → 결과 순서로 도장 찍듯 들어온다
+    const row = (id, at) => {
+      const parts = document.querySelectorAll(id + ' > *');
+      parts.forEach((el, i) => {
+        tl.fromTo(el, { opacity: 0, scale: i === 0 ? 1 : 1.5, y: i === 0 ? 20 : 0 }, { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: i === 0 ? 'power3.out' : 'back.out(2)' }, at + [0, 0.25, 0.9, 1.15][i]);
+      });
+    };
+    row('#nu-r1', 1.9);
+    row('#nu-r2', 5.4);
+    tl.fromTo('#nu-src', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 3.2);
+    // 하린이 아래에서 튀어 올라 엄지를 든다
+    tl.fromTo('#nu-harin', { y: 700, scaleY: 0.8, scaleX: 1.12 }, { y: -40, scaleY: 1.1, scaleX: 0.94, duration: 0.3, ease: 'power3.out' }, 7.6);
+    tl.to('#nu-harin', { y: 0, scaleY: 1, scaleX: 1, duration: 0.7, ease: 'elastic.out(1, 0.42)' }, 7.9);
+    tl.to('#nu-harin', { rotation: -3, duration: 0.5, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 8.7);
+    window.__timelines['numbers'] = tl;
+  </script>
+</template>

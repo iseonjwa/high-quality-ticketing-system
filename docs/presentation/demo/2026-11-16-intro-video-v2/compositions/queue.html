@@ -1,0 +1,49 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #14101A; }
+    #qu-kick { position: absolute; left: 110px; top: 96px; }
+    #qu-kick .c { display: inline-block; background: #2B3BE5; color: #FFF8EE; font-size: 32px; font-weight: 800; padding: 10px 22px 12px; border-radius: 12px; }
+    #qu-kick .t { font-size: 64px; font-weight: 900; letter-spacing: -2.5px; line-height: 1.12; margin-top: 18px; white-space: nowrap; }
+    #qu-br { position: absolute; left: 100px; top: 300px; width: 1040px; border: 4px solid #14101A; border-radius: 22px; background: #14101A; box-shadow: 16px 18px 0 #2B3BE5; overflow: hidden; }
+    #qu-bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+    #qu-bar i { display: block; width: 14px; height: 14px; border-radius: 50%; }
+    #qu-bar span { margin-left: 16px; flex: 1; height: 28px; border-radius: 14px; background: #2A2433; color: #D9D2E6; font-size: 17px; font-weight: 600; line-height: 28px; padding-left: 16px; }
+    #qu-screen { position: relative; width: 1032px; height: 613px; overflow: hidden; background: #fff; }
+    #qu-zoom { position: absolute; inset: 0; }
+    #qu-vid { position: absolute; left: 0; top: 0; width: 1032px; height: 613px; object-fit: cover; }
+    #qu-disc { position: absolute; left: 1150px; top: 210px; width: 700px; height: 700px; border-radius: 50%; background: #2B3BE5; }
+    #qu-bust { position: absolute; left: 1210px; bottom: -40px; width: 600px; height: 760px; transform-origin: 50% 100%; }
+    #qu-bust img { position: absolute; left: 0; bottom: 0; width: 600px; height: auto; }
+  </style>
+  <div id="root" data-composition-id="queue" data-width="1920" data-height="1080">
+    <div id="qu-kick"><p class="c">대기열</p><p class="t">새로고침 대신 줄어드는 순번</p></div>
+    <div id="qu-disc"></div>
+    <div id="qu-bust">
+      <img id="qu-b1" src="assets/img/harin-bust-focus.webp" alt="" />
+      <img id="qu-b2" src="assets/img/harin-bust-relief.webp" alt="" style="opacity:0" />
+    </div>
+    <div id="qu-br"><div id="qu-bar"><i style="background:#FF2D78"></i><i style="background:#FFD23F"></i><i style="background:#7EE0D4"></i><span data-layout-ignore>이선좌 · 대기열</span></div><div id="qu-screen"><div id="qu-zoom">
+      <video id="qu-vid" class="clip" src="assets/video/booking.mp4" data-start="0" data-duration="9.4" data-media-start="2.842" data-playback-rate="0.387" muted playsinline data-track-index="1"></video>
+    </div></div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#qu-br', { y: 260, rotation: 6 }, { y: 0, rotation: 0, duration: 0.55, ease: 'back.out(1.4)' }, 0);
+    tl.fromTo('#qu-kick', { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#qu-disc', { scale: 0 }, { scale: 1, duration: 0.5, ease: 'back.out(1.6)' }, 0.15);
+    tl.fromTo('#qu-bust', { y: 300 }, { y: 0, duration: 0.55, ease: 'back.out(1.5)' }, 0.3);
+    // 숨쉬기: 긴장한 채로 어깨가 조금씩 오르내린다
+    tl.to('#qu-bust', { scaleY: 1.012, duration: 0.7, ease: 'sine.inOut', yoyo: true, repeat: 5 }, 0.9);
+    // 순번 숫자에 다가갔다가 돌아온다
+    tl.to('#qu-zoom', { scale: 1.75, transformOrigin: '31% 46%', duration: 0.6, ease: 'power2.inOut' }, 1.2);
+    tl.to('#qu-zoom', { scale: 1, duration: 0.6, ease: 'power2.inOut' }, 4.4);
+    // 좌석 화면이 열리면 안도로 표정이 바뀐다: 찌그러짐 → 새 얼굴 → 늘어남 → 안착
+    tl.to('#qu-bust', { scaleY: 0.9, scaleX: 1.06, duration: 0.09, ease: 'power2.in' }, 5.2);
+    tl.set('#qu-b1', { opacity: 0 }, 5.29);
+    tl.set('#qu-b2', { opacity: 1 }, 5.29);
+    tl.to('#qu-bust', { scaleY: 1.07, scaleX: 0.96, duration: 0.12, ease: 'power2.out' }, 5.29);
+    tl.to('#qu-bust', { scaleY: 1, scaleX: 1, duration: 0.6, ease: 'elastic.out(1, 0.45)' }, 5.41);
+    window.__timelines['queue'] = tl;
+  </script>
+</template>

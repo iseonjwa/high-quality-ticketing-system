@@ -1,0 +1,33 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #2B3BE5; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    #op-cam { position: absolute; left: 0; top: -100px; width: 1920px; height: 1280px; }
+    #op-bg { position: absolute; inset: 0; width: 1920px; height: 1280px; }
+    #op-clock { position: absolute; left: 110px; top: 120px; color: #FFF8EE; }
+    #op-clock .k { font-size: 40px; font-weight: 800; color: #FFD23F; letter-spacing: -0.5px; }
+    #op-clock .t { font-size: 170px; font-weight: 900; letter-spacing: -6px; line-height: 1; font-variant-numeric: tabular-nums; margin-top: 8px; }
+    #op-clock .t span { display: inline-block; }
+  </style>
+  <div id="root" data-composition-id="open" data-width="1920" data-height="1080">
+    <div id="op-cam"><img id="op-bg" src="assets/img/key-01-desk.webp" alt="" /></div>
+    <div id="op-clock">
+      <p class="k">빅빵 티켓 오픈까지</p>
+      <p class="t">19:59:<span class="op-d" style="position:relative;width:1.25em"><span id="op-s0" style="position:absolute;left:0">52</span><span id="op-s1" style="position:absolute;left:0;opacity:0">53</span><span id="op-s2" style="position:absolute;left:0;opacity:0">54</span><span id="op-s3" style="position:absolute;left:0;opacity:0">55</span><span id="op-s4" style="position:absolute;left:0;opacity:0">56</span><span id="op-s5" style="position:absolute;left:0;opacity:0">57</span>&nbsp;</span></p>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // 천천히 하린에게 다가간다
+    tl.fromTo('#op-cam', { scale: 1 }, { scale: 1.06, transformOrigin: '70% 40%', duration: 3.6, ease: 'none' }, 0);
+    tl.fromTo('#op-clock', { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'power4.out' }, 0.1);
+    // 초가 바뀔 때마다 숫자가 툭 떨어진다
+    for (let i = 1; i < 4; i++) {
+      const at = 0.2 + i * 0.9;
+      tl.set('#op-s' + (i - 1), { opacity: 0 }, at);
+      tl.set('#op-s' + i, { opacity: 1 }, at);
+      tl.fromTo('#op-s' + i, { y: -26, scaleY: 1.2 }, { y: 0, scaleY: 1, duration: 0.3, ease: 'back.out(2.2)' }, at);
+    }
+    window.__timelines['open'] = tl;
+  </script>
+</template>

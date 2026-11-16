@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<!-- 숫자 출처: docs/presentation/brochure/census/LEDGER.md 1절 히어로 숫자 ①~⑥. 타일마다 원장 id를 주석으로 적는다 -->
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient>
+<linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<clipPath id="outside"><path clip-rule="evenodd" d="M0 0h1600v900h-1600zM64.0 164h474.7v348h-474.7zM562.7 164h474.7v348h-474.7zM1061.3 164h474.7v348h-474.7zM64.0 536h474.7v300h-474.7zM562.7 536h474.7v300h-474.7zM1061.3 536h474.7v300h-474.7z"/></clipPath>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<g clip-path="url(#outside)">
+<polygon points="1004,0 1016,0 1010,900 760,900" fill="url(#beam)"/>
+<polygon points="1144,0 1156,0 1330,900 1090,900" fill="url(#beam)"/>
+<polygon points="1284,0 1296,0 1640,900 1380,900" fill="url(#beam)"/>
+<polygon points="854,0 866,0 740,900 520,900" fill="url(#beam)"/>
+</g>
+<text x="61" y="104" font-size="66" font-weight="900" fill="#FFFFFF" letter-spacing="-2"><tspan fill="#F59F00">숫자</tspan>로 보는 이선좌</text>
+<text x="64" y="142" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">모든 숫자는 배포 EC2 한 대 + 별도 부하 발생기 EC2에서 쟀습니다</text>
+<!-- 타일 1: LEDGER.md 1절 ① -->
+<rect x="64.0" y="164.0" width="474.7" height="348" rx="24" fill="#FFFFFF"/>
+<text x="94.0" y="210.0" font-size="27" font-weight="800" fill="#373B4A">같은 좌석, 두 번 팔지 않음</text>
+<text x="90.0" y="344.0" font-weight="900" letter-spacing="-2"><tspan font-size="46" fill="#14161E">중복 판매</tspan><tspan font-size="150" fill="#2B8A3E" dx="14">0</tspan><tspan font-size="66" fill="#2B8A3E" dx="4">건</tspan></text>
+<text x="94.0" y="382.0" font-size="20" font-weight="600" fill="#676C7E">확인한 실행에서 0건 · 선점 충돌이 잦은 가운데</text>
+<text x="94.0" y="409.0" font-size="20" font-weight="600" fill="#676C7E">사용자 3,000명 · 매진 시험 아님 · 장비 1대</text>
+<!-- 타일 2: LEDGER.md 1절 ② -->
+<rect x="562.7" y="164.0" width="474.7" height="348" rx="24" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<text x="592.7" y="210.0" font-size="27" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">좌석·선점 단계 실패</text>
+<text x="588.7" y="344.0" font-weight="900" letter-spacing="-2"><tspan font-size="46" fill="#FFFFFF" fill-opacity="0.92">약</tspan><tspan font-size="122" fill="#F59F00" dx="10">20</tspan><tspan font-size="58" fill="#F59F00" dx="4">분의</tspan><tspan font-size="122" fill="#F59F00" dx="8">1</tspan></text>
+<text x="592.7" y="382.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7"><tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">403명·310명대 → 24명·12명</tspan></text>
+<text x="592.7" y="409.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">(개선 전후 각 2회, 같은 날 묶음 비교)</text>
+<text x="592.7" y="436.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">결제 실패는 별도 집계</text>
+<!-- 타일 3: LEDGER.md 1절 ③ -->
+<rect x="1061.3" y="164.0" width="474.7" height="348" rx="24" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<text x="1091.3" y="210.0" font-size="27" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">같은 서버로 제때 끝낸 순번 조회</text>
+<text x="1087.3" y="344.0" font-weight="900" letter-spacing="-2"><tspan font-size="122" fill="#F59F00">+30</tspan><tspan font-size="70" fill="#F59F00" dx="4">%</tspan></text>
+<text x="1091.3" y="382.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">200ms 안 성공 <tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">1,304 → 1,696건/초</tspan></text>
+<text x="1091.3" y="409.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">초당 2,000건 · 같은 날 1회</text>
+<text x="1091.3" y="436.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">대신 거절 <tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">1,678 → 8,715건</tspan></text>
+<text x="1091.3" y="463.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">성공률 <tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">89.04 → 85.17%</tspan></text>
+<text x="1091.3" y="490.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">성공 응답 p95 571 → 87ms</text>
+<!-- 타일 4: LEDGER.md 1절 ④ -->
+<rect x="64.0" y="536.0" width="474.7" height="300" rx="24" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<text x="94.0" y="582.0" font-size="27" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">추첨 자동결제</text>
+<text x="90.0" y="716.0" font-weight="900" letter-spacing="-2"><tspan font-size="46" fill="#FFFFFF" fill-opacity="0.92">약</tspan><tspan font-size="122" fill="#F59F00" dx="10">3</tspan><tspan font-size="66" fill="#F59F00" dx="4">배</tspan><tspan font-size="50" fill="#FFFFFF" dx="14">빠르게</tspan></text>
+<text x="94.0" y="754.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">당첨 약 2,000건 <tspan font-weight="800" fill="#FFFFFF" fill-opacity="1">약 11분 → 4분 안 100%</tspan></text>
+<path d="M104.0 764 L114.5 782.5 H93.5 Z" fill="#F59F00" stroke="#F59F00" stroke-width="2.4" stroke-linejoin="round"/>
+<rect x="102.8" y="770.5" width="2.4" height="6.5" rx="1.2" fill="#24248F"/>
+<circle cx="104.0" cy="779.8" r="1.45" fill="#24248F"/>
+<text x="123.0" y="781.0" font-size="20" font-weight="800" fill="#FFFFFF">측정일 다름(11/10 → 11/13)</text>
+<!-- 타일 5: LEDGER.md 1절 ⑤ -->
+<rect x="562.7" y="536.0" width="474.7" height="300" rx="24" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<text x="592.7" y="582.0" font-size="27" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">좌석 조회가 버티는 한계</text>
+<text x="588.7" y="716.0" font-weight="900" letter-spacing="-2"><tspan font-size="122" fill="#F59F00">40</tspan><tspan font-size="66" fill="#F59F00" dx="4">배</tspan></text>
+<text x="842.7" y="666.0" font-size="24" font-weight="800" fill="#FFFFFF" fill-opacity="0.7">초당</text>
+<text x="841.7" y="716.0" font-size="40" font-weight="900" fill="#FFFFFF">5 → 200</text>
+<text x="592.7" y="754.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">실패 0 최대 · 4단계 누적 · 상한 끔 조건</text>
+<path d="M602.6666666666667 764 L613.1666666666667 782.5 H592.1666666666667 Z" fill="#F59F00" stroke="#F59F00" stroke-width="2.4" stroke-linejoin="round"/>
+<rect x="601.4666666666667" y="770.5" width="2.4" height="6.5" rx="1.2" fill="#24248F"/>
+<circle cx="602.6666666666667" cy="779.8" r="1.45" fill="#24248F"/>
+<text x="621.7" y="781.0" font-size="20" font-weight="800" fill="#FFFFFF">측정일 다름(11/12 → 11/14)</text>
+<!-- 타일 6: LEDGER.md 1절 ⑥ -->
+<rect x="1061.3" y="536.0" width="474.7" height="300" rx="24" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+<text x="1091.3" y="582.0" font-size="27" font-weight="800" fill="#FFFFFF" fill-opacity="0.92">응모 몰려도 거절 0건</text>
+<text x="1087.3" y="716.0" font-weight="900" letter-spacing="-2"><tspan font-size="54" fill="#FFFFFF" fill-opacity="0.7">거절</tspan><tspan font-size="110" fill="#63E6BE" dx="14">0</tspan><tspan font-size="58" fill="#63E6BE" dx="4">건</tspan></text>
+<text x="1091.3" y="754.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">서버 과부하 거절(503) 0건 · 초당 800건까지</text>
+<text x="1091.3" y="781.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">p95 10.58ms · 배포 서버 1회 · 11/10 구성,</text>
+<text x="1091.3" y="808.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7">현재 구성 재측정 안 함</text>
+</svg>
