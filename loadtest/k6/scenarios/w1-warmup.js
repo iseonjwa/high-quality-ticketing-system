@@ -19,13 +19,16 @@ const WARMUP_TITLE = '[예열 전용] 배포 JIT 예열';
 
 const RATE = numberEnv('RATE', 25);
 const DURATION_SECONDS = numberEnv('DURATION_SECONDS', 120);
-// 좌석 조회는 응답이 약 830KB라 비싸다. 반복의 이 비율만 조회한다(오픈 피크에서도 선점보다 적게 온다)
+// 좌석 조회는 응답이 커서 비싸다(15,000석 당시 약 830KB). 반복의 이 비율만 조회한다(오픈 피크에서도 선점보다 적게 온다)
 const SEAT_QUERY_RATIO = numberEnv('SEAT_QUERY_RATIO', 0.2);
 const CONFIRM_POLL_SECONDS = numberEnv('CONFIRM_POLL_SECONDS', 0.5);
 const CONFIRM_MAX_POLLS = numberEnv('CONFIRM_MAX_POLLS', 20);
 // 취소는 공연 시작 전에만 된다. 다시 쓸 회차는 공연 시작까지 이만큼 남아 있어야 한다
 const MIN_DAYS_LEFT = 2;
-const SEATS_NEEDED = Math.ceil(RATE * DURATION_SECONDS);
+// 반복은 끝에 취소해 좌석을 돌려주므로 좌석을 돌려 가며 다시 쓴다. 한 바퀴가 이 시간보다 길면 앞 반복이 이미 취소를 마쳤다.
+// Note: 시드 공연장이 1,500석이라(ADR 0060) 반복마다 새 좌석을 쓰면 초당 25번 × 120초 = 3,000석이 모자란다.
+const SEAT_ROTATION_SECONDS = 30;
+const SEATS_NEEDED = Math.ceil(RATE * SEAT_ROTATION_SECONDS);
 
 const results = new Counter('warmup_results');
 
@@ -51,7 +54,7 @@ export function setup() {
   const target = resolveSchedule();
   const seats = availableSeatIds(target.scheduleId, userOf(userIdOf(0) - 1, target.scheduleId));
   console.log(`W1 예열 공연 ${target.concertId}, 회차 ${target.scheduleId}(${target.reused ? '다시 씀' : '새로 만듦'}), `
-    + `빈 좌석 ${seats.length}석, 반복 약 ${SEATS_NEEDED}번(초당 ${RATE}번 × ${DURATION_SECONDS}초)`);
+    + `빈 좌석 ${seats.length}석을 돌려 씀, 반복 약 ${Math.ceil(RATE * DURATION_SECONDS)}번(초당 ${RATE}번 × ${DURATION_SECONDS}초)`);
   return { concertId: target.concertId, scheduleId: target.scheduleId, seats };
 }
 
@@ -125,7 +128,7 @@ export default function (data) {
       { headers: authHeaders(user.access, { 'X-Entry-Token': user.entry }), tags: { api: 'seats' }, timeout: '30s' });
   }
 
-  const held = hold(scheduleId, user, [data.seats[index]]);
+  const held = hold(scheduleId, user, [data.seats[index % data.seats.length]]);
   if (!held.data) {
     results.add(1, { result: 'hold_failed', status: String(held.res.status) });
     return;

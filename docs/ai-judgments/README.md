@@ -45,6 +45,8 @@
 | 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | kwonwoo | Claude Code 두 세션 | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-16-verify-other-agent-precheck-analysis.md) |
 | 2026-11-16 | ISE-18 직접 발행을 커밋 뒤 전송·실패해도 202로 정하고, 측정 기준 코드에 ISE-261을 병합하기로 함(AI 추천 3개 모두 수용) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-16-ise18-direct-publish-after-commit.md) |
 | 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | kwonwoo | Claude Code | 수용 | 아님 | [기록](kwonwoo/2026-11-16-pool-and-limit-together.md) |
+| 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-16-server-address-in-one-env-key.md) |
+| 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-16-grafana-public-over-https-path.md) |
 | 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-11-15-entry-token-ttl-single-source.md) |
 | 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-11-15-queue-ready-decided-in-lua.md) |
 | 2026-11-15 | 팀 답을 기다린 뒤 진행하자는 AI 계획을 받지 않고 ISE-269 4번 행 처리안과 ISE-230 안전망 상한을 선조치 후보고로 진행하기로 함 | kangmin | Claude Code | **거부** | 아님 | [기록](kangmin/2026-11-15-proceed-without-team-reply.md) |
@@ -54,8 +56,8 @@
 | 2026-11-14 | SA 14장 4번 행(응모 Kafka 접수 거부)과 10/29 동기 INSERT 수용의 어긋남을, 판단 칸은 덮어쓰지 않고 프롬프트 칸만 지금 고치고 이력 보존·#11 행 추가안을 팀 안건으로 올림 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-14-sa14-row4-keep-history-add-row.md) |
 | 2026-11-14 | 배포 측정 전 좌석 선점 개선안 중 계측 보강·만료 주기·토큰 서명 이동을 차례로 넣어 재고, 풀 크기(ISE-237)·캐시 읽기 메서드(ISE-281)는 contract로 | kwonwoo | Claude Code | 부분 수용 | 후보 | [기록](kwonwoo/2026-11-14-pre-deploy-improvements-2-5-6-and-contracts.md) |
 | 2026-11-14 | ISE-271에 PR AI 리뷰는 최소형 전부·위험 PR만 코멘트, 계약 경계 PR은 상대 확인·반나절 뒤 사후 확인으로 의견을 냄 | kangmin | Claude Code | 수용 | 아님 | [기록](kangmin/2026-11-14-ise271-review-minimum-all-comment-risky.md) |
-| 2026-11-13 | 좌석 선점 구조 개선 세 가지(먼저 거절, 잠금 뒤로, 동시 처리 상한)를 AI 추천 순서대로 넣고 단계별로 부하 측정(ADR 0061) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-13-seathold-structure-three-fixes.md) |
-| 2026-11-13 | **AI가 먼저 추천한 SKIP LOCKED를 측정(C2 성공 83→56) 뒤 거부하고 잠금 대기 50ms를 택함(ADR 0060, TS-73)** | kwonwoo | Claude Code | **거부** | 후보 | [기록](kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md) |
+| 2026-11-13 | 좌석 선점 구조 개선 세 가지(먼저 거절, 잠금 뒤로, 동시 처리 상한)를 AI 추천 순서대로 넣고 단계별로 부하 측정(ADR 0062) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-13-seathold-structure-three-fixes.md) |
+| 2026-11-13 | **AI가 먼저 추천한 SKIP LOCKED를 측정(C2 성공 83→56) 뒤 거부하고 잠금 대기 50ms를 택함(ADR 0061, TS-73)** | kwonwoo | Claude Code | **거부** | 후보 | [기록](kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md) |
 | 2026-11-13 | 좌석 선점 개선안 중 잠긴 좌석을 기다리지 않기(SKIP LOCKED)를 새 이슈 ISE-261로 먼저 함(뒤에 거부로 바뀜) | kwonwoo | Claude Code | 수용 | 후보 | [기록](kwonwoo/2026-11-13-seathold-skip-locked-first.md) |
 | 2026-11-13 | Synthetic O1 페르소나 세분화에서 AI가 낸 행동 축 6개 안을 받아들임 | kangmin | Claude Code | 수용 | 후보 | [기록](kangmin/2026-11-13-synthetic-persona-six-factors.md) |
 | 2026-11-13 | O1 시나리오 검토 제안 중 2~4번을 받아들이되 그림자 폴러는 multi_device에만 두고, 대기 이탈 비용은 별도 실행 대신 계산으로 보기로 함 | kangmin | Claude Code | 부분 수용 | 후보 | [기록](kangmin/2026-11-13-o1-scenario-review-four-proposals.md) |

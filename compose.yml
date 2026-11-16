@@ -291,6 +291,8 @@ services:
     configs:
       - source: slack-monitoring-url
         target: /etc/alertmanager/slack-monitoring-url
+      - source: grafana-url-template
+        target: /etc/alertmanager/generated/grafana-url.tmpl
     ports: ["127.0.0.1:9093:9093"]
   grafana:
     image: grafana/grafana:latest@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
@@ -347,3 +349,8 @@ configs:
   # Note: secrets의 environment 방식은 변수가 없으면 compose 전체가 실패하고, 빈 content는 파일 대신 디렉터리가 된다.
   slack-monitoring-url:
     content: ${SLACK_WEBHOOK_MONITORING:-http://127.0.0.1:9/slack-webhook-not-set}
+  # 슬랙 알림의 Grafana 바로 가기 주소(templates/slack.tmpl이 iseonjwa.grafana_url로 읽는다). Alertmanager 템플릿은
+  # 환경 변수를 읽지 못해 compose가 값을 넣은 템플릿 파일을 만들어 준다. 로컬은 localhost:3000이고,
+  # 배포 서버는 compose.deploy.yml이 서버 .env의 PUBLIC_URL로 바꾼다(ISE-278).
+  grafana-url-template:
+    content: '{{ define "iseonjwa.grafana_url" }}http://localhost:3000{{ end }}'

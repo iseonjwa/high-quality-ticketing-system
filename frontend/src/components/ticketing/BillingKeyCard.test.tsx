@@ -53,7 +53,7 @@ describe('BillingKeyCard: 표시', () => {
     renderCards()
 
     expect(screen.getByText('기록 없음')).toBeInTheDocument()
-    expect(screen.getByText('이 브라우저에서 등록한 카드가 없어요')).toBeInTheDocument()
+    expect(screen.getByText('이 브라우저에 등록된 카드가 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /해지/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다른 카드로 바꾸기' })).not.toBeInTheDocument()
@@ -98,7 +98,7 @@ describe('BillingKeyCard: 카드 모양', () => {
     renderCards()
 
     expect(
-      screen.getByText(/쓰지 않으려면 해지해 주세요. 해지하면 당첨돼도 결제되지 않아/),
+      screen.getByText(/쓰지 않으려면 해지해주세요. 해지하면 당첨되어도 결제되지 않아/),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
   })
@@ -107,7 +107,7 @@ describe('BillingKeyCard: 카드 모양', () => {
     renderCards()
 
     expect(screen.queryByText('시연용 카드')).not.toBeInTheDocument()
-    expect(screen.queryByText(/쓰지 않으려면 해지해 주세요/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/쓰지 않으려면 해지해주세요/)).not.toBeInTheDocument()
     expect(screen.queryByText(/••••/)).not.toBeInTheDocument()
   })
 })
@@ -119,7 +119,7 @@ describe('BillingKeyCard: 등록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 등록되었습니다')).toBeInTheDocument()
     expect(requests).toHaveLength(1)
     expect(await requests[0].json()).toEqual({ authKey: expect.stringMatching(/^demo-/) })
     expect(readBillingKeyRecord(USER_ID)).toMatchObject({ cardLast4: '4242' })
@@ -135,7 +135,7 @@ describe('BillingKeyCard: 등록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '다른 카드로 바꾸기' }))
 
-    expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 등록되었습니다')).toBeInTheDocument()
     const statuses = mockDb.billingKeys.map((key) => key.status)
     expect(statuses.filter((status) => status === 'ACTIVE')).toHaveLength(1)
   })
@@ -148,7 +148,7 @@ describe('BillingKeyCard: 등록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('카드사가 등록을 거절했어요')).toBeInTheDocument()
+    expect(await screen.findByText('카드사가 등록을 거절했습니다')).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
     expect(screen.getByRole('button', { name: '카드 등록' })).toBeInTheDocument()
   })
@@ -159,14 +159,14 @@ describe('BillingKeyCard: 등록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('카드사 연결이 원활하지 않아요')).toBeInTheDocument()
+    expect(await screen.findByText('카드사 연결이 원활하지 않습니다')).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
 
     setMockScenario({ billing: 'ok' })
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
-    expect(screen.queryByText('카드사 연결이 원활하지 않아요')).not.toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 등록되었습니다')).toBeInTheDocument()
+    expect(screen.queryByText('카드사 연결이 원활하지 않습니다')).not.toBeInTheDocument()
   })
 
   it('응답이 없거나 504면 등록됐는지 확인하지 못했다고 알리고 기록을 만들지 않는다', async () => {
@@ -175,9 +175,9 @@ describe('BillingKeyCard: 등록', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('등록됐는지 확인하지 못했어요')).toBeInTheDocument()
+    expect(await screen.findByText('등록 여부를 확인하지 못했습니다')).toBeInTheDocument()
     expect(
-      screen.getByText('다시 등록하면 새 카드로 바뀌어요. 쓰지 않으려면 해지해 주세요.'),
+      screen.getByText('다시 등록하면 새 카드로 변경됩니다. 쓰지 않으려면 해지해주세요.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '해지' })).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
@@ -186,7 +186,7 @@ describe('BillingKeyCard: 등록', () => {
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
     await waitFor(() => {
-      expect(screen.getByText('등록됐는지 확인하지 못했어요')).toBeInTheDocument()
+      expect(screen.getByText('등록 여부를 확인하지 못했습니다')).toBeInTheDocument()
     })
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
   })
@@ -198,9 +198,9 @@ describe('BillingKeyCard: 등록', () => {
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.queryByText('카드사가 등록을 거절했어요')).not.toBeInTheDocument()
-    expect(screen.queryByText('카드사 연결이 원활하지 않아요')).not.toBeInTheDocument()
-    expect(screen.queryByText('등록됐는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('카드사가 등록을 거절했습니다')).not.toBeInTheDocument()
+    expect(screen.queryByText('카드사 연결이 원활하지 않습니다')).not.toBeInTheDocument()
+    expect(screen.queryByText('등록 여부를 확인하지 못했습니다')).not.toBeInTheDocument()
   })
 
   it('요청 중에는 등록 버튼이 눌리지 않아 요청이 한 번만 나간다', async () => {
@@ -276,7 +276,7 @@ describe('BillingKeyCard: 해지', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
-    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 해지되었습니다')).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
     expect(hasActiveBillingKey(USER_ID)).toBe(false)
     await waitFor(() => {
@@ -295,7 +295,7 @@ describe('BillingKeyCard: 해지', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
-    expect(await screen.findByText('등록된 카드가 없었어요')).toBeInTheDocument()
+    expect(await screen.findByText('등록된 카드가 없습니다')).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).toBeNull()
     expect(screen.getByText('기록 없음')).toBeInTheDocument()
   })
@@ -335,7 +335,7 @@ describe('BillingKeyCard: 해지', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
     release()
 
-    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 해지되었습니다')).toBeInTheDocument()
     expect(requests).toHaveLength(1)
   })
 
@@ -349,7 +349,7 @@ describe('BillingKeyCard: 해지', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
     // 오류 안내는 대화상자 안에 있다. 카드에 두면 모달 뒤에 가려져 읽히지 않는다
-    expect(await within(dialog).findByText(/문제가 생겼어요/)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/문제가 발생했습니다/)).toBeInTheDocument()
     expect(readBillingKeyRecord(USER_ID)).not.toBeNull()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '해지' })).not.toHaveAttribute(
@@ -402,7 +402,7 @@ describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
 
       await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-      expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+      expect(await screen.findByText('자동결제 카드가 등록되었습니다')).toBeInTheDocument()
       expect(await requests[0].json()).toEqual({
         authKey: expect.stringMatching(/^demo-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/),
       })
@@ -418,7 +418,7 @@ describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
     expect(screen.queryByRole('button', { name: /해지/ })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
 
-    expect(await screen.findByText('자동결제 카드를 등록했어요')).toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 등록되었습니다')).toBeInTheDocument()
     // 앞 카드는 해지되고 새 카드 하나만 ACTIVE다(BillingKeyService)
     const active = mockDb.billingKeys.filter(
       (key) => key.userId === USER_ID && key.status === 'ACTIVE',
@@ -433,7 +433,7 @@ describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
     renderCards()
 
     await userEvent.click(screen.getByRole('button', { name: '카드 등록' }))
-    const notice = (await screen.findByText('등록됐는지 확인하지 못했어요')).closest(
+    const notice = (await screen.findByText('등록 여부를 확인하지 못했습니다')).closest(
       '[data-slot="alert"]',
     )
     expect(notice).not.toBeNull()
@@ -441,8 +441,8 @@ describe('BillingKeyCard: 배포 환경과 기록 밖의 카드', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
-    expect(await screen.findByText('등록된 카드가 없었어요')).toBeInTheDocument()
-    expect(screen.queryByText('등록됐는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(await screen.findByText('등록된 카드가 없습니다')).toBeInTheDocument()
+    expect(screen.queryByText('등록 여부를 확인하지 못했습니다')).not.toBeInTheDocument()
     // 연 버튼(안내의 해지)이 사라졌으니 등록 버튼으로 초점이 간다
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '카드 등록' })).toHaveFocus()
@@ -485,7 +485,7 @@ describe('BillingKeyCard: 초점과 지난 오류', () => {
     await userEvent.click(screen.getByRole('button', { name: '해지' }))
     let dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
-    expect(await within(dialog).findByText(/문제가 생겼어요/)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/문제가 발생했습니다/)).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -493,7 +493,7 @@ describe('BillingKeyCard: 초점과 지난 오류', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '해지' }))
     dialog = await screen.findByRole('dialog')
-    expect(within(dialog).queryByText(/문제가 생겼어요/)).not.toBeInTheDocument()
+    expect(within(dialog).queryByText(/문제가 발생했습니다/)).not.toBeInTheDocument()
   })
 
   it('카드를 바꾸다 실패한 뒤 해지하면 등록 실패 안내가 사라진다', async () => {
@@ -502,13 +502,13 @@ describe('BillingKeyCard: 초점과 지난 오류', () => {
     renderCards()
 
     await userEvent.click(screen.getByRole('button', { name: '다른 카드로 바꾸기' }))
-    expect(await screen.findByText('카드사 연결이 원활하지 않아요')).toBeInTheDocument()
+    expect(await screen.findByText('카드사 연결이 원활하지 않습니다')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '해지' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '해지' }))
 
-    expect(await screen.findByText('자동결제 카드를 해지했어요')).toBeInTheDocument()
-    expect(screen.queryByText('카드사 연결이 원활하지 않아요')).not.toBeInTheDocument()
+    expect(await screen.findByText('자동결제 카드가 해지되었습니다')).toBeInTheDocument()
+    expect(screen.queryByText('카드사 연결이 원활하지 않습니다')).not.toBeInTheDocument()
   })
 })
 

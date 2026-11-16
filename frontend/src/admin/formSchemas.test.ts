@@ -61,7 +61,7 @@ describe('회차 입력', () => {
   it('오픈이 시작과 같거나 늦으면 openAt 칸에 안내한다', () => {
     for (const openAt of ['2026-12-20T19:00', '2026-12-21T19:00']) {
       const result = scheduleFormSchema.safeParse({ ...valid, openAt })
-      expect(messageAt(result, 'openAt')).toBe('오픈 시각은 공연 시작보다 앞서야 해요')
+      expect(messageAt(result, 'openAt')).toBe('오픈 시각은 공연 시작보다 앞서야 합니다.')
     }
   })
 
@@ -74,7 +74,7 @@ describe('회차 입력', () => {
   it('공연장 번호가 안전한 정수 범위를 넘으면 확인 문구로 거절한다', () => {
     for (const venueId of ['9007199254740993', '99999999999999999999']) {
       const result = scheduleFormSchema.safeParse({ ...valid, venueId })
-      expect(messageAt(result, 'venueId')).toBe('공연장 번호를 확인해 주세요')
+      expect(messageAt(result, 'venueId')).toBe('공연장 번호를 확인해주세요.')
     }
     expect(scheduleFormSchema.safeParse({ ...valid, venueId: '9007199254740991' }).success).toBe(
       true,
@@ -92,18 +92,18 @@ describe('회차 입력', () => {
     const labels = { maxPerUser: '1인 최대 매수는', holdMinutes: '선점 시간은' } as const
     for (const field of ['maxPerUser', 'holdMinutes'] as const) {
       expect(messageAt(scheduleFormSchema.safeParse({ ...valid, [field]: 'x' }), field)).toBe(
-        `${labels[field]} 숫자로 입력해 주세요`,
+        `${labels[field]} 숫자로 입력해주세요.`,
       )
       expect(messageAt(scheduleFormSchema.safeParse({ ...valid, [field]: '0' }), field)).toBe(
-        `${labels[field]} 1~32767 사이로 입력해 주세요`,
+        `${labels[field]} 1~32767 사이로 입력해주세요.`,
       )
     }
     expect(
       messageAt(scheduleFormSchema.safeParse({ ...valid, maxPerUser: 'x' }), 'maxPerUser'),
-    ).toBe('1인 최대 매수는 숫자로 입력해 주세요')
+    ).toBe('1인 최대 매수는 숫자로 입력해주세요.')
     expect(
       messageAt(scheduleFormSchema.safeParse({ ...valid, holdMinutes: '0' }), 'holdMinutes'),
-    ).toBe('선점 시간은 1~32767 사이로 입력해 주세요')
+    ).toBe('선점 시간은 1~32767 사이로 입력해주세요.')
   })
 
   it('1인당 예매 수와 선점 시간은 1~32767 정수만 받는다', () => {
@@ -131,18 +131,18 @@ describe('좌석 가격 입력', () => {
     const result = seatPriceFormSchema.safeParse(empty)
     expect(result.success).toBe(false)
     expect(result.error?.issues.map((issue) => [issue.path, issue.message])).toEqual([
-      [['root'], '적어도 한 등급의 가격을 입력해 주세요'],
+      [['root'], '적어도 한 등급의 가격을 입력해주세요.'],
     ])
   })
 
   it('가격 상한을 넘으면 하한과 다른 문구로 알린다', () => {
     const over = seatPriceFormSchema.safeParse({ ...empty, VIP: '1000000000000000' })
     expect(over.error?.issues.map((issue) => issue.message)).toEqual([
-      '가격이 너무 커요. 다시 확인해 주세요',
+      '가격이 너무 큽니다. 다시 확인해주세요.',
     ])
     const zero = seatPriceFormSchema.safeParse({ ...empty, VIP: '0' })
     expect(zero.error?.issues.map((issue) => issue.message)).toEqual([
-      '가격은 1원 이상으로 입력해 주세요',
+      '가격은 1원 이상으로 입력해주세요.',
     ])
     expect(seatPriceFormSchema.safeParse({ ...empty, VIP: '999999999999999' }).success).toBe(true)
   })

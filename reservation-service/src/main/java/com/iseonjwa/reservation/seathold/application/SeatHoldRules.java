@@ -42,7 +42,7 @@ final class SeatHoldRules {
     }
 
     // Note: 잠그지 않고 읽은 상태라 그사이 바뀔 수 있다. 여기서 AVAILABLE이어도 좌석 조건부 UPDATE가 최종 판단이다.
-    // 여기서 잡혀 보인 좌석은 커밋된 선점이라 UPDATE까지 가도 409다. 오픈 피크 요청 대부분이 이 경우라 먼저 거른다(ADR 0057, 0061)
+    // 여기서 잡혀 보인 좌석은 커밋된 선점이라 UPDATE까지 가도 409다. 오픈 피크 요청 대부분이 이 경우라 먼저 거른다(ADR 0057, 0062)
     static boolean allHoldable(List<ScheduleSeat> seats) {
         return seats.stream().allMatch(ScheduleSeat::isHoldable);
     }

@@ -32,7 +32,7 @@ export function AdminHomePage() {
         <div className="grid gap-1">
           <h1 className="type-title text-gray-900">운영</h1>
           <p className="type-body-sm text-gray-500">
-            공연·회차·좌석·추첨을 만들고 회원 비밀번호를 초기화해요
+            공연·회차·좌석·추첨을 생성하고 회원 비밀번호를 초기화합니다
           </p>
         </div>
         <Button asChild>
@@ -54,7 +54,7 @@ export function AdminHomePage() {
             <span className="grid flex-1 gap-0.5">
               <span className="type-body font-semibold text-gray-900">비밀번호 초기화</span>
               <span className="type-body-sm text-gray-500">
-                회원 번호로 임시 비밀번호를 만들어요
+                회원 번호로 임시 비밀번호를 생성합니다
               </span>
             </span>
             <ChevronRight aria-hidden="true" className="size-4 text-gray-400" />
@@ -69,7 +69,7 @@ export function AdminHomePage() {
             <span className="grid flex-1 gap-0.5">
               <span className="type-body font-semibold text-gray-900">시연 장애 패널</span>
               <span className="type-body-sm text-gray-500">
-                Mock PG에 장애를 걸어 결제 실패 흐름을 보여 줘요
+                Mock PG에 장애를 적용하여 결제 실패 흐름을 보여줍니다
               </span>
             </span>
             <ChevronRight aria-hidden="true" className="size-4 text-gray-400" />
@@ -79,7 +79,7 @@ export function AdminHomePage() {
 
       {concerts.isPending ? (
         <Card className="gap-3 px-5" role="status">
-          <span className="sr-only">공연 목록을 불러오고 있어요</span>
+          <span className="sr-only">공연 목록을 불러오는 중입니다</span>
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
@@ -88,7 +88,7 @@ export function AdminHomePage() {
         <ErrorNotice error={concerts.error} onRetry={() => void concerts.refetch()} />
       ) : concerts.data.content.length === 0 ? (
         <EmptyState
-          title="아직 등록한 공연이 없어요"
+          title="아직 등록된 공연이 없습니다"
           action={
             <Button asChild variant="outline">
               <Link to={paths.adminConcertNew}>공연 등록</Link>
@@ -109,7 +109,7 @@ export function AdminHomePage() {
                     <span className="type-body-sm text-gray-500 tabular-nums">
                       {concert.nextStartsAt
                         ? `다음 회차 ${formatDateTime(concert.nextStartsAt)}`
-                        : '예정된 회차가 없어요'}
+                        : '예정된 회차가 없습니다'}
                     </span>
                   </div>
                   <span className="type-caption text-gray-500 tabular-nums">
@@ -124,7 +124,7 @@ export function AdminHomePage() {
       )}
       {concerts.data && concerts.data.totalElements > PAGE_SIZE ? (
         <p className="type-caption text-gray-500">
-          최근 등록한 {PAGE_SIZE}개만 보여요. 더 오래된 공연은 주소의 공연 번호로 열어 주세요
+          최근 등록한 {PAGE_SIZE}개만 표시됩니다. 더 오래된 공연은 주소의 공연 번호로 열어주세요.
         </p>
       ) : null}
     </main>
@@ -141,7 +141,7 @@ function LotteryLookup() {
     event.preventDefault()
     const trimmed = value.trim()
     if (!/^\d+$/.test(trimmed) || Number(trimmed) < 1 || !Number.isSafeInteger(Number(trimmed))) {
-      setError('추첨 번호를 숫자로 입력해 주세요')
+      setError('추첨 번호를 숫자로 입력해주세요.')
       return
     }
     void navigate(adminLotteryPath(Number(trimmed)))

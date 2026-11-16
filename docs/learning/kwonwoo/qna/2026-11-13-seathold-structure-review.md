@@ -64,7 +64,7 @@ tags: [seathold, architecture, postgresql, lock, transaction, idempotency, trade
 - 예매 좌석 ID를 시퀀스로 바꿔 배치 INSERT로 묶는 일은 엔티티 공통 규칙과 닿아 있어 따로 본다.
 
 ### 구조 문제 3. 커넥션을 잡기 전에 막는 곳이 없다
-- **상황:** 좌석이 하나도 잠기지 않아도, 동시에 들어온 선점이 풀(10개)보다 많으면 나머지는 커넥션을 최대 1초 기다린다. 그동안 톰캣 스레드도 쥔다. 50ms로 번짐 시작점을 올렸지만 없애지는 못했다(ADR 0060).
+- **상황:** 좌석이 하나도 잠기지 않아도, 동시에 들어온 선점이 풀(10개)보다 많으면 나머지는 커넥션을 최대 1초 기다린다. 그동안 톰캣 스레드도 쥔다. 50ms로 번짐 시작점을 올렸지만 없애지는 못했다(ADR 0061).
 - **개선:** 선점 API 동시 처리 상한(벌크헤드). 상한을 넘으면 커넥션을 잡기 전에 503으로 거절한다.
 - **얻는 것:** 선점이 몰려도 좌석 조회 같은 다른 API가 커넥션을 받는다.
 - **잃는 것:** 상한 값을 잘못 잡으면 처리할 수 있던 요청도 거절한다. 측정으로 값을 정해야 한다.
@@ -92,4 +92,4 @@ tags: [seathold, architecture, postgresql, lock, transaction, idempotency, trade
 
 ## 더 알아볼 것
 - 문제 1을 넣은 뒤 C2 성공 건수와 C3 대기가 어떻게 바뀌는지 잰다. C2는 같은 라운드 안 동시 요청이라 커밋 전 겹침이 많아 효과가 작을 수 있다. 라운드 사이 잡힌 좌석이 남는 부하(`SeatHoldLoadTest`, K1)에서 효과가 클 것으로 본다.
-- 관련 기록: [ADR 0057](../../../decisions/0057-async-seat-hold-intake-and-mode.md), [ADR 0060](../../../decisions/0060-seat-hold-lock-timeout-50ms.md), [TS-73](../../../troubleshooting.md)
+- 관련 기록: [ADR 0057](../../../decisions/0057-async-seat-hold-intake-and-mode.md), [ADR 0061](../../../decisions/0061-seat-hold-lock-timeout-50ms.md), [TS-73](../../../troubleshooting.md)

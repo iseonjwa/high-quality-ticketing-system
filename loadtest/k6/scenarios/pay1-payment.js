@@ -16,7 +16,9 @@ import { availableSeatIds, hold, pay, userOf } from '../lib/booking.js';
 import { setApproveDelay } from '../lib/mockpg.js';
 
 const STAGES = (__ENV.STAGES || '20,40,80,160').split(',').map(Number);
-// 기본값이면 좌석 약 14,600석을 쓴다(15,000석 안). 늘리면 좌석이 모자라 setup에서 멈춘다
+// 기본값이면 좌석 약 14,600석을 쓴다. 늘리면 좌석이 모자라 setup에서 멈춘다
+// Note: 시드 공연장이 1,500석이 된 뒤(ADR 0060)에는 기본값으로 setup에서 멈춘다. 단계를 올리는 5초만 해도 약 1,100석이라
+// STAGES를 낮춰야 하고(예: STAGES=10,20 STAGE_SECONDS=20이면 약 730석) 그만큼 최대 속도가 준다
 const STAGE_SECONDS = numberEnv('STAGE_SECONDS', 45);
 const PG_DELAY_MS = numberEnv('PG_DELAY_MS', 300);
 const SCHEDULE_ID = __ENV.SCHEDULE_ID;

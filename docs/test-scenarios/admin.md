@@ -11,7 +11,7 @@
 | ADM-003 | 일반 사용자 403, 헤더 없음 401(관리자 API 공통) | 보안 | P0 | 403, 저장 안 함. 헤더 없으면 401 | `reservation-service/AdminConcertApiTest`, `reservation-service/AdminScheduleApiTest`, `reservation-service/AdminScheduleSeatApiTest`, `reservation-service/AdminLotteryApiTest` | 자동 테스트, 로컬, 서버 |
 | ADM-004 | 회차 등록 201, 매수 한도 4·선점 5분 기본값 | 정상 | P0 | 201, 기본값 적용 | `reservation-service/AdminScheduleApiTest` | 자동 테스트, 로컬, 서버 |
 | ADM-005 | 회차 등록 실패: 없는·지운 공연, 오픈≥시작, 한도<1 | 경계값 | P1 | 404 또는 400 | `reservation-service/AdminScheduleApiTest` | 자동 테스트 |
-| ADM-006 | 회차 좌석 15000석 생성 (ISE-177) | 정상 | P0 | 등급별 가격으로 15000석 | `reservation-service/AdminScheduleSeatApiTest` | 자동 테스트, 로컬, 서버 |
+| ADM-006 | 회차 좌석 1500석 생성 (ISE-177, ADR 0060 전에는 15000석) | 정상 | P0 | 등급별 가격으로 1500석 | `reservation-service/AdminScheduleSeatApiTest` | 자동 테스트, 로컬, 서버 |
 | ADM-007 | 좌석 재생성 409 SCHEDULE_SEATS_ALREADY_CREATED | 실패 | P1 | 409, 좌석 수 유지 | `reservation-service/AdminScheduleSeatApiTest` | 자동 테스트 |
 | ADM-008 | 좌석 가격 입력 오류: 누락·LOTTERY·없는 등급·중복·0원 | 경계값 | P1 | 400, 좌석 미생성 | `reservation-service/AdminScheduleSeatApiTest` | 자동 테스트 |
 | ADM-009 | 추첨 설정: S석을 ID 순으로 LOTTERY로 떼고 OPEN (S8) | 정상 | P0 | 201, OPEN. 저트래픽 시간대 밖이면 경고 포함 | `reservation-service/AdminLotteryApiTest` | 자동 테스트, 로컬, 서버 |

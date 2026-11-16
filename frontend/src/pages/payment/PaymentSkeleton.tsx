@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // 결제 화면을 불러오는 동안의 자리 표시. 토스에서 돌아온 결과를 확인하는 동안에도 쓴다
-export function PaymentSkeleton({ label = '결제 정보를 불러오고 있어요' }: { label?: string }) {
+export function PaymentSkeleton({ label = '결제 정보를 불러오는 중입니다' }: { label?: string }) {
   return (
     <main>
       <div

@@ -70,7 +70,7 @@ export function AdminLotteryNewPage() {
               </Button>
             }
           >
-            찾는 회차가 없어요. 공연 화면에서 다시 골라 주세요
+            찾는 회차가 없습니다. 공연 화면에서 다시 선택해주세요.
           </Alert>
         </>
       ) : schedule === undefined ? (
@@ -81,7 +81,7 @@ export function AdminLotteryNewPage() {
           </>
         ) : (
           <div className="grid gap-3" role="status">
-            <span className="sr-only">회차를 불러오고 있어요</span>
+            <span className="sr-only">회차를 불러오는 중입니다</span>
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="h-64 w-full" />
           </div>
@@ -115,7 +115,7 @@ function LotterySetup({ concertId, schedule }: { concertId: number; schedule: Sc
         <CreatedLottery concertId={concertId} lottery={created} />
       ) : recorded.state === 'checking' ? (
         <div role="status">
-          <span className="sr-only">이 회차의 추첨을 확인하고 있어요</span>
+          <span className="sr-only">이 회차의 추첨을 확인하는 중입니다</span>
           <Skeleton className="h-64 w-full" />
         </div>
       ) : recorded.state === 'found' ? (
@@ -127,12 +127,12 @@ function LotterySetup({ concertId, schedule }: { concertId: number; schedule: Sc
             </Button>
           }
         >
-          이 회차에는 이 브라우저에서 설정한 추첨 #{recorded.lotteryId}이 있어요. 회차마다 추첨은
-          하나예요
+          이 회차에는 이 브라우저에서 설정한 추첨 #{recorded.lotteryId}이 있습니다. 회차마다 추첨은
+          하나입니다.
         </Alert>
       ) : openPassed ? (
         <Alert variant="warning">
-          예매 오픈이 지난 회차에는 추첨을 설정할 수 없어요. 판매 중인 좌석과 겹치기 때문이에요
+          예매 오픈이 지난 회차에는 추첨을 설정할 수 없습니다. 판매 중인 좌석과 겹치기 때문입니다.
         </Alert>
       ) : (
         <LotteryCreateForm
@@ -181,7 +181,7 @@ function LotteryCreateForm({
     setOutcomeUnknown(false)
     try {
       const lottery = await createLottery(schedule.scheduleId, toLotteryCreateInput(values))
-      toast('추첨을 설정했어요')
+      toast('추첨이 설정되었습니다')
       onCreated(lottery)
     } catch (error) {
       if (isOutcomeUnknown(error)) {
@@ -192,7 +192,7 @@ function LotteryCreateForm({
         form.setError(
           'seatCount',
           {
-            message: `${values.sourceGrade}석이 모자라요. 좌석을 만들었는지, 추첨석 수를 줄일 수 있는지 확인해 주세요`,
+            message: `${values.sourceGrade}석이 부족합니다. 좌석 생성 여부와 추첨석 수를 확인해주세요.`,
           },
           { shouldFocus: true },
         )
@@ -209,8 +209,8 @@ function LotteryCreateForm({
       <form noValidate onSubmit={form.handleSubmit(handleCreate)} className="grid gap-5">
         {outcomeUnknown ? (
           <Alert variant="warning">
-            설정됐는지 확인하지 못했어요. 다시 설정했을 때 이미 있다고 나오면 설정된 거예요.
-            운영자용 추첨 조회가 없어 이 화면에서는 추첨 번호를 알 수 없어요
+            설정 여부를 확인하지 못했습니다. 다시 설정했을 때 이미 있다고 나오면 설정된 것입니다.
+            운영자용 추첨 조회가 없어 이 화면에서는 추첨 번호를 알 수 없습니다.
           </Alert>
         ) : null}
         {formError === null ? null : <LotteryFormError error={formError} />}
@@ -234,7 +234,7 @@ function CreatedLottery({ concertId, lottery }: { concertId: number; lottery: Ad
     <Card className="gap-5 px-5 @min-[40rem]:px-6">
       <div className="grid gap-1">
         <h2 ref={titleRef} tabIndex={-1} className="type-heading text-gray-900 outline-none">
-          추첨 #{lottery.lotteryId}을 설정했어요
+          추첨 #{lottery.lotteryId}이 설정되었습니다
         </h2>
         <p className="type-body-sm text-gray-500 tabular-nums">
           {lottery.sourceGrade}석 {lottery.seatCount}석 · 예비 {lottery.waitlistCount}명 · 응모{' '}
@@ -245,8 +245,8 @@ function CreatedLottery({ concertId, lottery }: { concertId: number; lottery: Ad
       <LotteryWarnings warnings={lottery.warnings} />
       <CopyField label="응모 화면 주소" value={entryUrl} />
       <p className="type-caption text-gray-500">
-        공연 화면에서 추첨으로 가는 길이 아직 없어요. 이 주소를 응모할 사람에게 알려 주세요.
-        운영자용 추첨 조회가 없어 추첨 번호를 적어 두면 나중에 고칠 때 편해요.
+        공연 화면에서 추첨으로 이동하는 경로가 아직 없습니다. 이 주소를 응모할 사람에게 알려주세요.
+        운영자용 추첨 조회가 없으므로 추첨 번호를 적어두면 나중에 수정할 때 편리합니다.
       </p>
       <div className="flex flex-wrap gap-2">
         <Button asChild>

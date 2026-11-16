@@ -67,7 +67,7 @@ describe('ErrorNotice', () => {
 
     const alert = screen.getByRole('alert')
     expect(alert).toHaveAttribute('data-variant', 'warning')
-    expect(alert).toHaveTextContent('이미 선택된 좌석입니다. 남은 좌석은 그대로 두었어요')
+    expect(alert).toHaveTextContent('이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.')
     expect(alert).not.toHaveTextContent('문의 번호')
   })
 

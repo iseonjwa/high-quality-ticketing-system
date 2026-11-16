@@ -48,7 +48,7 @@ export function MyReservationsPage() {
     const from = focusFromRef.current
     if (from !== null && items.length > from) {
       listRef.current?.querySelectorAll('a')[from]?.focus()
-      setLoadedMessage(`${items.length - from}건 더 불러왔어요`)
+      setLoadedMessage(`${items.length - from}건을 더 불러왔습니다`)
       focusFromRef.current = null
     }
   }, [items.length])
@@ -62,14 +62,14 @@ export function MyReservationsPage() {
     <main className="grid min-w-0 content-start gap-6">
       <div className="grid gap-1">
         <h1 className="type-title text-gray-900">내 예매</h1>
-        <p className="type-body-sm text-gray-500">최근에 예매한 순서예요</p>
+        <p className="type-body-sm text-gray-500">최근에 예매한 순서입니다</p>
       </div>
       <p role="status" className="sr-only">
         {loadedMessage}
       </p>
       {reservations.data === undefined && reservations.isPending ? (
         <div role="status" className="grid gap-3">
-          <span className="sr-only">내 예매를 불러오고 있어요</span>
+          <span className="sr-only">내 예매를 불러오는 중입니다</span>
           {Array.from({ length: 3 }, (_, index) => (
             <Skeleton key={index} className="h-[92px] w-full" />
           ))}
@@ -78,7 +78,7 @@ export function MyReservationsPage() {
         <ErrorNotice error={reservations.error} onRetry={() => void reservations.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState
-          title="아직 예매한 공연이 없어요"
+          title="아직 예매한 공연이 없습니다"
           description="공연을 골라 예매해 보세요."
           action={
             <Button asChild>

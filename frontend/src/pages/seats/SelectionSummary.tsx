@@ -73,7 +73,7 @@ export function SelectionSummary({
           </div>
           {seats.length === 0 ? (
             <p className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center type-body-sm text-gray-500">
-              아직 고른 좌석이 없어요
+              아직 선택한 좌석이 없습니다
             </p>
           ) : (
             <ul ref={listRef} className="grid gap-2">
@@ -126,9 +126,9 @@ export function SelectionSummary({
             >
               <Loader2 aria-hidden="true" className="mt-0.5 size-[18px] motion-safe:animate-spin" />
               <div>
-                <p className="type-body font-semibold">좌석을 확인하고 있어요</p>
+                <p className="type-body font-semibold">좌석을 확인하는 중입니다</p>
                 <p className="type-body-sm">
-                  연결이 잠시 끊겼어요. 같은 요청으로 결과를 확인하는 중이에요.
+                  연결이 일시적으로 끊겼습니다. 같은 요청으로 결과를 확인하는 중입니다.
                 </p>
               </div>
             </div>
@@ -143,7 +143,7 @@ export function SelectionSummary({
               {outstanding
                 ? '결과 확인하기'
                 : need > 0
-                  ? `${need}석 더 골라 주세요`
+                  ? `${need}석 더 선택해주세요`
                   : `${quantity}매 선택 완료`}
             </Button>
           )}
@@ -156,7 +156,7 @@ export function SelectionSummary({
             다시 고르기
           </Button>
           <p className="text-center type-caption text-gray-500">
-            선택 완료를 누르면 좌석이 잠시 유지돼요. 그 안에 결제해 주세요.
+            선택 완료를 누르면 좌석이 잠시 유지됩니다. 그 안에 결제해주세요.
           </p>
         </div>
       </Card>

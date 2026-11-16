@@ -1,4 +1,4 @@
-// 좌석 목록, 선점, 결제, 확정 확인. PAY1·R1·X1·O1이 같이 쓴다.
+// 좌석 목록, 선점, 결제, 확정 확인, 취소. PAY1·R1·X1·O1·O1 예외가 같이 쓴다.
 // 좌석 선점 K1(reservation-service/k6/k1-seathold.js)과 같은 요청을 보낸다
 import http from 'k6/http';
 import { fail } from 'k6';
@@ -13,7 +13,7 @@ export function userOf(userId, scheduleId) {
 }
 
 // setup에서 좌석 조회 한 번으로 선택 가능한 좌석 ID를 응답 순서대로 모은다.
-// Note: 15,000석 응답(약 830KB)을 JSON.parse하지 않고 문자열 검색으로 seatId만 꺼낸다(k1-seathold.js와 같은 이유)
+// Note: 좌석 응답(15,000석 당시 약 830KB)을 JSON.parse하지 않고 문자열 검색으로 seatId만 꺼낸다(k1-seathold.js와 같은 이유)
 export function availableSeatIds(scheduleId, user) {
   const res = http.get(url(`/api/v1/schedules/${scheduleId}/seats`),
     { headers: seatHeaders(user), tags: { api: 'setup' }, timeout: '60s' });
@@ -124,6 +124,16 @@ export function pay(user, held, tags = {}) {
       timeout: '10s',
     });
   return { res, data: dataOf(res) };
+}
+
+// 예매 취소(POST /api/v1/reservations/{id}/cancel, ReservationController). 성공은 202다.
+// Note: 서버는 Idempotency-Key를 형식(UUID)만 보고 저장하지 않는다. 멱등은 예매 상태로 지켜서, 이미 취소한 예매에 다시 보내도
+// 409가 아니라 첫 응답과 같은 202가 온다(ReservationCancelService). 결제 전(HELD) 예매는 409 RESERVATION_NOT_CANCELABLE이다
+export function cancelReservation(user, reservationId, tags = {}) {
+  return http.post(url(`/api/v1/reservations/${reservationId}/cancel`), null, {
+    headers: authHeaders(user.access, { 'Idempotency-Key': uuid() }),
+    tags: Object.assign({ api: 'cancel' }, tags),
+  });
 }
 
 export function reservationStatus(user, reservationId) {

@@ -88,7 +88,7 @@ ISE-25 쪽 일정과 이슈 경계는 권영은 담당과 정한다. 기준선�
 |---|---|---|
 | 가상 사용자 | 계정과 Access 토큰을 미리 만든다 | 토큰 유효 30분(SA 9-4)이라 측정 직전에 만들거나 재발급이 필요하다 |
 | 서명 키(Access 토큰·입장 토큰) | 정함(2026-11-08, 사용자): 측정 동안만 측정 전용 키로 바꿔 띄운다. `script/loadtest/measure-mode.sh on`이 `JWT_ACCESS_SECRET`·`ENTRY_TOKEN_SECRET`을 새로 만들어 `.env.measure`(권한 600)에 두고, 발생기의 k6(`TOKEN_MODE=sign`)가 그 키로 서명한다 | 아래 "측정용 토큰 키" |
-| 회차·좌석 초기화 | 측정마다 좌석을 초기화하는 스크립트 | `BookingFlowSystemTest`는 회차마다 좌석 15,000석을 만든다([testing.md](../../guides/testing.md)) |
+| 회차·좌석 초기화 | 측정마다 좌석을 초기화하는 스크립트 | `BookingFlowSystemTest`는 회차마다 좌석 1,500석을 만든다(ADR 0060 전에는 15,000석)([testing.md](../../guides/testing.md)) |
 | 추적 샘플링 | 정함(2026-11-08): 측정 모드 덮어쓰기(`loadtest/deploy/compose.measure.yml`)가 `TRACING_SAMPLE_RATE`를 0.01로 둔다 | `compose.deploy.yml`은 시연용으로 1.0이다. 측정 모드가 꺼지면 1.0으로 돌아온다. SA가 말하는 "요청 제한 완화"는 `config-repo/application-loadtest.yml`에 없다. 요청 제한 설정이 어디에 있는지는 미확인 |
 | 결과 전송 | 정함(2026-11-08): Prometheus remote write. 측정 모드가 `--web.enable-remote-write-receiver`와 9090을 열고, 보안 그룹은 발생기 보안 그룹에서 오는 9090만 허용한다. `run.sh`는 `PROM_RW_URL`이 있으면 `--out experimental-prometheus-rw`로 보낸다 | 지표 이름은 `k6_*`, 시나리오 구분은 `testid` 태그 |
 | Mock PG | 정함(2026-11-08): 기준 지연 300ms. 배포 mock-pg는 이미 `loadtest` 프로필이라 장애 API가 열려 있고 포트는 밖에 열지 않는다. 서버 안에서 일회용 curl 컨테이너로 건다 | 명령: [`loadtest/k6/README.md`](../../../loadtest/k6/README.md) "배포 서버 측정" |

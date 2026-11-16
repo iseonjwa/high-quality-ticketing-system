@@ -73,7 +73,7 @@ export function ConcertListPage() {
         ) : data.content.length === 0 ? (
           data.totalElements > 0 ? (
             <EmptyState
-              title="이 페이지에는 공연이 없어요"
+              title="이 페이지에는 공연이 없습니다"
               action={
                 <Button asChild variant="outline" size="sm">
                   <Link to="?">첫 페이지로</Link>
@@ -82,8 +82,8 @@ export function ConcertListPage() {
             />
           ) : (
             <EmptyState
-              title="아직 예매할 수 있는 공연이 없어요"
-              description="운영자가 공연을 등록하면 여기에 보여요"
+              title="아직 예매할 수 있는 공연이 없습니다"
+              description="운영자가 공연을 등록하면 여기에 표시됩니다."
             />
           )
         ) : (
@@ -98,7 +98,7 @@ export function ConcertListPage() {
             {sections.openingSoon.length > 0 ? (
               <HomeSection
                 title="티켓 오픈 예정"
-                description="오픈 시각이 되면 공연 상세에서 예매하기가 열려요"
+                description="오픈 시각이 되면 공연 상세에서 예매할 수 있습니다."
                 count={sections.openingSoon.length}
               >
                 <ol className="grid gap-x-6 gap-y-8 @min-[48rem]:grid-cols-2 @min-[72rem]:grid-cols-3">
@@ -116,7 +116,7 @@ export function ConcertListPage() {
             {sections.onSale.length > 0 ? (
               <HomeSection
                 title="지금 예매 중"
-                description="공연이 가까운 순서예요"
+                description="공연이 가까운 순서입니다."
                 count={sections.onSale.length}
               >
                 <ul className="grid grid-cols-2 gap-x-3 gap-y-5 @min-[40rem]:grid-cols-3 @min-[40rem]:gap-x-5 @min-[64rem]:grid-cols-4">
@@ -146,7 +146,7 @@ export function ConcertListPage() {
             {sections.others.length > 0 ? (
               <HomeSection
                 title="다른 공연"
-                description="예정된 회차가 없거나 판매가 끝난 공연이에요"
+                description="예정된 회차가 없거나 판매가 종료된 공연입니다."
                 count={sections.others.length}
               >
                 <ul className="grid gap-3 @min-[40rem]:grid-cols-2 @min-[64rem]:grid-cols-3">
@@ -326,7 +326,7 @@ function SampleAdBand() {
             앵콜까지, 청량하게
           </p>
           <p className="type-body-sm text-white/80">
-            공연장 매점과 편의점에서 만나요 · 샘플 광고예요. 실제 상품이 아니에요
+            공연장 매점과 편의점에서 만나요 · 샘플 광고입니다. 실제 상품이 아닙니다.
           </p>
         </div>
       </div>
@@ -384,7 +384,7 @@ function CompactConcertCard({ item }: { item: HomeConcert }) {
           <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>
         </h3>
         <p className="type-caption text-gray-500">
-          {status === 'CLOSED' ? '판매가 끝났어요' : '예정된 회차가 없어요'}
+          {status === 'CLOSED' ? '판매가 종료되었습니다' : '예정된 회차가 없습니다'}
         </p>
       </div>
     </article>
@@ -407,11 +407,11 @@ function LotteryPromo() {
         <div className="grid gap-2">
           <p className="type-body-sm font-semibold text-white/80">추첨 예매</p>
           <h2 id={titleId} className="type-title break-keep">
-            일부 좌석은 추첨으로 공정하게 나눠요
+            일부 좌석은 추첨으로 공정하게 배정됩니다
           </h2>
           <p className="max-w-[560px] type-body-sm text-white/85">
-            운영자가 연 추첨에 응모 기간 동안 응모하면 추첨 시각에 당첨자를 정해요. 당첨되면 등록한
-            자동결제 카드로 바로 결제되니 카드를 미리 등록해 두세요.
+            운영자가 연 추첨에 응모 기간 동안 응모하면 추첨 시각에 당첨자가 결정됩니다. 당첨되면
+            등록한 자동결제 카드로 바로 결제되므로 카드를 미리 등록해두세요.
           </p>
         </div>
         <Button
@@ -429,7 +429,7 @@ function LotteryPromo() {
 function ConcertListSkeleton() {
   return (
     <div className="grid gap-5" role="status">
-      <span className="sr-only">공연 목록을 불러오고 있어요</span>
+      <span className="sr-only">공연 목록을 불러오는 중입니다</span>
       <Skeleton className="h-8 w-48" />
       <div className="grid grid-cols-2 gap-x-3 gap-y-5 @min-[40rem]:grid-cols-3 @min-[40rem]:gap-x-5 @min-[64rem]:grid-cols-4">
         {[0, 1, 2, 3].map((key) => (

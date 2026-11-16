@@ -320,7 +320,7 @@ function LiveCountdown({ openAt }: { openAt: string }) {
   // 0이 된 뒤 묶음을 다시 나눌 때까지(최대 10초) "오픈 예정" 배지가 남는다. 0칸 대신 문장으로 바꿔 모순으로 보이지 않게 한다
   return total === 0 ? (
     <p className="type-body font-semibold text-gray-900">
-      티켓이 열렸어요. 공연 보기에서 예매해 주세요
+      티켓이 오픈되었습니다. 공연 보기에서 예매해주세요.
     </p>
   ) : (
     <CountdownUnits total={total} />
@@ -430,8 +430,8 @@ function BrandHero() {
           오픈 순간에도 흔들리지 않는 예매
         </h2>
         <p className="max-w-[520px] type-body text-gray-700">
-          대기열로 순서를 지키고, 고른 좌석은 결제하는 동안 잡아 둬요. 일부 좌석은 추첨으로 공정하게
-          나눠요.
+          대기열로 순서를 지키고, 선택한 좌석은 결제하는 동안 유지됩니다. 일부 좌석은 추첨으로
+          공정하게 배정됩니다.
         </p>
       </div>
     </section>

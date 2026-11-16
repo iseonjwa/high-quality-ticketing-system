@@ -32,7 +32,7 @@ import java.util.UUID;
 
 /**
  * 동기형 선점과 접수형 소비자가 함께 쓰는 좌석 선점 본체(SA 6-4, ISE-17). 매수 반영 → 예매·이력 저장 → 선점 요청 HELD →
- * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 호출한 쪽의 트랜잭션 안에서 한다(순서는 ADR 0061). 실패하면
+ * 좌석 AVAILABLE→HELD → 예매 좌석 저장을 호출한 쪽의 트랜잭션 안에서 한다(순서는 ADR 0062). 실패하면
  * {@link BusinessException}을 던지고, 호출한 쪽이 트랜잭션을 롤백해 먼저 바뀐 매수·예매·요청도 되돌린다.
  *
  * <p>Note: 잠금 대기 시한({@code lock_timeout})은 호출한 쪽이 이 메서드 전에 건다. 이미 잡힌 좌석이 섞인 요청은 호출한 쪽이
@@ -74,7 +74,7 @@ public class SeatHolding {
         try {
             addHeldCount(userId, schedule, seatIds.size(), now);
             // Note: 다른 요청과 다투지 않는 쓰기(예매·이력·요청 HELD)를 좌석 UPDATE보다 먼저 한다. 좌석 잠금은 커밋까지 가므로
-            // 잠근 뒤의 문장이 적을수록 같은 좌석을 노린 요청이 덜 기다린다(ADR 0061)
+            // 잠근 뒤의 문장이 적을수록 같은 좌석을 노린 요청이 덜 기다린다(ADR 0062)
             var reservation = saveReservation(requestId, userId, schedule, seats, now);
             if (requests.markHeld(requestId, reservation.getId(), now, userId) != 1) {
                 // 동기형은 이 트랜잭션에서 요청 행을 만들었고, 소비자는 요청 행을 잠그고 있으므로 일어나면 안 된다
@@ -104,7 +104,7 @@ public class SeatHolding {
             }
             holdSeats(schedule.getId(), seatIds, userId, now);
             var seats = inventory.findSeats(schedule.getId(), seatIds);
-            // Note: 예매와 예매 좌석 저장이 나뉘어 있다(hold의 순서 변경, ADR 0061). 여기서도 둘 다 불러야 좌석 원장이 남는다
+            // Note: 예매와 예매 좌석 저장이 나뉘어 있다(hold의 순서 변경, ADR 0062). 여기서도 둘 다 불러야 좌석 원장이 남는다
             var reservation = saveReservation(requestId, userId, schedule, seats, now);
             saveReservationSeats(reservation, seats);
             return new AutoHeldSeats(reservation, seatIds);

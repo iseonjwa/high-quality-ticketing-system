@@ -108,7 +108,7 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     renderReservation(reservation.reservationId, { variant: 'complete', heading: HEADING })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
     ).toBeInTheDocument()
     // 머리에는 예매 번호, 공연 제목·일시·공연장은 티켓에 있다
     expect(screen.getByText(`예매 번호 ${reservation.reservationNo}`)).toBeInTheDocument()
@@ -135,7 +135,7 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     const reservation = seedReservation({ status: 'CONFIRMED' })
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
-    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
+    await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' })
     expect(screen.getByText(`예매 번호 ${reservation.reservationNo}`)).toBeInTheDocument()
     expect(screen.queryByText(HEADING.title)).not.toBeInTheDocument()
   })
@@ -160,7 +160,7 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('완료')
     // Note: 단계 목록은 조회 전에 그려진다. 조회가 끝나기 전에 테스트가 끝나면 남은 요청이 다음 테스트의 요청 기록에
     // 잡힌다(목 ID가 테스트마다 같은 값부터 다시 시작해 경로가 같다). 조회 결과까지 기다려 요청을 이 테스트 안에서 끝낸다.
-    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
+    await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' })
   })
 
   it('결제 화면이 넣은 확정 예매가 캐시에 있으면 조회하지 않고(확정은 60초 동안 신선) 확정을 보인다', async () => {
@@ -195,13 +195,15 @@ describe('ReservationPage 결과 화면(complete) 확정', () => {
     renderReservation(reservation.reservationId, { variant: 'complete', primed })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
     ).toBeInTheDocument()
-    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았습니다')).not.toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(reads).toHaveLength(0)
-    expect(screen.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -393,7 +395,7 @@ describe('ReservationPage 상세(detail) 확정', () => {
     expect(within(tickets).getAllByText(/티켓 번호/)).toHaveLength(2)
     expect(linkNamed('내 예매 목록')).toHaveAttribute('href', '/me/reservations')
     expect(screen.queryByRole('link', { name: '다른 공연 보기' })).not.toBeInTheDocument()
-    expect(screen.queryByText('예매가 확정됐어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('예매가 확정되었습니다')).not.toBeInTheDocument()
   })
 
   it('공연 값이 없으면 "예매 {예매 번호}"가 제목이다', async () => {
@@ -426,7 +428,7 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     const reservation = seedReservation({ holdExpiresAtMillis })
     const { router } = renderReservation(reservation.reservationId, { heading: HEADING })
 
-    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았습니다')).toBeInTheDocument()
     const payableUntil = new Intl.DateTimeFormat('ko-KR', {
       timeZone: 'Asia/Seoul',
       hour: 'numeric',
@@ -435,13 +437,13 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     }).format(new Date(holdExpiresAtMillis - 10_000))
     expect(
       screen.getByText(
-        `${payableUntil}까지 확정되지 않으면 좌석이 풀려요. 이미 결제했다면 확정까지 잠시 걸릴 수 있어요.`,
+        `${payableUntil}까지 확정되지 않으면 좌석 선택이 해제됩니다. 이미 결제하셨다면 확정까지 잠시 걸릴 수 있습니다.`,
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByText('결제를 확인하고 있어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제를 확인하는 중입니다')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: HEADING.title })).toBeInTheDocument()
     expect(screen.getByText('결제 대기')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: '잡아 둔 좌석' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '선택한 좌석' })).toBeInTheDocument()
 
     const pay = linkNamed('결제하기')
     expect(pay).toHaveAttribute('href', `/reservations/${reservation.reservationId}/payment`)
@@ -460,10 +462,10 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     const reservation = seedReservation({ holdExpiresAtMillis: Date.now() + 5_000 })
     renderReservation(reservation.reservationId)
 
-    expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
-    expect(screen.getByText('잡아 둔 좌석은 곧 풀려요.')).toBeInTheDocument()
+    expect(await screen.findByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
+    expect(screen.getByText('선택한 좌석은 곧 해제됩니다.')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
-    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았습니다')).not.toBeInTheDocument()
     expect(linkNamed('내 예매 목록')).toBeInTheDocument()
   })
 
@@ -471,8 +473,8 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     const reservation = seedReservation()
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
-    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
-    expect(screen.queryByText('예매가 확정됐어요')).not.toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았습니다')).toBeInTheDocument()
+    expect(screen.queryByText('예매가 확정되었습니다')).not.toBeInTheDocument()
   })
 
   it('이 브라우저에 결제 시도가 있으면 확인 중이라고 알리고 [결제 결과 확인]을 둔다', async () => {
@@ -480,9 +482,9 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     savePaymentAttempt(reservation.reservationId, { token: 'stored-token', key: 'stored-key' })
     renderReservation(reservation.reservationId, { heading: HEADING })
 
-    expect(await screen.findByText('결제를 확인하고 있어요')).toBeInTheDocument()
-    expect(screen.getByText('확정되면 이 화면이 바뀌어요.')).toBeInTheDocument()
-    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(await screen.findByText('결제를 확인하는 중입니다')).toBeInTheDocument()
+    expect(screen.getByText('확정되면 이 화면이 바뀝니다.')).toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았습니다')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '결제하기' })).not.toBeInTheDocument()
     expect(linkNamed('결제 결과 확인')).toHaveAttribute(
       'href',
@@ -495,8 +497,8 @@ describe('ReservationPage 결제 대기(HELD)', () => {
     savePaymentAttempt(reservation.reservationId + 1, { token: 'other-token', key: 'other-key' })
     renderReservation(reservation.reservationId)
 
-    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
-    expect(screen.queryByText('결제를 확인하고 있어요')).not.toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았습니다')).toBeInTheDocument()
+    expect(screen.queryByText('결제를 확인하는 중입니다')).not.toBeInTheDocument()
   })
 
   it('[결제 결과 확인]을 누르면 결제 화면으로 가며 공연 제목 줄을 넘긴다', async () => {
@@ -537,17 +539,17 @@ describe('ReservationPage 결제 대기 동안 다시 받기', () => {
     const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
     renderReservation(reservation.reservationId, { variant: 'complete' })
 
-    expect(await screen.findByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제가 아직 확정되지 않았습니다')).toBeInTheDocument()
     expect(reads).toHaveLength(1)
 
     await advance(4000)
     expect(reads).toHaveLength(1)
     await advance(2000)
     expect(
-      await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' }),
+      await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
     ).toBeInTheDocument()
     expect(reads).toHaveLength(2)
-    expect(screen.queryByText('결제가 아직 확정되지 않았어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제가 아직 확정되지 않았습니다')).not.toBeInTheDocument()
 
     // 확정되면 더 받지 않는다
     await advance(20_000)
@@ -565,7 +567,7 @@ describe('ReservationPage 결제 대기 동안 다시 받기', () => {
     const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
     renderReservation(reservation.reservationId)
 
-    expect(await screen.findByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+    expect(await screen.findByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
     expect(reads).toHaveLength(1)
 
     // 5초 뒤(만료 + 25초)는 아직 더 받고, 10초 뒤(만료 + 30초)에 받은 결과로 멈춘다
@@ -576,7 +578,7 @@ describe('ReservationPage 결제 대기 동안 다시 받기', () => {
 
     await advance(60_000)
     expect(reads).toHaveLength(3)
-    expect(screen.getByText('결제 가능 시간이 지났어요')).toBeInTheDocument()
+    expect(screen.getByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
   })
 
   it('확정 예매는 60초 동안 다시 받지 않고 그 뒤에는 다시 받는다', async () => {
@@ -603,7 +605,7 @@ describe('ReservationPage 결제 대기 동안 다시 받기', () => {
     const reads = recordRequests(`/api/v1/reservations/${reservation.reservationId}`)
     renderReservation(reservation.reservationId)
 
-    await screen.findByText('결제가 아직 확정되지 않았어요')
+    await screen.findByText('결제가 아직 확정되지 않았습니다')
     returnToWindow()
 
     await waitFor(() => expect(reads).toHaveLength(2))
@@ -619,23 +621,24 @@ const ENDED: {
 }[] = [
   {
     status: 'EXPIRED',
-    title: '예매가 확정되지 않았어요',
+    title: '예매가 확정되지 않았습니다',
     badge: '기한 만료',
-    description: '결제 가능 시간이 지나 잡아 둔 좌석이 풀렸어요. 결제한 금액이 있으면 환불돼요.',
-    seatsTitle: '풀린 좌석',
+    description:
+      '결제 가능 시간이 지나 좌석 선택이 해제되었습니다. 결제하신 금액이 있으면 환불됩니다.',
+    seatsTitle: '해제된 좌석',
   },
   {
     status: 'RELEASED',
-    title: '좌석이 풀렸어요',
+    title: '좌석 선택이 해제되었습니다',
     badge: '좌석 반환',
-    description: '결제가 거절돼 잡아 둔 좌석을 돌려놓았어요.',
-    seatsTitle: '풀린 좌석',
+    description: '결제가 거절되어 선택한 좌석이 반환되었습니다.',
+    seatsTitle: '해제된 좌석',
   },
   {
     status: 'CANCELED',
-    title: '취소된 예매예요',
+    title: '취소된 예매입니다',
     badge: '취소됨',
-    description: '예매를 취소해 좌석을 돌려놓았어요.',
+    description: '예매가 취소되어 좌석이 반환되었습니다.',
     seatsTitle: '취소한 좌석',
   },
 ]
@@ -694,10 +697,12 @@ describe('ReservationPage 예매 취소', () => {
     renderReservation(reservation.reservationId)
 
     const dialog = await openCancelDialog()
-    expect(dialog.getByText(/좌석 2석을 돌려놓고 결제한 330,000원을 환불해요/)).toBeInTheDocument()
+    expect(
+      dialog.getByText(/좌석 2석이 반환되고 결제하신 330,000원이 환불됩니다/),
+    ).toBeInTheDocument()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
 
-    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매입니다' })
     // 누른 버튼과 대화상자가 사라지므로 바뀐 화면의 제목이 초점을 받는다
     await waitFor(() => expect(title).toHaveFocus())
     expect(cancels).toHaveLength(1)
@@ -705,15 +710,15 @@ describe('ReservationPage 예매 취소', () => {
     expect(screen.queryByText(/티켓 번호/)).not.toBeInTheDocument()
 
     const refund = screen.getByRole('region', { name: '환불' })
-    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불을 진행하는 중입니다')).toBeInTheDocument()
     const steps = within(refund).getByRole('list', { name: '환불 단계' })
     expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('환불 진행')
 
     await advance(3000)
-    expect(await within(refund).findByText('환불이 끝났어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불이 완료되었습니다')).toBeInTheDocument()
     expect(within(steps).getByRole('listitem', { current: 'step' })).toHaveTextContent('환불 완료')
     expect(
-      within(refund).getByText(/330,000원 · .+에 결제한 수단으로 돌려드렸어요/),
+      within(refund).getByText(/330,000원 · .+에 결제하신 수단으로 환불되었습니다/),
     ).toBeInTheDocument()
 
     // 환불이 끝나면 더 받지 않는다
@@ -741,13 +746,13 @@ describe('ReservationPage 예매 취소', () => {
       heading: { ...HEADING, startsAt: '2020-01-01T19:00:00+09:00' },
     })
 
-    expect(await screen.findByText('공연이 시작돼 취소할 수 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('공연이 시작되어 취소할 수 없습니다.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예매 취소' })).not.toBeInTheDocument()
   })
 
   it.each([
-    ['CANCEL_PERIOD_ENDED', '공연이 시작돼 취소할 수 없어요'],
-    ['LOTTERY_RESERVATION_NOT_CANCELABLE', '추첨으로 배정된 예매는 취소할 수 없어요'],
+    ['CANCEL_PERIOD_ENDED', '공연이 시작되어 취소할 수 없습니다.'],
+    ['LOTTERY_RESERVATION_NOT_CANCELABLE', '추첨으로 배정된 예매는 취소할 수 없습니다.'],
   ])('서버가 %s로 거절하면 대화상자에 이유를 보이고 예매는 그대로다', async (code, message) => {
     const { reservation } = seedConfirmedWithPayment()
     mockServer.use(
@@ -763,7 +768,7 @@ describe('ReservationPage 예매 취소', () => {
     expect(await dialog.findByText(message)).toBeInTheDocument()
     // 대화상자가 열린 동안 배경은 접근성 트리에서 숨겨진다
     expect(
-      screen.queryByRole('heading', { level: 1, name: '취소된 예매예요', hidden: true }),
+      screen.queryByRole('heading', { level: 1, name: '취소된 예매입니다', hidden: true }),
     ).not.toBeInTheDocument()
     expect(mockDb.reservations.get(reservation.reservationId)?.status).toBe('CONFIRMED')
   })
@@ -775,7 +780,9 @@ describe('ReservationPage 예매 취소', () => {
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
 
-    expect(await dialog.findByText('추첨으로 배정된 예매는 취소할 수 없어요')).toBeInTheDocument()
+    expect(
+      await dialog.findByText('추첨으로 배정된 예매는 취소할 수 없습니다.'),
+    ).toBeInTheDocument()
   })
 
   it('결과를 모르면(504) 확인하지 못했다고 알리고, 다시 누르면 같은 멱등키로 보내 취소를 확인한다', async () => {
@@ -795,11 +802,11 @@ describe('ReservationPage 예매 취소', () => {
 
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
-    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    expect(await dialog.findByText('취소 여부를 확인하지 못했습니다')).toBeInTheDocument()
 
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
     expect(
-      await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' }),
+      await screen.findByRole('heading', { level: 1, name: '취소된 예매입니다' }),
     ).toBeInTheDocument()
     expect(cancels).toHaveLength(2)
     expect(cancels[1].headers.get('Idempotency-Key')).toBe(
@@ -831,14 +838,14 @@ describe('ReservationPage 예매 취소', () => {
 
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
-    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    expect(await dialog.findByText('취소 여부를 확인하지 못했습니다')).toBeInTheDocument()
     // 결과를 모를 때는 바로 다시 받지 않는다(대화상자가 설명 없이 사라지지 않게)
     const readsAfterUnknown = reads.length
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(reads).toHaveLength(readsAfterUnknown)
 
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
-    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매입니다' })
     await waitFor(() => expect(title).toHaveFocus())
   })
 
@@ -849,10 +856,10 @@ describe('ReservationPage 예매 취소', () => {
 
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
-    expect(await dialog.findByText('취소됐는지 확인하지 못했어요')).toBeInTheDocument()
+    expect(await dialog.findByText('취소 여부를 확인하지 못했습니다')).toBeInTheDocument()
     await userEvent.click(dialog.getByRole('button', { name: '돌아가기' }))
 
-    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매예요' })
+    const title = await screen.findByRole('heading', { level: 1, name: '취소된 예매입니다' })
     await waitFor(() => expect(title).toHaveFocus())
   })
 
@@ -864,7 +871,10 @@ describe('ReservationPage 예매 취소', () => {
     mockDb.reservations.get(reservation.reservationId)!.status = 'EXPIRED'
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
 
-    const title = await screen.findByRole('heading', { level: 1, name: '예매가 확정되지 않았어요' })
+    const title = await screen.findByRole('heading', {
+      level: 1,
+      name: '예매가 확정되지 않았습니다',
+    })
     await waitFor(() => expect(title).toHaveFocus())
   })
 
@@ -872,19 +882,19 @@ describe('ReservationPage 예매 취소', () => {
     const { reservation } = seedConfirmedWithPayment()
     mockServer.use(
       http.post(`/api/v1/reservations/${reservation.reservationId}/cancel`, () =>
-        fail(409, 'CANCEL_PERIOD_ENDED', '공연이 시작되어 취소할 수 없습니다'),
+        fail(409, 'CANCEL_PERIOD_ENDED', '공연이 시작되어 취소할 수 없습니다.'),
       ),
     )
     renderReservation(reservation.reservationId)
 
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
-    expect(await dialog.findByText('공연이 시작돼 취소할 수 없어요')).toBeInTheDocument()
+    expect(await dialog.findByText('공연이 시작되어 취소할 수 없습니다.')).toBeInTheDocument()
     expect(dialog.getByRole('button', { name: '예매 취소' })).toBeDisabled()
     await userEvent.click(dialog.getByRole('button', { name: '돌아가기' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.getByText('공연이 시작돼 취소할 수 없어요.')).toBeInTheDocument()
+    expect(screen.getByText('공연이 시작되어 취소할 수 없습니다.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '예매 취소' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: '예매 취소' })).toHaveFocus()
   })
@@ -905,7 +915,7 @@ describe('ReservationPage 예매 취소', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: '다시 시도' }))
     const refund = await screen.findByRole('region', { name: '환불' })
-    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불을 진행하는 중입니다')).toBeInTheDocument()
   })
 
   it('환불이 2분 넘게 끝나지 않으면 다시 받기를 멈추고 늦어진다고 알린다', async () => {
@@ -918,10 +928,10 @@ describe('ReservationPage 예매 취소', () => {
     const dialog = await openCancelDialog()
     await userEvent.click(dialog.getByRole('button', { name: '예매 취소' }))
     const refund = await screen.findByRole('region', { name: '환불' })
-    expect(await within(refund).findByText('환불하고 있어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불을 진행하는 중입니다')).toBeInTheDocument()
 
     await advance(121_000, 3000)
-    expect(await within(refund).findByText('환불이 늦어지고 있어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불이 지연되고 있습니다')).toBeInTheDocument()
     expect(within(refund).getByText(new RegExp(reservation.reservationNo))).toBeInTheDocument()
     const readsAtSlow = paymentReads.length
     await advance(15_000, 3000)
@@ -937,15 +947,15 @@ describe('ReservationPage 예매 취소', () => {
     renderReservation(reservation.reservationId)
 
     const refund = await screen.findByRole('region', { name: '환불' })
-    expect(await within(refund).findByText('환불이 끝났어요')).toBeInTheDocument()
+    expect(await within(refund).findByText('환불이 완료되었습니다')).toBeInTheDocument()
   })
 })
 
 describe('ReservationPage 조회 실패', () => {
-  it('없는 예매는 "찾는 예매가 없어요"와 내 예매 보기를 보인다', async () => {
+  it('없는 예매는 "찾는 예매가 없습니다"와 내 예매 보기를 보인다', async () => {
     renderReservation(987654)
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(linkNamed('내 예매 보기')).toHaveAttribute('href', '/me/reservations')
   })
 
@@ -953,7 +963,7 @@ describe('ReservationPage 조회 실패', () => {
     const reservation = seedReservation({ userId: 1 })
     renderReservation(reservation.reservationId)
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(screen.queryByText(reservation.reservationNo)).not.toBeInTheDocument()
   })
 
@@ -961,7 +971,7 @@ describe('ReservationPage 조회 실패', () => {
     const reads = recordRequests('/api/v1/reservations/abc')
     renderReservation('abc')
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(reads).toHaveLength(0)
   })
 
@@ -979,7 +989,7 @@ describe('ReservationPage 조회 실패', () => {
     renderReservation(reservation.reservationId)
 
     const retry = await screen.findByRole('button', { name: '다시 시도' })
-    expect(screen.queryByText(/찾는 예매가 없어요/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/찾는 예매가 없습니다/)).not.toBeInTheDocument()
     await userEvent.click(retry)
 
     expect(
@@ -1001,8 +1011,8 @@ describe('ReservationPage 조회 실패', () => {
     const retry = await screen.findByRole('button', { name: '다시 시도' })
     // 내용은 그대로이고 안내는 내용 위에 있다
     expect(screen.getByRole('heading', { level: 1, name: HEADING.title })).toBe(title)
-    expect(screen.getByText('결제가 아직 확정되지 않았어요')).toBeInTheDocument()
-    expect(screen.queryByText(/찾는 예매가 없어요/)).not.toBeInTheDocument()
+    expect(screen.getByText('결제가 아직 확정되지 않았습니다')).toBeInTheDocument()
+    expect(screen.queryByText(/찾는 예매가 없습니다/)).not.toBeInTheDocument()
     expect(retry.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await userEvent.click(retry)
@@ -1023,7 +1033,7 @@ describe('ReservationPage 조회 실패', () => {
 
     returnToWindow()
 
-    expect(await screen.findByText(/찾는 예매가 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 예매가 없습니다/)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1, name: HEADING.title })).not.toBeInTheDocument()
     expect(linkNamed('내 예매 보기')).toHaveAttribute('href', '/me/reservations')
   })
@@ -1037,7 +1047,7 @@ describe('ReservationPage 조회 실패', () => {
     const { queryClient } = renderReservation(reservation.reservationId, {
       variant: 'complete',
     })
-    await screen.findByRole('heading', { level: 1, name: '예매가 확정됐어요' })
+    await screen.findByRole('heading', { level: 1, name: '예매가 확정되었습니다' })
 
     await act(() =>
       queryClient.refetchQueries({
@@ -1046,7 +1056,9 @@ describe('ReservationPage 조회 실패', () => {
     )
 
     expect(await screen.findByRole('button', { name: '다시 시도' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: '예매가 확정되었습니다' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('region', { name: '티켓 2매' })).toBeInTheDocument()
   })
 })

@@ -45,7 +45,7 @@ describe('signupSchema', () => {
       messages(
         signupSchema.safeParse({ ...validSignup, password: korean25, passwordConfirm: korean25 }),
       ),
-    ).toEqual(['password: 너무 길어요. 영문은 72자, 한글은 24자까지 쓸 수 있어요'])
+    ).toEqual(['password: 너무 깁니다. 영문은 72자, 한글은 24자까지 입력할 수 있습니다.'])
   })
 
   it('8자보다 짧은 비밀번호, 서로 다른 확인, 31자 닉네임을 각 칸 문구로 알린다', () => {
@@ -58,8 +58,8 @@ describe('signupSchema', () => {
 
     expect(messages(result)).toEqual(
       expect.arrayContaining([
-        'password: 8자 이상 입력해 주세요',
-        'nickname: 닉네임은 30자까지 쓸 수 있어요',
+        'password: 8자 이상 입력해주세요.',
+        'nickname: 닉네임은 30자까지 입력할 수 있습니다.',
       ]),
     )
   })
@@ -67,15 +67,15 @@ describe('signupSchema', () => {
   it('비밀번호 확인이 다르면 확인 칸에 알린다', () => {
     expect(
       messages(signupSchema.safeParse({ ...validSignup, passwordConfirm: 'password12345' })),
-    ).toEqual(['passwordConfirm: 비밀번호가 서로 달라요'])
+    ).toEqual(['passwordConfirm: 입력된 값이 일치하지 않습니다.'])
   })
 })
 
 describe('loginSchema', () => {
   it('비어 있으면 무엇을 입력할지 알린다', () => {
     expect(messages(loginSchema.safeParse({ email: ' ', password: '' }))).toEqual([
-      'email: 이메일을 입력해 주세요',
-      'password: 비밀번호를 입력해 주세요',
+      'email: 이메일을 입력해주세요.',
+      'password: 비밀번호를 입력해주세요.',
     ])
   })
 
@@ -84,19 +84,19 @@ describe('loginSchema', () => {
       expect(loginSchema.safeParse({ email, password: 'x' }).success).toBe(true)
     }
     expect(messages(signupSchema.safeParse({ ...validSignup, email: 'admin@localhost' }))).toEqual([
-      'email: 이메일 형식을 확인해 주세요',
+      'email: 이메일 형식을 확인해주세요.',
     ])
   })
 
   it('공백만 있는 비밀번호는 비어 있는 것으로 본다(서버 @NotBlank)', () => {
     expect(
       messages(loginSchema.safeParse({ email: 'demo@iseonjwa.dev', password: '   ' })),
-    ).toEqual(['password: 비밀번호를 입력해 주세요'])
+    ).toEqual(['password: 비밀번호를 입력해주세요.'])
   })
 
   it('형식이 틀린 이메일을 알린다', () => {
     expect(messages(loginSchema.safeParse({ email: 'demo', password: 'x' }))).toEqual([
-      'email: 이메일 형식을 확인해 주세요',
+      'email: 이메일 형식을 확인해주세요.',
     ])
   })
 })
@@ -110,6 +110,6 @@ describe('passwordChangeSchema', () => {
       newPasswordConfirm: 'password1234',
     })
 
-    expect(messages(result)).toEqual(['newPassword: 현재 비밀번호와 다른 비밀번호를 입력해 주세요'])
+    expect(messages(result)).toEqual(['newPassword: 현재 비밀번호와 다른 비밀번호를 입력해주세요.'])
   })
 })

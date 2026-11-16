@@ -158,7 +158,7 @@ export function usePaymentFlow({ reservationId, paymentToken, amount }: UsePayme
         if (checkout.amount !== amount) {
           stop({
             step: 'failed',
-            error: new Error('결제 금액이 화면과 달라 결제를 시작하지 않았어요'),
+            error: new Error('결제 금액이 화면과 달라 결제를 시작하지 않았습니다'),
           })
           return
         }

@@ -99,7 +99,7 @@ tags: [seathold, performance, outbox, kafka, postgresql, expiry, observability, 
 - 잃는 것: Timer 기록 한 번은 보통 1µs보다 짧아(재지는 않았다) 선점 시간(ms 단위)에 비해 무시할 만하다. 시계열은 Timer 2개 × 버킷 수, Gauge 1개만큼 는다.
 
 ### 3. 커넥션 풀 크기를 측정 전에 정한다(ISE-237)
-- 상황: reservation-service 풀은 근거 없이 들어간 5개다([학습 노트](2026-11-14-reservation-hikari-pool-5-origin.md)). ADR 0060의 동시 처리 상한(4개, 대기 200ms)과 접수형 소비자 몫(2개)이 이 값을 전제로 한다.
+- 상황: reservation-service 풀은 근거 없이 들어간 5개다([학습 노트](2026-11-14-reservation-hikari-pool-5-origin.md)). ADR 0062의 동시 처리 상한(4개, 대기 200ms)과 접수형 소비자 몫(2개)이 이 값을 전제로 한다.
 - 근거 수치(측정): K1-H 800명에서 풀 5는 커넥션 대기 최대 40건·p99 33ms, 풀 10은 대기 0·p99 6ms였고 풀 20·40은 10과 같았다.
 - 변경: 코드 변경은 없다. ISE-237(효승 담당, Backlog)에 선점 쪽 근거를 보태고, 배포 측정 전에 값을 정해 달라고 요청한다.
 - 손익: 풀을 10으로 정하면 상한 값을 다시 재야 한다. 정하지 않고 재면 상한·소비자 결과가 나중에 풀이 바뀌는 순간 무효가 된다.
@@ -141,21 +141,21 @@ tags: [seathold, performance, outbox, kafka, postgresql, expiry, observability, 
 ### 7. 배포에서 DB 왕복이 길게 나올 때만: 쓰기 문장 묶기
 - 예매 좌석 다중 행 INSERT: 좌석 잠금 구간 안에 있는 예매 좌석 INSERT N번을 한 문장(`INSERT ... SELECT unnest(...)`)으로 바꾼다. 4석이면 잠금 구간 왕복이 6번에서 3번으로 준다. ID 전략(IDENTITY)은 바꾸지 않는다. 대가는 공용 저장소(`ReservationSeatRepository`, 효승·준현도 씀)를 건드리고, 부분 유니크 인덱스 위반을 `ActiveSeatConflictException`으로 바꾸는 처리를 다시 맞춰야 한다는 점이다.
 - 매수 반영 한 문장: 지금은 "행 만들기(없으면)" + "조건부 UPDATE" 2문장이다. `INSERT ... ON CONFLICT (user_id, schedule_id) DO UPDATE SET held_count = ... WHERE held_count + :q <= :max`로 합치면 1문장이다. 성공·매수 초과 경로 모두 왕복 1번이 준다.
-- 판단: local에서는 순서 변경(ADR 0061 2번)도 효과가 오차 안이었다. 왕복 하나가 컨테이너 네트워크에서 1ms보다 훨씬 짧으면 이 둘도 보이지 않을 것이다. 배포 측정에서 2번의 좌석 UPDATE Timer와 Zipkin 구간으로 왕복 시간이 길게 나오면 그때 넣는다.
+- 판단: local에서는 순서 변경(ADR 0062 2번)도 효과가 오차 안이었다. 왕복 하나가 컨테이너 네트워크에서 1ms보다 훨씬 짧으면 이 둘도 보이지 않을 것이다. 배포 측정에서 2번의 좌석 UPDATE Timer와 Zipkin 구간으로 왕복 시간이 길게 나오면 그때 넣는다.
 
 ### 하지 않을 것
 | 안 | 끌리는 이유 | 하지 않는 이유 |
 |---|---|---|
 | 입장 토큰 사전 조회 제거 | 토큰이 붙은 요청에서 왕복 1번이 준다. 같은 토큰의 동시 요청은 요청 행의 부분 유니크 인덱스(`uq_seat_hold_requests_entry_token_jti`)가 어차피 막는다 | 조회를 빼면 "쓴 토큰 + 잡힌 좌석" 요청이 403 대신 409를 받는다. 코드가 따르는 ADR 0053 결정 2("다른 요청이 쓴 토큰이면 좌석을 잠그기 전에 거절")의 응답 순서가 바뀐다 |
 | 회차 정보 캐시 | 모든 요청에서 왕복 1번이 준다 | 판매 기간·매수 한도가 바뀌어도 캐시 시간만큼 옛 값으로 판단한다. 얻는 왕복 하나에 비해 판단 오류의 비용이 크다 |
-| `SKIP LOCKED` | 대기 0 | C2 성공이 약 1/3 줄었다(ADR 0060) |
+| `SKIP LOCKED` | 대기 0 | C2 성공이 약 1/3 줄었다(ADR 0061) |
 | Redis 좌석 정본 | DB 잠금이 사라진다 | 이중 쓰기, 장애 때 정본이 흐려진다. 캐시 사전 거절이 같은 이점을 정본을 옮기지 않고 얻는다 |
 | 풀 크게(20·40) | 대기가 줄 것 같다 | K1-H에서 10과 같았다 |
 
 ## 이 프로젝트에서는
 - 추천 진행 순서: 2(계측)·5(만료 주기)·6(토큰 서명)은 담당 영역 안에서 작은 변경이라 ISE-261과 함께 넣을 수 있다. 1(직접 발행)은 ISE-18 범위로 이번 주에 한다. 3·4는 contract라 오늘 올려야 다음 주 전에 답을 받는다.
 - 관련 코드: `seathold/application/SyncSeatHoldService.java`, `SeatHolding.java`, `AsyncSeatHoldService.java`, `presentation/SeatHoldConcurrencyLimit.java`, `presentation/scheduling/SeatHoldExpiryScheduler.java`, `common/.../outbox/OutboxRepository.java`, `OutboxRelayScheduler.java`
-- 관련 기록: ADR 0056·0057·0060·0061, [시니어 개선안(11/13)](2026-11-13-seathold-senior-improvements.md), [구조 검토(11/13)](2026-11-13-seathold-structure-review.md), [ISE-17 확인 항목](2026-11-14-ise17-merge-verification-tradeoffs.md)
+- 관련 기록: ADR 0056·0057·0061·0062, [시니어 개선안(11/13)](2026-11-13-seathold-senior-improvements.md), [구조 검토(11/13)](2026-11-13-seathold-structure-review.md), [ISE-17 확인 항목](2026-11-14-ise17-merge-verification-tradeoffs.md)
 
 ## 면접 포인트
 - "Outbox를 썼는데 왜 직접 발행도 만들었나요?" → Outbox의 같은 키 순서 보장이 핫 구역에서 초당 약 2건 한계가 됐다. 선점 요청은 30초 시한이 남은 요청을 닫는 안전망이 있어 메시지 유실이 정합성 문제가 아니라 사용자 재시도 문제로 끝난다. 그래서 이 토픽만 전달 보장을 낮추고 처리량을 택했다. 결제 이벤트는 그대로 Outbox다.

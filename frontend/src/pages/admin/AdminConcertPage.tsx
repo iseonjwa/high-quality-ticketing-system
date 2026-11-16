@@ -82,7 +82,7 @@ export function AdminConcertPage() {
               </Button>
             }
           >
-            찾는 공연이 없어요. 운영 목록에서 다시 골라 주세요
+            찾는 공연이 없습니다. 운영 목록에서 다시 선택해주세요.
           </Alert>
         </>
       ) : concert.data === undefined ? (
@@ -93,7 +93,7 @@ export function AdminConcertPage() {
           </>
         ) : (
           <div className="grid gap-3" role="status">
-            <span className="sr-only">공연을 불러오고 있어요</span>
+            <span className="sr-only">공연을 불러오는 중입니다</span>
             <Skeleton className="h-8 w-2/3" />
             <Skeleton className="h-24 w-full" />
           </div>
@@ -127,7 +127,7 @@ export function AdminConcertPage() {
             </h2>
             {concert.data.schedules.length === 0 ? (
               <p className="type-body-sm text-gray-500">
-                아직 회차가 없어요. 아래에서 회차를 추가해 주세요
+                아직 회차가 없습니다. 아래에서 회차를 추가해주세요.
               </p>
             ) : (
               <ul className="grid gap-3">
@@ -217,7 +217,9 @@ function ScheduleRow({
             className="inline-flex items-center gap-1.5 type-body-sm font-semibold text-success-600 tabular-nums outline-none"
           >
             <Check aria-hidden="true" className="size-4" strokeWidth={3} />
-            {seats === null ? '좌석이 이미 있어요' : `좌석 ${numberFormat.format(seats)}석 만듦`}
+            {seats === null
+              ? '좌석이 이미 있습니다'
+              : `좌석 ${numberFormat.format(seats)}석 생성됨`}
           </span>
         )}
       </div>
@@ -267,7 +269,7 @@ function ScheduleForm({ concertId }: { concertId: number }) {
       await createSchedule(concertId, toScheduleInput(values))
       // 등록은 끝났다. 목록 재조회가 늦거나 실패해도 버튼을 붙잡지 않는다
       void queryClient.invalidateQueries({ queryKey: ['concerts'] })
-      toast('회차를 등록했어요. 좌석을 만들어야 예매할 수 있어요')
+      toast('회차가 등록되었습니다. 좌석을 생성해야 예매할 수 있습니다.')
       form.reset()
     } catch (error) {
       if (isOutcomeUnknown(error)) {
@@ -277,7 +279,7 @@ function ScheduleForm({ concertId }: { concertId: number }) {
       }
       // 공연은 이 화면이 이미 조회했으므로 404는 공연장 번호가 없다는 뜻이다
       if (isApiError(error, 'NOT_FOUND')) {
-        form.setError('venueId', { message: '이 번호의 공연장이 없어요' }, { shouldFocus: true })
+        form.setError('venueId', { message: '이 번호의 공연장이 없습니다.' }, { shouldFocus: true })
         return
       }
       if (
@@ -303,8 +305,8 @@ function ScheduleForm({ concertId }: { concertId: number }) {
         <form noValidate onSubmit={form.handleSubmit(handleCreate)} className="grid gap-5">
           {outcomeUnknown ? (
             <Alert variant="warning">
-              등록됐는지 확인하지 못했어요. 회차 목록을 다시 불러왔어요. 목록에 없을 때만 다시
-              등록해 주세요
+              등록 여부를 확인하지 못했습니다. 회차 목록을 다시 불러왔습니다. 목록에 없을 때만 다시
+              등록해주세요.
             </Alert>
           ) : null}
           {formError === null ? null : <ErrorNotice error={formError} />}
@@ -312,7 +314,7 @@ function ScheduleForm({ concertId }: { concertId: number }) {
             label="공연장 번호"
             inputMode="numeric"
             error={errors.venueId?.message}
-            description="공연장 목록이 아직 없어 번호로 넣어요"
+            description="공연장 목록이 아직 없어 번호로 입력합니다"
             {...form.register('venueId')}
           />
           <div className="grid gap-5 @min-[40rem]:grid-cols-2">
@@ -327,7 +329,7 @@ function ScheduleForm({ concertId }: { concertId: number }) {
               label="예매 오픈"
               type="datetime-local"
               error={errors.openAt?.message}
-              description="한국 시각. 공연 시작보다 앞서야 해요"
+              description="한국 시각. 공연 시작보다 앞서야 합니다."
               {...form.register('openAt')}
             />
           </div>
@@ -435,7 +437,7 @@ function SeatForm({
     onSubmittingChange(true)
     try {
       const { createdSeats } = await createScheduleSeats(schedule.scheduleId, toSeatPrices(values))
-      toast(`좌석 ${numberFormat.format(createdSeats)}석을 만들었어요`)
+      toast(`좌석 ${numberFormat.format(createdSeats)}석이 생성되었습니다`)
       onDone(schedule.scheduleId, createdSeats)
       onSubmittingChange(false)
       onClose()
@@ -443,7 +445,7 @@ function SeatForm({
       onSubmittingChange(false)
       // 좌석 만들기는 다시 보내도 안전하다. 이미 만들었으면 서버가 409로 알려 준다
       if (isApiError(error, 'SCHEDULE_SEATS_ALREADY_CREATED')) {
-        toast('이미 좌석을 만든 회차예요')
+        toast('이미 좌석이 생성된 회차입니다')
         onDone(schedule.scheduleId, null)
         onClose()
         return
@@ -467,11 +469,12 @@ function SeatForm({
       </DialogHeader>
       <form noValidate onSubmit={form.handleSubmit(handleCreate)} className="grid gap-4">
         <p className="type-body-sm text-gray-500">
-          공연장에 있는 등급마다 가격을 넣어 주세요. 공연장에 없는 등급은 비워 둬요.
+          공연장에 있는 등급마다 가격을 입력해주세요. 공연장에 없는 등급은 비워두세요.
         </p>
         {gradeMismatch ? (
           <Alert variant="warning">
-            등급이 공연장 좌석과 맞지 않아요. 공연장에 있는 등급마다 가격을 하나씩 넣어 주세요
+            등급이 공연장 좌석과 일치하지 않습니다. 공연장에 있는 등급마다 가격을 하나씩
+            입력해주세요.
           </Alert>
         ) : null}
         {unexpectedError !== null ? <ErrorNotice error={unexpectedError} /> : null}

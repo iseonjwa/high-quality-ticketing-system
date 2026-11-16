@@ -31,6 +31,8 @@ inhibit_rules:
 # 메시지 모양(제목·본문·색·필드)은 templates/slack.tmpl에 둔다.
 templates:
   - /etc/alertmanager/templates/*.tmpl
+  # compose가 만들어 주는 값 템플릿(iseonjwa.grafana_url, compose.yml configs의 grafana-url-template)
+  - /etc/alertmanager/generated/*.tmpl
 
 receivers:
   - name: slack-monitoring

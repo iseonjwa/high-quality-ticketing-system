@@ -17,7 +17,7 @@ export function LotteryWarnings({ warnings }: { warnings: string[] }) {
         {warnings.map((warning) => (
           <li key={warning}>
             {warning === DRAW_AT_OUTSIDE_LOW_TRAFFIC_WINDOW
-              ? '추첨 시각이 새벽 3~5시 밖이에요. 추첨 직후 자동결제가 몰리므로 일반 예매가 적은 새벽을 권해요'
+              ? '추첨 시각이 새벽 3~5시 밖입니다. 추첨 직후 자동결제가 몰리므로 일반 예매가 적은 새벽을 권장합니다.'
               : `서버 경고: ${warning}`}
           </li>
         ))}
@@ -39,10 +39,10 @@ export function LotteryFormError({ error }: { error: unknown }) {
           </Button>
         }
       >
-        <p className="font-semibold">이 회차에는 이미 추첨이 있어요</p>
+        <p className="font-semibold">이 회차에는 이미 추첨이 있습니다</p>
         <p>
-          회차마다 추첨은 하나예요. 이 화면에서는 그 추첨의 번호를 알 수 없어요. 설정할 때 받은
-          번호를 운영 첫 화면의 "추첨 번호로 열기"에 넣어 주세요
+          회차마다 추첨은 하나입니다. 이 화면에서는 그 추첨의 번호를 알 수 없습니다. 설정할 때 받은
+          번호를 운영 첫 화면의 "추첨 번호로 열기"에 넣어주세요.
         </p>
       </Alert>
     )
@@ -50,8 +50,8 @@ export function LotteryFormError({ error }: { error: unknown }) {
   if (isApiError(error, 'VALIDATION_FAILED')) {
     return (
       <Alert variant="warning">
-        입력값 사이 규칙이 맞지 않아요. 응모 시작 &lt; 응모 마감 ≤ 추첨 시각이고, 추첨은 공연 시작
-        1시간 전까지여야 해요
+        입력값 사이 규칙이 맞지 않습니다. 응모 시작 &lt; 응모 마감 ≤ 추첨 시각이며, 추첨은 공연 시작
+        1시간 전까지여야 합니다.
       </Alert>
     )
   }

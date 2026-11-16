@@ -370,14 +370,14 @@ function PaymentForm({
               <h2 id="payment-title" className="type-heading text-gray-900">
                 결제
               </h2>
-              <p className="type-body-sm text-gray-500">결제 수단을 확인하고 결제해 주세요.</p>
+              <p className="type-body-sm text-gray-500">결제 수단을 확인하고 결제해주세요.</p>
             </div>
             <div ref={alertRef} tabIndex={-1} className="grid gap-3 outline-none empty:hidden">
               {notPayable && state.step === 'ready' ? (
                 <StepAlert
                   variant="danger"
-                  title="결제할 수 없는 예매예요"
-                  body="결제 가능 시간이 지났거나 좌석이 풀렸어요. 좌석을 다시 골라 주세요."
+                  title="결제할 수 없는 예매입니다"
+                  body="좌석을 다시 선택해주세요."
                   action={<ActionButton onClick={reselect}>좌석 다시 고르기</ActionButton>}
                 />
               ) : (
@@ -480,7 +480,7 @@ function PaymentForm({
               ) : null}
               {showTimer && !tokenExpired ? (
                 <p className="text-center type-caption text-gray-500">
-                  결제 가능 시간이 지나면 잡아 둔 좌석이 풀려요.
+                  결제 가능 시간이 지나면 선택한 좌석이 해제됩니다.
                 </p>
               ) : null}
             </div>
@@ -493,9 +493,9 @@ function PaymentForm({
 
 // 결제 수단 카드의 설명. 서버의 PG 모드를 모르는 동안(checkout 대기·실패)은 어느 쪽이든 맞는 문구를 쓴다
 const PAYMENT_METHOD_HINTS: Record<CheckoutResult['provider'] | 'UNKNOWN', string> = {
-  MOCK: '시연용 결제라 카드 정보를 받지 않아요',
-  TOSS: '토스페이먼츠 테스트 결제창에서 카드를 골라요',
-  UNKNOWN: '결제하기를 누르면 카드 결제를 진행해요',
+  MOCK: '시연용 결제라 카드 정보를 받지 않습니다',
+  TOSS: '토스페이먼츠 테스트 결제창에서 카드를 선택합니다',
+  UNKNOWN: '결제하기를 누르면 카드 결제가 진행됩니다',
 }
 
 // 승인 시도를 아직 만들지 않은 단계. 결제 가능 시간이 지나면 버튼을 막고, "토스연동 건너뛰고 결제하기"는 이때만 보인다
@@ -564,14 +564,14 @@ function PayAction({
       return state.paymentId === null ? (
         <PendingBox
           tone="info"
-          title="결제 요청을 보내고 있어요"
-          body="연결이 잠시 불안정해요. 화면을 닫지 말고 기다려 주세요."
+          title="결제 요청을 전송하는 중입니다"
+          body="연결이 일시적으로 불안정합니다. 화면을 닫지 말고 기다려주세요."
         />
       ) : (
         <PendingBox
           tone="info"
-          title="결제를 확인하고 있어요"
-          body="결제사 응답을 기다리는 중이에요. 화면을 닫아도 결제는 그대로 진행돼요."
+          title="결제를 확인하는 중입니다"
+          body="결제사 응답을 기다리는 중입니다. 화면을 닫아도 결제는 그대로 진행됩니다."
         />
       )
     case 'confirming':
@@ -579,8 +579,8 @@ function PayAction({
       return (
         <PendingBox
           tone="success"
-          title="결제가 승인됐어요"
-          body="예매를 확정하고 있어요. 잠시만 기다려 주세요."
+          title="결제가 승인되었습니다"
+          body="예매를 확정하는 중입니다. 잠시만 기다려주세요."
         />
       )
     default:
@@ -592,15 +592,15 @@ function PayAction({
 function statusText(state: PaymentFlowState): string {
   switch (state.step) {
     case 'preparing':
-      return '결제를 준비하고 있어요'
+      return '결제를 준비하는 중입니다'
     case 'redirecting':
-      return '결제창을 열고 있어요'
+      return '결제창을 여는 중입니다'
     case 'paying':
-      return '결제를 요청하고 있어요'
+      return '결제를 요청하는 중입니다'
     case 'checking':
-      return state.paymentId === null ? '결제 요청을 보내고 있어요' : '결제를 확인하고 있어요'
+      return state.paymentId === null ? '결제 요청을 전송하는 중입니다' : '결제를 확인하는 중입니다'
     case 'confirming':
-      return '결제가 승인됐어요. 예매를 확정하고 있어요'
+      return '결제가 승인되었습니다. 예매를 확정하는 중입니다'
     default:
       return ''
   }
@@ -634,27 +634,27 @@ function PendingBox({
 
 // 거절 사유(DeclineReason)별 첫 문장. 조회로 거절을 알면 사유가 없다(결제 조회 응답에 reasonCode가 없다)
 const DECLINE_REASONS: Record<string, string> = {
-  CARD_DECLINED: '카드사가 결제를 거절했어요.',
-  INSUFFICIENT_LIMIT: '카드 한도가 부족해요.',
-  TOKEN_EXPIRED: '결제 가능 시간이 지나 결제하지 못했어요.',
+  CARD_DECLINED: '카드사가 결제를 거절했습니다.',
+  INSUFFICIENT_LIMIT: '카드 한도가 부족합니다.',
+  TOKEN_EXPIRED: '결제 가능 시간이 지나 결제하지 못했습니다.',
 }
 
 // 토스 결제창에서 결제하지 않고 돌아온 안내. 토스가 준 message는 주소로 아무 문구나 넣을 수 있어 보이지 않는다
 function TossNoticeAlert({ kind, code }: { kind: TossReturnNotice['kind']; code: string | null }) {
   switch (kind) {
     case 'canceled':
-      return <Alert variant="info">결제를 취소했어요. 다시 결제할 수 있어요.</Alert>
+      return <Alert variant="info">결제가 취소되었습니다. 다시 결제할 수 있습니다.</Alert>
     case 'failed':
       return (
         <Alert variant="warning">
-          결제창에서 결제를 마치지 못했어요. 다시 시도해 주세요.
+          결제창에서 결제가 완료되지 않았습니다. 다시 시도해주세요.
           {code === null ? null : <span className="type-caption"> ({code})</span>}
         </Alert>
       )
     case 'mismatch':
       return (
         <Alert variant="warning">
-          결제 정보가 맞지 않아 결제를 진행하지 않았어요. 다시 결제해 주세요.
+          결제 정보가 일치하지 않아 결제가 진행되지 않았습니다. 다시 결제해주세요.
         </Alert>
       )
   }
@@ -681,8 +681,8 @@ function FlowAlert({
     return (
       <StepAlert
         variant="danger"
-        title="결제 가능 시간이 지났어요"
-        body="잡아 둔 좌석은 곧 풀려요. 좌석을 다시 골라 주세요."
+        title="결제 가능 시간이 지났습니다"
+        body="좌석을 다시 선택해주세요."
         action={reselect}
       />
     )
@@ -700,8 +700,8 @@ function FlowAlert({
       return (
         <StepAlert
           variant="danger"
-          title="결제가 거절됐어요"
-          body={`${(state.reasonCode && DECLINE_REASONS[state.reasonCode]) ?? ''} 잡아 둔 좌석은 풀렸으니 좌석을 다시 골라 주세요.`.trim()}
+          title="결제가 거절되었습니다"
+          body={`${(state.reasonCode && DECLINE_REASONS[state.reasonCode]) ?? ''} 선택한 좌석이 해제되었습니다. 좌석을 다시 선택해주세요.`.trim()}
           action={reselect}
         />
       )
@@ -709,8 +709,8 @@ function FlowAlert({
       return (
         <StepAlert
           variant="danger"
-          title="이 예매의 결제는 이미 끝났어요"
-          body="좌석을 다시 골라 새로 예매해 주세요."
+          title="이 예매의 결제는 이미 종료되었습니다"
+          body="좌석을 다시 선택하여 새로 예매해주세요."
           action={reselect}
         />
       )
@@ -718,16 +718,16 @@ function FlowAlert({
       return (
         <StepAlert
           variant="warning"
-          title="결제사 연결이 원활하지 않아요"
-          body="좌석은 남은 시간 동안 유지돼요. 잠시 뒤 다시 결제해 주세요."
+          title="결제사 연결이 원활하지 않습니다"
+          body="좌석은 남은 시간 동안 유지됩니다. 잠시 후 다시 결제해주세요."
         />
       )
     case 'manualCheck':
       return (
         <StepAlert
           variant="warning"
-          title="결제 확인이 늦어지고 있어요"
-          body="운영자가 확인한 뒤 예매 상태가 바뀌어요. 내 예매에서 확인해 주세요."
+          title="결제 확인이 지연되고 있습니다"
+          body="운영자가 확인한 뒤 예매 상태가 변경됩니다. 내 예매에서 확인해주세요."
           action={myReservations}
         />
       )
@@ -735,8 +735,8 @@ function FlowAlert({
       return (
         <StepAlert
           variant="danger"
-          title="예매가 확정되지 않았어요"
-          body="결제 가능 시간이 지난 뒤 승인돼 좌석이 풀렸어요. 결제 금액은 환불돼요."
+          title="예매가 확정되지 않았습니다"
+          body="결제 가능 시간이 지난 뒤 승인되어 좌석 선택이 해제되었습니다. 결제 금액은 환불됩니다."
           action={myReservations}
         />
       )
@@ -744,8 +744,8 @@ function FlowAlert({
       return (
         <StepAlert
           variant="danger"
-          title="예매가 확정되지 않았어요"
-          body="결제한 금액이 있으면 환불돼요. 내 예매에서 확인해 주세요."
+          title="예매가 확정되지 않았습니다"
+          body="결제하신 금액이 있으면 환불됩니다. 내 예매에서 확인해주세요."
           action={myReservations}
         />
       )
@@ -753,15 +753,15 @@ function FlowAlert({
       return state.approved ? (
         <StepAlert
           variant="info"
-          title="결제는 승인됐어요"
-          body="예매 확정이 늦어지고 있어요. 잠시 뒤 내 예매에서 확인해 주세요."
+          title="결제는 승인되었습니다"
+          body="예매 확정이 지연되고 있습니다. 잠시 후 내 예매에서 확인해주세요."
           action={myReservations}
         />
       ) : (
         <StepAlert
           variant="warning"
-          title="결제 결과를 아직 확인하지 못했어요"
-          body="결제가 끝났는지 내 예매에서 확인해 주세요. 결제는 한 번만 진행돼요."
+          title="결제 결과를 아직 확인하지 못했습니다"
+          body="결제가 완료되었는지 내 예매에서 확인해주세요. 결제는 한 번만 진행됩니다."
           action={myReservations}
         />
       )
@@ -828,8 +828,8 @@ function NotPayable({ reservation }: { reservation: ReservationDetail | undefine
           ) : undefined
         }
       >
-        <p className="font-semibold">결제할 수 없는 예매예요</p>
-        <p>결제 가능 시간이 지났거나 좌석이 풀렸어요. 좌석을 다시 골라 주세요.</p>
+        <p className="font-semibold">결제할 수 없는 예매입니다</p>
+        <p>좌석을 다시 선택해주세요.</p>
       </Alert>
     </main>
   )
@@ -847,7 +847,7 @@ function MissingReservation() {
           </Button>
         }
       >
-        찾는 예매가 없어요. 내 예매에서 다시 골라 주세요
+        찾는 예매가 없습니다. 내 예매에서 다시 선택해주세요.
       </Alert>
     </main>
   )

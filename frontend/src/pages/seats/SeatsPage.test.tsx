@@ -186,7 +186,7 @@ describe('SeatsPage 구역과 좌석 고르기', () => {
     expect(screen.getByRole('heading', { name: '선택한 좌석' }).parentElement).toHaveTextContent(
       '0 / 2매',
     )
-    expect(screen.getByRole('button', { name: '2석 더 골라 주세요' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '2석 더 선택해주세요' })).toBeDisabled()
     // 고른 구역의 좌석만 그린다
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /B구역 1열 1번/ })).not.toBeInTheDocument()
@@ -211,9 +211,11 @@ describe('SeatsPage 구역과 좌석 고르기', () => {
     await userEvent.click(seatButton('B', 1, 1))
 
     expect(
-      screen.getByRole('radio', { name: 'A구역 VIP, 남은 16석, 1석 고름' }),
+      screen.getByRole('radio', { name: 'A구역 VIP, 남은 16석, 1석 선택함' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'B구역 R, 남은 30석, 1석 고름' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('radio', { name: 'B구역 R, 남은 30석, 1석 선택함' }),
+    ).toBeInTheDocument()
     const list = within(summary()).getAllByRole('listitem')
     expect(list).toHaveLength(2)
     expect(list[0]).toHaveTextContent('A구역 1열 1번')
@@ -237,7 +239,7 @@ describe('SeatsPage 구역과 좌석 고르기', () => {
 
     await userEvent.click(seatButton('A', 1, 3))
 
-    expect(await screen.findByText('먼저 고른 좌석을 해제해 주세요')).toBeInTheDocument()
+    expect(await screen.findByText('먼저 선택한 좌석을 해제해주세요')).toBeInTheDocument()
     expect(within(summary()).getAllByRole('listitem')).toHaveLength(2)
 
     await userEvent.click(screen.getByRole('radio', { name: '1매' }))
@@ -290,8 +292,8 @@ describe('SeatsPage 선점', () => {
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
 
-    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
-    const seats = within(within(dialog).getByRole('list', { name: '잡은 좌석' })).getAllByRole(
+    const dialog = await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
+    const seats = within(within(dialog).getByRole('list', { name: '선택한 좌석' })).getAllByRole(
       'listitem',
     )
     expect(seats).toHaveLength(2)
@@ -300,7 +302,7 @@ describe('SeatsPage 선점', () => {
     expect(within(dialog).getByRole('timer')).toHaveTextContent(/결제 가능\s*0[45]:\d\d/)
 
     await userEvent.keyboard('{Escape}')
-    expect(screen.getByRole('dialog', { name: '좌석을 잡았어요' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '좌석 선택이 완료되었습니다' })).toBeInTheDocument()
 
     await userEvent.click(within(dialog).getByRole('button', { name: '결제하러 가기' }))
 
@@ -359,7 +361,7 @@ describe('SeatsPage 선점', () => {
 
     const warning = await screen.findByText('이미 선택된 좌석입니다')
     expect(warning.closest('[role="alert"]')).toHaveTextContent(
-      'A구역 1열 1번이 방금 다른 분께 선택됐어요',
+      'A구역 1열 1번이 이미 선택되었습니다',
     )
     // 알림 자리로 초점이 간다
     expect(warning.closest('[tabindex="-1"]')).toHaveFocus()
@@ -373,7 +375,7 @@ describe('SeatsPage 선점', () => {
     await userEvent.click(seatButton('A', 1, 2))
     await userEvent.click(submitButton())
 
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(requests).toHaveLength(2)
     expect(await requests[1].json()).toEqual({ seatIds: [SEAT_A2, SEAT_B1] })
     const [first, second] = holdKeys(requests)
@@ -389,16 +391,16 @@ describe('SeatsPage 선점', () => {
 
     await userEvent.click(submitButton())
 
-    const checking = await screen.findByText('좌석을 확인하고 있어요')
+    const checking = await screen.findByText('좌석을 확인하는 중입니다')
     expect(checking.closest('[role="status"]')).not.toBeNull()
     expect(screen.queryByRole('button', { name: '2매 선택 완료' })).not.toBeInTheDocument()
 
     await skipRetryDelays()
 
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(requests).toHaveLength(2)
     expect(new Set(holdKeys(requests)).size).toBe(1)
-    expect(screen.queryByText('좌석을 확인하고 있어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('좌석을 확인하는 중입니다')).not.toBeInTheDocument()
   })
 
   it('계속 결과를 모르면 확인하지 못했다고 알리고 좌석·매수를 막으며, 결과 확인하기는 같은 좌석을 같은 멱등키로 보낸다', async () => {
@@ -411,7 +413,7 @@ describe('SeatsPage 선점', () => {
     await userEvent.click(submitButton())
     await skipRetryDelays()
 
-    const warning = await screen.findByText('좌석을 잡았는지 확인하지 못했어요')
+    const warning = await screen.findByText('좌석 선택 여부를 확인하지 못했습니다')
     expect(warning.closest('[tabindex="-1"]')).toHaveFocus()
     const firstRound = requests.length
     expect(firstRound).toBeGreaterThan(1)
@@ -440,19 +442,19 @@ describe('SeatsPage 선점', () => {
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
     await skipRetryDelays()
-    await screen.findByText('좌석을 잡았는지 확인하지 못했어요')
+    await screen.findByText('좌석 선택 여부를 확인하지 못했습니다')
     expect(requests).toHaveLength(4)
 
     await userEvent.click(screen.getByRole('button', { name: '다른 좌석 고르기' }))
 
-    expect(screen.queryByText('좌석을 잡았는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('좌석 선택 여부를 확인하지 못했습니다')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: '좌석 선택' })).toHaveFocus()
     expect(screen.getByRole('radio', { name: '3매' })).toBeEnabled()
     await userEvent.click(screen.getByRole('button', { name: 'A구역 1열 2번 해제' }))
     await userEvent.click(seatButton('A', 1, 3))
     await userEvent.click(submitButton())
 
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(requests).toHaveLength(5)
     expect(await requests[4].json()).toEqual({ seatIds: [SEAT_A1, SEAT_A3] })
     const keys = holdKeys(requests)
@@ -470,7 +472,7 @@ describe('SeatsPage 선점', () => {
     await userEvent.click(submitButton())
     await skipRetryDelays()
 
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(requests).toHaveLength(3)
     expect(new Set(holdKeys(requests)).size).toBe(1)
     expect(screen.queryByText('이미 선택된 좌석입니다')).not.toBeInTheDocument()
@@ -487,7 +489,7 @@ describe('SeatsPage 선점', () => {
     await skipRetryDelays()
 
     expect(await screen.findByText('이미 선택된 좌석입니다')).toBeInTheDocument()
-    expect(screen.queryByText('좌석을 잡았는지 확인하지 못했어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('좌석 선택 여부를 확인하지 못했습니다')).not.toBeInTheDocument()
     expect(requests).toHaveLength(3)
 
     await userEvent.click(submitButton())
@@ -540,7 +542,7 @@ describe('SeatsPage 선점', () => {
 
     await userEvent.click(submitButton())
 
-    expect(await screen.findByText('이미 결제까지 끝난 예매예요')).toBeInTheDocument()
+    expect(await screen.findByText('이미 결제가 완료된 예매입니다')).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.pathname).toBe('/reservations/777'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -569,12 +571,12 @@ describe('SeatsPage 선점', () => {
     await renderLoaded()
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     const seatRequests = recordRequests(SEATS_API)
 
     await act(() => vi.advanceTimersByTimeAsync(8_000))
 
-    const dialog = await screen.findByRole('dialog', { name: '결제 가능 시간이 지났어요' })
+    const dialog = await screen.findByRole('dialog', { name: '결제 가능 시간이 지났습니다' })
     expect(within(dialog).queryByRole('button', { name: '결제하러 가기' })).not.toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
     await userEvent.click(within(dialog).getByRole('button', { name: '좌석 다시 고르기' }))
@@ -605,7 +607,7 @@ describe('SeatsPage 입장 시간', () => {
 
     await userEvent.click(submitButton())
 
-    const alert = (await screen.findByText('입장 시간이 끝났어요')).closest('[role="alert"]')!
+    const alert = (await screen.findByText('입장 시간이 만료되었습니다')).closest('[role="alert"]')!
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).toHaveAttribute('data-locked')
     expect(seatButton('A', 1, 3)).toBeDisabled()
     expect(alert.closest('[tabindex="-1"]')).toHaveFocus()
@@ -630,7 +632,7 @@ describe('SeatsPage 입장 시간', () => {
     )
     const { router } = renderSeats()
 
-    expect(await screen.findByText('입장 시간이 끝났어요')).toBeInTheDocument()
+    expect(await screen.findByText('입장 시간이 만료되었습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '대기열로 돌아가기' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe(SEATS_PATH)
@@ -660,11 +662,11 @@ describe('SeatsPage 입장 시간', () => {
     storeEntryToken(4_000)
     renderSeats()
     await screen.findByRole('radio', { name: /^A구역 VIP/ })
-    expect(screen.queryByText('입장 시간이 끝났어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('입장 시간이 만료되었습니다')).not.toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(8_000))
 
-    expect(await screen.findByText('입장 시간이 끝났어요')).toBeInTheDocument()
+    expect(await screen.findByText('입장 시간이 만료되었습니다')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).toHaveAttribute('data-locked')
     expect(seatButton('A', 1, 1)).toBeDisabled()
     expect(screen.getByRole('radio', { name: '2매' })).toBeDisabled()
@@ -676,7 +678,7 @@ describe('SeatsPage 빈 상태', () => {
     mockDb.seats.forEach((seat) => (seat.available = false))
     await renderLoaded()
 
-    expect(screen.getByText('남은 좌석이 없어요')).toBeInTheDocument()
+    expect(screen.getByText('남은 좌석이 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '다른 회차 보기' })).toHaveAttribute(
       'href',
       `/concerts/${CONCERT_ID}`,
@@ -688,7 +690,7 @@ describe('SeatsPage 빈 상태', () => {
     mockDb.seats.forEach((seat) => (seat.available = false))
     await renderLoaded({ concert: false })
 
-    expect(screen.getByText('남은 좌석이 없어요')).toBeInTheDocument()
+    expect(screen.getByText('남은 좌석이 없습니다')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '다른 회차 보기' })).not.toBeInTheDocument()
   })
 
@@ -697,7 +699,7 @@ describe('SeatsPage 빈 상태', () => {
     storeEntryToken()
     renderSeats()
 
-    expect(await screen.findByText('이 회차에는 아직 좌석이 없어요')).toBeInTheDocument()
+    expect(await screen.findByText('이 회차에는 아직 좌석이 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '공연 상세로' })).toHaveAttribute(
       'href',
       `/concerts/${CONCERT_ID}`,
@@ -716,7 +718,7 @@ describe('SeatsPage 탭 제목', () => {
     setVisibility('hidden')
     await renderLoaded()
 
-    expect(document.title).toBe('입장했어요 · 좌석을 골라 주세요')
+    expect(document.title).toBe('입장이 완료되었습니다 · 좌석을 선택해주세요')
 
     setVisibility('visible')
     act(() => {
@@ -752,7 +754,7 @@ describe('SeatsPage 입장 시간 시계', () => {
     renderSeats()
     await screen.findByRole('radio', { name: /^A구역 VIP/ })
 
-    expect(screen.queryByText('입장 시간이 끝났어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('입장 시간이 만료되었습니다')).not.toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).not.toHaveAttribute('data-locked')
     expect(seatButton('A', 1, 1)).toBeEnabled()
     expect(screen.getByRole('radio', { name: '2매' })).toBeEnabled()
@@ -767,7 +769,7 @@ describe('SeatsPage 입장 시간 시계', () => {
     renderSeats()
     await screen.findByRole('radio', { name: /^A구역 VIP/ })
 
-    expect(await screen.findByText('입장 시간이 끝났어요')).toBeInTheDocument()
+    expect(await screen.findByText('입장 시간이 만료되었습니다')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'A구역 좌석' })).toHaveAttribute('data-locked')
     expect(seatButton('A', 1, 1)).toBeDisabled()
   })
@@ -781,8 +783,8 @@ describe('SeatsPage 입장 시간 시계', () => {
     await userEvent.click(submitButton())
     await skipRetryDelays()
 
-    const alert = (await screen.findByText('입장 시간이 끝났어요')).closest('[role="alert"]')!
-    expect(alert).toHaveTextContent('마지막 요청의 결과를 확인하지 못했어요')
+    const alert = (await screen.findByText('입장 시간이 만료되었습니다')).closest('[role="alert"]')!
+    expect(alert).toHaveTextContent('마지막 요청의 결과를 확인하지 못했습니다')
     expect(within(alert as HTMLElement).getByRole('link', { name: '내 예매' })).toHaveAttribute(
       'href',
       '/me/reservations',
@@ -841,9 +843,9 @@ describe('SeatsPage 409 뒤 좌석 다시 받기', () => {
 
     await userEvent.click(submitButton())
 
-    expect(await screen.findByText('이미 선택된 좌석이 있어요')).toBeInTheDocument()
+    expect(await screen.findByText('이미 선택된 좌석이 있습니다')).toBeInTheDocument()
     expect(
-      screen.getByText('좌석을 다시 불러오지 못했어요. 다시 불러온 뒤 골라 주세요.'),
+      screen.getByText('좌석을 다시 불러오지 못했습니다. 다시 불러온 뒤 선택해주세요.'),
     ).toBeInTheDocument()
     // 일반 다시 시도 알림은 숨긴다. 겹친 좌석은 아직 선택에 남아 있다
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
@@ -851,7 +853,7 @@ describe('SeatsPage 409 뒤 좌석 다시 받기', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '좌석 다시 불러오기' }))
 
-    expect(await screen.findByText(/A구역 1열 1번이 방금 다른 분께 선택됐어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/A구역 1열 1번이 이미 선택되었습니다/)).toBeInTheDocument()
     const list = within(summary()).getAllByRole('listitem')
     expect(list).toHaveLength(1)
     expect(list[0]).toHaveTextContent('A구역 1열 2번')
@@ -911,7 +913,7 @@ describe('SeatsPage 저장한 선점 좌석', () => {
     await renderLoaded()
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
-    await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
 
     const saved = readHeldSeats(ON_SALE_SCHEDULE_ID)
     expect(saved?.hold.seatIds).toEqual([SEAT_A1, SEAT_A2])
@@ -923,7 +925,7 @@ describe('SeatsPage 저장한 선점 좌석', () => {
     cleanup()
     renderSeats()
 
-    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    const dialog = await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(2)
     expect(within(dialog).getByRole('button', { name: '결제하러 가기' })).toBeInTheDocument()
   })
@@ -933,7 +935,7 @@ describe('SeatsPage 저장한 선점 좌석', () => {
     storeEntryToken()
     renderSeats()
 
-    const dialog = await screen.findByRole('dialog', { name: '좌석을 잡았어요' })
+    const dialog = await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     expect(within(dialog).getByRole('timer')).toHaveTextContent(/결제 가능\s*0[45]:\d\d/)
   })
 

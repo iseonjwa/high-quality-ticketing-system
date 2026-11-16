@@ -51,7 +51,7 @@ describe('QueuePage', () => {
     expect(await screen.findByText(CONCERT_TITLE)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe(QUEUE_PATH)
     expect(await screen.findByText('내 순번')).toBeInTheDocument()
-    expect(screen.getByText('순번을 자동으로 확인하고 있어요')).toBeInTheDocument()
+    expect(screen.getByText('순번을 자동으로 확인하는 중입니다')).toBeInTheDocument()
     expect(screen.getByText(/한강 아트홀/)).toBeInTheDocument()
 
     await waitFor(() => expect(router.state.location.pathname).toBe(SEATS_PATH), STEP_TIMEOUT)
@@ -91,10 +91,14 @@ describe('QueuePage', () => {
 
     // 알림 영역은 처음부터 있고 글자만 바뀐다(내용을 담은 채 새로 붙는 영역은 읽히지 않을 수 있다)
     const regions = screen.getAllByRole('status')
-    const unstable = await screen.findByText('연결이 잠시 불안정해요. 곧 다시 시도할게요')
+    const unstable = await screen.findByText(
+      '연결이 일시적으로 불안정합니다. 잠시 후 자동으로 다시 시도합니다.',
+    )
     expect(regions.some((region) => region.contains(unstable))).toBe(true)
     expect(await screen.findByText('내 순번', undefined, STEP_TIMEOUT)).toBeInTheDocument()
-    expect(screen.queryByText('연결이 잠시 불안정해요. 곧 다시 시도할게요')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('연결이 일시적으로 불안정합니다. 잠시 후 자동으로 다시 시도합니다.'),
+    ).not.toBeInTheDocument()
   })
 
   it('입장 시간이 지나 빠지면 제목에 초점을 두고, 다시 줄 서기는 카드로 초점을 옮긴 뒤 좌석으로 간다', async () => {
@@ -103,7 +107,7 @@ describe('QueuePage', () => {
 
     const title = await screen.findByRole(
       'heading',
-      { name: '입장 시간이 지나 줄에서 빠졌어요' },
+      { name: '입장 시간이 지나 대기열에서 제외되었습니다' },
       STEP_TIMEOUT,
     )
     expect(title).toHaveFocus()
@@ -121,7 +125,7 @@ describe('QueuePage', () => {
     await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
 
     expect(card).toHaveFocus()
-    expect(textOnFocus).toContain('줄을 서고 있어요')
+    expect(textOnFocus).toContain('대기 중입니다')
     expect(textOnFocus).not.toContain('입장 시간이 지나')
     expect(await screen.findByText('내 순번')).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.pathname).toBe(SEATS_PATH), STEP_TIMEOUT)
@@ -131,7 +135,11 @@ describe('QueuePage', () => {
     setMockScenario({ queue: 'expired' })
     await openFromConcertDetail()
 
-    await screen.findByRole('heading', { name: '입장 시간이 지나 줄에서 빠졌어요' }, STEP_TIMEOUT)
+    await screen.findByRole(
+      'heading',
+      { name: '입장 시간이 지나 대기열에서 제외되었습니다' },
+      STEP_TIMEOUT,
+    )
 
     expect(screen.getByRole('link', { name: '공연 정보로 돌아가기' })).toHaveAttribute(
       'href',
@@ -142,7 +150,7 @@ describe('QueuePage', () => {
   it('오픈 전 회차면 제목에 초점을 두고 돌아가기가 주 행동이며 다시 시도 버튼은 없다', async () => {
     await renderRoutesReady(routes, `/schedules/${BEFORE_OPEN_SCHEDULE_ID}/queue`)
 
-    const title = await screen.findByRole('heading', { name: '아직 오픈 전이에요' })
+    const title = await screen.findByRole('heading', { name: '아직 오픈 전입니다' })
     expect(title).toHaveFocus()
     expect(screen.getByRole('link', { name: '공연 목록으로' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 줄 서기' })).not.toBeInTheDocument()
@@ -152,8 +160,11 @@ describe('QueuePage', () => {
   it('없는 회차면 다시 시도 없이 공연 목록으로 돌아가게 한다', async () => {
     await renderRoutesReady(routes, '/schedules/999/queue')
 
-    expect(await screen.findByRole('heading', { name: '찾는 정보가 없어요' })).toBeInTheDocument()
-    expect(screen.getByText('목록에서 다시 골라 주세요.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '찾는 정보가 없습니다' })).toBeInTheDocument()
+    // 메시지가 이미 마침표로 끝나면 설명에 마침표를 더 붙이지 않는다
+    const description = screen.getByText('목록에서 다시 선택해주세요.')
+    expect(description).toBeInTheDocument()
+    expect(description).not.toHaveTextContent('..')
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '공연 목록으로' })).toHaveAttribute('href', '/')
   })
@@ -171,8 +182,8 @@ describe('QueuePage', () => {
     )
     await renderRoutesReady(routes, QUEUE_PATH)
 
-    expect(await screen.findByRole('heading', { name: '곧 입장해요' })).toBeInTheDocument()
-    expect(screen.getByText('좌석 선택 화면을 준비하고 있어요.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '곧 입장합니다' })).toBeInTheDocument()
+    expect(screen.getByText('좌석 선택 화면을 준비하는 중입니다.')).toBeInTheDocument()
     expect(screen.queryByText('내 순번')).not.toBeInTheDocument()
   })
 
@@ -188,7 +199,7 @@ describe('QueuePage', () => {
     const joins = recordRequests(JOIN_API)
     await renderRoutesReady(routes, QUEUE_PATH)
 
-    expect(await screen.findByRole('heading', { name: '문제가 생겼어요' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '문제가 발생했습니다' })).toBeInTheDocument()
     expect(screen.getByText('문의 번호 trace-queue-1')).toBeInTheDocument()
     expect(joins).toHaveLength(1)
 
@@ -202,7 +213,7 @@ describe('QueuePage', () => {
     await renderRoutesReady(routes, '/schedules/abc/queue')
 
     expect(
-      await screen.findByText('찾는 회차가 없어요. 목록에서 다시 골라 주세요'),
+      await screen.findByText('찾는 회차가 없습니다. 목록에서 다시 선택해주세요.'),
     ).toBeInTheDocument()
     expect(joins).toHaveLength(0)
   })

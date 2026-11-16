@@ -55,7 +55,7 @@ describe('MyReservationsPage', () => {
   it('예매가 없으면 빈 안내와 공연 보러 가기를 보인다', async () => {
     renderMine()
 
-    expect(await screen.findByText('아직 예매한 공연이 없어요')).toBeInTheDocument()
+    expect(await screen.findByText('아직 예매한 공연이 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: '내 예매' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '공연 보러 가기' })).toHaveAttribute('href', '/')
     expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
@@ -320,7 +320,7 @@ describe('MyReservationsPage 더 보기', () => {
     expect(
       itemList().compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('아직 예매한 공연이 없습니다')).not.toBeInTheDocument()
 
     await userEvent.click(retry)
 
@@ -356,7 +356,7 @@ describe('MyReservationsPage 더 보기', () => {
 
     await waitFor(() => expect(itemLinks()).toHaveLength(25))
     await waitFor(() => expect(itemLinks()[20]).toHaveFocus())
-    expect(screen.getByRole('status')).toHaveTextContent('5건 더 불러왔어요')
+    expect(screen.getByRole('status')).toHaveTextContent('5건을 더 불러왔습니다')
   })
 })
 
@@ -375,7 +375,7 @@ describe('MyReservationsPage 조회 실패', () => {
     renderMine()
 
     const retry = await screen.findByRole('button', { name: '다시 시도' })
-    expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('아직 예매한 공연이 없습니다')).not.toBeInTheDocument()
     await userEvent.click(retry)
 
     await within(await screen.findByRole('main')).findByRole('list')
@@ -404,7 +404,7 @@ describe('MyReservationsPage 다시 받기 실패', () => {
 
     const retry = await screen.findByRole('button', { name: '다시 시도' })
     expect(itemLinks().map((link) => link.textContent)).toEqual(texts)
-    expect(screen.queryByText('아직 예매한 공연이 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('아직 예매한 공연이 없습니다')).not.toBeInTheDocument()
 
     await userEvent.click(retry)
 

@@ -11,7 +11,7 @@ export function RouteErrorPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12 @min-[40rem]:px-0">
-      <h1 className="type-title text-gray-900">문제가 생겼어요</h1>
+      <h1 className="type-title text-gray-900">문제가 발생했습니다</h1>
       {/* field는 입력 칸 아래에 쓰는 톤이라 화면 단위 오류에서는 위험으로 보인다 */}
       <Alert variant={notice.tone === 'field' ? 'danger' : notice.tone}>
         <p>{notice.message}</p>

@@ -43,7 +43,7 @@ export async function expectSeatConflict(page: Page, seat: string) {
 
 export async function goToPayment(page: Page) {
   await page
-    .getByRole('dialog', { name: '좌석을 잡았어요' })
+    .getByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
     .getByRole('button', { name: '결제하러 가기' })
     .click()
   await expect(page).toHaveURL(/\/reservations\/\d+\/payment/)
@@ -56,12 +56,12 @@ export async function pay(page: Page) {
 export async function expectPaymentChecking(page: Page) {
   // 같은 문구가 sr-only status와 상자에 두 번 나온다. status만 본다.
   await expect(
-    page.getByRole('status').filter({ hasText: '결제를 확인하고 있어요' }),
+    page.getByRole('status').filter({ hasText: '결제를 확인하는 중입니다' }),
   ).toBeAttached()
 }
 
 export async function expectConfirmed(page: Page, timeout?: number): Promise<string> {
-  await expect(page.getByRole('heading', { level: 1, name: '예매가 확정됐어요' })).toBeVisible({
+  await expect(page.getByRole('heading', { level: 1, name: '예매가 확정되었습니다' })).toBeVisible({
     timeout,
   })
   // 확정 화면은 '예매 번호' 용어(dt) 바로 뒤 정의(dd)에 번호를 둔다.

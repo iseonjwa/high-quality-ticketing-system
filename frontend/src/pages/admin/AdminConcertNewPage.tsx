@@ -40,7 +40,7 @@ export function AdminConcertNewPage() {
     try {
       const { concertId } = await createConcert(toConcertInput(values))
       void queryClient.invalidateQueries({ queryKey: ['concerts'] })
-      toast('공연을 등록했어요. 회차를 추가해 주세요')
+      toast('공연이 등록되었습니다. 회차를 추가해주세요.')
       // 등록 화면은 history에 남기지 않는다. 뒤로 가면 운영 첫 화면이다
       await navigate(adminConcertPath(concertId), { replace: true })
     } catch (error) {
@@ -76,7 +76,7 @@ export function AdminConcertNewPage() {
                 </Button>
               }
             >
-              등록됐는지 확인하지 못했어요. 운영 목록에 없을 때만 다시 등록해 주세요
+              등록 여부를 확인하지 못했습니다. 운영 목록에 없을 때만 다시 등록해주세요.
             </Alert>
           ) : null}
           {formError === null ? null : <ErrorNotice error={formError} />}

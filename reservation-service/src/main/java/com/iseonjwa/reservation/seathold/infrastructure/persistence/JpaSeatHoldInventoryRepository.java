@@ -99,7 +99,7 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
     // 잠금은 하위 쿼리의 ORDER BY id FOR UPDATE로 좌석 ID 오름차순을 명시한다(SA 12-7 ②). 한 문장 UPDATE도 같은 계획이면
     // 순서가 같지만, 실행 계획이 바뀌어도 순서가 흔들리지 않게 문장에 적는다
     // Note: SKIP LOCKED는 쓰지 않는다. 여러 좌석 요청은 일부 좌석을 잠갔다가 다른 좌석 때문에 롤백하는데, 그 짧은 잠금까지
-    // 건너뛰어 비어 있는 좌석에 409를 준다. 동시성 테스트 C2에서 성공한 선점이 약 1/3 줄었다(ADR 0060, TS-73).
+    // 건너뛰어 비어 있는 좌석에 409를 준다. 동시성 테스트 C2에서 성공한 선점이 약 1/3 줄었다(ADR 0061, TS-73).
     // 대신 잠금 대기 상한을 짧게 둔다(SyncSeatHoldService.LOCK_TIMEOUT)
     @Override
     public int holdAvailableSeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {

@@ -12,6 +12,7 @@ import { errorCodeOf, jsonHeaders, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { availableSeatIds, hold, userOf } from '../lib/booking.js';
 
+// Note: 시드 공연장이 1,500석이면(ADR 0060) 만료 회차의 선점은 최대 1,500건이다(slice라 멈추지 않고 줄어든다)
 const EXPIRING = numberEnv('EXPIRING', 5000);
 const RATE = numberEnv('RATE', 100);
 const DURATION_SECONDS = numberEnv('DURATION_SECONDS', 300);

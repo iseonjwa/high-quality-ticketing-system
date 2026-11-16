@@ -82,7 +82,7 @@ export function SeatsPage() {
             </Button>
           }
         >
-          찾는 회차가 없어요. 목록에서 다시 골라 주세요
+          찾는 회차가 없습니다. 목록에서 다시 선택해주세요.
         </Alert>
       </main>
     )
@@ -277,7 +277,7 @@ function SeatSelection({
   if (current === undefined) {
     return (
       <EmptyState
-        title="이 회차에는 아직 좌석이 없어요"
+        title="이 회차에는 아직 좌석이 없습니다"
         action={
           <Button asChild variant="outline">
             <Link to={concert ? concertPath(concert.concertId) : paths.home}>
@@ -315,7 +315,7 @@ function SeatSelection({
     if (selectedSeatIds.includes(seatId)) {
       setSelectedIds(selectedSeatIds.filter((id) => id !== seatId))
     } else if (selectedSeatIds.length >= quantity) {
-      toast('먼저 고른 좌석을 해제해 주세요')
+      toast('먼저 선택한 좌석을 해제해주세요')
     } else {
       setSelectedIds([...selectedSeatIds, seatId])
     }
@@ -341,7 +341,7 @@ function SeatSelection({
       case 'held': {
         if (outcome.hold.status === 'CONFIRMED') {
           // 같은 키 재요청인데 이미 결제가 끝났다. 이 화면에서는 거의 일어나지 않는다
-          toast('이미 결제까지 끝난 예매예요')
+          toast('이미 결제가 완료된 예매입니다')
           void navigate(reservationPath(outcome.hold.reservationId), { replace: true })
           return
         }
@@ -461,7 +461,7 @@ function SeatSelection({
                 좌석 선택
               </h2>
               <p className="type-body-sm text-gray-500">
-                매수를 고르고, 구역을 눌러 그 구역의 좌석을 골라 주세요.
+                매수를 선택하고, 구역을 눌러 해당 구역의 좌석을 선택해주세요.
               </p>
             </div>
             <div className="grid gap-1 @min-[40rem]:justify-items-end">
@@ -509,7 +509,7 @@ function SeatSelection({
                   ) : undefined
                 }
               >
-                남은 좌석이 없어요
+                남은 좌석이 없습니다
               </Alert>
             ) : null}
           </div>
@@ -608,8 +608,8 @@ function SeatNoticeAlert({
               </Button>
             }
           >
-            <p className="font-semibold">이미 선택된 좌석이 있어요</p>
-            <p>좌석을 다시 불러오지 못했어요. 다시 불러온 뒤 골라 주세요.</p>
+            <p className="font-semibold">이미 선택된 좌석이 있습니다</p>
+            <p>좌석을 다시 불러오지 못했습니다. 다시 불러온 뒤 선택해주세요.</p>
           </Alert>
         )
       }
@@ -618,8 +618,8 @@ function SeatNoticeAlert({
           <p className="font-semibold">이미 선택된 좌석입니다</p>
           <p>
             {notice.lost.length > 0
-              ? `${notice.lost.join(', ')}이 방금 다른 분께 선택됐어요. 남은 좌석은 그대로 두었어요.`
-              : '다른 분이 먼저 고른 좌석이 있었는데 그사이 풀렸어요. 좌석을 새로 불러왔으니 다시 선택 완료를 눌러 주세요.'}
+              ? `${notice.lost.join(', ')}이 이미 선택되었습니다. 남은 좌석은 그대로 유지되었습니다.`
+              : '선택할 수 있는 좌석이 생겼습니다. 좌석 내역이 새로고침되었습니다.'}
           </p>
         </Alert>
       )
@@ -634,10 +634,10 @@ function SeatNoticeAlert({
             </Button>
           }
         >
-          <p className="font-semibold">좌석을 잡았는지 확인하지 못했어요</p>
+          <p className="font-semibold">좌석 선택 여부를 확인하지 못했습니다</p>
           <p>
-            [결과 확인하기]를 누르면 같은 요청으로 다시 확인해요. 다른 좌석을 고르면 앞 요청으로
-            잡힌 좌석은 결제하지 않는 한 잠시 뒤 풀려요.
+            [결과 확인하기]를 누르면 같은 요청으로 다시 확인합니다. 다른 좌석을 선택하면 앞 요청으로
+            선택된 좌석은 결제하지 않는 한 잠시 후 해제됩니다.
           </p>
         </Alert>
       )
@@ -677,15 +677,15 @@ function EntryExpiredAlert({
         </Button>
       }
     >
-      <p className="font-semibold">입장 시간이 끝났어요</p>
-      <p>다시 줄을 서서 입장해 주세요.</p>
+      <p className="font-semibold">입장 시간이 만료되었습니다</p>
+      <p>대기열에 다시 입장해주세요.</p>
       {maybeHeld ? (
         <p className="mt-1">
-          마지막 요청의 결과를 확인하지 못했어요.{' '}
+          마지막 요청의 결과를 확인하지 못했습니다.{' '}
           <Link to={paths.myReservations} className="font-semibold underline underline-offset-2">
             내 예매
           </Link>
-          에서 잡힌 좌석이 있는지 확인해 주세요.
+          에서 선택된 좌석이 있는지 확인해주세요.
         </p>
       ) : null}
     </Alert>
@@ -698,7 +698,7 @@ function SeatsSkeleton() {
       role="status"
       className="grid items-start gap-5 @min-[60rem]:grid-cols-[minmax(0,1fr)_340px]"
     >
-      <span className="sr-only">좌석을 불러오고 있어요</span>
+      <span className="sr-only">좌석을 불러오는 중입니다</span>
       <Card className="gap-4 px-4 py-5 @min-[40rem]:p-6">
         <Skeleton className="h-7 w-32" />
         <div className="grid grid-cols-4 gap-2 @min-[40rem]:grid-cols-5">
@@ -725,7 +725,7 @@ function useAdmittedTabTitle() {
       return
     }
     const original = document.title
-    document.title = '입장했어요 · 좌석을 골라 주세요'
+    document.title = '입장이 완료되었습니다 · 좌석을 선택해주세요'
     function restore() {
       if (document.visibilityState === 'visible') {
         document.title = original

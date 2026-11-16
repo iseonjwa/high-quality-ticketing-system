@@ -33,7 +33,7 @@ export function QueuePage() {
             </Button>
           }
         >
-          찾는 회차가 없어요. 목록에서 다시 골라 주세요
+          찾는 회차가 없습니다. 목록에서 다시 선택해주세요.
         </Alert>
       </main>
     )
@@ -106,29 +106,31 @@ function QueueBody({
   switch (admission.step) {
     case 'joining':
       return (
-        <StateMessage tone="pending" title="줄을 서고 있어요" description="잠시만 기다려 주세요." />
+        <StateMessage tone="pending" title="대기 중입니다" description="잠시만 기다려주세요." />
       )
     case 'waiting':
       // 토큰 요청이 409 QUEUE_NOT_READY로 순번 조회로 돌아오면 아직 받은 순번이 없을 수 있다
       return admission.waiting === null ? (
         <StateMessage
           tone="pending"
-          title="순번을 확인하고 있어요"
-          description="잠시만 기다려 주세요."
+          title="순번을 확인하는 중입니다"
+          description="잠시만 기다려주세요."
         />
       ) : admission.waiting.estimatedWaitSeconds <= 1 ? (
         // 다음 입장 묶음 안(예상 대기 1초 이하)이면 순번 숫자 대신 준비 화면을 보인다. 혼자 들어와도 대기 1번을 받아
         // 다음 조회(최소 3초)까지 대기열이 보이던 것을 덜 어색하게 한다. 그 시간 자체는 서버 쪽 개선으로 줄인다(ISE-210)
         <StateMessage
           tone="pending"
-          title="곧 입장해요"
-          description="좌석 선택 화면을 준비하고 있어요."
+          title="곧 입장합니다"
+          description="좌석 선택 화면을 준비하는 중입니다."
         />
       ) : (
         <>
           <div className="grid gap-1 text-left">
-            <h2 className="type-title text-gray-900">줄을 서고 있어요</h2>
-            <p className="type-body text-gray-500">차례가 되면 좌석 선택 화면으로 바로 넘어가요.</p>
+            <h2 className="type-title text-gray-900">대기 중입니다</h2>
+            <p className="type-body text-gray-500">
+              대기열에 입장했습니다. 차례가 되면 자동으로 좌석 선택 화면으로 이동합니다.
+            </p>
           </div>
           <TicketPerforation className="-mx-5 @min-[40rem]:-mx-8" />
           <QueuePosition
@@ -138,7 +140,7 @@ function QueueBody({
           />
           {admission.connectionError === null ? <StatusPill /> : null}
           <p className="rounded-md bg-gray-50 px-3.5 py-3 text-left type-body-sm text-gray-600">
-            새로고침하거나 창을 닫았다 다시 열어도 자리는 그대로예요.
+            새로고침하거나 창을 닫았다 다시 열어도 대기 순서는 유지됩니다.
           </p>
         </>
       )
@@ -148,8 +150,8 @@ function QueueBody({
         <>
           <StateMessage
             tone="success"
-            title="차례가 됐어요"
-            description="좌석 선택 화면으로 이동하고 있어요."
+            title="차례가 되었습니다"
+            description="좌석 선택 화면으로 이동하는 중입니다."
           />
           <div aria-hidden="true" className="h-2 rounded-pill bg-primary-600" />
         </>
@@ -159,8 +161,8 @@ function QueueBody({
         <>
           <StateMessage
             tone="warning"
-            title="입장 시간이 지나 줄에서 빠졌어요"
-            description="다시 줄을 서면 맨 뒤에서 시작해요."
+            title="입장 시간이 지나 대기열에서 제외되었습니다"
+            description="대기열에 다시 입장하면 맨 뒤에서 시작합니다."
             focus
           />
           <Actions concert={concert}>
@@ -175,8 +177,8 @@ function QueueBody({
         <>
           <StateMessage
             tone="info"
-            title="아직 오픈 전이에요"
-            description="오픈 시각이 되면 공연 화면에서 [예매하기]를 다시 눌러 주세요."
+            title="아직 오픈 전입니다"
+            description="오픈 시각이 되면 공연 화면에서 [예매하기]를 다시 눌러주세요."
             focus
           />
           <Actions concert={concert} primaryBack />
@@ -205,8 +207,8 @@ function FailedMessage({
     <>
       <StateMessage
         tone={notice.tone === 'field' ? 'danger' : notice.tone}
-        title={title}
-        description={rest.length > 0 ? `${rest.join('. ')}.` : undefined}
+        title={title.replace(/\.$/, '')}
+        description={rest.length > 0 ? rest.join('. ').replace(/\.?$/, '.') : undefined}
         focus
       >
         {notice.traceId !== null ? (
@@ -350,7 +352,9 @@ function StatusPill({ unstable = false }: { unstable?: boolean }) {
           unstable ? 'bg-warning-500' : 'bg-success-600',
         )}
       />
-      {unstable ? '연결이 잠시 불안정해요. 곧 다시 시도할게요' : '순번을 자동으로 확인하고 있어요'}
+      {unstable
+        ? '연결이 일시적으로 불안정합니다. 잠시 후 자동으로 다시 시도합니다.'
+        : '순번을 자동으로 확인하는 중입니다'}
     </p>
   )
 }

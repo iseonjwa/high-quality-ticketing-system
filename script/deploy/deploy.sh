@@ -71,6 +71,12 @@ deploy_once() {
   git checkout --quiet --detach "$sha" || return 1
   export IMAGE_TAG="$sha"
   export_config_hashes "$sha"
+  # 서버 .env에 필수 값(예: PUBLIC_URL, ISE-278)이 없으면 compose가 설정을 읽지 못한다. 그대로 두면 이미지 받기 실패로
+  # 세 번 다시 받다가 디스크 여유를 찍어 원인을 가린다. 먼저 설정만 읽어 보고 compose의 오류 문구를 그대로 보인다.
+  if ! "${compose[@]}" config --quiet; then
+    echo "== compose 설정을 읽지 못했다. 위 오류와 서버 .env의 필수 값(예: PUBLIC_URL)을 확인한다" >&2
+    return 1
+  fi
   pull_with_retry "${compose[@]}" || return 1
   # --wait: healthcheck가 있는 컨테이너가 healthy가 될 때까지 기다린다. 앱 기동(마이그레이션 포함)을 넉넉히 본다.
   "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 420 || return 1

@@ -229,7 +229,7 @@ function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: Server
                 </HeroFact>
                 <HeroFact label="회차">{schedules.length}회</HeroFact>
                 <HeroFact label="1인 최대">
-                  {limits.length === 1 ? `${limits[0]}매` : '회차마다 달라요'}
+                  {limits.length === 1 ? `${limits[0]}매` : '회차마다 다릅니다'}
                 </HeroFact>
               </dl>
             ) : null}
@@ -273,7 +273,7 @@ function BookingPanel({ concert, clock }: { concert: ConcertDetail; clock: Serve
       {schedules.length === 0 || clock === null ? (
         <div className="grid gap-1 p-5">
           <h2 className="type-body font-semibold text-gray-900">회차 선택</h2>
-          <p className="type-body-sm text-gray-500">등록된 회차가 없어요</p>
+          <p className="type-body-sm text-gray-500">등록된 회차가 없습니다</p>
         </div>
       ) : (
         <ScheduleChooser concert={concert} clock={clock} groupName={groupName} />
@@ -376,7 +376,7 @@ function ChosenSchedule({
   return (
     <div className="grid gap-3 px-5 pt-5 pb-6">
       {/* 제목으로 이동해도 [예매하기]를 건너뛰지 않게 위 칸에도 제목을 둔다 */}
-      <h2 className="sr-only">고른 회차</h2>
+      <h2 className="sr-only">선택한 회차</h2>
       <p className="type-body-sm font-semibold text-gray-900 tabular-nums">
         {formatDateTime(schedule.startsAt)}
         <span className="font-normal text-gray-500"> · {schedule.venueName}</span>
@@ -406,7 +406,7 @@ function ChosenSchedule({
           {openedLater ? (
             <div aria-hidden="true" className="flex items-baseline justify-between gap-3">
               <span className="type-body-sm text-gray-500">티켓 오픈</span>
-              <span className="type-title text-gray-900">지금 열렸어요</span>
+              <span className="type-title text-gray-900">지금 오픈되었습니다</span>
             </div>
           ) : null}
           <Button asChild size="lg" className="w-full rounded-full">
@@ -424,19 +424,19 @@ function ChosenSchedule({
           </Button>
         </>
       ) : (
-        <p className="py-2 text-center type-body-sm text-gray-500">판매가 끝났어요</p>
+        <p className="py-2 text-center type-body-sm text-gray-500">판매가 종료되었습니다</p>
       )}
       <p className="text-center type-caption text-gray-500">
         {status === 'CLOSED'
           ? `1인 최대 ${schedule.maxPerUser}매`
           : status === 'BEFORE_OPEN'
-            ? `1인 최대 ${schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 골라요`
-            : `1인 최대 ${schedule.maxPerUser}매 · 대기열을 거쳐 좌석을 골라요`}
+            ? `1인 최대 ${schedule.maxPerUser}매 · 오픈하면 대기열을 거쳐 좌석을 선택합니다`
+            : `1인 최대 ${schedule.maxPerUser}매 · 대기열을 거쳐 좌석을 선택합니다`}
       </p>
       <ScheduleLotteryNotice scheduleId={schedule.scheduleId} clock={clock} />
       {/* 카운트다운은 매초 읽지 않으므로(timer) 열린 순간만 알린다. 알림 영역은 처음부터 있어야 읽힌다 */}
       <p aria-live="polite" className="sr-only">
-        {openedLater && status === 'ON_SALE' ? '예매가 열렸어요' : ''}
+        {openedLater && status === 'ON_SALE' ? '예매가 오픈되었습니다' : ''}
       </p>
     </div>
   )
@@ -524,15 +524,23 @@ function lotteryNoticeCopy(
     // 이 안내는 추첨 결과를 다시 받지 않으므로 "곧 정해요"처럼 바뀔 것을 약속하지 않는다
     case 'drawing':
       return {
-        title: '추첨 시각이 지났어요',
-        detail: '결과는 추첨 화면에서 봐요',
+        title: '추첨 시각이 지났습니다',
+        detail: '결과는 추첨 화면에서 확인할 수 있습니다',
         action: '추첨 보기',
       }
     case 'drawn':
-      return { title: '추첨 완료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+      return {
+        title: '추첨 완료',
+        detail: '당첨 결과는 추첨 화면에서 확인할 수 있습니다',
+        action: '결과 보기',
+      }
     // 승계까지 끝나 남은 추첨석을 일반 판매로 돌린 상태다. 추첨 화면 배지("종료")와 이름을 맞춘다
     case 'done':
-      return { title: '추첨 종료', detail: '당첨 결과는 추첨 화면에서 봐요', action: '결과 보기' }
+      return {
+        title: '추첨 종료',
+        detail: '당첨 결과는 추첨 화면에서 확인할 수 있습니다',
+        action: '결과 보기',
+      }
   }
 }
 
@@ -549,7 +557,7 @@ function ConcertTabs({ concert, clock }: { concert: ConcertDetail; clock: Server
           {concert.description ? (
             <p className="type-body whitespace-pre-line text-gray-700">{concert.description}</p>
           ) : (
-            <p className="type-body-sm text-gray-500">공연 소개가 아직 없어요</p>
+            <p className="type-body-sm text-gray-500">공연 소개가 아직 없습니다</p>
           )}
         </section>
         {concert.schedules.length > 0 && clock ? (
@@ -616,22 +624,22 @@ const BOOKING_STEPS = [
   {
     icon: Users,
     title: '대기열 입장',
-    body: '오픈 시각에 [예매하기]를 누르면 대기열에 들어가요. 들어온 순서대로 입장해요.',
+    body: '오픈 시각에 [예매하기]를 누르면 대기열에 입장합니다. 입장한 순서대로 차례가 됩니다.',
   },
   {
     icon: Armchair,
     title: '좌석 선택',
-    body: '입장하면 구역과 좌석을 골라요. 고른 좌석은 결제하는 동안 잡아 둬요.',
+    body: '입장하면 구역과 좌석을 선택합니다. 선택한 좌석은 결제하는 동안 유지됩니다.',
   },
   {
     icon: CreditCard,
     title: '결제',
-    body: '결제 가능 시간 안에 결제해 주세요. 시간이 지나면 좌석이 풀려요.',
+    body: '결제 가능 시간 안에 결제해주세요. 시간이 지나면 좌석 선택이 해제됩니다.',
   },
   {
     icon: PartyPopper,
     title: '예매 완료',
-    body: '결제가 끝나면 예매가 확정되고 내 예매에서 티켓 번호를 볼 수 있어요.',
+    body: '결제가 완료되면 예매가 확정되고 내 예매에서 티켓 번호를 확인할 수 있습니다.',
   },
 ] as const
 
@@ -664,18 +672,21 @@ function BookingGuide() {
         </ol>
       </section>
       <section className="grid gap-3">
-        <h3 className="type-heading text-gray-900">알아 두세요</h3>
+        <h3 className="type-heading text-gray-900">알아두세요</h3>
         <ul className="grid list-disc gap-2 pl-5 type-body-sm text-gray-700 marker:text-gray-400">
           <li>
-            회차마다 한 사람이 예매할 수 있는 매수가 정해져 있어요. 이미 예매한 매수도 함께 세요.
-          </li>
-          <li>다른 사람이 먼저 잡은 좌석을 고르면 줄을 다시 서지 않고 좌석만 다시 고르면 돼요.</li>
-          <li>
-            결제 결과를 바로 알 수 없으면 "확인 중"으로 보이고, 결과가 나오면 화면이 바뀌어요.
+            회차마다 한 사람이 예매할 수 있는 매수가 정해져 있습니다. 이미 예매한 매수도 합산됩니다.
           </li>
           <li>
-            추첨이 있는 회차는 일부 좌석을 추첨으로 팔아요. 회차를 고르면 보이는 [추첨 응모]에서
-            응모하고, 당첨되면 자동결제 카드로 결제돼요.
+            선택하려던 좌석이 이미 선택되었다면 대기열에 다시 입장할 필요 없이 좌석만 다시 선택하면
+            됩니다.
+          </li>
+          <li>
+            결제 결과를 바로 확인할 수 없으면 "확인 중"으로 표시되고, 결과가 나오면 화면이 바뀝니다.
+          </li>
+          <li>
+            추첨이 있는 회차는 일부 좌석을 추첨으로 판매합니다. 회차를 선택하면 표시되는 [추첨
+            응모]에서 응모하고, 당첨되면 자동결제 카드로 결제됩니다.
           </li>
         </ul>
         <AssistantHint />
@@ -693,7 +704,7 @@ function AssistantHint() {
       <AssistantOpenButton className="rounded-sm font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
         예매 문의
       </AssistantOpenButton>
-      에서 물어볼 수 있어요.
+      에서 문의할 수 있습니다.
     </p>
   ) : null
 }
@@ -708,7 +719,7 @@ function NotFoundNotice() {
         </Button>
       }
     >
-      찾는 공연이 없어요. 목록에서 다시 골라 주세요
+      찾는 공연이 없습니다. 목록에서 다시 선택해주세요.
     </Alert>
   )
 }
@@ -716,7 +727,7 @@ function NotFoundNotice() {
 function ConcertDetailSkeleton() {
   return (
     <div className="grid gap-5" role="status">
-      <span className="sr-only">공연 정보를 불러오고 있어요</span>
+      <span className="sr-only">공연 정보를 불러오는 중입니다</span>
       <div className="flex gap-5">
         <Skeleton className="aspect-[2/3] w-[150px] rounded-md" />
         <div className="grid flex-1 content-end gap-3">

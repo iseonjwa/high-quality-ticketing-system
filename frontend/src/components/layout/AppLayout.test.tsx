@@ -52,7 +52,7 @@ describe('AppLayout', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
 
-    expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그아웃되었습니다')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     expect(visited).not.toContain('/login')
   })
@@ -68,7 +68,7 @@ describe('AppLayout', () => {
     expect(sessionStore.getState().refreshToken).toBeNull()
     expect(queryClient.getQueryData(['users', 'me'])).toBeUndefined()
     expect(router.state.location.pathname).toBe('/')
-    expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그아웃되었습니다')).toBeInTheDocument()
   })
 
   it('처음 화면에서 로그아웃해도 공개 조회인 공연 목록은 그대로 두어 깜빡이지 않는다', async () => {
@@ -80,7 +80,7 @@ describe('AppLayout', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
 
-    expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그아웃되었습니다')).toBeInTheDocument()
     expect(queryClient.getQueryData(['users', 'me'])).toBeUndefined()
     expect(
       screen.getByRole('link', { name: '노을섬 단독 콘서트 〈새벽의 좌석〉' }),
@@ -113,7 +113,7 @@ describe('AppLayout', () => {
     expect(router.state.location.pathname).toBe('/')
 
     finishLogout()
-    expect(await screen.findByText('로그아웃했어요')).toBeInTheDocument()
+    expect(await screen.findByText('로그아웃되었습니다')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -297,7 +297,7 @@ describe('RouteErrorPage', () => {
   it('화면이 던진 ApiError를 문구와 문의 번호로 보이고 헤더는 남긴다', () => {
     renderRoutes(routesWithThrowingPage(), '/boom')
 
-    expect(screen.getByText(/문의할 때 아래 번호를 알려 주세요/)).toBeInTheDocument()
+    expect(screen.getByText(/문의 시 아래 번호를 알려주세요/)).toBeInTheDocument()
     expect(screen.getByText('trace-abc-123')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '처음으로' })).toBeInTheDocument()

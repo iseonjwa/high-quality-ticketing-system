@@ -109,7 +109,7 @@ export function RequestLogPanel() {
 
   function turnOff() {
     disableDemoMode()
-    toast('시연 모드를 껐어요. 주소 끝에 ?demo=on을 붙이면 다시 켜져요')
+    toast('시연 모드가 꺼졌습니다. 주소 끝에 ?demo=on을 붙이면 다시 켜집니다.')
   }
 
   if (hidden) {
@@ -203,11 +203,12 @@ export function RequestLogPanel() {
       </div>
 
       <p className="shrink-0 px-4 pt-3 pb-2 type-caption text-gray-500">
-        traceId를 누르면 Grafana 탭에 그 요청의 로그가 열려요. 그 탭을 옆 창에 두면 거기서 바뀌어요
+        traceId를 누르면 Grafana 탭에 해당 요청의 로그가 열립니다. 그 탭을 옆 창에 띄워 두면 누를
+        때마다 그 탭의 로그가 바뀝니다.
       </p>
 
       {entries.length === 0 ? (
-        <p className="px-4 py-6 type-body-sm text-gray-500">아직 보낸 요청이 없어요</p>
+        <p className="px-4 py-6 type-body-sm text-gray-500">아직 보낸 요청이 없습니다</p>
       ) : (
         <ol className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
           {entries.map((entry, index) => (
@@ -315,7 +316,7 @@ function PanelResizeHandle({
       aria-valuemin={PANEL_MIN_WIDTH}
       aria-valuemax={maxWidth}
       tabIndex={0}
-      title="끌어서 너비를 바꿔요. 두 번 누르면 기본 너비로 돌아가요"
+      title="끌어서 너비를 조절합니다. 두 번 누르면 기본 너비로 돌아갑니다"
       className="group absolute inset-y-0 left-0 z-10 w-3 -translate-x-1/2 cursor-col-resize touch-none outline-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -423,7 +424,7 @@ function CopyButton({ value }: { value: string }) {
       await navigator.clipboard.writeText(value)
       setCopied(true)
     } catch {
-      toast.error('traceId를 복사하지 못했어요')
+      toast.error('traceId를 복사하지 못했습니다')
     }
   }
 

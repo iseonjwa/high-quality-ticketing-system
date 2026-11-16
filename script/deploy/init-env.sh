@@ -3,7 +3,7 @@
 #   script/deploy/init-env.sh
 # 키와 값 형식은 로컬의 ./gradlew initLocalEnv(LocalEnvironment)와 같다. 비밀값은 출력하지 않는다.
 # SAMPLE_USER_*는 시연용 샘플 계정이다(script/deploy/seed-demo.sh가 가입시킨다).
-# 만든 뒤 사람이 채우는 값: SLACK_WEBHOOK_MONITORING(선택, 슬랙 알림), SLACK_WEBHOOK_LOADTEST(선택, 측정 모드 알림 전용 채널), TOSS_SECRET_KEY·TOSS_CLIENT_KEY(선택, 토스 시연 때만).
+# 만든 뒤 사람이 채우는 값: PUBLIC_URL(필수, 서비스 공개 주소 https://<서버 IP>), SLACK_WEBHOOK_MONITORING(선택, 슬랙 알림), SLACK_WEBHOOK_LOADTEST(선택, 측정 모드 알림 전용 채널), TOSS_SECRET_KEY·TOSS_CLIENT_KEY(선택, 토스 시연 때만).
 # 관리자 비밀번호는 서버에서 직접 읽는다.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -80,13 +80,13 @@ value_for() {
     SAMPLE_USER_NICKNAME) echo 샘플사용자 ;;
     SAMPLE_USER_PASSWORD) hex 12 ;;
     # 비워 두면 mock이고 토스 키도 비어 있다. 토스는 시연 때만 사람이 채운다. ANTHROPIC_API_KEY가 비면 assistant는 검색 모드다
-    SLACK_WEBHOOK_MONITORING|SLACK_WEBHOOK_LOADTEST|PAYMENT_PG_PROVIDER|PAYMENT_PG_MOCK_BYPASS|TOSS_SECRET_KEY|TOSS_CLIENT_KEY|ANTHROPIC_API_KEY) echo "" ;;
+    PUBLIC_URL|SLACK_WEBHOOK_MONITORING|SLACK_WEBHOOK_LOADTEST|PAYMENT_PG_PROVIDER|PAYMENT_PG_MOCK_BYPASS|TOSS_SECRET_KEY|TOSS_CLIENT_KEY|ANTHROPIC_API_KEY) echo "" ;;
     *) hex 16 ;;
   esac
 }
 
 keys=(DB_USER DB_PASSWORD JWT_ACCESS_SECRET JWT_REFRESH_SECRET PAYMENT_TOKEN_PRIVATE_KEY PAYMENT_TOKEN_PUBLIC_KEY ENTRY_TOKEN_SECRET
-      BILLING_KEY_SECRET ADMIN_EMAIL ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD STACK_ENV SLACK_WEBHOOK_MONITORING
+      BILLING_KEY_SECRET ADMIN_EMAIL ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD STACK_ENV PUBLIC_URL SLACK_WEBHOOK_MONITORING
       SLACK_WEBHOOK_LOADTEST SAMPLE_USER_EMAIL SAMPLE_USER_PASSWORD SAMPLE_USER_NICKNAME PAYMENT_PG_PROVIDER PAYMENT_PG_MOCK_BYPASS TOSS_SECRET_KEY TOSS_CLIENT_KEY ANTHROPIC_API_KEY)
 added=()
 # 마지막 줄에 줄바꿈이 없으면 새 키가 그 줄에 붙지 않게 먼저 줄을 바꾼다
@@ -117,6 +117,9 @@ if (( ${#added[@]} )); then
   echo ".env에 더한 키: ${added[*]}"
 else
   echo ".env에 빠진 키가 없다"
+fi
+if [[ -z "$(stored PUBLIC_URL)" ]]; then
+  echo "PUBLIC_URL이 비어 있다. 서비스 공개 주소(예: https://<서버 IP>, 끝 슬래시 없이)를 넣는다. 비어 있으면 배포가 멈춘다"
 fi
 echo "AI 상담(Claude)을 켜려면 .env의 ANTHROPIC_API_KEY에 키를 넣는다. 비워 두면 검색 모드로만 답한다(채팅·저장소에 붙이지 않는다)"
 echo "슬랙 알림을 받으려면 .env의 SLACK_WEBHOOK_MONITORING에 웹훅 주소를 넣는다(채팅·저장소에 붙이지 않는다)"

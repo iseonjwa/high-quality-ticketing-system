@@ -26,7 +26,7 @@ SA 17-2 U1의 계약 ① 입장 토큰 claim을 대기열 담당 기준으로 �
 | `aud` | 문자열 | 예 | 값 `gateway`. 토큰을 열어 검증하는 곳이 Gateway뿐이라 단일 값이다. 다르면 거절 |
 | `sub` | 문자열 | 예 | 사용자 ID(양의 정수 문자열). Gateway가 Access JWT로 확인한 사용자 ID와 같아야 한다(ADR 0015) |
 | `scheduleId` | JSON 정수 | 예 | 회차 ID. 요청 경로의 `{scheduleId}`와 같아야 한다. 문자열·소수는 거절한다. 이전 안의 `sid` 대신 결제 토큰의 `reservationId`처럼 전체 이름을 쓴다 |
-| `exp` | NumericDate(초) | 예 | `floor(발급 시각 ms / 1000) + 600`. 만료 10분은 SA 9-4의 T `[가정]` |
+| `exp` | NumericDate(초) | 예 | `floor(발급 시각 ms / 1000) + 유효 시간(초)`. 유효 시간은 설정 `queue.entry-token-ttl`(기본 10분, SA 9-4의 T `[가정]`) 하나에서 읽어, Redis `issued` 유효 판단과 JWT `exp`에 같은 값을 쓴다(ISE-283) |
 | `iat` | NumericDate(초) | 예 | `floor(발급 시각 ms / 1000)`. 검증하지 않는다 |
 | `jti` | 문자열 | 예 | `entry:{scheduleId}:{sub}:{발급 시각 ms}`의 SHA-256 앞 16바이트(소문자 hex 32자). Gateway는 검증하지 않고 `X-Entry-Token-Id`로 서비스에 넘긴다. 선점 API가 소모 확인에 쓰고, 대기열이 같은 공식(`EntryTokenJti`)으로 다시 계산해 `issued` 정리에 쓴다 |
 

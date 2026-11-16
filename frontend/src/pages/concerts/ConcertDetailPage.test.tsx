@@ -92,9 +92,9 @@ describe('ConcertDetailPage', () => {
     // 다시 조회하지 않고 켜졌다
     expect(detailRequests).toHaveLength(1)
     // 카운트다운은 매초 읽지 않으므로 열린 순간을 따로 알린다
-    expect(screen.getByText('예매가 열렸어요')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByText('예매가 오픈되었습니다')).toHaveAttribute('aria-live', 'polite')
     // 카운트다운 줄 자리를 남겨 [예매하기]가 위로 뛰지 않는다
-    expect(screen.getByText('지금 열렸어요')).toBeInTheDocument()
+    expect(screen.getByText('지금 오픈되었습니다')).toBeInTheDocument()
   })
 
   it('카운트다운이 0을 보이는 순간 예매 패널의 1초 갱신을 기다리지 않고 예매하기가 켜진다', async () => {
@@ -126,7 +126,7 @@ describe('ConcertDetailPage', () => {
     await tick(3000)
 
     expect(screen.getByRole('link', { name: '예매하기' })).toBeInTheDocument()
-    expect(screen.getByText('예매가 열렸어요')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByText('예매가 오픈되었습니다')).toHaveAttribute('aria-live', 'polite')
   })
 
   it('처음부터 예매 중인 회차는 열렸다고 알리지 않는다', async () => {
@@ -135,8 +135,8 @@ describe('ConcertDetailPage', () => {
     renderRoutes(routes, '/concerts/7')
 
     expect(await screen.findByRole('link', { name: '예매하기' })).toBeInTheDocument()
-    expect(screen.queryByText('예매가 열렸어요')).not.toBeInTheDocument()
-    expect(screen.queryByText('지금 열렸어요')).not.toBeInTheDocument()
+    expect(screen.queryByText('예매가 오픈되었습니다')).not.toBeInTheDocument()
+    expect(screen.queryByText('지금 오픈되었습니다')).not.toBeInTheDocument()
   })
 
   it('고르지 않은 기본 회차는 목록 앞 회차가 열려도 바뀌지 않는다(보던 회차의 대기열로 간다)', async () => {
@@ -218,12 +218,12 @@ describe('ConcertDetailPage', () => {
 
     // 시각으로는 판매 중이어도 서버가 CLOSED면 따른다
     expect(within(labelOf(closed)).getByText('판매 종료')).toBeInTheDocument()
-    expect(within(panel).getByText('판매가 끝났어요')).toBeInTheDocument()
+    expect(within(panel).getByText('판매가 종료되었습니다')).toBeInTheDocument()
     expect(within(panel).queryByRole('link', { name: '예매하기' })).not.toBeInTheDocument()
     expect(within(panel).queryByRole('button', { name: '예매하기' })).not.toBeInTheDocument()
   })
 
-  it('회차를 바꾸면 예매 패널이 고른 회차의 카운트다운·버튼·매수로 바뀐다', async () => {
+  it('회차를 바꾸면 예매 패널이 선택한 회차의 카운트다운·버튼·매수로 바뀐다', async () => {
     const now = Date.now()
     serveDetail(detail(now, [{ openAt: iso(now + HOUR), maxPerUser: 2 }, { maxPerUser: 6 }]))
     renderRoutes(routes, '/concerts/7')
@@ -301,7 +301,7 @@ describe('ConcertDetailPage', () => {
 
     const panel = within(await bookingPanel())
 
-    expect(panel.getByText('등록된 회차가 없어요')).toBeInTheDocument()
+    expect(panel.getByText('등록된 회차가 없습니다')).toBeInTheDocument()
     expect(panel.queryByRole('radio')).not.toBeInTheDocument()
     expect(panel.queryByRole('link', { name: '예매하기' })).not.toBeInTheDocument()
   })
@@ -341,7 +341,7 @@ describe('ConcertDetailPage', () => {
   it('없는 공연이면 목록으로 돌아가는 안내를 보인다', async () => {
     renderRoutes(routes, '/concerts/999')
 
-    expect(await screen.findByText(/찾는 공연이 없어요/)).toBeInTheDocument()
+    expect(await screen.findByText(/찾는 공연이 없습니다/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '목록으로' })).toHaveAttribute('href', '/')
   })
 
@@ -356,7 +356,7 @@ describe('ConcertDetailPage', () => {
       })
       renderRoutes(routes, `/concerts/${concertId}`)
 
-      expect(screen.getByText(/찾는 공연이 없어요/)).toBeInTheDocument()
+      expect(screen.getByText(/찾는 공연이 없습니다/)).toBeInTheDocument()
       expect(requests).toHaveLength(0)
     },
   )
@@ -469,7 +469,7 @@ describe('ConcertDetailPage 추첨 안내', () => {
     const panel = within(await bookingPanel())
 
     expect(await panel.findByRole('link', { name: '결과 보기' })).toHaveAccessibleDescription(
-      '추첨 완료 당첨 결과는 추첨 화면에서 봐요',
+      '추첨 완료 당첨 결과는 추첨 화면에서 확인할 수 있습니다',
     )
   })
 
@@ -488,7 +488,7 @@ describe('ConcertDetailPage 추첨 안내', () => {
     const panel = within(await bookingPanel())
 
     expect(await panel.findByRole('link', { name: '결과 보기' })).toHaveAccessibleDescription(
-      '추첨 종료 당첨 결과는 추첨 화면에서 봐요',
+      '추첨 종료 당첨 결과는 추첨 화면에서 확인할 수 있습니다',
     )
   })
 

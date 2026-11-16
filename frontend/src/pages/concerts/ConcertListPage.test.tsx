@@ -47,7 +47,7 @@ describe('ConcertListPage', () => {
       within(others).getByRole('heading', { level: 3, name: '미드나잇 오케스트라 〈별의 지도〉' }),
     ).toBeInTheDocument()
     expect(within(others).queryByText('판매 종료')).not.toBeInTheDocument()
-    expect(within(others).getByText('예정된 회차가 없어요')).toBeInTheDocument()
+    expect(within(others).getByText('예정된 회차가 없습니다')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: '노을섬 단독 콘서트 〈새벽의 좌석〉' }))
 
@@ -118,7 +118,7 @@ describe('ConcertListPage', () => {
     renderRoutes(routes, '/')
 
     const promo = await screen.findByRole('region', {
-      name: '일부 좌석은 추첨으로 공정하게 나눠요',
+      name: '일부 좌석은 추첨으로 공정하게 배정됩니다',
     })
     expect(within(promo).getByRole('link', { name: '자동결제 카드 등록하기' })).toHaveAttribute(
       'href',
@@ -177,7 +177,7 @@ describe('ConcertListPage', () => {
     )
     renderRoutes(routes, '/')
 
-    expect(await screen.findByText('아직 예매할 수 있는 공연이 없어요')).toBeInTheDocument()
+    expect(await screen.findByText('아직 예매할 수 있는 공연이 없습니다')).toBeInTheDocument()
   })
 
   it('마지막 페이지를 넘는 주소면 첫 페이지로 가는 안내를 보인다', async () => {
@@ -186,7 +186,7 @@ describe('ConcertListPage', () => {
     )
     renderRoutes(routes, '/?page=5')
 
-    expect(await screen.findByText('이 페이지에는 공연이 없어요')).toBeInTheDocument()
+    expect(await screen.findByText('이 페이지에는 공연이 없습니다')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '첫 페이지로' })).toHaveAttribute('href', '/')
   })
 
@@ -217,7 +217,9 @@ describe('ConcertListPage', () => {
     )
     renderRoutes(routes, '/')
 
-    expect(await screen.findByText('요청이 많아요. 잠시 뒤 다시 시도해 주세요')).toBeInTheDocument()
+    expect(
+      await screen.findByText('요청이 많습니다. 잠시 후 다시 시도해주세요.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
   })
 
@@ -301,7 +303,7 @@ describe('ConcertListPage', () => {
       mockOnSale(0)
       renderRoutes(routes, '/')
 
-      expect(await screen.findByText('아직 예매할 수 있는 공연이 없어요')).toBeInTheDocument()
+      expect(await screen.findByText('아직 예매할 수 있는 공연이 없습니다')).toBeInTheDocument()
       expect(screen.queryByRole('region', { name: /^지금 예매 중/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('group', { name: '광고: 라이드온 셔틀' })).not.toBeInTheDocument()
     })
@@ -371,10 +373,10 @@ describe('ConcertListPage', () => {
       const slot = document.querySelector('main > div[aria-hidden="true"]')
       expect(slot).toHaveClass('bg-gray-25')
       expect(slot).toHaveClass(HERO_HEIGHT)
-      expect(placeholder).toHaveTextContent('공연 목록을 불러오고 있어요')
+      expect(placeholder).toHaveTextContent('공연 목록을 불러오는 중입니다')
 
       release()
-      expect(await screen.findByText('아직 예매할 수 있는 공연이 없어요')).toBeInTheDocument()
+      expect(await screen.findByText('아직 예매할 수 있는 공연이 없습니다')).toBeInTheDocument()
     })
   })
 })

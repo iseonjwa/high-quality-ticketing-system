@@ -14,7 +14,7 @@ describe('routes', () => {
   it('없는 주소는 안내를 보이고 처음 화면으로 돌아갈 수 있다', async () => {
     const { router } = renderRoutes(routes, '/no-such-page')
 
-    expect(screen.getByRole('heading', { name: '페이지를 찾을 수 없어요' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: '처음으로' }))
 
