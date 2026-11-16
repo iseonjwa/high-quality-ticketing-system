@@ -103,7 +103,7 @@ TAG=local docker buildx bake -f docker-bake.hcl gateway \
 
 ### 외부 노출 (SA 9-2)
 
-공개 진입점은 프론트 nginx의 80이다. 8080(Gateway 직접)은 전체에 열지 않고, 부하 측정 때 발생기 보안그룹에만 연다(부하 도구는 nginx를 거치지 않고 Gateway를 부른다, [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절). 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 내부 서비스는 `ports` 없이 `expose`만 쓴다.
+공개 진입점은 프론트 nginx의 443(https)이다. 80은 https로 넘기고 인증서 발급 확인 경로만 http로 둔다(2026-11-16, ISE-278, 아래 "HTTPS 인증서"). 8080(Gateway 직접)은 전체에 열지 않고, 부하 측정 때 발생기 보안그룹에만 연다(부하 도구는 nginx를 거치지 않고 Gateway를 부른다, [ADR 0040](../../decisions/0040-frontend-react-spa-in-monorepo.md) 4절). 관리 UI(Grafana, Kafka-UI, Prometheus, Zipkin)는 `127.0.0.1`에 바인딩해 SSH 터널로만 연다. 다만 Grafana는 시연·외부 심사 때 심사위원이 직접 보도록 nginx가 443의 `/grafana/`로 중계하고 누구나 보기만 된다(2026-11-16 사용자 결정, [판단 기록](../../ai-judgments/junhyun/2026-11-16-grafana-public-over-https-path.md)). 내부 서비스는 `ports` 없이 `expose`만 쓴다.
 
 ## 3. 보안그룹 규칙
 
@@ -112,9 +112,10 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 | 대상 | 포트 | 인바운드 허용 | 비고 |
 |---|---|---|---|
 | 배포 EC2 | 22 | 팀원 IP, Jenkins EC2 보안그룹 | 키 인증만. Jenkins EC2는 SSH만 허용 |
-| 배포 EC2 | 80 | 전체(0.0.0.0/0) | 화면과 `/api/` 중계(프론트 nginx). 유일한 공개 진입점 |
+| 배포 EC2 | 443 | 전체(0.0.0.0/0) | 화면, `/api/` 중계, Grafana `/grafana/`(익명 보기). 공개 진입점(2026-11-16, ISE-278) |
+| 배포 EC2 | 80 | 전체(0.0.0.0/0) | https로 넘긴다. 인증서 발급·갱신 확인 경로(`/.well-known/acme-challenge/`)만 http로 둔다 |
 | 배포 EC2 | 8080 | 허용 없음. 부하 측정 중에만 발생기 보안그룹 | Gateway 직접 접근. 부하 도구용 |
-| 배포 EC2 | 3000 | 팀원 IP `/32` | Grafana만. 익명 Viewer(보기만)이고 시연 모드 링크가 이 주소로 온다 |
+| 배포 EC2 | 3000 | 허용 없음(2026-11-16부터. 팀원 IP 규칙은 지워도 된다) | Grafana는 443의 `/grafana/`로 본다. 컨테이너는 `127.0.0.1:3000`에만 열려 SSH 터널로도 볼 수 있다(`/grafana/`) |
 | 배포 EC2 | 8085, 9090, 9093, 9411, 8761 | 허용 없음 | SSH 터널로만 |
 | 배포 EC2 | 8081~8083, 8090, 8888, DB, Redis, Kafka | 허용 없음 | compose 내부 네트워크 전용 |
 | Jenkins EC2 | 22 | 팀원 IP | Jenkins UI(8080)는 열지 않고 SSH 터널로만 접근 |
@@ -125,7 +126,7 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ## 4. 비밀값
 
-- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
+- 서버 `.env`는 서버에서 만든다. 키 목록은 `initLocalEnv`와 같고 저장소에 올리지 않는다. 지금 `.env.example`의 키는 `DB_USER`(compose에 기본값 있음), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ENTRY_TOKEN_SECRET`, `PAYMENT_TOKEN_PRIVATE_KEY`·`PAYMENT_TOKEN_PUBLIC_KEY`(결제 토큰 ES256 키 쌍, 한 쌍이라 둘 다 있거나 둘 다 없어야 하고 `init-env.sh`가 `openssl`로 한 번 만든다), `BILLING_KEY_SECRET`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`다. 배포 서버만 쓰는 `PUBLIC_URL`(서비스 공개 주소 `https://<서버 IP>`, 필수, 2026-11-16 ISE-278)이 있다. 서버 주소는 이 값 한 곳에만 둔다([판단 기록](../../ai-judgments/junhyun/2026-11-16-server-address-in-one-env-key.md)). 알림용 슬랙 웹훅 `SLACK_WEBHOOK_MONITORING`(선택)과 환경 이름 `STACK_ENV`가 더해진다. 결제 PG 모드 `PAYMENT_PG_PROVIDER`(비우면 mock)와 토스 키 `TOSS_SECRET_KEY`·`TOSS_CLIENT_KEY`(토스 시연 때만, 아래 "결제 PG 모드 전환")도 선택 키로 빈 값이 들어간다. **결제 토큰 키 쌍이 든 릴리스(ISE-245, ADR 0055) 전에 서버에서 `script/deploy/init-env.sh`를 한 번 돌려 두 키를 만든다.** 이 키가 없으면 `reservation-service`·`payment-service`가 기동하지 않고 `deploy.sh`가 직전 버전으로 되돌린다. 하나만 있으면 스크립트가 멈추고 없는 키를 알린다. 이전 `PAYMENT_TOKEN_SECRET` 줄은 더 읽지 않으니 남아 있어도 된다. 서버의 `STACK_ENV`는 `local`이 아닌 값(예: `deploy`)으로 둬 슬랙에서 로컬 알림과 가린다([observability.md](observability.md) 3절).
 - Jenkins 자격 증명은 Jenkins Credentials에만 둔다: GHCR 읽기 토큰, 배포 EC2 SSH 키, 슬랙 웹훅(`#이선좌-배포상태알림`용).
 - 배포 단계의 "`.env` 반영"은 서버에 이미 만든 `.env`를 유지한다는 뜻이다. Jenkins가 비밀값 원문을 저장소에서 가져오지 않는다.
 - 서버 `.env`는 `script/deploy/init-env.sh`가 만든다(ISE-174). 키와 값 형식은 `initLocalEnv`와 같고, `STACK_ENV=deploy`가 들어간다. 이미 있으면 덮어쓰지 않고 빠진 키만 더한다. 그래서 키 목록이 바뀌는 릴리스는 배포 전에 서버에서 이 스크립트를 한 번 더 돌린다(새 키를 스크립트에 함께 더한다). 서버의 저장소는 지금 배포된 커밋에 머물러 있어 그 안의 스크립트는 새 키를 모른다. 새 스크립트를 받아 서버 저장소 위치에서 실행한다: `cd ~/iseonjwa && git fetch -q origin main && git show FETCH_HEAD:script/deploy/init-env.sh | sed "s|^cd .*dirname.*|cd $HOME/iseonjwa|" | bash`(main에 나가기 전이면 `main` 자리에 `dev`). 스크립트는 빠진 키만 더하고 값은 출력하지 않는다. 미리 더한 키는 지금 배포된 버전이 읽지 않으므로 먼저 돌려 두어도 된다. 결제 토큰 개인키는 OpenSSL 버전과 무관하게 PKCS#8로 만든다(3.0의 `genpkey -outform DER`는 예매 서비스가 읽지 못하는 SEC1을 낸다, [troubleshooting.md](../../troubleshooting.md) TS-61). 이미 있는 개인키가 PKCS#8이 아니면 같은 키를 PKCS#8로 바꿔 적고, 끝에 `결제 토큰 키 확인: 개인키 PKCS#8, 공개키와 짝이 맞음`을 출력한다. 이 줄이 나오지 않고 실패로 끝나면 배포하지 않는다.
@@ -230,20 +231,77 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 
 ### 서버 준비 순서 (배포 EC2, 처음 한 번)
 
-1. EC2: Ubuntu 24.04 LTS(x86), 16GB급, gp3 40GB, 키 페어 `iseonjwa-deploy`, 보안 그룹 `iseonjwa-deploy-sg`(80 전체, 22 팀원 IP·Jenkins 보안 그룹, 8080은 열지 않음). 주소가 바뀌지 않게 Elastic IP를 붙인다.
+1. EC2: Ubuntu 24.04 LTS(x86), 16GB급, gp3 40GB, 키 페어 `iseonjwa-deploy`, 보안 그룹 `iseonjwa-deploy-sg`(80·443 전체, 22 팀원 IP·Jenkins 보안 그룹, 8080은 열지 않음). 주소가 바뀌지 않게 Elastic IP를 붙인다.
 2. 접속: `ssh -i ~/.ssh/iseonjwa-deploy.pem ubuntu@<주소>`
 3. `git clone https://github.com/iseonjwa/high-quality-ticketing-system.git ~/iseonjwa && cd ~/iseonjwa`
 4. `bash script/deploy/install-docker.sh` 뒤 다시 접속한다.
-5. `script/deploy/init-env.sh`. 슬랙 알림을 받으려면 `.env`의 `SLACK_WEBHOOK_MONITORING`을 서버에서 직접 채운다.
-6. 첫 배포: `script/deploy/deploy.sh <main의 40자 커밋 SHA>`(그 커밋의 이미지가 GHCR에 있어야 한다).
+5. `script/deploy/init-env.sh`. `.env`의 `PUBLIC_URL`(예: `https://<서버 IP>`)을 채운다. 비어 있으면 배포가 멈춘다. 슬랙 알림을 받으려면 `SLACK_WEBHOOK_MONITORING`을 서버에서 직접 채운다.
+6. HTTPS 인증서를 받는다(아래 "HTTPS 인증서" 1~4). 인증서가 없으면 nginx가 뜨지 않아 첫 배포가 실패한다.
+7. 첫 배포: `script/deploy/deploy.sh <main의 40자 커밋 SHA>`(그 커밋의 이미지가 GHCR에 있어야 한다).
    - 시연 데이터: `script/deploy/seed-demo.sh`(ISE-177). 회차 둘을 만든다. "지금 예매"는 오픈 시각이 이미 지난 회차(공연 7일 뒤)이고, "오픈 시연"은 `OPEN_AT`(ISO-8601 UTC)으로 정한 시각에 열리는 회차(공연 8일 뒤)다. `OPEN_AT`이 없으면 지금부터 30분 뒤다. 예: `OPEN_AT=2026-11-06T05:00:00Z script/deploy/seed-demo.sh`. 회차를 고치는 API가 없으므로 오픈 시각은 바꿀 수 없다. 대신 리허설·시연 직전에 `script/deploy/seed-demo.sh open <OPEN_AT> [주소]`로 시연 공연에 "오픈 시연" 회차를 하나 더 만든다(좌석 포함, 공연 시작은 OPEN_AT 다음 날). 예: `script/deploy/seed-demo.sh open $(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)`. 끝에 새 회차 id와 오픈 시각이 나온다.
    - `OPEN_AT`은 API를 부르기 전에 형식과 "공연 시작(8일 뒤)보다 앞선다"를 검사하고, 틀리면 아무것도 만들지 않고 종료 코드 2로 끝난다. 공연만 있고 회차가 0개면(이전 실행이 중간에 실패) 기본 실행이 회차·좌석을 이어서 만든다.
    - 공연장 id는 조회 API가 없어 예약 DB 컨테이너에서 이름이 `KSPO DOME`인 공연장을 찾는다(없으면 `VENUE_ID`로 넘긴다). 오픈 시각 검증은 회차 등록이 `openAt`이 `startsAt`보다 앞서는지만 본다(`Schedule.create`). 지난 오픈 시각도 받는다. 샘플 사용자 비밀번호는 서버에서 `grep SAMPLE_USER_PASSWORD .env`로 본다.
-7. Grafana는 `http://52.63.10.174:3000`으로 바로 연다(등록된 IP만, 로그인 없이 보기). 나머지 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:9090`.
-8. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
+8. Grafana는 `https://<서버 IP>/grafana/`로 연다(누구나, 로그인 없이 보기). 나머지 관리 UI는 SSH 터널로 본다: `ssh -i ~/.ssh/iseonjwa-deploy.pem -L 9090:127.0.0.1:9090 -L 9411:127.0.0.1:9411 ubuntu@<주소>` 뒤 `http://localhost:9090`.
+9. 팀원 SSH: 받은 공개 키를 `~/.ssh/authorized_keys`에 한 줄씩 더하고, 보안 그룹 22 규칙에 팀원 IP를 더한다.
 
 - DB 스키마(Flyway) 변경이 있는 릴리스는 이미지만 되돌려서는 풀리지 않을 수 있다. 되돌림 가능한 마이그레이션 규칙은 정하지 않았다(미정).
 - 되돌림 자체가 실패하면 슬랙에 알리고 사람이 접속한다. 자동 재시도 횟수는 미정이다.
+
+### HTTPS 인증서 (ISE-278)
+
+2026-11-16부터 배포 화면은 `https://<서버 IP>/`다(지금 서버는 `52.63.10.174`). 도메인 없이 Let's Encrypt IP 주소 인증서를 쓴다. IP 인증서는 2026-01-15부터 일반 제공되고 유효 기간은 160시간(약 6일)짜리 shortlived 프로필만 된다. Certbot은 5.4부터 webroot 방식으로 IP 인증서를 받는다(설치는 해 주지 않는다). 근거는 [학습 노트](../../learning/junhyun/qna/2026-11-13-server-access-security-as-strength.md) "이어진 질문" 절이다.
+
+구성:
+- 프론트 nginx 배포 설정은 `frontend/nginx/deploy.conf`이고 `compose.deploy.yml`이 이미지의 `default.conf` 자리에 마운트한다. 로컬과 이미지는 지금처럼 80(http)만 쓴다(`default.conf`). 화면·`/api/` 경로는 둘이 같은 `app.conf`를 include한다.
+- 바깥에서 온 80은 `https://$host$request_uri`로 넘긴다. `/.well-known/acme-challenge/`만 서버의 `/var/www/certbot`에서 내보낸다(발급·갱신 확인).
+- Host가 `127.0.0.1`·`localhost`인 80 요청은 http 그대로 화면과 `/api/`를 준다. 서버 안의 스크립트(compose 헬스체크, `smoke.sh`, `warmup.sh`, `seed-demo.sh`)가 `http://127.0.0.1`로 부르기 때문이다. 인증서는 공인 IP용이라 이 주소로는 https 확인이 되지 않는다.
+- 443은 `/etc/letsencrypt/live/iseonjwa/`의 인증서를 쓴다. 인증서 이름을 `--cert-name iseonjwa`로 붙여 nginx 설정에 주소를 적지 않는다. `/etc/letsencrypt`는 폴더째 읽기 전용으로 마운트한다(`live/`의 파일은 갱신 때마다 새 파일을 가리키는 링크다). TLS 1.2·1.3, HTTP/2.
+- Grafana는 443의 `/grafana/`로 중계하고(Grafana Live WebSocket 포함), Grafana가 하위 경로에서 스스로 서빙한다(`GF_SERVER_SERVE_FROM_SUB_PATH`, `GF_SERVER_ROOT_URL=${PUBLIC_URL}/grafana/`). 3000은 `127.0.0.1`에만 연다. 시연 모드 traceId 링크는 https 화면에서 같은 주소의 `/grafana`로 간다(`frontend/src/demo/grafana.ts`).
+- 서버 주소는 서버 `.env`의 `PUBLIC_URL` 한 곳에만 둔다. Grafana `root_url`과 슬랙 알림의 Grafana 바로 가기(`slack.tmpl`의 `iseonjwa.grafana_url`)가 이 값에서 나온다. Alertmanager 템플릿은 환경 변수를 읽지 못해 compose `configs`(`grafana-url-template`)가 값을 넣은 템플릿 파일을 만들어 준다.
+- HSTS는 켜지 않는다. 인증서가 6일짜리라 갱신이 한 번 실패하면 HSTS를 기억한 브라우저는 http로도 열 수 없다.
+
+처음 한 번(서버 명령은 사람이 실행한다. 에이전트 세션은 배포 서버 SSH가 막혀 있다):
+1. 인증서 확인 경로가 든 배포(PR 1, `deploy.conf`의 80에 `/.well-known/acme-challenge/`)가 서버에 떠 있어야 한다. 서버에서 `sudo mkdir -p /var/www/certbot`.
+2. Certbot 설치(snap, 5.4 이상):
+   ```bash
+   sudo snap install --classic certbot
+   sudo ln -sf /snap/bin/certbot /usr/local/bin/certbot
+   certbot --version
+   ```
+3. 시험 발급(staging, 신뢰되지 않는 인증서. 확인 경로가 바깥에서 열리는지만 본다). 처음 실행하면 이메일과 약관 동의를 묻는다. 성공하면 지운다.
+   ```bash
+   sudo certbot certonly --staging --preferred-profile shortlived --webroot --webroot-path /var/www/certbot \
+     --ip-address <서버 IP> --cert-name iseonjwa
+   sudo certbot delete --cert-name iseonjwa
+   ```
+4. 실제 발급과 갱신 훅 등록. 훅은 `/etc/letsencrypt/renewal/iseonjwa.conf`에 저장되어 자동 갱신 때마다 nginx가 새 인증서를 다시 읽게 한다(`script/deploy/cert-renewed.sh`).
+   ```bash
+   sudo certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/certbot \
+     --ip-address <서버 IP> --cert-name iseonjwa --deploy-hook /home/ubuntu/iseonjwa/script/deploy/cert-renewed.sh
+   sudo ls /etc/letsencrypt/live/iseonjwa/   # fullchain.pem, privkey.pem
+   ```
+5. `.env`에 공개 주소: `sed -i '/^PUBLIC_URL=/d' .env && echo 'PUBLIC_URL=https://<서버 IP>' >> .env`(끝 슬래시 없이).
+6. 보안 그룹 `iseonjwa-deploy-sg`에 443(0.0.0.0/0)을 연다(계정 주인이 콘솔에서).
+7. 443이 든 배포(PR 2)를 main에 반영해 Jenkins로 배포한다. `https://<서버 IP>/`가 경고 없이 열리고 `http://`가 https로 넘어가는지, `https://<서버 IP>/grafana/`가 열리는지 본다.
+8. 갱신 시험과 만료 알림 등록:
+   ```bash
+   systemctl list-timers | grep -i certbot          # snap.certbot.renew.timer가 있는지
+   sudo certbot renew --dry-run                      # staging으로 갱신을 흉내 낸다(훅은 돌지 않는다)
+   crontab -e                                        # 아래 한 줄을 더한다(6시간마다)
+   0 */6 * * * /home/ubuntu/iseonjwa/script/deploy/cert-check.sh >> /home/ubuntu/cert-check.log 2>&1
+   ```
+
+갱신과 알림:
+- Certbot 4.0부터 유효 기간이 10일 이하인 인증서는 수명의 절반(약 80시간)이 남으면 갱신 대상이 된다. snap 패키지의 타이머가 `certbot renew`를 주기적으로 돌린다.
+- `script/deploy/cert-check.sh`는 파일이 아니라 443이 실제로 내보내는 인증서를 보고, 48시간(`CERT_MIN_HOURS`) 안에 만료되면 `SLACK_WEBHOOK_MONITORING`으로 알린다. 갱신 실패와 "갱신은 됐는데 nginx가 다시 읽지 못함"을 함께 잡는다. 인증서를 읽지 못해도(nginx가 내려감) 알린다.
+- 알림을 받으면 서버에서 `sudo certbot renew`와 `/var/log/letsencrypt/letsencrypt.log`를 본다. 인증서가 이미 만료됐어도 nginx는 뜨지만 브라우저가 경고를 띄운다.
+- 시연 직전에 https를 고칠 수 없으면 Jenkins 매개변수 `TAG`에 PR 2 직전 main 커밋을 넣어 다시 배포한다. 80이 다시 http로 화면을 주고(HSTS를 켜지 않아 브라우저가 http를 막지 않는다), `.env`의 `PUBLIC_URL`은 남아 있어도 된다.
+- `cert-check.sh`는 PR 2 이후 커밋에만 있다. 그보다 앞선 커밋으로 되돌리면 cron이 실패한다(되돌림을 풀면 다시 돈다).
+
+알려진 한계:
+- Grafana 익명 보기는 대시보드뿐 아니라 데이터 소스 조회 API(`/grafana/api/ds/query`)도 연다. 로컬 재현에서 익명 요청이 Prometheus 조회까지 넘어가는 것을 확인했다. 그래서 누구나 Prometheus·Loki·Zipkin을 직접 조회할 수 있다. Loki에는 앱 컨테이너 8개의 로그만 들어가고, 요청 로그는 메서드·경로(쿼리 문자열 없음)·상태·처리 시간·traceId·사용자 번호다. 이메일·비밀번호·토큰은 남기지 않는다(2026-11-16 코드 검색 기준). 익명은 관리 화면과 Explore에서 밀려나고 대시보드를 만들 수 없다(403). 심사가 끝나면 `GF_AUTH_ANONYMOUS_ENABLED`를 끄거나 `/grafana/` 중계를 뺀다.
+- Grafana 로그인 화면도 바깥에 열린다. 관리자 비밀번호는 서버 `.env`의 무작위 값이고 Grafana 기본 로그인 시도 제한이 있다.
+- 발생기 → Gateway 사설 IP(8080)는 http 그대로다. 측정 전용 키로 만든 토큰만 오간다.
 
 ### Jenkins (ISE-175)
 
@@ -360,8 +418,8 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 | 프론트 nginx 공개 포트와 8080의 관계 | 정함(ISE-109): 80 공개, 8080은 발생기 보안그룹만 |
 | 서버 `.env` 키 갱신 절차 | 정함(ISE-174): `script/deploy/init-env.sh`가 빠진 키만 더한다. 키가 바뀌는 릴리스는 배포 전에 서버에서 한 번 돌린다 |
 | DB·캐시·브로커를 매니지드 서비스(RDS 등)로 분리 | 검토 예정: 11/7~11/12 서버 중지 기간([ADR 0047](../../decisions/0047-single-ec2-first-managed-split-review.md)). 그전까지는 단일 EC2 |
-| 관리 화면 접근 | 정함(2026-11-05, 사용자): Grafana만 3000을 팀원 IP로 열고 익명 보기, 나머지는 SSH 터널 |
-| HTTPS | 리허설 뒤 Let's Encrypt IP 인증서(무료, 약 6일 자동 갱신, certbot)로 붙인다. 지금은 HTTP만 연다 |
+| 관리 화면 접근 | 바뀜(2026-11-16, 사용자): Grafana만 `https://<서버 IP>/grafana/`로 누구나 보기(익명 Viewer), 나머지는 SSH 터널. 2026-11-05 결정(Grafana 3000을 팀원 IP로)을 대체한다([판단 기록](../../ai-judgments/junhyun/2026-11-16-grafana-public-over-https-path.md)) |
+| HTTPS | 정함(2026-11-16, ISE-278): Let's Encrypt IP 인증서(shortlived 약 6일, certbot webroot, 자동 갱신 + 만료 알림), HSTS 끔. 위 "HTTPS 인증서" |
 | 서버 운영 일정 | 정함(ADR 0047): 11/6까지 켜 둠, 11/7~11/12 중지, 11/13~11/19 다시 켬, 그 뒤 삭제 |
 | DB 마이그레이션이 있는 릴리스의 되돌림 규칙 | 미정 |
 | 배포 DB 시드(시연용 관리자·샘플 계정, 공연 데이터) | 정함(ISE-177): `seed-demo.sh`. 관리자는 `.env`의 `ADMIN_EMAIL`로 기동 때 만들어진다 |

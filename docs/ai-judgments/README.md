@@ -42,6 +42,7 @@
 
 | 날짜 | 판단 대상 | 판단자 | AI | 판단 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | junhyun | Claude Code | **거부** | 아님 | [기록](junhyun/2026-11-16-server-address-in-one-env-key.md) |
 | 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | junhyun | Claude Code | 수용 | 아님 | [기록](junhyun/2026-11-16-grafana-public-over-https-path.md) |
 | 2026-11-15 | 입장 토큰 유효 시간이 설정과 상수(EntryTokenClaims.TTL) 두 곳에 있는 문제를 설정 하나로 모으고, ISE-282와 나눠 ISE-283으로 진행하자는 AI 추천을 받아들임 | youngeun | Claude (Cowork) | 수용 | 아님 | [기록](youngeun/2026-11-15-entry-token-ttl-single-source.md) |
 | 2026-11-15 | **진입·순번 조회의 READY 판정을 앱에 두고 후속 이슈로 미루자는 AI 답·추천을 거부하고, ISE-282에서 Lua가 READY까지 돌려주게 바꿈** | youngeun | Claude (Cowork) | **거부** | 후보 | [기록](youngeun/2026-11-15-queue-ready-decided-in-lua.md) |

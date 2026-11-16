@@ -60,4 +60,16 @@ render_event footer | grep -q '건별 알림 · 같은 사건은 한 번만 보�
 event_text=$(render_event text)
 echo "$event_text" | grep -q 'paymentId=1001' || { echo "건별 알림 본문에 paymentId 라벨이 없다" >&2; exit 1; }
 if echo "$event_text" | grep -Eq 'userId=|paidAt=|event=|reason='; then echo "건별 알림 본문에 문장과 겹치는 라벨이 남아 있다" >&2; exit 1; fi
+# 바로 가기 링크의 Grafana 주소는 compose가 만들어 넣는 템플릿(iseonjwa.grafana_url)에서 온다(compose.yml configs의 grafana-url-template).
+# 검사에서는 같은 이름의 시험용 값을 만들어 같이 읽힌다. 배포(env=deploy)만 SSH 터널 안내가 붙는다.
+printf '%s' '{{ define "iseonjwa.grafana_url" }}https://grafana.example.test/grafana{{ end }}' > "$data_dir/grafana-url.tmpl"
+chmod 644 "$data_dir/grafana-url.tmpl"
+render_links() {
+  docker run --rm -v "$PWD/infra:/infra:ro" -v "$data_dir:/data:ro" --entrypoint amtool "$am_image" template render \
+    --template.glob='/infra/alertmanager/templates/*.tmpl' --template.glob='/data/*.tmpl' --template.text="{{ template \"iseonjwa.links\" \"$1\" }}"
+}
+render_links deploy | grep -qF '<https://grafana.example.test/grafana/d/iseonjwa-payment|결제 대시보드> · SSH 터널을 켜면 <http://localhost:9090/alerts|' \
+  || { echo "배포 알림의 바로 가기 링크가 compose가 넣은 Grafana 주소로 그려지지 않는다" >&2; exit 1; }
+render_links local | grep -qF '<https://grafana.example.test/grafana/d/iseonjwa-payment|결제 대시보드> · <http://localhost:9090/alerts|' \
+  || { echo "로컬 알림의 바로 가기 링크가 그려지지 않는다" >&2; exit 1; }
 echo "Alertmanager 설정·경로·템플릿 검사 통과"

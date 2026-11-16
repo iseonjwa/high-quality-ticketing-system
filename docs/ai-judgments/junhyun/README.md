@@ -8,6 +8,7 @@ junhyun이 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | **HTTPS 전환에서 파일마다 박힌 서버 주소를 https로 하나씩 고치려던 방향을 거부하고, 주소를 서버 .env의 PUBLIC_URL 한 곳에서 읽게 함** | Claude Code | **거부** | 예 | 아님 | [기록](2026-11-16-server-address-in-one-env-key.md) |
 | 2026-11-16 | 시연과 외부 심사 채점 때 심사위원이 직접 보도록 Grafana만 HTTPS 경로(/grafana/)로 누구나 보기 전용으로 열기로 함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-grafana-public-over-https-path.md) |
 | 2026-11-13 | 호출 한도가 있어 CodeRabbit을 넣지 않고, AI 코드 리뷰는 저장소 프롬프트와 스크립트로만 하기로 함 | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-13-no-coderabbit-prompt-review-only.md) |
 | 2026-11-13 | 다른 조 저장소에서 스택과 결정이 아니라 형식과 판단 방식만 가져오기로 하고, 바로 할 것 두 가지와 전체 적용 설계·CodeRabbit 적용까지 맡김 | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-borrow-formats-not-stacks-from-other-teams.md) |
