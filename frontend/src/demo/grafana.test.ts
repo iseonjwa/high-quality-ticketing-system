@@ -42,7 +42,11 @@ describe('requestLogDashboardUrl', () => {
   })
 
   it('https 화면(배포 서버)은 같은 주소의 /grafana를 쓴다', () => {
-    const location = { protocol: 'https:', hostname: '203.0.113.10', origin: 'https://203.0.113.10' }
+    const location = {
+      protocol: 'https:',
+      hostname: '203.0.113.10',
+      origin: 'https://203.0.113.10',
+    }
 
     expect(defaultGrafanaUrl(location)).toBe('https://203.0.113.10/grafana')
     expect(requestLogDashboardUrl(TRACE_ID, STARTED_AT, defaultGrafanaUrl(location))).toBe(
