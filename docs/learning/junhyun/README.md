@@ -26,6 +26,7 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-16 | ADR 0059(자동 배정 선점)는 무엇을 정했고 왜 아직 "제안"인가 | [qna/2026-11-16-adr-0059-seat-auto-assign.md](qna/2026-11-16-adr-0059-seat-auto-assign.md) |
 | 2026-11-13 | 서버 접근을 보안 그룹·사람별 키·접속 기록으로 묶은 것이 발표에서 장점이 되나(한 것, 한계, 발표에 넣는 법), 비밀번호·JWT 평문 전송을 HTTPS(IP 인증서)로 보완하는 법 | [qna/2026-11-13-server-access-security-as-strength.md](qna/2026-11-13-server-access-security-as-strength.md) |
 | 2026-11-13 | 다른 조 저장소 5곳에서 배울 점과 우리 프로젝트에 적용할 것 | [qna/2026-11-13-other-teams-repos-lessons.md](qna/2026-11-13-other-teams-repos-lessons.md) |
 | 2026-11-13 | Synthetic Data가 뭐고, 부하 테스트에서 왜 필요한가 | [qna/2026-11-13-what-is-synthetic-data.md](qna/2026-11-13-what-is-synthetic-data.md) |
