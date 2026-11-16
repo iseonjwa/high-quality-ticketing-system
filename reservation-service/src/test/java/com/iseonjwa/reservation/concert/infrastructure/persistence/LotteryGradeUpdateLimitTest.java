@@ -137,10 +137,13 @@ class LotteryGradeUpdateLimitTest {
         assumeTrue(expected.equals(physical), () -> "행의 물리 순서가 재현 조건과 다르다: " + physical);
     }
 
+    // Note: 열 통계(pg_statistic)가 있으면 플래너가 id가 고유하다는 것을 알고 서브쿼리를 먼저 한 번만 실행해 대조군이 재현되지 않는다.
+    // 회차 좌석 생성 API가 ANALYZE를 돌리고(ISE-284) 자동 갱신도 돌 수 있어, 통계가 없던 때와 같게 열 통계도 지운다(함께 롤백된다)
     private void makePlannerBelieveTableHasOneRow() {
         jdbc.update("UPDATE pg_class SET reltuples = 1,"
                 + " relpages = GREATEST(pg_relation_size(oid) / current_setting('block_size')::int, 1)"
                 + " WHERE oid = 'schedule_seats'::regclass");
+        jdbc.update("DELETE FROM pg_statistic WHERE starelid = 'schedule_seats'::regclass");
     }
 
     private List<Long> seatIdsOfGrade(String grade) {
