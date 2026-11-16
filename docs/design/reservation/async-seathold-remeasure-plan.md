@@ -128,6 +128,8 @@ ISE-79 측정과 같은 기준을 쓴다.
 | Outbox 간격·배치 | 기본 500ms·20 |
 | 결과 파일 위치 | |
 
+- 배포 서버에서 단계를 차례로 올리며 재는 순서와 명령: [deploy-seathold-steps-run-sheet.md](deploy-seathold-steps-run-sheet.md)(ISE-296)
+
 ## 5. 산출물
 - 비교 결과표와 측정 환경 기록표: 이 문서 6절에 채운다. 길어지면 `async-seathold-remeasure-results.md`로 나눈다
 - 병목 분석과 해결: `docs/troubleshooting.md`의 TS 항목

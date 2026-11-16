@@ -88,6 +88,22 @@ class CommonWebTest {
     }
 
     @Test
+    void 커넥션_대기_시한_초과는_503_SERVICE_UNAVAILABLE이다() throws Exception {
+        var transaction = mvc.perform(get("/api/v1/test/connection-timeout/transaction")).andReturn();
+        assertEquals("SERVICE_UNAVAILABLE", body(transaction, 503).get("code").asString());
+        assertFalse(transaction.getResponse().getContentAsString().contains("HikariPool"));
+
+        var jdbc = mvc.perform(get("/api/v1/test/connection-timeout/jdbc")).andReturn();
+        assertEquals("SERVICE_UNAVAILABLE", body(jdbc, 503).get("code").asString());
+    }
+
+    @Test
+    void 커넥션과_무관한_DB_예외는_그대로_500이다() throws Exception {
+        var result = mvc.perform(get("/api/v1/test/db-failure")).andReturn();
+        assertEquals("INTERNAL_SERVER_ERROR", body(result, 500).get("code").asString());
+    }
+
+    @Test
     void Accept가_JSON이_아니어도_오류_응답은_JSON이다() throws Exception {
         var business = mvc.perform(get("/api/v1/test/business").accept(MediaType.TEXT_EVENT_STREAM)).andReturn();
         assertEquals("NOT_FOUND", body(business, 404).get("code").asString());
@@ -186,6 +202,25 @@ class CommonWebTest {
         @GetMapping("/api/v1/test/unexpected")
         void unexpected() {
             throw new IllegalStateException("private-database-detail");
+        }
+
+        @GetMapping("/api/v1/test/connection-timeout/transaction")
+        void connectionTimeoutOnTransaction() {
+            throw new org.springframework.transaction.CannotCreateTransactionException("Could not open JPA EntityManager",
+                    new java.sql.SQLTransientConnectionException(
+                            "HikariPool-1 - Connection is not available, request timed out after 1000ms"));
+        }
+
+        @GetMapping("/api/v1/test/connection-timeout/jdbc")
+        void connectionTimeoutOnJdbc() {
+            throw new org.springframework.jdbc.CannotGetJdbcConnectionException("Failed to obtain JDBC Connection",
+                    new java.sql.SQLTransientConnectionException("HikariPool-1 - Connection is not available"));
+        }
+
+        @GetMapping("/api/v1/test/db-failure")
+        void dbFailure() {
+            throw new org.springframework.dao.DataIntegrityViolationException("duplicate key",
+                    new java.sql.SQLException("duplicate key value violates unique constraint"));
         }
 
         @GetMapping("/api/v1/test/admin")

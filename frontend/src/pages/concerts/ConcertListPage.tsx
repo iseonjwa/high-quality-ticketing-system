@@ -229,7 +229,11 @@ function OpeningTicket({ item, nowMillis }: { item: HomeConcert; nowMillis: numb
       </p>
       <article className="relative flex rounded-[18px] border border-gray-100 bg-gray-0 shadow-sm transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
         <div className="flex min-w-0 flex-1 items-center gap-3.5 p-3">
-          <ConcertPoster concertId={concert.concertId} className="w-[60px] rounded-[8px]" />
+          <ConcertPoster
+            concertId={concert.concertId}
+            concertTitle={concert.title}
+            className="w-[60px] rounded-[8px]"
+          />
           <div className="grid min-w-0 gap-1">
             <h3 className="line-clamp-2 type-body font-semibold text-gray-900">
               <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>
@@ -253,7 +257,7 @@ function OpeningTicket({ item, nowMillis }: { item: HomeConcert; nowMillis: numb
 // 예매 중 티켓 카드. 포스터를 정사각형으로 잘라 위에 두고, 절취선 아래에 제목과 일시를 둔다(시안 B, 가로:세로 약 3:4)
 function SaleTicketCard({ item }: { item: HomeConcert }) {
   const { concert, next, status } = item
-  const art = concertArt(concert.concertId)
+  const art = concertArt(concert.concertId, concert.title)
   return (
     <article className="group relative flex w-full flex-col rounded-[18px] border border-gray-100 bg-gray-0 shadow-sm transition duration-(--dur-base) ease-(--ease-out) hover:-translate-y-0.5 hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0">
       <div className="relative p-2.5 pb-3">
@@ -387,7 +391,11 @@ function CompactConcertCard({ item }: { item: HomeConcert }) {
   const { concert, status } = item
   return (
     <article className="relative flex items-center gap-4 rounded-[18px] border border-gray-100 bg-gray-0 p-3 transition-shadow duration-(--dur-fast) hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring">
-      <ConcertPoster concertId={concert.concertId} className="w-12 rounded-[4px] opacity-80" />
+      <ConcertPoster
+        concertId={concert.concertId}
+        concertTitle={concert.title}
+        className="w-12 rounded-[4px] opacity-80"
+      />
       <div className="grid min-w-0 gap-1">
         <h3 className="line-clamp-2 type-body-sm font-semibold text-gray-900">
           <CardTitleLink concertId={concert.concertId}>{concert.title}</CardTitleLink>

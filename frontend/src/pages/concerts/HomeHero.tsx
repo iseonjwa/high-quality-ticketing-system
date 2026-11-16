@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Link } from 'react-router'
 import { concertPath } from '@/app/paths'
-import { concertArt, POSTER_SIZE, WIDE_SIZE } from '@/components/ticketing/concertArt'
+import { concertArt, FEATURED_ART, POSTER_SIZE, WIDE_SIZE } from '@/components/ticketing/concertArt'
 import { SaleStatusBadge } from '@/components/ticketing/SaleStatusBadge'
 import { Button } from '@/components/ui/button'
 import { formatDateTime, kstDaysUntil, kstParts } from '@/lib/format'
@@ -201,7 +201,7 @@ function HeroSlide({
   nowMillis: number
 }) {
   const { concert, next, status } = item
-  const art = concertArt(concert.concertId)
+  const art = concertArt(concert.concertId, concert.title)
   return (
     <div
       role="group"
@@ -254,7 +254,7 @@ function HeroSlide({
         </div>
         {/* 넓은 화면에서만 보인다. lazy라 좁은 화면(display:none)에서는 받지 않는다 */}
         {loadArt && next ? (
-          <HeroPass concertId={concert.concertId} startsAt={next.startsAt} />
+          <HeroPass concertId={concert.concertId} title={concert.title} startsAt={next.startsAt} />
         ) : null}
       </div>
     </div>
@@ -358,8 +358,16 @@ const PASS_CUT = 296
 // 그림 위에 기울여 놓은 입장권. 포스터 아래 절취선에서 양옆을 실제로 파낸다(.ticket-pass).
 // 꾸밈이라 읽지 않는다(제목·일시는 왼쪽 글자가 같은 내용을 가진다)
 // Note: mask는 테두리 밖 box-shadow까지 자른다. 그림자는 바깥 래퍼의 drop-shadow로 그려, 파낸 홈 모양까지 따라가게 한다
-function HeroPass({ concertId, startsAt }: { concertId: number; startsAt: string }) {
-  const art = concertArt(concertId)
+function HeroPass({
+  concertId,
+  title,
+  startsAt,
+}: {
+  concertId: number
+  title: string
+  startsAt: string
+}) {
+  const art = concertArt(concertId, title)
   const when = kstParts(startsAt)
   return (
     <div
@@ -408,7 +416,7 @@ function HeroPass({ concertId, startsAt }: { concertId: number; startsAt: string
 
 // 보일 공연이 없을 때의 배너. 서비스 소개만 한다
 function BrandHero() {
-  const art = concertArt(1)
+  const art = FEATURED_ART
   return (
     <section
       aria-label="이선좌 소개"

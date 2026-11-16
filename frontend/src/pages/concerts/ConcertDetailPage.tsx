@@ -161,7 +161,7 @@ const ART_WASH =
 
 // 배너: 공연 그림을 깔고 포스터와 공연 요약을 얹는다
 function ConcertHero({ concert, clock }: { concert: ConcertDetail; clock: ServerClock | null }) {
-  const art = concertArt(concert.concertId)
+  const art = concertArt(concert.concertId, concert.title)
   const { schedules } = concert
   const venues = [...new Set(schedules.map((schedule) => schedule.venueName))]
   const limits = [...new Set(schedules.map((schedule) => schedule.maxPerUser))]

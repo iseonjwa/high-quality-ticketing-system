@@ -8,8 +8,11 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | 배포 측정을 설정 덮어쓰기로 단계를 올리며 한 번에 끝내는 AI 안을 받아들이고, ISE-293(503)을 측정 전에 넣고 ISE-261 이전 코드 비교는 뒤로 미룸 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-16-deploy-step-measurement-plan.md) |
+| 2026-11-16 | 접수형 장애 때 동기형으로 급히 되돌리는 비상 전환을 AI 추천대로 범위 밖으로 둠(ISE-255, ADR 0057 변경) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-ise255-emergency-switch-out-of-scope.md) |
 | 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | Claude Code 두 세션 | 부분 수용 | 예 | 후보 | [기록](2026-11-16-verify-other-agent-precheck-analysis.md) |
 | 2026-11-16 | ISE-18 직접 발행을 커밋 뒤 전송·실패해도 202로 정하고, 측정 기준 코드에 ISE-261을 병합하기로 함(AI 추천 3개 모두 수용) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-16-ise18-direct-publish-after-commit.md) |
+| 2026-11-16 | 자동 배정 API contract(ISE-287)를 AI 대조 결과대로 확인 완료로 답하고 후속 제안 세 건(사전 조회 합치기, 잠금 뒤 문장 줄이기, 겹친 인덱스 정리)을 함께 남김 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-ise287-auto-assign-contract-confirmed.md) |
 | 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-pool-and-limit-together.md) |
 | 2026-11-15 | 자율 성능 개선 반복 절차를 AI 검토안대로 보완하되 판정은 종합 판단, 종료 5회, 커밋 자율, 검토는 별도 세션으로 정함 | Claude Code | 부분 수용 | 아니오 | 후보 | [기록](2026-11-15-autonomous-perf-loop-procedure.md) |
 | 2026-11-14 | 배포 측정 전 개선안 중 계측 보강·만료 주기·토큰 서명 이동을 차례로 넣어 재고, 풀 크기(ISE-237 있음)·캐시 읽기 메서드(ISE-281 등록)는 contract로 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-14-pre-deploy-improvements-2-5-6-and-contracts.md) |
