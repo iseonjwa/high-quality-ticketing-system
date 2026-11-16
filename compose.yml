@@ -141,6 +141,8 @@ services:
       PAYMENT_PG_PROVIDER: ${PAYMENT_PG_PROVIDER:-mock}
       # 토스 모드의 Mock 건너뛰기(시연용). 기본은 꺼짐이다
       PAYMENT_PG_MOCK_BYPASS: ${PAYMENT_PG_MOCK_BYPASS:-false}
+      # 토스 모드에서 토스가 결제를 시작하지 못하면 Mock으로 넘긴다(PG 폴백, ISE-305). 기본은 켜짐이다
+      PAYMENT_PG_FAILOVER_TO_MOCK: ${PAYMENT_PG_FAILOVER_TO_MOCK:-true}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
     depends_on:
