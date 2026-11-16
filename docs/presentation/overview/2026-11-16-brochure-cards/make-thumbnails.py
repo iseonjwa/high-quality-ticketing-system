@@ -23,6 +23,7 @@ CARDS = [
     'AI 오류|정정 사례',
     'LLM 가상 사용자|3,000명',
     'CI/CD 자동 배포와|롤백',
+    '팀원별 IP·SSH 키 접근 통제와|비밀값 보호',
 ]
 def esc(s):
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
