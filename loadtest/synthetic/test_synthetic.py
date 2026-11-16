@@ -310,6 +310,55 @@ class CompareTest(unittest.TestCase):
             report = compare.build_report(run, run)
         self.assertIn("축 태그(`ax_*`)가 없는 원자료", report)
 
+    def test_soldout_and_follow_up_sections(self):
+        header = "metric_name,timestamp,metric_value,check,error,error_code,expected_response,group,method,name,proto,scenario,service,status,subproto,tls_version,url,extra_tags,metadata"
+        rows = [
+            "http_reqs,1000,1.0,,,,true,,POST,n,,s,,201,,,u,api=queue_enter,",
+            "http_reqs,1010,1.0,,,,true,,GET,n,,s,,200,,,u,api=seats,",
+            "http_reqs,1020,1.0,,,,true,,GET,n,,s,,200,,,u,api=seats,",
+            "http_reqs,1020,1.0,,,,true,,GET,n,,s,,200,,,u,api=queue_poll,",
+            "http_reqs,1050,1.0,,,,true,,GET,n,,s,,200,,,u,api=seats,",
+            "o1_outcomes,1010,1.0,,,,,,,,,s,,,,,,persona=a&outcome=confirmed,",
+            "o1_outcomes,1030,1.0,,,,,,,,,s,,,,,,persona=a&outcome=soldout,",
+            "o1_outcomes,1020,1.0,,,,,,,,,s,,,,,,persona=b&outcome=soldout_seen,",
+            "o1_outcomes,1060,1.0,,,,,,,,,s,,,,,,persona=b&outcome=soldout_refresh,",
+            "o1_outcomes,1070,1.0,,,,,,,,,s,,,,,,persona=c&outcome=rebook_limit,",
+            "o1_outcomes,1080,1.0,,,,,,,,,s,,,,,,persona=d&outcome=canceled,",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "raw.csv")
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                file.write("\n".join([header] + rows) + "\n")
+            run = compare.Run(path)
+            report = compare.build_report(run, run)
+        # 첫 매진은 soldout(1030)보다 이른 soldout_seen(1020)이다
+        self.assertEqual(run.soldout_second, 1020)
+        # 덧붙은 결과는 사용자 결과표(3절)에 들어가지 않는다
+        self.assertEqual(dict(run.outcomes), {"confirmed": 1, "soldout": 1, "soldout_refresh": 1})
+        self.assertEqual(dict(run.follow_ups), {"soldout_seen": 1, "rebook_limit": 1, "canceled": 1})
+        self.assertEqual(run.requests_after("seats", 1020), 2)
+        self.assertIn("## 11. 첫 매진 시각과 매진 뒤 요청", report)
+        self.assertIn("| Synthetic | 20 | 3 / 5 (60.0%) | 30 |", report)
+        self.assertIn("| seats | 2 (66.7%) | 2 (66.7%) |", report)
+        self.assertIn("| rebook_limit | 1 | 1 |", report)
+        self.assertNotIn("| rebook_limit | 1 (", report)
+
+    def test_v1_raw_has_no_soldout_and_keeps_old_sections(self):
+        header = "metric_name,timestamp,metric_value,check,error,error_code,expected_response,group,method,name,proto,scenario,service,status,subproto,tls_version,url,extra_tags,metadata"
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "raw.csv")
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                file.write(header + "\nhttp_reqs,100,1.0,,,,true,,POST,n,,s,,201,,,u,api=hold,\n"
+                           "o1_outcomes,105,1.0,,,,,,,,,s,,,,,,persona=a&outcome=confirmed,\n")
+            run = compare.Run(path)
+            report = compare.build_report(run, run)
+        self.assertIsNone(run.soldout_second)
+        self.assertIn("| 균일 | 매진 없음 | - | - |", report)
+        self.assertIn("덧붙은 결과가 없다", report)
+        # 1~10절 제목과 순서는 그대로다
+        titles = [line for line in report.splitlines() if line.startswith("## ")]
+        self.assertEqual([t.split(".")[0] for t in titles], [f"## {i}" for i in range(1, 13)])
+
 
 class SpecV2Test(unittest.TestCase):
     """v2 규격(ISE-289)은 v1 필드 12개를 그대로 두고 뒤에 4개를 붙인다. 축은 v1과 같다."""
