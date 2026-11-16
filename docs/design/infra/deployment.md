@@ -255,9 +255,11 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
 - 프론트 nginx 배포 설정은 `frontend/nginx/deploy.conf`이고 `compose.deploy.yml`이 이미지의 `default.conf` 자리에 마운트한다. 로컬과 이미지는 지금처럼 80(http)만 쓴다(`default.conf`). 화면·`/api/` 경로는 둘이 같은 `app.conf`를 include한다.
 - 바깥에서 온 80은 `https://$host$request_uri`로 넘긴다. `/.well-known/acme-challenge/`만 서버의 `/var/www/certbot`에서 내보낸다(발급·갱신 확인).
 - Host가 `127.0.0.1`·`localhost`인 80 요청은 http 그대로 화면과 `/api/`를 준다. 서버 안의 스크립트(compose 헬스체크, `smoke.sh`, `warmup.sh`, `seed-demo.sh`)가 `http://127.0.0.1`로 부르기 때문이다. 인증서는 공인 IP용이라 이 주소로는 https 확인이 되지 않는다.
-- 443은 `/etc/letsencrypt/live/iseonjwa/`의 인증서를 쓴다. 인증서 이름을 `--cert-name iseonjwa`로 붙여 nginx 설정에 주소를 적지 않는다. `/etc/letsencrypt`는 폴더째 읽기 전용으로 마운트한다(`live/`의 파일은 갱신 때마다 새 파일을 가리키는 링크다). TLS 1.2·1.3, HTTP/2.
-- Grafana는 443의 `/grafana/`로 중계하고(Grafana Live WebSocket 포함), Grafana가 하위 경로에서 스스로 서빙한다(`GF_SERVER_SERVE_FROM_SUB_PATH`, `GF_SERVER_ROOT_URL=${PUBLIC_URL}/grafana/`). 3000은 `127.0.0.1`에만 연다. 시연 모드 traceId 링크는 https 화면에서 같은 주소의 `/grafana`로 간다(`frontend/src/demo/grafana.ts`).
-- 서버 주소는 서버 `.env`의 `PUBLIC_URL` 한 곳에만 둔다. Grafana `root_url`과 슬랙 알림의 Grafana 바로 가기(`slack.tmpl`의 `iseonjwa.grafana_url`)가 이 값에서 나온다. Alertmanager 템플릿은 환경 변수를 읽지 못해 compose `configs`(`grafana-url-template`)가 값을 넣은 템플릿 파일을 만들어 준다.
+- 443은 `/etc/letsencrypt/live/iseonjwa/`의 인증서를 쓴다. 인증서 이름을 `--cert-name iseonjwa`로 붙여 nginx 설정에 주소를 적지 않는다. `/etc/letsencrypt`의 `live/`와 `archive/`만 같은 경로에 읽기 전용으로 마운트한다(`live/`의 파일은 갱신 때마다 `archive/`의 새 파일을 가리키는 상대 링크다. ACME 계정 키가 든 `accounts/` 등은 넣지 않는다). TLS 1.2·1.3, HTTP/2.
+- 80의 넘김은 302(임시)다. 301은 브라우저가 오래 기억해, https를 되돌려 443을 닫았을 때 한 번 들른 브라우저가 http 주소로도 열지 못한다.
+- Grafana는 443의 `/grafana/`로 중계하고(Grafana Live WebSocket 포함), Grafana가 하위 경로에서 스스로 서빙한다(`GF_SERVER_SERVE_FROM_SUB_PATH`, `GF_SERVER_ROOT_URL=${PUBLIC_URL}/grafana/`). 3000은 `127.0.0.1`에만 연다. 로그인 쿠키는 https에서만 보낸다(`GF_SECURITY_COOKIE_SECURE`). 그래서 SSH 터널(http)로는 관리자 로그인이 되지 않고, 로그인은 https 주소에서 한다. 시연 모드 traceId 링크는 https 화면에서 같은 주소의 `/grafana`로 간다(`frontend/src/demo/grafana.ts`).
+- 서버 주소는 서버 `.env`의 `PUBLIC_URL` 한 곳에만 둔다. Grafana `root_url`과 슬랙 알림의 Grafana 바로 가기(`slack.tmpl`의 `iseonjwa.grafana_url`)가 이 값에서 나온다. Alertmanager 템플릿은 환경 변수를 읽지 못해 compose `configs`(`grafana-url-template`)가 값을 넣은 템플릿 파일을 만들어 준다. configs 내용만 바뀌면 compose가 컨테이너를 다시 만들지 않으므로 Alertmanager에 같은 주소를 라벨(`iseonjwa.grafana-url`)로 달아 값이 바뀌면 다시 만들게 했다. Jenkins EC2의 `/opt/jenkins/jenkins.env`에 있는 `PUBLIC_URL`(배포 결과 슬랙의 바로 가기)은 다른 기계의 별개 값이다. https로 바꿔 두면 된다(그대로여도 http가 https로 넘어간다).
+- `deploy.sh`는 이미지를 받기 전에 compose 설정을 읽어 보고(`config --quiet`), `PUBLIC_URL`이 비어 있으면 compose 오류를 그대로 보이고 실패한다. `smoke.sh`는 `http://127.0.0.1`(서버 안 스크립트용 블록)에 더해 `https://127.0.0.1`의 화면·공개 API·`/grafana/api/health`를 본다. 바깥 사용자가 지나는 443을 확인하고, `PUBLIC_URL`을 잘못 적어 Grafana 하위 경로가 어긋나면 배포가 되돌려진다. 로컬에서 돌릴 때는 `SMOKE_HTTPS_BASE=""`로 끈다.
 - HSTS는 켜지 않는다. 인증서가 6일짜리라 갱신이 한 번 실패하면 HSTS를 기억한 브라우저는 http로도 열 수 없다.
 
 처음 한 번(서버 명령은 사람이 실행한다. 에이전트 세션은 배포 서버 SSH가 막혀 있다):
@@ -274,32 +276,37 @@ SA 9-2의 표에 Jenkins EC2와 부하 발생기 EC2 행을 더했다.
      --ip-address <서버 IP> --cert-name iseonjwa
    sudo certbot delete --cert-name iseonjwa
    ```
-4. 실제 발급과 갱신 훅 등록. 훅은 `/etc/letsencrypt/renewal/iseonjwa.conf`에 저장되어 자동 갱신 때마다 nginx가 새 인증서를 다시 읽게 한다(`script/deploy/cert-renewed.sh`).
+4. 실제 발급. 갱신 훅은 여기서 걸지 않는다. 이 시점의 서버 저장소(PR 663)에는 훅 스크립트가 아직 없어 certbot이 훅 경로 검사에서 멈춘다. 훅은 7단계에서 설치한다.
    ```bash
    sudo certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/certbot \
-     --ip-address <서버 IP> --cert-name iseonjwa --deploy-hook /home/ubuntu/iseonjwa/script/deploy/cert-renewed.sh
+     --ip-address <서버 IP> --cert-name iseonjwa
    sudo ls /etc/letsencrypt/live/iseonjwa/   # fullchain.pem, privkey.pem
    ```
 5. `.env`에 공개 주소: `sed -i '/^PUBLIC_URL=/d' .env && echo 'PUBLIC_URL=https://<서버 IP>' >> .env`(끝 슬래시 없이).
 6. 보안 그룹 `iseonjwa-deploy-sg`에 443(0.0.0.0/0)을 연다(계정 주인이 콘솔에서).
-7. 443이 든 배포(PR 2)를 main에 반영해 Jenkins로 배포한다. `https://<서버 IP>/`가 경고 없이 열리고 `http://`가 https로 넘어가는지, `https://<서버 IP>/grafana/`가 열리는지 본다.
+7. 443이 든 배포(PR 2)를 main에 반영해 Jenkins로 배포한다. 진행 중인 결제가 없을 때 한다. 토스 결제창은 http 주소로 돌아오게 열렸던 결제를 https 주소에서 이어 받지 못할 수 있다. 로그인 토큰은 주소(origin)마다 따로 저장되므로 http에서 로그인한 사람은 https에서 다시 로그인한다. `https://<서버 IP>/`가 경고 없이 열리고 `http://`가 https로 넘어가는지, `https://<서버 IP>/grafana/`가 열리는지 본다. 그 뒤 갱신 훅을 설치한다(이 파일을 고치는 배포가 있으면 다시 설치한다).
+   ```bash
+   cd ~/iseonjwa && sudo install -m 755 script/deploy/cert-renewed.sh /etc/letsencrypt/renewal-hooks/deploy/iseonjwa-nginx.sh
+   sudo /etc/letsencrypt/renewal-hooks/deploy/iseonjwa-nginx.sh   # "nginx가 새 인증서를 다시 읽었다"
+   ```
 8. 갱신 시험과 만료 알림 등록:
    ```bash
    systemctl list-timers | grep -i certbot          # snap.certbot.renew.timer가 있는지
-   sudo certbot renew --dry-run                      # staging으로 갱신을 흉내 낸다(훅은 돌지 않는다)
+   sudo certbot renew --dry-run                      # staging으로 갱신을 흉내 낸다(갱신 훅은 돌지 않는다. 훅은 7단계에서 직접 돌려 봤다)
    crontab -e                                        # 아래 한 줄을 더한다(6시간마다)
    0 */6 * * * /home/ubuntu/iseonjwa/script/deploy/cert-check.sh >> /home/ubuntu/cert-check.log 2>&1
    ```
 
 갱신과 알림:
 - Certbot 4.0부터 유효 기간이 10일 이하인 인증서는 수명의 절반(약 80시간)이 남으면 갱신 대상이 된다. snap 패키지의 타이머가 `certbot renew`를 주기적으로 돌린다.
-- `script/deploy/cert-check.sh`는 파일이 아니라 443이 실제로 내보내는 인증서를 보고, 48시간(`CERT_MIN_HOURS`) 안에 만료되면 `SLACK_WEBHOOK_MONITORING`으로 알린다. 갱신 실패와 "갱신은 됐는데 nginx가 다시 읽지 못함"을 함께 잡는다. 인증서를 읽지 못해도(nginx가 내려감) 알린다.
+- `script/deploy/cert-check.sh`는 파일이 아니라 443이 실제로 내보내는 인증서를 보고, 48시간(`CERT_MIN_HOURS`) 안에 만료되면 `SLACK_WEBHOOK_MONITORING`으로 알린다. 갱신 실패와 "갱신은 됐는데 nginx가 다시 읽지 못함"을 함께 잡는다. 인증서를 읽지 못해도(nginx가 내려감) 알린다. 읽기는 10초로 끊고, 읽지 못하면 30초 뒤 한 번 더 읽는다(배포가 frontend를 다시 만드는 몇 초와 겹쳐 잘못 알리지 않게).
 - 알림을 받으면 서버에서 `sudo certbot renew`와 `/var/log/letsencrypt/letsencrypt.log`를 본다. 인증서가 이미 만료됐어도 nginx는 뜨지만 브라우저가 경고를 띄운다.
 - 시연 직전에 https를 고칠 수 없으면 Jenkins 매개변수 `TAG`에 PR 2 직전 main 커밋을 넣어 다시 배포한다. 80이 다시 http로 화면을 주고(HSTS를 켜지 않아 브라우저가 http를 막지 않는다), `.env`의 `PUBLIC_URL`은 남아 있어도 된다.
 - `cert-check.sh`는 PR 2 이후 커밋에만 있다. 그보다 앞선 커밋으로 되돌리면 cron이 실패한다(되돌림을 풀면 다시 돈다).
 
 알려진 한계:
 - Grafana 익명 보기는 대시보드뿐 아니라 데이터 소스 조회 API(`/grafana/api/ds/query`)도 연다. 로컬 재현에서 익명 요청이 Prometheus 조회까지 넘어가는 것을 확인했다. 그래서 누구나 Prometheus·Loki·Zipkin을 직접 조회할 수 있다. Loki에는 앱 컨테이너 8개의 로그만 들어가고, 요청 로그는 메서드·경로(쿼리 문자열 없음)·상태·처리 시간·traceId·사용자 번호다. 이메일·비밀번호·토큰은 남기지 않는다(2026-11-16 코드 검색 기준). 익명은 관리 화면과 Explore에서 밀려나고 대시보드를 만들 수 없다(403). 심사가 끝나면 `GF_AUTH_ANONYMOUS_ENABLED`를 끄거나 `/grafana/` 중계를 뺀다.
+- 같은 이유로 누구나 무거운 PromQL·LogQL을 보내 Prometheus(768m)·Loki(512m)에 부하를 줄 수 있다. nginx 요청 제한(`limit_req`)은 두지 않았다. 심사위원이 같은 공유기(같은 공인 IP)에서 대시보드를 열면 패널 요청이 한꺼번에 몰려 시연 중 화면이 막힐 수 있어서다. 시연 때 Grafana 지표가 이상하면 이 경로를 먼저 의심한다.
 - Grafana 로그인 화면도 바깥에 열린다. 관리자 비밀번호는 서버 `.env`의 무작위 값이고 Grafana 기본 로그인 시도 제한이 있다.
 - 발생기 → Gateway 사설 IP(8080)는 http 그대로다. 측정 전용 키로 만든 토큰만 오간다.
 
@@ -330,7 +337,7 @@ Jenkins EC2에서 도는 Jenkins와 배포 파이프라인이다. 설정은 화�
 
 옵션은 동시 실행 금지, 타임스탬프, 전체 40분 제한이다. 되돌리기·재배포는 Jenkins에서 `TAG`에 이전 커밋 SHA를 넣고 실행한다. `BookingFlowSystemTest`를 고르는 매개변수는 이번에 넣지 않았다(후속).
 
-**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`, 선택 `PUBLIC_URL`=슬랙 바로 가기 주소, 서버는 `http://52.63.10.174`)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
+**자격 증명과 비밀 파일**: 저장소에 올리지 않는다. Jenkins EC2의 `/opt/jenkins/jenkins.env`(`JENKINS_ADMIN_PASSWORD`, `SLACK_WEBHOOK_DEPLOY`, `DEPLOY_HOST`, `POLL_SCHEDULE`, 선택 `PUBLIC_URL`=슬랙 바로 가기 주소, 서버는 `http://52.63.10.174`. 2026-11-16 https 전환 뒤에는 `https://`로 바꾼다)와 `/opt/jenkins/deploy_ssh_key`(배포 EC2에 접속하는 개인 키)를 0600으로 둔다. 컨테이너 사용자(uid 1000, EC2의 `ubuntu`와 같다)가 읽는다. 키 파일은 컨테이너의 `/run/secrets/deploy_ssh_key`에 읽기 전용으로 붙고 casc.yaml이 `${readFile:...}`로 읽는다. 파이프라인 단계는 컨테이너 환경 변수를 그대로 보므로 이 파일의 값이 빌드 로그에 찍히지 않게 주의한다(`env`·`printenv`를 쓰지 않는다).
 
 **`DEPLOY_HOST`는 배포 EC2의 사설 IP다.** 배포 서버 보안 그룹은 "Jenkins 보안 그룹에서 오는 22"만 허용하는데, 이 규칙은 VPC 안 사설 IP로 온 연결에만 맞는다. 공인 IP(Elastic IP)로 붙으면 출발지가 Jenkins 보안 그룹이 아닌 공인 주소로 보여 막힌다. 두 EC2는 같은 VPC에 둔다.
 

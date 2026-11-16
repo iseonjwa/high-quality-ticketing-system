@@ -5,13 +5,15 @@
 # 그래서 남은 시간이 CERT_MIN_HOURS(기본 48시간)보다 적으면 갱신이나 nginx 다시 읽기가 실패한 것으로 보고 알린다.
 # 파일이 아니라 443이 내보내는 인증서를 본다. 갱신은 됐는데 nginx가 다시 읽지 못한 경우도 잡으려는 것이다.
 #
-# 환경 변수: CERT_MIN_HOURS(기본 48), CERT_CHECK_ADDR(기본 127.0.0.1:443), DRY_RUN=1(슬랙에 보내지 않고 출력만)
+# 읽지 못하면 CERT_RETRY_SECONDS(기본 30초) 뒤 한 번 더 읽는다. 배포가 frontend를 다시 만드는 몇 초와 겹쳐 잘못 알리지 않게 하려는 것이다.
+# 환경 변수: CERT_MIN_HOURS(기본 48), CERT_CHECK_ADDR(기본 127.0.0.1:443), CERT_RETRY_SECONDS(기본 30), DRY_RUN=1(슬랙에 보내지 않고 출력만)
 # 알림은 SLACK_WEBHOOK_MONITORING으로 간다(환경 변수가 없으면 .env에서 그 키만 읽는다). 주소는 출력하지 않는다.
 # 종료 코드: 0 충분히 남음, 1 얼마 남지 않음 또는 확인 실패(알림을 보냈거나 보내려 했음)
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 min_hours="${CERT_MIN_HOURS:-48}"
 addr="${CERT_CHECK_ADDR:-127.0.0.1:443}"
+retry_seconds="${CERT_RETRY_SECONDS:-30}"
 dry="${DRY_RUN:-0}"
 
 webhook() {
@@ -47,7 +49,19 @@ notify() {
 }
 
 runbook="docs/design/infra/deployment.md \"HTTPS 인증서\""
-cert="$(echo | openssl s_client -connect "$addr" 2> /dev/null | openssl x509 2> /dev/null)"
+# 443이 연결만 받고 응답하지 않으면 openssl이 끝나지 않아 cron이 쌓인다. timeout(coreutils)이 있으면 10초로 끊는다
+served_cert() {
+  local limit=()
+  command -v timeout > /dev/null && limit=(timeout 10)
+  # Note: ${limit[@]+...}는 배열이 비어도 set -u에 걸리지 않게 한다(macOS 기본 bash 3.2)
+  echo | ${limit[@]+"${limit[@]}"} openssl s_client -connect "$addr" 2> /dev/null | openssl x509 2> /dev/null
+}
+cert="$(served_cert)"
+if [[ -z "$cert" ]]; then
+  echo "인증서를 읽지 못했다: $addr. ${retry_seconds}초 뒤 한 번 더 읽는다"
+  sleep "$retry_seconds"
+  cert="$(served_cert)"
+fi
 if [[ -z "$cert" ]]; then
   echo "인증서를 읽지 못했다: $addr"
   notify "[배포 서버] HTTPS 인증서를 확인하지 못했습니다($addr). 프론트 nginx가 떠 있는지 확인해 주세요. 절차: $runbook"
