@@ -14,8 +14,8 @@ import sys
 from collections import Counter
 
 from persona_spec import (
-    CHOICES, CSV_HEADER, DISCRETE_ONLY, DIST_KEYS, FIELDS, MIN_PERSONA_FOR_RATIO, PERSONA_KEYS, RANGES,
-    clamp_field, fix_field, is_number, ratio_tolerance, round_half_up,
+    AXIS_COLUMNS, BASE_HEADER, CHOICES, CSV_HEADER, DISCRETE_ONLY, DIST_KEYS, FIELDS, MIN_PERSONA_FOR_RATIO, PERSONA_KEYS, RANGES,
+    axis_levels, clamp_field, fix_field, is_number, ratio_tolerance, round_half_up, typed_row,
 )
 
 SUM_TOLERANCE = 1e-6
@@ -197,6 +197,13 @@ def check_row(where, row):
     return problems
 
 
+def check_axis_levels(where, row):
+    """축 열이 필드 값에서 다시 계산한 구간과 같은지 본다. 다르면 손으로 고쳤거나 점수 규칙이 바뀐 것이다."""
+    expected = axis_levels(typed_row(row))
+    return [f"{where}: {column}={row[column]!r}가 필드 값으로 계산한 {level}와 다릅니다"
+            for column, level in zip(AXIS_COLUMNS, expected) if row[column] != str(level)]
+
+
 def read_csv(path):
     with open(path, encoding="utf-8", newline="") as file:
         reader = csv.reader(file)
@@ -210,16 +217,21 @@ def check_csv(path, personas_doc):
         lines = read_csv(path)
     except OSError as error:
         return [f"{path}: 읽을 수 없습니다({error})"]
-    if not lines or lines[0] != CSV_HEADER:
-        return [f"{path}: 머리말이 다릅니다(기대 {','.join(CSV_HEADER)})"]
+    # LLM이 쓴 표본은 축 열이 없는 BASE_HEADER, generate.py가 만든 CSV는 축 열까지 있는 CSV_HEADER다
+    if not lines or lines[0] not in (CSV_HEADER, BASE_HEADER):
+        return [f"{path}: 머리말이 다릅니다(기대 {','.join(CSV_HEADER)} 또는 축 열을 뺀 {len(BASE_HEADER)}열)"]
+    header = lines[0]
     rows = []
     for number, cells in enumerate(lines[1:], start=2):
         where = f"{path}:{number}"
-        if len(cells) != len(CSV_HEADER):
-            problems.append(f"{where}: 열이 {len(cells)}개입니다({len(CSV_HEADER)}개여야 합니다)")
+        if len(cells) != len(header):
+            problems.append(f"{where}: 열이 {len(cells)}개입니다({len(header)}개여야 합니다)")
             continue
-        row = dict(zip(CSV_HEADER, cells))
-        problems.extend(check_row(where, row))
+        row = dict(zip(header, cells))
+        row_problems = check_row(where, row)
+        if not row_problems and header == CSV_HEADER:
+            row_problems = check_axis_levels(where, row)
+        problems.extend(row_problems)
         rows.append((where, row))
     problems.extend(check_user_numbers(path, rows))
     if personas_doc is not None:

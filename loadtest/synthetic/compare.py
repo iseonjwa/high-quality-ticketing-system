@@ -7,7 +7,7 @@
       --synthetic loadtest/k6/results/o1-open-peak-<synthetic>-raw.csv.gz > compare.md
 
 입력은 run.sh가 남기는 k6 원자료(--out csv)다. 열은 metric_name, timestamp(초), metric_value, ..., status, ..., extra_tags이며,
-기본 열에 없는 태그(api, step, persona, outcome)는 extra_tags에 `k=v&k=v`로 온다.
+기본 열에 없는 태그(api, step, persona, outcome, ax_*)는 extra_tags에 `k=v&k=v`로 온다.
 """
 import argparse
 import csv
@@ -15,11 +15,17 @@ import gzip
 import math
 from collections import Counter, defaultdict
 
+from persona_spec import AXES, AXIS_LEVELS
+
 STEP_ORDER = ["browse", "enter", "poll", "token", "seats", "hold", "pay"]
 SETUP_API = "setup"
 # 초당 최대치를 볼 API(설계 문서 synthetic-data.md 5-0절의 LLM 예측 판정에 쓴다)
 PEAK_APIS = ["concert_detail", "queue_enter", "queue_poll", "seats", "hold", "payment"]
 WAVE_SECONDS = 60
+# 2축 교호를 볼 축 쌍. 좌석 욕심이 큰 사람이 끝까지 재시도할 때 409가 어떻게 쌓이는지 본다
+PAIR_AXES = ("ax_demand", "ax_persistence")
+AXIS_TAGS = ["ax_" + code for code, _, _ in AXES]
+AXIS_NAMES = {"ax_" + code: name for code, name, _ in AXES}
 
 
 def open_text(path):
@@ -36,6 +42,14 @@ def tags_of(row):
             key, value = pair.split("=", 1)
             tags[key] = value
     return tags
+
+
+def axis_tags(tags):
+    return [axis for axis in AXIS_TAGS if axis in tags]
+
+
+def level_name(level):
+    return AXIS_LEVELS[int(level)] if level.isdigit() and int(level) < len(AXIS_LEVELS) else level
 
 
 def tag(row, tags, name):
@@ -57,6 +71,10 @@ class Run:
         self.per_second = defaultdict(Counter)
         self.hold_by_second = defaultdict(Counter)
         self.hold_by_zone = defaultdict(Counter)
+        # (축 태그, 구간) → 결과·선점 응답 코드. 축 태그가 없는 원자료(균일, 예전 CSV)면 비어 있다
+        self.axis_outcomes = defaultdict(Counter)
+        self.axis_hold = defaultdict(Counter)
+        self.pair_hold = defaultdict(Counter)
         self.first = None
         self.last = None
         self.read()
@@ -71,6 +89,10 @@ class Run:
                     self.step_values[step].append(float(row["metric_value"]))
                     if step == "hold" and tags.get("code"):
                         self.hold_by_zone[tags.get("zone") or "ANY"][tags["code"]] += 1
+                        for axis in axis_tags(tags):
+                            self.axis_hold[(axis, tags[axis])][tags["code"]] += 1
+                        if all(axis in tags for axis in PAIR_AXES):
+                            self.pair_hold[tuple(tags[axis] for axis in PAIR_AXES)][tags["code"]] += 1
                 elif metric == "http_reqs":
                     self.add_request(row)
                 elif metric == "o1_outcomes":
@@ -79,6 +101,8 @@ class Run:
                     count = int(float(row["metric_value"]))
                     self.outcomes[outcome] += count
                     self.persona_outcomes[tag(row, tags, "persona") or "(없음)"][outcome] += count
+                    for axis in axis_tags(tags):
+                        self.axis_outcomes[(axis, tags[axis])][outcome] += count
 
     def add_request(self, row):
         tags = tags_of(row)
@@ -197,6 +221,40 @@ def persona_table(run):
     return table(["persona", "합계"] + names, rows)
 
 
+def axis_table(run):
+    if not run.axis_outcomes:
+        return "축 태그(`ax_*`)가 없는 원자료라 표가 없다. 축 열이 있는 CSV로 돌린 Synthetic 실행이어야 한다."
+    names = sorted({name for counter in run.axis_outcomes.values() for name in counter})
+    rows = []
+    for axis in AXIS_TAGS:
+        for level in sorted({lv for (name, lv) in run.axis_outcomes if name == axis}):
+            counter = run.axis_outcomes[(axis, level)]
+            total = sum(counter.values())
+            hold = run.axis_hold.get((axis, level), Counter())
+            holds = sum(hold.values())
+            rows.append([AXIS_NAMES[axis], level_name(level), f"{total:,}"]
+                        + [f"{counter.get(name, 0):,} ({percent(counter.get(name, 0), total)})" for name in names]
+                        + [f"{holds:,}", f"{hold.get('409', 0):,} ({percent(hold.get('409', 0), holds)})"])
+    return table(["축", "구간", "사용자"] + names + ["선점 요청", "409(비율)"], rows)
+
+
+def pair_table(run):
+    if not run.pair_hold:
+        return "두 축 태그가 모두 있는 선점 기록이 없어 표가 없다."
+    first, second = PAIR_AXES
+    levels = [str(i) for i in range(len(AXIS_LEVELS))]
+    rows = []
+    for a in levels:
+        row = [f"{AXIS_NAMES[first]} {level_name(a)}"]
+        for b in levels:
+            counter = run.pair_hold.get((a, b), Counter())
+            total = sum(counter.values())
+            row.append(f"{counter.get('409', 0):,}/{total:,} ({percent(counter.get('409', 0), total)})")
+        rows.append(row)
+    header = [f"{AXIS_NAMES[first]} × {AXIS_NAMES[second]}"] + [f"{AXIS_NAMES[second]} {level_name(b)}" for b in levels]
+    return table(header, rows)
+
+
 def peak_table(runs):
     apis = [api for api in PEAK_APIS if any(api in run.per_second for _, run in runs)]
     rows = []
@@ -276,6 +334,11 @@ def build_report(base, synthetic):
         wave_table(runs) + "\n\n오픈은 첫 대기열 진입 요청 시각으로 본다. 선점 유지 5분이 지나 풀린 좌석에 두 번째 몰림이 오는지(5~7분 구간)를 본다.",
         "## 8. 처음 노린 등급별 선점 409 비율",
         zone_table(runs) + "\n\n균일 모드는 등급을 정하지 않아 모두 ANY다. 등급 태그가 없는 예전 원자료면 표가 비어 있다.",
+        "## 9. 행동 축 구간별 결과(Synthetic)",
+        axis_table(synthetic) + "\n\n사용자 단위 결과다. 같은 실행 안의 사용자는 좌석을 두고 서로 경쟁하므로, "
+        "한 축의 비율이 서버 지연을 얼마나 바꾸는지(시스템 효과)는 이 표로 가를 수 없다. 축 정의는 `persona_spec.py`의 `AXES`다.",
+        "## 10. 좌석 욕심 × 집착도별 선점 409 비율(Synthetic)",
+        pair_table(synthetic) + "\n\n칸마다 `409 건수/선점 요청 수`다. 선점 요청 단위라 재시도를 많이 하는 사람이 더 많이 센다.",
     ]
     return "\n\n".join(parts) + "\n"
 

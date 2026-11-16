@@ -7,6 +7,29 @@
 // Note: 사용자 한 명이 수 분 동안 대기하므로 사용자마다 VU를 두면 VU가 수만 개 필요하다.
 // VU 하나가 사용자 여러 명을 상태 기계로 들고, 다음 행동 시각이 가장 이른 사용자부터 한 걸음씩 진행한다.
 // 한 VU 안의 요청은 순서대로 나가므로 좌석 조회처럼 느린 요청이 있으면 같은 VU의 다른 사용자가 늦어진다. 그 정도를 action_lateness로 남긴다
+//
+// SEAT_MODE(기본 map)는 좌석을 정하는 방법이다. map은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다.
+// partitioned는 서버가 좌석을 골라 주는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다. setup에서 좌석 조회를 한 번만 해
+// 빈 좌석을 사용자마다 겹치지 않게 나눠 두고, 측정 중에는 좌석 조회 없이 바로 선점한다. 서버가 좌석을 고르는 비용은 빠진다.
+// partitioned에서는 등급(zone)을 보지 않고 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. 예:
+//   SEAT_MODE=partitioned SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+// auto는 자동 배정 API(POST .../reservations/auto, ISE-264)를 실제로 부른다. 좌석 조회 없이 구역·등급과 매수만 보내고 서버가 고른다.
+// partitioned와 달리 서버가 고르는 비용과 구역 매진(409 ZONE_SOLD_OUT)이 들어간다. 구역을 고르는 규칙은 map과 맞춘다(autoCriteria 참고). 예:
+//   SEAT_MODE=auto SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+//
+// ARRIVAL_MODE(기본 profile)는 도착·진입 시각을 정하는 방법이다. profile은 지금 동작 그대로 균일 규칙 또는 CSV 행을 쓴다.
+// realistic은 실제 티켓 오픈처럼 대부분이 오픈 전에 상세를 보고 기다리다 오픈 0~1초에 진입을 누르는 모습을 흉내 낸다.
+// 바꾸는 것은 도착 시각, 오픈 전 새로고침 간격, 진입 시각, 진입 연타(균일만), 확정 조회 간격이다. 대기·토큰·좌석·선점·결제는 균일 또는 CSV 규칙 그대로다.
+//   - 도착: 95%가 오픈 10분~1분 전에 고르게(측정 창이 짧으면 창 안에서), 5%가 오픈 +2~60초. Synthetic CSV는 83%가 오픈 전, 중앙값 5분 전이다
+//   - 새로고침: 오픈까지 5분 넘게 20~40초, 1~5분 10~20초, 마지막 1분 2~5초(추정). CSV refresh_s는 3~48초, 중앙값 16초이고
+//     refresh_spammer가 3~6초다. 프론트 상세 화면은 카운트다운만 돌고 자동으로 다시 부르지 않으므로(ConcertDetailPage.tsx) 이 요청은 사람이 누른 새로고침이다
+//   - 진입: 오픈 전 도착자의 88%가 오픈 +0.05·+0.5·+0.9초 근처(표준편차 0.07초, 추정 반응 시간)에, 12%가 +1~30초에 누른다.
+//     전체로는 약 82%가 오픈 1초 안이다(tools/arrival-preview.mjs로 계산). CSV는 오픈 1초 안 1,423명(47%)이다
+//   - 연타: 균일 사용자는 55%가 한 번, 45%가 2~5번을 http.batch로 거의 동시에. CSV 사용자는 행의 enter_clicks(페르소나) 그대로
+//   - 확정 조회: 프론트(paymentFlow.ts CONFIRM_INTERVAL_MILLIS·CONFIRM_LIMIT_MILLIS)와 같게 승인 직후 바로, 1초마다, 30초까지(최대 31번).
+//     profile은 0.5초 뒤부터 0.5초마다 10번이라 프론트보다 2배 자주 묻는다
+// Note: 한 VU의 사용자는 차례로 요청하므로 오픈 1초 안 몰림을 살리려면 VU당 사용자를 적게 둔다. action_lateness{state:enter}로 밀린 정도를 본다. 예:
+//   ARRIVAL_MODE=realistic SCHEDULE_ID=<id> CONCERT_ID=<id> OPEN_AT=<ISO-8601 UTC> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 import http from 'k6/http';
 import { sleep } from 'k6';
 import exec from 'k6/execution';
@@ -14,11 +37,12 @@ import { SharedArray } from 'k6/data';
 import { Counter, Trend } from 'k6/metrics';
 import { numberEnv, requireEnv } from '../lib/env.js';
 import { accessToken, assertSigningKeys, userIdOf, uuid } from '../lib/tokens.js';
-import { authHeaders, dataOf, errorCodeOf, jsonHeaders, url } from '../lib/http.js';
+import { authHeaders, dataOf, errorCodeOf, jsonHeaders, retryDelayMillis, url } from '../lib/http.js';
 import { adminLogin, createSchedule, waitUntil } from '../lib/admin.js';
 import { enterPath, positionPath } from '../lib/queue.js';
-import { isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus } from '../lib/booking.js';
+import { availableSeatIds, isSoldOut, pickSeatsFromMap, pickSeatsInZone, reservationStatus, userOf } from '../lib/booking.js';
 import { setApproveDelay } from '../lib/mockpg.js';
+import { realisticArrival, realisticClicks, realisticRefreshMillis } from '../lib/arrival.js';
 
 const USERS = numberEnv('USERS', 30000);
 const VUS = numberEnv('VUS', 1000);
@@ -31,6 +55,19 @@ const ABANDON_RATIO = numberEnv('ABANDON_RATIO', 0.1);
 const MAX_RETRY = numberEnv('MAX_RETRY', 2);
 const PG_DELAY_MS = numberEnv('PG_DELAY_MS', 300);
 const SCHEDULE_ID = __ENV.SCHEDULE_ID ? Number(__ENV.SCHEDULE_ID) : 0;
+const SEAT_MODE = __ENV.SEAT_MODE || 'map';
+if (SEAT_MODE !== 'map' && SEAT_MODE !== 'partitioned' && SEAT_MODE !== 'auto') {
+  throw new Error(`SEAT_MODE(${SEAT_MODE})는 map, partitioned, auto 중 하나여야 합니다`);
+}
+const ARRIVAL_MODE = __ENV.ARRIVAL_MODE || 'profile';
+if (ARRIVAL_MODE !== 'profile' && ARRIVAL_MODE !== 'realistic') {
+  throw new Error(`ARRIVAL_MODE(${ARRIVAL_MODE})는 profile 또는 realistic이어야 합니다`);
+}
+const REALISTIC = ARRIVAL_MODE === 'realistic';
+// 결제 승인 뒤 확정 조회. profile은 0.5초 뒤부터 0.5초마다 10번, realistic은 프론트와 같게 바로부터 1초마다 31번(30초)
+const CONFIRM_FIRST_DELAY_MS = REALISTIC ? 0 : 500;
+const CONFIRM_INTERVAL_MS = REALISTIC ? 1000 : 500;
+const CONFIRM_MAX_POLLS = REALISTIC ? 31 : 10;
 // 오픈 전 상세 새로고침을 하지 않는 사용자(진입 0번)가 오픈 뒤에도 새로고침하는 시간
 const NO_ENTER_BROWSE_MS = 60000;
 // 대기열 회차 캐시 갱신 주기(30초). 오픈이 이보다 가까우면 진입이 캐시를 타지 않는다
@@ -39,6 +76,9 @@ const SCHEDULE_CACHE_SECONDS = 30;
 const CSV_NUMBER_COLUMNS = ['arrive_s', 'refresh_s', 'enter_delay_ms', 'enter_clicks', 'seats', 'think_ms', 'max_retry',
   'queue_patience_s', 'abandon_after_hold', 'pay_delay_s'];
 const CSV_TEXT_COLUMNS = ['persona', 'zone', 'on_conflict'];
+// 행동 축 구간(0 낮음, 1 중간, 2 높음). 있으면 지표 태그로만 붙이고 행동에는 쓰지 않는다. 없는 CSV(예전 파일)도 그대로 돈다
+// Note: 열 이름과 계산 규칙의 정본은 loadtest/synthetic/persona_spec.py의 AXES다. 여기서는 값을 다시 계산하지 않는다
+const CSV_AXIS_COLUMNS = ['ax_arrival', 'ax_entry', 'ax_demand', 'ax_speed', 'ax_persistence', 'ax_intent'];
 
 // Note: SharedArray는 VU마다 복사하지 않고 한 번 읽은 CSV를 모든 VU가 나눠 본다. 3,000행도 VU 1,000개가 따로 들면 메모리가 낭비된다
 const csvRows = __ENV.USERS_CSV ? new SharedArray('o1-users', () => parseUsersCsv(open(__ENV.USERS_CSV))) : null;
@@ -80,8 +120,25 @@ export function setup() {
   const schedule = SCHEDULE_ID ? scheduleFromEnv() : createSchedule(adminLogin(), { title: 'k6 O1', openInSeconds: PRE_OPEN_SECONDS });
   setApproveDelay(PG_DELAY_MS);
   console.log(`O1 회차 ${schedule.scheduleId}(공연 ${schedule.concertId}), 사용자 ${USERS}명(${csvRows === null ? '균일' : 'Synthetic ' + __ENV.USERS_CSV}), `
-    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}`);
-  return { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
+    + `VU ${VUS}개, 오픈 ${new Date(schedule.openAt).toISOString()}, 좌석 ${SEAT_MODE}, 도착 ${ARRIVAL_MODE}`);
+  const data = { scheduleId: schedule.scheduleId, concertId: schedule.concertId, openAt: schedule.openAt };
+  if (SEAT_MODE === 'partitioned') {
+    Object.assign(data, partitionSeats(schedule.scheduleId));
+  }
+  return data;
+}
+
+// partitioned: 사용자 번호 i에게 seatIds[i × perUser]부터 perUser석을 준다. perUser는 한 사용자가 잡을 수 있는 최대 좌석 수다.
+// Note: 좌석 조회는 여기서 한 번뿐이고 측정 구간(오픈 전 조회부터) 밖이다. 서명한 입장 토큰으로 부르는 것은 A0와 같다
+function partitionSeats(scheduleId) {
+  const perUser = csvRows === null ? 2 : csvRows.reduce((max, row) => Math.max(max, row.seats), 1);
+  const seatIds = availableSeatIds(scheduleId, userOf(userIdOf(0) - 1, scheduleId));
+  const needed = USERS * perUser;
+  if (seatIds.length < needed) {
+    throw new Error(`SEAT_MODE=partitioned: 빈 좌석 ${seatIds.length}석이 필요한 ${needed}석(USERS ${USERS} × 사용자당 ${perUser}석)보다 적습니다`);
+  }
+  console.log(`좌석 나눔: 빈 좌석 ${seatIds.length}석 중 ${needed}석을 사용자마다 ${perUser}석씩`);
+  return { seatIds: seatIds.slice(0, needed), seatsPerUser: perUser };
 }
 
 // 서버에서 만든 회차(seed-demo.sh open "<OPEN_AT>")를 받는다. 관리자 로그인과 회차 만들기를 건너뛴다.
@@ -129,7 +186,11 @@ function usersOfThisVu(data) {
   for (let i = 0; i < perVu; i++) {
     const userId = userIdOf(first + i);
     const profile = csvRows === null ? uniformProfile(data) : csvProfile(csvRows[first + i], data);
+    if (REALISTIC) {
+      applyRealisticArrival(profile, data);
+    }
     list.push({
+      index: first + i,
       userId,
       access: accessToken(userId),
       profile,
@@ -152,6 +213,7 @@ function usersOfThisVu(data) {
 function uniformProfile(data) {
   return {
     persona: 'uniform',
+    axes: {},
     // 첫 행동은 흩고, 진입은 오픈 뒤 ENTER_SPREAD_SECONDS초 안에 흩는다
     firstAt: Date.now() + Math.random() * Math.min(PRE_OPEN_SECONDS, 60) * 1000,
     enterAt: data.openAt + 1000 + Math.random() * ENTER_SPREAD_SECONDS * 1000,
@@ -188,6 +250,7 @@ function csvProfile(row, data) {
   }
   return {
     persona: row.persona,
+    axes: axisTagsOf(row),
     firstAt,
     enterAt,
     viewFirst: true,
@@ -202,6 +265,34 @@ function csvProfile(row, data) {
     abandonRatio: row.abandon_after_hold,
     payDelayMs: row.pay_delay_s * 1000,
   };
+}
+
+// realistic: 도착·진입·새로고침만 바꾸고 좌석·고민·재시도·대기 인내·이탈·결제 지연은 균일 또는 CSV 값을 둔다.
+// CSV 사용자의 연타 수(enter_clicks)는 페르소나가 정한 값이라 그대로 두고, 진입 0번(browse_only)은 오픈 뒤 NO_ENTER_BROWSE_MS까지 보다 떠난다
+function applyRealisticArrival(profile, data) {
+  const arrival = realisticArrival(data.openAt, Date.now(), Math.random);
+  profile.firstAt = arrival.firstAt;
+  profile.enterAt = arrival.enterAt;
+  profile.viewFirst = true;
+  // 오픈 뒤 도착자는 상세를 한 번 보고 진입한다. 오픈 전 도착자는 남은 시간에 따라 간격이 줄어든다(browse 단계)
+  profile.refreshMs = arrival.late ? 0 : null;
+  profile.refreshRamp = !arrival.late;
+  if (csvRows === null) {
+    profile.enterClicks = realisticClicks(Math.random);
+  }
+  if (profile.enterClicks === 0) {
+    profile.enterAt = Math.max(arrival.firstAt, data.openAt + NO_ENTER_BROWSE_MS);
+  }
+}
+
+function axisTagsOf(row) {
+  const axes = {};
+  for (const name of CSV_AXIS_COLUMNS) {
+    if (row[name] !== undefined) {
+      axes[name] = row[name];
+    }
+  }
+  return axes;
 }
 
 // 머리말 한 줄, 쉼표 구분, 따옴표 없음(loadtest/synthetic/generate.py가 만드는 형식)
@@ -235,11 +326,11 @@ function nextUser(list) {
 
 function finish(user, outcome) {
   user.state = 'done';
-  outcomes.add(1, { outcome, persona: user.profile.persona });
+  outcomes.add(1, Object.assign({ outcome, persona: user.profile.persona }, user.profile.axes));
 }
 
 function record(user, step, res) {
-  const tags = { step, persona: user.profile.persona };
+  const tags = Object.assign({ step, persona: user.profile.persona }, user.profile.axes);
   if (step === 'hold') {
     // 선점에는 처음 노린 등급과 응답 코드를 붙인다. compare.py가 등급별 409 비율을 낸다(LLM 예측 "409가 VIP에 몰린다" 판정)
     // Note: 태그 이름을 status로 하면 k6 CSV의 기본 status 열과 겹친다. 그래서 code로 쓴다
@@ -264,25 +355,29 @@ const STEPS = {
     const res = http.get(url(`/api/v1/concerts/${data.concertId}`), { tags: { api: 'concert_detail' } });
     record(user, 'browse', res);
     user.viewed = true;
-    const interval = profile.refreshMs === null ? (10 + Math.random() * 20) * 1000 : profile.refreshMs;
+    const interval = profile.refreshRamp ? realisticRefreshMillis(data.openAt - Date.now(), Math.random)
+      : profile.refreshMs === null ? (10 + Math.random() * 20) * 1000 : profile.refreshMs;
     user.nextAt = interval > 0 ? Math.min(Date.now() + interval, user.enterAt) : user.enterAt;
   },
-  // 2. 대기열 진입. 연타(enterClicks ≥ 2)는 사이에 쉬지 않고 이어 보내고, 마지막 성공 응답으로 순번을 읽는다
+  // 2. 대기열 진입. 연타(enterClicks ≥ 2)는 http.batch로 한꺼번에 보내고, 마지막 성공 응답으로 순번을 읽는다.
+  //    multi_device는 연타 한 번이 기기 하나다. 대기에 들어가면 본 사용자 말고 남은 기기마다 그림자 폴러를 둔다
   enter(user, data) {
+    const responses = sendEnterClicks(user, data);
     let accepted = null;
-    for (let click = 0; click < user.profile.enterClicks; click++) {
-      const tags = click === 0 ? { api: 'queue_enter' } : { api: 'queue_enter', click: 'dup' };
-      const res = http.post(url(enterPath(data.scheduleId)), null, { headers: authHeaders(user.access), tags });
+    responses.forEach((res, click) => {
       record(user, click === 0 ? 'enter' : 'enter_dup', res);
-      if (res.status === 201 || res.status === 200) {
+      if (isQueueAccepted(res)) {
         accepted = { body: dataOf(res) };
       }
-    }
+    });
     if (accepted === null) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(responses[0]));
     }
     user.enteredAt = Date.now();
     afterPosition(user, accepted.body);
+    if (user.state === 'wait' && user.profile.persona === MULTI_DEVICE_PERSONA) {
+      startShadowPollers(user, responses.slice(1));
+    }
   },
   // 3. 순번 폴링
   wait(user, data) {
@@ -293,9 +388,28 @@ const STEPS = {
     const res = http.get(url(positionPath(data.scheduleId)), { headers: authHeaders(user.access), tags: { api: 'queue_poll' } });
     record(user, 'poll', res);
     if (res.status !== 200) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(res));
     }
     afterPosition(user, dataOf(res));
+  },
+  // 3-1. 그림자 폴링(multi_device의 다른 기기). 같은 사용자 토큰으로 순번 폴링만 한다
+  shadow(shadow, data) {
+    const owner = shadow.owner;
+    // 본 사용자가 대기를 끝냈다(토큰 단계로 넘어감, 이탈, done). 다른 기기도 같이 닫힌 것으로 본다
+    if (owner.state !== 'wait' || leftQueue(owner)) {
+      shadow.state = 'done';
+      return;
+    }
+    const res = http.get(url(positionPath(data.scheduleId)),
+      { headers: authHeaders(shadow.access), tags: { api: 'queue_poll', device: 'shadow' } });
+    record(shadow, 'poll_shadow', res);
+    const body = res.status === 200 ? dataOf(res) : null;
+    if (body && body.status !== 'WAITING') {
+      // READY를 본 기기는 더 부르지 않는다. 토큰은 본 사용자만 받는다(그림자는 폴링 부하만 더한다)
+      shadow.state = 'done';
+      return;
+    }
+    shadow.nextAt = Date.now() + nextPollDelayMillis(res, body);
   },
   // 4. 입장 토큰
   token(user, data) {
@@ -304,7 +418,7 @@ const STEPS = {
     record(user, 'token', res);
     const body = dataOf(res);
     if (res.status !== 200 || !body || !body.entryToken) {
-      return retryLater(user, 3000);
+      return retryLater(user, retryDelayMillis(res));
     }
     user.entry = body.entryToken;
     queueWait.add(Date.now() - user.enteredAt);
@@ -313,6 +427,12 @@ const STEPS = {
   },
   // 5. 좌석 조회 → 첫 고민(균일은 1~3초, 재시도는 0.5~1초)
   seats(user, data) {
+    if (SEAT_MODE === 'partitioned') {
+      return takePartitionedSeats(user, data);
+    }
+    if (SEAT_MODE === 'auto') {
+      return chooseAutoCriteria(user);
+    }
     const res = http.get(url(`/api/v1/schedules/${data.scheduleId}/seats`),
       { headers: authHeaders(user.access, { 'X-Entry-Token': user.entry }), tags: { api: 'seats' }, timeout: '10s' });
     record(user, 'seats', res);
@@ -330,9 +450,11 @@ const STEPS = {
     const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
     user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
   },
-  // 6. 선점. 409면 좌석 조회부터 다시(프로필의 maxRetry번까지)
+  // 6. 선점. 409면 좌석 조회부터 다시(프로필의 maxRetry번까지). auto는 좌석 대신 구역·등급과 매수를 보낸다
   hold(user, data) {
-    const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/reservations`), JSON.stringify({ seatIds: user.seatIds }), {
+    const path = SEAT_MODE === 'auto' ? 'reservations/auto' : 'reservations';
+    const body = SEAT_MODE === 'auto' ? user.autoBody : { seatIds: user.seatIds };
+    const res = http.post(url(`/api/v1/schedules/${data.scheduleId}/${path}`), JSON.stringify(body), {
       headers: Object.assign(jsonHeaders(user.access, { 'Idempotency-Key': uuid() }), { 'X-Entry-Token': user.entry }),
       tags: { api: 'hold' },
     });
@@ -358,9 +480,11 @@ const STEPS = {
     finish(user, res.status === 409 ? 'gave_up' : 'error');
   },
   // 7. 결제
+  // Note: 배포 결제 서버는 기본 PG가 토스라 pgProvider가 없으면 결제창 값(clientPaymentRef)을 요구해 400이 난다.
+  // MOCK을 명시하면 Mock 건너뛰기(PAYMENT_PG_MOCK_BYPASS)로 승인되고, local(Mock 기본)에서도 그대로 MOCK이다.
   pay(user) {
     const res = http.post(url('/api/v1/payments'),
-      JSON.stringify({ paymentToken: user.held.paymentToken, method: 'CARD', amount: user.held.totalAmount }), {
+      JSON.stringify({ paymentToken: user.held.paymentToken, method: 'CARD', amount: user.held.totalAmount, pgProvider: 'MOCK' }), {
         headers: jsonHeaders(user.access, { 'Idempotency-Key': uuid() }), tags: { api: 'payment' }, timeout: '10s',
       });
     record(user, 'pay', res);
@@ -371,21 +495,53 @@ const STEPS = {
     user.approvedAt = Date.now();
     user.polls = 0;
     user.state = 'confirm';
-    user.nextAt = Date.now() + 500;
+    user.nextAt = Date.now() + CONFIRM_FIRST_DELAY_MS;
   },
-  // 8. 확정 확인(0.5초 간격, 최대 10번)
+  // 8. 확정 확인(profile 0.5초 간격 최대 10번, realistic 1초 간격 최대 31번)
   confirm(user) {
     const status = reservationStatus(user, user.held.reservationId);
     if (status === 'CONFIRMED') {
       confirmLatency.add(Date.now() - user.approvedAt);
       return finish(user, 'confirmed');
     }
-    if (++user.polls >= 10) {
+    if (++user.polls >= CONFIRM_MAX_POLLS) {
       return finish(user, 'confirm_timeout');
     }
-    user.nextAt = Date.now() + 500;
+    user.nextAt = Date.now() + CONFIRM_INTERVAL_MS;
   },
 };
+
+// partitioned의 5단계. 좌석 조회 없이 setup에서 나눠 둔 좌석을 쓰고, 고민 시간은 map과 같다
+function takePartitionedSeats(user, data) {
+  const base = user.index * data.seatsPerUser;
+  user.seatIds = data.seatIds.slice(base, base + seatCountOf(user.profile));
+  user.state = 'hold';
+  const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
+  user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
+}
+
+// auto의 5단계. 좌석 조회 없이 본문(구역·등급, 매수)만 정하고, 고민 시간은 map과 같다.
+// Note: 비교 공정성. map 균일 규칙은 70%가 좌석 조회 본문 앞 10%(약 1,500석 = 구역 A·B와 C 절반, 구역당 600석)에서,
+// 30%가 전체에서 고른다. auto 균일은 같은 비율로 70%가 구역 A~C 중 하나, 30%가 구역 A~Y 중 하나를 무작위로 고른다(앞 구역 쏠림 유지,
+// 인기 범위는 1,800석으로 map보다 조금 넓다). Synthetic은 CSV zone(VIP·R·S)을 등급으로 보내고, ANY는 회차 전체(본문에 범위 없음)다.
+// 409 뒤에는 map처럼 다시 고른다. 균일은 같은 규칙으로 새 구역을, any_zone 사용자는 ANY(회차 전체)로 바꿔 보낸다
+function chooseAutoCriteria(user) {
+  const count = seatCountOf(user.profile);
+  if (user.profile.zone === null) {
+    const hot = Math.random() < 0.7;
+    const index = Math.floor(Math.random() * (hot ? AUTO_HOT_SECTIONS : AUTO_SECTIONS));
+    user.autoBody = { section: String.fromCharCode(65 + index), quantity: count };
+  } else {
+    user.autoBody = user.zone === 'ANY' ? { quantity: count } : { grade: user.zone, quantity: count };
+  }
+  user.state = 'hold';
+  const firstThinkMs = user.profile.thinkMs === null ? (1 + Math.random() * 2) * 1000 : user.profile.thinkMs;
+  user.nextAt = Date.now() + (user.attempt === 0 ? firstThinkMs : (0.5 + Math.random() * 0.5) * 1000);
+}
+
+// 공연장 시드(V20261030_2__venue_seed.sql)는 구역 A~Y 25개, 구역당 600석이다
+const AUTO_SECTIONS = 25;
+const AUTO_HOT_SECTIONS = 3;
 
 function seatCountOf(profile) {
   return profile.seats === null ? (Math.random() < 0.5 ? 1 : 2) : profile.seats;
@@ -424,6 +580,56 @@ function afterPosition(user, body) {
     user.state = 'token';
     user.nextAt = Date.now();
   }
+}
+
+// 진입 요청을 보낸다. 한 번이면 그대로, 연타면 http.batch로 동시에 보낸다. 응답은 보낸 순서(첫 요청이 본 클릭)다.
+// Note: 반복문으로 이어 보내면 VU 하나에서는 앞 응답을 기다린 뒤 다음이 나간다. 실제 연타·여러 기기는 응답을 기다리지 않으므로 batch로 겹친다.
+// 연타 수(CSV 최대 5)는 k6 batchPerHost 기본값(6)보다 작아 한 번에 모두 나간다
+function sendEnterClicks(user, data) {
+  const paramsOf = (click) => ({
+    headers: authHeaders(user.access),
+    tags: click === 0 ? { api: 'queue_enter' } : { api: 'queue_enter', click: 'dup' },
+  });
+  if (user.profile.enterClicks === 1) {
+    return [http.post(url(enterPath(data.scheduleId)), null, paramsOf(0))];
+  }
+  const requests = [];
+  for (let click = 0; click < user.profile.enterClicks; click++) {
+    requests.push({ method: 'POST', url: url(enterPath(data.scheduleId)), body: null, params: paramsOf(click) });
+  }
+  return http.batch(requests);
+}
+
+// 진입(201·200)과 순번 조회(200)의 성공
+function isQueueAccepted(res) {
+  return res.status === 201 || res.status === 200;
+}
+
+// 그림자 폴러를 두는 페르소나. enter_clicks를 기기 수로 본다.
+// Note: refresh_spammer의 enter_clicks는 한 기기에서 누른 횟수라 그림자를 두지 않는다(docs/ai-judgments/kangmin/2026-11-13-o1-scenario-review-four-proposals.md)
+const MULTI_DEVICE_PERSONA = 'multi_device';
+
+// 본 사용자 말고 남은 기기(enter_clicks − 1개)를 같은 VU의 상태 기계에 더한다. 첫 폴링은 그 기기가 받은 진입 응답의 간격을 따른다.
+// 그림자는 결과(o1_outcomes)를 남기지 않고 step_duration{step:poll_shadow}와 http_reqs{device:shadow}로만 센다
+function startShadowPollers(owner, enterResponses) {
+  for (const res of enterResponses) {
+    const body = isQueueAccepted(res) ? dataOf(res) : null;
+    users.push({
+      owner,
+      profile: owner.profile,
+      access: owner.access,
+      state: 'shadow',
+      nextAt: Date.now() + nextPollDelayMillis(res, body),
+    });
+  }
+}
+
+// 다음 폴링까지(ms). 성공 응답은 서버가 준 nextPollAfterMillis, 실패는 retryDelayMillis(503이면 Retry-After)
+function nextPollDelayMillis(res, body) {
+  if (!isQueueAccepted(res)) {
+    return retryDelayMillis(res);
+  }
+  return (body && body.nextPollAfterMillis) || 3000;
 }
 
 function retryLater(user, millis) {

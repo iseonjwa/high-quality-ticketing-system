@@ -16,7 +16,7 @@ import random
 import sys
 
 from persona_spec import (
-    CSV_HEADER, FIELDS, CHOICES, clamp_field, fix_field, round_half_up,
+    AXIS_COLUMNS, CSV_HEADER, FIELDS, CHOICES, axis_levels, clamp_field, fix_field, round_half_up,
 )
 
 # Note: normal이 범위 밖을 뽑으면 다시 뽑는다. 100번을 넘기면 범위 끝으로 자른다(평균이 범위 밖일 때 무한 반복을 막는다)
@@ -83,6 +83,8 @@ def build_rows(personas, users, rng):
             row = {"persona": persona["code"]}
             for field in FIELDS:
                 row[field] = draw_field(rng, field, persona["fields"][field])
+            # 축 구간은 뽑은 값에서 계산만 한다. 난수를 쓰지 않으므로 기존 열의 값과 순서는 축을 넣기 전과 같다
+            row.update(zip(AXIS_COLUMNS, axis_levels(row)))
             rows.append(row)
     rng.shuffle(rows)
     for number, row in enumerate(rows):

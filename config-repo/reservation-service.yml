@@ -21,6 +21,14 @@ spring:
         linger.ms: 0
     consumer:
       group-id: reservation-service.bootstrap
+management:
+  metrics:
+    distribution:
+      # 서버 쪽 p95·p99를 Prometheus에서 계산하려고 HTTP 지연 히스토그램을 고정 버킷으로 켠다(ISE-277).
+      # Note: percentiles-histogram(약 70개 버킷) 대신 선점 SLO 근처 버킷만 둔다. 버킷 하나가 URI·상태 조합마다
+      # 시계열 하나라, 버킷 수가 곧 늘어나는 시계열 수다. 이 서비스에만 켜고 다른 서비스는 바꾸지 않는다
+      slo:
+        http.server.requests: 25ms,50ms,100ms,200ms,300ms,500ms,1s,3s
 messaging:
   outbox:
     # 임대는 전송 시한(send-timeout)의 2배 이상이어야 한다. 어긋나면 기동이 실패한다
@@ -30,6 +38,14 @@ messaging:
 seat-hold:
   # sync(동기형 선점 201, 기본) 또는 async(접수형 202). 기동할 때 한 번 읽으므로 바꾸려면 재시작한다(ADR 0057)
   mode: sync
+  # 접수형 소비자(ISE-17). 모드와 상관없이 늘 켠다
+  consumer:
+    # 토픽 파티션은 늘리기만 된다. 동시성보다 넉넉히 둔다
+    partitions: 6
+    # 동시성 하나가 처리 중에 커넥션 하나를 쥔다. 풀(maximum-pool-size)을 HTTP와 나눠 쓴다
+    concurrency: 2
+    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 파티션의 뒤 메시지가 멈춰 동기형(500ms)보다 짧게 둔다
+    lock-timeout: 100ms
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m
@@ -42,6 +58,7 @@ queue:
   schedule-cache-refresh: 30s
   schedule-cache-look-ahead: 1h
   key-retention-after-start: 1h
+  turn-ttl: 1m
   redis:
     # 대기열 Redis 차단기 설정
     circuit-breaker:

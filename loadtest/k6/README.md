@@ -28,6 +28,7 @@
 | `data/` | O1 Synthetic 모드가 읽는 가상 사용자 CSV(`loadtest/synthetic/generate.py` 출력). 측정에 쓰는 `data/o1-synthetic-3000.csv`(시드 20261113)는 발제 산출물이라 커밋한다. 그 밖의 파일(토큰 CSV 등)은 커밋하지 않는다 |
 | `tools/watch-lottery.sh` | L2·L3 보조. 추첨 응모 상태별 수와 배정된 예매 수를 주기마다 CSV로 남긴다 |
 | `tools/gw-collect.sh` | G1 배포 서버 보조. 서버 `vmstat`·`mpstat`·Gateway `pidstat -t`(Java 스레드별)·`docker stats`·load average를 모으고, Prometheus 17종·Zipkin 요약과 함께 묶는다 |
+| `tools/arrival-preview.mjs` | O1 `ARRIVAL_MODE` 미리보기. 서버 없이 `node`로 사용자 수·오픈 전 초를 받아 profile(균일)과 realistic의 진입 시각 분포(0.5·1·3·10초 안 사용자 수), 연타 포함 진입 요청 수, 오픈 전 상세 조회 수를 계산한다. 규칙은 `lib/arrival.js`를 그대로 쓴다 |
 | `tools/g1-run.sh` | G1 배포 서버 회차 실행(발생기). 웜업 3단계 → 차단기 닫힘 대기 → 본 측정(단계 사이 쉼) → 결과 묶기 |
 | `tools/r0_solve.py` | G1 결과 계산(로컬). 단계별 Gateway CPU를 받은 요청·거절 수로 연립해 한 건 비용(받은 요청 a, 거절 r)을 푼다 |
 | `scenarios/q1-queue-enter.js` | Q1 대기열 진입 몰림 |
@@ -42,11 +43,12 @@
 | `scenarios/l1-lottery-entry.js` | L1 응모 마감 직전 몰림. 일부 사용자는 같은 멱등키로 두 번 보낸다. 실패 응답은 `entry_results`에 message 출처 태그 `msg`(`auth_unavailable`·`service_unavailable`·`gateway_error`·`other`·`none`)를 붙여, 인증 벌크헤드 503을 다른 503과 나눠 summary에 센다 |
 | `scenarios/l2-lottery-billing.js` | L2 자동결제 폭주. setup에서 빌링키·응모를 끝내고 추첨 시각부터 잰다. `PAY_RATE`를 주면 다른 회차 일반 결제를 같이 건다 |
 | `scenarios/l3-lottery-interference.js` | L3 추첨과 일반 판매 간섭. 선점 지연을 추첨 전·중·후(`phase`)로 나눠 기록한다 |
-| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다 |
+| `scenarios/o1-open-peak.js` | O1 오픈 피크 한 흐름. VU 하나가 사용자 여러 명을 상태 기계로 들고 조회 → 진입 → 폴링 → 토큰 → 좌석 → 선점 → 결제 → 확정을 진행한다. `USERS_CSV`를 주면 사용자마다 CSV 한 행의 행동(Synthetic 모드)으로 움직인다. 진입 연타는 `http.batch`로 한꺼번에 보내고, `multi_device`는 남은 기기만큼 그림자 폴러를 둔다. 503의 `Retry-After`를 따른다(2절 "O1 요청 동작") |
 | `scenarios/a0-assignment-baseline.js` | A0 발제 기준선. 동시 100명이 1초 안에 시작해 각 10번씩 좌석 선점을 요청한다(총 1,000회). 반복마다 사용자·좌석을 새로 써 409 없이 선점의 처리량을 잰다. 요청 수가 1,000건이 아니거나 409가 있거나 오류율이 1% 이상이면 임계값을 어겨 종료 코드 99로 끝난다(요약 JSON은 남는다) |
 | `scenarios/s1-seat-query.js` | S1 회차 좌석 조회 단독. 사용자 한 명이 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 보낸다. 좌석 조회 경량화(ISE-189) 단계별 비교용 |
 | `scenarios/b1d-concert-detail.js` | B1-d 공연 상세 조회 단독. 초당 `RATE`건을 `DURATION_SECONDS`(기본 30초) 동안 이미 있는 공연(`CONCERT_ID`)으로 보낸다. 관리자 계정과 토큰이 필요 없다 |
 | `scenarios/r1d-confirm.js` | R1-d. R1을 배포 서버에서 돌리는 판. 관리자 로그인 없이 서버에서 만든 회차(`SCHEDULE_ID`)를 받는다. 좌석을 팔므로 실행마다 새 회차를 쓴다 |
+| `scenarios/w1-warmup.js` | W1 JIT 예열(ISE-264). 측정이 아니라 준비다. 예열 전용 공연 회차로 공연 상세 → 대기열 진입·순번 → 좌석 조회(`SEAT_QUERY_RATIO`, 기본 0.2) → 선점 → 결제(Mock) → 확정 → 취소를 초당 `RATE`(기본 25)번, `DURATION_SECONDS`(기본 120초) 동안 돈다. 관리자 계정으로 예열 공연을 찾거나 만들고, `SCHEDULE_ID`·`CONCERT_ID`를 주면 그것을 쓴다. 배포 서버에서는 `script/deploy/warmup.sh`가 부른다([deployment.md](../../docs/design/infra/deployment.md) 5절) |
 | `results/` | 요약 JSON, 요청별 원자료 CSV(gzip), 화면 출력. 커밋하지 않는다 |
 
 시나리오 상태:
@@ -71,6 +73,7 @@
 | S1 | `scenarios/s1-seat-query.js` | 있음(ISE-189). 로컬(노트북 1대)에서 같은 방식으로 잰 단계별 결과는 ISE-189에 있다. 2026-11-11 배포: 1차 초당 40건까지 실패 0(p95 약 370ms), 상한 약 47건/초. 개선 전은 초당 10건에서 서비스 재시작. 결과는 [open-peak-scenarios.md](../../docs/design/infra/open-peak-scenarios.md) 3절 |
 | B1-d | `scenarios/b1d-concert-detail.js` | 있음. 2026-11-06 local(같은 방식, 공연 상세 하나)에서 초당 10~400건으로 잰 결과는 개인 기록에 있다. 2026-11-11 배포: 초당 400건까지 실패 0, p95 4ms 안팎(같은 문서) |
 | R1-d | `scenarios/r1d-confirm.js` | 있음(ISE-189). R1과 같은 흐름·판정 기준. 배포 서버 측정 전 |
+| W1 | `scenarios/w1-warmup.js` | 있음(ISE-264). 2026-11-16 `k6 inspect`로 옵션만 확인했다. 서버 실행은 확인 못 함 |
 
 ## 2. 실행
 
@@ -87,6 +90,7 @@ bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 USERS=100 ENTER_SPREAD_SECONDS=1 USER_ID_BASE=6000000 bash loadtest/k6/run.sh scenarios/q1d-queue-burst.js
 ```
 
+- `run.sh` 선택 변수: `K6_DOCKER_NETWORK`(예: `host`, 배포 서버 안에서 `127.0.0.1`의 nginx를 부를 때), `K6_RAW_CSV=0`(요청별 원자료 CSV를 남기지 않음).
 - `run.sh`는 k6 진행 표시줄을 기본으로 끈다(`--quiet`). 터미널이 아닌 곳에서는 진행 표시줄이 1초마다 새 줄로 찍혀 출력의 9할을 넘기기 때문이다(ISE-219). 화면에는 `setup()` 로그와 마지막 요약만 나온다. 진행 상황을 보려면 앞에 `K6_PROGRESS=1`을 붙인다.
 - 에이전트에게 결과를 읽힐 때는 stdout 전체가 아니라 `results/<이름>-summary.json`이나 stdout 끝부분(`tail -n 60`)만 읽게 한다.
 
@@ -142,6 +146,17 @@ bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 USERS=200 VUS=20 PRE_OPEN_SECONDS=40 AFTER_OPEN_SECONDS=120 bash loadtest/k6/run.sh scenarios/o1-open-peak.js   # 짧게 확인
 ```
 
+**O1 요청 동작**(2026-11-13 대기열 담당 검토 반영, [판단 기록](../../docs/ai-judgments/kangmin/2026-11-13-o1-scenario-review-four-proposals.md)):
+
+| 동작 | 규칙 | 지표에서 나누는 법 |
+|---|---|---|
+| 진입 연타 | 클릭이 2번 이상(`enter_clicks` ≥ 2)이면 `http.batch`로 동시에 보낸다. 한 번이면 예전처럼 하나만 보낸다. 마지막 성공 응답으로 순번을 읽는다 | 첫 요청 `step_duration{step:enter}`·`http_reqs{api:queue_enter}`, 나머지 `step:enter_dup`·`click:dup` |
+| 그림자 폴러 | `persona`가 `multi_device`인 사용자만, `enter_clicks`를 기기 수로 본다. 대기(WAITING)에 들어가면 기기 수 − 1개의 그림자가 같은 사용자 토큰으로 순번 조회만 한다. 첫 폴링은 그 기기의 진입 응답, 그 뒤는 서버가 준 `nextPollAfterMillis`를 따른다. 본 사용자가 대기를 끝내면(토큰 단계, 대기 이탈, 종료) 같이 멈추고, 그림자가 READY를 보면 그 그림자만 멈춘다. 토큰은 본 사용자만 받는다. `refresh_spammer`의 `enter_clicks`는 한 기기 연타라 그림자를 두지 않는다 | `step_duration{step:poll_shadow}`, `http_reqs{api:queue_poll,device:shadow}`. 본 폴링 `step:poll`에는 섞이지 않는다. `o1_outcomes`는 사용자 한 명에 한 번만 센다 |
+| 실패 뒤 다시 보내기 | 진입·순번 조회(그림자 포함)·입장 토큰이 503이고 `Retry-After`(초)가 있으면 그 값 × (1 + 0~0.2 난수)만큼 기다린다(`lib/http.js`의 `retryDelayMillis`). 헤더가 없거나 503이 아니면 3초다. 진입 연타가 모두 실패하면 첫 요청의 응답으로 정한다 | 따로 태그하지 않는다. 503 수는 `http_reqs{api:...,status:503}`로 본다 |
+
+균일 모드(`enter_clicks` 1, 페르소나 `uniform`)에는 batch와 그림자가 생기지 않는다. 바뀐 점은 503에 `Retry-After`가 있을 때 3초 대신 그 값을 따르는 것뿐이다.
+`compare.py`의 단계별 응답 시간 표(`STEP_ORDER`)에는 `poll_shadow`·`enter_dup`가 없어 본 요청만 비교한다. API별 요청 수·초당 최대 표는 `http_reqs`의 `api` 태그로 세므로 그림자 폴링과 연타가 `queue_poll`·`queue_enter`에 들어간다.
+
 X1은 만료 스케줄러를 켜고, **만료 시각이 지났는데 HELD로 남은 예매가 없는 DB**에서 잰다(4절).
 
 ```bash
@@ -191,7 +206,9 @@ docker exec iseonjwa-redis-1 redis-cli ZCARD "queue:{8}:waiting"
 | `DRAW_AFTER_SECONDS` / `DRAW_WINDOW_SECONDS` / `WITH_BILLING` | 60 / 120 / 1 | L3: 측정 시작 뒤 추첨까지, 추첨 뒤 "중"으로 볼 시간, 빌링키 등록 여부(자동결제까지 겹칠지) |
 | `PRE_OPEN_SECONDS` / `AFTER_OPEN_SECONDS` | 600 / 900 | O1: 오픈 전 조회 시간, 오픈 뒤 진행 시간 |
 | `ENTER_SPREAD_SECONDS` / `ABANDON_RATIO` / `MAX_RETRY` | 10 / 0.1 / 2 | O1: 진입을 흩는 시간, 선점 뒤 결제하지 않고 떠나는 비율, 409 뒤 재시도. 균일 모드에서만 쓴다(Synthetic 모드는 CSV 행이 정한다) |
-| `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). 없으면 균일 모드 |
+| `USERS_CSV` | 없음 | O1: 가상 사용자 CSV 경로. `scenarios/` 기준 상대 경로(예 `../data/o1-synthetic-3000.csv`)다. 주면 행마다 사용자 한 명의 프로필이 되고 `USERS`는 행 수와 같아야 한다(다르면 setup에서 실패). CSV에 행동 축 열(`ax_*`)이 있으면 `step_duration`·`o1_outcomes`에 같은 이름의 태그로 붙인다. `USERS_CSV`가 없으면 균일 모드 |
+| `SEAT_MODE` | `map` | O1: 좌석을 정하는 방법. `map`은 지금 동작 그대로 사용자가 좌석 조회(약 830KB)를 받아 고른다. `partitioned`는 자동 배정 API가 있을 때의 상한(충돌·재조회 0)을 잰다: setup에서 좌석 조회를 한 번 해 빈 좌석을 사용자마다 겹치지 않게 나누고(사용자당 균일 2석, Synthetic은 CSV `seats` 최댓값), 측정 중에는 좌석 조회 없이 바로 선점한다. 등급(`zone`)은 보지 않고 서버가 고르는 비용은 빠진다. 빈 좌석이 `USERS` × 사용자당 석 수보다 적으면 setup에서 실패하고, 409가 나오면 좌석이 겹친 것이라 그 실행은 무효다. `auto`는 자동 배정 API(`POST /api/v1/schedules/{id}/reservations/auto`, ISE-264)를 실제로 불러 좌석 조회 없이 구역·등급과 매수만 보낸다. 균일은 70%가 구역 A~C, 30%가 A~Y 중 하나(map의 앞 구역 쏠림과 맞춤), Synthetic은 CSV `zone`을 등급으로(ANY는 회차 전체) 보내고, 구역 매진(409 `ZONE_SOLD_OUT`)은 map의 409처럼 다시 고른다. `o1_outcomes`·태그는 세 모드가 같다 |
+| `ARRIVAL_MODE` | `profile` | O1: 도착·진입 시각을 정하는 방법. `profile`은 지금 동작 그대로 균일 규칙 또는 `USERS_CSV` 행을 쓴다. `realistic`은 실제 오픈처럼 95%가 오픈 10분~1분 전에 와서 상세를 새로고침하고(남은 시간 5분 초과 20~40초, 1~5분 10~20초, 마지막 1분 2~5초 간격), 오픈 +0.05·+0.5·+0.9초 근처에 진입을 누른다(사용자 3,000명 기준 오픈 1초 안 약 84%, `tools/arrival-preview.mjs`). 균일 사용자는 45%가 2~5번 연타하고, CSV 사용자는 행의 `enter_clicks`를 쓴다. 확정 조회는 프론트(`paymentFlow.ts`)와 같게 승인 직후부터 1초마다 30초까지다. 좌석·선점·결제 규칙은 그대로다. 값은 모두 추정이고 근거는 `scenarios/o1-open-peak.js` 머리말에 있다. 적용 여부는 실행 첫 줄 `도착 realistic`으로 본다 |
 | `OPEN_AT` | 없음 | O1: `SCHEDULE_ID`를 줄 때 그 회차의 오픈 시각(ISO-8601 UTC). 지금 + 30초 이상, 지금 + `PRE_OPEN_SECONDS` + 10초 이하여야 한다(setup이 검사). `PRE_OPEN_SECONDS`는 발생기에서 `$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) ))`로 맞춘다 |
 | `VUS` / `ITERATIONS` | 100 / 10 | A0: 동시 사용자 수와 사용자당 요청 수. 필요한 좌석은 `VUS × ITERATIONS`석이다 |
 
@@ -281,6 +298,8 @@ export OPEN_AT=<ISO-8601 UTC> BASE_URL=http://172.31.4.93:8080 PROM_RW_URL=http:
 PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 # 발생기에서: O1(Synthetic). 새 회차를 만들고 OPEN_AT·SCHEDULE_ID를 바꿔 USERS_CSV만 더한다
 PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<새 회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 USERS_CSV=../data/o1-synthetic-3000.csv bash loadtest/k6/run.sh scenarios/o1-open-peak.js
+# 발생기에서: O1(현실 모드). 새 회차를 만들고 균일 명령에 ARRIVAL_MODE=realistic만 더한다. 미리보기: node loadtest/k6/tools/arrival-preview.mjs 3000 600
+PRE_OPEN_SECONDS=$(( $(date -d "$OPEN_AT" +%s) - $(date +%s) )) SCHEDULE_ID=<새 회차 id> CONCERT_ID=<공연 id> USERS=3000 VUS=300 ARRIVAL_MODE=realistic bash loadtest/k6/run.sh scenarios/o1-open-peak.js
 # 두 실행의 원자료를 비교표로
 python3 loadtest/synthetic/compare.py --base loadtest/k6/results/<균일>-raw.csv.gz --synthetic loadtest/k6/results/<synthetic>-raw.csv.gz
 ```

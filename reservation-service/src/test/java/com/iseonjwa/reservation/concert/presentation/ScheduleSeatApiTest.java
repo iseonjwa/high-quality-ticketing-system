@@ -122,13 +122,14 @@ class ScheduleSeatApiTest {
         assertEquals(0, response.json().get("data").get("sections").size());
     }
 
-    // 배치는 첫 조회 때 캐시된다(ISE-204). 그 뒤 바뀐 상태와 추첨 등급은 다음 조회에 바로 보여야 한다
+    // 배치는 첫 조회 때 캐시된다(ISE-204). 그 뒤 바뀐 상태와 추첨 등급은 1초 캐시(ISE-205)가 지나면 보여야 한다
     @Test
-    void 배치를_캐시한_뒤에도_선점과_추첨석_변경이_바로_보인다() throws Exception {
+    void 배치를_캐시한_뒤에도_선점과_추첨석_변경이_1초_뒤에는_보인다() throws Exception {
         get("/api/v1/schedules/" + scheduleId + "/seats");
 
         jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
         jdbc.update("UPDATE schedule_seats SET grade = 'LOTTERY' WHERE id = ?", seatIdOf("B", 1, 2));
+        Thread.sleep(1_200);
         var b = get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections").get(1);
 
         assertEquals("S", b.get("grade").asString());
@@ -145,7 +146,10 @@ class ScheduleSeatApiTest {
 
         createScheduleSeats();
 
-        assertEquals(2, get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections").size());
+        // 빈 회차의 선점 가능 여부를 캐시하지 않아, 만든 직후에도 좌석을 고를 수 있다
+        var sections = get("/api/v1/schedules/" + scheduleId + "/seats").json().get("data").get("sections");
+        assertEquals(2, sections.size());
+        assertTrue(sections.get(0).get("seats").get(0).get("available").asBoolean());
     }
 
     @Test
@@ -155,6 +159,34 @@ class ScheduleSeatApiTest {
         jdbc.update("UPDATE schedules SET deleted_at = now() WHERE id = ?", scheduleId);
 
         assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+    }
+
+    // P4c(ISE-205)의 트레이드오프: 1초 안에는 이미 잡힌 좌석이 고를 수 있는 것으로 보인다. 최종 판정은 선점이 한다
+    @Test
+    void 상태는_1초_동안_같은_값을_쓰고_지나면_다시_읽는다() throws Exception {
+        assertTrue(firstSeatOfB().get("available").asBoolean());
+
+        jdbc.update("UPDATE schedule_seats SET status = 'HELD' WHERE id = ?", seatIdOf("B", 1, 1));
+
+        assertTrue(firstSeatOfB().get("available").asBoolean());
+        Thread.sleep(1_200);
+        assertFalse(firstSeatOfB().get("available").asBoolean());
+    }
+
+    @Test
+    void 캐시한_뒤_지운_회차는_1초가_지나면_404다() throws Exception {
+        assertEquals(200, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+
+        jdbc.update("UPDATE schedules SET deleted_at = now() WHERE id = ?", scheduleId);
+
+        assertEquals(200, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+        Thread.sleep(1_200);
+        assertEquals(404, get("/api/v1/schedules/" + scheduleId + "/seats").status());
+    }
+
+    private JsonNode firstSeatOfB() throws Exception {
+        return get("/api/v1/schedules/" + scheduleId + "/seats").json()
+                .get("data").get("sections").get(1).get("seats").get(0);
     }
 
     private Long seatIdOf(String section, int rowNo, int seatNo) {

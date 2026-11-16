@@ -73,6 +73,45 @@ public class JpaSeatHoldInventoryRepository implements SeatHoldInventoryReposito
                 .executeUpdate();
     }
 
+    // Note: 자동 배정은 사용자들이 같은 구역의 앞 ID로 몰린다. 그냥 FOR UPDATE면 앞 사람의 커밋을 줄 서서 기다리고
+    // lock_timeout(500ms)을 넘기면 409가 된다. SKIP LOCKED는 잠긴 행을 건너뛰고 다음 빈 좌석을 잠가 대기와 충돌을 함께 없앤다.
+    // PostgreSQL은 LIMIT 아래에서 행을 잠그므로, 건너뛰거나 다시 검사에서 빠진 행만큼 더 읽어 limit을 채운다.
+    // ORDER BY id는 일반 선점과 같은 좌석 ID 오름차순 잠금 순서(SA 12-7 ②)이고, 좌석 ID가 구역·열·번호 순으로 만들어져
+    // 2매가 대개 같은 열의 붙은 자리가 된다. 건너뛴 행이나 열 끝에서는 떨어질 수 있다(연석 보장 안 함, ADR 0059).
+    // 조건(AVAILABLE, LOTTERY 아님)은 holdAvailableSeats와 같다. 잠근 뒤 상태 전이는 그 조건부 UPDATE가 한다
+    // Note: 등급·구역 조건은 받은 것만 SQL에 넣는다. ":p IS NULL OR col = :p" 모양은 드라이버가 준비된 문장을
+    // 일반 계획으로 바꾸면 인덱스 조건이 되지 못해 pk(id)를 처음부터 훑는다(TS-72). 회차 안 ID 순 탐색은
+    // (schedule_id, id)·(schedule_id, section, id)·(schedule_id, grade, id) 인덱스가 맡는다(V20261116_6)
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Long> lockAvailableSeatIds(Long scheduleId, SeatGrade grade, String section, int limit) {
+        em.flush();
+        StringBuilder sql = new StringBuilder("""
+                SELECT id FROM schedule_seats
+                 WHERE schedule_id = :scheduleId
+                   AND status = 'AVAILABLE'
+                   AND grade <> 'LOTTERY'
+                """);
+        if (grade != null) {
+            sql.append("   AND grade = :grade\n");
+        }
+        if (section != null) {
+            sql.append("   AND section = :section\n");
+        }
+        sql.append(" ORDER BY id\n LIMIT :limit\n   FOR UPDATE SKIP LOCKED");
+        var query = em.createNativeQuery(sql.toString())
+                .setParameter("scheduleId", scheduleId)
+                .setParameter("limit", limit);
+        if (grade != null) {
+            query.setParameter("grade", grade.name());
+        }
+        if (section != null) {
+            query.setParameter("section", section);
+        }
+        List<Number> ids = query.getResultList();
+        return ids.stream().map(Number::longValue).toList();
+    }
+
     // 일반 선점과 같은 조건부 UPDATE에서 등급 조건만 반대로 둔다. 추첨석이 아닌 좌석이 섞이면 갱신 행 수가 모자란다
     @Override
     public int holdAvailableLotterySeats(Long scheduleId, List<Long> seatIds, Instant now, Long actorId) {

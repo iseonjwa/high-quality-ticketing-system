@@ -10,3 +10,4 @@
 
 | 날짜 | 파일 | 내용 |
 |---|---|---|
+| 2026-11-13 | [2026-11-13-linear-collaboration-source.md](2026-11-13-linear-collaboration-source.md) | Linear 협업 발표 소스. 공통부문 겹침(10/27 브랜치 5개), Linear·GitHub 연결, 담당·상태로 겹침과 막힘을 먼저 발견, ISE-19 계약 4종 분리로 교착 해소, 고른 이유(GitHub 연동·브랜치 관리·가벼움·한 달 무료), 예상 질문 |

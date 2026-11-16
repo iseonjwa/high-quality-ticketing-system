@@ -50,8 +50,9 @@ flowchart LR
 - 경로: 서블릿 서비스는 컨트롤러 경로 템플릿(`HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE`, 예 `/api/v1/payments/{paymentId}`)을 쓰고 매칭이 없으면 요청 경로를 쓴다. Gateway는 경로 템플릿이 없어 쿼리를 뺀 원래 경로를 쓴다(예 `/api/v1/payments/23`).
 - 남기지 않는 것: 요청·응답 본문, 헤더, 쿼리 문자열, `/actuator`로 시작하는 경로.
 - 설정: `iseonjwa.request-log.enabled`(기본 true, `config-repo/application.yml`). false면 필터를 등록하지 않는다. 부하 측정 때 로그 양을 줄이는 데 쓴다.
+- 남길 요청([ADR 0052](../../decisions/0052-request-log-problems-only-in-operation.md)): `iseonjwa.request-log.mode`가 `all`이면 모든 요청, `problems`면 상태 `min-status`(500) 이상, 클라이언트가 끊은 요청, 처리 시간 `slow-threshold`(200ms) 이상만 남긴다. 판정은 common `RequestLogPolicy` 하나를 Gateway와 서블릿 필터가 함께 쓴다. 운영 기본값은 `config-repo/application.yml`의 `problems`(Gateway 11/13, 서비스 11/16 ISE-286)이고 로컬은 `application-local.yml`의 `all`이다. 운영에서 정상 요청과 409 같은 업무 거절은 줄이 남지 않으니 Zipkin 트레이스와 `http_server_requests` 지표로 본다. 4xx까지 보려면 `min-status: 400`으로 내린다.
 - 필터 순서: 트레이싱 관측 필터 안쪽에서 돌아 traceId가 MDC에 있을 때 줄을 쓰고, 요청을 거절하는 필터보다 바깥에서 돌아 401·403·404도 한 줄이 남는다. 서블릿은 관측 필터가 `HIGHEST_PRECEDENCE + 1`이라 이 필터를 `HIGHEST_PRECEDENCE + 2`로 등록한다(`GatewayIdentityFilter`는 기본 순서). Gateway는 WebFlux 관측 필터가 `@Order(0)`이라 이 필터는 order 1이다(`Ordered.HIGHEST_PRECEDENCE + 2`로 두면 관측 필터 바깥이 되어 traceId가 비므로 맞추지 않았다). Gateway 인증·입장 토큰 필터는 `GlobalFilter`라 이 필터보다 안쪽이다.
-- 상태: 체인이 예외를 던지면 서블릿은 500으로 남기고 예외를 다시 던진다. Gateway는 `ErrorResponse` 예외(라우트 없음 404 등)는 그 상태로, 그 밖의 예외는 500으로 남기고 다시 던진다. 클라이언트가 끊으면 상태 자리에 `CANCELLED`가 남는다.
+- 상태: 체인이 예외를 던지면 서블릿은 500으로 남기고 예외를 다시 던진다(`problems`에서도 남는다). 서블릿은 클라이언트가 끊어도 응답을 쓰다 예외가 나 500으로 남는다. Gateway는 `ErrorResponse` 예외(라우트 없음 404 등)는 그 상태로, 그 밖의 예외는 500으로 남기고 다시 던진다. 클라이언트가 끊으면 상태 자리에 `CANCELLED`가 남는다.
 - 확인 결과(2026-11-04, 로컬 compose):
   - 테스트는 common 100, gateway 76, user 35, reservation 294, payment 764건이 모두 통과했다.
   - Gateway 줄에도 traceId가 채워졌다. `spring.reactor.context-propagation: auto`로 `doFinally`에서 쓴 줄에서 MDC가 살아 있었다. 인증 없는 `/api/v1/users/me`는 `요청 GET /api/v1/users/me 401 29ms`, 없는 경로는 `요청 GET /api/v1/nowhere 404 3ms`로 남았다.

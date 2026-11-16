@@ -1,7 +1,7 @@
 ---
 title: F1-a 결제 서버 강제 종료를 사람이 T0를 보고 치는 대신 첫 결제 행을 감지하면 자동으로 kill하게 함
 date: 2026-11-11
-updated: 2026-11-11
+updated: 2026-11-14
 judge: kangmin
 ai: Claude Code (F1 실행 세션)
 verdict: 수용
@@ -34,6 +34,12 @@ shared: 예
 ## 검증
 - 추첨 23에서는 실행하지 않았다. 15:54:56에 감시를 시작했으나 측정 모드 누락이 지적돼 15:56:06에 멈췄다(kill 0회). 측정 모드를 켠 뒤 새 회차에서 같은 방식으로 다시 한다
 
+11/14 보강: 측정 모드를 켠 뒤(16:04:30 KST, 강민 직접 실행) 추첨 24(회차 94, 20석, 16:25)에서 같은 방식으로 실행했다. 숫자는 [`docs/design/lottery/f1-fault-injection.md`](../../design/lottery/f1-fault-injection.md) 7절 "시각 기록표"와 그 아래 실행 조건에서 옮겼다.
+- 감시 스크립트가 T0 16:25:05.108에 첫 결제 행을 감지했고(그때 5행), T1 16:25:05.282에 `docker kill`했다. 감지에서 kill까지 0.174초다(두 시각의 차, 계산값).
+- kill 시점 결제는 `APPROVED` 7, `REQUESTED` 0이었다. 이 회차 결제 19건은 약 4초에 끝났다.
+- 결제 서버는 자동 재기동되지 않아(`Exited (137)`, `RestartCount` 0) T2 16:25:35.085에 `docker start`, T3 16:25:50.668에 healthy였다. 재기동 뒤 결제 `APPROVED` 17, `DECLINED(BILLING_KEY_MISSING)` 2, `NOT_SENT` 0, 원장 승인 34 = 결제 DB `APPROVED` 34, 중복 주문 0이다.
+
 ## 판단 이력
 - 2026-11-11 수용: 자동 kill 감시로 F1-a 진행
 - 2026-11-11 보류: 측정 모드 없이 진행한 것이 거부돼 추첨 23의 kill을 취소함([기록](2026-11-11-f1-measure-mode-required.md))
+- 2026-11-14 검증 보강: 추첨 24에서 자동 kill로 실행한 결과(`f1-fault-injection.md` 7절)를 검증 칸에 더함
