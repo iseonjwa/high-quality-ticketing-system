@@ -6,6 +6,7 @@ spring:
     username: ${DB_USER:iseonjwa}
     password: ${DB_PASSWORD}
     hikari:
+      # Note: 5를 유지한다(ADR 0064, ISE-237). 개선 뒤 배포 O1에서 커넥션 대기 0, 풀 10은 CPU 포화로 오히려 느렸다
       maximum-pool-size: 5
       # Note: 커넥션을 1초 안에 못 받으면 실패시킨다(ISE-196). 기본값 30초는 Gateway 응답 시한(3초)보다 길어,
       # Gateway가 이미 포기한 요청을 서버가 끝까지 기다리다 처리해 부하가 끝난 뒤에도 회복하지 못했다(k6-overload-recovery.md R1)
@@ -44,8 +45,13 @@ seat-hold:
     partitions: 6
     # 동시성 하나가 처리 중에 커넥션 하나를 쥔다. 풀(maximum-pool-size)을 HTTP와 나눠 쓴다
     concurrency: 2
-    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 파티션의 뒤 메시지가 멈춰 동기형(500ms)보다 짧게 둔다
-    lock-timeout: 100ms
+    # 좌석·매수 행 잠금 대기 시한. 기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 멈춰 동기형(50ms, ADR 0061)보다 길게 두지 않는다
+    lock-timeout: 50ms
+seathold:
+  expiry:
+    # 만료 스케줄러 주기. 코드 기본값 5초에서는 한 주기 100건 뒤 5초를 쉬어 회수가 초당 약 17건에 묶였다.
+    # 1초면 쉬는 시간이 줄어 같은 커넥션 하나로 더 빨리 회수한다(측정: docs/design/reservation/seathold-pre-deploy-measurements.md)
+    interval: 1s
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m

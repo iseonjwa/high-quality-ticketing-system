@@ -1,0 +1,9 @@
+# ISE-18 측정 전용 덮어쓰기다. 접수형 요청을 Outbox 대신 커밋 뒤 Kafka로 바로 보낸다(직접 발행, D).
+# compose.seat-hold-async.yml 뒤에 함께 준다.
+#   MEASURER=<이름> script/loadtest/measure-mode.sh on loadtest/k6/compose.seat-hold-async.yml loadtest/k6/compose.seat-hold-direct.yml
+# 운영 기본값은 Outbox다. 전송이 실패해도 202로 답하고 seathold_direct_publish_total{result="failed"}로 센다.
+# 메시지가 가지 않은 요청은 30초 시한 정리가 TIMEOUT으로 닫는다.
+services:
+  reservation-service:
+    environment:
+      SEATHOLD_ASYNC_PUBLISH: direct

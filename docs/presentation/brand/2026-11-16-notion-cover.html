@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이선좌 Notion 커버</title>
+<!-- 갤러리 썸네일용 1600x1000. 그림(codex 생성)은 같은 폴더의 -art.png이고 글자만 여기서 얹는다. PNG는 헤드리스 Chrome으로 창 크기 1600x1000, 배율 1로 찍는다 -->
+<style>
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Black"), local("Pretendard-Black"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Black.woff2"); font-weight: 900; }
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Bold"), local("Pretendard-Bold"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2"); font-weight: 700; }
+  html, body { margin: 0; padding: 0; background: #14101A; }
+  .cover {
+    position: relative; width: 1600px; height: 1000px; overflow: hidden;
+    background: #2B3BE5 url("2026-11-16-notion-cover-art.png") center / cover no-repeat;
+    font-family: "PretendardLocal", sans-serif;
+  }
+  /* 글자 뒤 대비를 위한 왼쪽 그늘. 그림 오른쪽 하린은 가리지 않는다 */
+  .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(14,18,92,.88) 0%, rgba(14,18,92,.72) 34%, rgba(14,18,92,0) 56%);
+  }
+  .copy {
+    position: absolute; left: 112px; top: 50%; transform: translateY(-50%);
+    color: #FFF8EE;
+  }
+  .eyebrow {
+    font-weight: 700; font-size: 34px; letter-spacing: .02em; color: #FFD23F; margin: 0 0 18px 6px;
+  }
+  .name {
+    font-weight: 900; font-size: 210px; line-height: .95; letter-spacing: -.04em; margin: 0;
+  }
+  .line {
+    font-weight: 900; font-size: 92px; line-height: 1.12; letter-spacing: -.035em; margin: 34px 0 0 4px;
+  }
+  .line em { font-style: normal; color: #FFD23F; }
+</style>
+</head>
+<body>
+  <div class="cover" id="cover">
+    <div class="scrim"></div>
+    <div class="copy">
+      <p class="eyebrow">콘서트 티켓팅 서비스</p>
+      <h1 class="name">이선좌</h1>
+      <p class="line">몰려도<br><em>정확한</em> 티켓팅</p>
+    </div>
+  </div>
+</body>
+</html>

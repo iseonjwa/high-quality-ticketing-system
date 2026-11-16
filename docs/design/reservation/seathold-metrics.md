@@ -8,6 +8,8 @@
 | `http_server_requests_seconds_bucket` | Spring 기본 HTTP 타이머의 히스토그램 | `method`, `uri`, `status`, `outcome`, `exception`, `le` | `config-repo/reservation-service.yml`의 `management.metrics.distribution.slo` |
 | `seathold_result_total` | 카운터 | `outcome` | `seathold/observability/SeatHoldMetrics`, 선점 컨트롤러에서 센다 |
 | `seathold_pre_rejected_total` | 카운터 | 없음 | 같은 클래스, `SyncSeatHoldService`가 사전 거절할 때 센다(ISE-281) |
+| `seathold_direct_publish_total` | 카운터 | `result`(`sent`·`failed`) | `seathold/infrastructure/messaging/KafkaSeatHoldDirectPublisher`. 측정 전용 직접 발행(ISE-18)을 켰을 때만 늘어난다 |
+| `seathold_direct_publish_ack_seconds` | 타이머(히스토그램) | 없음 | 같은 클래스. 커밋 뒤 브로커 확인(acks=all)까지 걸린 시간. 실패·시한 초과도 기록한다 |
 
 ### 1-1. HTTP 히스토그램 버킷
 - 경계: 25ms, 50ms, 100ms, 200ms, 300ms, 500ms, 1s, 3s. 3s는 Gateway 응답 시한이다.
@@ -40,6 +42,11 @@
 - 사전 거절 비율: `rate(seathold_pre_rejected_total[1m]) / rate(seathold_result_total{outcome="seat_conflict"}[1m])`. 측정 브랜치에서는 73~84%였다.
 - 끄기: `seat-hold.pre-reject.enabled=false`(기본 켬). 같은 버전에서 켠 회와 끈 회를 비교할 때 쓴다.
 
+### 1-4. 직접 발행 지표 (ISE-18)
+- `seat-hold.async.publish=direct`(측정 덮어쓰기 `loadtest/k6/compose.seat-hold-direct.yml`)일 때만 값이 생긴다. 기본(Outbox)에서는 0이다.
+- `failed`가 0이 아니면 그만큼의 요청은 메시지 없이 남아 30초 시한 정리가 `TIMEOUT`으로 닫는다. 접수 응답은 그래도 202다.
+- 브로커 확인 대기 시한은 `seat-hold.async.direct-publish-timeout`(기본 1초)이다. 이 대기는 접수 응답 시간에 들어간다. Outbox 경로와 접수 응답 시간을 비교할 때 이 차이를 함께 본다.
+
 ## 2. 대시보드 패널
 | 패널 | 식(요약) |
 |---|---|
@@ -53,6 +60,10 @@
 | 공연 목록·상세 상태 코드별 초당 응답 | 같은 식 |
 | 접수형 결과 폴링 서버 지연 p50·p95·p99 | 같은 식, `uri="/api/v1/reservations/requests/{requestId}"` |
 | 접수형 결과 폴링 상태 코드별 초당 응답 | 같은 식. 선점 결과의 `accepted`와 함께 보면 접수 한 건에 폴링이 몇 번 오는지 보인다 |
+| 상한 자리 사용 중과 DB 커넥션 (11/16, ISE-261) | `seathold_concurrency_in_use`(상한을 켰을 때만), `hikaricp_connections_active`·`pending`·`max` |
+| 선점 거절(상한·사전 거절) 초당 | `sum by (reason) (rate(seathold_concurrency_rejected_total[1m]))`(`queue_full`·`wait_timeout`, 503), `rate(seathold_pre_rejected_total[1m])`(409) |
+| 상한 자리 대기와 자리 쥐는 시간 | `seathold_concurrency_held_seconds`·`wait_seconds`의 합계÷건수(평균), held의 p95(SLO 버킷 1·5·10·50·100ms 사이 어림). 처리 한계 ≈ 상한 ÷ 자리 쥐는 시간 |
+| 좌석 잠금(UPDATE) 시간 | `seathold_seat_lock_seconds` 평균과 25ms 넘는 비율(`1 - le="0.025"` 버킷 / 전체). 50ms 근처가 많으면 잠긴 좌석 쏠림(ADR 0061) |
 
 히스토그램은 reservation-service의 모든 HTTP API에 걸린다. 패널이 없는 API(내 예매, 대기열 상태, 추첨 조회 등)도 Grafana Explore에서 `uri` 라벨만 바꿔 같은 식으로 본다.
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient></defs>
+<rect width="1200" height="600" fill="url(#bg)"/>
+<circle cx="950" cy="300" r="210" fill="#FFFFFF" fill-opacity="0.07"/>
+<path d="M810 230 h280 v40 a26 26 0 0 0 0 52 v40 h-280 v-40 a26 26 0 0 0 0 -52 z" fill="#FFFFFF"/>
+<line x1="1010" y1="240" x2="1010" y2="352" stroke="#14161E" stroke-width="4" stroke-dasharray="8 8" opacity="0.4"/>
+<text x="910" y="312" font-size="44" font-weight="900" text-anchor="middle" fill="#3B3BD4">당첨</text>
+<path d="M1060 154 L1067.8 172.2 L1086 180 L1067.8 187.8 L1060 206 L1052.2 187.8 L1034 180 L1052.2 172.2 Z" fill="#FFD43B"/>
+<path d="M800 174 L804.8 185.2 L816 190 L804.8 194.8 L800 206 L795.2 194.8 L784 190 L795.2 185.2 Z" fill="#FFD43B"/>
+<path d="M1100 386 L1104.2 395.8 L1114 400 L1104.2 404.2 L1100 414 L1095.8 404.2 L1086 400 L1095.8 395.8 Z" fill="#FFD43B"/>
+<text x="130" y="150" font-size="34" font-weight="800" fill="#FFD43B">05 · 추첨 · 자동결제</text>
+<text x="127" y="236" font-size="70" font-weight="900" fill="#FFFFFF" letter-spacing="-2">빠른 손 아니어도</text>
+<text x="130" y="296" font-size="34" font-weight="600" fill="#FFFFFF" fill-opacity="0.88">당첨되면 결제까지 알아서</text>
+<rect x="130" y="346" width="600" height="220" rx="22" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="160" y="512" font-size="28" font-weight="800" fill="#FFFFFF">10분 기준 93 → 100% · p95 613 → 208초</text>
+<text x="160" y="552" font-size="28" font-weight="800" fill="#FFFFFF">처리 속도 초당 3.2 → 9.4건(약 2.9배)</text>
+<text x="160" y="430" font-size="56" font-weight="900" fill="#FFFFFF">35% <tspan fill="#FFD43B">→ 100%</tspan></text>
+<text x="160" y="468" font-size="26" font-weight="600" fill="#FFFFFF" fill-opacity="0.75">추첨 뒤 약 3분 50초 시점 결제 완료율</text>
+</svg>

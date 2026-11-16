@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<rect width="1600" height="900" fill="#FBFBFD"/>
+<text x="40" y="60" font-size="34" font-weight="700" fill="#14161E">Gateway 과부하 개선 3단계</text>
+<text x="40" y="98" font-size="20" fill="#373B4A">대기열 순번 조회 API에 몰린 요청을 맨 앞에서 거절하고 요청 로그를 줄여, 같은 장비에서 굿풋을 올렸다(① 초당 2,000건 1,304 → 1,696/s, ②③ 초당 2,500건 1,608 → 2,122/s)</text>
+<rect x="1300" y="40" width="22" height="22" rx="4" fill="#C9CDD6"/><text x="1332" y="58" font-size="18" fill="#373B4A">개선 전</text>
+<rect x="1440" y="40" width="22" height="22" rx="4" fill="#3B3BD4"/><text x="1472" y="58" font-size="18" fill="#373B4A">개선 후</text>
+<rect x="40.0" y="150" width="493.3333333333333" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="64.0" y="194" font-size="24" font-weight="700" fill="#14161E">① 동시 처리 상한 64</text>
+<text x="64.0" y="224" font-size="16" fill="#676C7E">초당 2,000건 · 6차, 같은 배포에서 상한만 바꿈</text>
+<text x="64.0" y="258" font-size="22" font-weight="700" fill="#2F2FAE">굿풋 +30% · p95 571 → 87ms</text>
+<rect x="146.66666666666663" y="520.0591208979522" width="120" height="189.9408791020478" rx="6" fill="#C9CDD6"/>
+<text x="206.66666666666663" y="506.0591208979522" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">1,304/s</text>
+<text x="206.66666666666663" y="738" font-size="16" text-anchor="middle" fill="#373B4A">상한 500(사실상 없음)</text>
+<rect x="306.66666666666663" y="462.9603290206495" width="120" height="247.0396709793505" rx="6" fill="#3B3BD4"/>
+<text x="366.66666666666663" y="448.9603290206495" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">1,696/s</text>
+<text x="366.66666666666663" y="738" font-size="16" text-anchor="middle" fill="#373B4A">상한 64</text>
+<line x1="70.0" y1="710" x2="503.33333333333326" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<text x="64.0" y="766" font-size="14" fill="#676C7E">넘친 요청은 503(상한 거절 8,715건)</text>
+<text x="64.0" y="786" font-size="14" fill="#676C7E">서버 CPU는 98%로 그대로</text>
+<rect x="553.3333333333333" y="150" width="493.3333333333333" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="577.3333333333333" y="194" font-size="24" font-weight="700" fill="#14161E">② 거절 위치 앞당김</text>
+<text x="577.3333333333333" y="224" font-size="16" fill="#676C7E">초당 2,500건 · 6차 → 7차</text>
+<text x="577.3333333333333" y="258" font-size="22" font-weight="700" fill="#2F2FAE">굿풋 +13% · p95 104 → 78ms</text>
+<rect x="659.9999999999999" y="475.77842515637053" width="120" height="234.22157484362947" rx="6" fill="#C9CDD6"/>
+<text x="719.9999999999999" y="461.77842515637053" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">1,608/s</text>
+<text x="719.9999999999999" y="738" font-size="16" text-anchor="middle" fill="#373B4A">필터 안에서 거절</text>
+<rect x="819.9999999999999" y="445.7724273841145" width="120" height="264.2275726158855" rx="6" fill="#3B3BD4"/>
+<text x="879.9999999999999" y="431.7724273841145" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">1,814/s</text>
+<text x="879.9999999999999" y="738" font-size="16" text-anchor="middle" fill="#373B4A">맨 앞(HttpHandler)</text>
+<line x1="583.3333333333333" y1="710" x2="1016.6666666666665" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<text x="577.3333333333333" y="766" font-size="14" fill="#676C7E">거절 한 건 비용 = 받은 요청의 2~8%</text>
+<text x="577.3333333333333" y="786" font-size="14" fill="#676C7E">(11/12 별도 측정)</text>
+<rect x="1066.6666666666665" y="150" width="493.3333333333333" height="640" rx="12" fill="#FFFFFF" stroke="#D7DAE2" stroke-width="1.5"/>
+<text x="1090.6666666666665" y="194" font-size="24" font-weight="700" fill="#14161E">③ 요청 로그 줄이기</text>
+<text x="1090.6666666666665" y="224" font-size="16" fill="#676C7E">요청 로그 켬 → 끔 · 굿풋은 2,500/s, CPU는 1,000/s</text>
+<text x="1090.6666666666665" y="258" font-size="22" font-weight="700" fill="#2F2FAE">굿풋 +17% · 서버 CPU 78 → 66%</text>
+<rect x="1173.3333333333333" y="445.7724273841145" width="120" height="264.2275726158855" rx="6" fill="#C9CDD6"/>
+<text x="1233.3333333333333" y="431.7724273841145" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">1,814/s</text>
+<text x="1233.3333333333333" y="738" font-size="16" text-anchor="middle" fill="#373B4A">로그 켬</text>
+<rect x="1333.3333333333333" y="400.90909090909093" width="120" height="309.09090909090907" rx="6" fill="#3B3BD4"/>
+<text x="1393.3333333333333" y="386.90909090909093" font-size="24" font-weight="700" text-anchor="middle" fill="#14161E">2,122/s</text>
+<text x="1393.3333333333333" y="738" font-size="16" text-anchor="middle" fill="#373B4A">로그 끔</text>
+<line x1="1096.6666666666665" y1="710" x2="1529.9999999999998" y2="710" stroke="#8D92A3" stroke-width="1.5"/>
+<text x="1090.6666666666665" y="766" font-size="14" fill="#676C7E">숫자는 로그 끔 측정. 운영값(문제 요청만 남김)은 11/12 측정에서</text>
+<text x="1090.6666666666665" y="786" font-size="14" fill="#676C7E">1,500/s 서버 CPU가 끔과 같음(1,000/s는 +2.9%p)</text>
+<text x="40" y="836" font-size="16" fill="#676C7E">막대 = 굿풋(200 응답이면서 200ms 안에 끝난 요청/초), 세 칸 같은 기준. 대기자 10,000명, 회차마다 1회 측정, 같은 값 반복 차이 약 5%</text>
+<text x="40" y="866" font-size="15" fill="#676C7E">비교 2026-11-11 UTC(운영 반영 확인 11-12) · 배포 EC2 m7i.xlarge 1대, 대기열 순번 조회 API · 근거: docs/presentation/performance/2026-11-14-gateway-overload-one-page.md</text>
+</svg>

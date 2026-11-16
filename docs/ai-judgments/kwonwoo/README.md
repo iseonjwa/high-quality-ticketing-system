@@ -8,6 +8,15 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 판단 대상 | AI | 판단 | 공통 | 발표 후보 | 기록 |
 |---|---|---|---|---|---|---|
+| 2026-11-16 | dev 병합 뒤 "기존 방식이 나은 점"에 대한 다른 기기 AI 분석을 측정으로 검증해, 캐시 사전 거절은 남기고("아끼는 몫이 작다"는 기각) 자동 배정 개선은 담당에게 제안하기로 함 | Claude Code 두 세션 | 부분 수용 | 예 | 후보 | [기록](2026-11-16-verify-other-agent-precheck-analysis.md) |
+| 2026-11-16 | ISE-18 직접 발행을 커밋 뒤 전송·실패해도 202로 정하고, 측정 기준 코드에 ISE-261을 병합하기로 함(AI 추천 3개 모두 수용) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-16-ise18-direct-publish-after-commit.md) |
+| 2026-11-16 | 선점 동시 처리 상한만 키우지 않고 커넥션 풀과 함께 올려 로컬에서 재기로 함(config-repo는 ISE-237 결정대로 유지) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-16-pool-and-limit-together.md) |
+| 2026-11-15 | 자율 성능 개선 반복 절차를 AI 검토안대로 보완하되 판정은 종합 판단, 종료 5회, 커밋 자율, 검토는 별도 세션으로 정함 | Claude Code | 부분 수용 | 아니오 | 후보 | [기록](2026-11-15-autonomous-perf-loop-procedure.md) |
+| 2026-11-14 | 배포 측정 전 개선안 중 계측 보강·만료 주기·토큰 서명 이동을 차례로 넣어 재고, 풀 크기(ISE-237 있음)·캐시 읽기 메서드(ISE-281 등록)는 contract로 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-14-pre-deploy-improvements-2-5-6-and-contracts.md) |
+| 2026-11-14 | ISE-17을 먼저 최신화·머지하고, ISE-261의 사전 거절·순서 변경을 공용 선점 본체(`SeatHolding`) 위에서 다시 맞추기로 함 | Claude Code | 수용 | 아니오 | 아님 | [기록](2026-11-14-ise17-first-then-ise261-on-shared-body.md) |
+| 2026-11-13 | 좌석 선점 구조 개선 세 가지(먼저 거절, 잠금 뒤로, 동시 처리 상한)를 AI 추천 순서대로 넣고 단계별로 부하 측정(ADR 0062) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-seathold-structure-three-fixes.md) |
+| 2026-11-13 | **AI가 먼저 추천한 SKIP LOCKED를 측정(C2 성공 83→56) 뒤 거부하고 잠금 대기 50ms를 택함(ADR 0061, TS-73)** | Claude Code | **거부** | 예 | 후보 | [기록](2026-11-13-reject-skip-locked-choose-50ms.md) |
+| 2026-11-13 | 좌석 선점 개선안 중 잠긴 좌석을 기다리지 않기(SKIP LOCKED)를 새 이슈 ISE-261로 먼저 하기로 함(뒤에 거부로 바뀜) | Claude Code | 수용 | 예 | 후보 | [기록](2026-11-13-seathold-skip-locked-first.md) |
 | 2026-11-13 | ISE-17 소비자의 30초 시한 경합은 추천안(요청 행 잠금)을, 잠금 시한은 AI 추천(500ms) 대신 지표가 나은 100ms를 고름 | Claude Code | 부분 수용 | 예 | 후보 | [기록](2026-11-13-ise17-consumer-lock-and-timeout-by-metrics.md) |
 | 2026-11-13 | 지표 비용은 시계열 수에서 나온다는 분석을 받아 ISE-277을 SLO 버킷 방식(reservation-service만, 버킷 8개)으로 ISE-17보다 먼저 처리함 | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-13-ise277-slo-buckets-before-ise17.md) |
 | 2026-11-13 | 접수형 소비자(ISE-17)보다 입장 토큰 소모(ISE-207) 선점 쪽 구현을 먼저 함(이벤트 형식을 읽는 쪽이 없을 때 바꿈) | Claude Code | 수용 | 예 | 아님 | [기록](2026-11-13-ise207-before-ise17.md) |
@@ -41,6 +50,8 @@ kwonwoo가 AI 응답·제안에 내린 판단이다. 작성 절차는 [`ai-judgm
 
 | 날짜 | 일지 |
 |---|---|
+| 2026-11-16 | [일지](daily/2026-11-16.md) |
+| 2026-11-15 | [일지](daily/2026-11-15.md) |
 | 2026-11-12 | [일지](daily/2026-11-12.md) |
 | 2026-11-11 | [일지](daily/2026-11-11.md) |
 | 2026-11-10 | [일지](daily/2026-11-10.md) |

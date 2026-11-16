@@ -102,6 +102,8 @@ subprojects {
     dependencies {
         api platform('org.springframework.boot:spring-boot-dependencies:4.1.2')
         api platform('org.springframework.cloud:spring-cloud-dependencies:2025.1.4')
+        // Note: springdoc 3.2.0은 Spring Boot 4.1.2를 부모로 빌드됐다(ADR 0063). Boot를 올리면 이 버전도 맞춰 올린다
+        api platform('org.springdoc:springdoc-openapi-bom:3.2.0')
 
         // Note: Lombok은 팀 결정(10/27 통합 회의 D13)으로 모든 모듈에서 쓸 수 있다.
         // 애너테이션 프로세서 경로는 api의 BOM을 물려받지 않아 버전을 따로 맞춘다

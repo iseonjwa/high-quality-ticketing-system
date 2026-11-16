@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Pretendard, 'Noto Sans KR', sans-serif">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B3BD4"/><stop offset="1" stop-color="#24248F"/></linearGradient></defs>
+<rect width="1200" height="600" fill="url(#bg)"/>
+<circle cx="950" cy="300" r="210" fill="#FFFFFF" fill-opacity="0.07"/>
+<rect x="800" y="200" width="230" height="146" rx="18" fill="#FFFFFF"/>
+<rect x="800" y="236" width="230" height="26" fill="#14161E" opacity="0.85"/>
+<rect x="824" y="286" width="42" height="30" rx="5" fill="#63E6BE"/>
+<circle cx="1020" cy="360" r="62" fill="#63E6BE" stroke="#24248F" stroke-width="8"/>
+<path d="M1043.0 379.3 A30 30 0 1 0 997.0 379.3" fill="none" stroke="#14161E" stroke-width="10" stroke-linecap="round"/>
+<path d="M986.5 385.5 L1006.0 390.0 L1004.9 370.0 Z" fill="#14161E" stroke="#14161E" stroke-width="4" stroke-linejoin="round"/>
+<text x="130" y="150" font-size="34" font-weight="800" fill="#63E6BE">04 · 결제</text>
+<text x="127" y="236" font-size="70" font-weight="900" fill="#FFFFFF" letter-spacing="-2">결과를 모를 때</text>
+<text x="130" y="296" font-size="34" font-weight="600" fill="#FFFFFF" fill-opacity="0.88">거절되면 좌석을 바로 돌려주기</text>
+<rect x="130" y="346" width="600" height="140" rx="22" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="160" y="430" font-size="56" font-weight="900" fill="#63E6BE">약 0.14초</text>
+<text x="160" y="468" font-size="26" font-weight="600" fill="#FFFFFF" fill-opacity="0.75">결제 거절 → 좌석 반환(배포 서버 시연 1건)</text>
+</svg>

@@ -17,6 +17,12 @@ public interface SeatHoldRequestRepository {
     // 이 입장 토큰으로 거절되지 않은(REQUESTED·HELD) 선점 요청이 있는지 본다
     boolean existsActiveByEntryTokenJti(String entryTokenJti);
 
+    // 멱등키 행이 있는지와 이 입장 토큰이 거절되지 않은 요청에 쓰였는지를 한 번에 읽는다(DB 왕복 1번).
+    // entryTokenJti가 null이면 tokenActive는 false다
+    RequestKeyState findKeyState(UUID requestId, String entryTokenJti);
+
+    record RequestKeyState(boolean requestExists, boolean tokenActive) {}
+
     // REQUESTED 요청을 HELD로 바꾸고 예매를 연결한다. 바꾼 행 수를 돌려준다
     int markHeld(UUID requestId, Long reservationId, Instant now, Long actorId);
 

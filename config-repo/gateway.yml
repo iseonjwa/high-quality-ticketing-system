@@ -42,6 +42,32 @@ spring:
               metadata:
                 response-timeout: 10000
                 connect-timeout: 1000
+            # API 문서(ADR 0063). Swagger UI(/api/docs)가 서비스마다 이 경로로 문서를 받는다. 로그인 없이 연다(AccessPolicy).
+            # 배포 nginx는 /api/만 Gateway로 넘기므로 문서와 화면을 모두 /api/docs 아래에 둔다
+            - id: user-service-api-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/api/docs/user-service
+              filters:
+                - SetPath=/v3/api-docs
+            - id: reservation-service-api-docs
+              uri: lb://reservation-service
+              predicates:
+                - Path=/api/docs/reservation-service
+              filters:
+                - SetPath=/v3/api-docs
+            - id: payment-service-api-docs
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/docs/payment-service
+              filters:
+                - SetPath=/v3/api-docs
+            - id: assistant-service-api-docs
+              uri: lb://assistant-service
+              predicates:
+                - Path=/api/docs/assistant-service
+              filters:
+                - SetPath=/v3/api-docs
           observability:
             enabled: true
           metrics:
@@ -53,6 +79,26 @@ spring:
   data:
     redis:
       timeout: 300ms
+# Swagger UI(ADR 0063). Gateway는 자기 API가 없어 위 라우트로 받은 서비스 문서를 드롭다운으로 고르게 한다.
+# 진입 주소 /api/docs는 화면 파일(/api/swagger-ui/index.html, 진입 주소의 상위 경로 아래)로 넘긴다. 화면 설정(swagger-config)도
+# /api/docs 아래다. 모두 /api/ 아래라 배포 nginx를 고치지 않아도 열린다.
+# Note: 이 경로들은 라우트가 아니라 Gateway가 직접 응답하므로 인증 필터(GlobalFilter)를 거치지 않는다
+springdoc:
+  api-docs:
+    path: /api/docs/v3/api-docs
+  swagger-ui:
+    path: /api/docs
+    # 드롭다운은 이름순이다. 처음에는 로그인 API가 있는 user-service를 연다
+    urls-primary-name: user-service
+    urls:
+      - name: user-service
+        url: /api/docs/user-service
+      - name: reservation-service
+        url: /api/docs/reservation-service
+      - name: payment-service
+        url: /api/docs/payment-service
+      - name: assistant-service
+        url: /api/docs/assistant-service
 auth:
   access-secret: ${JWT_ACCESS_SECRET}
   issuer: iseonjwa-auth

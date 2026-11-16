@@ -171,7 +171,8 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 - **소비자가 결과를 정하는 규칙 (ISE-17)**
   - 소비자는 `seat-hold.mode`와 상관없이 늘 켜져 있다. 선점은 동기형과 같은 순서(매수 → 좌석 ID 오름차순 잠금 → 예매 저장)다. 선점 만료 시각(`holdExpiresAt`)은 접수 시각이 아니라 소비자가 처리한 시각부터 센다.
   - **30초 시한은 "처리를 시작하는 마감"이다.** 소비자는 처리를 시작할 때 요청 행을 잠그고 접수 뒤 30초가 지났는지 본다. 지났으면 좌석을 건드리지 않고 `TIMEOUT`으로 닫는다. 30초 안에 시작한 처리는 끝까지 하므로 `HELD`가 30초를 수 ms 넘겨 정해질 수 있다. 처리를 시작하지 못한 요청은 5초마다 도는 시한 정리가 `TIMEOUT`으로 닫으므로, 클라이언트는 접수 뒤 최대 약 35초 안에 결과를 받는다.
-  - 좌석이나 매수 행 잠금을 100ms 안에 얻지 못하면 `SEAT_ALREADY_HELD`로 닫는다. 동기형(500ms)보다 짧다. 기다리는 동안 같은 파티션의 뒤 요청이 모두 멈추기 때문이다.
+  - 처리 시작 때 읽은 좌석 상태에 이미 잡힌 좌석이 섞여 있으면 매수·좌석을 건드리지 않고 `SEAT_ALREADY_HELD`로 닫는다(ADR 0062).
+  - 좌석이나 매수 행 잠금을 50ms 안에 얻지 못하면 `SEAT_ALREADY_HELD`로 닫는다. 동기형과 같은 값이다(ADR 0061). 기다리는 동안 같은 스레드가 맡은 파티션의 뒤 요청이 모두 멈추므로 동기형보다 길게 두지 않는다.
   - `PROCESSING_FAILED`는 재시도 3회(1·2·4초)로도 처리하지 못해 DLQ로 간 요청이거나, 그사이 회차·좌석이 사라진 요청이다.
   - `REJECTED`로 닫힌 요청의 입장 토큰은 다시 선점에 쓸 수 있다(1-1절). `HELD`로 닫히면 소비자가 대기열 `issued`의 그 토큰 기록을 지운다.
 
@@ -217,11 +218,11 @@ SA 17-2 U1(서비스 간 계약 4종 확정) 중 **계약 ② 좌석 선점 결�
 | `404` | `NOT_FOUND` | 존재하지 않는 `scheduleId`로 선점 요청, 또는 접수 결과 조회 시 존재하지 않거나 타인의 `requestId` 조회 |
 | `409` | `SALE_NOT_OPEN` | 서버 시각(`now`)이 회차의 `open_at` 이전이거나 이미 판매 종료된 회차 (E4) |
 | `409` | `PURCHASE_LIMIT_EXCEEDED` | `user_schedule_quotas` 조건부 UPDATE 결과 0행 (`held_count + 요청 매수 > max_per_user`) (E3, D1) |
-| `409` | `SEAT_ALREADY_HELD` | `schedule_seats` 조건부 UPDATE 결과 갱신 행 수 < 요청 좌석 수, DB `lock_timeout(500ms)` 초과, 또는 `reservation_seats` 부분 유니크 인덱스 충돌 (E1, D2). 접수형은 접수 단계에서 요청 좌석이 `AVAILABLE`이 아니거나 추첨석으로 보일 때도 즉시 반환한다(ADR 0057) |
+| `409` | `SEAT_ALREADY_HELD` | `schedule_seats` 조건부 UPDATE 결과 갱신 행 수 < 요청 좌석 수, DB `lock_timeout(50ms, ADR 0061)` 초과, 또는 `reservation_seats` 부분 유니크 인덱스 충돌 (E1, D2). 접수형은 접수 단계에서 요청 좌석이 `AVAILABLE`이 아니거나 추첨석으로 보일 때도 즉시 반환한다(ADR 0057) |
 | `409` | `ZONE_SOLD_OUT` | 자동 배정(1-2절)에서 고른 구역·등급(또는 회차 전체)에 남은 선점 가능 좌석이 요청 매수보다 적은 경우. 다른 범위로 넘기지 않는다(ISE-264) |
 | `409` | `IDEMPOTENCY_KEY_REUSED` | 이미 사용된 `Idempotency-Key`로 다른 `scheduleId`·다른 `seatIds`·다른 사용자의 요청이 들어온 경우 (E2) |
 | `409` | `RESERVATION_NOT_PAYABLE` | 같은 `Idempotency-Key`로 재요청했으나 기존 선점 예매가 이미 만료(`EXPIRED`)·해제(`RELEASED`)·취소(`CANCELED`)되었거나 결제 토큰 발급 가능 시각(`holdExpiresAt - 10초`)이 지난 경우 |
-| `503` | `SERVICE_UNAVAILABLE` | DB 연결 실패 등 일시적 인프라 장애 |
+| `503` | `SERVICE_UNAVAILABLE` | DB 연결 실패 등 일시적 인프라 장애, 또는 선점 동시 처리 상한(`seat-hold.max-concurrent`)을 넘어 `seat-hold.max-concurrent-wait` 안에 자리를 얻지 못한 경우(ADR 0062, 기본 끔) |
 
 ---
 

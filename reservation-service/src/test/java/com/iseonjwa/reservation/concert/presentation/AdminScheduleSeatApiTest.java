@@ -17,6 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // 운영자 회차 좌석 생성 API(SA 11-5). 성공은 시드 공연장(KSPO DOME, 1,500석, ADR 0060)으로,
 // 입력 검증은 VIP·R 좌석만 있는 작은 테스트 공연장으로 확인한다.
@@ -82,6 +83,17 @@ class AdminScheduleSeatApiTest {
         assertEquals(1_500, jdbc.queryForObject("SELECT count(*) FROM schedule_seats"
                 + " WHERE schedule_id = ? AND status = 'AVAILABLE' AND created_by = ?",
                 Integer.class, seedScheduleId, ADMIN_ID));
+    }
+
+    // ISE-284: 통계에 없는 새 회차는 DB가 좌석을 1행으로 짐작해 Nested Loop를 고른다.
+    // 좌석을 만든 응답이 왔을 때 이미 통계가 갱신돼 실제(1,500)에 가깝게 짐작해야 한다
+    @Test
+    void 좌석을_만든_직후_DB가_새_회차의_좌석_수를_실제에_가깝게_짐작한다() throws Exception {
+        assertEquals(201, post(seedScheduleId, ADMIN_ID, "ADMIN", ALL_GRADES).status());
+
+        double estimatedRows = estimatedRows(seedScheduleId);
+
+        assertTrue(estimatedRows >= 750 && estimatedRows <= 3_000, "추정 행 수: " + estimatedRows);
     }
 
     @Test
@@ -179,6 +191,13 @@ class AdminScheduleSeatApiTest {
     private int countAll(Long scheduleId) {
         return jdbc.queryForObject("SELECT count(*) FROM schedule_seats WHERE schedule_id = ?", Integer.class,
                 scheduleId);
+    }
+
+    // 회차 좌석 조회 조건으로 실행 계획만 세워(EXPLAIN, 실행은 안 함) DB가 짐작한 행 수를 읽는다
+    private double estimatedRows(Long scheduleId) {
+        String plan = jdbc.queryForObject("EXPLAIN (FORMAT JSON) SELECT id FROM schedule_seats WHERE schedule_id = ?",
+                String.class, scheduleId);
+        return JsonMapper.builder().build().readTree(plan).get(0).get("Plan").get("Plan Rows").asDouble();
     }
 
     private Response post(Long scheduleId, Long userId, String role, String body) throws Exception {

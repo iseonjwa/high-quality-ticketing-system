@@ -6,6 +6,13 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-16 | 캐시 사전 거절과 한 문장 사전 판정, 측정으로 보면 무엇이 나은가 (다른 AI 분석 검증) | [qna/2026-11-16-pre-reject-cache-vs-one-statement.md](qna/2026-11-16-pre-reject-cache-vs-one-statement.md) |
+| 2026-11-16 | 선점 동시 처리 상한은 왜 4인가, 더 크게 두면 병렬 처리가 늘어 지표가 좋아지지 않나 | [qna/2026-11-16-seathold-concurrency-limit-4.md](qna/2026-11-16-seathold-concurrency-limit-4.md) |
+| 2026-11-14 | 배포 단계 측정 전에 좌석 선점 구조에서 더 개선할 것은 무엇인가 (시니어 관점 검토와 개선안) | [qna/2026-11-14-seathold-pre-deploy-review.md](qna/2026-11-14-seathold-pre-deploy-review.md) |
+| 2026-11-14 | reservation-service 커넥션 풀은 왜 5개인가, HikariCP 기본값 10과 다른 근거가 있나 (11/16 추가: 늘리는 편이 낫지 않나, 로컬·배포 지표) | [qna/2026-11-14-reservation-hikari-pool-5-origin.md](qna/2026-11-14-reservation-hikari-pool-5-origin.md) |
+| 2026-11-14 | 접수형 소비자(ISE-17) 머지 전 남은 확인 항목의 해결 방안과 트레이드오프 | [qna/2026-11-14-ise17-merge-verification-tradeoffs.md](qna/2026-11-14-ise17-merge-verification-tradeoffs.md) |
+| 2026-11-13 | 좌석 선점 구조 자체에 문제는 없나, 구조에서 개선할 부분은 무엇인가 | [qna/2026-11-13-seathold-structure-review.md](qna/2026-11-13-seathold-structure-review.md) |
+| 2026-11-13 | 좌석 선점 성능을 더 올리려면 무엇을 해야 하나 (시니어 관점의 개선안과 트레이드오프) | [qna/2026-11-13-seathold-senior-improvements.md](qna/2026-11-13-seathold-senior-improvements.md) |
 | 2026-11-13 | ISE-207(입장 토큰을 선점 성공 때 소모) 초안대로 구현하면 어디서 어긋나나 | [qna/2026-11-13-ise207-entry-token-consume-gaps.md](qna/2026-11-13-ise207-entry-token-consume-gaps.md) |
 | 2026-11-13 | ISE-255 접수형 장애 때 동기형 비상 전환을 범위에 둘지, 무엇을 보고 정하나 | [qna/2026-11-13-ise255-emergency-mode-switch-scope.md](qna/2026-11-13-ise255-emergency-mode-switch-scope.md) |
 | 2026-11-13 | Kafka를 쓰려면 producer와 consumer가 다 필요한데, 좌석 선점에는 왜 producer를 따로 만들지 않았나 | [qna/2026-11-13-why-no-seathold-kafka-producer.md](qna/2026-11-13-why-no-seathold-kafka-producer.md) |

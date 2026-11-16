@@ -71,6 +71,23 @@ interface SpringDataSeatHoldRequestRepository extends JpaRepository<SeatHoldRequ
     int rejectTimedOut(@Param("createdBefore") Instant createdBefore, @Param("now") Instant now,
             @Param("limit") int limit);
 
+    // 멱등키 조회와 토큰 사용 조회를 한 문장으로 합친다(PK, 부분 유니크 인덱스를 각각 탄다).
+    // 별칭을 따옴표로 감싸야 PostgreSQL이 소문자로 바꾸지 않아 프로젝션 이름과 맞는다
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (SELECT 1 FROM seat_hold_requests WHERE request_id = :requestId) AS "requestExists",
+                   (CAST(:jti AS VARCHAR) IS NOT NULL
+                    AND EXISTS (SELECT 1 FROM seat_hold_requests
+                                 WHERE entry_token_jti = CAST(:jti AS VARCHAR)
+                                   AND status <> 'REJECTED')) AS "tokenActive"
+            """)
+    KeyStateView findKeyState(@Param("requestId") UUID requestId, @Param("jti") String entryTokenJti);
+
+    interface KeyStateView {
+        boolean getRequestExists();
+
+        boolean getTokenActive();
+    }
+
     // 부분 유니크 인덱스(uq_seat_hold_requests_entry_token_jti)와 같은 조건이라 그 인덱스로 찾는다
     @Query(nativeQuery = true, value = """
             SELECT EXISTS (

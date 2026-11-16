@@ -12,3 +12,4 @@
 | 날짜 | 파일 | 내용 |
 |---|---|---|
 | 2026-11-05 | [2026-11-05-deploy-flow-motion.html](2026-11-05-deploy-flow-motion.html) | 배포 노선도(모션). main 머지 커밋이 GitHub → Actions → GHCR → Jenkins → 배포 서버 → Slack을 지나는 과정을 단계별로 재생한다(성공, 되돌림, 중단 세 경우). CI/CD 개념, 담당, 슬랙 알림(배포 준비·배포 중 진행 알림과 결과 여섯 가지), 11/5 릴리스 #338 실측 타임라인(머지에서 배포 완료까지 4분 35초)을 담았다. 브라우저로 연다 |
+| 2026-11-16 | [2026-11-16-slack-deploy-success.png](2026-11-16-slack-deploy-success.png), [2026-11-16-slack-alerts.png](2026-11-16-slack-alerts.png), [2026-11-16-slack-measure-mode.png](2026-11-16-slack-measure-mode.png) | Slack 알림 캡처 3장. 배포 준비 → 배포 중 → 성공(PR 690, Jenkins 35번, 5분 36초), Alertmanager 경보(결제 운영자 확인 지연, Gateway 오픈 피크 거절), 측정 모드 켬·끔. 브로셔 인프라 절에 쓴다 |

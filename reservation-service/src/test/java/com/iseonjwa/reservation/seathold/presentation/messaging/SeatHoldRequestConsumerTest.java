@@ -256,7 +256,7 @@ class SeatHoldRequestConsumerTest {
 
             release.countDown();
             holder.get(5, TimeUnit.SECONDS);
-            // 소비자 잠금 시한은 100ms다. 동기형(500ms)보다 짧은지 넉넉한 상한으로 본다
+            // 소비자 잠금 시한은 50ms다(ADR 0061). 옛 동기형 값 500ms보다 충분히 짧은지 넉넉한 상한으로 본다
             assertTrue(elapsedMillis < 450, "소비자 잠금 시한보다 오래 기다렸다: " + elapsedMillis + "ms");
         }
 

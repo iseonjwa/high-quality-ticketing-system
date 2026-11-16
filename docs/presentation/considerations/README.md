@@ -14,3 +14,5 @@
 
 | 날짜 | 파일 | 내용 | 근거 |
 |---|---|---|---|
+| 2026-11-16 | [2026-11-16-payment-result-exactly-once-effect.md](2026-11-16-payment-result-exactly-once-effect.md) | 결제 결과를 놓치지도 두 번 반영하지도 않기: 처리 이력·조건부 전이·PG 승인 시각·DLQ·대사·Outbox(효승, 예매 흐름) | ADR 0027·0029·0022 |
+| 2026-11-16 | [2026-11-16-reservation-db-connection-wait-and-pool.md](2026-11-16-reservation-db-connection-wait-and-pool.md) | 예매 DB 커넥션: 대기 시한 30초 → 1초로 회복 340초+ → 10초, 풀은 늘리지 않고 5 유지(효승, 예매 흐름) | ISE-196, ADR 0064 |

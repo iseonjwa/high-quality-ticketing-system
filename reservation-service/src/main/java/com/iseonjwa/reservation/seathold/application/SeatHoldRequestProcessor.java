@@ -53,14 +53,14 @@ public class SeatHoldRequestProcessor {
     private final Duration lockTimeout;
 
     /**
-     * @param lockTimeout 좌석·매수 행 잠금 대기 시한. 동기형(500ms)보다 짧다. 같은 구역 메시지는 한 줄로 처리되므로
-     *                    기다린다는 것은 줄 밖의 작업(만료, 취소, 다른 구역 키의 섞인 요청)과 부딪친 것이고, 기다리는 동안
-     *                    그 줄의 뒤 메시지가 모두 멈춘다
+     * @param lockTimeout 좌석·매수 행 잠금 대기 시한. 기본값은 동기형과 같은 50ms다(ADR 0061). 같은 구역 메시지는 한 줄로
+     *                    처리되므로 기다린다는 것은 줄 밖의 작업(만료, 취소, 다른 구역 키의 섞인 요청)과 부딪친 것이고,
+     *                    기다리는 동안 그 스레드가 맡은 파티션의 뒤 메시지가 모두 멈춘다. 그래서 동기형보다 길게 두지 않는다
      */
     public SeatHoldRequestProcessor(ProcessedEventService processedEvents, SeatHoldRequestRepository requests,
             SeatHoldInventoryRepository inventory, SeatHolding seatHolding, ConsumedEntryTokens consumedEntryTokens,
             SeatHoldConsumerMetrics metrics, @Qualifier("commonAuditingClock") Clock clock,
-            @Value("${seat-hold.consumer.lock-timeout:100ms}") Duration lockTimeout) {
+            @Value("${seat-hold.consumer.lock-timeout:50ms}") Duration lockTimeout) {
         this.processedEvents = processedEvents;
         this.requests = requests;
         this.inventory = inventory;
@@ -74,7 +74,8 @@ public class SeatHoldRequestProcessor {
     /**
      * 메시지 한 건을 처리한다. 같은 이벤트를 두 번 받아도 한 번만 처리한다.
      *
-     * <p>Note: 업무 거절(좌석 충돌, 매수 초과)은 선점 트랜잭션을 롤백해 좌석·매수 변경을 되돌린 뒤, 새 트랜잭션에서 거절과
+     * <p>Note: 읽은 좌석 상태로 걸리는 좌석 충돌은 아무것도 바꾸기 전이라 같은 트랜잭션에서 닫는다. 그 밖의 업무 거절(잠금 시한
+     * 초과, 그사이 잡힌 좌석, 매수 초과)은 선점 트랜잭션을 롤백해 좌석·매수 변경을 되돌린 뒤, 새 트랜잭션에서 거절과
      * 처리 기록을 쓴다. 두 트랜잭션 사이에 멈춰 다시 전달돼도 요청이 아직 REQUESTED라 같은 판단을 다시 한다.
      * 그 밖의 예외는 그대로 던져 Kafka 재시도와 DLQ로 보낸다.
      */
@@ -131,18 +132,18 @@ public class SeatHoldRequestProcessor {
             requests.markRejected(event.requestId(), TIMEOUT, now);
             return Outcome.LATE;
         }
-        var schedule = inventory.findSchedule(event.scheduleId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        var seats = inventory.findSeats(schedule.getId(), event.seatIds());
-        if (seats.size() != event.seatIds().size()) {
-            throw new BusinessException(SeatHoldErrorCode.SEAT_COUNT_MISMATCH);
+        var seats = SeatHoldRules.loadSeatsWithSchedule(inventory, event.scheduleId(), event.seatIds());
+        var schedule = SeatHoldRules.scheduleOf(inventory, event.scheduleId(), seats);
+        SeatHoldRules.requireAllSeatsOfSchedule(seats, event.seatIds());
+        if (!SeatHoldRules.allHoldable(seats)) {
+            // Note: 같은 파티션의 앞 메시지는 커밋을 마쳤으므로 읽은 상태가 최신이다. 오픈 순간에는 같은 좌석 요청이 첫 처리 전에
+            // 한꺼번에 접수되어 접수 검사를 모두 통과하므로, 진 요청 대부분이 여기서 걸린다. 아무것도 바꾸지 않았으니 롤백하지 않고
+            // 이 트랜잭션에서 바로 닫는다. 진 메시지가 싸질수록 같은 줄의 뒤 메시지가 빨리 처리된다(ADR 0062)
+            requests.markRejected(event.requestId(), SEAT_ALREADY_HELD, now);
+            return Outcome.SEAT_CONFLICT;
         }
         inventory.applyLockTimeout(lockTimeout);
-        var reservation = seatHolding.hold(event.requestId(), event.userId(), schedule, seats, event.seatIds(), now);
-        if (requests.markHeld(event.requestId(), reservation.getId(), now, event.userId()) != 1) {
-            // 요청 행을 잠그고 있으므로 일어나면 안 된다. 예외로 좌석·예매까지 되돌린다
-            throw new IllegalStateException("잠근 선점 요청을 HELD로 바꾸지 못했습니다: " + event.requestId());
-        }
+        seatHolding.hold(event.requestId(), event.userId(), schedule, seats, event.seatIds(), now);
         return Outcome.HELD;
     }
 

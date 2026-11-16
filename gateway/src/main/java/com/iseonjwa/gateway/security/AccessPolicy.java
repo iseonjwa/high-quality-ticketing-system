@@ -29,7 +29,9 @@ final class AccessPolicy {
             "/api/v1/concerts",
             "/api/v1/concerts/*",
             "/api/v1/lotteries/*",
-            "/api/v1/schedules/*/lottery");
+            "/api/v1/schedules/*/lottery",
+            // 서비스 API 문서(ADR 0063). 문서는 공개 정보이고, 문서에 적힌 API를 부를 때 다시 이 정책을 거친다
+            "/api/docs/*");
 
     private AccessPolicy() {}
 

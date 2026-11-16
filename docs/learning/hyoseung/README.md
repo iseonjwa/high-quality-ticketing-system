@@ -6,6 +6,8 @@
 
 | 날짜 | 질문 | 노트 |
 |---|---|---|
+| 2026-11-16 | Flyway 마이그레이션은 왜 고치거나 지우지 않고 새 파일로 되돌리나 | [qna/2026-11-16-flyway-forward-only-rollback.md](qna/2026-11-16-flyway-forward-only-rollback.md) |
+| 2026-11-15 | PostgreSQL 자동 통계 갱신 기준과 새 회차가 통계에서 빠진 이유 | [qna/2026-11-15-postgres-autoanalyze-threshold.md](qna/2026-11-15-postgres-autoanalyze-threshold.md) |
 | 2026-11-15 | 좌석 조회 서비스에 트랜잭션이 없는 이유, 선점 사전 거절이 중복 판매를 만들지 않는 이유 | [qna/2026-11-15-seat-query-no-tx-and-precheck-safety.md](qna/2026-11-15-seat-query-no-tx-and-precheck-safety.md) |
 | 2026-11-15 | 좌석 조회 3차 뒤 남은 한계는 820KB 응답을 받는 쪽 대기인가, 응답 크기는 줄였나 | [qna/2026-11-15-seat-query-820kb-remaining-limit.md](qna/2026-11-15-seat-query-820kb-remaining-limit.md) |
 | 2026-11-14 | Gateway 동시 처리 상한(64)의 정확한 목적 | [qna/2026-11-14-gateway-inflight-limit-purpose.md](qna/2026-11-14-gateway-inflight-limit-purpose.md) |

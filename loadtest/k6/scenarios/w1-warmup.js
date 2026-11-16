@@ -113,7 +113,7 @@ function reusableSchedule(concertId) {
 
 export default function (data) {
   const index = exec.scenario.iterationInTest;
-  if (index >= data.seats.length) {
+  if (data.seats.length === 0) {
     results.add(1, { result: 'no_seat' });
     return;
   }
