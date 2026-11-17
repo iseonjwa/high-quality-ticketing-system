@@ -1,6 +1,6 @@
 # 사례 가안 2. 좌석 동시성: AI의 전제 검토는 테스트로 확인해 받고, 측정 도구 제안은 거부함
 
-가안이다. 판단자(권우)가 내용과 숫자를 확인한 뒤 확정한다. 숫자 출처는 [`concurrency-results.md`](../../design/reservation/concurrency-results.md), [`k6-seathold-story.md`](../../design/reservation/k6-seathold-story.md), TS-65~68이다.
+가안이다. 판단자(권우)가 내용과 숫자를 확인한 뒤 확정한다. 2026-11-17에 숫자를 출처와 대조했다(아래 "대조 결과"). 숫자 출처는 [`concurrency-results.md`](../../design/reservation/concurrency-results.md), [`k6-seathold-story.md`](../../design/reservation/k6-seathold-story.md), TS-65~68이다.
 
 ## 1. 해결하려던 작업
 좌석 선점의 동시성 결함(1인 매수 한도, 멱등키, 잠금 대기, 만료 경합)을 고치고, 고친 효과와 비용을 숫자로 보이려 했다(ISE-79).
@@ -27,8 +27,13 @@ Linear 이슈와 설계 문서를 주고 단계(S0~S4)와 동시성 시나리오
 AI가 맞게 짚은 전제는 테스트로 확인했고, 측정 도구의 한계는 사람이 막았다. 그 결과 "정합성을 고치면 느려진다"는 걱정이 측정으로 지워졌다.
 
 ## 예상 질문
-- **잠금 대기 목표를 1,000ms에서 1,500ms로 고친 것(TS-67)은 결과에 목표를 맞춘 것 아닌가?** 고친 뒤 최대값이 1,060~1,305ms였다. `lock_timeout`(500ms)은 문장 전체가 아니라 잠금 시도마다 걸리므로, 목표를 설정값이 아니라 그 동작에서 다시 끌어냈다는 근거를 같이 보인다(TS-67 "배운 점"). k6 측정은 로컬 PC에서 했다.
+- **잠금 대기 목표를 1,000ms에서 1,500ms로 고친 것(TS-67)은 결과에 목표를 맞춘 것 아닌가?** 고친 뒤 최대값이 1,060~1,305ms였다. 당시 `lock_timeout`(500ms)은 문장 전체가 아니라 잠금 시도마다 걸리므로, 목표를 설정값이 아니라 그 동작에서 다시 끌어냈다는 근거를 같이 보인다(TS-67 "배운 점"). k6 측정은 로컬 PC에서 했다.
+- **지금도 500ms인가?** 아니다. 잠금 대기 상한은 뒤에 50ms로 줄였다(ADR 0061, 2026-11-13). 같은 C3에서 최대 대기가 643ms에서 171~225ms로 줄었고(C2 성공은 83건에서 78~92건으로 비슷), 잠긴 좌석을 노린 요청이 커넥션을 오래 쥐지 않게 하려는 결정이다. 이 사례의 숫자는 500ms 시절의 측정이다.
 
 ## 근거
 - [판단 기록: 시나리오·전제 검토 수용](../../ai-judgments/kwonwoo/2026-11-03-ise79-scenarios-measure-in-worktree.md), [JUnit 근사 거부](../../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md)
 - TS-65~68(`docs/troubleshooting.md`)
+
+## 대조 결과 (2026-11-17)
+- 출처와 같음: C4 한도 초과 라운드 30 → 0, C5 자기 요청 409 60 → 0, C6 헛수고 100 → 0, C3 잠금 대기 p50 2,034 → 564ms, 최대 1,060~1,305ms([`concurrency-results.md`](../../design/reservation/concurrency-results.md) 44~46·53줄), 회귀 263건, JUnit 근사 1,125 → 648 req/s, k6 2,416명·293명 → 0명([`k6-seathold-story.md`](../../design/reservation/k6-seathold-story.md)).
+- 고친 것: 예상 질문의 `lock_timeout` 500ms가 지금 값이 아니라서, 50ms로 줄인 뒤 결정(ADR 0061)을 예상 질문으로 더했다.

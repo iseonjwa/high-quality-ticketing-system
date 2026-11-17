@@ -1,7 +1,7 @@
 ---
 title: 입장 토큰 소모 뒤 issued 정리를 AFTER_COMMIT 리스너 대신 트랜잭션 밖 메서드 호출로 바꾸는 데 동의함
 date: 2026-11-13
-updated: 2026-11-13
+updated: 2026-11-17
 judge: 팀 (대기열 담당 권영은 제안, 좌석 선점 담당 KWON-WOO 동의)
 ai: Claude Code (ADR 0053 초안 작성 세션, 이 세션의 원인 분석)
 verdict: 거부
@@ -32,10 +32,13 @@ shared: 예
 - ADR 0053 결정 3 수정: 이강민 담당과 조율 중.
 
 ## 검증
-구현 전.
+- 2026-11-13 판단 때는 구현 전이었다.
+- 구현: ISE-207 PR #593(입장 토큰을 좌석 선점이 성공한 순간 소모하고 대기열 issued를 정리). 선점 쪽은 트랜잭션이 끝난 뒤 `QueueService.discardEntryToken(scheduleId, userId, entryTokenJti)`를 부른다(`SyncSeatHoldService`, 접수형은 `ConsumedEntryTokens`).
+- 결정 문서: ADR 0053 채택(PR #612, 대기열 정리를 트랜잭션 밖 메서드 호출로).
 
 ## 판단 이력
 - 2026-11-13 거부: 리스너 대신 트랜잭션 밖 메서드 호출로 바꾸는 대기열 담당 제안에 동의.
+- 2026-11-17 검증 보강: 구현 PR(#593)과 ADR 0053 채택(#612)을 더함.
 
 ## 발표·면접 포인트
 - `AFTER_COMMIT`은 "커밋 뒤"지만 "커넥션 반납 뒤"는 아니다. 커밋 후처리에서 외부 I/O를 하면 그 시간만큼 커넥션을 쥔다. 풀이 5개인 서비스에서는 Redis 지연이 DB 풀 고갈로 번진다.

@@ -1,7 +1,7 @@
 ---
 title: 트래픽 집중 지점 격리와 향후 스케일업을 위해 좌석 선점(seathold)을 별도 도메인 모듈로 분리하되 단방향 의존 규칙을 둔다
 date: 2026-10-30
-updated: 2026-10-30
+updated: 2026-11-17
 judge: kwonwoo
 ai: Antigravity (Gemini)
 verdict: 부분 수용
@@ -32,10 +32,13 @@ shared: 예
 - 코드 반영 예정(`ISE-10`): `SeatHoldRequest`, `SeatHoldRequestStatus`는 `com.iseonjwa.reservation.seathold.domain.entity`에 두고, `Reservation`, `ReservationSeat`, `ReservationStatusHistory`, `UserScheduleQuota`는 `com.iseonjwa.reservation.reservation.domain.entity`에 배치
 
 ## 검증
-- 구현 전 (이어지는 `ISE-10` 엔티티·스키마 작업에서 `./gradlew verifyWorkspace --no-daemon`으로 검증 예정)
+- 2026-10-30 판단 때는 구현 전이었다.
+- 2026-10-30 구현: ISE-10 PR #98(좌석 선점·예매 스키마와 도메인 엔티티·저장소). 코드는 `com.iseonjwa.reservation.seathold`와 `com.iseonjwa.reservation.reservation` 패키지로 나뉘어 있다. `./gradlew verifyWorkspace` 작업이 있다.
+- 미확인: `seathold → reservation` 단방향 의존을 자동으로 검사하는 테스트(ArchUnit 등)는 찾지 못했다. ADR 0034의 상태는 아직 "제안(예매 흐름 담당 확인 필요)"이다.
 
 ## 판단 이력
 - 2026-10-30 부분 수용: 트래픽 집중 지점 경계 분리와 향후 스케일업 용이성을 근거로 방법 2(`seathold` 모듈 분리 + `seathold → reservation` 단방향 의존) 선택
+- 2026-11-17 검증 보강: 구현 PR(#98)을 더하고, 단방향 의존 자동 검사가 없다는 점과 ADR 0034 상태를 적음.
 
 ## 발표·면접 포인트
 - "단순히 SA 초안대로 한 패키지에 몰아넣는 대신, 오픈 정각 스파이크 트래픽을 받아내는 입구(`seathold`)와 이후 결제 SAGA를 처리하는 원장(`reservation`)의 트래픽 비대칭성과 향후 스케일업을 고려해 모듈을 분리했습니다. 이때 발생할 수 있는 양방향 순환 참조를 막기 위해, 결제 거절·취소에서도 함께 차감하는 `UserScheduleQuota`는 원장(`reservation`)에 두고 `seathold → reservation` 단방향으로만 의존하도록 경계를 설계했습니다."
