@@ -1,6 +1,6 @@
 # 배포 서버 좌석 선점 단계 측정 실행표 (ISE-296)
 
-- 상태: 1차 측정 완료(2026-11-16). 결과: [deploy-seathold-steps-results.md](deploy-seathold-steps-results.md). 측정자: 최권우(`MEASURER=kwonwoo`)
+- 상태: 측정 완료(1차 2026-11-16, 2차 P8·D-P8·O2 2026-11-17). 결과: [deploy-seathold-steps-results.md](deploy-seathold-steps-results.md). 측정자: 최권우(`MEASURER=kwonwoo`)
 - 관련 이슈: ISE-296(세 방식 비교), ISE-265(Kafka-UI 캡처), ISE-266(A0), ISE-293(커넥션 대기 초과 503), ADR 0062 후속(동시 처리 상한 값), ADR 0064(풀 8은 조건부)
 - 계획과 지표 정의: [async-seathold-remeasure-plan.md](async-seathold-remeasure-plan.md) 4절. 이 문서는 그 계획을 배포 서버에서 한 번에 도는 순서와 명령만 적는다.
 - 공용 절차: [loadgen.md](../../guides/loadgen.md) 4·5절, [deploy-server-access.md](../../guides/deploy-server-access.md) 5-5절, [loadtest/k6/README.md](../../../loadtest/k6/README.md) "배포 서버 측정"
