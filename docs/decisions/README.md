@@ -65,6 +65,6 @@
 | 0059 | [구역·매수만 받아 서버가 좌석을 고르는 자동 배정 선점을 FOR UPDATE SKIP LOCKED로 더하고, 멱등은 조건 문자열로 비교한다](0059-seat-auto-assign-skip-locked.md) | 제안 (ISE-264, 강민 위임 야간 작업 선조치 후보고, 좌석 선점 담당 사후 확인) | 2026-11-16 |
 | 0060 | [측정·시연용 시드 공연장을 15,000석에서 1,500석으로 줄이고, 기존 시드 좌석을 숨기는 새 마이그레이션으로 바꾼다](0060-seed-venue-1500-seats.md) | 제안 (ISE-291 contract, 11/16 팀 합의, PR 리뷰로 확정. SA 3-3·6-5·12-9의 15,000석 기준 대체) | 2026-11-16 |
 | 0061 | [동기형 좌석 선점의 잠금 대기 상한을 500ms에서 50ms로 줄이고, SKIP LOCKED는 쓰지 않는다](0061-seat-hold-lock-timeout-50ms.md) | 채택 (ISE-261, SA 9-4의 500ms 대체) | 2026-11-13 |
-| 0062 | [동기형 선점은 읽은 좌석 상태로 먼저 거절하고, 좌석 UPDATE를 트랜잭션 끝으로 옮기고, 동시 처리 상한을 둔다](0062-seat-hold-structure-precheck-reorder-limit.md) | 채택 (ISE-261. 동시 처리 상한은 기본 끔, 배포 측정 뒤 켬) | 2026-11-13 |
+| 0062 | [동기형 선점은 읽은 좌석 상태로 먼저 거절하고, 좌석 UPDATE를 트랜잭션 끝으로 옮기고, 동시 처리 상한을 둔다](0062-seat-hold-structure-precheck-reorder-limit.md) | 채택 (ISE-261. 동시 처리 상한은 기본 끔이고, 11/17 배포 측정(ISE-296) 뒤 운영에서도 켜지 않기로 함) | 2026-11-13 |
 | 0063 | [API 문서는 springdoc으로 서비스마다 만들고, Swagger UI는 Gateway의 /api/docs 한 곳에서 띄운다](0063-swagger-ui-at-gateway.md) | 채택 (ISE-295) | 2026-11-16 |
 | 0064 | [reservation-service DB 커넥션 풀은 5를 유지하고, 풀 크기 재측정은 커넥션 대기가 다시 주 병목일 때 한다](0064-reservation-db-pool-keep-5.md) | 채택 (ISE-237) | 2026-11-16 |
