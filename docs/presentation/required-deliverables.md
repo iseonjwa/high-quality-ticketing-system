@@ -20,7 +20,7 @@
 | | 실패 → 보상이 동작하는 로그·화면 캡처 | **없음** | — | ISE-267 | 효승(ISE-267), 결제 쪽 준현 |
 | 대용량 트래픽 | 측정 환경 기록표 | 있음 | [Gateway 발표 소스](2026-11-12-gateway-overload-source.md), [`open-peak-scenarios.md`](../design/infra/open-peak-scenarios.md) | 없음 | — |
 | | 동시 100명 · 1초 안 시작 · 각 10회 요약(평균 응답·처리량·성공률) | 있음(배포 서버, 2026-11-16·17). 동기형 S1 성공률 98.8%·성공 처리량 521건/초, 접수형 O 53.3%·499건/초, D 55.8%·485건/초(202 접수 기준). 접수형은 선점 동시 처리 상한 4를 둔 값이다 | [`deploy-seathold-steps-results.md`](../design/reservation/deploy-seathold-steps-results.md) 3·9절, [`performance/2026-11-17-seathold-three-modes-one-page.md`](performance/2026-11-17-seathold-three-modes-one-page.md) | 동기형 ISE-264, 접수형 ISE-18 | 영은(ISE-264), 권우(ISE-18) |
-| | 최적화 전·후 2회 이상, 개선 내역 1~3줄 | 있음(Gateway 상한, 좌석 조회, 좌석 동시성) | 위 문서, `docs/design/reservation/` | `performance/`에 발표 한 장 | 강민(ISE-269), 권우(ISE-266) |
+| | 최적화 전·후 2회 이상, 개선 내역 1~3줄 | 있음(Gateway 상한, 좌석 조회, 좌석 동시성) | 위 문서, `docs/design/reservation/`, 좌석 동시성 발표 한 장 [`performance/2026-11-17-seat-concurrency-before-after-one-page.md`](performance/2026-11-17-seat-concurrency-before-after-one-page.md) | `performance/`에 발표 한 장(좌석 동시성은 ISE-306으로 채움) | 강민(ISE-269), 권우(ISE-266·ISE-306) |
 | | API가 Kafka에 넣고 바로 응답, Consumer가 처리 | 구현 있음(접수형 선점, ADR 0057). 배포 서버 세 방식 비교 측정 있음(ISE-296) | [`performance/2026-11-17-seathold-three-modes-one-page.md`](performance/2026-11-17-seathold-three-modes-one-page.md) | ISE-18 | 권우(ISE-18) |
 | | Kafka-UI 토픽·컨슈머 그룹 캡처, 파티션 수·키 근거 한 줄 | 있음(근거 표, 2026-11-17 배포 서버 캡처 다섯 장, 실제 파티션 수 확인) | [`performance/2026-11-16-kafka-topics-partitions.md`](performance/2026-11-16-kafka-topics-partitions.md) | ISE-265 | 권우(ISE-265) |
 | 모니터링 | Prometheus·Grafana 대시보드 | 있음(배포 Grafana) | `docs/design/infra/observability.md` | `deployment/`에 대시보드 캡처 | 준현(ISE-272) |
