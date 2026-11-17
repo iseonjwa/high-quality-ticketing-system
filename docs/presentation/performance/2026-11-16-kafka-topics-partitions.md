@@ -1,9 +1,9 @@
 # Kafka 토픽별 파티션 수·키와 그 근거 (ISE-265)
 
-발제 필수 "대용량 트래픽"의 산출물 중 "파티션 수·키를 고른 이유"다. 형식은 [`evidence-formats.md`](../evidence-formats.md) T7을 따른다. Kafka-UI 캡처(토픽 목록, 컨슈머 그룹 랙)는 배포 단계 측정의 접수형 단계(선점 접수 토픽에 메시지가 흐르는 구간)에서 찍어 이 폴더에 더한다.
+발제 필수 "대용량 트래픽"의 산출물 중 "파티션 수·키를 고른 이유"다. 형식은 [`evidence-formats.md`](../evidence-formats.md) T7을 따른다. Kafka-UI 캡처(토픽 목록, 컨슈머 그룹 랙)는 배포 단계 측정(ISE-296)의 접수형 Outbox 단계(O2)에서 찍어 4절에 더했다.
 
 - 기준: dev `54f18b63`(2026-11-16)의 코드·설정·문서. 근거가 문서에 없으면 "근거 없음"으로 적었다(지어내지 않는다).
-- 배포 서버의 실제 파티션 수는 아직 확인 전이다. 측정 때 서버에서 남기는 `kafka-topics --describe` 결과로 채운다(5절).
+- 배포 서버의 실제 파티션 수는 2026-11-17 Kafka-UI 토픽 목록으로 확인했다. 1절 표와 같다(5절).
 
 ## 1. 한눈에
 
@@ -41,13 +41,22 @@
 
 - 토픽마다 그룹을 하나씩 둔다(`reservation.seat-hold`, `payment.command`, `reservation.payment-result`). DLQ는 원래 그룹 이름에 `-dlq`를 붙인 별도 그룹이다. 원래 토픽의 랙과 DLQ 처리를 따로 보려는 구성으로 보이지만, 나눈 이유를 적은 기록은 찾지 못했다(근거 없음).
 
-## 4. 캡처 (배포 단계 측정 때 더함)
+## 4. 캡처 (2026-11-17, 배포 서버)
 
-- 토픽 목록(파티션 수): `2026-11-xx-kafka-ui-topics.png`
-- `seat-hold.request` 컨슈머 그룹 랙(접수형 부하 중): `2026-11-xx-kafka-ui-seat-hold-consumer.png`
-- `payment.command`·`payment.result` 컨슈머 그룹: `2026-11-xx-kafka-ui-payment-consumers.png`
-- 찍는 시각과 방법: 측정 브랜치 `reservation-service/k6/STEPS.md` "11/16 확장"의 Kafka-UI 캡처 줄(접수형 단계 aout·adir가 시작될 때 알림이 뜬다)
+배포 단계 측정 O2(풀 5, 동시 처리 상한 4, 접수형 Outbox)의 K1-H 램프가 320/s 구간에 들어선 때(시작 뒤 285초부터, 08:58:57~08:59:41 KST) 찍었다. 측정자 PC에서 터널(`ssh -N -L 8085:127.0.0.1:8085 iseonjwa`)로 Kafka-UI를 열고 헤드리스 Chrome(Playwright)으로 저장했다. 측정 결과와 해석: [`deploy-seathold-steps-results.md`](../../design/reservation/deploy-seathold-steps-results.md) 9절.
 
-## 5. 배포 서버에서 확인할 것
+| 화면 | 파일 | 보이는 것 |
+|---|---|---|
+| 토픽 목록 | [`2026-11-17-kafka-ui-topics.png`](2026-11-17-kafka-ui-topics.png) | `seat-hold.request` 6, `payment.command` 3, `payment.result`·DLQ 세 개 1 |
+| `seat-hold.request` 개요 | [`2026-11-17-kafka-ui-seat-hold-topic.png`](2026-11-17-kafka-ui-seat-hold-topic.png) | 파티션 6개에 메시지가 5,778~9,874건씩 나뉘어 있다 |
+| `seat-hold.request` 메시지 | [`2026-11-17-kafka-ui-seat-hold-messages.png`](2026-11-17-kafka-ui-seat-hold-messages.png) | 키가 `{scheduleId}:{section}`(`299:B`, `299:W`)이고, 같은 키는 같은 파티션(`299:B` → 3)으로 간다 |
+| `reservation.seat-hold` 그룹 | [`2026-11-17-kafka-ui-seat-hold-consumer.png`](2026-11-17-kafka-ui-seat-hold-consumer.png) | 멤버 2(동시성 2)가 파티션을 3개씩 나눠 맡는다. 이 순간 lag 32 |
+| 컨슈머 그룹 목록 | [`2026-11-17-kafka-ui-consumer-groups.png`](2026-11-17-kafka-ui-consumer-groups.png) | 그룹 6개(업무 3, `-dlq` 3)가 모두 STABLE. `payment.command` 멤버 3 |
 
-- 자동 생성 토픽의 파티션 수가 정말 1인지: 측정 때 `results/deploy-<단계>-H-<시각>-kafka.txt`의 `kafka-topics --describe` 결과로 1절 표를 확인하고, 다르면 고친다. 파티션 수를 배포 서버에서 확인한 기록은 아직 없다([ADR 0051](../../decisions/0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) 20줄 "배포 서버 값은 확인 못 함").
+- 이 측정은 좌석 선점만 해서 결제 토픽에는 새 메시지가 흐르지 않았다. 결제 그룹은 멤버 수와 상태만 보인다.
+- 메시지 화면에서 `299:B`가 약 0.55초 간격(초당 약 2건)으로 들어온다. 구역 키 하나에 접수가 몰리면 Outbox 릴레이가 그 키를 한 번에 1건씩만 보내서다(같은 키의 앞선 PENDING 행이 있으면 다음 행을 집지 않는다). 그래서 Kafka lag는 0~32로 작고, 대기는 Kafka 앞 Outbox 테이블에 쌓였다(PENDING 최대 1,941건). 키를 구역 단위로 둔 선택(2절)의 대가로, 결과 문서 9-3절에 정리했다.
+
+## 5. 배포 서버에서 확인한 것
+
+- 2026-11-17 Kafka-UI 토픽 목록(4절 첫 화면)에서 파티션 수가 1절 표와 같음을 확인했다. 자동 생성 토픽(`payment.result`, DLQ 세 개)은 1개, `seat-hold.request` 6개, `payment.command` 3개다. 복제 수는 모두 1이다.
+- [ADR 0051](../../decisions/0051-lottery-billing-consumer-concurrency-and-billing-bulkhead.md) 20줄의 "배포 서버 값은 확인 못 함"은 이 확인으로 채워진다. ADR 본문은 고치지 않았다.
