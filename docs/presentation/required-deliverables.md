@@ -26,7 +26,7 @@
 | 모니터링 | Prometheus·Grafana 대시보드 | 있음(배포 Grafana) | `docs/design/infra/observability.md` | `deployment/`에 대시보드 캡처 | 준현(ISE-272) |
 | 최소 구현 | 실패 정의 문서와 구현, Kafka 실패·중복 대응, 유실 방지 패턴(Outbox), 부하 테스트 | 있음(Outbox, 처리 이력, DLQ, 멱등키, 대사) | `failure-scenarios.md`, ADR, TS | `considerations/`에 발표 한 장 | 영역별(발표 준비 11/16~) |
 | AI 설계 검증 로그 | 검증 항목 3개 이상, 거부 1개 이상, 4계층 검증 | 있음(SA 14장 10건, #7이 4계층) | SA 14장 | 발제 양식의 **"AI 프롬프트(요약)" 열이 없다**. 항목마다 판단자가 채운다 | 4·7번 강민(ISE-269), 5번 권우(ISE-266), 10번 영은(ISE-268), 나머지 준현(ISE-272) |
-| AI 대표 사례 | 2건 이상, 사례마다 다섯 가지 | 가안 2건(PR #580) | [`ai-verification/`](ai-verification/README.md) | 판단자 확인 | 강민(ISE-269), 권우(ISE-266) |
+| AI 대표 사례 | 2건 이상, 사례마다 다섯 가지 | 가안 1건(강민 확인 전), 확정 1건(권우 11/17, PR #722) | [`ai-verification/`](ai-verification/README.md) | 판단자 확인 | 강민(ISE-269), 권우(ISE-266) |
 | Synthetic Data | LLM 프롬프트 원문 | 있음(PR #583) | `loadtest/synthetic/o1-prompt.md`, `o1-response.md` | 없음 | — |
 | | 생성 CSV | 있음(PR #583) | `loadtest/k6/data/o1-synthetic-3000.csv` | 없음 | — |
 | | 일반 부하 결과와 Synthetic 결과 비교 | **없음** | — | ISE-264 | 영은(ISE-264) |

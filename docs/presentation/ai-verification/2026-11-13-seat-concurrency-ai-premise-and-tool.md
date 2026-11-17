@@ -1,6 +1,6 @@
-# 사례 가안 2. 좌석 동시성: AI의 전제 검토는 테스트로 확인해 받고, 측정 도구 제안은 거부함
+# 사례 2. 좌석 동시성: AI의 전제 검토는 테스트로 확인해 받고, 측정 도구 제안은 거부함
 
-가안이다. 판단자(권우)가 내용과 숫자를 확인한 뒤 확정한다. 2026-11-17에 숫자를 출처와 대조했다(아래 "대조 결과"). 숫자 출처는 [`concurrency-results.md`](../../design/reservation/concurrency-results.md), [`k6-seathold-story.md`](../../design/reservation/k6-seathold-story.md), TS-65~68이다.
+확정본이다. 2026-11-17에 숫자를 출처와 대조했고(아래 "대조 결과"), 같은 날 판단자(권우)가 확인해 가안 표시를 뗐다. 숫자 출처는 [`concurrency-results.md`](../../design/reservation/concurrency-results.md), [`k6-seathold-story.md`](../../design/reservation/k6-seathold-story.md), TS-65~68이다.
 
 ## 1. 해결하려던 작업
 좌석 선점의 동시성 결함(1인 매수 한도, 멱등키, 잠금 대기, 만료 경합)을 고치고, 고친 효과와 비용을 숫자로 보이려 했다(ISE-79).
