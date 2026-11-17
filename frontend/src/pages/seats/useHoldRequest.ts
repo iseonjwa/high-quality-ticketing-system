@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { isOutcomeUnknown } from '@/api/apiError'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
-import type { SeatHold } from '@/api/reservations'
-import { sleepUntil, submitHold } from '@/pages/seats/seatHold'
+import type { AutoHoldCriteria, SeatHold } from '@/api/reservations'
+import { sleepUntil, submitHold, type HoldTarget } from '@/pages/seats/seatHold'
 
 // sending: 첫 요청을 기다린다. retrying: 결과를 모르거나 일시 장애라 같은 키로 다시 보내는 중이다
 export type HoldRequestState = 'idle' | 'sending' | 'retrying'
@@ -11,6 +11,8 @@ export type HoldResult =
   | { kind: 'held'; hold: SeatHold }
   // 다른 사람이 먼저 잡은 좌석이 있다. 화면이 좌석을 다시 받아 고르게 한다
   | { kind: 'conflict' }
+  // 자동 배정할 구역에 남은 좌석이 매수보다 적다. 화면이 좌석을 다시 받아 남은 수를 고쳐 보인다
+  | { kind: 'zoneSoldOut' }
   // 선점이 됐는지 끝내 모른다. 키를 남겨 두고 같은 좌석으로 다시 확인하게 한다
   | { kind: 'unknown' }
   // 입장 토큰이 끝났다. maybeHeld면 앞서 결과를 모른 요청이 있어 좌석이 잡혔을 수 있다
@@ -20,7 +22,8 @@ export type HoldResult =
 
 interface IssuedKey {
   key: string
-  seatIds: string
+  // 같은 요청인지 알아보는 값. 좌석 직접 선택은 정렬한 좌석 ID, 자동 배정은 구역·매수다
+  signature: string
   // 이 키로 보낸 요청 중 결과를 모른 것(응답 없음·504)이 한 번이라도 있었다
   uncertain: boolean
 }
@@ -34,7 +37,8 @@ interface UseHoldRequestOptions {
   sleep?: (millis: number, signal: AbortSignal) => Promise<void>
 }
 
-// [선택 완료] 한 번을 보내고 결과를 돌려준다. 멱등키는 고른 좌석 묶음마다 하나다(API 클라이언트 규칙 "멱등키").
+// [선택 완료]나 [자동 배정] 한 번을 보내고 결과를 돌려준다. 멱등키는 고른 좌석 묶음(자동 배정은 구역·매수)마다 하나다
+// (API 클라이언트 규칙 "멱등키").
 // Note: 결과를 모른 요청이 한 번이라도 있으면 그 키는 "결과 미확인"으로 남는다. 앞 요청이 서버에서 아직 처리 중이면
 // 같은 키 재요청이 내 좌석과 겹쳐 409를 받고(예매 계약 3-2 ⑥), 503이 이어지면 성공 여부를 끝내 모른다. 이때 키를 버리고
 // 409를 "남이 가져감"으로 보이면, 사실 내가 잡은 좌석을 잃은 것으로 안내하게 된다(셀프 리뷰에서 재현). 그래서
@@ -58,12 +62,23 @@ export function useHoldRequest(scheduleId: number, options: UseHoldRequestOption
     setOutstanding(false)
   }
 
-  async function submit(seatIds: number[]): Promise<HoldResult> {
+  function submit(seatIds: number[]): Promise<HoldResult> {
     // 같은 좌석 묶음을 같은 키로 알아보려고 정렬해 둔다(서버도 정렬해서 비교한다)
     const sorted = [...seatIds].sort((a, b) => a - b)
-    const signature = sorted.join(',')
-    if (issuedRef.current?.seatIds !== signature) {
-      issuedRef.current = { key: newIdempotencyKey(), seatIds: signature, uncertain: false }
+    return send(sorted.join(','), { seatIds: sorted })
+  }
+
+  // 서버가 auto_criteria(`section=A;quantity=2`)로 같은 요청인지 본다. 화면도 같은 조건이면 같은 키를 쓴다.
+  // 좌석 직접 선택과 키를 섞지 않는다(섞으면 서버가 IDEMPOTENCY_KEY_REUSED로 거절한다)
+  function submitAuto(criteria: AutoHoldCriteria): Promise<HoldResult> {
+    return send(`auto:section=${criteria.section};quantity=${criteria.quantity}`, {
+      auto: criteria,
+    })
+  }
+
+  async function send(signature: string, target: HoldTarget): Promise<HoldResult> {
+    if (issuedRef.current?.signature !== signature) {
+      issuedRef.current = { key: newIdempotencyKey(), signature, uncertain: false }
     }
     const issued = issuedRef.current
     const controller = new AbortController()
@@ -72,8 +87,8 @@ export function useHoldRequest(scheduleId: number, options: UseHoldRequestOption
 
     const attempt = () =>
       submitHold({
+        ...target,
         scheduleId,
-        seatIds: sorted,
         idempotencyKey: issued.key,
         signal: controller.signal,
         onRetrying: (error) => {
@@ -103,6 +118,11 @@ export function useHoldRequest(scheduleId: number, options: UseHoldRequestOption
         // 결과 미확인이었어도 기다린 뒤 다시 확인한 409라 진짜 겹침이다
         clearKey()
         return outcome
+      case 'zoneSoldOut':
+        // 앞 요청이 처리 중이었다면 같은 키 재요청은 그 결과를 기다려 돌려받는다(멱등키 행을 먼저 쓴다, ADR 0059 5항).
+        // 그러니 매진 409는 결과 미확인 뒤에도 확정된 답이다
+        clearKey()
+        return outcome
       case 'entryExpired':
         clearKey()
         return { kind: 'entryExpired', maybeHeld: issued.uncertain }
@@ -122,5 +142,5 @@ export function useHoldRequest(scheduleId: number, options: UseHoldRequestOption
     clearKey()
   }
 
-  return { state, busy: state !== 'idle', outstanding, submit, abandon }
+  return { state, busy: state !== 'idle', outstanding, submit, submitAuto, abandon }
 }

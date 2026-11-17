@@ -110,6 +110,32 @@ export function holdSeats(
   })
 }
 
+// 자동 배정 선점의 범위와 매수(ADR 0059, contracts.md 1-2절). 화면은 구역만 보낸다(등급·회차 전체 범위는 쓰지 않는다)
+export interface AutoHoldCriteria {
+  section: string
+  quantity: number
+}
+
+// 자동 배정 선점. 서버가 구역 안 남은 좌석을 좌석 ID 순으로 골라 잡는다. 헤더·입장 토큰·201 본문은 holdSeats와 같다.
+// 남은 좌석이 매수보다 적으면 409 ZONE_SOLD_OUT이고 다른 구역으로 넘기지 않는다. 붙은 자리는 보장하지 않는다.
+// 같은 키 재요청은 서버가 범위·매수 문자열로 비교해 처음 고른 좌석을 돌려준다
+export function autoHoldSeats(
+  scheduleId: number,
+  criteria: AutoHoldCriteria,
+  idempotencyKey: string,
+  options: { signal?: AbortSignal } = {},
+) {
+  return apiRequest({
+    method: 'POST',
+    path: `/schedules/${scheduleId}/reservations/auto`,
+    body: { section: criteria.section, quantity: criteria.quantity },
+    schema: seatHoldSchema,
+    idempotencyKey,
+    entryScheduleId: scheduleId,
+    signal: options.signal,
+  })
+}
+
 // 예매 조회 캐시 키. 'reservations'는 사용자별 조회라 로그아웃 때 지운다(resetUserQueries)
 export const reservationQueryKeys = {
   detail: (reservationId: number) => ['reservations', 'detail', reservationId] as const,

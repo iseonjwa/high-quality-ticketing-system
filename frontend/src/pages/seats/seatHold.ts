@@ -1,6 +1,6 @@
 import { ApiError, isApiError, isOutcomeUnknown } from '@/api/apiError'
 import { queryRetryDelay } from '@/api/queryClient'
-import { holdSeats, type SeatHold } from '@/api/reservations'
+import { autoHoldSeats, holdSeats, type AutoHoldCriteria, type SeatHold } from '@/api/reservations'
 
 // `[선택 완료]` 한 번의 선점 요청을 끝까지 처리한다(`docs/design/reservation/contracts.md`). React를 쓰지 않는다.
 // 결과를 모르는 실패(응답 없음, 504)와 지나가는 장애(503, 429)는 같은 멱등키·같은 좌석으로 다시 보낸다.
@@ -11,6 +11,8 @@ export type HoldOutcome =
   | { kind: 'held'; hold: SeatHold }
   // 409 SEAT_ALREADY_HELD. 화면이 좌석을 다시 조회해 고르게 한다(새 멱등키)
   | { kind: 'conflict' }
+  // 409 ZONE_SOLD_OUT(자동 배정만). 구역에서 매수만큼 잡지 못했다. 롤백돼 키가 남지 않으니 같은 키로 다시 보내지 않는다
+  | { kind: 'zoneSoldOut' }
   // 403 ENTRY_TOKEN_INVALID. 저장한 토큰은 API 클라이언트가 이미 지웠다. 대기열로 돌아간다
   | { kind: 'entryExpired' }
   // 그 밖. 결과를 끝내 모르면 마지막 오류
@@ -18,9 +20,12 @@ export type HoldOutcome =
   // signal이 취소됐다. 화면이 떠났거나 다시 시도로 바뀐 것이라 보여 줄 결과가 없다
   | { kind: 'aborted' }
 
-export interface SubmitHoldOptions {
+// 무엇을 잡을지. 좌석을 직접 골랐거나(seatIds), 구역·매수만 정하고 서버가 고르게 한다(auto, ADR 0059)
+export type HoldTarget =
+  { seatIds: number[]; auto?: never } | { auto: AutoHoldCriteria; seatIds?: never }
+
+export type SubmitHoldOptions = HoldTarget & {
   scheduleId: number
-  seatIds: number[]
   idempotencyKey: string
   signal: AbortSignal
   // 결과를 모르는 동안 다시 보내기 직전에 부른다(화면이 "좌석을 확인하고 있어요"를 보인다)
@@ -34,15 +39,19 @@ export interface SubmitHoldOptions {
 const MAX_ATTEMPTS = 4
 
 export async function submitHold(options: SubmitHoldOptions): Promise<HoldOutcome> {
-  const { scheduleId, seatIds, idempotencyKey, signal, onRetrying } = options
+  const { scheduleId, idempotencyKey, signal, onRetrying } = options
   const { sleep = sleepUntil, random = Math.random } = options
+  const send = () =>
+    options.auto !== undefined
+      ? autoHoldSeats(scheduleId, options.auto, idempotencyKey, { signal })
+      : holdSeats(scheduleId, options.seatIds, idempotencyKey, { signal })
 
   for (let attempt = 0; ; attempt += 1) {
     if (signal.aborted) {
       return { kind: 'aborted' }
     }
     try {
-      const hold = await holdSeats(scheduleId, seatIds, idempotencyKey, { signal })
+      const hold = await send()
       return { kind: 'held', hold }
     } catch (error) {
       if (signal.aborted) {
@@ -50,6 +59,9 @@ export async function submitHold(options: SubmitHoldOptions): Promise<HoldOutcom
       }
       if (isApiError(error, 'SEAT_ALREADY_HELD')) {
         return { kind: 'conflict' }
+      }
+      if (isApiError(error, 'ZONE_SOLD_OUT')) {
+        return { kind: 'zoneSoldOut' }
       }
       if (isApiError(error, 'ENTRY_TOKEN_INVALID')) {
         return { kind: 'entryExpired' }

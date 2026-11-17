@@ -102,13 +102,17 @@ export function approvePayment(
 
 // 결제 준비 응답. 서버의 PG 모드(provider)로 나뉜다. TOSS일 때만 orderId·clientKey가 온다(api.md 1-1절).
 // MOCK이면 바로 승인을 부르고, TOSS면 clientKey로 결제창을 연다. 클라이언트 키는 이 응답으로만 받는다.
-// mockBypass는 토스 모드에서 "토스연동 건너뛰고 결제하기"를 보일지다. 이 필드가 없던 서버는 false로 읽는다
+// mockBypass는 토스 모드에서 "토스연동 건너뛰고 결제하기"를 보일지다. 이 필드가 없던 서버는 false로 읽는다.
+// fallbackProvider는 토스가 결제를 시작하지 못할 때 넘길 PG(지금은 MOCK뿐), primaryAvailable은 서버 기본 PG의 승인 차단기가
+// 열려 있지 않은지다. 두 필드가 없던 서버는 폴백 없음(null)·사용 가능(true)으로 읽어 지금까지의 흐름을 그대로 둔다(ISE-305)
 export const checkoutSchema = z.discriminatedUnion('provider', [
   z.object({
     provider: z.literal('MOCK'),
     amount: won,
     orderName: z.string(),
     mockBypass: z.boolean().default(false),
+    fallbackProvider: z.literal('MOCK').nullable().default(null),
+    primaryAvailable: z.boolean().default(true),
   }),
   z.object({
     provider: z.literal('TOSS'),
@@ -118,6 +122,8 @@ export const checkoutSchema = z.discriminatedUnion('provider', [
     amount: won,
     orderName: z.string(),
     mockBypass: z.boolean().default(false),
+    fallbackProvider: z.literal('MOCK').nullable().default(null),
+    primaryAvailable: z.boolean().default(true),
   }),
 ])
 export type CheckoutResult = z.infer<typeof checkoutSchema>

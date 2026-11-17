@@ -70,7 +70,7 @@ class Ft4DbOutageScenarioTest extends ScenarioTestBase {
             var permit = invocation.callRealMethod();
             DB.down();
             return permit;
-        }).when(approvalGateSpy).acquire();
+        }).when(approvalGateSpy).acquire(any());
 
         var failed = approve(reservation, key, paymentToken);
         DB.up();

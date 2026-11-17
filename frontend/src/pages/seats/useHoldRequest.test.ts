@@ -336,3 +336,68 @@ describe('useHoldRequest 결과 미확인', () => {
     expect(new Set(keys).size).toBe(2)
   })
 })
+
+describe('useHoldRequest 자동 배정 멱등키', () => {
+  const AUTO_API = `${HOLD_API}/auto`
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  async function submitAutoAndSettle(
+    result: { current: ReturnType<typeof useHoldRequest> },
+    section: string,
+    quantity: number,
+  ) {
+    let pending: Promise<HoldResult> | undefined
+    act(() => {
+      pending = result.current.submitAuto({ section, quantity })
+    })
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    return pending!
+  }
+
+  it('결과를 모르면 같은 구역·매수에는 같은 키를, 조건이 바뀌면 새 키를 쓴다', async () => {
+    mockServer.use(http.post(AUTO_API, unknownResult))
+    const requests = recordRequests(AUTO_API)
+    const { result } = renderHook(() => useHoldRequest(ON_SALE_SCHEDULE_ID))
+
+    expect(await submitAutoAndSettle(result, 'A', 2)).toEqual({ kind: 'unknown' })
+    expect(result.current.outstanding).toBe(true)
+    const firstRound = requests.length
+    await submitAutoAndSettle(result, 'A', 2)
+    expect(new Set(keysOf(requests)).size).toBe(1)
+
+    await submitAutoAndSettle(result, 'B', 2)
+    expect(new Set(keysOf(requests.slice(firstRound * 2))).size).toBe(1)
+    expect(keysOf(requests)[firstRound * 2]).not.toBe(keysOf(requests)[0])
+  })
+
+  it('결과 미확인 뒤 ZONE_SOLD_OUT은 확정된 답이라 키를 버리고 zoneSoldOut을 준다', async () => {
+    let answered = 0
+    mockServer.use(
+      http.post(AUTO_API, () => {
+        answered += 1
+        return answered === 1
+          ? unknownResult()
+          : fail(409, 'ZONE_SOLD_OUT', '선택한 구역에 남은 좌석이 부족합니다')
+      }),
+    )
+    const { result } = renderHook(() => useHoldRequest(ON_SALE_SCHEDULE_ID))
+
+    expect(await submitAutoAndSettle(result, 'A', 2)).toEqual({ kind: 'zoneSoldOut' })
+    expect(result.current.outstanding).toBe(false)
+  })
+
+  it('같은 좌석 묶음이라도 직접 선택과 자동 배정은 키를 나눠 쓴다', async () => {
+    mockServer.use(http.post(HOLD_API, unknownResult), http.post(AUTO_API, unknownResult))
+    const seatRequests = recordRequests(HOLD_API)
+    const autoRequests = recordRequests(AUTO_API)
+    const { result } = renderHook(() => useHoldRequest(ON_SALE_SCHEDULE_ID))
+
+    await submitAndSettle(result, [SEAT_A1, SEAT_A2])
+    await submitAutoAndSettle(result, 'A', 2)
+
+    expect(keysOf(autoRequests)[0]).not.toBe(keysOf(seatRequests)[0])
+  })
+})

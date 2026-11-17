@@ -99,7 +99,7 @@ class Ft4DbFreezeScenarioTest extends ScenarioTestBase {
             var permit = invocation.callRealMethod();
             PROXY.freeze();
             return permit;
-        }).when(approvalGateSpy).acquire();
+        }).when(approvalGateSpy).acquire(any());
 
         var started = System.nanoTime();
         var failed = approve(reservation, key, paymentToken);
@@ -143,7 +143,7 @@ class Ft4DbFreezeScenarioTest extends ScenarioTestBase {
             Thread.sleep(ALIVE_BYPASS_WINDOW.plusMillis(100).toMillis());
             PROXY.freeze();
             return permit;
-        }).when(approvalGateSpy).acquire();
+        }).when(approvalGateSpy).acquire(any());
 
         var started = System.nanoTime();
         var failed = approve(reservation, key, paymentToken);

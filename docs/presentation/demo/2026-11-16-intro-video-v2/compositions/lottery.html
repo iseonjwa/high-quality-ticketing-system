@@ -1,0 +1,57 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #1E2490; font-family: 'Pretendard', sans-serif; overflow: hidden; color: #FFF8EE; }
+    #lo-a { position: absolute; inset: 0; }
+    #lo-kick { position: absolute; left: 110px; top: 96px; }
+    #lo-kick .c { display: inline-block; background: #FFD23F; color: #14101A; font-size: 32px; font-weight: 800; padding: 10px 22px 12px; border-radius: 12px; }
+    #lo-kick .t { font-size: 64px; font-weight: 900; letter-spacing: -2.5px; line-height: 1.12; margin-top: 18px; white-space: nowrap; }
+    #lo-moon { position: absolute; left: 1500px; top: 120px; width: 150px; height: 150px; border-radius: 50%; background: #FFD23F; box-shadow: -34px 18px 0 0 #1E2490 inset; }
+    #lo-br { position: absolute; left: 100px; top: 300px; width: 1040px; border: 4px solid #14101A; border-radius: 22px; background: #14101A; box-shadow: 16px 18px 0 #FFD23F; overflow: hidden; }
+    #lo-bar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+    #lo-bar i { display: block; width: 14px; height: 14px; border-radius: 50%; }
+    #lo-bar span { margin-left: 16px; flex: 1; height: 28px; border-radius: 14px; background: #2A2433; color: #D9D2E6; font-size: 17px; font-weight: 600; line-height: 28px; padding-left: 16px; }
+    #lo-screen { position: relative; width: 1032px; height: 613px; overflow: hidden; background: #fff; }
+    #lo-vid { position: absolute; left: 0; top: 0; width: 1032px; height: 613px; object-fit: cover; }
+    #lo-bust { position: absolute; left: 1210px; bottom: -40px; width: 600px; transform-origin: 50% 100%; }
+    #lo-bust img { width: 600px; height: auto; display: block; }
+    #lo-b { position: absolute; inset: 0; opacity: 0; }
+    #lo-cam { position: absolute; left: 0; top: -100px; width: 1920px; height: 1280px; }
+    #lo-bg { position: absolute; inset: 0; width: 1920px; height: 1280px; }
+    #lo-time { position: absolute; left: 110px; top: 110px; background: #14101A; color: #FFD23F; padding: 14px 30px 16px; border-radius: 14px; font-size: 40px; font-weight: 800; }
+    #lo-pop { position: absolute; left: 1230px; top: 250px; width: 360px; height: 760px; border-radius: 52px; background: #14101A; padding: 12px; box-shadow: 14px 16px 0 #FF2D78; transform-origin: 30% 100%; }
+    #lo-pop img { width: 336px; height: 736px; object-fit: cover; object-position: 50% 0; border-radius: 40px; display: block; }
+  </style>
+  <div id="root" data-composition-id="lottery" data-width="1920" data-height="1080">
+    <div id="lo-a">
+      <div id="lo-moon"></div>
+      <div id="lo-kick"><p class="c">추첨 · 전날 밤</p><p class="t">응모만 해 두면</p></div>
+      <div id="lo-bust"><img src="assets/img/harin-bust-focus.webp" alt="" /></div>
+      <div id="lo-br"><div id="lo-bar"><i style="background:#FF2D78"></i><i style="background:#FFD23F"></i><i style="background:#7EE0D4"></i><span data-layout-ignore>이선좌 · 추첨 응모</span></div><div id="lo-screen">
+        <video id="lo-vid" class="clip" src="assets/video/lottery.mp4" data-start="0" data-duration="4" data-media-start="1.1" data-playback-rate="1.64" muted playsinline data-track-index="1"></video>
+      </div></div>
+    </div>
+    <div id="lo-b">
+      <div id="lo-cam"><img id="lo-bg" src="assets/img/key-06-classroom.webp" alt="" /></div>
+      <p id="lo-time">다음 날 아침 9:12</p>
+      <div id="lo-pop"><img src="assets/img/lottery-paid.png" alt="" /></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#lo-br', { y: 260, rotation: 5 }, { y: 0, rotation: 0, duration: 0.5, ease: 'back.out(1.4)' }, 0);
+    tl.fromTo('#lo-kick', { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#lo-moon', { scale: 0, rotation: -40 }, { scale: 1, rotation: 0, duration: 0.6, ease: 'back.out(1.7)' }, 0.25);
+    tl.fromTo('#lo-bust', { y: 300 }, { y: 0, duration: 0.5, ease: 'back.out(1.5)' }, 0.3);
+    tl.to('#lo-bust', { scaleY: 1.012, duration: 0.7, ease: 'sine.inOut', yoyo: true, repeat: 3 }, 0.6);
+    // 아침 강의실로 하드 컷
+    tl.set('#lo-b', { opacity: 1 }, 4.0);
+    tl.set('#lo-a', { opacity: 0 }, 4.0);
+    tl.fromTo('#lo-cam', { scale: 1.12 }, { scale: 1.02, transformOrigin: '38% 50%', duration: 3.4, ease: 'power1.out' }, 4.0);
+    tl.fromTo('#lo-time', { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'power4.out' }, 4.1);
+    // 책상 밑 폰 화면이 크게 튀어 오른다: 납작 → 늘어남 → 안착
+    tl.fromTo('#lo-pop', { y: 600, scaleY: 0.7, scaleX: 1.15, rotation: 10 }, { y: -30, scaleY: 1.1, scaleX: 0.94, rotation: -3, duration: 0.3, ease: 'power3.out' }, 4.35);
+    tl.to('#lo-pop', { y: 0, scaleY: 1, scaleX: 1, rotation: 2, duration: 0.6, ease: 'elastic.out(1, 0.45)' }, 4.65);
+    window.__timelines['lottery'] = tl;
+  </script>
+</template>

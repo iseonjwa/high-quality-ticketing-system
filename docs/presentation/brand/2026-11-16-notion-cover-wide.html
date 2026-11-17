@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이선좌 Notion 와이드 커버</title>
+<!-- 페이지 상단 커버용 1500x600. 그림은 같은 폴더의 -art.png. PNG는 헤드리스 Chrome으로 창 크기 1500x600, 배율 1로 찍는다 -->
+<style>
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Black"), local("Pretendard-Black"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Black.woff2"); font-weight: 900; }
+  @font-face { font-family: "PretendardLocal"; src: local("Pretendard Bold"), local("Pretendard-Bold"), url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2"); font-weight: 700; }
+  html, body { margin: 0; padding: 0; background: #14101A; }
+  /* 1500x600 한 장을 갤러리 카드와 페이지 상단 커버가 함께 쓴다. 둘이 다르게 자른다.
+     - 갤러리 카드: 약 1.85:1로 가로 가운데만 남는다(x 약 195~1305).
+     - 상단 커버: 화면 폭에 따라 약 5:1~7:1로 세로 가운데만 남는다(y 약 190~410).
+       페이지 아이콘이 왼쪽 3분의 1 지점 아래쪽(x 약 470~600, y 약 360 아래)을 가린다.
+     그래서 글자는 x 250~700, y 200~350 안에, 하린 얼굴은 x 940~1250, y 190~330 안에 둔다. */
+  .cover {
+    position: relative; width: 1500px; height: 600px; overflow: hidden;
+    background: #11124A;
+    font-family: "PretendardLocal", sans-serif;
+  }
+  /* 원본 1536x1024를 폭 1500으로 줄이고, 하린이 카드 안에 들도록 왼쪽으로, 얼굴이 띠 안에 들도록 위로 옮긴다 */
+  .art { position: absolute; left: -20px; top: -70px; width: 1500px; height: auto; }
+  .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(14,18,92,.94) 0%, rgba(14,18,92,.82) 40%, rgba(14,18,92,0) 56%);
+  }
+  .copy { position: absolute; left: 252px; top: 200px; color: #FFF8EE; }
+  .name { font-weight: 900; font-size: 98px; line-height: .95; letter-spacing: -.04em; margin: 0; }
+  .line { font-weight: 900; font-size: 44px; line-height: 1.1; letter-spacing: -.03em; margin: 14px 0 0 3px; }
+  .line em { font-style: normal; color: #FFD23F; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <img class="art" src="2026-11-16-notion-cover-art.png" alt="">
+    <div class="scrim"></div>
+    <div class="copy">
+      <h1 class="name">이선좌</h1>
+      <p class="line">몰려도 <em>정확한</em> 티켓팅</p>
+    </div>
+  </div>
+</body>
+</html>

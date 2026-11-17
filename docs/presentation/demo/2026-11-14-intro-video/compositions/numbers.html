@@ -1,0 +1,29 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFD23F; font-family: 'Pretendard', sans-serif; color: #14101A; overflow: hidden; }
+    #nm-k { position: absolute; left: 120px; top: 110px; font-size: 44px; font-weight: 800; }
+    .nm-row { position: absolute; left: 120px; width: 1680px; display: flex; align-items: flex-end; gap: 56px; border-top: 8px solid #14101A; padding-top: 28px; }
+    #nm-r1 { top: 220px; }
+    #nm-r2 { top: 560px; }
+    .nm-v { font-size: 220px; font-weight: 900; letter-spacing: -9px; line-height: 0.95; font-variant-numeric: tabular-nums; flex: none; }
+    .nm-d { padding-bottom: 22px; }
+    .nm-d .a { font-size: 52px; font-weight: 900; letter-spacing: -1.5px; }
+    .nm-d .b { font-size: 36px; font-weight: 700; color: #4A3B00; margin-top: 8px; }
+    #nm-src { position: absolute; left: 120px; top: 950px; font-size: 28px; font-weight: 600; color: #4A3B00; }
+  </style>
+  <div id="root" data-composition-id="numbers" data-width="1920" data-height="1080">
+    <p id="nm-k">말 대신 측정</p>
+    <div id="nm-r1" class="nm-row"><p class="nm-v">1 / 100</p><div class="nm-d"><p class="a">같은 좌석에 100명이 동시에</p><p class="b">성공 1명 · 중복 판매 0건 · 3라운드 모두</p></div></div>
+    <div id="nm-r2" class="nm-row" data-hold><p class="nm-v">0.043초</p><div class="nm-d"><p class="a">대기열 요청 초당 2,000건</p><p class="b">배포 서버 응답 p95 · 서버 한 대(4 vCPU)</p></div></div>
+    <p id="nm-src">좌석: 동시성 테스트(docs/design/reservation/concurrency-results.md) · 대기열: 배포 서버 8차 측정(docs/design/infra/open-peak-scenarios.md)</p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#nm-k', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power3.out' }, 0.1);
+    tl.fromTo('#nm-r1', { opacity: 0, y: 80 }, { opacity: 1, y: 0, duration: 0.45, ease: 'back.out(1.6)' }, 1.9);
+    tl.fromTo('#nm-r2', { opacity: 0, y: 80 }, { opacity: 1, y: 0, duration: 0.45, ease: 'back.out(1.6)' }, 5.6);
+    tl.fromTo('#nm-src', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 2.3);
+    window.__timelines['numbers'] = tl;
+  </script>
+</template>

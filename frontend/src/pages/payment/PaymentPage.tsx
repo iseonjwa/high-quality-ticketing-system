@@ -22,7 +22,11 @@ import type { ServerClock } from '@/lib/serverClock'
 import { PaymentSkeleton } from '@/pages/payment/PaymentSkeleton'
 import { readPaymentNavigation } from '@/pages/payment/paymentNavigation'
 import { readTossReturnNotice, type TossReturnNotice } from '@/pages/payment/tossReturn'
-import { usePaymentFlow, type PaymentFlowState } from '@/pages/payment/usePaymentFlow'
+import {
+  usePaymentFlow,
+  type PaymentFailover,
+  type PaymentFlowState,
+} from '@/pages/payment/usePaymentFlow'
 import type { QueueConcert } from '@/pages/queue/queueNavigation'
 import {
   readReservationHeading,
@@ -273,7 +277,7 @@ function PaymentForm({
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
-  const { state, submit, submitMockBypass } = usePaymentFlow({
+  const { state, submit, submitMockBypass, failover } = usePaymentFlow({
     reservationId,
     paymentToken: source.paymentToken,
     amount: source.amount,
@@ -388,6 +392,7 @@ function PaymentForm({
                   onReselect={reselect}
                 />
               )}
+              {failover !== null ? <FailoverAlert reason={failover} /> : null}
             </div>
             <fieldset className="grid gap-2">
               <legend className="mb-2 type-body-sm font-semibold text-gray-900">결제 수단</legend>
@@ -770,6 +775,25 @@ function FlowAlert({
     default:
       return null
   }
+}
+
+// 토스가 결제를 시작하지 못해 Mock으로 넘겼다는 안내(ISE-305). 단계가 바뀌어도 남는다
+const FAILOVER_BODY: Record<PaymentFailover, string> = {
+  tossUnavailable:
+    '토스 결제가 일시적으로 응답하지 않습니다. 결제창 없이 시연용 결제로 진행합니다.',
+  tossWindowFailed: '토스 결제창을 열지 못했습니다. 결제창 없이 시연용 결제로 진행합니다.',
+  tossApproveUnavailable:
+    '토스 승인이 일시적으로 막혀 토스 결제는 승인되지 않았고 청구되지 않습니다. 시연용 결제로 진행합니다.',
+}
+
+function FailoverAlert({ reason }: { reason: PaymentFailover }) {
+  return (
+    <StepAlert
+      variant="info"
+      title="토스 결제를 사용할 수 없어 다른 결제 수단으로 결제합니다"
+      body={FAILOVER_BODY[reason]}
+    />
+  )
 }
 
 function StepAlert({

@@ -37,6 +37,7 @@ public class PgConfiguration {
             case MOCK -> null;
             case TOSS -> properties.toss().clientKey();
         };
-        return new PgCheckoutProfile(properties.provider(), clientKey, properties.mockBypassEnabled());
+        return new PgCheckoutProfile(properties.provider(), clientKey, properties.mockBypassEnabled(),
+                properties.failoverToMockEnabled());
     }
 }

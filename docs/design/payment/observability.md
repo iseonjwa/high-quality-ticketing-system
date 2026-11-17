@@ -12,7 +12,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | PG 호출 | `payment_pg_call_seconds_count`·`_sum` | Timer | `operation`(approve·find_payment·refund·find_refund·prevent_late_approval·approve_billing·issue_billing_key), `outcome`(approved·declined·refunded·refund_rejected·not_found·prevented·already_approved·billing_key_issued·billing_key_rejected·unknown·exception) |
 | PG 호출 | `payment_pg_unknown_total` | Counter | `operation`, `cause`(timeout·connection_lost·pg_error·processing·client_error) |
 | PG 호출 | `payment_pg_amount_mismatch_total` | Counter | `operation` |
-| 보호 장치 | `resilience4j_circuitbreaker_state`·`_failure_rate`·`_not_permitted_calls_total`·`_calls_seconds_count` 등, `resilience4j_bulkhead_available_concurrent_calls`·`_max_allowed_concurrent_calls` | Resilience4j 제공 지표 | `name`(`pg-approve`, `pg-recovery`) |
+| 보호 장치 | `resilience4j_circuitbreaker_state`·`_failure_rate`·`_not_permitted_calls_total`·`_calls_seconds_count` 등, `resilience4j_bulkhead_available_concurrent_calls`·`_max_allowed_concurrent_calls` | Resilience4j 제공 지표 | `name`(`pg-approve`, `pg-approve-toss`, `pg-recovery`) |
 | 결제 상태 | `payment_requested_oldest_seconds` | Gauge | — |
 | 결제 상태 | `payment_unknown_count`, `payment_unknown_oldest_seconds` | Gauge | — |
 | 결제 상태 | `payment_manual_check_count`, `payment_manual_check_oldest_seconds` | Gauge | — |
@@ -70,7 +70,7 @@ Micrometer로 지표를 내보내 Prometheus가 수집하고 Grafana 대시보�
 | 경고 | `REQUESTED` 체류(재확인이 집지 못함) | 최고령 > 60초 | 같은 문서 5절 |
 | 경고 | `UNKNOWN` 장기 체류 | 최고령 > 5분 | 같은 문서 5절 |
 | 경고 | 환불 대기 장기 체류 | 최고령 > 30분(심각 2시간) | 같은 문서 5절 |
-| 경고 | PG Circuit Breaker OPEN | `pg-approve` 또는 `pg-recovery` OPEN | 같은 문서 5절 |
+| 경고 | PG Circuit Breaker OPEN | `pg-approve`·`pg-approve-toss` 또는 `pg-recovery` OPEN | 같은 문서 5절 |
 | 경고 | Outbox 발행 지연 | `PENDING` 최고령 > 5분(심각 30분) | 같은 문서 4절 |
 | 경고 | 작업 정체 | 마지막 성공 이후 `outbox_relay_last_success_timestamp`·`task="gauge-refresh"` 1분, `task="recheck"`·`"refund-worker"` 2분, `task="reconciliation"` 15분(ISE-167), 정리 작업 셋(`outbox-cleanup`·`processed-events-cleanup`·`idempotency-cleanup`) 1시간 초과 | 같은 문서 7절 |
 | 경고 | DB 연결 대기 초과 | Hikari 연결 대기 시간 초과 증가 | 같은 문서 7절 |

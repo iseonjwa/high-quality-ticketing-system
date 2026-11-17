@@ -1266,6 +1266,72 @@ describe('PaymentPage 토스연동 건너뛰기', () => {
   })
 })
 
+describe('PaymentPage 토스 폴백 안내', () => {
+  function respondToss(held: Awaited<ReturnType<typeof hold>>, overrides: Record<string, unknown>) {
+    mockServer.use(
+      http.post(CHECKOUT_API, () =>
+        ok({
+          provider: 'TOSS',
+          orderId: 'order-1-abcdef',
+          clientKey: 'test_ck_fake',
+          amount: held.hold.totalAmount,
+          orderName: '콘서트 예매 1',
+          fallbackProvider: 'MOCK',
+          primaryAvailable: true,
+          ...overrides,
+        }),
+      ),
+    )
+  }
+
+  const TITLE = '토스 결제를 사용할 수 없어 다른 결제 수단으로 결제합니다'
+
+  it('토스 승인 차단기가 열려 있으면 결제창 없이 Mock으로 승인하고 안내를 보인다', async () => {
+    const held = await hold()
+    respondToss(held, { primaryAvailable: false })
+    const payments = recordRequests(PAYMENTS_API)
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText(TITLE)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '토스 결제가 일시적으로 응답하지 않습니다. 결제창 없이 시연용 결제로 진행합니다.',
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(payments).toHaveLength(1))
+    expect(await payments[0].json()).toMatchObject({ pgProvider: 'MOCK' })
+    expect(vi.mocked(openTossPaymentWindow)).not.toHaveBeenCalled()
+  })
+
+  it('결제창 오류로 넘기면 결제창을 열지 못했다는 안내를 보인다', async () => {
+    const held = await hold()
+    respondToss(held, {})
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'INVALID_CARD_COMPANY' })
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText(TITLE)).toBeInTheDocument()
+    expect(
+      screen.getByText('토스 결제창을 열지 못했습니다. 결제창 없이 시연용 결제로 진행합니다.'),
+    ).toBeInTheDocument()
+  })
+
+  it('폴백이 없으면 안내를 보이지 않는다', async () => {
+    const held = await hold()
+    respondToss(held, { fallbackProvider: null })
+    vi.mocked(openTossPaymentWindow).mockRejectedValue({ code: 'INVALID_CARD_COMPANY' })
+    renderPayment({ navigation: { held } })
+
+    await clickPay()
+
+    expect(await screen.findByText(/결제창에서 결제가 완료되지 않았습니다/)).toBeInTheDocument()
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument()
+  })
+})
+
 describe('PaymentPage 결제창을 닫은 뒤 결제 가능 시간', () => {
   it('결제창을 닫은 뒤 서버 시계로 시간이 지나면 버튼을 막고 건너뛰기를 감춘다', async () => {
     const held = await hold()

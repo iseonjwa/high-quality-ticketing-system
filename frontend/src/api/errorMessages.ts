@@ -106,6 +106,13 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
     tone: 'warning',
     message: '이미 선택된 좌석입니다. 남은 좌석은 그대로 유지되었습니다.',
   },
+  // 자동 배정(ADR 0059). 다른 구역으로 넘기지 않으니 사용자가 구역이나 매수를 바꾼다. 다른 요청이 잠근 좌석은 건너뛰고
+  // 세므로 그 요청이 롤백되면 좌석이 다시 생길 수 있어 매진이라 단정하지 않는다
+  ZONE_SOLD_OUT: {
+    tone: 'warning',
+    message:
+      '이 구역에서 선택한 매수만큼 좌석을 잡지 못했습니다. 다른 구역을 선택하거나 매수를 줄이거나 잠시 후 다시 시도해주세요.',
+  },
   PURCHASE_LIMIT_EXCEEDED: {
     tone: 'warning',
     message: '이 회차의 구매 가능 매수를 초과했습니다. 내 예매를 확인해주세요.',

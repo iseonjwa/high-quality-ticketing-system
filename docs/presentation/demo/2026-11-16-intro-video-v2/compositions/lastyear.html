@@ -1,0 +1,37 @@
+<template>
+  <style>
+    @font-face { font-family: 'Pretendard'; src: url('assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; }
+    #root { position: absolute; inset: 0; background: #FFF8EE; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    #ly-cam { position: absolute; left: 0; top: -100px; width: 1920px; height: 1280px; }
+    #ly-bg { position: absolute; inset: 0; width: 1920px; height: 1280px; }
+    #ly-tag { position: absolute; left: 110px; top: 110px; background: #3A4060; color: #FFF8EE; padding: 14px 30px 16px; border-radius: 14px; font-size: 40px; font-weight: 800; }
+    .ly-toast { position: absolute; width: 440px; margin-left: -220px; white-space: nowrap; margin-top: -60px; padding: 22px 24px; background: #FFF8EE; border: 4px solid #2E3350; border-radius: 18px; box-shadow: 7px 8px 0 #2E3350; display: flex; align-items: center; gap: 14px; }
+    .ly-toast i { width: 26px; height: 26px; border-radius: 50%; background: #8A90AE; flex: none; }
+    .ly-toast p { font-size: 33px; font-weight: 800; color: #2E3350; letter-spacing: -0.6px; line-height: 1.25; }
+  </style>
+  <div id="root" data-composition-id="lastyear" data-width="1920" data-height="1080">
+    <div id="ly-cam">
+      <img id="ly-bg" src="assets/img/key-02-desk-lastyear.webp" alt="" />
+      <div id="ly-t1" class="ly-toast" style="left:372px;top:450px"><i></i><p>이미 선택된 좌석입니다</p></div>
+      <div id="ly-t2" class="ly-toast" style="left:960px;top:335px"><i></i><p>이미 선택된 좌석입니다</p></div>
+      <div id="ly-t3" class="ly-toast" style="left:1535px;top:435px"><i></i><p>이미 선택된 좌석입니다</p></div>
+      <div id="ly-t4" class="ly-toast" style="left:405px;top:755px"><i></i><p>이미 선택된 좌석입니다</p></div>
+      <div id="ly-t5" class="ly-toast" style="left:1529px;top:765px"><i></i><p>이미 선택된 좌석입니다</p></div>
+    </div>
+    <p id="ly-tag">작년 오픈 정각</p>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#ly-tag', { x: -50, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: 'power4.out' }, 0.05);
+    tl.fromTo('#ly-cam', { scale: 1.06 }, { scale: 1, transformOrigin: '50% 55%', duration: 2.9, ease: 'none' }, 0);
+    // 누를 때마다 같은 알림이 하나씩 더 뜬다. 간격이 점점 짧아져 조급해진다
+    const rot = [-9, 2, 10, -6, 7];
+    const at = [0.25, 0.7, 1.1, 1.45, 1.75];
+    ['#ly-t1', '#ly-t2', '#ly-t3', '#ly-t4', '#ly-t5'].forEach((id, i) => {
+      tl.fromTo(id, { opacity: 0, scale: 0.4, rotation: rot[i] * 2 }, { opacity: 1, scale: 1, rotation: rot[i], duration: 0.32, ease: 'back.out(1.9)' }, at[i]);
+    });
+    // 마지막 알림에 화면이 한 번 흔들린다
+    tl.to('#ly-cam', { keyframes: [{ x: -16 }, { x: 14 }, { x: -10 }, { x: 6 }, { x: 0 }], duration: 0.4, ease: 'none' }, 2.05);
+    window.__timelines['lastyear'] = tl;
+  </script>
+</template>

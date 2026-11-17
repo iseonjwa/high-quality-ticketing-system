@@ -52,6 +52,11 @@ seathold:
     # 만료 스케줄러 주기. 코드 기본값 5초에서는 한 주기 100건 뒤 5초를 쉬어 회수가 초당 약 17건에 묶였다.
     # 1초면 쉬는 시간이 줄어 같은 커넥션 하나로 더 빨리 회수한다(측정: docs/design/reservation/seathold-pre-deploy-measurements.md)
     interval: 1s
+lottery:
+  scheduler:
+    # 배정 워커가 한 주기(assign-interval 1초 쉼)에 성공 배정하는 상한. 초당 약 8~9건으로 자동결제(초당 약 9.5건)에 맞춰,
+    # 추첨 직후 배정이 다른 회차 선점과 커넥션 풀·DB를 몰아 쓰지 않게 한다(ISE-94 시나리오 3, numbers-and-measurement.md 3-7절)
+    assign-per-cycle: 10
 queue:
   admit-per-second: 50
   entry-token-ttl: 10m

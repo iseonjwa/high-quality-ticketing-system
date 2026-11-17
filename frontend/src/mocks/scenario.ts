@@ -21,6 +21,8 @@ export interface MockScenario {
     | 'manual'
     | 'slow-confirm'
     | 'late-approval'
+  // 결제 준비(checkout)의 PG 모드. mock: 늘 MOCK(기본), toss-unavailable: 토스 모드인데 승인 차단기가 열려 폴백(MOCK)만 가능하다
+  checkoutPg: 'mock' | 'toss-unavailable'
   // unavailable: 자동결제 카드 등록이 503 PG_UNAVAILABLE로 끝난다(해지는 영향 없다)
   billing: 'ok' | 'unavailable'
   // 추첨 3번(추첨 완료)의 데모 응모 결과와 응모 실패. 기본은 처음 조회 WON, 다음 조회부터 PAID(예매 확정)
@@ -37,6 +39,7 @@ const DEFAULT_SCENARIO: MockScenario = {
   queue: 'waiting',
   seatHold: 'held',
   payment: 'approved',
+  checkoutPg: 'mock',
   billing: 'ok',
   lottery: 'default',
   refund: 'refunded',
@@ -69,6 +72,7 @@ export const SCENARIO_SWITCHES = {
   'payment-manual': { payment: 'manual' },
   'payment-slow-confirm': { payment: 'slow-confirm' },
   'payment-late-approval': { payment: 'late-approval' },
+  'toss-unavailable': { checkoutPg: 'toss-unavailable' },
   'billing-unavailable': { billing: 'unavailable' },
   'lottery-waitlisted': { lottery: 'waitlisted' },
   'lottery-lost': { lottery: 'lost' },

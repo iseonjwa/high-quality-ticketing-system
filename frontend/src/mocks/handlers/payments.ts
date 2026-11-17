@@ -120,11 +120,27 @@ export const paymentHandlers = [
     if (Date.now() >= reservation.holdExpiresAtMillis - PAYMENT_TOKEN_MARGIN_MILLIS) {
       return fail(403, 'PAYMENT_TOKEN_INVALID', '결제 토큰이 올바르지 않습니다')
     }
+    const orderName = `콘서트 예매 ${reservation.reservationId}`
+    if (mockScenario().checkoutPg === 'toss-unavailable') {
+      // 토스 모드이고 승인 차단기가 열린 서버. 결제창을 열지 않고 Mock으로 넘길 수 있다(ISE-305)
+      return ok({
+        provider: 'TOSS',
+        orderId: `mock-order-${reservation.reservationId}`,
+        clientKey: 'test_ck_mock',
+        amount: reservation.totalAmount,
+        orderName,
+        mockBypass: false,
+        fallbackProvider: 'MOCK',
+        primaryAvailable: false,
+      })
+    }
     return ok({
       provider: 'MOCK',
       amount: reservation.totalAmount,
-      orderName: `콘서트 예매 ${reservation.reservationId}`,
+      orderName,
       mockBypass: false,
+      fallbackProvider: null,
+      primaryAvailable: true,
     })
   }),
 

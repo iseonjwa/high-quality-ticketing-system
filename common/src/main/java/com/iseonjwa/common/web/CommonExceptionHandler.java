@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.sql.SQLTransientConnectionException;
+
 @RestControllerAdvice(basePackages = "com.iseonjwa")
 public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(CommonExceptionHandler.class);
@@ -92,9 +94,27 @@ public class CommonExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception exception) {
+        // 커넥션 풀에서 대기 시한 안에 커넥션을 못 받은 경우다. 트랜잭션 시작이면 CannotCreateTransactionException,
+        // JDBC 직접 호출이면 CannotGetJdbcConnectionException으로 감싸 오므로 원인 사슬에서 찾는다(ISE-293).
+        // 계약은 "DB 연결 실패 등 일시적 장애"를 503으로 정했고, 클라이언트는 503이면 같은 멱등키로 다시 보낸다.
+        if (hasCause(exception, SQLTransientConnectionException.class)) {
+            log.warn("DB 커넥션을 받지 못해 503으로 응답한다: {}", exception.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(FailureResponse.of(CommonErrorCode.SERVICE_UNAVAILABLE, null, MDC.get("traceId")));
+        }
         log.error("처리하지 못한 요청 예외", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(FailureResponse.of(CommonErrorCode.INTERNAL_SERVER_ERROR, null, MDC.get("traceId")));
+    }
+
+    private static boolean hasCause(Throwable exception, Class<? extends Throwable> type) {
+        for (var current = exception; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

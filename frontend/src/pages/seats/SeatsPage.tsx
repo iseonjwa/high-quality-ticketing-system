@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
+import { WandSparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { isApiError } from '@/api/apiError'
 import { concertQueryKeys, getConcert, getScheduleSeats, type ScheduleSeats } from '@/api/concerts'
+import type { AutoHoldCriteria } from '@/api/reservations'
 import { describeError } from '@/api/errorMessages'
 import { concertPath, paths, paymentPath, queuePath, reservationPath } from '@/app/paths'
 import { readEntryToken, removeEntryToken, type StoredEntryToken } from '@/auth/entryTokens'
@@ -45,7 +47,7 @@ import {
   type SelectedSeat,
 } from '@/pages/seats/seatSections'
 import { SelectionSummary } from '@/pages/seats/SelectionSummary'
-import { useHoldRequest } from '@/pages/seats/useHoldRequest'
+import { useHoldRequest, type HoldResult } from '@/pages/seats/useHoldRequest'
 import { ZonePicker } from '@/pages/seats/ZonePicker'
 
 // 좌석 화면(ISE-115, samples/seat-sections.html). 매수를 고르고, 구역을 골라 그 구역 좌석만 그린다.
@@ -66,7 +68,14 @@ type SeatNotice =
   | { kind: 'conflict'; lost: string[] | null; requested: number[] }
   // 다시 보내도 결과를 끝내 모른다. 같은 좌석으로 다시 누르면 같은 멱등키로 결과를 확인한다
   | { kind: 'unknown' }
+  // 자동 배정할 구역에서 매수만큼 잡지 못했다. 다른 구역으로 넘기지 않으니 사용자가 고른다(ADR 0059 4항).
+  // 다른 사람이 잠근 좌석은 건너뛰고 세므로 그 요청이 롤백되면 좌석이 다시 생길 수 있다. 그래서 "매진"이라 단정하지 않는다
+  | { kind: 'zoneSoldOut'; section: string; quantity: number }
+  // 자동 배정이 다른 요청과 겹쳤다(같은 사용자의 다른 탭이 매수를 잡고 있는 경우 등). 좌석은 다시 받았다
+  | { kind: 'autoConflict' }
   | { kind: 'error'; error: unknown }
+
+type AutoRequest = AutoHoldCriteria & { from: 'button' | 'summary' }
 
 export function SeatsPage() {
   const scheduleId = readRouteId(useParams().scheduleId)
@@ -254,6 +263,9 @@ function SeatSelection({
   const [recovering, setRecovering] = useState(false)
   // 입장 만료 직전 요청의 결과를 몰라 좌석이 잡혔을 수 있다
   const [maybeHeld, setMaybeHeld] = useState(false)
+  // 마지막으로 보낸 자동 배정 조건. 보내는 중이거나 결과를 몰라 같은 조건으로 확인해야 할 때만 남는다.
+  // from은 누른 버튼이다. 도는 표시와 초점은 누른 버튼이 맡는다
+  const [autoRequest, setAutoRequest] = useState<AutoRequest | null>(null)
   // 알림 자리. 409·결과 모름·실패를 알릴 때 초점을 옮긴다. [선택 완료]가 비활성으로 바뀌어 초점이 body로 떨어지고,
   // 끼워 넣은 role=alert는 화면 낭독기가 읽지 않을 수 있어서 초점으로 내용을 읽힌다
   const noticeRef = useRef<HTMLDivElement>(null)
@@ -302,6 +314,12 @@ function SeatSelection({
   const finished = entryExpired || held !== null
   // 좌석·매수를 바꿀 수 없다. 결과를 모르는 키가 남아 있으면 같은 좌석으로 확인할 때까지 고르지 못하게 한다
   const editLocked = finished || hold.busy || recovering || hold.outstanding
+  // [자동 배정] 버튼으로 보낸 요청이 진행 중이다. [결과 확인하기]로 다시 확인할 때는 요약 버튼이 표시를 맡는다
+  const autoButtonBusy = autoRequest?.from === 'button' && hold.busy
+  // Note: 보내는 동안 버튼을 disabled로 바꾸면 키보드 초점이 body로 떨어진다. 그래서 보낸 구역의 버튼은 loading으로 둔다
+  // (Button이 aria-disabled로 바꾸고 누름을 막는다). 그사이 구역을 옮기면 그 구역 버튼은 막는다
+  const autoButtonLoading = autoButtonBusy && autoRequest?.section === current.section
+  const canAutoAssign = !editLocked && remainingSeats(current) >= quantity
 
   function changeQuantity(next: number) {
     setQuantityChoice(next)
@@ -332,11 +350,64 @@ function SeatSelection({
     headingRef.current?.focus()
   }
 
+  // [선택 완료]. 결과를 모르는 자동 배정이 남았으면 [결과 확인하기]가 같은 조건으로 다시 확인한다
   async function submit() {
+    if (autoRequest !== null && hold.outstanding) {
+      await submitAuto(autoRequest, 'summary')
+      return
+    }
     const requested = selectedSeatIds
     setNotice(null)
     setJustTaken([])
     const outcome = await hold.submit(requested)
+    if (outcome.kind === 'conflict') {
+      await recoverFromConflict(requested)
+      return
+    }
+    showOutcome(outcome)
+  }
+
+  // [자동 배정]. 지금 보는 구역에서 서버가 좌석 ID 순으로 매수만큼 고른다(ADR 0059). 직접 고른 좌석은 쓰지 않는다
+  async function submitAuto(criteria: AutoHoldCriteria, from: AutoRequest['from']) {
+    setAutoRequest({ ...criteria, from })
+    setNotice(null)
+    setJustTaken([])
+    const outcome = await hold.submitAuto(criteria)
+    if (outcome.kind !== 'unknown' && outcome.kind !== 'aborted') {
+      setAutoRequest(null)
+    }
+    if (outcome.kind === 'unknown') {
+      // 요약에 직접 고른 좌석이 남아 있으면 [결과 확인하기]가 그 좌석을 확인하는 것으로 읽힌다. 확인하는 것은 자동 배정이다
+      setSelectedIds([])
+    }
+    switch (outcome.kind) {
+      case 'held':
+        // 잡힌 좌석을 좌석표와 요약에도 보인다. 대화상자를 닫고 결제 시간이 끝나 다시 고를 때 지운다
+        setSelectedIds(outcome.hold.seatIds)
+        showOutcome(outcome)
+        return
+      case 'zoneSoldOut':
+        // 남은 좌석 수가 바뀌었으니 좌석을 다시 받아 구역 카드의 숫자를 고친다
+        announce(() =>
+          setNotice({
+            kind: 'zoneSoldOut',
+            section: criteria.section,
+            quantity: criteria.quantity,
+          }),
+        )
+        void refetchSeats()
+        return
+      case 'conflict':
+        announce(() => setNotice({ kind: 'autoConflict' }))
+        void refetchSeats()
+        return
+      default:
+        showOutcome(outcome)
+    }
+  }
+
+  // 두 선점 요청이 같이 쓰는 결과 처리. 409 겹침과 자동 배정 매진은 부른 쪽이 먼저 처리한다
+  function showOutcome(outcome: HoldResult) {
     switch (outcome.kind) {
       case 'held': {
         if (outcome.hold.status === 'CONFIRMED') {
@@ -351,7 +422,7 @@ function SeatSelection({
         return
       }
       case 'conflict':
-        await recoverFromConflict(requested)
+      case 'zoneSoldOut':
         return
       case 'unknown':
         announce(() => setNotice({ kind: 'unknown' }))
@@ -494,6 +565,7 @@ function SeatSelection({
                 onReload={(requested) => void recoverFromConflict(requested)}
                 onAbandon={() => {
                   hold.abandon()
+                  setAutoRequest(null)
                   closeNotice()
                 }}
               />
@@ -529,10 +601,29 @@ function SeatSelection({
                 {formatWon(current.price)}
               </span>
             </h3>
-            <span className="type-body-sm text-gray-500 tabular-nums">
-              남은 {remainingSeats(current).toLocaleString('ko-KR')}석
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="type-body-sm text-gray-500 tabular-nums">
+                남은 {remainingSeats(current).toLocaleString('ko-KR')}석
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={!canAutoAssign && !autoButtonLoading}
+                loading={autoButtonLoading}
+                aria-describedby="auto-assign-hint"
+                onClick={() => void submitAuto({ section: current.section, quantity }, 'button')}
+              >
+                <WandSparkles aria-hidden="true" />
+                {quantity}석 자동 배정
+              </Button>
+            </div>
           </div>
+          <p id="auto-assign-hint" className="-mt-2 mb-4 type-caption text-gray-500">
+            {remainingSeats(current) < quantity
+              ? `남은 좌석이 ${quantity}석보다 적어 자동 배정할 수 없습니다.`
+              : `자동 배정은 이 구역의 빈 좌석을 앞에서부터 ${quantity}석 잡습니다. 붙은 자리는 보장하지 않습니다.`}
+          </p>
           <div
             role="group"
             aria-label={`${current.section}구역 좌석`}
@@ -561,8 +652,11 @@ function SeatSelection({
         seats={selectedSeats}
         quantity={quantity}
         total={totalPrice(selectedSeatIds, sections)}
-        request={recovering ? 'sending' : hold.state}
-        locked={finished}
+        // 자동 배정을 보내는 동안은 그 버튼이 도는 표시를 맡는다. 다시 보내는 중 안내는 요약이 그대로 보인다
+        request={
+          recovering ? 'sending' : autoButtonBusy && hold.state === 'sending' ? 'idle' : hold.state
+        }
+        locked={finished || autoButtonBusy}
         outstanding={hold.outstanding}
         onRemove={(seatId) => setSelectedIds(selectedSeatIds.filter((id) => id !== seatId))}
         onClear={() => {
@@ -639,6 +733,25 @@ function SeatNoticeAlert({
             [결과 확인하기]를 누르면 같은 요청으로 다시 확인합니다. 다른 좌석을 선택하면 앞 요청으로
             선택된 좌석은 결제하지 않는 한 잠시 후 해제됩니다.
           </p>
+        </Alert>
+      )
+    case 'zoneSoldOut':
+      return (
+        <Alert variant="warning" onClose={onClose}>
+          <p className="font-semibold">
+            지금 {notice.section}구역에서 {notice.quantity}석을 잡지 못했습니다
+          </p>
+          <p>
+            남은 좌석이 부족합니다. 다른 구역을 선택하거나 매수를 줄이거나 잠시 후 다시
+            시도해주세요.
+          </p>
+        </Alert>
+      )
+    case 'autoConflict':
+      return (
+        <Alert variant="warning" onClose={onClose}>
+          <p className="font-semibold">좌석을 자동 배정하지 못했습니다</p>
+          <p>다른 요청과 겹쳤습니다. 잠시 후 다시 시도해주세요.</p>
         </Alert>
       )
     case 'error':

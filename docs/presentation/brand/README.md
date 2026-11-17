@@ -11,6 +11,7 @@
 | 2026-11-12 | [2026-11-12-charm-pets-sheet.png](2026-11-12-charm-pets-sheet.png) | 부적 펫 묶음. 펫은 미리 그린 부품(종류 10, 털색 4, 머리 장식 6(헤드폰·학사모·왕관·리본·새싹·별핀), 든 것 5, 조합 1,200개)을 겹친다. 위 두 줄은 종류 10가지, 아래 두 줄은 예매 ID 1001~1010에 실제로 배정되는 펫이다. 원본은 브랜치 `feat/ISE-257-charm-event`의 `frontend/src/pages/charm/charmPets.ts`이고 `frontend/tools/charm-art/preview.mjs`로 찍었다 |
 | 2026-11-12 | [2026-11-12-charm-ticket-normal.png](2026-11-12-charm-ticket-normal.png), [2026-11-12-charm-ticket-shiny.png](2026-11-12-charm-ticket-shiny.png) | 부적 일반·반짝이(레어) 두 장, 1080×1920. 반짝이는 연속한 예매 16건마다 한 장이고 무지개 박 바탕, 박 테두리, 빛줄기, 금색 "레어 부적" 칩을 둔다. 응원 문장은 인생 전반의 동기부여·응원 40개이고, 떼는 칸 도장은 8가지 중 하나다. 닉네임은 앞 8자만 줄임표 없이 보인다. 원본은 같은 브랜치의 `charmTicket.ts`다 |
 | 2026-11-12 | [2026-11-12-charm-stamps-sheet.png](2026-11-12-charm-stamps-sheet.png) | 부적 떼는 칸 도장 8가지. 소원 성취, 만사 형통, 행운 가득, 대박 기원, 건강 기원, 일취 월장은 붉은 인주색, 예매 말장난인 꽃길 예약, 행복 예매는 주 색 `#3B3BD4`다. 사각과 원형을 번갈아 두고 기울기를 조금씩 다르게 했다. 연속한 예매 8건마다 한 번씩 나온다 |
+| 2026-11-16 | [2026-11-16-notion-cover-wide.png](2026-11-16-notion-cover-wide.png), [원본 HTML](2026-11-16-notion-cover-wide.html), [16:10판](2026-11-16-notion-cover.png), [16:10 HTML](2026-11-16-notion-cover.html), [그림 원본](2026-11-16-notion-cover-art.png), [만든 방법](2026-11-16-notion-cover-prompt.md) | teamsparta 프로젝트 소개 Notion 페이지(`[5조] 이선좌`)의 커버다(ISE-297). 갤러리 보기가 페이지 커버를 카드 미리보기로 쓰므로 와이드판(1500×600) 한 장이 갤러리 카드와 상단 커버를 함께 맡는다. 관객이 꽉 찬 파란 좌석 사이, 조명을 받은 분홍 좌석 하나에 소개 영상의 하린이 앉아 있고 "이선좌 / 몰려도 정확한 티켓팅"을 얹었다. 그림은 codex 이미지 생성(하린 인물 시트 참조, 글자 없음)이고 글자는 HTML에서 Pretendard로 얹어 헤드리스 Chrome으로 찍었다. 카드·상단 커버·페이지 아이콘이 자르는 영역과 프롬프트는 "만든 방법"에 있다 |
 
 ## 미리보기
 
@@ -23,3 +24,5 @@
 <img src="2026-11-12-charm-stamps-sheet.png" alt="부적 도장 8가지" width="560">
 
 <img src="2026-11-12-charm-ticket-normal.png" alt="일반 부적" width="200"> <img src="2026-11-12-charm-ticket-shiny.png" alt="반짝이 부적" width="200">
+
+<img src="2026-11-16-notion-cover-wide.png" alt="Notion 페이지 커버" width="500">

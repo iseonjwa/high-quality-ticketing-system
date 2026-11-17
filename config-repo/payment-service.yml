@@ -96,6 +96,8 @@ payment:
     provider: ${PAYMENT_PG_PROVIDER:mock}
     # 시연용. 토스 모드에서도 결제창 없이 Mock으로 승인한다. 기본은 꺼짐이고 시연 서버에서만 환경변수로 켠다
     mock-bypass-enabled: ${PAYMENT_PG_MOCK_BYPASS:false}
+    # 토스 모드에서 토스가 결제를 시작하지 못하면 Mock 승인을 받는다(PG 폴백). 끄면 토스 모드의 MOCK 승인 요청은 건너뛰기 설정에만 따른다
+    failover-to-mock-enabled: ${PAYMENT_PG_FAILOVER_TO_MOCK:true}
     mock:
       base-url: ${MOCK_PG_URL:http://localhost:8090}
     toss:

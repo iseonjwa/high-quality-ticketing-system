@@ -255,6 +255,31 @@ describe('AppLayout 시연 모드', () => {
     expect(screen.queryByRole('complementary', { name: '요청 로그 (시연 모드)' })).toBeNull()
   })
 
+  // 발표·심사 때 주소를 고치지 않고 켠다(ISE-303)
+  it('사이트 아래 [시연 모드 켜기]로 요청 로그 패널을 켜고 끈다', async () => {
+    Object.defineProperty(root, 'clientWidth', { configurable: true, value: 1440 })
+    const user = userEvent.setup()
+    renderRoutes(routes, '/')
+
+    // 패널에도 [시연 모드 끄기]가 있어 사이트 아래 영역 안에서 찾는다
+    const footer = await screen.findByRole('contentinfo')
+    const turnOn = within(footer).getByRole('button', { name: '시연 모드 켜기' })
+    expect(turnOn).toHaveAttribute('aria-pressed', 'false')
+    await user.click(turnOn)
+
+    expect(
+      await screen.findByRole('complementary', { name: '요청 로그 (시연 모드)' }),
+    ).toBeInTheDocument()
+    const turnOff = within(footer).getByRole('button', { name: '시연 모드 끄기' })
+    expect(turnOff).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(turnOff)
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: '요청 로그 (시연 모드)' })).toBeNull(),
+    )
+    expect(within(footer).getByRole('button', { name: '시연 모드 켜기' })).toBeInTheDocument()
+  })
+
   it('시연 모드가 켜져 있으면 요청 로그 패널이 나타난다', async () => {
     Object.defineProperty(root, 'clientWidth', { configurable: true, value: 1440 })
     enableDemoMode()
