@@ -160,14 +160,14 @@ O 단계 K1-H가 도는 동안 찍는다. 파일은 `docs/presentation/performan
 
 | 칸 | 값 |
 |---|---|
-| 날짜·측정자 | 2026-11-16 저녁, 최권우 |
+| 날짜·측정자 | 2026-11-16 저녁(1차), 2026-11-17 오전(2차), 최권우 |
 | 커밋 해시 | 서버 `.deploy/current`, 발생기 `git log --oneline -1` |
 | 방식(S0·S1·S2·O·D·S2')·시나리오 | |
 | 환경 | 배포 서버(사설 172.31.4.93), 발생기 `c6i.xlarge` |
-| CPU·메모리(서버, 발생기) | 서버 미확인(EC2 타입을 적는다), 발생기 4 vCPU·8GiB |
-| JVM `-Xmx` | 미확인(서버 compose 덮어쓰기에서 확인) |
-| 커넥션 풀(`maximum-pool-size`) | 5(P8만 8) |
-| 동시 처리 상한 | 끔(S0·S1), 4(S2·O·D·S2'), 7(P8) |
+| CPU·메모리(서버, 발생기) | 서버 4 vCPU·15GiB, 발생기 4 vCPU·8GiB. 컨테이너 메모리 상한은 결과 문서 1절 |
+| JVM `-Xmx` | reservation-service 768m, gateway 512m(결과 문서 1절, 2026-11-17 `docker inspect`로 확인) |
+| 커넥션 풀(`maximum-pool-size`) | 5(P8·D-P8만 8) |
+| 동시 처리 상한 | 끔(S0·S1), 4(S2·O·D·S2'·O2), 7(P8·D-P8) |
 | 캐시 사전 거절 | 끔(S0), 켬(그 밖) |
 | 소비자 동시성·파티션 수·잠금 시한 | 2·6·50ms(config-repo) |
 | Outbox 간격·배치 | 500ms·20(코드 기본값, 계획 4-5절) |
