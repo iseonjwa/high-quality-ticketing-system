@@ -43,7 +43,7 @@
 |---|---|---|
 | 준현 | 구현은 옆 패널의 Sonnet 작업자, 설계·지시·리뷰는 Opus 메인. PR 전 Opus(deep-reasoner) 리뷰, 찾은 것과 반영한 것을 PR 본문에 적음. 팀원 PR을 AI로 리뷰해 PR 코멘트로 올림 | PR #280·#284·#481, [두 에이전트 독립 검토](../ai-judgments/junhyun/2026-10-26-two-agent-review-fixes.md), [효승 PR 리뷰](../ai-judgments/junhyun/2026-11-03-review-hyoseung-dlq-and-reconciliation-api.md) |
 | 강민 | 구현 세션의 하위 에이전트가 미커밋 변경을 리뷰하고, 다른 세션이 지적을 코드와 대조해 "이번 PR 수정·담당자 확인·담당자 알림·후속"으로 나눔. 담당 이슈 색인(11/3 기준 35개)과 코드 이슈별 엄격 리뷰를 담은 보고서. 팀원이 "없으면 기본값 아니냐"고 되묻자 AI 조사 결과를 라이브러리 바이트코드(`javap`)로 다시 확인해 "벌크헤드 없음"이라는 AI 결론을 거부함 | [ISE-150 지적 11건 분류](../ai-judgments/kangmin/2026-11-04-ise-150-review-triage.md), [추첨 MVP 코드 리뷰 보고서](../learning/kangmin/qna/2026-11-02-lottery-mvp-code-review-report.md), [기본 벌크헤드 확인](../ai-judgments/kangmin/2026-11-09-gateway-has-default-bulkhead.md) |
-| 권우 | AI에게 설계 허점 점검을 시키고, 결과를 동시성 테스트와 k6 측정으로 확인. 측정 도구의 한계는 사람이 막음 | [예약 설계 리뷰](../learning/kwonwoo/qna/2026-10-28-reservation-system-design-review.md), [JUnit 근사 대신 k6](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
+| 권우 | AI에게 설계 허점 점검을 시키고, 지적은 동시성 테스트(C1~C7)를 먼저 만들어 고치기 전 재현 → 고친 뒤 0으로 확인한다. AI가 추천한 개선도 같은 테스트로 다른 안과 나란히 재서 고른다. `SKIP LOCKED`는 대기는 가장 짧았지만 C2 성공이 83건에서 56건으로 줄어 거부하고 잠금 대기 50ms를 택했다. 측정 도구의 한계는 사람이 막는다(JUnit 부하 근사 대신 k6) | [예약 설계 리뷰](../learning/kwonwoo/qna/2026-10-28-reservation-system-design-review.md), [JUnit 근사 대신 k6](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md), [SKIP LOCKED 거부](../ai-judgments/kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md), TS-65~68·TS-73 |
 | 영은 | 코드는 직접 쓰고, AI(Cowork 채팅)에게 단계별 설명과 리뷰를 받는다. AI가 낸 근거를 되물어 틀린 것을 철회시키고(멱등성·자동 복구), 원칙에 어긋난 제안은 직접 짚어 고친다(재시도 시간을 infrastructure에 두는 안). AI가 추천한 값·방식도 근거를 들어 바꾸거나 거부한다(느린 호출 50ms → 100ms, 이벤트 리스너 → 트랜잭션 밖 메서드 호출). Claude Code가 낸 측정 보고서와 팀원 PR은 다른 세션(Cowork 채팅)에서 다시 검토한다 | [대기열 AI 근거 정정](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), [503 위치](../ai-judgments/youngeun/2026-11-11-queue-redis-timeout-503-layer.md), [차단기 값](../ai-judgments/youngeun/2026-11-12-queue-redis-circuit-breaker-values.md), [정리 메서드 호출](../ai-judgments/youngeun/2026-11-13-entry-token-discard-method-call.md), [PR #487 리뷰 반영](../ai-judgments/kangmin/2026-11-11-pr487-review-peak-alert.md) |
 | 효승 | 구현은 Claude Code가 하고, 흐름 설명을 듣고 확인한 뒤에만 커밋·push한다. 다른 사람의 AI 리뷰(#282 준현 리뷰)는 지적마다 테스트를 더해 반영했다(`3987eb6`, 테스트 5개 → 9개). 같은 기능의 두 구현(본인 P4b와 권우 측정 브랜치)을 AI로 항목별 비교해 나은 쪽만 합치고, 전 모듈 테스트·응답 JSON 바이트 비교·로컬과 배포 측정으로 확인했다(#603·#605). AI의 성능 설명은 측정으로 다시 확인하고, 측정과 다르면 바로잡았다(합친 P4b가 평소 속도로는 이득이 없음) | PR #282·#603·#605, [DLQ 리뷰 반영](../ai-judgments/hyoseung/2026-11-03-dlq-review-fixes-all-accepted.md), [좌석 캐시 위치](../ai-judgments/hyoseung/2026-11-08-seat-layout-cache-memory-not-redis.md), [11/13 일지](../ai-judgments/hyoseung/daily/2026-11-13.md) |
 
@@ -95,10 +95,10 @@
 | 6 | Gateway 생성자에 `@Autowired`가 없어 배포 서버에서 기동 실패. 단위 테스트는 `new`로 만들어 통과 | L4 배포 롤백, Loki 로그 | 컨텍스트 테스트 추가, `@Autowired`를 빼면 실패 확인(TS-53) |
 | 7 | 경보 규칙 단위 테스트는 통과했지만 Micrometer 태그 `job`이 수집 라벨과 겹쳐 실제로는 경보가 울릴 수 없었음 | L4 실제 Prometheus 조회 0건 | 태그를 `task`로, 테스트 입력을 실제 수집 형태로, `job`·`instance` 태그를 막는 테스트(TS-37) |
 | 8 | 예매 대사가 배포 규모(변경 약 14만 6천 건)에서 쪽 상한을 넘어 매 회차 실패. 로컬은 몇 건으로만 확인 | L4 Slack 경보, 배포 서버 로그 | 워터마크 이후만 읽는 방식(TS-62, PR #552) |
-| 9 | 같은 사용자가 탭 4개로 동시에 선점하면 한도 4매를 넘어 8매. 멱등키 기록이 늦어 자기 요청끼리 409 | L1 동시성 테스트 C3~C6 | C4 30라운드 모두 4매 이하, C5 자기 409 0건(TS-65~68) |
+| 9 | 같은 사용자가 탭 4개로 동시에 선점하면 한도 4매를 넘어 8매. 멱등키 기록이 늦어 자기 요청끼리 409. 잠긴 좌석을 노린 선점이 최대 2.2초 기다림. 만료 스케줄러 2대가 같은 건을 집어 헛수고 | L1 동시성 테스트 C3~C6 | C4 30라운드 모두 4매 이하, C5 자기 409 0건, C3 모두 409·최대 171~225ms(50ms, ADR 0061), C6 헛수고 0건(TS-65~68) |
 | 10 | 관리자 경로를 루트·matrix parameter·인코딩으로 바꾸면 권한 검사를 통과 | L2 codex 두 에이전트 독립 검토(인증·보안, 워크스페이스·인프라를 나눠 봄) | 라우터와 같은 경로 해석으로 검사, 수정 전 실패하던 테스트가 수정 뒤 통과(TS-9, [기록](../ai-judgments/junhyun/2026-10-26-two-agent-review-fixes.md)) |
 
-1~4번은 리뷰 단계에서 머지 전에(1번은 머지된 #278의 후속 PR에서) 고쳤다. 5~8번은 L3·L4가 아니었으면 운영에서 드러났을 결함이다. 9번은 같은 결함을 k6 측정은 드러내지 못했고 동시성 테스트가 잡았다.
+1~4번은 리뷰 단계에서 머지 전에(1번은 머지된 #278의 후속 PR에서) 고쳤다. 5~8번은 L3·L4가 아니었으면 운영에서 드러났을 결함이다. 9번은 같은 결함을 k6 측정은 드러내지 못했고 동시성 테스트가 잡았다. k6 사용자는 요청을 하나씩 보내기 때문이다. 같은 사용자의 동시 요청 시나리오를 따로 만든 뒤에야 k6에서도 재현됐다(초당 50명 120초에서 한도 초과 293명, 자기 409 2,416명 → 고친 뒤 0명).
 
 ## 5. 근거를 들어 거부한 AI 제안
 
@@ -110,7 +110,8 @@
 | 대기열 설계 근거(멱등이면 같은 응답, issued 선기록이면 자동 복구) | 멱등은 응답이 아니라 서버 상태에 대한 효과가 같다는 뜻이고, 토큰 만료 뒤에는 틈이 생긴다 | [youngeun 10/29](../ai-judgments/youngeun/2026-10-29-queue-ai-reasoning-corrections.md), ADR 0031 |
 | 측정을 위해 차단기 기준을 완화 | 운영에서는 나오지 않을 숫자가 나온다. Gateway는 다른 담당 영역이다 | [youngeun 11/10](../ai-judgments/youngeun/2026-11-10-no-breaker-relax-for-measurement.md) |
 | 입장 토큰 정리를 이벤트 리스너(AFTER_COMMIT)로 유지 | 동기 리스너는 커넥션을 반납하기 전에 돌아 Redis 정리 시간만큼 커넥션을 더 쥔다. 트랜잭션 밖 메서드 호출로 바꿈 | [youngeun 11/13](../ai-judgments/youngeun/2026-11-13-entry-token-discard-method-call.md), ISE-207 |
-| 같은 JVM 안의 JUnit으로 부하를 근사 | Gateway를 거치지 않아 실제 경로가 아니다. k6로 다시 재니 결론이 달랐다 | [kwonwoo 11/4](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
+| 같은 JVM 안의 JUnit으로 부하를 근사 | Gateway를 거치지 않아 실제 경로가 아니고, 부하 발생기와 앱이 CPU를 나눠 쓴다. JUnit은 정합성 수정 뒤 처리량이 1,125 → 648 req/s로 준다고 보였지만 같은 단계 안 편차(515~1,159)가 더 컸고, k6로 다시 재니 선점 p95가 초당 400명까지 5ms 이하로 같았다 | [kwonwoo 11/4](../ai-judgments/kwonwoo/2026-11-04-k6-over-junit-load-approximation.md) |
+| 잠금 대기를 없애려고 좌석 선점에 `SKIP LOCKED`를 먼저 넣기(AI 추천, 받아들여 구현) | 같은 동시성 테스트로 세 방식을 비교하니 대기는 20~161ms로 가장 짧았지만, 여러 좌석이 겹치는 C2 성공이 83건에서 56건으로 줄었다(2회 모두). 롤백할 요청이 몇 ms 쥔 잠금까지 "이미 잡힘"으로 건너뛰었다. 잠금 대기 50ms로 바꿨다(C2 78~92건, C3 최대 171~225ms) | [kwonwoo 11/13](../ai-judgments/kwonwoo/2026-11-13-reject-skip-locked-choose-50ms.md), ADR 0061, TS-73 |
 
 공통 판단 표 기준 전체 판단 170건 중 거부 55건, 부분 수용 31건이다([`ai-judgments/README.md`](../ai-judgments/README.md)). 이 숫자는 코드 리뷰만이 아니라 AI의 모든 제안에 대한 판단을 합친 것이다.
 
