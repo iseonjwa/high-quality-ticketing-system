@@ -41,6 +41,7 @@
 인기 공연의 티켓 오픈은 평소 트래픽이 거의 없다가 정각 1초에 수천 명이 같은 버튼을 누르는 일이다. 서버를 늘리는 것만으로는 풀리지 않는 문제가 네 가지 있다.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart TB
   OPEN(["티켓 오픈 정각<br/>수천 명이 같은 버튼을 누른다"])
   OPEN --> P1["① 요청 폭주<br/>모두 느려져<br/>아무도 못 산다"]
@@ -61,6 +62,7 @@ flowchart TB
 ## 둘러보기
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart LR
   A["공연 고르기"] --> B{"예매 방식"}
   B -->|선착순| Q["대기열"] --> S["좌석 선택"] --> P["5분 안에 결제"] --> T["모바일 티켓"]
@@ -136,6 +138,7 @@ DB는 서비스마다 따로 둔다(PostgreSQL 17 × 3). 서비스끼리는 `pay
 대기열이 순서대로 입장 토큰을 나눠 주고, 토큰이 있는 사람만 좌석 화면에 들어간다. 그래도 정각 1초에 몰리는 요청은 남는다. 그래서 Gateway 맨 앞에 동시 처리 상한을 두어, 넘친 요청은 인증 같은 비싼 일을 하기 전에 바로 돌려보낸다. 이미 받은 요청이 끝까지 처리될 자리를 지키려는 것이다.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart TB
   U(["사용자"]) -->|HTTPS| N["nginx"]
   N --> G1
@@ -225,6 +228,7 @@ sequenceDiagram
 **예매 상태**
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}, "state": {"wrappingWidth": 480}}}%%
 stateDiagram-v2
   direction LR
   [*] --> HELD: 좌석 선점
@@ -237,6 +241,7 @@ stateDiagram-v2
 **결제 상태**
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}, "state": {"wrappingWidth": 480}}}%%
 stateDiagram-v2
   direction LR
   [*] --> REQUESTED
@@ -271,6 +276,7 @@ stateDiagram-v2
 추첨 당첨은 "시스템이 대신 선점한 일반 예매"로 다룬다. 당첨자에게 일반 예매와 같은 `HELD` 예매를 만들고 같은 결제 경로로 보내므로, 확정·만료·환불을 추첨용으로 새로 만들지 않았다.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart LR
   E["응모<br/>카드 등록"] --> DR["추첨<br/>당첨 · 예비 · 낙첨"]
   DR --> AS["배정 워커<br/>예매 HELD 생성"]
@@ -289,6 +295,7 @@ flowchart LR
 ### 배포: 실패하면 스스로 되돌린다
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart LR
   GA["main 머지<br/>GitHub Actions<br/>이미지 9개 빌드"] --> GH[("GHCR<br/>커밋 번호 태그")]
   GH --> J["Jenkins<br/>EC2에 반영"]
@@ -325,6 +332,7 @@ flowchart LR
 > **AI가 쓰고, 사람이 판단하고, 그 판단은 기록으로 남긴다.**
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480}}}%%
 flowchart LR
   L0["L0 설계 기준<br/>SA · ADR"] --> L1["L1 실패 테스트<br/>일부러 넣은 결함"]
   L1 --> L2["L2 다른 세션·<br/>다른 모델 리뷰"]
