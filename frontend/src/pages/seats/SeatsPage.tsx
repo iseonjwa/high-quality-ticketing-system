@@ -37,6 +37,7 @@ import { createServerClock, type ServerClock } from '@/lib/serverClock'
 import { paymentNavigationState } from '@/pages/payment/paymentNavigation'
 import { readQueueConcert, type QueueConcert } from '@/pages/queue/queueNavigation'
 import { HeldDialog } from '@/pages/seats/HeldDialog'
+import type { EntryRejectReason } from '@/pages/seats/seatHold'
 import {
   findSeat,
   firstSectionWithSeats,
@@ -102,9 +103,28 @@ export function SeatsPage() {
 // 저장한 입장 토큰이 없으면(새 탭, 주소로 들어옴) 요청 없이 대기열로 보낸다. 대기열이 줄을 세워 토큰을 받아 온다.
 // Note: 서버가 토큰을 거절한 403은 여기서 대기열로 보내지 않고 안내만 한다. 자동으로 보내면 토큰이 계속 거절될 때
 // (Gateway 설정 오류 등) 대기열과 좌석 화면을 끝없이 오간다.
+//
+// 선점이 성공하면 입장 토큰을 지운다(ADR 0053). 좌석 확보 대화상자가 떠 있던 중 새로고침하면 토큰이 없으니,
+// 결제 가능 시간이 남은 선점이 있으면 대화상자의 [결제하러 가기]처럼 결제 화면으로 보낸다. 대기열로 보내면 잡은 좌석을
+// 두고 줄을 다시 서야 한다.
 function SeatsEntry({ scheduleId }: { scheduleId: number }) {
   const locationState: unknown = useLocation().state
   const [entry] = useState(() => readEntryToken(scheduleId))
+  const [heldWithoutEntry] = useState(() => (entry === null ? restoreHeldSeats(scheduleId) : null))
+  if (heldWithoutEntry !== null) {
+    return (
+      <Navigate
+        to={paymentPath(heldWithoutEntry.hold.reservationId)}
+        replace
+        state={paymentNavigationState({
+          hold: heldWithoutEntry.hold,
+          seats: heldWithoutEntry.seats,
+          concert: readQueueConcert(locationState),
+          clockOffsetMillis: null,
+        })}
+      />
+    )
+  }
   if (entry === null) {
     return <Navigate to={queuePath(scheduleId)} replace state={locationState} />
   }
@@ -144,9 +164,11 @@ function SeatsScreen({
     () => (seats.data ? createServerClock(seats.data.serverTime, seats.dataUpdatedAt) : undefined),
     [seats.data, seats.dataUpdatedAt],
   )
-  const [entryExpired, setEntryExpired] = useState(false)
+  const [entryRejected, setEntryRejected] = useState<EntryRejectReason | null>(null)
   // 409 뒤 다시 받기에서 서버가 토큰을 거절해도 입장 만료와 같다. [다시 시도]로는 풀리지 않는다
   const tokenRejected = isApiError(seats.error, 'ENTRY_TOKEN_INVALID')
+  const entryRejectReason: EntryRejectReason | null =
+    entryRejected ?? (tokenRejected ? 'expired' : null)
   useAdmittedTabTitle()
 
   function backToQueue() {
@@ -172,7 +194,7 @@ function SeatsScreen({
       <HeaderSlot>{entryChip()}</HeaderSlot>
       {/* 앱 화면이 62rem보다 좁으면 헤더 자리가 숨으니 본문 맨 위에 둔다. 만료 처리는 늘 그려지는 이쪽이 맡는다 */}
       <div className="flex justify-end @min-[62rem]:hidden">
-        {entryChip(() => setEntryExpired(true))}
+        {entryChip(() => setEntryRejected('expired'))}
       </div>
       {concert !== null ? (
         <ConcertHeader concert={concert} />
@@ -189,13 +211,13 @@ function SeatsScreen({
           concert={concert}
           clock={clock}
           restoredHold={restoredHold}
-          entryExpired={entryExpired || tokenRejected}
-          onEntryExpired={() => setEntryExpired(true)}
+          entryRejected={entryRejectReason}
+          onEntryRejected={setEntryRejected}
           onBackToQueue={backToQueue}
         />
       ) : seats.isError ? (
         tokenRejected ? (
-          <EntryExpiredAlert onBackToQueue={backToQueue} maybeHeld={false} />
+          <EntryExpiredAlert reason="expired" onBackToQueue={backToQueue} maybeHeld={false} />
         ) : (
           <ErrorNotice error={seats.error} onRetry={() => void seats.refetch()} />
         )
@@ -229,8 +251,8 @@ function SeatSelection({
   concert,
   clock,
   restoredHold,
-  entryExpired,
-  onEntryExpired,
+  entryRejected,
+  onEntryRejected,
   onBackToQueue,
 }: {
   scheduleId: number
@@ -241,8 +263,9 @@ function SeatSelection({
   concert: QueueConcert | null
   clock: ServerClock | undefined
   restoredHold: StoredHold | null
-  entryExpired: boolean
-  onEntryExpired: () => void
+  // 입장 토큰을 더 쓸 수 없는 이유. null이면 쓸 수 있다
+  entryRejected: EntryRejectReason | null
+  onEntryRejected: (reason: EntryRejectReason) => void
   onBackToQueue: () => void
 }) {
   const navigate = useNavigate()
@@ -311,7 +334,7 @@ function SeatSelection({
   }
   const soldOut = sections.every((section) => remainingSeats(section) === 0)
   // 더 고칠 수 없다(입장 만료, 좌석 확보)
-  const finished = entryExpired || held !== null
+  const finished = entryRejected !== null || held !== null
   // 좌석·매수를 바꿀 수 없다. 결과를 모르는 키가 남아 있으면 같은 좌석으로 확인할 때까지 고르지 못하게 한다
   const editLocked = finished || hold.busy || recovering || hold.outstanding
   // [자동 배정] 버튼으로 보낸 요청이 진행 중이다. [결과 확인하기]로 다시 확인할 때는 요약 버튼이 표시를 맡는다
@@ -430,7 +453,7 @@ function SeatSelection({
       case 'entryExpired':
         announce(() => {
           setMaybeHeld(outcome.maybeHeld)
-          onEntryExpired()
+          onEntryRejected(outcome.reason)
         })
         return
       case 'failed':
@@ -507,13 +530,10 @@ function SeatSelection({
     })
   }
 
-  function reselectAfterPaymentExpired() {
+  // 결제 가능 시간이 지나 [다시 줄 서기]. 입장 토큰은 선점 때 소모돼(ADR 0053) 이 화면에서 다시 고를 수 없다
+  function requeueAfterPaymentExpired() {
     removeHeldSeats(scheduleId)
-    setHeld(null)
-    setSelectedIds([])
-    setJustTaken([])
-    setNotice(null)
-    void refetchSeats()
+    onBackToQueue()
   }
 
   return (
@@ -552,8 +572,12 @@ function SeatSelection({
             tabIndex={-1}
             className="grid gap-3 outline-none empty:hidden [&:not(:empty)]:mb-4"
           >
-            {entryExpired ? (
-              <EntryExpiredAlert onBackToQueue={onBackToQueue} maybeHeld={maybeHeld} />
+            {entryRejected !== null ? (
+              <EntryExpiredAlert
+                reason={entryRejected}
+                onBackToQueue={onBackToQueue}
+                maybeHeld={maybeHeld}
+              />
             ) : null}
             {refetchError !== null && !(notice?.kind === 'conflict' && notice.lost === null) ? (
               <ErrorNotice error={refetchError} onRetry={() => void refetchSeats()} />
@@ -628,7 +652,7 @@ function SeatSelection({
             role="group"
             aria-label={`${current.section}구역 좌석`}
             data-slot="seat-map"
-            data-locked={entryExpired ? '' : undefined}
+            data-locked={entryRejected !== null ? '' : undefined}
             className="overflow-x-auto p-1"
           >
             <div className="mx-auto w-max">
@@ -671,7 +695,7 @@ function SeatSelection({
           seats={held.seats}
           clock={clock}
           onPay={() => goToPayment(held)}
-          onReselect={reselectAfterPaymentExpired}
+          onReselect={requeueAfterPaymentExpired}
           onReturnFocus={() => headingRef.current?.focus()}
         />
       ) : null}
@@ -775,9 +799,11 @@ function SeatNoticeAlert({
 }
 
 function EntryExpiredAlert({
+  reason,
   onBackToQueue,
   maybeHeld,
 }: {
+  reason: EntryRejectReason
   onBackToQueue: () => void
   maybeHeld: boolean
 }) {
@@ -790,8 +816,14 @@ function EntryExpiredAlert({
         </Button>
       }
     >
-      <p className="font-semibold">입장 시간이 만료되었습니다</p>
-      <p>대기열에 다시 입장해주세요.</p>
+      <p className="font-semibold">
+        {reason === 'used' ? '이미 좌석 선택에 사용한 입장입니다' : '입장 시간이 만료되었습니다'}
+      </p>
+      <p>
+        {reason === 'used'
+          ? '입장은 좌석을 한 번 선택하면 끝납니다. 대기열에 다시 서주세요.'
+          : '대기열에 다시 입장해주세요.'}
+      </p>
       {maybeHeld ? (
         <p className="mt-1">
           마지막 요청의 결과를 확인하지 못했습니다.{' '}

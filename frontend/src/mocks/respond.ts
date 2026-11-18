@@ -75,8 +75,10 @@ export function entryTokenExpiresAt(token: string): number {
   return Number(token.split('.')[3])
 }
 
-export function requireEntryToken(request: Request, userId: number, scheduleId: number) {
-  const parts = request.headers.get('X-Entry-Token')?.split('.') ?? []
+// 검증한 토큰을 돌려준다. 선점은 이 값으로 이미 쓴 토큰인지 본다
+export function requireEntryToken(request: Request, userId: number, scheduleId: number): string {
+  const token = request.headers.get('X-Entry-Token') ?? ''
+  const parts = token.split('.')
   const valid =
     parts.length === 4 &&
     parts[0] === 'mock-entry' &&
@@ -85,6 +87,17 @@ export function requireEntryToken(request: Request, userId: number, scheduleId: 
     Number(parts[3]) > Date.now()
   if (!valid) {
     throw fail(403, 'ENTRY_TOKEN_INVALID', '입장 토큰이 올바르지 않습니다')
+  }
+  return token
+}
+
+// 선점에 쓴 입장 토큰을 소모한다(ADR 0053). 서버처럼 대기열 기록이 그 토큰일 때만 지워, 다시 진입하면 새 순번을 받는다.
+// 목은 토큰 문자열을 jti로 쓴다
+export function consumeEntryToken(scheduleId: number, userId: number, token: string) {
+  mockDb.usedEntryTokens.add(token)
+  const queueKey = `${scheduleId}:${userId}`
+  if (mockDb.queueEntries.get(queueKey)?.issuedEntryToken === token) {
+    mockDb.queueEntries.delete(queueKey)
   }
 }
 

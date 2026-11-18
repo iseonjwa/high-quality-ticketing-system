@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { ApiError, isApiError } from '@/api/apiError'
+import { ApiError, isApiError, isEntryTokenRejected } from '@/api/apiError'
 import { openStream, send, type SendOptions, type StreamOptions } from '@/api/transport'
 import { readEntryToken, removeEntryToken } from '@/auth/entryTokens'
 import { refreshAccessToken } from '@/auth/refresh'
@@ -12,13 +12,22 @@ export interface ApiRequestOptions<T extends z.ZodType> extends Omit<SendOptions
   idempotencyKey?: string
   // 입장 토큰이 필요한 요청(좌석 조회·선점)의 회차. 저장한 입장 토큰을 X-Entry-Token으로 붙인다.
   entryScheduleId?: number
+  // 성공하면 서버가 이 입장 토큰을 소모하는 요청(선점). 성공 응답을 받으면 보낸 토큰을 지운다(ADR 0053 결정 5).
+  consumesEntryToken?: boolean
 }
 
 // 화면이 쓰는 요청 함수. 공통 응답을 풀어 `data`를 돌려주고, 실패는 ApiError로 던진다.
 export async function apiRequest<T extends z.ZodType>(
   options: ApiRequestOptions<T>,
 ): Promise<z.output<T>> {
-  const { auth = true, idempotencyKey, entryScheduleId, body, ...sendOptions } = options
+  const {
+    auth = true,
+    idempotencyKey,
+    entryScheduleId,
+    consumesEntryToken = false,
+    body,
+    ...sendOptions
+  } = options
   const headers: Record<string, string> = {}
   if (idempotencyKey !== undefined) {
     headers['Idempotency-Key'] = idempotencyKey
@@ -39,9 +48,13 @@ export async function apiRequest<T extends z.ZodType>(
   }
 
   try {
-    return await sendWithAuth(request, send)
+    const data = await sendWithAuth(request, send)
+    if (entry !== null && consumesEntryToken) {
+      removeEntryToken(entry.scheduleId, entry.token)
+    }
+    return data
   } catch (error) {
-    if (entry !== null && isApiError(error, 'ENTRY_TOKEN_INVALID')) {
+    if (entry !== null && isEntryTokenRejected(error)) {
       removeEntryToken(entry.scheduleId, entry.token)
     }
     throw error

@@ -116,7 +116,8 @@ describe('useHoldRequest 멱등키', () => {
     const { result } = renderHook(() => useHoldRequest(ON_SALE_SCHEDULE_ID))
 
     const first = await submitAndSettle(result, [SEAT_A1, SEAT_A2])
-    // 이미 잡힌 좌석이라 목은 409로 답한다. 키만 본다
+    // 성공하면 입장 토큰을 소모하니 줄을 다시 선다. 이미 잡힌 좌석이라 목은 409로 답한다. 키만 본다
+    await admitTo(ON_SALE_SCHEDULE_ID)
     await submitAndSettle(result, [SEAT_A1, SEAT_A2])
 
     expect(first.kind).toBe('held')
@@ -296,7 +297,7 @@ describe('useHoldRequest 결과 미확인', () => {
 
     const outcome = await submitAndSettle(result, [SEAT_A1, SEAT_A2])
 
-    expect(outcome).toEqual({ kind: 'entryExpired', maybeHeld: true })
+    expect(outcome).toEqual({ kind: 'entryExpired', reason: 'expired', maybeHeld: true })
     expect(sleep).not.toHaveBeenCalled()
     expect(result.current.outstanding).toBe(false)
   })
@@ -307,7 +308,7 @@ describe('useHoldRequest 결과 미확인', () => {
 
     const outcome = await submitAndSettle(result, [SEAT_A1, SEAT_A2])
 
-    expect(outcome).toEqual({ kind: 'entryExpired', maybeHeld: false })
+    expect(outcome).toEqual({ kind: 'entryExpired', reason: 'expired', maybeHeld: false })
   })
 
   it('504 뒤 재요청이 201이면 held이고 outstanding이 꺼진다', async () => {

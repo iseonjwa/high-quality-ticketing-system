@@ -92,6 +92,7 @@ export type MyReservation = z.infer<typeof myReservationSchema>
 
 // 좌석 일괄 선점. 입장 토큰과 멱등키가 필요하다.
 // 409 SEAT_ALREADY_HELD면 좌석을 다시 조회해 고르고, 좌석이 바뀌었으니 새 멱등키로 보낸다.
+// 201이면 서버가 입장 토큰을 소모했으니 저장한 토큰을 지운다. 다음 선점은 대기열부터 다시 한다(ADR 0053).
 // Note: 접수형 202(`REQUESTED`)는 M4 고도화 모드라 ISE-120에서 응답 스키마에 더한다.
 export function holdSeats(
   scheduleId: number,
@@ -106,6 +107,7 @@ export function holdSeats(
     schema: seatHoldSchema,
     idempotencyKey,
     entryScheduleId: scheduleId,
+    consumesEntryToken: true,
     signal: options.signal,
   })
 }
@@ -132,6 +134,7 @@ export function autoHoldSeats(
     schema: seatHoldSchema,
     idempotencyKey,
     entryScheduleId: scheduleId,
+    consumesEntryToken: true,
     signal: options.signal,
   })
 }

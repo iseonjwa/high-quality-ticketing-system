@@ -17,6 +17,7 @@ describe('describeError', () => {
       'TOKEN_REVOKED',
       'FORBIDDEN',
       'ENTRY_TOKEN_INVALID',
+      'ENTRY_TOKEN_USED',
       'NOT_FOUND',
       'IDEMPOTENCY_KEY_REUSED',
       'RATE_LIMITED',

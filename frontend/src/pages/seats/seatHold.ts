@@ -6,6 +6,8 @@ import { autoHoldSeats, holdSeats, type AutoHoldCriteria, type SeatHold } from '
 // 결과를 모르는 실패(응답 없음, 504)와 지나가는 장애(503, 429)는 같은 멱등키·같은 좌석으로 다시 보낸다.
 // 서버가 같은 키 재요청에 처음 결과를 주므로(HELD, 이미 결제됐으면 CONFIRMED) 좌석이 두 번 잡히지 않는다.
 
+export type EntryRejectReason = 'expired' | 'used'
+
 export type HoldOutcome =
   // 201. HELD이거나 같은 키 재요청이 이미 결제된 CONFIRMED
   | { kind: 'held'; hold: SeatHold }
@@ -13,8 +15,9 @@ export type HoldOutcome =
   | { kind: 'conflict' }
   // 409 ZONE_SOLD_OUT(자동 배정만). 구역에서 매수만큼 잡지 못했다. 롤백돼 키가 남지 않으니 같은 키로 다시 보내지 않는다
   | { kind: 'zoneSoldOut' }
-  // 403 ENTRY_TOKEN_INVALID. 저장한 토큰은 API 클라이언트가 이미 지웠다. 대기열로 돌아간다
-  | { kind: 'entryExpired' }
+  // 403 ENTRY_TOKEN_INVALID(expired)·ENTRY_TOKEN_USED(used, 이미 선점에 쓴 토큰). 저장한 토큰은 API 클라이언트가
+  // 이미 지웠다. 대기열로 돌아간다
+  | { kind: 'entryExpired'; reason: EntryRejectReason }
   // 그 밖. 결과를 끝내 모르면 마지막 오류
   | { kind: 'failed'; error: unknown }
   // signal이 취소됐다. 화면이 떠났거나 다시 시도로 바뀐 것이라 보여 줄 결과가 없다
@@ -64,7 +67,10 @@ export async function submitHold(options: SubmitHoldOptions): Promise<HoldOutcom
         return { kind: 'zoneSoldOut' }
       }
       if (isApiError(error, 'ENTRY_TOKEN_INVALID')) {
-        return { kind: 'entryExpired' }
+        return { kind: 'entryExpired', reason: 'expired' }
+      }
+      if (isApiError(error, 'ENTRY_TOKEN_USED')) {
+        return { kind: 'entryExpired', reason: 'used' }
       }
       if (!isRetryable(error) || attempt + 1 >= MAX_ATTEMPTS) {
         return { kind: 'failed', error }

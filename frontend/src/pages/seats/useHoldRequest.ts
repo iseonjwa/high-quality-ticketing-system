@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { isOutcomeUnknown } from '@/api/apiError'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import type { AutoHoldCriteria, SeatHold } from '@/api/reservations'
-import { sleepUntil, submitHold, type HoldTarget } from '@/pages/seats/seatHold'
+import {
+  sleepUntil,
+  submitHold,
+  type EntryRejectReason,
+  type HoldTarget,
+} from '@/pages/seats/seatHold'
 
 // sending: 첫 요청을 기다린다. retrying: 결과를 모르거나 일시 장애라 같은 키로 다시 보내는 중이다
 export type HoldRequestState = 'idle' | 'sending' | 'retrying'
@@ -15,8 +20,8 @@ export type HoldResult =
   | { kind: 'zoneSoldOut' }
   // 선점이 됐는지 끝내 모른다. 키를 남겨 두고 같은 좌석으로 다시 확인하게 한다
   | { kind: 'unknown' }
-  // 입장 토큰이 끝났다. maybeHeld면 앞서 결과를 모른 요청이 있어 좌석이 잡혔을 수 있다
-  | { kind: 'entryExpired'; maybeHeld: boolean }
+  // 입장 토큰을 더 쓸 수 없다(만료 또는 이미 선점에 씀). maybeHeld면 앞서 결과를 모른 요청이 있어 좌석이 잡혔을 수 있다
+  | { kind: 'entryExpired'; reason: EntryRejectReason; maybeHeld: boolean }
   | { kind: 'failed'; error: unknown }
   | { kind: 'aborted' }
 
@@ -125,7 +130,7 @@ export function useHoldRequest(scheduleId: number, options: UseHoldRequestOption
         return outcome
       case 'entryExpired':
         clearKey()
-        return { kind: 'entryExpired', maybeHeld: issued.uncertain }
+        return { kind: 'entryExpired', reason: outcome.reason, maybeHeld: issued.uncertain }
       case 'failed':
         if (issued.uncertain || isOutcomeUnknown(outcome.error)) {
           issued.uncertain = true

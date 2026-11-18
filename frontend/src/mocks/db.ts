@@ -173,6 +173,8 @@ interface MockState {
   revokedRefreshTokens: Set<string>
   // `${scheduleId}:${userId}` → 남은 순번 조회 횟수
   queueEntries: Map<string, { pollsUntilReady: number; issuedEntryToken: string | null }>
+  // 선점에 쓴 입장 토큰. 서버의 seat_hold_requests.entry_token_jti처럼 같은 토큰의 다음 선점을 막는다(ADR 0053)
+  usedEntryTokens: Set<string>
   reservations: Map<number, MockReservation>
   // Idempotency-Key → 선점 요청
   holdRequests: Map<
@@ -392,6 +394,7 @@ function createInitialState(nowMillis = Date.now()): MockState {
     refreshTokens: new Map(),
     revokedRefreshTokens: new Set(),
     queueEntries: new Map(),
+    usedEntryTokens: new Set(),
     reservations: new Map(),
     holdRequests: new Map(),
     payments: new Map(),

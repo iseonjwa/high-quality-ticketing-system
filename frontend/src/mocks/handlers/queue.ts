@@ -24,6 +24,18 @@ function entryKey(scheduleId: number, userId: number) {
   return `${scheduleId}:${userId}`
 }
 
+// 새로 발급하는 토큰은 이미 선점에 쓴 토큰과 달라야 한다. 서버는 발급 시각으로 새 jti를 만든다.
+// 목 토큰은 만료 시각(ms)만 다르므로, 시계를 멈춘 테스트에서 같은 값이 나오면 1ms씩 민다
+function newEntryToken(scheduleId: number, userId: number): string {
+  let issuedAtMillis = Date.now()
+  let token = createEntryToken(scheduleId, userId, issuedAtMillis)
+  while (mockDb.usedEntryTokens.has(token)) {
+    issuedAtMillis += 1
+    token = createEntryToken(scheduleId, userId, issuedAtMillis)
+  }
+  return token
+}
+
 // 발급한 입장 토큰이 만료됐으면 줄에서 뺀다(서버의 issued 만료와 같다)
 function currentEntry(scheduleId: number, userId: number): QueueEntry | undefined {
   const key = entryKey(scheduleId, userId)
@@ -124,7 +136,7 @@ export const queueHandlers = [
     }
 
     // 재발급은 같은 토큰을 준다(ADR 0031 결정 9)
-    entry.issuedEntryToken ??= createEntryToken(scheduleId, user.userId, Date.now())
+    entry.issuedEntryToken ??= newEntryToken(scheduleId, user.userId)
     return ok({
       status: 'ADMITTED',
       entryToken: entry.issuedEntryToken,

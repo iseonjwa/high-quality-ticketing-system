@@ -1,4 +1,5 @@
-import { joinQueue, issueEntryToken } from '@/api/queue'
+import { joinQueue, issueEntryToken, type EntryToken } from '@/api/queue'
+import { saveEntryToken } from '@/auth/entryTokens'
 import { login } from '@/api/auth'
 import { ADMIN_USER, DEMO_USER } from '@/mocks/db'
 import { setMockScenario } from '@/mocks/scenario'
@@ -28,6 +29,15 @@ export async function admitTo(scheduleId: number) {
   setMockScenario({ queue: 'ready' })
   await joinQueue(scheduleId)
   return issueEntryToken(scheduleId)
+}
+
+// 선점 201 뒤 화면이 지운 입장 토큰을 다시 저장한다. 이미 쓴 토큰이 서버에 닿는 경우(다른 탭, 늦은 재시도)를
+// 만들어 서버의 확인 순서(같은 키 재요청 → 이미 쓴 토큰)를 본다
+export function restoreEntryToken(scheduleId: number, admitted: EntryToken) {
+  saveEntryToken(scheduleId, {
+    token: admitted.entryToken,
+    expiresAt: admitted.entryTokenExpiresAt,
+  })
 }
 
 // 경로가 같은 요청을 보낸 순서대로 모은다. 리스너는 테스트마다 `setup.ts`가 지운다.

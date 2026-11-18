@@ -10,7 +10,15 @@ import {
 } from '@/api/reservations'
 import { newIdempotencyKey } from '@/api/idempotencyKey'
 import { mockDb } from '@/mocks/db'
-import { admitTo, ON_SALE_SCHEDULE_ID, SEAT_A1, SEAT_A2, SEAT_A3, signInAsDemo } from '@/test/api'
+import {
+  admitTo,
+  ON_SALE_SCHEDULE_ID,
+  restoreEntryToken,
+  SEAT_A1,
+  SEAT_A2,
+  SEAT_A3,
+  signInAsDemo,
+} from '@/test/api'
 import { seedPayment, seedReservation } from '@/test/reservations'
 
 // 예매 조회 목이 서버(ReservationController·ReservationService)의 정렬·검사·응답 모양을 따르는지 본다.
@@ -191,14 +199,17 @@ describe('POST /schedules/{id}/reservations/auto 목', () => {
 
   it('같은 키·같은 조건이면 처음 고른 좌석을 다시 주고, 조건이 다르거나 직접 선택으로 쓰면 409 IDEMPOTENCY_KEY_REUSED다', async () => {
     await signInAsDemo()
-    await admitTo(ON_SALE_SCHEDULE_ID)
+    const admitted = await admitTo(ON_SALE_SCHEDULE_ID)
     const key = newIdempotencyKey()
     const first = await autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 2 }, key)
 
+    // 같은 키 재요청은 입장 토큰을 소모한 뒤에도 처음 결과를 받는다(늦은 재시도)
+    restoreEntryToken(ON_SALE_SCHEDULE_ID, admitted)
     const again = await autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 2 }, key)
     expect(again.reservationId).toBe(first.reservationId)
     expect(again.seatIds).toEqual(first.seatIds)
 
+    restoreEntryToken(ON_SALE_SCHEDULE_ID, admitted)
     for (const reused of [
       autoHoldSeats(ON_SALE_SCHEDULE_ID, { section: 'A', quantity: 1 }, key),
       holdSeats(ON_SALE_SCHEDULE_ID, first.seatIds, key),

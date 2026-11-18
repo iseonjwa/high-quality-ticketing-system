@@ -13,7 +13,7 @@ interface HeldDialogProps {
   seats: HeldSeat[]
   clock?: ServerClock
   onPay: () => void
-  // 결제 가능 시간이 지난 뒤 [좌석 다시 고르기]
+  // 결제 가능 시간이 지난 뒤 [다시 줄 서기]. 입장 토큰은 선점 때 소모됐으니 대기열부터 다시 한다(ADR 0053)
   onReselect: () => void
   // 대화상자가 내려간 뒤 초점을 둘 곳. Radix는 열기 전 초점(비활성이 된 [선택 완료])으로 돌려 body로 떨어진다
   onReturnFocus: () => void
@@ -22,7 +22,7 @@ interface HeldDialogProps {
 // 좌석 확보 대화상자(샘플 .modal). 좌석은 이미 잡혔으니 닫는 길 없이 결제로만 보낸다.
 // Note: 닫을 수 있으면 잡힌 좌석을 두고 좌석표로 돌아가 같은 회차를 또 고르게 된다(1인 매수 한도에 걸린다).
 // open을 고정하고 onOpenChange를 주지 않아 Esc·바깥 누름으로 닫히지 않는다. 결제 가능 시간이 지나면 좌석이 풀리므로
-// 그때만 [좌석 다시 고르기]로 화면이 대화상자를 내린다.
+// 그때만 [다시 줄 서기]로 대기열에 보낸다.
 export function HeldDialog({
   hold,
   seats,
@@ -62,7 +62,7 @@ export function HeldDialog({
           {expired ? '결제 가능 시간이 지났습니다' : '좌석 선택이 완료되었습니다'}
         </DialogTitle>
         <DialogDescription className="-mt-2 text-center type-body-sm text-gray-500">
-          {expired ? '좌석을 다시 선택해주세요.' : '주어진 시간 안에 결제해주세요.'}
+          {expired ? '대기열에 다시 서서 좌석을 선택해주세요.' : '주어진 시간 안에 결제해주세요.'}
         </DialogDescription>
         <ul className="grid gap-2" aria-label="선택한 좌석">
           {seats.map((seat) => (
@@ -90,7 +90,7 @@ export function HeldDialog({
         </div>
         {expired ? (
           <Button size="lg" className="w-full rounded-full" onClick={onReselect}>
-            좌석 다시 고르기
+            다시 줄 서기
           </Button>
         ) : (
           <Button size="lg" className="w-full rounded-full" onClick={onPay}>

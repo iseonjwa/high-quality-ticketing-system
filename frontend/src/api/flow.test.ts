@@ -21,6 +21,7 @@ import {
   BEFORE_OPEN_SCHEDULE_ID,
   CONCERT_ID,
   ON_SALE_SCHEDULE_ID,
+  restoreEntryToken,
   SEAT_A1,
   SEAT_A2,
   SEAT_A3,
@@ -209,9 +210,11 @@ describe('실패 재현 스위치', () => {
 
   it('같은 멱등키에 다른 좌석을 보내면 409 IDEMPOTENCY_KEY_REUSED다', async () => {
     await signInAsDemo()
-    await admitTo(ON_SALE_SCHEDULE_ID)
+    const admitted = await admitTo(ON_SALE_SCHEDULE_ID)
     const key = newIdempotencyKey()
     await holdSeats(ON_SALE_SCHEDULE_ID, [SEAT_A1], key)
+    // 서버는 이미 쓴 토큰보다 같은 키 재요청을 먼저 본다
+    restoreEntryToken(ON_SALE_SCHEDULE_ID, admitted)
 
     const error = await rejectionOf(holdSeats(ON_SALE_SCHEDULE_ID, [SEAT_A2], key))
 

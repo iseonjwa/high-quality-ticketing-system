@@ -305,7 +305,7 @@ describe('PaymentPage 결제 대상', () => {
   })
 
   it.each(['EXPIRED', 'RELEASED'] as const)(
-    '좌석 화면 값이 있어도 예매가 %s면 결제할 수 없다고 알리고 결제 버튼을 막으며, 좌석 다시 고르기는 대기열로 바꿔 보낸다',
+    '좌석 화면 값이 있어도 예매가 %s면 결제할 수 없다고 알리고 결제 버튼을 막으며, 다시 줄 서기는 대기열로 바꿔 보낸다',
     async (status) => {
       const held = await hold()
       saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
@@ -318,7 +318,7 @@ describe('PaymentPage 결제 대상', () => {
       expect(screen.queryAllByRole('timer')).toHaveLength(0)
       expect(screen.queryByText('결제 가능 시간이 지났습니다')).not.toBeInTheDocument()
 
-      await userEvent.click(screen.getByRole('button', { name: '좌석 다시 고르기' }))
+      await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
 
       await waitFor(() => expect(visitTo(visited, QUEUE_PATH)).toBeDefined())
       expect(visitTo(visited, QUEUE_PATH)?.action).toBe('REPLACE')
@@ -328,14 +328,14 @@ describe('PaymentPage 결제 대상', () => {
     },
   )
 
-  it('이동 값이 없고 만료된 예매면 결제할 수 없다고 알리고 좌석 다시 고르기로 대기열에 보낸다', async () => {
+  it('이동 값이 없고 만료된 예매면 결제할 수 없다고 알리고 다시 줄 서기로 대기열에 보낸다', async () => {
     const held = await hold()
     reservationOf(held.hold.reservationId).status = 'EXPIRED'
     const { visited } = renderPayment({ reservationId: held.hold.reservationId })
 
     expect(await screen.findByText('결제할 수 없는 예매입니다')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '좌석 다시 고르기' }))
+    await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
 
     await waitFor(() => expect(visitTo(visited, QUEUE_PATH)).toBeDefined())
     expect(visitTo(visited, QUEUE_PATH)?.action).toBe('REPLACE')
@@ -420,7 +420,7 @@ describe('PaymentPage 결제 가능 시간 칩', () => {
 
     expect(await screen.findByText('결제 가능 시간이 지났습니다')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /원 결제하기$/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '좌석 다시 고르기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다시 줄 서기' })).toBeInTheDocument()
   })
 
   it('결제 요청 중에는 보인다', async () => {
@@ -705,7 +705,7 @@ describe('PaymentPage 결제하기', () => {
 })
 
 describe('PaymentPage 거절·장애·수동 확인', () => {
-  it('거절되면 사유별 첫 문장과 좌석 다시 고르기를 보이고 초점을 알림으로 옮긴다', async () => {
+  it('거절되면 사유별 첫 문장과 다시 줄 서기를 보이고 초점을 알림으로 옮긴다', async () => {
     setMockScenario({ payment: 'declined' })
     const held = await hold()
     saveHeldSeats(ON_SALE_SCHEDULE_ID, held)
@@ -717,13 +717,13 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     expect(title.closest('[role="alert"]')).toHaveTextContent('카드 한도가 부족합니다.')
     expect(title.closest('[role="alert"]')).toHaveTextContent('선택한 좌석이 해제되었습니다')
     expect(alertSlotOf('결제가 거절되었습니다')).toHaveFocus()
-    // 거절되면 선점이 끝난다. 좌석 다시 고르기를 누르기 전에 이미 지웠다
+    // 거절되면 선점이 끝난다. 다시 줄 서기를 누르기 전에 이미 지웠다
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '다시 결제하기' })).not.toBeInTheDocument()
     expect(screen.queryAllByRole('timer')).toHaveLength(0)
 
-    await userEvent.click(screen.getByRole('button', { name: '좌석 다시 고르기' }))
+    await userEvent.click(screen.getByRole('button', { name: '다시 줄 서기' }))
     await waitFor(() => expect(visitTo(visited, QUEUE_PATH)).toBeDefined())
     expect(visitTo(visited, QUEUE_PATH)?.action).toBe('REPLACE')
     expect(readQueueConcert(visitTo(visited, QUEUE_PATH)?.state)).toEqual(CONCERT)
@@ -781,7 +781,7 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     expect(alert).toHaveTextContent(/^결제가 거절되었습니다선택한 좌석이 해제되었습니다/)
   })
 
-  it('이미 끝난 결제(409 PAYMENT_ALREADY_CLOSED)면 안내와 좌석 다시 고르기를 보인다', async () => {
+  it('이미 끝난 결제(409 PAYMENT_ALREADY_CLOSED)면 안내와 다시 줄 서기를 보인다', async () => {
     const held = await hold()
     mockServer.use(
       http.post(PAYMENTS_API, () => fail(409, 'PAYMENT_ALREADY_CLOSED', '이미 종료된 결제')),
@@ -791,7 +791,7 @@ describe('PaymentPage 거절·장애·수동 확인', () => {
     await clickPay()
 
     expect(await screen.findByText('이 예매의 결제는 이미 종료되었습니다')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '좌석 다시 고르기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다시 줄 서기' })).toBeInTheDocument()
     expect(alertSlotOf('이 예매의 결제는 이미 종료되었습니다')).toHaveFocus()
     expect(screen.queryByRole('button', { name: /결제하기$/ })).not.toBeInTheDocument()
   })

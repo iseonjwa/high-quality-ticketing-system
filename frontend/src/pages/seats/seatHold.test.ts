@@ -12,6 +12,7 @@ import {
   admitTo,
   ON_SALE_SCHEDULE_ID,
   recordRequests,
+  restoreEntryToken,
   SEAT_A1,
   SEAT_A2,
   SEAT_A3,
@@ -63,7 +64,7 @@ function failedWith(outcome: HoldOutcome): ApiError {
 }
 
 describe('좌석 선점 요청', () => {
-  it('201이면 held이고 선점 결과를 그대로 준다', async () => {
+  it('201이면 held이고 선점 결과를 그대로 주며, 서버가 소모한 입장 토큰을 지운다', async () => {
     await admitTo(ON_SALE_SCHEDULE_ID)
 
     const { outcome, waits, retrying } = await run([SEAT_A2, SEAT_A1])
@@ -74,6 +75,33 @@ describe('좌석 선점 요청', () => {
     expect(hold.seatIds).toEqual([SEAT_A1, SEAT_A2])
     expect(waits).toEqual([])
     expect(retrying).toEqual([])
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('이미 선점에 쓴 토큰이 서버에 닿으면 403 ENTRY_TOKEN_USED로 entryExpired(used)이고 토큰을 지운다', async () => {
+    const admitted = await admitTo(ON_SALE_SCHEDULE_ID)
+    await run([SEAT_A1])
+    // 다른 탭이나 배포 전에 받아 둔 토큰처럼, 지운 토큰이 다시 남아 있는 경우
+    restoreEntryToken(ON_SALE_SCHEDULE_ID, admitted)
+    const requests = recordRequests(HOLD_PATH)
+
+    const { outcome, waits } = await run([SEAT_A2])
+
+    expect(outcome).toEqual({ kind: 'entryExpired', reason: 'used' })
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+    expect(requests).toHaveLength(1)
+    expect(waits).toEqual([])
+  })
+
+  it('소모 뒤 대기열에 다시 서면 새 토큰을 받아 다시 선점할 수 있다', async () => {
+    const first = await admitTo(ON_SALE_SCHEDULE_ID)
+    await run([SEAT_A1])
+
+    const second = await admitTo(ON_SALE_SCHEDULE_ID)
+    const { outcome } = await run([SEAT_A2])
+
+    expect(second.entryToken).not.toBe(first.entryToken)
+    expect(outcome.kind).toBe('held')
   })
 
   it('seat-conflict: 409 SEAT_ALREADY_HELD는 conflict이고 다시 보내지 않는다', async () => {
@@ -93,7 +121,7 @@ describe('좌석 선점 요청', () => {
 
     const { outcome } = await run([SEAT_A1])
 
-    expect(outcome).toEqual({ kind: 'entryExpired' })
+    expect(outcome).toEqual({ kind: 'entryExpired', reason: 'expired' })
     expect(requests).toHaveLength(0)
   })
 
@@ -106,7 +134,7 @@ describe('좌석 선점 요청', () => {
 
     const { outcome } = await run([SEAT_A1])
 
-    expect(outcome).toEqual({ kind: 'entryExpired' })
+    expect(outcome).toEqual({ kind: 'entryExpired', reason: 'expired' })
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
   })
 
@@ -127,6 +155,8 @@ describe('좌석 선점 요청', () => {
     expect(await requests[0].text()).toBe(await requests[1].text())
     expect(mockDb.reservations.size).toBe(1)
     expect(mockDb.holdRequests.size).toBe(1)
+    // 504 동안은 토큰을 남겨 같은 키 재시도에 쓰고, 처음 결과(201)를 받은 뒤에 지운다
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
   })
 
   it('503 Retry-After: 2는 2200ms(random 0.5) 기다린 뒤 다시 보낸다', async () => {
@@ -164,8 +194,9 @@ describe('좌석 선점 요청', () => {
 
   it('PURCHASE_LIMIT_EXCEEDED는 failed이고 다시 보내지 않는다', async () => {
     await admitTo(ON_SALE_SCHEDULE_ID)
-    // 회차 31은 1인당 4매다. 4매를 잡은 뒤 한 매를 더 요청한다
+    // 회차 31은 1인당 4매다. 4매를 잡은 뒤 줄을 다시 서서 한 매를 더 요청한다
     await run([SEAT_A1, SEAT_A2, SEAT_A3, SEAT_A3 + 1])
+    await admitTo(ON_SALE_SCHEDULE_ID)
     const requests = recordRequests(HOLD_PATH)
 
     const { outcome, waits } = await run([SEAT_A3 + 2])
@@ -186,9 +217,11 @@ describe('좌석 선점 요청', () => {
   })
 
   it('같은 키에 다른 좌석이면 IDEMPOTENCY_KEY_REUSED로 failed다', async () => {
-    await admitTo(ON_SALE_SCHEDULE_ID)
+    const admitted = await admitTo(ON_SALE_SCHEDULE_ID)
     const key = newIdempotencyKey()
     await run([SEAT_A1], { idempotencyKey: key })
+    // 서버는 이미 쓴 토큰보다 같은 키 재요청을 먼저 본다
+    restoreEntryToken(ON_SALE_SCHEDULE_ID, admitted)
 
     const { outcome } = await run([SEAT_A2], { idempotencyKey: key })
 

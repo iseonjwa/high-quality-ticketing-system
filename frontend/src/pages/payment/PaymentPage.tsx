@@ -336,7 +336,7 @@ function PaymentForm({
 
   function reselect() {
     removeHeldSeats(source.scheduleId)
-    // 입장 토큰이 남았으면 대기열이 바로 좌석 화면으로 보낸다
+    // 입장 토큰은 선점 때 소모돼 지웠다(ADR 0053). 대기열에 다시 서서 새 토큰으로 좌석을 고른다
     void navigate(queuePath(source.scheduleId), {
       replace: true,
       state: source.concert ? { concert: source.concert } : undefined,
@@ -382,7 +382,7 @@ function PaymentForm({
                   variant="danger"
                   title="결제할 수 없는 예매입니다"
                   body="좌석을 다시 선택해주세요."
-                  action={<ActionButton onClick={reselect}>좌석 다시 고르기</ActionButton>}
+                  action={<ActionButton onClick={reselect}>다시 줄 서기</ActionButton>}
                 />
               ) : (
                 <FlowAlert
@@ -676,7 +676,7 @@ function FlowAlert({
   tossNotice: TossReturnNotice | null
   onReselect: () => void
 }) {
-  const reselect = <ActionButton onClick={onReselect}>좌석 다시 고르기</ActionButton>
+  const reselect = <ActionButton onClick={onReselect}>다시 줄 서기</ActionButton>
   const myReservations = (
     <Button asChild variant="outline" size="sm">
       <Link to={paths.myReservations}>내 예매 보기</Link>
@@ -847,7 +847,7 @@ function NotPayable({ reservation }: { reservation: ReservationDetail | undefine
               size="sm"
               onClick={() => void navigate(queuePath(reservation.scheduleId), { replace: true })}
             >
-              좌석 다시 고르기
+              다시 줄 서기
             </Button>
           ) : undefined
         }

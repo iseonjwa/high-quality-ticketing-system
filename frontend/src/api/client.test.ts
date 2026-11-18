@@ -509,6 +509,53 @@ describe('입장 토큰', () => {
     expect(readEntryToken(ON_SALE_SCHEDULE_ID)?.token).toBe(admitted.entryToken)
   })
 
+  it('선점 201을 받으면 서버가 소모한 입장 토큰을 지운다(ADR 0053)', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+
+    await holdSeats(ON_SALE_SCHEDULE_ID, [SEAT_A1], newIdempotencyKey())
+
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('403 ENTRY_TOKEN_USED를 받으면 저장한 입장 토큰을 지운다', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    mockServer.use(
+      http.post(`/api/v1/schedules/${ON_SALE_SCHEDULE_ID}/reservations`, () =>
+        fail(403, 'ENTRY_TOKEN_USED', '이미 좌석 선점에 쓴 입장 토큰입니다'),
+      ),
+    )
+
+    const error = await captureError(holdSeats(ON_SALE_SCHEDULE_ID, [SEAT_A1], newIdempotencyKey()))
+
+    expect(error.code).toBe('ENTRY_TOKEN_USED')
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+  })
+
+  it('선점 201은 그 요청이 보낸 토큰만 지우고, 그 사이 새로 받은 토큰은 남긴다', async () => {
+    await signInAsDemo()
+    await admitTo(ON_SALE_SCHEDULE_ID)
+    const newer = {
+      token: `mock-entry.31.42.${Date.now() + 120_000}`,
+      expiresAt: toKstIso(Date.now() + 120_000),
+    }
+    mockServer.use(
+      http.post(
+        `/api/v1/schedules/${ON_SALE_SCHEDULE_ID}/reservations`,
+        async () => {
+          // 응답을 기다리는 동안 다른 경로로 새 토큰이 저장됐다
+          saveEntryToken(ON_SALE_SCHEDULE_ID, newer)
+        },
+        { once: true },
+      ),
+    )
+
+    await holdSeats(ON_SALE_SCHEDULE_ID, [SEAT_A1], newIdempotencyKey())
+
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)?.token).toBe(newer.token)
+  })
+
   it('저장한 입장 토큰이 없으면 요청 없이 403 ENTRY_TOKEN_INVALID로 끝난다', async () => {
     await signInAsDemo()
     const seatRequests = recordRequests(`/api/v1/schedules/${ON_SALE_SCHEDULE_ID}/seats`)

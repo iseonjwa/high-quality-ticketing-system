@@ -548,7 +548,7 @@ describe('SeatsPage 선점', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('결제 가능 시간이 지나면 좌석 다시 고르기로 대화상자를 닫고 선택을 비우고 좌석을 다시 받는다', async () => {
+  it('결제 가능 시간이 지나면 다시 줄 서기로 저장한 선점을 지우고 대기열로 보낸다', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     mockServer.use(
       http.post(HOLD_API, () =>
@@ -569,30 +569,46 @@ describe('SeatsPage 선점', () => {
         ),
       ),
     )
-    await renderLoaded()
+    const { router } = await renderLoaded()
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
     await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
-    const seatRequests = recordRequests(SEATS_API)
+    // 선점 201로 입장 토큰은 소모돼 지워졌다(ADR 0053). 같은 화면에서 다시 고를 수 없다
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
 
     await act(() => vi.advanceTimersByTimeAsync(8_000))
 
     const dialog = await screen.findByRole('dialog', { name: '결제 가능 시간이 지났습니다' })
     expect(within(dialog).queryByRole('button', { name: '결제하러 가기' })).not.toBeInTheDocument()
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).not.toBeNull()
-    await userEvent.click(within(dialog).getByRole('button', { name: '좌석 다시 고르기' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: '다시 줄 서기' }))
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    // 저장한 선점을 지우고, 대화상자가 내려가면 초점은 좌석 선택 제목으로 간다
+    await waitFor(() => expect(router.state.location.pathname).toBe(QUEUE_PATH))
     expect(readHeldSeats(ON_SALE_SCHEDULE_ID)).toBeNull()
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 2, name: '좌석 선택' })).toHaveFocus(),
+    // 공연 요약을 대기열에 그대로 넘긴다
+    expect(router.state.location.state).toEqual(queueNavigationState(CONCERT))
+  })
+
+  it('이미 선점에 쓴 토큰으로 선점하면(403 ENTRY_TOKEN_USED) 토큰을 지우고 다시 줄 서라고 안내한다', async () => {
+    mockServer.use(
+      http.post(HOLD_API, () =>
+        fail(
+          403,
+          'ENTRY_TOKEN_USED',
+          '이미 좌석 선점에 쓴 입장 토큰입니다. 대기열에 다시 서 주세요',
+        ),
+      ),
     )
-    expect(within(summary()).queryAllByRole('listitem')).toHaveLength(0)
-    expect(screen.getByRole('heading', { name: '선택한 좌석' }).parentElement).toHaveTextContent(
-      '0 / 2매',
-    )
-    await waitFor(() => expect(seatRequests).toHaveLength(1))
+    const { router } = await renderLoaded()
+    await pickA(SEAT_A1, SEAT_A2)
+
+    await userEvent.click(submitButton())
+
+    expect(await screen.findByText('이미 좌석 선택에 사용한 입장입니다')).toBeInTheDocument()
+    expect(screen.queryByText(/문의 시 아래 번호/)).not.toBeInTheDocument()
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '대기열로 돌아가기' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe(QUEUE_PATH))
   })
 })
 
@@ -1033,7 +1049,7 @@ describe('SeatsPage 저장한 선점 좌석', () => {
     }
   }
 
-  it('좌석을 잡으면 회차별로 저장하고, 화면을 다시 열면 대화상자를 바로 띄운다', async () => {
+  it('좌석을 잡으면 회차별로 저장하고, 토큰 없이 화면을 다시 열면 대기열 대신 결제 화면으로 보낸다', async () => {
     await renderLoaded()
     await pickA(SEAT_A1, SEAT_A2)
     await userEvent.click(submitButton())
@@ -1045,13 +1061,22 @@ describe('SeatsPage 저장한 선점 좌석', () => {
       'A1-1',
       'A1-2',
     ])
+    // 선점 201로 입장 토큰은 지워졌다(ADR 0053)
+    expect(readEntryToken(ON_SALE_SCHEDULE_ID)).toBeNull()
 
     cleanup()
-    renderSeats()
+    const { router } = renderSeats()
 
-    const dialog = await screen.findByRole('dialog', { name: '좌석 선택이 완료되었습니다' })
-    expect(within(dialog).getAllByRole('listitem')).toHaveLength(2)
-    expect(within(dialog).getByRole('button', { name: '결제하러 가기' })).toBeInTheDocument()
+    // 대기열로 보내면 잡은 좌석을 두고 줄을 다시 서야 한다. 대화상자의 [결제하러 가기]와 같은 곳으로 간다
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/reservations/${saved!.hold.reservationId}/payment`,
+      ),
+    )
+    const navigation = readPaymentNavigation(router.state.location.state)
+    expect(navigation?.hold.reservationId).toBe(saved!.hold.reservationId)
+    expect(navigation?.seats).toHaveLength(2)
+    expect(navigation?.concert?.title).toBe(CONCERT_TITLE)
   })
 
   it('저장한 선점의 결제 가능 시간이 남았으면 열자마자 대화상자를 띄운다', async () => {

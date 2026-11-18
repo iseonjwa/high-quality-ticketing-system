@@ -13,6 +13,7 @@ import {
 } from '@/mocks/db'
 import { saleStatusOf } from '@/mocks/handlers/concerts'
 import {
+  consumeEntryToken,
   fail,
   ok,
   readBody,
@@ -91,16 +92,33 @@ function replayHold(
   return fail(409, 'RESERVATION_NOT_PAYABLE', '결제할 수 없는 예매입니다')
 }
 
-// 고른 좌석을 HELD로 바꾸고 예매·멱등키 기록을 남긴다. 좌석 직접 선택과 자동 배정이 같이 쓴다
+// 이미 선점에 쓴 입장 토큰이면 403이다. 서버처럼 같은 키 재요청 확인 뒤에 본다(SyncSeatHoldService).
+// 그래야 결과를 모른 요청(504)의 같은 키 재시도가 소모 뒤에도 처음 결과(201)를 받는다
+function rejectUsedEntryToken(scheduleId: number, userId: number, entryToken: string) {
+  if (!mockDb.usedEntryTokens.has(entryToken)) {
+    return null
+  }
+  // 서버는 거절할 때도 대기열 정리를 한 번 더 부른다(ADR 0053 결정 3)
+  consumeEntryToken(scheduleId, userId, entryToken)
+  return fail(
+    403,
+    'ENTRY_TOKEN_USED',
+    '이미 좌석 선점에 쓴 입장 토큰입니다. 대기열에 다시 서 주세요',
+  )
+}
+
+// 고른 좌석을 HELD로 바꾸고 예매·멱등키 기록을 남기며 입장 토큰을 소모한다. 좌석 직접 선택과 자동 배정이 같이 쓴다
 function createHold(request: {
   key: string
   userId: number
   scheduleId: number
   seats: MockSeat[]
   seatKey: string
+  entryToken: string
 }): Response {
-  const { key, userId, scheduleId, seats, seatKey } = request
+  const { key, userId, scheduleId, seats, seatKey, entryToken } = request
   seats.forEach((seat) => (seat.available = false))
+  consumeEntryToken(scheduleId, userId, entryToken)
   const reservationId = nextMockId()
   const reservation: MockReservation = {
     reservationId,
@@ -165,7 +183,7 @@ export const reservationHandlers = [
   http.post('/api/v1/schedules/:scheduleId/reservations', async ({ request, params }) => {
     const scheduleId = Number(params.scheduleId)
     const user = requireUser(request)
-    requireEntryToken(request, user.userId, scheduleId)
+    const entryToken = requireEntryToken(request, user.userId, scheduleId)
     const key = requireIdempotencyKey(request)
     const seatIds = parseSeatIds((await readBody(request)).seatIds)
     settleExpiredHolds()
@@ -178,6 +196,10 @@ export const reservationHandlers = [
     })
     if (replayed !== null) {
       return replayed
+    }
+    const used = rejectUsedEntryToken(scheduleId, user.userId, entryToken)
+    if (used !== null) {
+      return used
     }
     const schedule = requireSchedule(scheduleId)
     if (seatIds.length > schedule.maxPerUser) {
@@ -205,7 +227,14 @@ export const reservationHandlers = [
       return fail(409, 'SEAT_ALREADY_HELD', '이미 선택된 좌석입니다')
     }
 
-    return createHold({ key, userId: user.userId, scheduleId, seats, seatKey: seatIds.join(',') })
+    return createHold({
+      key,
+      userId: user.userId,
+      scheduleId,
+      seats,
+      seatKey: seatIds.join(','),
+      entryToken,
+    })
   }),
 
   // 자동 배정 선점(contracts.md 1-2절, ADR 0059). 서버처럼 구역 안 선점 가능한 좌석을 좌석 ID 순으로 매수만큼 잡는다.
@@ -213,7 +242,7 @@ export const reservationHandlers = [
   http.post('/api/v1/schedules/:scheduleId/reservations/auto', async ({ request, params }) => {
     const scheduleId = Number(params.scheduleId)
     const user = requireUser(request)
-    requireEntryToken(request, user.userId, scheduleId)
+    const entryToken = requireEntryToken(request, user.userId, scheduleId)
     const key = requireIdempotencyKey(request)
     const body = await readBody(request)
     const section = body.section
@@ -235,6 +264,10 @@ export const reservationHandlers = [
     if (replayed !== null) {
       return replayed
     }
+    const used = rejectUsedEntryToken(scheduleId, user.userId, entryToken)
+    if (used !== null) {
+      return used
+    }
     const schedule = requireSchedule(scheduleId)
     if (count > schedule.maxPerUser) {
       return fail(400, 'SEAT_COUNT_MISMATCH', '선택한 좌석 수나 좌석이 올바르지 않습니다')
@@ -254,7 +287,7 @@ export const reservationHandlers = [
     if (seats.length < count) {
       return fail(409, 'ZONE_SOLD_OUT', '선택한 구역에 남은 좌석이 부족합니다')
     }
-    return createHold({ key, userId: user.userId, scheduleId, seats, seatKey })
+    return createHold({ key, userId: user.userId, scheduleId, seats, seatKey, entryToken })
   }),
 
   http.get('/api/v1/reservations/me', ({ request }) => {

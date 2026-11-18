@@ -3,9 +3,10 @@ import { isoDateTime } from '@/api/envelope'
 import { instantMillis } from '@/lib/instant'
 
 // 입장 토큰은 회차마다 sessionStorage에 둔다(`docs/design/queue/contracts.md` 2절, SA 11-5).
-// 만료 전이면 대기열을 건너뛰고, 403 ENTRY_TOKEN_INVALID를 받으면 지우고 대기열부터 다시 한다.
+// 만료 전이면 대기열을 건너뛴다. 선점이 성공(201)하면 서버가 토큰을 소모하므로 지우고, 403 ENTRY_TOKEN_INVALID·
+// ENTRY_TOKEN_USED를 받아도 지운다. 지운 뒤에는 대기열부터 다시 한다(ADR 0053 결정 5).
 //
-// Note: 저장한 토큰을 지우는 것은 Gateway의 403뿐이다. 브라우저 시계로 만료를 판단해 지우면, 시계가 빠른 사용자는
+// Note: 저장한 토큰을 지우는 것은 서버 응답(선점 201, 입장 토큰 403)뿐이다. 브라우저 시계로 만료를 판단해 지우면, 시계가 빠른 사용자는
 // 대기열에서 같은 토큰을 다시 받아도(재발급은 같은 토큰·같은 만료 시각이다, ADR 0031) 받자마자 또 지워져
 // 좌석 화면과 대기열을 끝없이 오간다. 브라우저 시계의 만료는 "대기열을 건너뛸지"와 남은 시간 표시에만 쓴다.
 

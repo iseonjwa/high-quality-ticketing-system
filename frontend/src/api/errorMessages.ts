@@ -98,6 +98,11 @@ export const ERROR_NOTICES: Readonly<Record<string, NoticeTemplate>> = {
     tone: 'danger',
     message: '입장 시간이 만료되었습니다. 대기열로 돌아가주세요.',
   },
+  // 입장 토큰은 좌석 선점이 성공한 순간 소모된다(ADR 0053). 좌석을 다시 고르려면 줄을 다시 선다
+  ENTRY_TOKEN_USED: {
+    tone: 'danger',
+    message: '이미 좌석 선택에 사용한 입장입니다. 대기열에 다시 서주세요.',
+  },
 
   // 좌석 선점·예매
   SEAT_COUNT_MISMATCH: { tone: 'warning', message: '좌석은 1~4석을 겹치지 않게 선택해주세요.' },
